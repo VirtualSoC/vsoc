@@ -1,0 +1,6 @@
+common-obj-$(CONFIG_MY_GPU_PCI) += my_gpu_pci.o
+common-obj-$(CONFIG_MY_GPU) += my_gpu.o
+common-obj-$(CONFIG_MY_GPU) += my_gpu_render.o
+common-obj-$(CONFIG_MY_GPU) += egl_trans.o
+common-obj-$(CONFIG_MY_GPU) += glv1_trans.o
+common-obj-$(CONFIG_MY_GPU) += glv32_trans.o

@@ -969,7 +969,7 @@ if test "$mingw32" = "yes" ; then
   if compile_prog "" "-liberty" ; then
     LIBS="-liberty $LIBS"
   fi
-  prefix="c:/Program Files/QEMU"
+  prefix="c:/QEMU"
   mandir="\${prefix}"
   datadir="\${prefix}"
   qemu_docdir="\${prefix}"
@@ -2450,6 +2450,8 @@ EOF
         lzo="no"
     fi
 fi
+
+libs_softmmu="$libs_softmmu -l:libEGL.dll.lib -l:libGLESv2.dll.lib "
 
 ##########################################
 # snappy check
