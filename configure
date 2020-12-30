@@ -2451,7 +2451,7 @@ EOF
     fi
 fi
 
-libs_softmmu="$libs_softmmu -l:libEGL.dll.lib -l:libGLESv2.dll.lib "
+libs_softmmu="$libs_softmmu -lglfw3 -lopengl32 "
 
 ##########################################
 # snappy check

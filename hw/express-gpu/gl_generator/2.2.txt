@@ -1,0 +1,4 @@
+GLint glGetAttribLocation GLuint program, const GLchar *name#
+GLint glGetUniformLocation GLuint program, const GLchar *name#
+GLint glGetFragDataLocation GLuint program, const GLchar *name#
+GLuint glGetUniformBlockIndex GLuint program, const GLchar *uniformBlockName#
