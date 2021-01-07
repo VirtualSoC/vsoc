@@ -1,10 +1,22 @@
+/**
+ * @file offscreen_render_thread.c
+ * @author gaodi (gaodi.sec@qq.com)
+ * @brief 
+ * @version 0.1
+ * @date 2020-12-31
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
 
+// #define STD_DEBUG_LOG
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
 #include "express-gpu/offscreen_render_thread.h"
+
 #include "direct-express/express_log.h"
 
-#include "direct-express/express_device_fun_id.h"
+
 
 
 
@@ -40,13 +52,17 @@ void decode_invoke(Direct_Express_Call *call)
     //     //由于现阶段3.0版本的opengl能兼容2.0，所以暂时先这样，出了事情再说
     //     gl3_decode_invoke(call);
     // }
-    // call->callback(call);
+    call->callback(call,1);
     return;
 }
 
 
 
-
+/**
+ * @brief 向
+ * 
+ * @param context 
+ */
 void real_egl_swapbuf(Thread_Context *context)
 {
     PostMessage(draw_native_window, WM_USER_PAINT, 0, (LPARAM)context );

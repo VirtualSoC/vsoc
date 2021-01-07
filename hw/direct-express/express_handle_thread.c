@@ -1,4 +1,15 @@
+/**
+ * @file express_handle_thread.c
+ * @author gaodi (gaodi.sec@qq.com)
+ * @brief 重构后的处理线程相关的函数
+ * @version 0.1
+ * @date 2020-12-31
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
 
+// #define STD_DEBUG_LOG
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
 #include "direct-express/express_handle_thread.h"
@@ -82,7 +93,7 @@ void *handle_thread_run(void *opaque)
             return NULL;
         }
 
-        call->callback(call);
+        // call->callback(call);
     }
     printf("error exit %d\n",context->thread_run);
 }

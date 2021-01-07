@@ -8,6 +8,8 @@
  * @copyright Copyright (c) 2020
  * 
  */
+// #define STD_DEBUG_LOG
+
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_handle_thread.h"
 #include "direct-express/express_log.h"
@@ -34,48 +36,34 @@
 //     struct iovec *out_sg; //实际地址和长度
 // } VirtQueueElement;
 
-
-typedef struct VRing_Used
-{
-    unsigned int num;
-    unsigned int num_default;
-    unsigned int align;
-    hwaddr desc;
-    hwaddr avail;
-    hwaddr used;
-} VRing_Used;
-
-
-static GHashTable *device_thread_info=NULL;
-
+static GHashTable *device_thread_info = NULL;
 
 static VirtIODevice *direct_express_device;
-
 
 //用于回收的队列缓冲区的头和尾指针，方便实现无锁的入队出队
 // static Direct_Express_Call *call_recycle_header = NULL;
 // static Direct_Express_Call *call_recycle_tail = NULL;
 
-
-static volatile Direct_Express_Call *call_recycle_queue[(CALL_BUF_SIZE+2)];
+//用于回收call的队列，实现了无锁的入队，这里将它的大小设置为CALL_BUF_SIZE+2是为了保证队列不会爆，大小一定满足要求
+//这里设置volatile是为了保证其在不同线程间同步不会受到缓存的影响
+static volatile Direct_Express_Call *call_recycle_queue[(CALL_BUF_SIZE + 2)];
 static int call_recycle_queue_header;
 static volatile int call_recycle_queue_tail;
 
-
 static void release_call(Direct_Express_Call *out_call);
-void push_free_callback(Direct_Express_Call *call);
+static void push_free_callback(Direct_Express_Call *call, int notify);
 
+//用于通知回收的事件，这里对于平台兼容性的部分尚未完成
+typedef struct
+{
+#ifdef _WIN32
+    HANDLE win_event;
+#else
 
-typedef struct {
-    #ifdef _WIN32
-        HANDLE win_event;   
-    #else
-           
-    #endif
+#endif
 } RECYCLE_EVENT;
 
 RECYCLE_EVENT recycle_event;
-
 
 /**
  * @brief 根据iov获得一个连续内存块，内存块内数据为iov数组的复制结果，这个函数一般用于有多个iov时
@@ -200,6 +188,7 @@ static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, int *
 static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
 {
 
+    static int pack_cnt = 0;
     Direct_Express_Queue_Elem *elem;
 
     Direct_Express_Call *call;
@@ -208,41 +197,9 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
     int draw_id;
     int thread_id;
 
-    volatile hwaddr *ving_avail= &(((VRing_Used *)vq)->avail);
-    if(*ving_avail==0){
-        return NULL;
-    }
-
-
     elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
     while (elem)
     {
-
-        // //debug test
-        // {
-        //     fill_mygpu_queue_elem(elem, &draw_id, &para_num);
-        //     // express_printf("fill ok %d\n",elem==&elem->elem);
-        //     // virtqueue_push(vq, elem, 1);
-        //     // for (MYGPU_Queue_Elem *a = (MYGPU_Queue_Elem *)(elem); a != NULL; a = a->next)
-        //     // {
-        //     //     virtqueue_push(vq, a, 1);
-        //     // }
-        //     VIRTIO_ELEM_PUSH_ALL(vq, MYGPU_Queue_Elem, elem, 1, next);
-        //     express_printf("push\n");
-        //     MYGPU_QUEUE_ELEMS_FREE(elem);
-        //     // virtio_notify(VIRTIO_DEVICE(vdev), vq);
-        //     express_printf("pop next\n");
-        //     // return;
-        //     elem = virtqueue_pop(vq, sizeof(MYGPU_Queue_Elem));
-        //     fill_mygpu_queue_elem(elem, NULL, NULL);
-        //     express_printf("mygpu get user data %s\n", elem->para);
-        //     VIRTIO_ELEM_PUSH_ALL(vq, MYGPU_Queue_Elem, elem, 1, next);
-        //     MYGPU_QUEUE_ELEMS_FREE(elem);
-        //     virtio_notify(VIRTIO_DEVICE(vdev), vq);
-        //     express_printf("notify\n");
-        //     elem = virtqueue_pop(vq, sizeof(MYGPU_Queue_Elem));
-        //     continue;
-        // }
 
         if (unlikely(fill_direct_express_queue_elem(elem, &draw_id, &thread_id, &para_num) == 0))
         {
@@ -257,7 +214,6 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
         call->elem_header = elem;
         call->elem_tail = elem;
         call->vq = vq;
-
 
         call->para_num = para_num;
         call->fun_id = draw_id;
@@ -295,181 +251,128 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
     return NULL;
 }
 
-// /**
-//  * @brief 临时的debug调用函数，后续不需要
-//  * 
-//  * @param call 
-//  */
-// static void draw_invoke(Direct_Express_Draw_Call *call)
-// {
-//     express_printf("draw invoke\n");
-//     int cnt1 = 0;
-//     for (Direct_Express_Queue_Elem *i = call->elem_header; i != NULL; i = i->next)
-//     {
-//         cnt1++;
-//         if (cnt1 == 1)
-//         {
-//             Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)i->para;
-//             flag_buf->ret = 2;
-//             express_printf("call para %d call fun_id %d thread id %d\n", flag_buf->para_num, flag_buf->id, call->thread_id);
-//             continue;
-//         }
-//         char *temp = (char *)i->para;
-//         if (call->fun_id == 0 && cnt1 == 2)
-//         {
-//             express_printf("call message express_printf: %s\n", temp);
-//         }
-//         else if (call->fun_id == 1 || call->fun_id == 2 || call->fun_id == 3)
-//         {
-//             if (cnt1 == 2)
-//             {
-//                 int *t = (int *)temp;
-//                 express_printf("call message int %d %d %d\n", t[0], t[1], t[2]);
-//             }
-//         }
-//     }
-//     if (call->fun_id == 4)
-//     {
-//         char *t = call->elem_tail->para;
-//         for (int i = 0; i < call->elem_tail->len - 1; i++)
-//         {
-//             t[i] = 'c';
-//         }
-//     }
-//     // call->callback(call);
-//     g_free(call);
-// }
-
 /**
- * @brief 创建一个thread_context，后续需要拿着这个context新建线程
+ * @brief 创建一个thread_context，并根据这个context新建一个线程
  * 
  * @param context 需要初始化的线程context
  */
-Thread_Context *thread_context_create(int thread_id,int type_id,unsigned int len,Express_Device_Info *info)
+Thread_Context *thread_context_create(int thread_id, int type_id, unsigned int len, Express_Device_Info *info)
 {
 
     Thread_Context *context = g_malloc(len);
-    memset(context,0,len);
+    memset(context, 0, len);
 
     context->thread_id = thread_id;
     context->type_id = type_id;
 
     //环形缓冲区初始化
-    memset(context->call_buf, 0, (CALL_BUF_SIZE+2) * sizeof(Direct_Express_Call *));
+    memset(context->call_buf, 0, (CALL_BUF_SIZE + 2) * sizeof(Direct_Express_Call *));
 
     context->read_loc = 0;
     context->write_loc = 0;
-    context->init=0;
-    context->thread_run=1;
+    context->init = 0;
+    context->thread_run = 1;
 
-    context->context_init=info->context_init;
-    context->call_handle=info->call_handle;
+    context->context_init = info->context_init;
+    context->call_handle = info->call_handle;
 
-    context->direct_express_device=direct_express_device;
-
+    context->direct_express_device = direct_express_device;
 
     //线程缓冲区事件初始化
     qemu_event_init(&(context->data_event), false);
 
-    if(context->context_init!=NULL){
+    if (context->context_init != NULL)
+    {
         context->context_init(context);
     }
-    qemu_thread_create(&context->this_thread,"handle_thread",handle_thread_run,context,QEMU_THREAD_JOINABLE);
+    qemu_thread_create(&context->this_thread, "handle_thread", handle_thread_run, context, QEMU_THREAD_JOINABLE);
 
     return context;
 }
-
 
 /**
  * @brief 把包装好的call推送到相应的线程
  * 
  * @param call 
  */
-void push_to_thread(Direct_Express_Call *call){
-    
-    //express_printf("push to thread\n");
-    int thread_id=call->thread_id;
-    int fun_id=GET_FUN_ID(call->fun_id);
-    int device_type_id=GET_DEVICE_ID(call->fun_id);
+void push_to_thread(Direct_Express_Call *call)
+{
 
-    assert(device_thread_info!=NULL);
-    Express_Device_Info *device_info=(Express_Device_Info *)g_hash_table_lookup(device_thread_info,GINT_TO_POINTER(device_type_id));
-    if(device_info==NULL){
+    //express_printf("push to thread\n");
+    int thread_id = call->thread_id;
+    int fun_id = GET_FUN_ID(call->fun_id);
+    int device_type_id = GET_DEVICE_ID(call->fun_id);
+
+    assert(device_thread_info != NULL);
+    Express_Device_Info *device_info = (Express_Device_Info *)g_hash_table_lookup(device_thread_info, GINT_TO_POINTER(device_type_id));
+    if (device_info == NULL)
+    {
         return;
     }
 
+    Thread_Context *context = device_info->get_context(device_type_id, thread_id, device_info);
 
-    Thread_Context *context=device_info->get_context(device_type_id,thread_id,device_info);
-
-    if(context!=NULL){
-        call_push(context,call);
+    //找得到相应的设备处理时才把他推送到相应的设备线程
+    if (context != NULL)
+    {
+        call_push(context, call);
+    }
+    else
+    {
+        call->callback(call, 0);
     }
     return;
 }
-
 
 /**
  * @brief 初始化分发线程休眠唤醒的事件
  * 
  */
-void init_distribute_event(){
-    #ifdef _WIN32
-        if(recycle_event.win_event==NULL){
-            recycle_event.win_event=CreateEvent(NULL, FALSE, FALSE, NULL);
-        }
-    #else
-           
-    #endif
-}
+void init_distribute_event()
+{
+#ifdef _WIN32
+    if (recycle_event.win_event == NULL)
+    {
+        recycle_event.win_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    }
+#else
 
+#endif
+}
 
 /**
  * @brief 唤醒分发线程，告知其应该回收了
  * 
  */
-void wake_up_distribute(){
-    #ifdef _WIN32
-        if(recycle_event.win_event!=NULL){
-            SetEvent(recycle_event.win_event);
-        }
-    #else
-        
-    #endif
-}
+void wake_up_distribute()
+{
+#ifdef _WIN32
+    if (recycle_event.win_event != NULL)
+    {
+        // SetEvent(recycle_event.win_event);
+    }
+#else
 
+#endif
+}
 
 /**
  * @brief 分发线程等待回收事件，超时时间为1ms，实际可能超时时间在1.8ms左右
  * 
  */
-void distribute_wait(){
-    #ifdef _WIN32
-        if(recycle_event.win_event!=NULL){
-            WaitForSingleObject(recycle_event.win_event,1);
-        }
-    #else
-        
-    #endif
-}
-
-
-void *time_out_thread(void *t){
-    
-    SOCKET s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    fd_set dummy;
-    while(1){
-        struct timeval wait_time;
-        
-        wait_time.tv_sec = 0;                     //秒
-        wait_time.tv_usec = 500;       //微妙
-        FD_ZERO(&dummy);
-        FD_SET(s, &dummy);
-        int ret = select(0, NULL, NULL, &dummy, &wait_time);
-        wake_up_distribute();
+void distribute_wait()
+{
+#ifdef _WIN32
+    if (recycle_event.win_event != NULL)
+    {
+        WaitForSingleObject(recycle_event.win_event, 1);
     }
+#else
+
+#endif
 }
 
-int push_cnt=0;
+int push_cnt = 0;
 /**
  * @brief 真正用于取出vring上传过来的数据，然后调用相关解码的线程
  * 
@@ -482,41 +385,27 @@ void *call_distribute_thread(void *opaque)
     Direct_Express *e = DIRECT_EXPRESS(vdev);
     VirtQueue *vq = e->data_queue;
 
-
-    direct_express_device=vdev;
-
+    direct_express_device = vdev;
 
     Direct_Express_Call *call = NULL;
 
-
-    //null_header是默认的链表头，这个头是不会出队的，出队是出这个头的next
-    // Direct_Express_Call *null_header = g_malloc(sizeof(Direct_Express_Call));
-    // null_header->next = NULL;
-    // call_recycle_header = null_header;
-    // call_recycle_tail = null_header;
-
-    memset(call_recycle_queue,0,sizeof(call_recycle_queue));
-    call_recycle_queue_header=0;
-    call_recycle_queue_tail=0;
-
+    memset(call_recycle_queue, 0, sizeof(call_recycle_queue));
+    call_recycle_queue_header = 0;
+    call_recycle_queue_tail = 0;
 
     //已经释放，但是还没有通知对方的call数量
-    int release_cnt=0;
+    int release_cnt = 0;
 
     init_distribute_event();
 
+    int pop_cnt = 0;
+    int in_handle_num = 0;
 
-    int pop_cnt=0;
-    int in_handle_num=0;
-    
     QemuThread t;
 
-    // for(int i=0;i<10;i++){
-    //     qemu_thread_create(&t,"timeout",time_out_thread,NULL,QEMU_THREAD_JOINABLE);
-    // }
-    
-    int cnt=0;
+    int cnt = 0;
 
+    int sync_flag = 1;
     // unsigned long usleep_time = 1;
     // unsigned long long cnt_time=0;
     // int sleep_cnt=0;
@@ -525,10 +414,10 @@ void *call_distribute_thread(void *opaque)
         if ((call = pack_call_from_queue(vq)) != NULL)
         {
             //从queue中打包调用，假如打包失败的话，失败的部分也还是会还给guest
-            pop_cnt+=1;
-            in_handle_num+=1;
-            atomic_add(&push_cnt,1);
-            
+            pop_cnt += 1;
+            in_handle_num += 1;
+            atomic_add(&push_cnt, 1);
+            sync_flag = call->fun_id;
             //express_printf("virtio has data\n");
             //draw_call的其他部分都已经初始化过了
             call->vdev = vdev;
@@ -540,46 +429,35 @@ void *call_distribute_thread(void *opaque)
             // release_call(draw_call);
             // virtio_notify(VIRTIO_DEVICE(vdev), vq);
             // push_free_callback(draw_call);
-
         }
-        else if (call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)] != NULL)
+        else if (call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] != NULL)
         {
             //将回收的部分和分发的部分放到一起是为了减小延迟
 
-            Direct_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
-            call_recycle_queue_header=(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2);
-
-            // Direct_Express_Call *out_call = call_recycle_header->next;
-            // call_recycle_header->next = out_call->next;
-            // //更新tail，假如tail就是刚才出队的节点，则tail=header
-            // atomic_cmpxchg(&call_recycle_tail, out_call, call_recycle_header);
+            //出队直接把队头后面的数据交换出来，队头那里没有放数据，数据都是放在后面一个了
+            //这里没有使用无锁的方式是因为就这一个地方会出队，所以不存在并发问题
+            Direct_Express_Call *out_call = call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)];
+            call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
+            // Direct_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
+            call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
 
             //express_printf("recycle one %s\n",(char *)out_call->elem_tail->para);
-            in_handle_num-=1;
+            in_handle_num -= 1;
             release_call(out_call);
-            release_cnt+=1;
+            release_cnt += 1;
         }
         else
         {
 
-              //休眠前注入中断，通知对方，防止部分call的延迟过大
-            if(release_cnt!=0){
-                //express_printf("notify before sleep\n");
-                release_cnt=0;
+            //休眠前注入中断，通知对方，防止部分call的延迟过大
+            if (release_cnt != 0)
+            {
+
+                release_cnt = 0;
                 virtio_notify(VIRTIO_DEVICE(vdev), vq);
             }
 
-            // if(pop_cnt!=0){
-            //     printf("pop %d call before sleep %lu\n",pop_cnt,usleep_time);
-            // }
-            pop_cnt=0;
-            // gint64 s1=g_get_real_time();
-            // struct timeval wait_time;
-            // wait_time.tv_sec = 0;                     //秒
-            // wait_time.tv_usec = 500;       //微妙
-            // FD_ZERO(&dummy);
-            //  FD_SET(s, &dummy);
-            // int ret = select(0, NULL, NULL, &dummy, &wait_time);
+            pop_cnt = 0;
 
             //休眠采用可以被其他线程打断的休眠，主要是被处理线程打断，打断的目的也是为了减小延迟
             distribute_wait();
@@ -592,18 +470,15 @@ void *call_distribute_thread(void *opaque)
             //         printf("sleep cnt %d time %lld avg %lld\n",sleep_cnt,cnt_time,cnt_time/sleep_cnt);
             //     }
             // }
-            cnt++;
-            if(cnt%100==0){
-                printf("sleep 100 *1ms %d %d %d\n",in_handle_num,release_cnt,push_cnt);
-            }   
-            
         }
-        if(release_cnt>=128){
+        if (release_cnt >= 128)
+        {
             //express_printf("recycle 128\n");
             //平均一个call占用的空间为3左右，所以queue里理论上最大有1024/3=341个call，保留一定量的余量空间
             //剩下的空间里留一部分给处理过程消耗，因此假设留给释放的call大概在128左右
             //所以这时需要赶紧释放空间，防止queue满了
-            release_cnt=0;
+            // express_printf("%s notify 128 with %d\n",get_now_time(),release_cnt);
+            release_cnt = 0;
             virtio_notify(VIRTIO_DEVICE(vdev), vq);
         }
     }
@@ -611,14 +486,11 @@ void *call_distribute_thread(void *opaque)
     return NULL;
 }
 
-
-
-
 // /**
 //  * @brief 回收已经执行了的指令的线程
-//  * 
+//  *
 //  * @param opaque 这个实际上是VirtIODevice，能从中找到Direct_Express和VirtQueue
-//  * @return void* 
+//  * @return void*
 //  */
 // void *call_recycle_thread(void *opaque)
 // {
@@ -654,7 +526,7 @@ void *call_distribute_thread(void *opaque)
 //             }
 //             /**
 //              * @todo 这个时间需要测试
-//              * 
+//              *
 //              */
 //             g_usleep(1);
 //         }
@@ -672,8 +544,6 @@ void *call_distribute_thread(void *opaque)
 //     return NULL;
 // }
 
-
-
 /**
  * @brief 释放Draw_Call这个结构体本身占用的空间，并将其占用的vring空间部分返还给guest
  * 
@@ -685,7 +555,7 @@ static void release_call(Direct_Express_Call *out_call)
     VirtQueue *vq = out_call->vq;
     VIRTIO_ELEM_PUSH_ALL(vq, Direct_Express_Queue_Elem, out_call->elem_header, 1, next);
     DIRECT_EXPRESS_QUEUE_ELEMS_FREE(out_call->elem_header);
-    
+
     g_free(out_call);
     return;
 }
@@ -693,12 +563,13 @@ static void release_call(Direct_Express_Call *out_call)
 /**
  * @brief 在处理线程使用完数据后的回调函数，将调用完成的call送给回收线程，使用无锁队列实现入队，同时，在传回之前，会将相关数据复制回去，同时设置好guest会读取的flag
  * 
- * @param call 
+ * @param call 需要回收的call
+ * @param notify 指示是否需要通知回收线程快速回收
  */
-void push_free_callback(Direct_Express_Call *call)
+void push_free_callback(Direct_Express_Call *call, int notify)
 {
-    
-    atomic_sub(&push_cnt,1);
+
+    atomic_sub(&push_cnt, 1);
     //复制回去相关数据
     //todo 使用其他内存映射完成复制
     Direct_Express_Queue_Elem *para_elem;
@@ -720,43 +591,24 @@ void push_free_callback(Direct_Express_Call *call)
 
     //将这个flag设置为1，方便guest检查到相应内存区域内的数据变为1而快速返回，减小延迟
     Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)call->elem_header->para;
-    flag_buf->flag=1;
+    flag_buf->flag = 1;
 
     //无锁入队
-
-
-    // int tail=0;
-    // int next=0;
-    // while(1){
-    //     tail=call_recycle_queue_tail;
-    //     next=(call_recycle_queue_tail+1)%(CALL_BUF_SIZE+2);
-    //     if(tail!=call_recycle_queue_tail){
-    //         continue;
-    //     }
-    //     if(call_recycle_queue[next]!=NULL){
-    //         atomic_cmpxchg(&call_recycle_queue_tail, tail, next);
-    //         continue;
-    //     }
-    //     if(atomic_cmpxchg(&(call_recycle_queue[(call_recycle_queue_tail+1)%(CALL_BUF_SIZE+2)]), call_recycle_queue[next], call)==NULL){
-    //         break;
-    //     }
-    // }
-    // atomic_cmpxchg(&(call_recycle_queue_tail), tail, next);
-
-
-    int origin_tail=call_recycle_queue_tail;
-    int t=origin_tail;
-    do{
-        while(call_recycle_queue[(t+1)%(CALL_BUF_SIZE+2)]!=NULL){
-            t=(t+1)%(CALL_BUF_SIZE+2);
+    int origin_tail = call_recycle_queue_tail;
+    int t = origin_tail;
+    do
+    {
+        while (call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)] != NULL)
+        {
+            t = (t + 1) % (CALL_BUF_SIZE + 2);
         }
-    }while(atomic_cmpxchg(&(call_recycle_queue[(t+1)%(CALL_BUF_SIZE+2)]), NULL, call) != NULL);
+    } while (atomic_cmpxchg(&(call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)]), NULL, call) != NULL);
 
-    atomic_cmpxchg(&call_recycle_queue_tail, origin_tail, (t+1)%(CALL_BUF_SIZE+2));
+    atomic_cmpxchg(&call_recycle_queue_tail, origin_tail, (t + 1) % (CALL_BUF_SIZE + 2));
 
     // Direct_Express_Call *tail=NULL;
     // Direct_Express_Call *next = NULL;
-    
+
     // while(1){
     //     tail=call_recycle_tail;
     //     next=call_recycle_tail->next;
@@ -790,17 +642,24 @@ void push_free_callback(Direct_Express_Call *call)
 
     // atomic_cmpxchg(&call_recycle_tail, origin_tail, call);
 
-    //入队后要尝试中断掉分发回收线程的休眠（轮询过程中的休眠）
-    wake_up_distribute();
+    if (notify)
+    {
+        //入队后要尝试中断掉分发回收线程的休眠（轮询过程中的休眠）
+        wake_up_distribute();
+    }
 }
 
-
-
-
-void express_device_init_common(Express_Device_Info *info){
-    if(device_thread_info==NULL){
-         device_thread_info=g_hash_table_new(g_direct_hash,g_direct_equal);
+/**
+ * @brief 所有的express设备共用的init函数，这个函数会在main函数前调用
+ * 
+ * @param info 
+ */
+void express_device_init_common(Express_Device_Info *info)
+{
+    if (device_thread_info == NULL)
+    {
+        device_thread_info = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 
-    g_hash_table_insert(device_thread_info,GINT_TO_POINTER(info->type_id),(gconstpointer)info);
+    g_hash_table_insert(device_thread_info, GINT_TO_POINTER(info->type_id), (gconstpointer)info);
 }

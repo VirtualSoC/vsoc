@@ -86,10 +86,10 @@ for line in f:
 
     # Debug information
     print()
-    print(f" ----- readline: {line[:-1]}")
-    print(f" ----- func name: {func_name}")
-    print(f" ----- arg_list: {arg_list}")
-    print(f" ----- ret_val: {ret_val}")
+    print(f"/** ----- readline: {line[:-1]}**/")
+    print(f"/** ----- func name: {func_name}**/")
+    print(f"/** ----- arg_list: {arg_list}**/")
+    print(f"/** ----- ret_val: {ret_val} **/")
     print()
 
     # Case
@@ -108,12 +108,12 @@ for line in f:
 MYGPU_Queue_Elem *header = call->elem_header;
 MYGPU_Queue_Elem *now_elem = header->next;
 if(now_elem == NULL){
-    call->callback(call);
+    //call->callback(call,0);
     break;
 }
 GLbyte *temp = now_elem->para;
 if(temp == NULL){
-    call->callback(call);
+    //call->callback(call,0);
     break;
 }
 """
@@ -165,7 +165,7 @@ if(temp == NULL){
 f"""/* Check length */
 size_t temp_len=now_elem->len;
 if(temp_len != {args_length_str} * sizeof(GLbyte)){{
-    call->callback(call);
+    //call->callback(call,0);
     break;
 }}
 """

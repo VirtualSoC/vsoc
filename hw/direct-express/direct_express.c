@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-
+// #define STD_DEBUG_LOG
 #include "direct-express/direct_express.h"
 
 #include "direct-express/direct_express_distribute.h"
@@ -32,6 +32,8 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
         g->thread_run = 1;
         qemu_thread_create(&g->render_thread, "direct-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
+    }else{
+        wake_up_distribute();
     }
 }
 

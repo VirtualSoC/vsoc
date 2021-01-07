@@ -8,6 +8,7 @@
 
 #include "direct-express/direct_express.h"
 #include "hw/virtio/virtio-pci.h"
+#include "hw/qdev-properties.h"
 //#include "qemu/osdep.h"
 //#include "qemu/units.h"
 //#include "hw/pci/pci.h"

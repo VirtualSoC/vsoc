@@ -2,8 +2,7 @@
 #define OFFSCREEN_RENDER_THREAD_H
 
 
-#include "direct-express/direct_express_distribute.h"
-
+#include "direct-express/express_device_common.h"
 #include "express-gpu/express_gpu_render.h"
 
 

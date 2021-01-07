@@ -3,7 +3,7 @@
 #include "direct-express/direct_express.h"
 
 
-
+//存放call的缓冲区大小
 #define CALL_BUF_SIZE 512
 
 //用位来表示类型
@@ -46,6 +46,8 @@ static void __attribute__((constructor)) express_thread_init_ ## device_name(voi
 }
 
 
+
+//device设备的id在高2字节，需要调用的函数id在低2字节，设备id决定到底哪个线程去处理，函数id决定怎么处理
 #define GET_DEVICE_ID(id) ((id)>>16)
 #define GET_FUN_ID(id) ((id)&0xffff)
 
@@ -91,7 +93,7 @@ typedef struct Direct_Express_Call
     VirtIODevice *vdev;
     
     //渲染线程处理完之后的回调函数，必须要进行的是内存释放的工作
-    void (*callback)(struct Direct_Express_Call *call);
+    void (*callback)(struct Direct_Express_Call *call,int notify);
 
     struct Direct_Express_Call * next;
 
@@ -111,6 +113,10 @@ typedef struct
 
     int thread_id;
 
+    int process_id;
+
+    int num_free;
+
     //调用的普通返回值
     volatile unsigned long ret;
 
@@ -119,47 +125,62 @@ typedef struct
 } Direct_Express_Flag_Buf;
 
 
-
-
-
-
-
 typedef struct Thread_Context
 {
 
+    //给特定设备用来标记当前thread是否初始化完成的标志
     int init;
 
+    //当前线程是否已经运行起来了
     int thread_run;
 
+    //对应到guest端调用起这个设备的线程的线程id
     int thread_id;
+
+    //设备的类型id
     int type_id;
 
+    //用于缓冲call的环形缓冲区
     Direct_Express_Call *call_buf[CALL_BUF_SIZE];
+
+    //环形缓冲区的读写位置
     int read_loc;
     int write_loc;
 
+    //缓冲区用来通知 有数据/缓冲区有空位置 的event
     QemuEvent data_event;
 
+    //标示当前线程
     QemuThread this_thread;
 
+    //这个线程连接到的direct_express设备
     VirtIODevice *direct_express_device;
 
+    //特定设备自定义的context初始化函数
     void (*context_init)(struct Thread_Context *context);
 
+    //在数据到来后，特定设备自定义的处理call数据的函数，需要在这个函数中调用callback
     void (*call_handle)(struct Thread_Context *context, Direct_Express_Call *call);
 
 } Thread_Context;
 
 
 typedef struct Express_Device_Info{
+    
+    //设备的名字
     char *name;
     
+
+    //设备的类型id
     int type_id;
 
 
-    void (*context_init)();
+    //对应到Thread_Context中的两个设备自定义的函数——初始化函数和call处理函数
+    void (*context_init)(struct Thread_Context *context);
     void (*call_handle)(struct Thread_Context *context, Direct_Express_Call *call);
 
+
+    //设备定义的用于获取context的函数，例如有一个统一的context或者对每一个线程维护一个context
     Thread_Context *(*get_context)(int type_id,int thread_id,struct Express_Device_Info *info);
 
 } Express_Device_Info;
@@ -175,6 +196,6 @@ Thread_Context *thread_context_create(int thread_id,int type_id,unsigned int len
 void express_device_init_common(Express_Device_Info *info);
 
 
-void push_free_callback(Direct_Express_Call *call);
+void wake_up_distribute();
 
 #endif

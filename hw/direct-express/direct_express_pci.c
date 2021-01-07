@@ -8,13 +8,15 @@
  * @copyright Copyright (c) 2020
  * 
  */
+// #define STD_DEBUG_LOG
+
 #include "direct-express/direct_express_pci.h"
 #include "direct-express/express_log.h"
 //
-//static Property my_gpu_pci_base_properties[] = {
-//        DEFINE_MY_GPU_PCI_PROPERTIES(VirtIOPCIProxy),
-//        DEFINE_PROP_END_OF_LIST(),
-//};
+static Property direct_express_pci_base_properties[] = {
+       DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 2),
+       DEFINE_PROP_END_OF_LIST(),
+};
 
 
 
@@ -68,6 +70,8 @@ static void direct_express_pci_class_init(ObjectClass *klass, void *data){
 
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
 //    device_class_set_props(dc, my_gpu_pci_base_properties);
+    device_class_set_props(dc, direct_express_pci_base_properties);
+
     dc->hotpluggable = false;
     k->realize = direct_express_pci_realize;
     pcidev_k->class_id = PCI_CLASS_DISPLAY_OTHER;
