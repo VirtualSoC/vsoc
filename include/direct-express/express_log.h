@@ -8,7 +8,7 @@
 #define express_printf null_printf
 #endif
 
+char *get_now_time(void);
 int null_printf(const char *a,...);
-char *get_now_time();
 #endif
 

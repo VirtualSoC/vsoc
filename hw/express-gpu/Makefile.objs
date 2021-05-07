@@ -1,6 +1,14 @@
 common-obj-$(CONFIG_EXPRESS_GPU) += express_gpu_render.o
 common-obj-$(CONFIG_EXPRESS_GPU) += offscreen_render_thread.o
 
-
 common-obj-$(CONFIG_EXPRESS_GPU) += glad.o
+
+common-obj-$(CONFIG_EXPRESS_GPU) += express_gpu_opengl.o
+common-obj-$(CONFIG_EXPRESS_GPU) += glv3_trans.o
+common-obj-$(CONFIG_EXPRESS_GPU) += glv3_mem.o
+common-obj-$(CONFIG_EXPRESS_GPU) += glv3_texture.o
+common-obj-$(CONFIG_EXPRESS_GPU) += glv3_vertex.o
+
+
+
 

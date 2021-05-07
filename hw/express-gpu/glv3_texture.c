@@ -1,0 +1,336 @@
+#include "express-gpu/glv3_texture.h"
+
+
+
+
+
+
+
+void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
+{
+
+    Pixel_Store_Status *pixel_store = &(((Opengl_Context *)context)->pixel_store_status);
+    switch (pname)
+    {
+    case GL_UNPACK_ALIGNMENT:
+        pixel_store->unpack_alignment = param;
+        break;
+    case GL_PACK_ALIGNMENT:
+        pixel_store->pack_alignment = param;
+        break;
+    case GL_UNPACK_ROW_LENGTH:
+        pixel_store->unpack_row_length = param;
+        break;
+    case GL_UNPACK_IMAGE_HEIGHT:
+        pixel_store->unpack_image_height = param;
+        break;
+    case GL_UNPACK_SKIP_PIXELS:
+        pixel_store->unpack_skip_pixels = param;
+        break;
+    case GL_UNPACK_SKIP_ROWS:
+        pixel_store->unpack_skip_rows = param;
+        break;
+    case GL_UNPACK_SKIP_IMAGES:
+        pixel_store->unpack_skip_images = param;
+        break;
+    case GL_PACK_ROW_LENGTH:
+        pixel_store->pack_row_length = param;
+        break;
+    case GL_PACK_SKIP_PIXELS:
+        pixel_store->pack_skip_pixels = param;
+        break;
+    case GL_PACK_SKIP_ROWS:
+        pixel_store->pack_skip_rows = param;
+        break;
+    default:
+        return;
+    }
+    return;
+
+    glPixelStorei(pname, param);
+}
+
+
+
+
+
+
+void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels)
+{
+    // if(pixels==NULL){
+    //     glTexImage2D(target,level,internalformat,width,height,border,format,type,NULL);
+    // }
+    //没有绑定时，正好可以使用异步纹理传输
+    Guest_Mem *guest_mem=(Guest_Mem *)pixels;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glTexImage2D(target,level,internalformat,width,height,border,format,type,NULL);
+        return;
+    }
+
+
+    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+
+    int start_loc=0,end_loc=0;
+    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+
+    prepare_unpack_texture(context,s_data,start_loc,end_loc);
+
+    //这时候是立即返回的，后续会进行dma传输
+    glTexImage2D( target, level, internalformat, width, height, border, format, type,  0);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+
+}
+
+void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
+{
+    glTexImage2D(target,level,internalformat,width,height,border,format,type,(void *)pixels);
+}
+
+void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels)
+{
+    // if(pixels==NULL){
+    //     glTexSubImage2D(target, level, xoffset, yoffset, width, height, format,  type,  NULL);
+    // }
+    Guest_Mem *guest_mem=(Guest_Mem *)pixels;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glTexSubImage2D(target, level, xoffset, yoffset, width, height, format,  type,  NULL);
+        return;
+    }
+
+    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+
+    int start_loc=0,end_loc=0;
+    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+
+    prepare_unpack_texture(context,s_data,start_loc,end_loc);
+
+    //这时候是立即返回的，后续会进行dma传输
+    glTexSubImage2D(target, level, xoffset, yoffset, width, height, format,  type,  0);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+}
+
+void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
+{
+    glTexSubImage2D(target, level, xoffset, yoffset, width, height, format,  type, (void *)pixels);
+}
+
+void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels)
+{
+    // if(pixels==NULL){
+    //     glTexImage3D(target, level, internalformat, width, height, depth, border, format, type, NULL);
+
+    // }
+    //没有绑定时，正好可以使用异步纹理传输
+    Guest_Mem *guest_mem=(Guest_Mem *)pixels;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+         glTexImage3D(target, level, internalformat, width, height, depth, border, format, type, NULL);
+
+        return;
+    }
+
+    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+
+    int start_loc=0,end_loc=0;
+    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+
+    prepare_unpack_texture(context,s_data,start_loc,end_loc);
+
+    //这时候是立即返回的，后续会进行dma传输
+    glTexImage3D(target, level, internalformat, width, height, depth, border, format, type, 0);
+
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+
+
+
+}
+
+void d_glTexImage3D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLintptr pixels){
+    glTexImage3D(target, level, internalformat, width, height, depth, border, format, type, (void *)pixels);
+}
+
+void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels){
+
+    // if(pixels==NULL){
+    //     glTexSubImage3D( target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, NULL);
+    // }
+    //没有绑定时，正好可以使用异步纹理传输
+    Guest_Mem *guest_mem=(Guest_Mem *)pixels;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glTexSubImage3D( target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, NULL);
+        return;
+    }
+
+
+    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+
+    int start_loc=0,end_loc=0;
+    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+
+    prepare_unpack_texture(context,s_data,start_loc,end_loc);
+
+    //这时候是立即返回的，后续会进行dma传输
+    glTexSubImage3D( target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, 0);
+
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+
+
+}
+
+void d_glTexSubImage3D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLintptr pixels){
+    glTexSubImage3D( target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, (void *)pixels);
+}
+
+
+
+void d_glCompressedTexImage3D_without_bound(void *context,GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data){
+    
+    Guest_Mem *guest_mem=(Guest_Mem *)data;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glCompressedTexImage3D(target,level, internalformat, width, height, depth, border, imageSize, NULL);
+        return;
+    }
+
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    prepare_unpack_texture(context,s_data,0,imageSize);
+    glCompressedTexImage3D(target,level, internalformat, width, height, depth, border, imageSize, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+}
+
+void d_glCompressedTexImage3D_with_bound(void *context,GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, GLintptr data){
+
+    glCompressedTexImage3D(target,level, internalformat, width, height, depth, border, imageSize, (void *)data);
+}
+
+void d_glCompressedTexSubImage3D_without_bound(void *context,GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data){
+    Guest_Mem *guest_mem=(Guest_Mem *)data;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glCompressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, NULL);
+        return;
+    }
+
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    prepare_unpack_texture(context,s_data,0,imageSize);
+    glCompressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+}
+
+void d_glCompressedTexSubImage3D_with_bound(void *context,GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, GLintptr data){
+    glCompressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, (void *)data);
+}
+
+
+
+void d_glCompressedTexImage2D_without_bound(void *context,GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void *data){
+    Guest_Mem *guest_mem=(Guest_Mem *)data;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, NULL);
+        return;
+    }
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    prepare_unpack_texture(context,s_data,0,imageSize);
+    glCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+}
+
+void d_glCompressedTexImage2D_with_bound(void *context,GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, GLintptr data){
+    glCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, (void *)data);
+}
+
+void d_glCompressedTexSubImage2D_without_bound(void *context,GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data){
+    Guest_Mem *guest_mem=(Guest_Mem *)data;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, NULL);
+        return;
+    }
+
+
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    prepare_unpack_texture(context,s_data,0,imageSize);
+    glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, 0);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);
+}
+
+
+void d_glCompressedTexSubImage2D_with_bound(void *context,GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr data){
+    glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, (void *)data);
+}
+
+
+
+
+void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels){
+    //由于没有绑定的情况还是需要读取完数据后再进行复制，所以这里实际上无法做到异步
+    Guest_Mem *guest_mem=(Guest_Mem *)pixels;
+    Scatter_Data *s_data=guest_mem->scatter_data;
+
+    if (guest_mem->all_len == 0)
+    {
+        //pixels=NULL
+        glReadPixels(x,y,width,height,format,type,NULL);
+        return;
+    }
+
+    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+
+    int start_loc=0,end_loc=0;
+    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+
+    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+
+    GLint asyn_texture=bound_buffer->asyn_pack_texture_buffer;
+    glBindBuffer(GL_PIXEL_PACK_BUFFER,asyn_texture);
+    //因为曾经bind过texture，所以这里直接bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
+    glBufferData(GL_PIXEL_PACK_BUFFER, end_loc,NULL,GL_STREAM_DRAW);
+    glReadPixels(x,y,width,height,format,type,0);
+    
+    //注意，此句会阻塞，直到pixels全部下载下来
+    GLubyte *map_pointer=glMapBufferRange(GL_PIXEL_UNPACK_BUFFER,start_loc,end_loc-start_loc,GL_MAP_READ_BIT);
+    host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,0);
+
+    glBindBuffer(GL_PIXEL_PACK_BUFFER,0);
+}
+
+void d_glReadPixels_with_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
+{
+    glReadPixels(x, y, width, height, format, type, (void *)pixels);
+}
+
+
+
+

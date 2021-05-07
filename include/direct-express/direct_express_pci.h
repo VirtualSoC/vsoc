@@ -43,9 +43,9 @@ typedef struct Direct_Express_PCI{
 
 
 // // to share between PCI and VGA 
-// define DEFINE_MY_GPU_PCI_PROPERTIES(_state)                \
-//    DEFINE_PROP_BIT("ioeventfd", _state, flags,                 \
-//                    VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, false),  \
+// define DEFINE_MY_GPU_PCI_PROPERTIES(_state)                
+//    DEFINE_PROP_BIT("ioeventfd", _state, flags,                 
+//                    VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, false),  
 //        DEFINE_PROP_UINT32("vectors", _state, nvectors, 3)
 
 

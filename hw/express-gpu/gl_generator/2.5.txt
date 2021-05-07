@@ -1,6 +1,0 @@
-GLsync glFenceSync GLenum condition, GLbitfield flags
-GLboolean glIsSync GLsync sync
-void glDeleteSync GLsync sync
-GLenum glClientWaitSync GLsync sync, GLbitfield flags, GLuint64 timeout
-void glWaitSync GLsync sync, GLbitfield flags, GLuint64 timeout
-void glGetSynciv GLsync sync, GLenum pname, GLsizei count, GLsizei *length, GLint *values

@@ -1419,8 +1419,11 @@ static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
     VirtIODevice *vdev = vq->vdev;
     VirtQueueElement *elem = NULL;
     unsigned out_num, in_num, elem_entries;
-    hwaddr addr[VIRTQUEUE_MAX_SIZE];
-    struct iovec iov[VIRTQUEUE_MAX_SIZE];
+    unsigned int now_virtqueue_max_size = VIRTQUEUE_MAX_SIZE;
+    hwaddr addr_t[VIRTQUEUE_MAX_SIZE];
+    hwaddr *addr=addr_t;
+    struct iovec iov_t[VIRTQUEUE_MAX_SIZE];
+    struct iovec *iov=iov_t;
     VRingDesc desc;
     int rc;
 
@@ -1483,6 +1486,11 @@ static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
         max = desc.len / sizeof(VRingDesc);
         i = 0;
         vring_split_desc_read(vdev, &desc, desc_cache, i);
+        if(max>VIRTQUEUE_MAX_SIZE){
+            now_virtqueue_max_size=max+10;
+            addr=g_malloc(now_virtqueue_max_size*sizeof(hwaddr));
+            iov=g_malloc(now_virtqueue_max_size*sizeof(struct iovec));
+        }
     }
 
     /* Collect all the descriptors */
@@ -1492,7 +1500,7 @@ static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
         if (desc.flags & VRING_DESC_F_WRITE) {
             map_ok = virtqueue_map_desc(vdev, &in_num, addr + out_num,
                                         iov + out_num,
-                                        VIRTQUEUE_MAX_SIZE - out_num, true,
+                                        now_virtqueue_max_size - out_num, true,
                                         desc.addr, desc.len);
         } else {
             if (in_num) {
@@ -1500,7 +1508,7 @@ static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
                 goto err_undo_map;
             }
             map_ok = virtqueue_map_desc(vdev, &out_num, addr, iov,
-                                        VIRTQUEUE_MAX_SIZE, false,
+                                        now_virtqueue_max_size, false,
                                         desc.addr, desc.len);
         }
         if (!map_ok) {
@@ -1538,7 +1546,10 @@ static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
     trace_virtqueue_pop(vq, elem, elem->in_num, elem->out_num);
 done:
     address_space_cache_destroy(&indirect_desc_cache);
-
+    if(max>VIRTQUEUE_MAX_SIZE){
+        g_free(addr);
+        g_free(iov);
+    }
     return elem;
 
 err_undo_map:
@@ -1556,8 +1567,11 @@ static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
     VirtIODevice *vdev = vq->vdev;
     VirtQueueElement *elem = NULL;
     unsigned out_num, in_num, elem_entries;
-    hwaddr addr[VIRTQUEUE_MAX_SIZE];
-    struct iovec iov[VIRTQUEUE_MAX_SIZE];
+    unsigned int now_virtqueue_max_size = VIRTQUEUE_MAX_SIZE;
+    hwaddr addr_t[VIRTQUEUE_MAX_SIZE];
+    hwaddr *addr=addr_t;
+    struct iovec iov_t[VIRTQUEUE_MAX_SIZE];
+    struct iovec *iov=iov_t;
     VRingPackedDesc desc;
     uint16_t id;
     int rc;
@@ -1611,6 +1625,11 @@ static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
         max = desc.len / sizeof(VRingPackedDesc);
         i = 0;
         vring_packed_desc_read(vdev, &desc, desc_cache, i, false);
+        if(max>VIRTQUEUE_MAX_SIZE){
+            now_virtqueue_max_size=max+10;
+            addr=g_malloc(now_virtqueue_max_size*sizeof(hwaddr));
+            iov=g_malloc(now_virtqueue_max_size*sizeof(struct iovec));
+        }
     }
 
     /* Collect all the descriptors */
@@ -1620,7 +1639,7 @@ static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
         if (desc.flags & VRING_DESC_F_WRITE) {
             map_ok = virtqueue_map_desc(vdev, &in_num, addr + out_num,
                                         iov + out_num,
-                                        VIRTQUEUE_MAX_SIZE - out_num, true,
+                                        now_virtqueue_max_size - out_num, true,
                                         desc.addr, desc.len);
         } else {
             if (in_num) {
@@ -1628,7 +1647,7 @@ static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
                 goto err_undo_map;
             }
             map_ok = virtqueue_map_desc(vdev, &out_num, addr, iov,
-                                        VIRTQUEUE_MAX_SIZE, false,
+                                        now_virtqueue_max_size, false,
                                         desc.addr, desc.len);
         }
         if (!map_ok) {
@@ -1673,6 +1692,10 @@ static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
     trace_virtqueue_pop(vq, elem, elem->in_num, elem->out_num);
 done:
     address_space_cache_destroy(&indirect_desc_cache);
+    if(max>VIRTQUEUE_MAX_SIZE){
+        g_free(addr);
+        g_free(iov);
+    }
 
     return elem;
 

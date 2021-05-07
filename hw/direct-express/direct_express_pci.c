@@ -49,7 +49,7 @@ static void direct_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp){
     object_property_set_bool(OBJECT(vdev), true, "realized", &local_error);
 
     if (local_error) {
-        error_propagate(errp, local_error);
+        // error_propagate(errp, local_error);
         return;
     }
 

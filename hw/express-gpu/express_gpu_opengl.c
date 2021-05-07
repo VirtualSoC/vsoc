@@ -1,0 +1,1066 @@
+
+#include "express-gpu/express_gpu_opengl.h"
+
+// #include "gl.h"
+
+
+
+// #include "express-gpu/gl.h"
+#include "glad/glad.h"
+
+
+// #include "express-gpu/glext.h"
+// #include "express-gpu/gl2ext.h"
+
+
+
+
+
+
+
+/**
+ * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
+ * 
+ * @param format 像素格式
+ * @param type 像素类型
+ * @return int 
+ */
+int pixel_size_calc(GLenum format, GLenum type) {
+    switch(type) {
+    case GL_BYTE:
+        switch(format) {
+        case GL_R8:
+        case GL_R8I:
+        case GL_R8_SNORM:
+        case GL_RED:             return sizeof(char);
+        case GL_RED_INTEGER:     return sizeof(char);
+        case GL_RG8:
+        case GL_RG8I:
+        case GL_RG8_SNORM:
+        case GL_RG:              return sizeof(char) * 2;
+        case GL_RG_INTEGER:      return sizeof(char) * 2;
+        case GL_RGB8:
+        case GL_RGB8I:
+        case GL_RGB8_SNORM:
+        case GL_RGB:             return sizeof(char) * 3;
+        case GL_RGB_INTEGER:     return sizeof(char) * 3;
+        case GL_RGBA8:
+        case GL_RGBA8I:
+        case GL_RGBA8_SNORM:
+        case GL_RGBA:            return sizeof(char) * 4;
+        case GL_RGBA_INTEGER:    return sizeof(char) * 4;
+        }
+        break;
+    case GL_UNSIGNED_BYTE:
+        switch(format) {
+        case GL_R8:
+        case GL_R8UI:
+        case GL_RED:             return sizeof(unsigned char);
+        case GL_RED_INTEGER:     return sizeof(unsigned char);
+        case GL_ALPHA8_EXT:
+        case GL_ALPHA:           return sizeof(unsigned char);
+        case GL_LUMINANCE8_EXT:
+        case GL_LUMINANCE:       return sizeof(unsigned char);
+        case GL_LUMINANCE8_ALPHA8_EXT:
+        case GL_LUMINANCE_ALPHA: return sizeof(unsigned char) * 2;
+        case GL_RG8:
+        case GL_RG8UI:
+        case GL_RG:              return sizeof(unsigned char) * 2;
+        case GL_RG_INTEGER:      return sizeof(unsigned char) * 2;
+        case GL_RGB8:
+        case GL_RGB8UI:
+        case GL_SRGB8:
+        case GL_RGB:             return sizeof(unsigned char) * 3;
+        case GL_RGB_INTEGER:     return sizeof(unsigned char) * 3;
+        case GL_RGBA8:
+        case GL_RGBA8UI:
+        case GL_SRGB8_ALPHA8:
+        case GL_RGBA:            return sizeof(unsigned char) * 4;
+        case GL_RGBA_INTEGER:    return sizeof(unsigned char) * 4;
+        case GL_BGRA_EXT:
+        //case GL_BGRA8_EXT:       
+            return sizeof(unsigned char)* 4;
+        }
+        break;
+    case GL_SHORT:
+        switch(format) {
+        case GL_R16I:
+        case GL_RED_INTEGER:     return sizeof(short);
+        case GL_RG16I:
+        case GL_RG_INTEGER:      return sizeof(short) * 2;
+        case GL_RGB16I:
+        case GL_RGB_INTEGER:     return sizeof(short) * 3;
+        case GL_RGBA16I:
+        case GL_RGBA_INTEGER:    return sizeof(short) * 4;
+        }
+        break;
+    case GL_UNSIGNED_SHORT:
+        switch(format) {
+        case GL_DEPTH_COMPONENT16:
+        case GL_DEPTH_COMPONENT: return sizeof(unsigned short);
+        case GL_R16UI:
+        case GL_RED_INTEGER:     return sizeof(unsigned short);
+        case GL_RG16UI:
+        case GL_RG_INTEGER:      return sizeof(unsigned short) * 2;
+        case GL_RGB16UI:
+        case GL_RGB_INTEGER:     return sizeof(unsigned short) * 3;
+        case GL_RGBA16UI:
+        case GL_RGBA_INTEGER:    return sizeof(unsigned short) * 4;
+        }
+        break;
+    case GL_INT:
+        switch(format) {
+        case GL_R32I:
+        case GL_RED_INTEGER:     return sizeof(int);
+        case GL_RG32I:
+        case GL_RG_INTEGER:      return sizeof(int) * 2;
+        case GL_RGB32I:
+        case GL_RGB_INTEGER:     return sizeof(int) * 3;
+        case GL_RGBA32I:
+        case GL_RGBA_INTEGER:    return sizeof(int) * 4;
+        }
+        break;
+    case GL_UNSIGNED_INT:
+        switch(format) {
+        case GL_DEPTH_COMPONENT16:
+        case GL_DEPTH_COMPONENT24:
+        // case GL_DEPTH_COMPONENT32_OES:
+        case GL_DEPTH_COMPONENT: return sizeof(unsigned int);
+        case GL_R32UI:
+        case GL_RED_INTEGER:     return sizeof(unsigned int);
+        case GL_RG32UI:
+        case GL_RG_INTEGER:      return sizeof(unsigned int) * 2;
+        case GL_RGB32UI:
+        case GL_RGB_INTEGER:     return sizeof(unsigned int) * 3;
+        case GL_RGBA32UI:
+        case GL_RGBA_INTEGER:    return sizeof(unsigned int) * 4;
+        }
+        break;
+    case GL_UNSIGNED_SHORT_4_4_4_4:
+    case GL_UNSIGNED_SHORT_5_5_5_1:
+    case GL_UNSIGNED_SHORT_5_6_5:
+    // case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
+    // case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
+        return sizeof(unsigned short);
+    case GL_UNSIGNED_INT_10F_11F_11F_REV:
+    case GL_UNSIGNED_INT_5_9_9_9_REV:
+    case GL_UNSIGNED_INT_2_10_10_10_REV:
+    // case GL_UNSIGNED_INT_24_8_OES:
+        return sizeof(unsigned int);
+    case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
+        return sizeof(float) + sizeof(unsigned int);
+    case GL_FLOAT:
+        switch(format) {
+        case GL_DEPTH_COMPONENT32F:
+        case GL_DEPTH_COMPONENT: return sizeof(float);
+        // case GL_ALPHA32F_EXT:
+        case GL_ALPHA:           return sizeof(float);
+        // case GL_LUMINANCE32F_EXT:
+        case GL_LUMINANCE:       return sizeof(float);
+        // case GL_LUMINANCE_ALPHA32F_EXT:
+        case GL_LUMINANCE_ALPHA: return sizeof(float) * 2;
+        case GL_RED:             return sizeof(float);
+        case GL_R32F:            return sizeof(float);
+        case GL_RG:              return sizeof(float) * 2;
+        case GL_RG32F:           return sizeof(float) * 2;
+        case GL_RGB:             return sizeof(float) * 3;
+        case GL_RGB32F:          return sizeof(float) * 3;
+        case GL_RGBA:            return sizeof(float) * 4;
+        case GL_RGBA32F:         return sizeof(float) * 4;
+        }
+        break;
+    case GL_HALF_FLOAT:
+    // case GL_HALF_FLOAT_OES:
+        switch(format) {
+        // case GL_ALPHA16F_EXT:
+        case GL_ALPHA:           return sizeof(unsigned short);
+        // case GL_LUMINANCE16F_EXT:
+        case GL_LUMINANCE:       return sizeof(unsigned short);
+        // case GL_LUMINANCE_ALPHA16F_EXT:
+        case GL_LUMINANCE_ALPHA: return sizeof(unsigned short) * 2;
+        case GL_RED:             return sizeof(unsigned short);
+        case GL_R16F:            return sizeof(unsigned short);
+        case GL_RG:              return sizeof(unsigned short) * 2;
+        case GL_RG16F:           return sizeof(unsigned short) * 2;
+        case GL_RGB:             return sizeof(unsigned short) * 3;
+        case GL_RGB16F:          return sizeof(unsigned short) * 3;
+        case GL_RGBA:            return sizeof(unsigned short) * 4;
+        case GL_RGBA16F:         return sizeof(unsigned short) * 4;
+        }
+        break;
+    }
+
+    return 0;
+}
+
+
+/**
+ * @brief opengl各种类型数据的sizeof函数
+ * 
+ * @param type 
+ * @return size_t 
+ */
+size_t gl_sizeof(GLenum type)
+{
+    size_t retval = 0;
+    switch(type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        retval = 1;
+        break;
+    case GL_SHORT:
+    case GL_UNSIGNED_SHORT:
+    case GL_HALF_FLOAT:
+    // case GL_HALF_FLOAT_OES:
+        retval = 2;
+        break;
+    case GL_IMAGE_2D:
+    case GL_IMAGE_3D:
+    case GL_UNSIGNED_INT:
+    case GL_INT:
+    case GL_FLOAT:
+    case GL_FIXED:
+    case GL_BOOL:
+        retval =  4;
+        break;
+#ifdef GL_DOUBLE
+    case GL_DOUBLE:
+        retval = 8;
+        break;
+    case GL_DOUBLE_VEC2:
+        retval = 16;
+        break;
+    case GL_DOUBLE_VEC3:
+        retval = 24;
+        break;
+    case GL_DOUBLE_VEC4:
+        retval = 32;
+        break;
+    case GL_DOUBLE_MAT2:
+        retval = 8 * 4;
+        break;
+    case GL_DOUBLE_MAT3:
+        retval = 8 * 9;
+        break;
+    case GL_DOUBLE_MAT4:
+        retval = 8 * 16;
+        break;
+    case GL_DOUBLE_MAT2x3:
+    case GL_DOUBLE_MAT3x2:
+        retval = 8 * 6;
+        break;
+    case GL_DOUBLE_MAT2x4:
+    case GL_DOUBLE_MAT4x2:
+        retval = 8 * 8;
+        break;
+    case GL_DOUBLE_MAT3x4:
+    case GL_DOUBLE_MAT4x3:
+        retval = 8 * 12;
+        break;
+#endif
+    case GL_FLOAT_VEC2:
+    case GL_INT_VEC2:
+    case GL_UNSIGNED_INT_VEC2:
+    case GL_BOOL_VEC2:
+        retval = 8;
+        break;
+    case GL_INT_VEC3:
+    case GL_UNSIGNED_INT_VEC3:
+    case GL_BOOL_VEC3:
+    case GL_FLOAT_VEC3:
+        retval = 12;
+        break;
+    case GL_FLOAT_VEC4:
+    case GL_BOOL_VEC4:
+    case GL_INT_VEC4:
+    case GL_UNSIGNED_INT_VEC4:
+    case GL_FLOAT_MAT2:
+        retval = 16;
+        break;
+    case GL_FLOAT_MAT3:
+        retval = 36;
+        break;
+    case GL_FLOAT_MAT4:
+        retval = 64;
+        break;
+    case GL_FLOAT_MAT2x3:
+    case GL_FLOAT_MAT3x2:
+        retval = 4 * 6;
+        break;
+    case GL_FLOAT_MAT2x4:
+    case GL_FLOAT_MAT4x2:
+        retval = 4 * 8;
+        break;
+    case GL_FLOAT_MAT3x4:
+    case GL_FLOAT_MAT4x3:
+        retval = 4 * 12;
+        break;
+    case GL_SAMPLER_2D:
+    case GL_SAMPLER_3D:
+    case GL_SAMPLER_CUBE:
+    case GL_SAMPLER_2D_SHADOW:
+    case GL_SAMPLER_2D_ARRAY:
+    case GL_SAMPLER_2D_ARRAY_SHADOW:
+    case GL_SAMPLER_2D_MULTISAMPLE:
+    case GL_SAMPLER_CUBE_SHADOW:
+    case GL_INT_SAMPLER_2D:
+    case GL_INT_SAMPLER_3D:
+    case GL_INT_SAMPLER_CUBE:
+    case GL_INT_SAMPLER_2D_ARRAY:
+    case GL_INT_SAMPLER_2D_MULTISAMPLE:
+    case GL_UNSIGNED_INT_SAMPLER_2D:
+    case GL_UNSIGNED_INT_SAMPLER_3D:
+    case GL_UNSIGNED_INT_SAMPLER_CUBE:
+    case GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
+    case GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE:
+    case GL_IMAGE_CUBE:
+    case GL_IMAGE_2D_ARRAY:
+    case GL_INT_IMAGE_2D:
+    case GL_INT_IMAGE_3D:
+    case GL_INT_IMAGE_CUBE:
+    case GL_INT_IMAGE_2D_ARRAY:
+    case GL_UNSIGNED_INT_IMAGE_2D:
+    case GL_UNSIGNED_INT_IMAGE_3D:
+    case GL_UNSIGNED_INT_IMAGE_CUBE:
+    case GL_UNSIGNED_INT_IMAGE_2D_ARRAY:
+    case GL_UNSIGNED_INT_ATOMIC_COUNTER:
+        retval = 4;
+        break;
+    case GL_UNSIGNED_SHORT_4_4_4_4:
+	case GL_UNSIGNED_SHORT_5_5_5_1:
+	case GL_UNSIGNED_SHORT_5_6_5:
+	// case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
+	// case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
+        retval = 2;
+        break;
+	case GL_INT_2_10_10_10_REV:
+	case GL_UNSIGNED_INT_10F_11F_11F_REV:
+	case GL_UNSIGNED_INT_5_9_9_9_REV:
+	case GL_UNSIGNED_INT_2_10_10_10_REV:
+	// case GL_UNSIGNED_INT_24_8_OES:
+        retval = 4;
+        break;
+	case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
+		retval = 4 + 4;
+        break;
+    default:
+        printf("**** ERROR unknown type 0x%x (%s,%d)\n", type, __FUNCTION__,__LINE__);
+        retval = 4;
+    } 
+    return retval;
+
+}
+
+
+size_t gl_pname_size(GLenum pname){
+    size_t s = 0;
+
+    switch(pname)
+    {
+    case GL_DEPTH_TEST:
+    case GL_DEPTH_FUNC:
+    case GL_DEPTH_BITS:
+    case GL_MAX_CLIP_PLANES:
+    case GL_GREEN_BITS:
+    case GL_MAX_MODELVIEW_STACK_DEPTH:
+    case GL_MAX_PROJECTION_STACK_DEPTH:
+    case GL_MAX_TEXTURE_STACK_DEPTH:
+    case GL_IMPLEMENTATION_COLOR_READ_FORMAT_OES:
+    case GL_IMPLEMENTATION_COLOR_READ_TYPE_OES:
+    case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
+    case GL_MAX_TEXTURE_SIZE:
+    // case GL_TEXTURE_GEN_MODE_OES:
+    case GL_TEXTURE_ENV_MODE:
+    case GL_FOG_MODE:
+    case GL_FOG_DENSITY:
+    case GL_FOG_START:
+    case GL_FOG_END:
+    case GL_SPOT_EXPONENT:
+    case GL_CONSTANT_ATTENUATION:
+    case GL_LINEAR_ATTENUATION:
+    case GL_QUADRATIC_ATTENUATION:
+    case GL_SHININESS:
+    case GL_LIGHT_MODEL_TWO_SIDE:
+    case GL_POINT_SIZE:
+    case GL_POINT_SIZE_MIN:
+    case GL_POINT_SIZE_MAX:
+    case GL_POINT_FADE_THRESHOLD_SIZE:
+    case GL_CULL_FACE_MODE:
+    case GL_FRONT_FACE:
+    case GL_SHADE_MODEL:
+    case GL_DEPTH_WRITEMASK:
+    case GL_DEPTH_CLEAR_VALUE:
+    case GL_STENCIL_FAIL:
+    case GL_STENCIL_PASS_DEPTH_FAIL:
+    case GL_STENCIL_PASS_DEPTH_PASS:
+    case GL_STENCIL_REF:
+    case GL_STENCIL_WRITEMASK:
+    case GL_MATRIX_MODE:
+    case GL_MODELVIEW_STACK_DEPTH:
+    case GL_PROJECTION_STACK_DEPTH:
+    case GL_TEXTURE_STACK_DEPTH:
+    case GL_ALPHA_TEST_FUNC:
+    case GL_ALPHA_TEST_REF:
+    case GL_ALPHA_TEST:
+    case GL_BLEND_DST:
+    case GL_BLEND_SRC:
+    case GL_BLEND:
+    case GL_LOGIC_OP_MODE:
+    case GL_SCISSOR_TEST:
+    case GL_MAX_TEXTURE_UNITS:
+    case GL_ACTIVE_TEXTURE:
+    case GL_ALPHA_BITS:
+    case GL_ARRAY_BUFFER_BINDING:
+    case GL_BLUE_BITS:
+    case GL_CLIENT_ACTIVE_TEXTURE:
+    case GL_CLIP_PLANE0:
+    case GL_CLIP_PLANE1:
+    case GL_CLIP_PLANE2:
+    case GL_CLIP_PLANE3:
+    case GL_CLIP_PLANE4:
+    case GL_CLIP_PLANE5:
+    case GL_COLOR_ARRAY:
+    case GL_COLOR_ARRAY_BUFFER_BINDING:
+    case GL_COLOR_ARRAY_SIZE:
+    case GL_COLOR_ARRAY_STRIDE:
+    case GL_COLOR_ARRAY_TYPE:
+    case GL_COLOR_LOGIC_OP:
+    case GL_COLOR_MATERIAL:
+    case GL_PACK_ALIGNMENT:
+    case GL_PERSPECTIVE_CORRECTION_HINT:
+    // case GL_POINT_SIZE_ARRAY_BUFFER_BINDING_OES:
+    // case GL_POINT_SIZE_ARRAY_STRIDE_OES:
+    // case GL_POINT_SIZE_ARRAY_TYPE_OES:
+    case GL_POINT_SMOOTH:
+    case GL_POINT_SMOOTH_HINT:
+    // case GL_POINT_SPRITE_OES:
+    // case GL_COORD_REPLACE_OES:
+    case GL_COMBINE_ALPHA:
+    case GL_SRC0_RGB:
+    case GL_SRC1_RGB:
+    case GL_SRC2_RGB:
+    case GL_OPERAND0_RGB:
+    case GL_OPERAND1_RGB:
+    case GL_OPERAND2_RGB:
+    case GL_SRC0_ALPHA:
+    case GL_SRC1_ALPHA:
+    case GL_SRC2_ALPHA:
+    case GL_OPERAND0_ALPHA:
+    case GL_OPERAND1_ALPHA:
+    case GL_OPERAND2_ALPHA:
+    case GL_RGB_SCALE:
+    case GL_ALPHA_SCALE:
+    case GL_COMBINE_RGB:
+    case GL_POLYGON_OFFSET_FACTOR:
+    case GL_POLYGON_OFFSET_FILL:
+    case GL_POLYGON_OFFSET_UNITS:
+    case GL_RED_BITS:
+    case GL_RESCALE_NORMAL:
+    case GL_SAMPLE_ALPHA_TO_COVERAGE:
+    case GL_SAMPLE_ALPHA_TO_ONE:
+    case GL_SAMPLE_BUFFERS:
+    case GL_SAMPLE_COVERAGE:
+    case GL_SAMPLE_COVERAGE_INVERT:
+    case GL_SAMPLE_COVERAGE_VALUE:
+    case GL_SAMPLES:
+    case GL_STENCIL_BITS:
+    case GL_STENCIL_CLEAR_VALUE:
+    case GL_STENCIL_FUNC:
+    case GL_STENCIL_TEST:
+    case GL_STENCIL_VALUE_MASK:
+    case GL_STENCIL_BACK_FUNC:
+    case GL_STENCIL_BACK_VALUE_MASK:
+    case GL_STENCIL_BACK_REF:
+    case GL_STENCIL_BACK_FAIL:
+    case GL_STENCIL_BACK_PASS_DEPTH_FAIL:
+    case GL_STENCIL_BACK_PASS_DEPTH_PASS:
+    case GL_STENCIL_BACK_WRITEMASK:
+    case GL_TEXTURE_2D:
+    case GL_TEXTURE_BINDING_2D:
+    case GL_TEXTURE_BINDING_CUBE_MAP:
+    // case GL_TEXTURE_BINDING_EXTERNAL_OES:
+    case GL_TEXTURE_COORD_ARRAY:
+    case GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING:
+    case GL_TEXTURE_COORD_ARRAY_SIZE:
+    case GL_TEXTURE_COORD_ARRAY_STRIDE:
+    case GL_TEXTURE_COORD_ARRAY_TYPE:
+    case GL_UNPACK_ALIGNMENT:
+    case GL_VERTEX_ARRAY:
+    case GL_VERTEX_ARRAY_BUFFER_BINDING:
+    case GL_VERTEX_ARRAY_SIZE:
+    case GL_VERTEX_ARRAY_STRIDE:
+    case GL_VERTEX_ARRAY_TYPE:
+    case GL_SPOT_CUTOFF:
+    case GL_TEXTURE_MIN_FILTER:
+    case GL_TEXTURE_MAG_FILTER:
+    case GL_TEXTURE_WRAP_S:
+    case GL_TEXTURE_WRAP_T:
+    case GL_GENERATE_MIPMAP:
+    case GL_GENERATE_MIPMAP_HINT:
+    // case GL_RENDERBUFFER_WIDTH_OES:
+    // case GL_RENDERBUFFER_HEIGHT_OES:
+    // case GL_RENDERBUFFER_INTERNAL_FORMAT_OES:
+    // case GL_RENDERBUFFER_RED_SIZE_OES:
+    // case GL_RENDERBUFFER_GREEN_SIZE_OES:
+    // case GL_RENDERBUFFER_BLUE_SIZE_OES:
+    // case GL_RENDERBUFFER_ALPHA_SIZE_OES:
+    // case GL_RENDERBUFFER_DEPTH_SIZE_OES:
+    // case GL_RENDERBUFFER_STENCIL_SIZE_OES:
+    case GL_RENDERBUFFER_BINDING:
+    case GL_FRAMEBUFFER_BINDING:
+    // case GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE_OES:
+    // case GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_OES:
+    // case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL_OES:
+    // case GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE_OES:
+    case GL_FENCE_STATUS_NV:
+    case GL_FENCE_CONDITION_NV:
+    // case GL_TEXTURE_WIDTH_QCOM:
+    // case GL_TEXTURE_HEIGHT_QCOM:
+    // case GL_TEXTURE_DEPTH_QCOM:
+    // case GL_TEXTURE_INTERNAL_FORMAT_QCOM:
+    // case GL_TEXTURE_FORMAT_QCOM:
+    // case GL_TEXTURE_TYPE_QCOM:
+    // case GL_TEXTURE_IMAGE_VALID_QCOM:
+    // case GL_TEXTURE_NUM_LEVELS_QCOM:
+    // case GL_TEXTURE_TARGET_QCOM:
+    // case GL_TEXTURE_OBJECT_VALID_QCOM:
+    // case GL_BLEND_EQUATION_RGB_OES:
+    // case GL_BLEND_EQUATION_ALPHA_OES:
+    // case GL_BLEND_DST_RGB_OES:
+    // case GL_BLEND_SRC_RGB_OES:
+    // case GL_BLEND_DST_ALPHA_OES:
+    // case GL_BLEND_SRC_ALPHA_OES:
+    case GL_MAX_LIGHTS:
+    case GL_SHADER_TYPE:
+    case GL_DELETE_STATUS:
+    case GL_COMPILE_STATUS:
+    case GL_INFO_LOG_LENGTH:
+    case GL_SHADER_SOURCE_LENGTH:
+    case GL_CURRENT_PROGRAM:
+    case GL_LINK_STATUS:
+    case GL_VALIDATE_STATUS:
+    case GL_ATTACHED_SHADERS:
+    case GL_ACTIVE_UNIFORMS:
+    case GL_ACTIVE_ATTRIBUTES:
+    case GL_SUBPIXEL_BITS:
+    case GL_MAX_CUBE_MAP_TEXTURE_SIZE:
+    case GL_NUM_SHADER_BINARY_FORMATS:
+    case GL_SHADER_COMPILER:
+    case GL_MAX_VERTEX_ATTRIBS:
+    case GL_MAX_VERTEX_UNIFORM_VECTORS:
+    case GL_MAX_VARYING_VECTORS:
+    case GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS:
+    case GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS:
+    case GL_MAX_FRAGMENT_UNIFORM_VECTORS:
+    case GL_MAX_RENDERBUFFER_SIZE:
+    case GL_MAX_TEXTURE_IMAGE_UNITS:
+    // case GL_REQUIRED_TEXTURE_IMAGE_UNITS_OES:
+    // case GL_FRAGMENT_SHADER_DERIVATIVE_HINT_OES:
+    case GL_LINE_WIDTH:
+        s = 1;
+        break;
+    case GL_ALIASED_LINE_WIDTH_RANGE:
+    case GL_ALIASED_POINT_SIZE_RANGE:
+    case GL_DEPTH_RANGE:
+    case GL_MAX_VIEWPORT_DIMS:
+    case GL_SMOOTH_POINT_SIZE_RANGE:
+    case GL_SMOOTH_LINE_WIDTH_RANGE:
+        s= 2;
+        break;
+    case GL_SPOT_DIRECTION:
+    case GL_POINT_DISTANCE_ATTENUATION:
+    case GL_CURRENT_NORMAL:
+        s =  3;
+        break;
+    case GL_CURRENT_VERTEX_ATTRIB:
+    case GL_CURRENT_TEXTURE_COORDS:
+    case GL_CURRENT_COLOR:
+    case GL_FOG_COLOR:
+    case GL_AMBIENT:
+    case GL_DIFFUSE:
+    case GL_SPECULAR:
+    case GL_EMISSION:
+    case GL_POSITION:
+    case GL_LIGHT_MODEL_AMBIENT:
+    case GL_TEXTURE_ENV_COLOR:
+    case GL_SCISSOR_BOX:
+    case GL_VIEWPORT:
+    // case GL_TEXTURE_CROP_RECT_OES:
+    case GL_COLOR_CLEAR_VALUE:
+    case GL_COLOR_WRITEMASK:
+    case GL_AMBIENT_AND_DIFFUSE:
+    case GL_BLEND_COLOR:
+        s =  4;
+        break;
+    case GL_MODELVIEW_MATRIX:
+    case GL_PROJECTION_MATRIX:
+    case GL_TEXTURE_MATRIX:
+        s = 16;
+    break;
+    default:
+        printf("gl_pname_size: unknow pname 0x%08x\n", pname);
+        s = 1; // assume 1
+    }
+    return s;
+}
+
+
+void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
+{
+
+    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    Buffer_Status *status = bound_buffer->buffer_status;
+    GLint id = buffer;
+    //由于这里status是指针，所以对这个status的更新也会直接反映到vao相应的status上去
+    switch (target)
+    {
+    case GL_ARRAY_BUFFER:
+        status->array_buffer = id;
+        //bound_buffer->vao_vbo[bound_buffer->vertex_array_buffer] = id;
+        break;
+    case GL_ELEMENT_ARRAY_BUFFER:
+        status->element_array_buffer = id;
+        //bound_buffer->vao_ebo[bound_buffer->vertex_array_buffer] = id;
+        break;
+    case GL_COPY_READ_BUFFER:
+        status->copy_read_buffer = id;
+        break;
+    case GL_COPY_WRITE_BUFFER:
+        status->copy_write_buffer = id;
+        break;
+    case GL_PIXEL_PACK_BUFFER:
+        status->pixel_pack_buffer = id;
+        break;
+    case GL_PIXEL_UNPACK_BUFFER:
+        status->pixel_unpack_buffer = id;
+        break;
+    case GL_TRANSFORM_FEEDBACK_BUFFER:
+        status->transform_feedback_buffer = id;
+        break;
+    case GL_UNIFORM_BUFFER:
+        status->uniform_buffer = id;
+        break;
+    case GL_ATOMIC_COUNTER_BUFFER:
+        status->atomic_counter_buffer = id;
+        break;
+    case GL_DISPATCH_INDIRECT_BUFFER:
+        status->dispatch_indirect_buffer = id;
+        break;
+    case GL_DRAW_INDIRECT_BUFFER:
+        status->draw_indirect_buffer = id;
+        break;
+    case GL_SHADER_STORAGE_BUFFER:
+        status->shader_storage_buffer = id;
+    }
+
+    glBindBuffer(target, buffer);
+}
+
+void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc){
+    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    GLint asyn_texture=bound_buffer->asyn_unpack_texture_buffer;
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,asyn_texture);
+    //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc,NULL,GL_STREAM_DRAW);
+
+    //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
+    GLubyte *map_pointer=glMapBufferRange(GL_PIXEL_UNPACK_BUFFER,start_loc,end_loc-start_loc,GL_MAP_WRITE_BIT|GL_MAP_UNSYNCHRONIZED_BIT);
+    host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,1);
+}
+
+
+void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc)
+{
+    gl_pixel_data_3d_loc(store_status, width, height, 1, format, type, pack,start_loc,end_loc);
+}
+
+void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc)
+{
+    Pixel_Store_Status *status = (Pixel_Store_Status *)store_status;
+    int align = 4;
+    int row_length = 0;
+    int skip_rows = 0;
+    int skip_pixels = 0;
+    int skip_images = 0;
+    int image_height = 0;
+
+    GLsizei real_width;
+    GLsizei real_height;
+
+    //获得此时的状态值
+    if (pack)
+    {
+        align = status->pack_alignment;
+        row_length = status->pack_row_length;
+        skip_rows = status->pack_skip_rows;
+        skip_pixels = status->pack_skip_pixels;
+    }
+    else
+    {
+        align = status->unpack_alignment;
+        row_length = status->unpack_row_length;
+        skip_rows = status->unpack_skip_rows;
+        skip_pixels = status->unpack_skip_pixels;
+
+        skip_images = status->unpack_skip_images;
+        image_height = status->unpack_image_height;
+    }
+
+    //获得一张图片的真实像素宽度和高度
+    real_width = row_length == 0 ? width : row_length;
+    real_height = image_height == 0 ? height : image_height;
+
+    //每个像素点所占的空间
+    GLsizei pixel_size = pixel_size_calc(format, type);
+    //获得图片每一行的字节数
+    GLsizei width_size = pixel_size * real_width;
+    //每一行的数据进行对其
+    width_size = (width_size + align - 1) & (~(align - 1));
+
+    //数据图像开始读取的地方，等于（跳过的图片数目*图片的高度+跳过的行数）*每行所占的字节数+跳过的像素数*像素大小
+    *start_loc = (skip_images * real_height + skip_rows) * width_size + skip_pixels * pixel_size;
+
+    //数据图像结束读取的地方，等于 开始读取的地方+要读取的图片的高度*图片每行所占的字节数*图片的张数，depth表示深度也就表示要读取多少张图片
+    *end_loc = *start_loc + real_height * width_size * depth;
+
+    return;
+}
+
+void flush_array_buffer(Attrib_Point *point_data, GLint instancecount)
+{
+    //找到当前应该申请的显存空间的最大值
+    int max_len = 0;
+    //这个father_loc用来描述每个真正的数组，对应到缓冲区的哪个地方
+    int father_loc[32];
+    memset(father_loc, 0, sizeof(father_loc));
+    for (int i = 0; i < 32; i++)
+    {
+        if (point_data->data[i] != NULL)
+        {
+            father_loc[i] = max_len;
+            max_len += point_data->data_len[i];
+        }
+    }
+
+    if (max_len > point_data->buffer_len)
+    {
+        //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的两倍，类似于vector的翻倍机制
+        // glDeleteBuffers(1, &(point_data->buffer_object));
+        // glGenBuffers(1, &(point_data->buffer_object));
+        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object);
+
+        //todo stream_draw需要验证
+        glBufferData(GL_ARRAY_BUFFER, max_len * 2, NULL, GL_STREAM_DRAW);
+        point_data->buffer_len=max_len*2;
+    }
+    else
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object);
+        glBufferData(GL_ARRAY_BUFFER, point_data->buffer_len, NULL, GL_STREAM_DRAW);
+
+    }
+    //确定了缓冲区大小后，映射取得其指针，尽可能只修改一小部分
+    //GL_MAP_INVALIDATE_RANGE_BIT 用于缓冲区孤立，防止隐式同步
+    GLubyte *map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, 0, max_len,
+            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT|GL_MAP_INVALIDATE_RANGE_BIT);
+
+    int father_enable[32];
+    int father_max_loc[32];
+    int father_min_loc[32];
+    memset(father_enable, 0, sizeof(father_enable));
+    memset(father_max_loc, 0, sizeof(father_max_loc));
+    memset(father_min_loc, 0x3f3f3f3f, sizeof(father_min_loc));
+
+    //通过这个循环找到实际那几个数组内，需要复制到缓冲区的偏移的两端
+    for (int i = 0; i < 32; i++)
+    {
+        father_enable[point_data->father[i]] += point_data->enabled[i];
+
+        if (point_data->enabled[i] == 0)
+        {
+            continue;
+        }
+
+        //这里的stride肯定不为0，所以就算是紧密堆积也不存在问题
+        int max_loc = point_data->stride[i] * (point_data->max_index + 1);
+        int min_loc = point_data->stride[i] * point_data->min_index;
+        //这里divisor两个属性都要看，选择其中最大的那个
+        int divisor = point_data->divisor[i];
+        if (divisor)
+        {
+            //这里加divisor-1是为了向上取整
+            max_loc = max(max_loc, point_data->stride[i] * (int)((instancecount + divisor - 1) / divisor));
+        }
+
+        divisor = point_data->divisor[point_data->father[i]];
+        if (divisor)
+        {
+            //这里加divisor-1是为了向上取整
+            max_loc = max(max_loc, point_data->stride[point_data->father[i]] * (int)((instancecount + divisor - 1) / divisor));
+        }
+
+        father_max_loc[point_data->father[i]] = max(max_loc, father_max_loc[point_data->father[i]]);
+        father_min_loc[point_data->father[i]] = min(min_loc, father_min_loc[point_data->father[i]]);
+    }
+
+    //然后把数组根据偏移复制进去
+    for (int i = 0; i < 32; i++)
+    {
+        if (point_data->data[i] != NULL)
+        {
+            //复制完后就通知一下更新一下这小部分
+            host_guest_buffer_exchange(point_data->data[i], map_pointer + father_loc[i], father_min_loc[i], father_max_loc[i] - father_min_loc[i], 1);
+            glFlushMappedBufferRange(GL_ARRAY_BUFFER, father_loc[i] + father_min_loc[i], father_max_loc[i] - father_min_loc[i]);
+        }
+    }
+
+    glUnmapBuffer(GL_ARRAY_BUFFER);
+
+    //此时数据都更新到位了，该设置顶点属性了
+    for (int i = 0; i < 32; i++)
+    {
+        if (point_data->enabled[i])
+        {
+            if (point_data->invoke_type[i] == GL_INT)
+            {
+                glVertexAttribIPointer(i, point_data->size[i], point_data->type[i], point_data->stride[i],
+                                       (void *)(point_data->offset[i] + father_loc[point_data->father[i]]));
+            }
+            else
+            {
+                glVertexAttribPointer(i, point_data->size[i], point_data->type[i], point_data->normalized[i],
+                                      point_data->stride[i], (void *)(point_data->offset[i] + father_loc[point_data->father[i]]));
+            }
+        }
+    }
+
+    //全部操作完成后，这时候数据写入到缓冲区中，然后顶点属性的偏移也设置了，这个时候就可以draw了
+    return;
+}
+
+
+void d_glDeleteProgram_origin(void *context, GLuint program)
+{
+    glDeleteProgram(program);
+}
+
+
+void d_glLinkProgram_origin(void *context, GLuint program)
+{
+    glLinkProgram(program);
+}
+
+
+void context_init(void *context){
+    Opengl_Context *opengl_context=(Opengl_Context *)context;
+
+    Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
+
+    
+
+    opengl_context->buffer_map=g_hash_table_new(g_direct_hash, g_direct_equal);
+
+    bound_buffer->vao_status=g_hash_table_new(g_direct_hash, g_direct_equal);
+    bound_buffer->vao_point_data=g_hash_table_new(g_direct_hash, g_direct_equal);
+
+    bound_buffer->buffer_type=g_hash_table_new(g_direct_hash, g_direct_equal);
+    
+    Buffer_Status *status=g_malloc(sizeof(Buffer_Status));
+    memset(status,0,sizeof(Buffer_Status));
+    g_hash_table_insert(bound_buffer->vao_status, GINT_TO_POINTER(0), (gpointer)status);
+
+    Attrib_Point *temp_point=g_malloc(sizeof(Attrib_Point));
+    memset(temp_point,0,sizeof(Attrib_Point));
+    // GLuint temp_buffer[4];
+    // glGenBuffers(4,temp_buffer);
+    temp_point->buffer_object=0;
+    temp_point->indices_buffer_object=0;
+
+    g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(0), (gpointer)temp_point);
+
+    bound_buffer->buffer_status=status;
+
+    bound_buffer->asyn_pack_texture_buffer=0;
+    bound_buffer->asyn_unpack_texture_buffer=0;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d){
+    printf("glTestInt asyn %d,%u,%f,%lf\n",a,b,c,d);
+    fflush(stdout);
+}
+
+void glPrintfAsyn(GLint a, GLuint size, GLdouble c, const GLchar *out_string){
+    // printf("glTestInt asyn string %d,%u,%lf,%s\n",a,size,c,out_string);
+    return;
+}
+
+GLint glTestInt1(GLint a, GLuint b){
+    //printf("glTestInt1 %d,%u\n",a,b);
+    //fflush(stdout);
+    return 576634565;
+}
+GLuint glTestInt2(GLint a, GLuint b){
+    printf("glTestInt2 %d,%u\n",a,b);
+    fflush(stdout);
+    return 4000001200u;
+}
+
+GLint64 glTestInt3(GLint64 a, GLuint64 b){
+printf("glTestInt3 %lld,%llu\n",a,b);
+fflush(stdout);
+    return 453489431344456;
+
+}
+GLuint64 glTestInt4(GLint64 a, GLuint64 b){
+    printf("glTestInt4 %lld,%llu\n",a,b);
+    fflush(stdout);
+    return 436004354364364345;
+
+}
+
+GLfloat glTestInt5(GLint a, GLuint b){
+     printf("glTestInt5 %d,%u\n",a,b);
+     fflush(stdout);
+    return 3.1415926;
+}
+GLdouble glTestInt6(GLint a, GLuint b){
+     printf("glTestInt6 %d,%u\n",a,b);
+     fflush(stdout);
+    return 3.1415926535;
+}
+
+void glTestPointer1(GLint a, const GLint *b){
+    printf("glTestPointer1 %d ",a);
+    for(int i=0;i<10;i++){
+        printf("%d ",b[i]);
+    }
+    printf("\n");
+    fflush(stdout);
+    return;
+}
+
+void glTestPointer2(GLint a, const GLint *b, GLint *c){
+    printf("glTestPointer2 %d %d\n",a,*b);
+    for(int i=0;i<10;i++){
+        c[i]=b[i];
+    }
+    fflush(stdout);
+    return;
+}
+
+GLint glTestPointer3(GLint a, const GLint *b, GLint *c){
+    printf("glTestPointer3 %d\n",a);
+    for(int i=b[0];i<a;i++){
+        c[i]=b[i];
+    }
+    fflush(stdout);
+    return 12456687;
+}
+
+GLint glTestPointer4(GLint a, const GLint *b, GLint *c){
+     printf("glTestPointer4 %d,%d\n",a,*b);
+    for(int i=0;i<1000;i++){
+        c[i]=b[i];
+    }
+    fflush(stdout);
+    return 12456687;
+}
+
+
+void glTestString(GLint a, GLint count, const GLchar *const*strings, GLint buf_len, GLchar *char_buf){
+    printf("glTestString %d %d %d\nString:\n",a,count,buf_len);
+    for(int i=0;i<count;i++){
+        printf("%s\n",strings[i]);
+    }
+    char *t="printf ok!";
+    memcpy(char_buf,t,strlen(t));
+    fflush(stdout);
+}
+
+void glPrintf(GLint buf_len, GLchar *out_string){
+    // char *t="temp test abcd";
+    // memcpy(out_string,t,strlen(t));
+    // printf("glPrintf %d\n",buf_len);
+    // fflush(stdout);
+    // int flag=0;
+    for(int i=0;i<buf_len;i++){
+        out_string[i]='c';
+        // if(out_string[i]!='c'){
+        //     flag=1;
+        //     break;
+        // }
+    }
+    return;
+}
+
+
+
+// glInOutTest GLint a, GLint b, const GLchar *e#strlen(e), GLint *c#sizeof(GLint), GLdouble *d#sizeof(GLdouble), GLsizei buf_len, GLchar *f#buf_len
+
+// glSaveLongTime GLuint a, GLdouble b, const void *pointer#a
+
+void glInOutTest(GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f){
+    printf("glInOutTest %d,%d,%s   buf_len%llu\n",a,b,e,buf_len);
+    *c=78646313;
+    *d=3.141592653543;
+    
+    char *t="glInOutTest printf ok! test ok!";
+    memcpy(f,t,strlen(t));
+    fflush(stdout);
+}
+
+void *pointer_test=NULL;
+
+void glSaveLongTime(const void *int_data, const void *pointer){
+
+    GLuint a;
+    GLdouble b;
+    Guest_Mem *guest_mem_int=(Guest_Mem *)int_data;
+
+    // unsigned char tt[100];
+    // guest_write(guest_mem_int,tt,0,guest_mem_int->all_len);
+
+    // char t[1000];
+    // int loc=0;
+    // for(int i=0;i<12;i++){
+    //     loc+=sprintf(t+loc,"%02x",tt[i]);
+    // }
+    // printf("int_data %llu %s\n",guest_mem_int->all_len,t);
+
+    guest_write(guest_mem_int,&a,0,sizeof(GLuint));
+    guest_write(guest_mem_int,&b,sizeof(GLuint),sizeof(GLdouble));
+
+    // printf("%08x%016x\n",a,b);
+
+    printf("glSaveLongTime int data %u %lf\n",a,b);
+
+    if(b>2.0){
+        if(pointer_test==NULL){
+
+            pointer_test=g_malloc(sizeof(Guest_Mem));
+            memset(pointer_test,0,sizeof(Guest_Mem));
+        }
+        guest_mem_copy(pointer_test,pointer);
+    }
+
+    char temp[100];
+    strcpy(temp,"test");
+    guest_write(pointer_test,temp,0,100);
+    printf("glSaveLongTime %llu %s\n",((Guest_Mem *)pointer_test)->all_len,temp);
+
+}
+

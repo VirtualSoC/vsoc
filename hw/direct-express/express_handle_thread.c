@@ -16,6 +16,11 @@
 
 #include "direct-express/express_log.h"
 // #define express_printf null_printf
+
+
+
+Direct_Express_Call *call_pop(Thread_Context *context);
+
 /**
  * @brief 从context的环形缓冲区中pop出一个call，若没有call，则会阻塞直到下一个call到达，这个只在thread运行函数中使用
  * 
@@ -49,6 +54,8 @@ Direct_Express_Call *call_pop(Thread_Context *context)
  */
 void  call_push(Thread_Context *context, Direct_Express_Call *call)
 {
+    express_printf("call push\n");
+
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
         //缓冲区为满
@@ -60,6 +67,7 @@ void  call_push(Thread_Context *context, Direct_Express_Call *call)
 
     //通知已经非空
     qemu_event_set(&(context->data_event));
+    express_printf("call push\n");
     // express_printf("call buf set\n");
     return;
 }
@@ -79,23 +87,26 @@ void *handle_thread_run(void *opaque)
     while (context->thread_run)
     {
         Direct_Express_Call *call = call_pop(context);
-        //my_print(NULL);
-
+        //my_print(NULL);  
+        express_printf("call pop\n");
         //实际对每个call调用的操作
         if(context->call_handle!=NULL){
+            
+            express_printf("handle thread call handle\n");
             context->call_handle(context,call);
         }
 
         // decode_invoke(call);
-        if(call->fun_id==-1){
-            // my_print(NULL);
-            printf("error return\n");
-            return NULL;
-        }
+        // if(call->id==-1){
+        //     // my_print(NULL);
+        //     express_printf("error return\n");
+        //     return NULL;
+        // }
 
         // call->callback(call);
     }
-    printf("error exit %d\n",context->thread_run);
+    express_printf("error exit %d\n",context->thread_run);
+    return NULL;
 }
 
 

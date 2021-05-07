@@ -3,8 +3,8 @@
 
 #include "direct-express/direct_express_distribute.h"
 
-#define EXPRESS_LOG_FUN_ID 0
-#define EXPRESS_GPU_FUN_ID 1
+#define EXPRESS_LOG_FUN_ID ((unsigned long long)0)
+#define EXPRESS_GPU_FUN_ID ((unsigned long long)1)
 
 
 

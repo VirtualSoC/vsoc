@@ -1,1 +1,0 @@
-void* glMapBufferRange GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access

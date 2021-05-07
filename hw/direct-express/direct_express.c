@@ -28,7 +28,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
     Direct_Express *g = DIRECT_EXPRESS(vdev);
     if (!g->thread_run)
     {
-        // express_printf("start three thread\n");
+        express_printf("start handle thread\n");
         g->thread_run = 1;
         qemu_thread_create(&g->render_thread, "direct-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
@@ -58,7 +58,9 @@ static void direct_express_handle_bh(void *opaque)
 static void direct_express_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 {
     Direct_Express *g = DIRECT_EXPRESS(vdev);
-    qemu_bh_schedule(g->data_bh);
+    // qemu_bh_schedule(g->data_bh);
+    direct_express_handle(&g->parent_obj, g->data_queue);
+
 }
 
 static void direct_express_realize(DeviceState *qdev, Error **errp)
@@ -87,7 +89,7 @@ static void direct_express_realize(DeviceState *qdev, Error **errp)
     //    qemu_cond_init(&edu->thr_cond);
     //    qemu_thread_create(&g->gpu_thread, "gpu", gpu_thread,
     //                       edu, QEMU_THREAD_JOINABLE);
-    //    express_printf("express- gpu realized\n");
+    express_printf("express gpu realized\n");
 }
 
 static uint64_t

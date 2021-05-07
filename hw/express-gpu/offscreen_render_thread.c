@@ -15,29 +15,39 @@
 #include "express-gpu/offscreen_render_thread.h"
 
 #include "direct-express/express_log.h"
+#include "express-gpu/glv3_trans.h"
 
-
-
+#include "express-gpu/express_gpu_opengl.h"
 
 
 //用于保存draw线程信息的hash表，方便分发到相应的线程
 static GHashTable *render_thread_contexts=NULL;
 
-static int render_thread;
+static QemuThread render_thread;
+
+
+Thread_Context *get_render_thread_context(unsigned long long type_id,unsigned long long thread_id,struct Express_Device_Info *info);
+void render_context_init(Thread_Context *context);
+
+
+
+void decode_invoke(Thread_Context *context,Direct_Express_Call *call);
 
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
  * 
  * @param call 
  */
-void decode_invoke(Direct_Express_Call *call)
+void decode_invoke(Thread_Context *context,Direct_Express_Call *call)
 {
 
-    if (call->fun_id == 1||call->fun_id == 0)
-    {
-        //draw_id为0表示debug输出消息
-        // draw_call_printf(call);
-    }
+    Render_Thread_Context *render_context=(Render_Thread_Context *)context;
+
+    // if (call->fun_id == 1||call->fun_id == 0)
+    // {
+    //     //draw_id为0表示debug输出消息
+    //     // draw_call_printf(call);
+    // }
     // else if (call->fun_id < 1000)
     // {
     //     egl_decode_invoke(call);
@@ -50,9 +60,10 @@ void decode_invoke(Direct_Express_Call *call)
     // else
     // {
     //     //由于现阶段3.0版本的opengl能兼容2.0，所以暂时先这样，出了事情再说
-    //     gl3_decode_invoke(call);
     // }
-    call->callback(call,1);
+    express_printf("enter decode invoke\n");
+    gl3_decode_invoke(render_context,call);
+    // call->callback(call,1);
     return;
 }
 
@@ -72,7 +83,7 @@ void real_egl_swapbuf(Thread_Context *context)
 }
 
 
-Thread_Context *get_render_thread_context(int type_id,int thread_id,struct Express_Device_Info *info){
+Thread_Context *get_render_thread_context(unsigned long long type_id,unsigned long long thread_id,struct Express_Device_Info *info){
     if(render_thread_contexts==NULL){
         render_thread_contexts=g_hash_table_new(g_direct_hash,g_direct_equal);
     }
@@ -81,25 +92,87 @@ Thread_Context *get_render_thread_context(int type_id,int thread_id,struct Expre
     //没有context就新建线程
     if(context==NULL){
         // express_printf("create new thread\n");
+        express_printf("create new context thread opengl\n");
         context=thread_context_create(thread_id,type_id,sizeof(Render_Thread_Context),info);
-        g_hash_table_insert(render_thread_contexts,GINT_TO_POINTER(thread_id),(gconstpointer)context);
+
+        g_hash_table_insert(render_thread_contexts,GINT_TO_POINTER(thread_id),(gpointer)context);
     }
+    return context;
 }
 
 
-void create_render_window(Thread_Context *context){
+void render_context_init(Thread_Context *context){
     if(!native_render_run){
         native_render_run=1;
         qemu_thread_create(&render_thread,"handle_thread",native_window_thread,context->direct_express_device,QEMU_THREAD_JOINABLE);
     }
+
+    Render_Thread_Context *render_context=(Render_Thread_Context *)context;
+    Opengl_Context *opengl_context = &(render_context->opengl_context);
+    
+    express_printf("ready to init context\n");
+    context_init(opengl_context);
+    express_printf("init context ok\n");
+
+
 }
 
 
+// void gpu_mem_map(Render_Thread_Context *render_context,GLenum target,GLintptr offset,GLsizeiptr length,GLbitfield access,void *buf){
+    
+//     void *gpu_mem = glMapBufferRange(target, offset, length, access);
+//     memcpy(buf,gpu_mem,length);
+//     g_hash_table_insert(render_context->mem_map,GINT_TO_POINTER(target),(gpointer)gpu_mem);
+//     g_hash_table_insert(render_context->mem_map_len,GINT_TO_POINTER(target),(gpointer)length);
 
-static const Express_Device_Info express_gpu_info = {
+// }
+
+// GLboolean gpu_mem_unmap(Render_Thread_Context *render_context,GLenum target,void *guest_mem){
+//     void *gpu_mem=g_hash_table_lookup(render_context->mem_map,GINT_TO_POINTER(target));
+//     if(gpu_mem==NULL){
+//         return GL_FALSE;
+//     }
+//     GLsizeiptr length=g_hash_table_lookup(render_context->mem_map_len,GINT_TO_POINTER(target));
+//     memcpy(gpu_mem,guest_mem,length);
+//     glUnmapBuffer(target);
+//     g_hash_table_remove(render_context->mem_map,GINT_TO_POINTER(target));
+//     g_hash_table_remove(render_context->mem_map_len,GINT_TO_POINTER(target));
+
+// }
+
+
+// void gpu_mem_flush(Render_Thread_Context *render_context, GLenum target, GLintptr offset, GLsizeiptr length,void *guest_mem){
+//     void *gpu_mem=g_hash_table_lookup(render_context->mem_map,GINT_TO_POINTER(target));
+//     if(gpu_mem==NULL){
+//         return;
+//     }
+//     GLsizeiptr all_length=g_hash_table_lookup(render_context->mem_map_len,GINT_TO_POINTER(target));
+//     ssize_t write_len=0;
+//     if(all_length<offset+length){
+//         write_len=all_length-offset;
+//     }else{
+//         write_len=length;
+//     }
+//     memcpy(gpu_mem+offset,guest_mem,write_len);
+    
+//     glFlushMappedBufferRange(target, offset, length);
+// }
+
+
+
+
+
+
+// void *get_gpu_mem_map(Render_Thread_Context *render_context,unsigned int target){
+//     return g_hash_table_lookup(render_context->mem_map,GINT_TO_POINTER(target));
+// }
+
+
+
+static Express_Device_Info express_gpu_info = {
     .name="express-gpu",
     .type_id=EXPRESS_GPU_FUN_ID,
-    .context_init=create_render_window,
+    .context_init=render_context_init,
     .call_handle=decode_invoke,
     .get_context=get_render_thread_context,
 };
