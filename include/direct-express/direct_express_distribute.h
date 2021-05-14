@@ -13,6 +13,9 @@
 //最多的参数数目
 #define MAX_PARA_NUM 64
 
+
+#define TERMINATE_FUN_ID 0
+
 /**
  * @brief 释放Direct_Express_Queue链表中的Direct_Express_Queue_Elem包括额外的申请空间
  * 
@@ -52,6 +55,7 @@
 #define FUN_IS_ASYNC(id)   (((id)>>24)&0x1)
 #define FUN_NEED_SAVE(id)  (((id)>>24)&0x2)
 #define FUN_NEED_SPEED(id) (((id)>>24)&0x4)
+#define FUN_HAS_RETURN(id) (((id)>>24)&0x8)
 
 
 /**
@@ -78,16 +82,16 @@ typedef struct Direct_Express_Call
 {
 
     //调用id
-    unsigned long long id;
+    uint64_t id;
 
-    unsigned long long thread_id;
+    uint64_t thread_id;
 
-    unsigned long long process_id;
+    uint64_t process_id;
 
     // long long get_time;
 
     //参数数目
-    unsigned long long para_num;
+    uint64_t para_num;
 
     Direct_Express_Queue_Elem *elem_header;
     Direct_Express_Queue_Elem *elem_tail;
@@ -99,6 +103,8 @@ typedef struct Direct_Express_Call
     void (*callback)(struct Direct_Express_Call *call, int notify);
 
     struct Direct_Express_Call *next;
+
+    int is_end;
 
 } Direct_Express_Call;
 
@@ -132,22 +138,22 @@ typedef struct Call_Para
 typedef struct Direct_Express_Flag_Buf
 {
     //用于guest端唤醒进程的flag
-    unsigned long long flag;
+    uint64_t flag;
 
     //调用的id，注意这是64位，所以肯定是8个字节的
-    unsigned long long id;
+    uint64_t id;
 
     //总共的参数数目
-    unsigned long long  para_num;
+    uint64_t  para_num;
 
-    unsigned long long thread_id;
+    uint64_t thread_id;
 
-    unsigned long long  process_id;
+    uint64_t  process_id;
 
-    unsigned long long  num_free;
+    uint64_t  num_free;
 
     //调用的普通返回值
-    volatile unsigned long long ret;
+    volatile uint64_t ret;
 
     //注意：这里没有剩下的几个参数是因为这几个参数qemu不需要，是给驱动在之后用的
 
@@ -163,10 +169,10 @@ typedef struct Thread_Context
     int thread_run;
 
     //对应到guest端调用起这个设备的线程的线程id
-    unsigned long long thread_id;
+    uint64_t thread_id;
 
     //设备的类型id
-    unsigned long long type_id;
+    uint64_t type_id;
 
     //用于缓冲call的环形缓冲区
     Direct_Express_Call *call_buf[CALL_BUF_SIZE+2];
@@ -187,6 +193,8 @@ typedef struct Thread_Context
     //特定设备自定义的context初始化函数
     void (*context_init)(struct Thread_Context *context);
 
+    void (*context_destory)(struct Thread_Context *context);
+
     //在数据到来后，特定设备自定义的处理call数据的函数，需要在这个函数中调用callback
     void (*call_handle)(struct Thread_Context *context, Direct_Express_Call *call);
 
@@ -203,17 +211,20 @@ typedef struct Express_Device_Info
 
     //对应到Thread_Context中的两个设备自定义的函数——初始化函数和call处理函数
     void (*context_init)(struct Thread_Context *context);
+    void (*context_destory)(struct Thread_Context *context);
     void (*call_handle)(struct Thread_Context *context, Direct_Express_Call *call);
 
     //设备定义的用于获取context的函数，例如有一个统一的context或者对每一个线程维护一个context
-    Thread_Context *(*get_context)(unsigned long long type_id, unsigned long long thread_id, struct Express_Device_Info *info);
+    Thread_Context *(*get_context)(uint64_t type_id, uint64_t thread_id, struct Express_Device_Info *info);
+
+    void (*remove_context)(uint64_t type_id, uint64_t thread_id, struct Express_Device_Info *info);
 
 } Express_Device_Info;
 
 
 void *call_distribute_thread(void *opaque);
 
-Thread_Context *thread_context_create(unsigned long long thread_id, unsigned long long  type_id, unsigned long long len, Express_Device_Info *info);
+Thread_Context *thread_context_create(uint64_t thread_id, uint64_t  type_id, uint64_t len, Express_Device_Info *info);
 
 void mark_call_return(Direct_Express_Call *call, int loc);
 

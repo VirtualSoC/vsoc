@@ -16,30 +16,23 @@ target64bit = True
 
 ptrbits = 64 if target64bit else 32
 sizeof_dic = {
-    'GLboolean': 32,     'GLbyte': 8,           'GLubyte': 8,
-    'GLshort': 16,       'GLushort': 16,        'GLint': 32,
-    'GLuint': 32,        'GLfixed': 32,         'GLint64': 64,
-    'GLuint64': 64,      'GLsizei': 32,         'GLenum': 32,
-    'GLintptr': ptrbits, 'GLsizeiptr': ptrbits, 'GLsync': ptrbits,
-    'GLeglImageOES': ptrbits,
-    'GLbitfield': 32,    'GLhalf': 16,          'GLfloat': 32,
-    'GLclampf': 32,      'GLdouble': 64,        'GLclampd': 64,
-    'GLchar': 8,         'GLclampx': 32,
+    'EGLBoolean': 32,     'EGLenum': 32,           'EGLTime': 64,
+    'EGLInt':32,
+    'EGLConfig': ptrbits, 'EGLSurface': ptrbits, 'EGLContext': ptrbits,
+    'EGLDisplay': ptrbits, 'EGLClientBuffer':ptrbits,'EGLSync':ptrbits,
+    'EGLAttrib':ptrbits, 'EGLImage':ptrbits,'EGLClientBuffer':ptrbits,
+    'GLbyte':8,
+
     # GLchar is not defined in documents, but is defined as 'char' in header
     # files
 }
 
-all_include = open(f"all_gl.h", "w+")
+all_include = open(f"all_egl.h", "w+")
 all_include.write("""
-#ifndef ALL_GL_H
-#define ALL_GL_H
+#ifndef ALL_EGL_H
+#define ALL_EGL_H
 
-#include <GLES/glplatform.h>
-#include <GLES/gl.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2platform.h>
-#include <GLES2/gl2ext.h>
-#include <GLES3/gl3.h>
+#include <EGL/egl.h>
 """)
 
 
@@ -75,7 +68,7 @@ class Func:
 
         # Check if there is a return value
         offset = 0
-        if temp[0][:2] != 'gl':
+        if temp[0][:2] != 'egl':
             if temp[0] == 'const':
                 self.ret = ' '.join(temp[:2])
                 offset = 2
@@ -236,7 +229,7 @@ class Func:
         if self.name.find("_") == -1 or self.name.find("_v") != -1:
             call_str = f"{self.name}("
         else:
-            call_str = f"d_{self.name}(opengl_context,"
+            call_str = f"d_{self.name}(render_context,"
 
         for arg in self.args:
             call_str += f"{arg['name']}, "
@@ -320,7 +313,7 @@ class Func:
         if self.name.find("_") == -1 or self.name.find("_v") != -1:
             call_str = f"{self.name}("
         else:
-            call_str = f"d_{self.name}(opengl_context,"
+            call_str = f"d_{self.name}(render_context,"
         for arg in self.args:
             if arg['ptr'] != 'NA':
                 call_str += f"{arg['name']}, "
@@ -490,7 +483,7 @@ class Func:
         if self.name.find("_") == -1 or self.name.find("_v") != -1:
             call_str = f"{self.name}("
         else:
-            call_str = f"d_{self.name}(opengl_context,"
+            call_str = f"d_{self.name}(render_context,"
         for arg in self.args:
             call_str += f"{arg['name']}, "
         if len(self.args) > 0:
@@ -1019,31 +1012,24 @@ define_line = ""
 para_num_line = ""
 
 android_out.write("""
+
+#include "egl_define.h"
 #include "define.h"
-#include "utils.h"
-#include "special.h"
 
-#include "all_gl.h"
-
-#include <cstring>
-typedef khronos_int32_t  GLclampx;
 \n""")
 
 qemu_out.write(
     """
 
-#include "glad.h"
-#include "glext.h"
-#include "gl3.h"
-#include "gl.h"
+#include "express-gpu/egl_trans.h"
 
-#include "define.h"
+#include "express-gpu/egl_surface.h"
 
 
-void gl3_decode_invoke(Render_Thread_Context *context,Direct_Express_Call *call)
+void egl_decode_invoke(Render_Thread_Context *context,Direct_Express_Call *call)
 {
     Render_Thread_Context *render_context=(Render_Thread_Context *)context;
-    Opengl_Context *opengl_context=&(render_context->opengl_context);
+    //Double_Buffer *egl_context = &(render_context->render_double_buffer);
     //uint64_t fun_id=GET_FUN_ID(call->id);
     //uint64_t is_async=FUN_IS_ASYNC(call->id);
     uint64_t need_speed=FUN_NEED_SPEED(call->id);
@@ -1053,7 +1039,7 @@ void gl3_decode_invoke(Render_Thread_Context *context,Direct_Express_Call *call)
     
     switch (call->id)
 {\n""")
-define_id = 1
+define_id = 100000
 for filename in filenames:
     file_type = 0
     if filename == "1-1":
@@ -1065,7 +1051,7 @@ for filename in filenames:
     elif filename == "2-2":
         file_type = 3
 
-    input_file = open(f"in2/{filename}.txt", "r", encoding="utf-8")
+    input_file = open(f"in/{filename}.txt", "r", encoding="utf-8")
     # qemu_out = open(f"qemu/{filename}.h", "w+")
 
     qemu_out.write(f"\n\n/******* file '{filename}' *******/\n\n\n")
@@ -1115,8 +1101,8 @@ qemu_define.write("""
 //#ifndef DEFINE_H
 //#define DEFINE_H
 
-#ifndef GLV3_TRANS_H
-#define GLV3_TRANS_H
+#ifndef EGL_TRANS_H
+#define EGL_TRANS_H
 
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_device_common.h"
@@ -1124,12 +1110,9 @@ qemu_define.write("""
 
 
 //android
-#include <GLES/glplatform.h>
-#include <GLES/gl.h>
-#include <GLES2/gl2.h>
-#include <GLES2/gl2platform.h>
-#include <GLES2/gl2ext.h>
-#include <GLES3/gl3.h>
+#include <EGL/egl.h>
+#include <EGL/eglplatform.h>
+
 
 
 //# define EXPRESS_GPU_FUN_ID ((unsigned long long)1)
@@ -1142,7 +1125,7 @@ qemu_define.write(define_line)
 qemu_define.write("\n\n\n\n\n\n\n\n")
 qemu_define.write(para_num_line)
 qemu_define.write("""
-void gl3_decode_invoke(Render_Thread_Context *context,Direct_Express_Call *call);
+void egl_decode_invoke(Render_Thread_Context *context,Direct_Express_Call *call);
 
 #endif
 """)

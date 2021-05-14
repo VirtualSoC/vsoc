@@ -281,19 +281,19 @@ void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *array
     for(int i=0;i<n;i++){
         GLuint vao_index=arrays[i];
         Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GINT_TO_POINTER(vao_index));
-        Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(vao_index));
+        // Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(vao_index));
 
         if(vao_status==bound_buffer->buffer_status){
             bound_buffer->buffer_status=g_hash_table_lookup(bound_buffer->vao_status, GINT_TO_POINTER(0));
         }
 
-        GLuint buffer_index[2];
-        buffer_index[0]=vao_point->indices_buffer_object;
-        buffer_index[1]=vao_point->buffer_object;
+        // GLuint buffer_index[2];
+        // buffer_index[0]=vao_point->indices_buffer_object;
+        // buffer_index[1]=vao_point->buffer_object;
 
-        glDeleteBuffers(2,buffer_index);
-        g_free(vao_point);
-        g_free(vao_status);
+        // glDeleteBuffers(2,buffer_index);
+        // g_free(vao_point);
+        // g_free(vao_status);
         g_hash_table_remove(bound_buffer->vao_status, GINT_TO_POINTER(vao_index));
         g_hash_table_remove(bound_buffer->vao_point_data, GINT_TO_POINTER(vao_index));
 

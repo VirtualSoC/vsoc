@@ -7449,9 +7449,9 @@ void d_glTestPointer2(void *context, GLint a, const GLint* b, GLint* c)
         }
 
 
-/* readline: "GLint glTestPointer3 GLint a, const GLint *b#sizeof(GLint)*10, GLint *c#sizeof(GLint)*20000" */
+/* readline: "GLint glTestPointer3 GLint a, const GLint *b#sizeof(GLint)*20000, GLint *c#sizeof(GLint)*20000" */
 /* func name: "glTestPointer3" */
-/* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'b', 'ptr': 'in', 'ptr_len': 'sizeof(GLint)*10', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'c', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)*20000', 'loc': 2, 'ptr_ptr': False}] */
+/* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'b', 'ptr': 'in', 'ptr_len': 'sizeof(GLint)*20000', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'c', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)*20000', 'loc': 2, 'ptr_ptr': False}] */
 /* ret: "GLint" */
 /* type: "0" */
 
@@ -7797,7 +7797,7 @@ void d_glInOutTest(void *context, GLint a, GLint b, const GLchar* e, GLint* c, G
 
 
 
-/******* end of file '1-1', 126/126 functions *******/
+/******* end of file '1-1', 127/126 functions *******/
 
 
 
@@ -7807,7 +7807,7 @@ void d_glInOutTest(void *context, GLint a, GLint b, const GLchar* e, GLint* c, G
 
 
 
-/******* end of file '1-2', 0/126 functions *******/
+/******* end of file '1-2', 1/126 functions *******/
 
 
 
@@ -24017,7 +24017,7 @@ void d_glPrintfAsyn(void *context, GLint a, GLuint size, GLdouble c, const GLcha
 
 
 
-/******* end of file '2-1', 242/368 functions *******/
+/******* end of file '2-1', 243/368 functions *******/
 
 
 
@@ -24179,6 +24179,6 @@ void d_glSaveLongTime(void *context, GLuint a, const void* int_data, const void*
 
 
 
-/******* end of file '2-2', 4/372 functions *******/
+/******* end of file '2-2', 5/372 functions *******/
 
 

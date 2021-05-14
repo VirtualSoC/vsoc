@@ -10,10 +10,12 @@ typedef struct{
     Thread_Context context;
     Double_Buffer render_double_buffer;
     Opengl_Context opengl_context;
-
 } Render_Thread_Context;
 
-void real_egl_swapbuf(Thread_Context *context);
+void real_egl_swap_buffer(Render_Thread_Context *context);
 
+void render_windows_create(Render_Thread_Context *context);
+
+void render_context_destroy(Thread_Context *context);
 
 #endif

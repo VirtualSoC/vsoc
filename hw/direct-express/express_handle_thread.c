@@ -9,7 +9,7 @@
  * 
  */
 
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
 #include "direct-express/express_handle_thread.h"
@@ -52,9 +52,9 @@ Direct_Express_Call *call_pop(Thread_Context *context)
  * @param context 
  * @param call 
  */
-void  call_push(Thread_Context *context, Direct_Express_Call *call)
+void call_push(Thread_Context *context, Direct_Express_Call *call)
 {
-    express_printf("call push\n");
+    // express_printf("call push\n");
 
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
@@ -67,7 +67,7 @@ void  call_push(Thread_Context *context, Direct_Express_Call *call)
 
     //通知已经非空
     qemu_event_set(&(context->data_event));
-    express_printf("call push\n");
+    // express_printf("call push\n");
     // express_printf("call buf set\n");
     return;
 }
@@ -84,9 +84,22 @@ void *handle_thread_run(void *opaque)
 
     Thread_Context *context = (Thread_Context *)opaque;
     // my_print(NULL);
+
+    if (context->context_init != NULL)
+    {
+        context->context_init(context);
+    }
+    context->thread_run=1;
     while (context->thread_run)
     {
         Direct_Express_Call *call = call_pop(context);
+
+        if(call->is_end){
+            call->callback(call,0);
+            context->thread_run=0;
+            continue;
+        }
+
         //my_print(NULL);  
         express_printf("call pop\n");
         //实际对每个call调用的操作
@@ -105,7 +118,16 @@ void *handle_thread_run(void *opaque)
 
         // call->callback(call);
     }
-    express_printf("error exit %d\n",context->thread_run);
+
+    qemu_event_destroy(&(context->data_event));
+
+    if (context->context_destory != NULL)
+    {
+        context->context_destory(context);
+    }
+
+    g_free(context);
+    express_printf("handle thread exit %d\n",context->thread_run);
     return NULL;
 }
 

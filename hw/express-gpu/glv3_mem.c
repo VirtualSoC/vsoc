@@ -169,6 +169,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
     }
 
     GLboolean ret = glUnmapBuffer(target);
+    map_res->host_data=NULL;
     if (map_res->guest_data != NULL)
     {
         g_free(map_res->guest_data);

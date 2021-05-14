@@ -1,3 +1,4 @@
+#define STD_DEBUG_LOG
 
 #include "express-gpu/express_gpu_opengl.h"
 
@@ -13,6 +14,15 @@
 // #include "express-gpu/gl2ext.h"
 
 
+
+
+
+//下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
+static void g_buffer_map_destroy(gpointer data);
+
+static void g_vao_status_destroy(gpointer data);
+
+static void g_vao_point_data_destroy(gpointer data);
 
 
 
@@ -851,17 +861,17 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 }
 
 
-void context_init(void *context){
+void opengl_context_create(void *context){
     Opengl_Context *opengl_context=(Opengl_Context *)context;
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
     
 
-    opengl_context->buffer_map=g_hash_table_new(g_direct_hash, g_direct_equal);
+    opengl_context->buffer_map=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_buffer_map_destroy);
 
-    bound_buffer->vao_status=g_hash_table_new(g_direct_hash, g_direct_equal);
-    bound_buffer->vao_point_data=g_hash_table_new(g_direct_hash, g_direct_equal);
+    bound_buffer->vao_status=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_vao_status_destroy);
+    bound_buffer->vao_point_data=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_vao_point_data_destroy);
 
     bound_buffer->buffer_type=g_hash_table_new(g_direct_hash, g_direct_equal);
     
@@ -883,18 +893,86 @@ void context_init(void *context){
     bound_buffer->asyn_pack_texture_buffer=0;
     bound_buffer->asyn_unpack_texture_buffer=0;
 
+    opengl_context->has_init=1;
+
+}
+
+
+
+void opengl_context_destroy(void *context){
+    express_printf("opengl context destroy\n");
+    Opengl_Context *opengl_context=(Opengl_Context *)context;
+
+    if(!opengl_context->has_init){
+        return;
+    }
+
+    Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
+
+    //这三个remove后都有默认的销毁函数
+    // g_hash_table_remove_all(opengl_context->buffer_map);
+    g_hash_table_destroy(opengl_context->buffer_map);
+    g_hash_table_destroy(bound_buffer->vao_status);
+    g_hash_table_destroy(bound_buffer->vao_point_data);
+    
+    //但是这个没有
+    g_hash_table_destroy(bound_buffer->buffer_type);
+
+    opengl_context->has_init=0;
+
 }
 
 
 
 
+//下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
+static void g_buffer_map_destroy(gpointer data){
+    express_printf("buffer_map destroy\n");
+    Guest_Host_Map *map_res=(Guest_Host_Map *)data;
+    if(map_res->guest_data!=NULL){
+        g_free(map_res->guest_data);
+        map_res->guest_data=NULL;
+    }
+    g_free(map_res);
+}
 
 
+static void g_vao_status_destroy(gpointer data){
+    express_printf("vao_status destroy\n");
+
+    Buffer_Status *vao_status=(Buffer_Status *)data;
+    g_free(vao_status);
+}
 
 
+static void g_vao_point_data_destroy(gpointer data){
+    Attrib_Point *vao_point=(Attrib_Point *)data;
+
+    express_printf("vao_point destroy\n");
+    
+    GLuint buffer_index[2];
+    int t=0;
+    if(vao_point->indices_buffer_object!=0){
+        buffer_index[t]=vao_point->indices_buffer_object;
+        t++;
+    }
+    if(vao_point->buffer_object){
+        buffer_index[t]=vao_point->buffer_object;
+        t++;
+    }
+    if(t!=0){
+        glDeleteBuffers(t,buffer_index);
+    }
+
+    for(int i=0;i<32;i++){
+        if(vao_point->data[i]!=NULL){
+            g_free(vao_point->data[i]);
+        }
+    }
 
 
-
+    g_free(vao_point);
+}
 
 
 

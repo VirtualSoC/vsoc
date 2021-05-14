@@ -3,8 +3,8 @@
 
 
 #include "direct-express/express_device_common.h"
+#include "direct-express/express_log.h"
 #include "express-gpu/express_gpu_render.h"
-
 
 
 typedef struct Pixel_Store_Status
@@ -79,6 +79,8 @@ typedef struct Opengl_Context
     Bound_Buffer bound_buffer_status;
 
     GHashTable *buffer_map;
+
+    int has_init;
 
 } Opengl_Context;
 
@@ -168,11 +170,11 @@ void d_glDeleteProgram_origin(void *context, GLuint program);
 void d_glLinkProgram_origin(void *context, GLuint program);
 
 
-void context_init(void *context);
+void opengl_context_create(void *context);
 
 
 
-
+void opengl_context_destroy(void *context);
 
 
 

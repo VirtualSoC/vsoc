@@ -487,6 +487,7 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
     context->thread_run = 1;
 
     context->context_init = info->context_init;
+    context->context_destory=info->context_destory;
     context->call_handle = info->call_handle;
 
     context->direct_express_device = direct_express_device;
@@ -494,10 +495,7 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
     //线程缓冲区事件初始化
     qemu_event_init(&(context->data_event), false);
 
-    if (context->context_init != NULL)
-    {
-        context->context_init(context);
-    }
+    
     express_printf("ready to create thread\n");
     qemu_thread_create(&context->this_thread, "handle_thread", handle_thread_run, context, QEMU_THREAD_JOINABLE);
 
@@ -513,9 +511,12 @@ void push_to_thread(Direct_Express_Call *call)
 {
 
     //express_printf("push to thread\n");
-    unsigned long thread_id = call->thread_id;
+    uint64_t thread_id = call->thread_id;
     // unsigned long fun_id = GET_FUN_ID(call->id);
-    unsigned long long device_type_id = GET_DEVICE_ID(call->id);
+    uint64_t device_type_id = GET_DEVICE_ID(call->id);
+    uint64_t fun_id =GET_FUN_ID(call->id);
+
+
 
     assert(device_thread_info != NULL);
     Express_Device_Info *device_info = (Express_Device_Info *)g_hash_table_lookup(device_thread_info, GINT_TO_POINTER(device_type_id));
@@ -526,11 +527,18 @@ void push_to_thread(Direct_Express_Call *call)
     }
     express_printf("push to %s %llu,%llu\n", device_info->name, call->id, device_type_id);
 
+
     Thread_Context *context = device_info->get_context(device_type_id, thread_id, device_info);
 
     //找得到相应的设备处理时才把他推送到相应的设备线程
     if (context != NULL)
     {
+        if(fun_id==TERMINATE_FUN_ID){
+            if(device_info->remove_context){
+                device_info->remove_context(device_type_id, thread_id, device_info);
+                call->is_end=1;
+            }
+        }
         call_push(context, call);
     }
     else
@@ -588,6 +596,8 @@ void distribute_wait(void)
 #endif
 }
 
+// #include "express-gpu/express_gpu_render.h"
+
 int push_cnt = 0;
 /**
  * @brief 真正用于取出vring上传过来的数据，然后调用相关解码的线程
@@ -628,7 +638,8 @@ void *call_distribute_thread(void *opaque)
     VirtQueueElement *elem;
     
     express_printf("wait for pop\n");
-    
+    // QemuThread render_thread;
+    // qemu_thread_create(&render_thread,"handle_thread",native_window_thread,vdev,QEMU_THREAD_JOINABLE);
     elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
     while (elem == NULL)
     {
@@ -663,6 +674,7 @@ void *call_distribute_thread(void *opaque)
             //draw_call的其他部分都已经初始化过了
             call->vdev = vdev;
             call->callback = push_free_callback;
+            call->is_end=0;
             push_to_thread(call);
             // pop_cnt_debug++;
             // printf("pop %d\n",pop_cnt_debug);

@@ -19,7 +19,7 @@
 
 extern HWND draw_native_window;
 
-extern int native_render_run;
+extern volatile int native_render_run;
 
 
 typedef struct {
@@ -37,6 +37,8 @@ typedef struct {
 
     int width;
     int height;
+    
+    int has_init;
 
 } Double_Buffer;
 
@@ -44,11 +46,11 @@ typedef struct {
 #define TEXTURE_UNLOCK(use_texture) atomic_cmpxchg(&(use_texture), 1, 0)
 
 
-void render_swap_buffer(Double_Buffer *double_buffer);
+void egl_swap_buffer(Double_Buffer *double_buffer);
 
 void render_bind_frame_buffer(Double_Buffer *double_buffer);
 
-GLint get_display_texture(Double_Buffer *double_buffer);
+GLuint get_display_texture(Double_Buffer *double_buffer);
 
 void release_display_texture(Double_Buffer *double_buffer);
 
@@ -56,8 +58,9 @@ void release_display_texture(Double_Buffer *double_buffer);
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);
 
+int egl_context_make_current(Double_Buffer *d_buffer);
 
-int double_buffer_create(Double_Buffer *d_buffer);
+int egl_context_destroy(Double_Buffer *d_buffer);
 
 // void *my_gpu_render_thread(void *opaque);
 // void push_to_render_buf(MYGPU_Opengl_Call *call);
