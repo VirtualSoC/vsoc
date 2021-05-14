@@ -31,10 +31,10 @@
 #include "qemu/main-loop.h" /* iothread mutex */
 #include "qemu/module.h"
 #include "qapi/visitor.h"
-#include "EGL/egl.h"
-#include "EGL/eglext.h"
-#include "EGL/eglplatform.h"
-#include "GLES3/gl3.h"
+// #include "EGL/egl.h"
+// #include "EGL/eglext.h"
+// #include "EGL/eglplatform.h"
+// #include "GLES3/gl3.h"
 #include "ui/console.h"
 #include "qemu/typedefs.h"
 #include "windows.h"
@@ -399,52 +399,52 @@ static const MemoryRegionOps edu_mmio_ops = {
 //     void* repaint_callback_param;
 // };
 
-static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    // printf("message thread id %d\n",GetCurrentThreadId());
-    // ShowCursor(TRUE);
-    // printf("currentmessage %d\n",uMsg);
-    if (uMsg == WM_DESTROY)
-    {
-        PostQuitMessage(0);
-        // auto user_data =
-        //     (SubWindowUserData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        // if (user_data && user_data->repaint_callback) {
-        //     user_data->repaint_callback(user_data->repaint_callback_param);
-        // }
-    }
-    else if (uMsg == WM_PAINT)
-    {
-        // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
-        // SetBkMode(GetDC(hwnd),TRANSPARENT);
+// static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+// {
+//     // printf("message thread id %d\n",GetCurrentThreadId());
+//     // ShowCursor(TRUE);
+//     // printf("currentmessage %d\n",uMsg);
+//     if (uMsg == WM_DESTROY)
+//     {
+//         PostQuitMessage(0);
+//         // auto user_data =
+//         //     (SubWindowUserData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+//         // if (user_data && user_data->repaint_callback) {
+//         //     user_data->repaint_callback(user_data->repaint_callback_param);
+//         // }
+//     }
+//     else if (uMsg == WM_PAINT)
+//     {
+//         // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+//         // SetBkMode(GetDC(hwnd),TRANSPARENT);
 
-        // eglSwapBuffers(eglDisplay, eglSurface);
-    }
-    else if (uMsg == WM_SETFOCUS)
-    {
-        SetFocus(GetParent(hwnd));
-        // printf("set focus\n");
-        // return 0;
-    }
-    else if (uMsg == WM_MOUSEMOVE)
-    {
-        // SetFocus(hwnd);
-        // printf("mouse move\n");
-        // return 0;
-    }
-    else if (uMsg == WM_SIZE)
-    {
-        printf("---------size change\n");
-    }
+//         // eglSwapBuffers(eglDisplay, eglSurface);
+//     }
+//     else if (uMsg == WM_SETFOCUS)
+//     {
+//         SetFocus(GetParent(hwnd));
+//         // printf("set focus\n");
+//         // return 0;
+//     }
+//     else if (uMsg == WM_MOUSEMOVE)
+//     {
+//         // SetFocus(hwnd);
+//         // printf("mouse move\n");
+//         // return 0;
+//     }
+//     else if (uMsg == WM_SIZE)
+//     {
+//         printf("---------size change\n");
+//     }
 
-    // else if (uMsg == WM_NCDESTROY) {
-    //     SubWindowUserData* user_data =
-    //         (SubWindowUserData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    //     delete user_data;
-    // }
-    PostMessage(GetParent(hwnd), uMsg, wParam, lParam);
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
+//     // else if (uMsg == WM_NCDESTROY) {
+//     //     SubWindowUserData* user_data =
+//     //         (SubWindowUserData*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+//     //     delete user_data;
+//     // }
+//     PostMessage(GetParent(hwnd), uMsg, wParam, lParam);
+//     return DefWindowProc(hwnd, uMsg, wParam, lParam);
+// }
 
 
 // int display_texture=0;
@@ -678,207 +678,207 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
 //     }
 // }
 
-static void *render_thread1(void *opaque)
-{
+// static void *render_thread1(void *opaque)
+// {
 
-//     EGLNativeDisplayType eglNativeDisplay = 0;
+// //     EGLNativeDisplayType eglNativeDisplay = 0;
 
-//     EGLConfig config;
-//     EGLint majorVersion;
-//     EGLint minorVersion;
-//     EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+// //     EGLConfig config;
+// //     EGLint majorVersion;
+// //     EGLint minorVersion;
+// //     EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
 
-//     GLuint vertexShader;
-//     GLuint fragmentShader;
+// //     GLuint vertexShader;
+// //     GLuint fragmentShader;
 
-//     GLuint programObject;
+// //     GLuint programObject;
 
 
-//     GLint linked;
+// //     GLint linked;
 
-//     EGLDisplay eglDisplay;
-//     EGLContext eglContext;
+// //     EGLDisplay eglDisplay;
+// //     EGLContext eglContext;
 
-//     EGLSurface eglSurface;
+// //     EGLSurface eglSurface;
 
 
 
-//     char vShaderStr[] =
-//         "#version 300 es\n"
-//         "layout (location = 0) in vec2 position;\n"
-//         "layout (location = 1) in vec2 texCoords;\n"
+// //     char vShaderStr[] =
+// //         "#version 300 es\n"
+// //         "layout (location = 0) in vec2 position;\n"
+// //         "layout (location = 1) in vec2 texCoords;\n"
 
-//         "out vec2 TexCoords;\n"
-//         "void main()\n"
-//         "{\n"
-//         "    gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
-//         "    TexCoords = texCoords;\n"
-//         "}\n";
+// //         "out vec2 TexCoords;\n"
+// //         "void main()\n"
+// //         "{\n"
+// //         "    gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
+// //         "    TexCoords = texCoords;\n"
+// //         "}\n";
 
-//     char fShaderStr[] =
-//         "#version 300 es\n"
-//         "precision mediump float;                     \n"
-//         "in vec2 TexCoords;\n"
-//         "out vec4 color;\n"
-//         "uniform sampler2D screenTexture;\n"
-//         "void main(){\n"
-//         "color = texture(screenTexture, TexCoords);\n"
-//         "}\n";
+// //     char fShaderStr[] =
+// //         "#version 300 es\n"
+// //         "precision mediump float;                     \n"
+// //         "in vec2 TexCoords;\n"
+// //         "out vec4 color;\n"
+// //         "uniform sampler2D screenTexture;\n"
+// //         "void main(){\n"
+// //         "color = texture(screenTexture, TexCoords);\n"
+// //         "}\n";
 
-//     // texture(screenTexture, TexCoords)
-//     int loc = 0;
-//     printf("thread create\n");
+// //     // texture(screenTexture, TexCoords)
+// //     int loc = 0;
+// //     printf("thread create\n");
 
-//     // Sleep(5000);
-//     printf("thread create\n");
+// //     // Sleep(5000);
+// //     printf("thread create\n");
 
-//     // Create EGL display connection
-//     eglDisplay = eglGetDisplay(eglNativeDisplay);
+// //     // Create EGL display connection
+// //     eglDisplay = eglGetDisplay(eglNativeDisplay);
 
-//     if (eglDisplay == EGL_NO_DISPLAY)
-//         printf("shit eglDisplay %ld\n", GetLastError());
+// //     if (eglDisplay == EGL_NO_DISPLAY)
+// //         printf("shit eglDisplay %ld\n", GetLastError());
 
-//     // Initialize EGL for this display, returns EGL version
-//     if (!eglInitialize(eglDisplay, &majorVersion, &minorVersion))
-//         printf("shit eglinitialize %ld\n", GetLastError());
+// //     // Initialize EGL for this display, returns EGL version
+// //     if (!eglInitialize(eglDisplay, &majorVersion, &minorVersion))
+// //         printf("shit eglinitialize %ld\n", GetLastError());
 
-//     {
-//         EGLint numConfigs = 0;
-//         EGLint attribList[] =
-//             {
-//                 EGL_RED_SIZE, 5,
-//                 EGL_GREEN_SIZE, 6,
-//                 EGL_BLUE_SIZE, 5,
-//                 EGL_ALPHA_SIZE, 0,
-//                 EGL_DEPTH_SIZE, 24,
-//                 EGL_STENCIL_SIZE, 0,
-//                 EGL_SAMPLE_BUFFERS, 0,
-//                 EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-//                 EGL_NONE};
+// //     {
+// //         EGLint numConfigs = 0;
+// //         EGLint attribList[] =
+// //             {
+// //                 EGL_RED_SIZE, 5,
+// //                 EGL_GREEN_SIZE, 6,
+// //                 EGL_BLUE_SIZE, 5,
+// //                 EGL_ALPHA_SIZE, 0,
+// //                 EGL_DEPTH_SIZE, 24,
+// //                 EGL_STENCIL_SIZE, 0,
+// //                 EGL_SAMPLE_BUFFERS, 0,
+// //                 EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+// //                 EGL_NONE};
 
-//         if (!eglChooseConfig(eglDisplay, attribList, &config, 1, &numConfigs))
-//             printf("shit eglChooseConfig %ld\n", GetLastError());
+// //         if (!eglChooseConfig(eglDisplay, attribList, &config, 1, &numConfigs))
+// //             printf("shit eglChooseConfig %ld\n", GetLastError());
 
-//         if (numConfigs < 1)
-//             printf("shit numConfigs %ld\n", GetLastError());
-//     }
+// //         if (numConfigs < 1)
+// //             printf("shit numConfigs %ld\n", GetLastError());
+// //     }
 
-//     eglSurface = eglCreateWindowSurface(eglDisplay, config, opaque, NULL);
-//     if (eglSurface == EGL_NO_SURFACE)
-//         printf("shit eglCreateWindowSurface %ld\n", GetLastError());
+// //     eglSurface = eglCreateWindowSurface(eglDisplay, config, opaque, NULL);
+// //     if (eglSurface == EGL_NO_SURFACE)
+// //         printf("shit eglCreateWindowSurface %ld\n", GetLastError());
 
-//     eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
-//     eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+// //     eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
+// //     eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
 
-//     glGenTextures(2, texture);
+// //     glGenTextures(2, texture);
 
-//     glBindTexture(GL_TEXTURE_2D, texture[0]);
+// //     glBindTexture(GL_TEXTURE_2D, texture[0]);
 
-//     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+// //     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-//     glBindTexture(GL_TEXTURE_2D, texture[1]);
+// //     glBindTexture(GL_TEXTURE_2D, texture[1]);
 
-//     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// //     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+// //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-//     glBindTexture(GL_TEXTURE_2D, 0);
+// //     glBindTexture(GL_TEXTURE_2D, 0);
 
 
-//     // Create EGL display connection
-//     eglDisplay2 = eglGetDisplay(eglNativeDisplay);
+// //     // Create EGL display connection
+// //     eglDisplay2 = eglGetDisplay(eglNativeDisplay);
 
-//     if (eglDisplay2 == EGL_NO_DISPLAY)
-//         printf("shit eglDisplay %ld\n", GetLastError());
+// //     if (eglDisplay2 == EGL_NO_DISPLAY)
+// //         printf("shit eglDisplay %ld\n", GetLastError());
 
-//     // Initialize EGL for this display, returns EGL version
-//     if (!eglInitialize(eglDisplay2, &majorVersion, &minorVersion))
-//         printf("shit eglinitialize %ld\n", GetLastError());
+// //     // Initialize EGL for this display, returns EGL version
+// //     if (!eglInitialize(eglDisplay2, &majorVersion, &minorVersion))
+// //         printf("shit eglinitialize %ld\n", GetLastError());
 
-//     {
-//         EGLint numConfigs = 0;
-//         EGLint attribList[] =
-//             {
-//                 EGL_RED_SIZE, 5,
-//                 EGL_GREEN_SIZE, 6,
-//                 EGL_BLUE_SIZE, 5,
-//                 EGL_ALPHA_SIZE, 0,
-//                 EGL_DEPTH_SIZE, 24,
-//                 EGL_STENCIL_SIZE, 0,
-//                 EGL_SAMPLE_BUFFERS, 0,
-//                 EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-//                 EGL_NONE};
+// //     {
+// //         EGLint numConfigs = 0;
+// //         EGLint attribList[] =
+// //             {
+// //                 EGL_RED_SIZE, 5,
+// //                 EGL_GREEN_SIZE, 6,
+// //                 EGL_BLUE_SIZE, 5,
+// //                 EGL_ALPHA_SIZE, 0,
+// //                 EGL_DEPTH_SIZE, 24,
+// //                 EGL_STENCIL_SIZE, 0,
+// //                 EGL_SAMPLE_BUFFERS, 0,
+// //                 EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+// //                 EGL_NONE};
 
-//         if (!eglChooseConfig(eglDisplay2, attribList, &config, 1, &numConfigs))
-//             printf("shit eglChooseConfig %ld\n", GetLastError());
+// //         if (!eglChooseConfig(eglDisplay2, attribList, &config, 1, &numConfigs))
+// //             printf("shit eglChooseConfig %ld\n", GetLastError());
 
-//         if (numConfigs < 1)
-//             printf("shit numConfigs %ld\n", GetLastError());
-//     }
+// //         if (numConfigs < 1)
+// //             printf("shit numConfigs %ld\n", GetLastError());
+// //     }
 
-//     eglSurface2 = eglCreatePbufferSurface(eglDisplay2, config, NULL);
-//     if (eglSurface2 == EGL_NO_SURFACE)
-//         printf("shit eglCreatepbufferSurface %ld\n", GetLastError());
+// //     eglSurface2 = eglCreatePbufferSurface(eglDisplay2, config, NULL);
+// //     if (eglSurface2 == EGL_NO_SURFACE)
+// //         printf("shit eglCreatepbufferSurface %ld\n", GetLastError());
 
-//     eglContext2 = eglCreateContext(eglDisplay2, config, eglContext, contextAttribs);
+// //     eglContext2 = eglCreateContext(eglDisplay2, config, eglContext, contextAttribs);
 
-//     QemuThread t;
-//     qemu_thread_create(&t, "edu3", render_thread2,
-//                        NULL, QEMU_THREAD_JOINABLE);
+// //     QemuThread t;
+// //     qemu_thread_create(&t, "edu3", render_thread2,
+// //                        NULL, QEMU_THREAD_JOINABLE);
 
-//     // Sleep(1000);
+// //     // Sleep(1000);
 
-//     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+// //     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-//     //gl
-//     // glUseProgram(0);
-//     programObject = glCreateProgram();
-//     if (programObject == 0)
-//         printf("shit glCreateProgram2 %ld\n", GetLastError());
+// //     //gl
+// //     // glUseProgram(0);
+// //     programObject = glCreateProgram();
+// //     if (programObject == 0)
+// //         printf("shit glCreateProgram2 %ld\n", GetLastError());
 
-//     vertexShader = LoadShader1(GL_VERTEX_SHADER, vShaderStr);
-//     fragmentShader = LoadShader1(GL_FRAGMENT_SHADER, fShaderStr);
-//     printf("shader %d %d\n", vertexShader, fragmentShader);
+// //     vertexShader = LoadShader1(GL_VERTEX_SHADER, vShaderStr);
+// //     fragmentShader = LoadShader1(GL_FRAGMENT_SHADER, fShaderStr);
+// //     printf("shader %d %d\n", vertexShader, fragmentShader);
 
-//     glAttachShader(programObject, vertexShader);
-//     glAttachShader(programObject, fragmentShader);
+// //     glAttachShader(programObject, vertexShader);
+// //     glAttachShader(programObject, fragmentShader);
 
-//     glLinkProgram(programObject);
+// //     glLinkProgram(programObject);
 
-//     glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
-//     if (!linked)
-//         printf("shit glGetProgramiv2 %ld\n", GetLastError());
+// //     glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
+// //     if (!linked)
+// //         printf("shit glGetProgramiv2 %ld\n", GetLastError());
 
-//     glUseProgram(programObject);
+// //     glUseProgram(programObject);
 
-//     GLfloat quadVertices[] = {// Vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
-//                               // Positions   // TexCoords
-//                               -0.5f, 0.5f, 0.0f, 1.0f,
-//                               -0.5f, -0.5f, 0.0f, 0.0f,
-//                               0.5f, -0.5f, 1.0f, 0.0f,
+// //     GLfloat quadVertices[] = {// Vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
+// //                               // Positions   // TexCoords
+// //                               -0.5f, 0.5f, 0.0f, 1.0f,
+// //                               -0.5f, -0.5f, 0.0f, 0.0f,
+// //                               0.5f, -0.5f, 1.0f, 0.0f,
 
-//                               -0.5f, 0.5f, 0.0f, 1.0f,
-//                               0.5f, -0.5f, 1.0f, 0.0f,
-//                               0.5f, 0.5f, 1.0f, 1.0f};
+// //                               -0.5f, 0.5f, 0.0f, 1.0f,
+// //                               0.5f, -0.5f, 1.0f, 0.0f,
+// //                               0.5f, 0.5f, 1.0f, 1.0f};
 
-//     GLuint quadVAO, quadVBO;
-//     glGenVertexArrays(1, &quadVAO);
-//     glGenBuffers(1, &quadVBO);
-//     glBindVertexArray(quadVAO);
-//     glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-//     glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
-//     glEnableVertexAttribArray(0);
-//     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)0);
-//     glEnableVertexAttribArray(1);
-//     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)(2 * sizeof(GLfloat)));
-//     glBindVertexArray(0);
+// //     GLuint quadVAO, quadVBO;
+// //     glGenVertexArrays(1, &quadVAO);
+// //     glGenBuffers(1, &quadVBO);
+// //     glBindVertexArray(quadVAO);
+// //     glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+// //     glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+// //     glEnableVertexAttribArray(0);
+// //     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)0);
+// //     glEnableVertexAttribArray(1);
+// //     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)(2 * sizeof(GLfloat)));
+// //     glBindVertexArray(0);
 
-//     eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+// //     eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
 
-//     printf("current swapbuf message thread id %d\n", GetCurrentThreadId());
+// //     printf("current swapbuf message thread id %d\n", GetCurrentThreadId());
 
 
 
@@ -886,261 +886,262 @@ static void *render_thread1(void *opaque)
 
 
 
-//     // EGLContext shareContext=eglContext;
+// //     // EGLContext shareContext=eglContext;
 
-//     // // EGLNativeDisplayType eglNativeDisplay = 0;
+// //     // // EGLNativeDisplayType eglNativeDisplay = 0;
 
-//     // // EGLConfig config;
-//     // // EGLint majorVersion;
-//     // // EGLint minorVersion;
-//     // // EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+// //     // // EGLConfig config;
+// //     // // EGLint majorVersion;
+// //     // // EGLint minorVersion;
+// //     // // EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
 
-//     // GLuint vertexShader2;
-//     // GLuint fragmentShader2;
-//     // GLuint programObject2;
+// //     // GLuint vertexShader2;
+// //     // GLuint fragmentShader2;
+// //     // GLuint programObject2;
 
-//     // // GLint linked;
+// //     // // GLint linked;
 
-//     // EGLDisplay eglDisplay2;
-//     // EGLContext eglContext2;
-//     // EGLSurface eglSurface2;
+// //     // EGLDisplay eglDisplay2;
+// //     // EGLContext eglContext2;
+// //     // EGLSurface eglSurface2;
 
-//     // char vShaderStr2[] =
-//     //     "#version 300 es                          \n"
-//     //     "layout(location = 0) in vec4 vPosition;  \n"
-//     //     "void main()                              \n"
-//     //     "{                                        \n"
-//     //     "   gl_Position = vPosition;              \n"
-//     //     "}                                        \n";
+// //     // char vShaderStr2[] =
+// //     //     "#version 300 es                          \n"
+// //     //     "layout(location = 0) in vec4 vPosition;  \n"
+// //     //     "void main()                              \n"
+// //     //     "{                                        \n"
+// //     //     "   gl_Position = vPosition;              \n"
+// //     //     "}                                        \n";
 
-//     // char fShaderStr2[] =
-//     //     "#version 300 es                              \n"
-//     //     "precision mediump float;                     \n"
-//     //     "out vec4 fragColor;                          \n"
-//     //     "void main()                                  \n"
-//     //     "{                                            \n"
-//     //     "   fragColor = vec4 ( 1.0, 0.0, 0.0, 1.0 );  \n"
-//     //     "}                                            \n";
+// //     // char fShaderStr2[] =
+// //     //     "#version 300 es                              \n"
+// //     //     "precision mediump float;                     \n"
+// //     //     "out vec4 fragColor;                          \n"
+// //     //     "void main()                                  \n"
+// //     //     "{                                            \n"
+// //     //     "   fragColor = vec4 ( 1.0, 0.0, 0.0, 1.0 );  \n"
+// //     //     "}                                            \n";
 
-//     // // Create EGL display connection
-//     // eglDisplay2 = eglGetDisplay(eglNativeDisplay);
+// //     // // Create EGL display connection
+// //     // eglDisplay2 = eglGetDisplay(eglNativeDisplay);
 
-//     // if (eglDisplay2 == EGL_NO_DISPLAY)
-//     //     printf("shit eglDisplay %ld\n", GetLastError());
+// //     // if (eglDisplay2 == EGL_NO_DISPLAY)
+// //     //     printf("shit eglDisplay %ld\n", GetLastError());
 
-//     // // Initialize EGL for this display, returns EGL version
-//     // if (!eglInitialize(eglDisplay2, &majorVersion, &minorVersion))
-//     //     printf("shit eglinitialize %ld\n", GetLastError());
+// //     // // Initialize EGL for this display, returns EGL version
+// //     // if (!eglInitialize(eglDisplay2, &majorVersion, &minorVersion))
+// //     //     printf("shit eglinitialize %ld\n", GetLastError());
 
-//     // {
-//     //     EGLint numConfigs = 0;
-//     //     EGLint attribList[] =
-//     //         {
-//     //             EGL_RED_SIZE, 5,
-//     //             EGL_GREEN_SIZE, 6,
-//     //             EGL_BLUE_SIZE, 5,
-//     //             EGL_ALPHA_SIZE, 0,
-//     //             EGL_DEPTH_SIZE, 24,
-//     //             EGL_STENCIL_SIZE, 0,
-//     //             EGL_SAMPLE_BUFFERS, 0,
-//     //             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-//     //             EGL_NONE};
+// //     // {
+// //     //     EGLint numConfigs = 0;
+// //     //     EGLint attribList[] =
+// //     //         {
+// //     //             EGL_RED_SIZE, 5,
+// //     //             EGL_GREEN_SIZE, 6,
+// //     //             EGL_BLUE_SIZE, 5,
+// //     //             EGL_ALPHA_SIZE, 0,
+// //     //             EGL_DEPTH_SIZE, 24,
+// //     //             EGL_STENCIL_SIZE, 0,
+// //     //             EGL_SAMPLE_BUFFERS, 0,
+// //     //             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+// //     //             EGL_NONE};
 
-//     //     if (!eglChooseConfig(eglDisplay, attribList, &config, 1, &numConfigs))
-//     //         printf("shit eglChooseConfig %ld\n", GetLastError());
+// //     //     if (!eglChooseConfig(eglDisplay, attribList, &config, 1, &numConfigs))
+// //     //         printf("shit eglChooseConfig %ld\n", GetLastError());
 
-//     //     if (numConfigs < 1)
-//     //         printf("shit numConfigs %ld\n", GetLastError());
-//     // }
+// //     //     if (numConfigs < 1)
+// //     //         printf("shit numConfigs %ld\n", GetLastError());
+// //     // }
 
-//     // eglSurface2 = eglCreatePbufferSurface(eglDisplay, config, NULL);
-//     // if (eglSurface2 == EGL_NO_SURFACE)
-//     //     printf("shit eglCreatepbufferSurface %ld\n", GetLastError());
+// //     // eglSurface2 = eglCreatePbufferSurface(eglDisplay, config, NULL);
+// //     // if (eglSurface2 == EGL_NO_SURFACE)
+// //     //     printf("shit eglCreatepbufferSurface %ld\n", GetLastError());
     
-//     // eglContext2 = eglCreateContext(eglDisplay2, config, shareContext, contextAttribs);
-//     // eglMakeCurrent(eglDisplay2, eglSurface2, eglSurface2, eglContext2);
+// //     // eglContext2 = eglCreateContext(eglDisplay2, config, shareContext, contextAttribs);
+// //     // eglMakeCurrent(eglDisplay2, eglSurface2, eglSurface2, eglContext2);
 
-//     // // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-//     // //
+// //     // // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+// //     // //
 
-//     // GLuint fbo[2];
-//     // glGenFramebuffers(2, fbo);
-//     // GLuint texture[2];
-//     // glGenTextures(2, texture);
+// //     // GLuint fbo[2];
+// //     // glGenFramebuffers(2, fbo);
+// //     // GLuint texture[2];
+// //     // glGenTextures(2, texture);
 
-//     // glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
-//     // glBindTexture(GL_TEXTURE_2D, texture[0]);
+// //     // glBindFramebuffer(GL_FRAMEBUFFER, fbo[0]);
+// //     // glBindTexture(GL_TEXTURE_2D, texture[0]);
 
-//     // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+// //     // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
-//     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//     // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[0], 0);
+// //     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// //     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// //     // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[0], 0);
 
-//     // glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
-//     // glBindTexture(GL_TEXTURE_2D, texture[1]);
+// //     // glBindFramebuffer(GL_FRAMEBUFFER, fbo[1]);
+// //     // glBindTexture(GL_TEXTURE_2D, texture[1]);
 
-//     // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+// //     // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 400, 400, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
-//     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//     // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[1], 0);
+// //     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+// //     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// //     // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture[1], 0);
 
-//     // glBindTexture(GL_TEXTURE_2D, 0);
+// //     // glBindTexture(GL_TEXTURE_2D, 0);
 
-//     // GLfloat vVertices[] = {
-//     //     0.0f, 1.0f, 0.0f,
-//     //     -0.5f, -1.0f, 0.0f,
-//     //     1.0f, -0.5f, 0.0f};
-//     // // glViewport(loc, 0, 400, 400);
-//     // glClear(GL_COLOR_BUFFER_BIT);
+// //     // GLfloat vVertices[] = {
+// //     //     0.0f, 1.0f, 0.0f,
+// //     //     -0.5f, -1.0f, 0.0f,
+// //     //     1.0f, -0.5f, 0.0f};
+// //     // // glViewport(loc, 0, 400, 400);
+// //     // glClear(GL_COLOR_BUFFER_BIT);
 
-//     // // Use the program object
+// //     // // Use the program object
 
-//     // // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+// //     // // glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-//     // //gl
-//     // glUseProgram(0);
-//     // programObject2 = glCreateProgram();
-//     // if (programObject2 == 0)
-//     //     printf("shit glCreateProgram2 %ld\n", GetLastError());
+// //     // //gl
+// //     // glUseProgram(0);
+// //     // programObject2 = glCreateProgram();
+// //     // if (programObject2 == 0)
+// //     //     printf("shit glCreateProgram2 %ld\n", GetLastError());
 
-//     // vertexShader2 = LoadShader1(GL_VERTEX_SHADER, vShaderStr2);
-//     // fragmentShader2 = LoadShader1(GL_FRAGMENT_SHADER, fShaderStr2);
-//     // printf("shader %d %d\n", vertexShader2, fragmentShader2);
+// //     // vertexShader2 = LoadShader1(GL_VERTEX_SHADER, vShaderStr2);
+// //     // fragmentShader2 = LoadShader1(GL_FRAGMENT_SHADER, fShaderStr2);
+// //     // printf("shader %d %d\n", vertexShader2, fragmentShader2);
 
-//     // glAttachShader(programObject2, vertexShader2);
-//     // glAttachShader(programObject2, fragmentShader2);
+// //     // glAttachShader(programObject2, vertexShader2);
+// //     // glAttachShader(programObject2, fragmentShader2);
 
-//     // glLinkProgram(programObject2);
+// //     // glLinkProgram(programObject2);
 
-//     // glGetProgramiv(programObject2, GL_LINK_STATUS, &linked);
-//     // if (!linked)
-//     //     printf("shit glGetProgramiv2 %ld\n", GetLastError());
+// //     // glGetProgramiv(programObject2, GL_LINK_STATUS, &linked);
+// //     // if (!linked)
+// //     //     printf("shit glGetProgramiv2 %ld\n", GetLastError());
 
-//     // // int loc;
+// //     // // int loc;
 
-//     // int s=0;
-
-
-//     //     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-//         eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+// //     // int s=0;
 
 
-//     while (1)
-//     {
-// //         eglMakeCurrent(eglDisplay2, eglSurface2, eglSurface2, eglContext2);
-// //         // if(s==0){
-// //             glBindFramebuffer(GL_FRAMEBUFFER, fbo[s]);
-// //         // }
+// //     //     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+// //         eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+
+
+// //     while (1)
+// //     {
+// // //         eglMakeCurrent(eglDisplay2, eglSurface2, eglSurface2, eglContext2);
+// // //         // if(s==0){
+// // //             glBindFramebuffer(GL_FRAMEBUFFER, fbo[s]);
+// // //         // }
+// // //         // glBindBuffer(GL_ARRAY_BUFFER, 0);
+// // //         glViewport(0, 0, 400, 400);
+// // //         glUseProgram(programObject2);
+// // //         glClear(GL_COLOR_BUFFER_BIT);
+// // //         vVertices[1] = vVertices[6] = (loc - 100) * 1.0 / 100.0;
+// // //         // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+// // //         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vVertices);
+// // //         glEnableVertexAttribArray(0);
+// // //         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+// // //         glBindVertexArray(0);
+
+// // //         while(atomic_cmpxchg(&use_texture, 0, 1) == 1);
+
+// // //         // glFlush();
+
+// // //         // display_texture=texture[s];
+// // //         display_texture= s;
+
+// // //         s+=1;
+// // //         s%=2;
+// // //         use_texture=0;
+
+
+// // // if(sync[0]==NULL){
+
+// // // sync[0]=glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
+// // // glFlush();
+// // // }
+
+
+
+
+
+
+
+
+
+
+
+// //         // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+
+
 // //         // glBindBuffer(GL_ARRAY_BUFFER, 0);
-// //         glViewport(0, 0, 400, 400);
-// //         glUseProgram(programObject2);
-// //         glClear(GL_COLOR_BUFFER_BIT);
-// //         vVertices[1] = vVertices[6] = (loc - 100) * 1.0 / 100.0;
+// //         // if(display_texture==0){
+// //         //     Sleep(30);
+// //         //     continue;
+// //         // }
+
+// //         //  eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext2);
+// //         // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+
 // //         // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-// //         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vVertices);
-// //         glEnableVertexAttribArray(0);
-// //         glDrawArrays(GL_TRIANGLES, 0, 3);
-
-// //         glBindVertexArray(0);
-
-// //         while(atomic_cmpxchg(&use_texture, 0, 1) == 1);
-
-// //         // glFlush();
-
-// //         // display_texture=texture[s];
-// //         display_texture= s;
-
-// //         s+=1;
-// //         s%=2;
-// //         use_texture=0;
-
-
-// // if(sync[0]==NULL){
-
-// // sync[0]=glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
-// // glFlush();
-// // }
-
-
-
-
-
-
-
-
-
-
-
-//         // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
-
-
-//         // glBindBuffer(GL_ARRAY_BUFFER, 0);
-//         // if(display_texture==0){
-//         //     Sleep(30);
-//         //     continue;
-//         // }
-
-//         //  eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext2);
-//         // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
-
-//         // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-//         eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
-//         glViewport(0, 0, 400, 400);
-//         glClear(GL_COLOR_BUFFER_BIT);
-//         glClearColor(0, 0, 1, 0);
-//         glDisable(GL_DEPTH_TEST);
-//         glEnable(GL_BLEND);
-//         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//         glUseProgram(programObject);
+// //         eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+// //         glViewport(0, 0, 400, 400);
+// //         glClear(GL_COLOR_BUFFER_BIT);
+// //         glClearColor(0, 0, 1, 0);
+// //         glDisable(GL_DEPTH_TEST);
+// //         glEnable(GL_BLEND);
+// //         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+// //         glUseProgram(programObject);
          
         
-//         while(atomic_cmpxchg(&use_texture, 0, 1) == 1);
-//         // display_texture=0;
-//         // if(texture[display_texture]==0){
-//         //     Sleep(300);
-//         //     printf("dispaly texture null\n");
-//         //     use_texture=0;
-//         //     continue;
-//         // }
-//         display_texture=0;
-//         if(sync[display_texture]!=NULL){
-//             // glWaitSync(sync[s],0,GL_TIMEOUT_IGNORED);
-//             // glClientWaitSync(sync[display_texture], GL_SYNC_FLUSH_COMMANDS_BIT, 0);
-//             // printf("wait1 %d\n",display_texture);
-//             printf("wait1 %d %d\n",display_texture,glClientWaitSync(sync[display_texture], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000)-0x9118);
+// //         while(atomic_cmpxchg(&use_texture, 0, 1) == 1);
+// //         // display_texture=0;
+// //         // if(texture[display_texture]==0){
+// //         //     Sleep(300);
+// //         //     printf("dispaly texture null\n");
+// //         //     use_texture=0;
+// //         //     continue;
+// //         // }
+// //         display_texture=0;
+// //         if(sync[display_texture]!=NULL){
+// //             // glWaitSync(sync[s],0,GL_TIMEOUT_IGNORED);
+// //             // glClientWaitSync(sync[display_texture], GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+// //             // printf("wait1 %d\n",display_texture);
+// //             printf("wait1 %d %d\n",display_texture,glClientWaitSync(sync[display_texture], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000)-0x9118);
             
-//             // printf("wait1 %d\n",display_texture);
-//             // glWaitSync(sync[display_texture],0,GL_TIMEOUT_IGNORED);
+// //             // printf("wait1 %d\n",display_texture);
+// //             // glWaitSync(sync[display_texture],0,GL_TIMEOUT_IGNORED);
             
-//             glDeleteSync(sync[display_texture]);
-//             sync[display_texture]=NULL;
-//         }
-//         // glFinish();
-//         // display_texture=texture[s];
-//         glBindTexture(GL_TEXTURE_2D, texture[display_texture]);
-//         glBindVertexArray(quadVAO);
-//         glDrawArrays(GL_TRIANGLES, 0, 6);
-//         glBindVertexArray(0);
-//         printf("draw texture %d %d\n",display_texture,glIsTexture(texture[display_texture]));
-//         glBindTexture(GL_TEXTURE_2D, 0);
-//         // printf("error %d\n",glGetError());
-//         eglSwapBuffers(eglDisplay, eglSurface);
-//         sync[display_texture]=glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
-//         // glFinish();
-//         display_texture+=1;
-//         display_texture%=2;
-//         use_texture=0;
-//         // SendMessage(opaque, WM_PAINT, 0, 0);
-//         // loc += 10;
-//         // loc %= 200;
-//         Sleep(500);
+// //             glDeleteSync(sync[display_texture]);
+// //             sync[display_texture]=NULL;
+// //         }
+// //         // glFinish();
+// //         // display_texture=texture[s];
+// //         glBindTexture(GL_TEXTURE_2D, texture[display_texture]);
+// //         glBindVertexArray(quadVAO);
+// //         glDrawArrays(GL_TRIANGLES, 0, 6);
+// //         glBindVertexArray(0);
+// //         printf("draw texture %d %d\n",display_texture,glIsTexture(texture[display_texture]));
+// //         glBindTexture(GL_TEXTURE_2D, 0);
+// //         // printf("error %d\n",glGetError());
+// //         eglSwapBuffers(eglDisplay, eglSurface);
+// //         sync[display_texture]=glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
+// //         // glFinish();
+// //         display_texture+=1;
+// //         display_texture%=2;
+// //         use_texture=0;
+// //         // SendMessage(opaque, WM_PAINT, 0, 0);
+// //         // loc += 10;
+// //         // loc %= 200;
+// //         Sleep(500);
         
-//         // printf("%d",loc);
-//         // printf(".");
-//     }
-}
+// //         // printf("%d",loc);
+// //         // printf(".");
+// //     }
+//     return NULL;
+// }
 
 /*
  * We purposely use a thread, so that users are forced to wait for the status
@@ -1148,131 +1149,131 @@ static void *render_thread1(void *opaque)
  */
 static void *edu_fact_thread(void *opaque)
 {
-    EGLNativeDisplayType eglNativeDisplay = 0;
+    // EGLNativeDisplayType eglNativeDisplay = 0;
 
-    EGLConfig config;
-    EGLint majorVersion;
-    EGLint minorVersion;
-    EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+    // EGLConfig config;
+    // EGLint majorVersion;
+    // EGLint minorVersion;
+    // EGLint contextAttribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
 
-    GLuint vertexShader;
-    GLuint fragmentShader;
-    GLuint programObject;
-    GLint linked;
+    // GLuint vertexShader;
+    // GLuint fragmentShader;
+    // GLuint programObject;
+    // GLint linked;
 
-    char vShaderStr[] =
-        "#version 300 es                          \n"
-        "layout(location = 0) in vec4 vPosition;  \n"
-        "void main()                              \n"
-        "{                                        \n"
-        "   gl_Position = vPosition;              \n"
-        "}                                        \n";
+    // char vShaderStr[] =
+    //     "#version 300 es                          \n"
+    //     "layout(location = 0) in vec4 vPosition;  \n"
+    //     "void main()                              \n"
+    //     "{                                        \n"
+    //     "   gl_Position = vPosition;              \n"
+    //     "}                                        \n";
 
-    char fShaderStr[] =
-        "#version 300 es                              \n"
-        "precision mediump float;                     \n"
-        "out vec4 fragColor;                          \n"
-        "void main()                                  \n"
-        "{                                            \n"
-        "   fragColor = vec4 ( 1.0, 0.0, 0.0, 1.0 );  \n"
-        "}                                            \n";
+    // char fShaderStr[] =
+    //     "#version 300 es                              \n"
+    //     "precision mediump float;                     \n"
+    //     "out vec4 fragColor;                          \n"
+    //     "void main()                                  \n"
+    //     "{                                            \n"
+    //     "   fragColor = vec4 ( 1.0, 0.0, 0.0, 1.0 );  \n"
+    //     "}                                            \n";
 
-    // while (render_hwnd == NULL)
+    // // while (render_hwnd == NULL)
+    // // {
+    // //     Sleep(300);
+    // //     printf(".");
+    // // }
+    // Sleep(15000);
+
+    // QemuConsole *con = qemu_console_lookup_by_index(0);
+    // void *render_hwnd = qemu_console_get_window_id(con);
+
+    // static const char className[] = "subWin";
+
+    // WNDCLASS wc = {};
+    // if (!GetClassInfo(GetModuleHandle(NULL), className, &wc))
     // {
-    //     Sleep(300);
-    //     printf(".");
+    //     wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW; // redraw if size changes
+    //     wc.lpfnWndProc = &subWindowProc;               // points to window procedure
+    //     wc.cbWndExtra = sizeof(void *);                // save extra window memory
+    //     wc.lpszClassName = className;                  // name of window class
+    //     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    //     RegisterClass(&wc);
     // }
-    Sleep(15000);
 
-    QemuConsole *con = qemu_console_lookup_by_index(0);
-    void *render_hwnd = qemu_console_get_window_id(con);
+    // EGLNativeWindowType render_hwnd_egl = CreateWindowEx(
+    //     WS_EX_NOPARENTNOTIFY, // do not bother our parent window
+    //     className,
+    //     "sub",
+    //     WS_CHILD,
+    //     0, 0, 400, 400,
+    //     render_hwnd,
+    //     NULL,
+    //     NULL,
+    //     NULL);
 
-    static const char className[] = "subWin";
+    // // WS_DISABLED
+    // // |WS_EX_LAYERED
 
-    WNDCLASS wc = {};
-    if (!GetClassInfo(GetModuleHandle(NULL), className, &wc))
-    {
-        wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW; // redraw if size changes
-        wc.lpfnWndProc = &subWindowProc;               // points to window procedure
-        wc.cbWndExtra = sizeof(void *);                // save extra window memory
-        wc.lpszClassName = className;                  // name of window class
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        RegisterClass(&wc);
-    }
+    // QemuThread t;
+    // qemu_thread_create(&t, "edu2", render_thread1,
+    //                    render_hwnd_egl, QEMU_THREAD_JOINABLE);
 
-    EGLNativeWindowType render_hwnd_egl = CreateWindowEx(
-        WS_EX_NOPARENTNOTIFY, // do not bother our parent window
-        className,
-        "sub",
-        WS_CHILD,
-        0, 0, 400, 400,
-        render_hwnd,
-        NULL,
-        NULL,
-        NULL);
+    // printf("\nget render_hwnd l %lx\n", render_hwnd);
+    // ShowWindow(render_hwnd_egl, TRUE);
 
-    // WS_DISABLED
-    // |WS_EX_LAYERED
+    // SetLayeredWindowAttributes(render_hwnd_egl, RGB(255, 255, 255), 0, LWA_ALPHA | LWA_COLORKEY);
 
-    QemuThread t;
-    qemu_thread_create(&t, "edu2", render_thread1,
-                       render_hwnd_egl, QEMU_THREAD_JOINABLE);
+    // // EnableWindow(render_hwnd_egl, false);
+    // // ShowCursor(TRUE);
+    // // ShowCursor(TRUE);
+    // // ShowCursor(TRUE);
 
-    printf("\nget render_hwnd l %lx\n", render_hwnd);
-    ShowWindow(render_hwnd_egl, TRUE);
+    // // eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
+    // // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
 
-    SetLayeredWindowAttributes(render_hwnd_egl, RGB(255, 255, 255), 0, LWA_ALPHA | LWA_COLORKEY);
+    // // // gl
+    // // programObject = glCreateProgram();
+    // // if (programObject == 0)
+    // //     printf("shit glCreateProgram %ld\n", GetLastError());
 
-    // EnableWindow(render_hwnd_egl, false);
-    // ShowCursor(TRUE);
-    // ShowCursor(TRUE);
-    // ShowCursor(TRUE);
+    // // vertexShader = LoadShader1(GL_VERTEX_SHADER, vShaderStr);
+    // // fragmentShader = LoadShader1(GL_FRAGMENT_SHADER, fShaderStr);
 
-    // eglContext = eglCreateContext(eglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
-    // eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+    // // glAttachShader(programObject, vertexShader);
+    // // glAttachShader(programObject, fragmentShader);
 
-    // // gl
-    // programObject = glCreateProgram();
-    // if (programObject == 0)
-    //     printf("shit glCreateProgram %ld\n", GetLastError());
+    // // glLinkProgram(programObject);
 
-    // vertexShader = LoadShader1(GL_VERTEX_SHADER, vShaderStr);
-    // fragmentShader = LoadShader1(GL_FRAGMENT_SHADER, fShaderStr);
+    // // glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
+    // // if (!linked)
+    // //     printf("shit glGetProgramiv %ld\n", GetLastError());
 
-    // glAttachShader(programObject, vertexShader);
-    // glAttachShader(programObject, fragmentShader);
+    // // printf("drawing.");
+    // // int loc = 0;
+    // MSG msg;
+    // // glUseProgram(programObject);
 
-    // glLinkProgram(programObject);
-
-    // glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
-    // if (!linked)
-    //     printf("shit glGetProgramiv %ld\n", GetLastError());
-
-    // printf("drawing.");
-    // int loc = 0;
-    MSG msg;
-    // glUseProgram(programObject);
-
-    printf("current trans thread id %d\n", GetCurrentThreadId());
-    // while (1)
+    // printf("current trans thread id %d\n", GetCurrentThreadId());
+    // // while (1)
+    // // {
+    // //  printf("enter message\n");
+    // while (GetMessage(&msg, NULL, 0, 0) > 0)
     // {
-    //  printf("enter message\n");
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {
-        // printf("GetMessage %d\n", msg.message);
-        // if (msg.message == WM_QUIT)
-        // {
-        //     break;
-        // }
-        // else
-        // {
+    //     // printf("GetMessage %d\n", msg.message);
+    //     // if (msg.message == WM_QUIT)
+    //     // {
+    //     //     break;
+    //     // }
+    //     // else
+    //     // {
 
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-        // }
-    }
-    // Sleep(10);
+    //     TranslateMessage(&msg);
+    //     DispatchMessage(&msg);
+    //     // }
     // }
+    // // Sleep(10);
+    // // }
     return NULL;
 }
 
