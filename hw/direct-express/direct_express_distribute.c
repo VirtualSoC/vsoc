@@ -525,7 +525,7 @@ void push_to_thread(Direct_Express_Call *call)
         call->callback(call, 0);
         return;
     }
-    express_printf("push to %s %llu,%llu\n", device_info->name, call->id, device_type_id);
+    express_printf("\033[31mpush to %s thread_id %08x %llu %llu %08x\033[0m\n", device_info->name, call->thread_id,device_type_id,fun_id, call->id );
 
 
     Thread_Context *context = device_info->get_context(device_type_id, thread_id, device_info);

@@ -267,7 +267,7 @@ glCompressedTexImage2D_without_bound GLenum target, GLint level, GLenum internal
 glCompressedTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data#imageSize
 
 
-glDrawElements_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)
+
 glTexImage2D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)
 
 glDrawRangeElements_without_bound GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)
@@ -280,8 +280,6 @@ glTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint y
 glTexImage3D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)
 
 glTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)
-
-glDrawElementsInstanced_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type), GLsizei instancecount
 
 
 

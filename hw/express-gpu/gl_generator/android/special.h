@@ -72,7 +72,7 @@ typedef struct Attrib_Point
     unsigned char data_index_length[32][8];
 
     //用于聚类计算各个指针之间距离的数组
-    GLint data_dis[32][32];
+    uint64_t data_dis[32][32];
 
     //用于指示这个属性指针到底跟哪个属性是同一个数组
     GLint data_real_index[32];
@@ -154,7 +154,7 @@ typedef struct Map_Result
     GLintptr offset;
     GLsizeiptr length;
     GLbitfield access;
-    char map_data_info[192];
+    char map_data_info[32];
     char *map_data;
 } Map_Result;
 

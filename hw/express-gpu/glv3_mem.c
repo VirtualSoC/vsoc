@@ -1,3 +1,5 @@
+#define STD_DEBUG_LOG
+
 #include "express-gpu/glv3_mem.h"
 
 void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const void *data, GLenum usage)
@@ -19,14 +21,33 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
     {
         //size等于第一个scatter的len，说明大小较小，可以直接data过去
         glBufferData(target, size, s_data[0].data, usage);
+
+        express_printf("glBufferData %d:",size);
+        float *temp=(float *)s_data[0].data;
+        for(int i=0;i<size/4;i++){
+            express_printf("%f ",temp[i]);
+        }
+        express_printf("\n");
     }
     else
     {
         //先分配足够大的空间，然后用映射内存的方式来进行写入
-        glBufferData(target, size, NULL, usage);
-        GLubyte *map_pointer = glMapBufferRange(target, 0, size, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-        host_guest_buffer_exchange(s_data, map_pointer, 0, size, 1);
-        glUnmapBuffer(target);
+        // glBufferData(target, size, NULL, usage);
+        // GLubyte *map_pointer = glMapBufferRange(target, 0, size, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+        // host_guest_buffer_exchange(s_data, map_pointer, 0, size, 1);
+        
+        express_printf("glBufferData %d:",size);
+        float *temp=g_malloc(size);
+        host_guest_buffer_exchange(s_data, temp, 0, size, 1);
+        for(int i=0;i<size/4;i++){
+            express_printf("%f ",temp[i]);
+        }
+        express_printf("\n");
+        glBufferData(target, size,temp, usage);
+
+        g_free(temp);
+
+        // glUnmapBuffer(target);
     }
 }
 void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLsizeiptr size, const void *data)

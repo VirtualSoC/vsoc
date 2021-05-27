@@ -402,7 +402,7 @@ uint64_t gl_get_program_uniform_size(void *context,GLuint program,GLint location
 
 void d_glGenVertexArrays(void *context, GLsizei n, GLuint *arrays)
 {
-    d_glGenVertexArrays(context, n, arrays);
+    d_glGenVertexArrays_origin(context, n, arrays);
     Bound_Buffer *bound_buffer = &(((Direct_GPU_Context *)context)->bound_buffer_status);
     Buffer_Status *t_buffer;
     t_buffer = new Buffer_Status;
@@ -1090,7 +1090,14 @@ void init_vertex_attrib_offset(void *context, GLuint index, GLint size, GLenum t
     point_data->size[index] = size;
     point_data->type[index] = type;
     point_data->normalized[index] = normalized;
-    point_data->data[index] = pointer;
+    if(pointer==point_data->data[index]){
+        point_data->data_has_change[index]=GL_FALSE;
+    }else{
+        point_data->data_has_change[index]=GL_TRUE;
+        point_data->data[index] = pointer;
+
+    }
+    
     point_data->data_real_index[index] = index;
     point_data->invoke_type[index] = invoke_type;
     point_data->is_offset[index] = 1;
@@ -1172,11 +1179,11 @@ void init_vertex_attrib_pointer(void *context, GLuint index, GLint size, GLenum 
 
     for (int i = 0; i < 32; i++)
     {
-        if (point_data->location[i] == 0 || i == index)
+        if (point_data->location[i] == 0 || i == index || point_data->is_offset[i]==1)
         {
             continue;
         }
-        point_data->data_dis[i][index] = abs((char *)point_data->data[i] - (char *)pointer);
+        point_data->data_dis[i][index] = llabs((uint64_t)((char *)point_data->data[i] - (char *)pointer));
         point_data->data_dis[index][i] = point_data->data_dis[i][index];
         //聚类的过程中，两个是一个类要求其距离在一个stride之内，且其stride都一样
         if (point_data->data_dis[i][index] < stride && point_data->stride[i] == stride)
@@ -1365,22 +1372,22 @@ void d_glVertexAttribDivisor(void *context, GLuint index, GLuint divisor)
 
     Attrib_Point *point_data = bound_buffer->vao_point_data[status->vertex_array_buffer];
 
-    //注意，divisor只有在有绑定的时候才直接发送host
-    if (get_bound_buffer(context, GL_ARRAY_BUFFER) == 0)
-    {
+    // //注意，divisor只有在有绑定的时候才直接发送host
+    // if (get_bound_buffer(context, GL_ARRAY_BUFFER) == 0)
+    // {
 
-        if (index > 32)
-        {
-            //error
-            //todo 这里的32应该设置为当前gpu最大支持的顶点属性数
-        }
-        point_data->divisor[index] = divisor;
-    }
-    else
-    {
+    //     if (index > 32)
+    //     {
+    //         //error
+    //         //todo 这里的32应该设置为当前gpu最大支持的顶点属性数
+    //     }
+    //     point_data->divisor[index] = divisor;
+    // }
+    // else
+    // {
         point_data->divisor[index] = divisor;
         d_glVertexAttribDivisor_origin(context, index, divisor);
-    }
+    // }
 }
 
 /**
@@ -1636,12 +1643,12 @@ void *d_glMapBufferRange(void *context, GLenum target, GLintptr offset, GLsizeip
         size_t int_data_loc=0;
         memcpy(map_res->map_data_info+int_data_loc,&target,sizeof(GLenum));
         int_data_loc+=sizeof(GLenum);
-        memcpy(map_res->map_data_info+int_data_loc,&offset,sizeof(GLenum));
-        int_data_loc+=sizeof(GLenum);
-        memcpy(map_res->map_data_info+int_data_loc,&length,sizeof(GLenum));
-        int_data_loc+=sizeof(GLenum);
-        memcpy(map_res->map_data_info+int_data_loc,&access,sizeof(GLenum));
-        int_data_loc+=sizeof(GLenum);
+        memcpy(map_res->map_data_info+int_data_loc,&offset,sizeof(GLintptr));
+        int_data_loc+=sizeof(GLintptr);
+        memcpy(map_res->map_data_info+int_data_loc,&length,sizeof(GLsizeiptr));
+        int_data_loc+=sizeof(GLsizeiptr);
+        memcpy(map_res->map_data_info+int_data_loc,&access,sizeof(GLbitfield));
+        int_data_loc+=sizeof(GLbitfield);
 
         //这里先让host那边保存下来这个指针，之后unmap或者flush的时候直接取相应的位置的数据就行了
         d_glMapBufferRange_write(context, length, (const void *)map_res->map_data_info, (const void *)map_data);
@@ -1736,6 +1743,8 @@ void * context_init(void)
 
     Direct_GPU_Context *real_context = new Direct_GPU_Context;
 
+
+    //初始化Bound_Buffer
     Bound_Buffer *bound_buffer = &(real_context->bound_buffer_status);
 
     //默认4000大小，不够时运行时自动增加
@@ -1748,7 +1757,30 @@ void * context_init(void)
     }
     bound_buffer->ebo_mm = temp;
 
-    //这里
+    Buffer_Status *origin_status=new Buffer_Status;
+    memset(origin_status,0,sizeof(Buffer_Status));
+    bound_buffer->vao_status[0]=origin_status;
+    bound_buffer->buffer_status=origin_status;
+
+    Attrib_Point *origin_attrib_point=new Attrib_Point;
+    memset(origin_attrib_point,0,sizeof(Attrib_Point));
+    bound_buffer->vao_point_data[0]=origin_attrib_point;
+
+
+
+    //初始化pixel_store_status
+    Pixel_Store_Status *pixel_store=&(real_context->pixel_store_status);
+    memset(pixel_store,0,sizeof(Pixel_Store_Status));
+    pixel_store->unpack_alignment=4;
+    pixel_store->pack_alignment=4;
+
+
+    Buffer_Mapped *map_result=&(real_context->buffer_ptr);
+    memset(map_result,0,sizeof(Buffer_Mapped));
+
+
+
+    //这里打开设备
     int direct_express = open("/dev/direct_express", O_RDWR);
     if (direct_express <0)
     {
@@ -1760,6 +1792,9 @@ void * context_init(void)
     // real_context->need_free_bufs.reserve(100);
     // memset(real_context->asyn_buf, 0, sizeof(char) * MAX_ASYN_BUF_SIZE);
     // real_context->asyn_buf_loc = 0;
+
+
+
 
     return real_context;
 }

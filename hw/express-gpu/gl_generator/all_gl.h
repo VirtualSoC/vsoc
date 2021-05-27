@@ -112,7 +112,6 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
 void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLsizeiptr size, const void* data);
 void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void* data);
 void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void* data);
-void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, GLenum type, const void* indices);
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void* pixels);
 void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void* indices);
 void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void* data);
@@ -120,7 +119,6 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
 void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void* pixels);
 void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void* pixels);
 void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void* pixels);
-void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei count, GLenum type, const void* indices, GLsizei instancecount);
 GLint d_glTestInt1(void *context, GLint a, GLuint b);
 GLuint d_glTestInt2(void *context, GLint a, GLuint b);
 GLint64 d_glTestInt3(void *context, GLint64 a, GLuint64 b);
@@ -281,6 +279,7 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint* framebuffers
 void d_glDeleteRenderbuffers(void *context, GLsizei n, const GLuint* renderbuffers);
 void d_glDeleteTextures(void *context, GLsizei n, const GLuint* textures);
 void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices);
+void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, GLenum type, const void* indices);
 void d_glShaderBinary(void *context, GLsizei count, const GLuint* shaders, GLenum binaryFormat, const void* binary, GLsizei length);
 void d_glCompressedTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr data);
 void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels);
@@ -330,6 +329,7 @@ void d_glUniform4uiv(void *context, GLint location, GLsizei count, const GLuint*
 void d_glClearBufferiv(void *context, GLenum buffer, GLint drawbuffer, const GLint* value);
 void d_glClearBufferuiv(void *context, GLenum buffer, GLint drawbuffer, const GLuint* value);
 void d_glClearBufferfv(void *context, GLenum buffer, GLint drawbuffer, const GLfloat* value);
+void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei count, GLenum type, const void* indices, GLsizei instancecount);
 void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices, GLsizei instancecount);
 void d_glDeleteSamplers(void *context, GLsizei count, const GLuint* samplers);
 void d_glSamplerParameteriv(void *context, GLuint sampler, GLenum pname, const GLint* param);

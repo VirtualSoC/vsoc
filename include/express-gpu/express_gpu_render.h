@@ -15,6 +15,8 @@
 
 #define WM_USER_PAINT WM_USER+10
 #define WM_USER_CREATE WM_USER+11
+#define WM_USER_CLOSE WM_USER+12
+
 
 
 extern HWND draw_native_window;

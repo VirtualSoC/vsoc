@@ -1019,9 +1019,9 @@ define_line = ""
 para_num_line = ""
 
 android_out.write("""
-#include "define.h"
-#include "utils.h"
-#include "special.h"
+#include "define_gl.h"
+#include "utils_gl.h"
+#include "special_gl.h"
 
 #include "all_gl.h"
 

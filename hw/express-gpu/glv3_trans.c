@@ -9,9 +9,9 @@
  * 
  */
 
-#include "GLES3/gl3.h"
-#include "GLES2/gl2ext.h"
-#include "GLES3/gl3platform.h"
+// #include "GLES3/gl3.h"
+// #include "GLES2/gl2ext.h"
+// #include "GLES3/gl3platform.h"
 
 #include "express-gpu/glv3_trans.h"
 #include "express-gpu/offscreen_render_thread.h"
@@ -9316,76 +9316,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glDrawElements_without_bound:
-
-    {
-
-        /* readline: "glDrawElements_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)" */
-        /* func name: "glDrawElements_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum mode;
-        GLsizei count;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElements_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        mode = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        count = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *indices = all_para[1].data;
-
-        d_glDrawElements_without_bound(opengl_context, mode, count, type, indices);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
     case FUNID_glTexImage2D_without_bound:
 
     {
@@ -10024,80 +9954,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glDrawElementsInstanced_without_bound:
-
-    {
-
-        /* readline: "glDrawElementsInstanced_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type), GLsizei instancecount" */
-        /* func name: "glDrawElementsInstanced_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'instancecount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum mode;
-        GLsizei count;
-        GLenum type;
-        GLsizei instancecount;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElementsInstanced_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        mode = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        count = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        instancecount = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *indices = all_para[1].data;
-
-        d_glDrawElementsInstanced_without_bound(opengl_context, mode, count, type, indices, instancecount);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
     case FUNID_glTestInt1:
 
     {
@@ -10692,9 +10548,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "GLint glTestPointer3 GLint a, const GLint *b#sizeof(GLint)*10, GLint *c#sizeof(GLint)*20000" */
+        /* readline: "GLint glTestPointer3 GLint a, const GLint *b#sizeof(GLint)*20000, GLint *c#sizeof(GLint)*20000" */
         /* func name: "glTestPointer3" */
-        /* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'b', 'ptr': 'in', 'ptr_len': 'sizeof(GLint)*10', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'c', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)*20000', 'loc': 2, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'b', 'ptr': 'in', 'ptr_len': 'sizeof(GLint)*20000', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'c', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)*20000', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "GLint" */
         /* type: "0" */
 
@@ -11284,11 +11140,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '1-1', 126/126 functions*******/
+        /******* end of file '1-1', 125/124 functions*******/
 
         /******* file '1-2' *******/
 
-        /******* end of file '1-2', 0/126 functions*******/
+        /******* end of file '1-2', 1/124 functions*******/
 
         /******* file '2-1' *******/
 
@@ -21800,6 +21656,82 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
+    case FUNID_glDrawElements_without_bound:
+
+    {
+
+        /* readline: "glDrawElements_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)" */
+        /* func name: "glDrawElements_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum mode;
+        GLsizei count;
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawElements_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        int need_delete = 0;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(all_para[0].data_len);
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                need_delete = 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        const void *indices = (const void *)(temp + temp_loc);
+        temp_loc += count * gl_sizeof(type);
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glDrawElements_without_bound(opengl_context, mode, count, type, indices);
+
+        if (need_delete)
+        {
+            g_free(temp);
+        }
+    }
+    break;
+
     case FUNID_glShaderBinary:
 
     {
@@ -25649,6 +25581,86 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
+    case FUNID_glDrawElementsInstanced_without_bound:
+
+    {
+
+        /* readline: "glDrawElementsInstanced_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type), GLsizei instancecount" */
+        /* func name: "glDrawElementsInstanced_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'instancecount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum mode;
+        GLsizei count;
+        GLenum type;
+        GLsizei instancecount;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawElementsInstanced_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        int need_delete = 0;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 16 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(all_para[0].data_len);
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                need_delete = 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        instancecount = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        const void *indices = (const void *)(temp + temp_loc);
+        temp_loc += count * gl_sizeof(type);
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glDrawElementsInstanced_without_bound(opengl_context, mode, count, type, indices, instancecount);
+
+        if (need_delete)
+        {
+            g_free(temp);
+        }
+    }
+    break;
+
     case FUNID_glDrawElementsInstanced_with_bound:
 
     {
@@ -29066,7 +29078,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '2-1', 242/368 functions*******/
+        /******* end of file '2-1', 245/368 functions*******/
 
         /******* file '2-2' *******/
 
@@ -29182,7 +29194,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '2-2', 4/372 functions*******/
+        /******* end of file '2-2', 5/372 functions*******/
 
     default:
         break;

@@ -1,10 +1,14 @@
 #include "glad.h"
 
-#include "glext.h"
-#include "gl2ext.h"
+#include <GLES/glplatform.h>
+#include <GLES/gl.h>
+#include <GLES2/gl2.h>
+#include <GLES2/gl2platform.h>
+#include <GLES/glext.h>
 
-#include "gl3.h"
-#include "gl.h"
+#include <GLES2/gl2ext.h>
+#include <GLES3/gl3.h>
+#include <GLES3/gl31.h>
 
 
 

@@ -9,7 +9,7 @@
  * 
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
 #include "direct-express/express_handle_thread.h"
@@ -101,7 +101,7 @@ void *handle_thread_run(void *opaque)
         }
 
         //my_print(NULL);  
-        express_printf("call pop\n");
+        // express_printf("call pop\n");
         //实际对每个call调用的操作
         if(context->call_handle!=NULL){
             

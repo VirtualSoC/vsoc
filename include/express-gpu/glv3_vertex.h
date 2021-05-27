@@ -6,9 +6,18 @@
 
 #include "express-gpu/express_gpu_opengl.h"
 
+void safe_release_point_data_data(Attrib_Point *point_data,int index);
 
-void set_attrib_point_index(void *context,Scatter_Data *data,int len);
+// void set_attrib_point_index(void *context,Scatter_Data *data,int len);
+void set_attrib_point_index(void *context,void *data,int len);
+
+
 void set_attrib_point(void *context,GLsizei instancecount);
+
+
+void flush_array_buffer(Attrib_Point *point_data, GLint instancecount);
+
+
 
 void d_glVertexAttribIPointer_data(void *context,const void *int_data, const void *pointer);
 void d_glVertexAttribPointer_data(void *context,const void *int_data, const void *pointer);

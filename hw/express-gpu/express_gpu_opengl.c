@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "express-gpu/express_gpu_opengl.h"
 
@@ -371,6 +371,8 @@ size_t gl_pname_size(GLenum pname){
     case GL_DEPTH_FUNC:
     case GL_DEPTH_BITS:
     case GL_MAX_CLIP_PLANES:
+    case GL_MAX_COLOR_ATTACHMENTS:
+    case GL_MAX_DRAW_BUFFERS:
     case GL_GREEN_BITS:
     case GL_MAX_MODELVIEW_STACK_DEPTH:
     case GL_MAX_PROJECTION_STACK_DEPTH:
@@ -395,6 +397,7 @@ size_t gl_pname_size(GLenum pname){
     case GL_POINT_SIZE_MIN:
     case GL_POINT_SIZE_MAX:
     case GL_POINT_FADE_THRESHOLD_SIZE:
+    case GL_CULL_FACE:
     case GL_CULL_FACE_MODE:
     case GL_FRONT_FACE:
     case GL_SHADE_MODEL:
@@ -412,6 +415,7 @@ size_t gl_pname_size(GLenum pname){
     case GL_ALPHA_TEST_FUNC:
     case GL_ALPHA_TEST_REF:
     case GL_ALPHA_TEST:
+    case GL_DITHER:
     case GL_BLEND_DST:
     case GL_BLEND_SRC:
     case GL_BLEND:
@@ -473,6 +477,7 @@ size_t gl_pname_size(GLenum pname){
     case GL_SAMPLE_COVERAGE_INVERT:
     case GL_SAMPLE_COVERAGE_VALUE:
     case GL_SAMPLES:
+    case GL_MAX_SAMPLES_EXT:
     case GL_STENCIL_BITS:
     case GL_STENCIL_CLEAR_VALUE:
     case GL_STENCIL_FUNC:
@@ -486,14 +491,18 @@ size_t gl_pname_size(GLenum pname){
     case GL_STENCIL_BACK_PASS_DEPTH_PASS:
     case GL_STENCIL_BACK_WRITEMASK:
     case GL_TEXTURE_2D:
+    case GL_TEXTURE_BASE_LEVEL:
     case GL_TEXTURE_BINDING_2D:
     case GL_TEXTURE_BINDING_CUBE_MAP:
     // case GL_TEXTURE_BINDING_EXTERNAL_OES:
+    case GL_TEXTURE_COMPARE_FUNC:
+    case GL_TEXTURE_COMPARE_MODE:
     case GL_TEXTURE_COORD_ARRAY:
     case GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING:
     case GL_TEXTURE_COORD_ARRAY_SIZE:
     case GL_TEXTURE_COORD_ARRAY_STRIDE:
     case GL_TEXTURE_COORD_ARRAY_TYPE:
+    case GL_TEXTURE_IMMUTABLE_FORMAT:
     case GL_UNPACK_ALIGNMENT:
     case GL_VERTEX_ARRAY:
     case GL_VERTEX_ARRAY_BUFFER_BINDING:
@@ -503,8 +512,15 @@ size_t gl_pname_size(GLenum pname){
     case GL_SPOT_CUTOFF:
     case GL_TEXTURE_MIN_FILTER:
     case GL_TEXTURE_MAG_FILTER:
+    case GL_TEXTURE_MAX_LOD:
+    case GL_TEXTURE_MIN_LOD:
     case GL_TEXTURE_WRAP_S:
     case GL_TEXTURE_WRAP_T:
+    case GL_TEXTURE_WRAP_R:
+    case GL_TEXTURE_SWIZZLE_R:
+    case GL_TEXTURE_SWIZZLE_G:
+    case GL_TEXTURE_SWIZZLE_B:
+    case GL_TEXTURE_SWIZZLE_A:
     case GL_GENERATE_MIPMAP:
     case GL_GENERATE_MIPMAP_HINT:
     // case GL_RENDERBUFFER_WIDTH_OES:
@@ -542,17 +558,12 @@ size_t gl_pname_size(GLenum pname){
     // case GL_BLEND_SRC_ALPHA_OES:
     case GL_MAX_LIGHTS:
     case GL_SHADER_TYPE:
-    case GL_DELETE_STATUS:
     case GL_COMPILE_STATUS:
-    case GL_INFO_LOG_LENGTH:
     case GL_SHADER_SOURCE_LENGTH:
     case GL_CURRENT_PROGRAM:
-    case GL_LINK_STATUS:
-    case GL_VALIDATE_STATUS:
-    case GL_ATTACHED_SHADERS:
-    case GL_ACTIVE_UNIFORMS:
-    case GL_ACTIVE_ATTRIBUTES:
     case GL_SUBPIXEL_BITS:
+    case GL_MAX_3D_TEXTURE_SIZE:
+    case GL_MAX_ARRAY_TEXTURE_LAYERS:
     case GL_MAX_CUBE_MAP_TEXTURE_SIZE:
     case GL_NUM_SHADER_BINARY_FORMATS:
     case GL_SHADER_COMPILER:
@@ -567,6 +578,48 @@ size_t gl_pname_size(GLenum pname){
     // case GL_REQUIRED_TEXTURE_IMAGE_UNITS_OES:
     // case GL_FRAGMENT_SHADER_DERIVATIVE_HINT_OES:
     case GL_LINE_WIDTH:
+    case GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS:
+    case GL_MAX_UNIFORM_BUFFER_BINDINGS:
+    case GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS:
+    case GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS:
+    case GL_UNIFORM_BLOCK_BINDING:
+    case GL_UNIFORM_BLOCK_DATA_SIZE:
+    case GL_UNIFORM_BLOCK_NAME_LENGTH:
+    case GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS:
+    case GL_UNIFORM_BLOCK_REFERENCED_BY_VERTEX_SHADER:
+    case GL_UNIFORM_BLOCK_REFERENCED_BY_FRAGMENT_SHADER:
+    case GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT:
+    case GL_CURRENT_QUERY:
+    case GL_QUERY_RESULT:
+    case GL_QUERY_RESULT_AVAILABLE:
+    case GL_READ_BUFFER:
+    case GL_NUM_PROGRAM_BINARY_FORMATS:
+    case GL_PROGRAM_BINARY_FORMATS:
+
+    case GL_ACTIVE_ATOMIC_COUNTER_BUFFERS:
+    case GL_ACTIVE_ATTRIBUTES:
+    case GL_ACTIVE_ATTRIBUTE_MAX_LENGTH:
+    case GL_ACTIVE_UNIFORM_BLOCKS:
+    case GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH:
+    case GL_ACTIVE_UNIFORMS:
+    case GL_ACTIVE_UNIFORM_MAX_LENGTH:
+    case GL_ATTACHED_SHADERS:
+    case GL_DELETE_STATUS:
+    case GL_INFO_LOG_LENGTH:
+    case GL_LINK_STATUS:
+    case GL_PROGRAM_BINARY_LENGTH:
+    case GL_PROGRAM_BINARY_RETRIEVABLE_HINT:
+    case GL_PROGRAM_SEPARABLE:
+    case GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT:
+    case GL_TRANSFORM_FEEDBACK_BUFFER_MODE:
+    case GL_TRANSFORM_FEEDBACK_VARYINGS:
+    case GL_TRANSFORM_FEEDBACK_VARYING_MAX_LENGTH:
+    case GL_TRANSFORM_FEEDBACK_ACTIVE:
+#define GL_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS 0x8C8A
+#define GL_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS 0x8C80
+    case GL_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS:
+    case GL_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS:
+    case GL_VALIDATE_STATUS:
         s = 1;
         break;
     case GL_ALIASED_LINE_WIDTH_RANGE:
@@ -575,11 +628,13 @@ size_t gl_pname_size(GLenum pname){
     case GL_MAX_VIEWPORT_DIMS:
     case GL_SMOOTH_POINT_SIZE_RANGE:
     case GL_SMOOTH_LINE_WIDTH_RANGE:
+    case GL_SAMPLE_POSITION:
         s= 2;
         break;
     case GL_SPOT_DIRECTION:
     case GL_POINT_DISTANCE_ATTENUATION:
     case GL_CURRENT_NORMAL:
+    case GL_COMPUTE_WORK_GROUP_SIZE:
         s =  3;
         break;
     case GL_CURRENT_VERTEX_ATTRIB:
@@ -626,9 +681,12 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     {
     case GL_ARRAY_BUFFER:
         status->array_buffer = id;
+        printf("bind GL_ARRAY_BUFFER %u\n",buffer);
         //bound_buffer->vao_vbo[bound_buffer->vertex_array_buffer] = id;
         break;
     case GL_ELEMENT_ARRAY_BUFFER:
+        printf("bind GL_ELEMENT_ARRAY_BUFFER %u\n",buffer);
+
         status->element_array_buffer = id;
         //bound_buffer->vao_ebo[bound_buffer->vertex_array_buffer] = id;
         break;
@@ -736,118 +794,6 @@ void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLs
     return;
 }
 
-void flush_array_buffer(Attrib_Point *point_data, GLint instancecount)
-{
-    //找到当前应该申请的显存空间的最大值
-    int max_len = 0;
-    //这个father_loc用来描述每个真正的数组，对应到缓冲区的哪个地方
-    int father_loc[32];
-    memset(father_loc, 0, sizeof(father_loc));
-    for (int i = 0; i < 32; i++)
-    {
-        if (point_data->data[i] != NULL)
-        {
-            father_loc[i] = max_len;
-            max_len += point_data->data_len[i];
-        }
-    }
-
-    if (max_len > point_data->buffer_len)
-    {
-        //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的两倍，类似于vector的翻倍机制
-        // glDeleteBuffers(1, &(point_data->buffer_object));
-        // glGenBuffers(1, &(point_data->buffer_object));
-        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object);
-
-        //todo stream_draw需要验证
-        glBufferData(GL_ARRAY_BUFFER, max_len * 2, NULL, GL_STREAM_DRAW);
-        point_data->buffer_len=max_len*2;
-    }
-    else
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object);
-        glBufferData(GL_ARRAY_BUFFER, point_data->buffer_len, NULL, GL_STREAM_DRAW);
-
-    }
-    //确定了缓冲区大小后，映射取得其指针，尽可能只修改一小部分
-    //GL_MAP_INVALIDATE_RANGE_BIT 用于缓冲区孤立，防止隐式同步
-    GLubyte *map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, 0, max_len,
-            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT|GL_MAP_INVALIDATE_RANGE_BIT);
-
-    int father_enable[32];
-    int father_max_loc[32];
-    int father_min_loc[32];
-    memset(father_enable, 0, sizeof(father_enable));
-    memset(father_max_loc, 0, sizeof(father_max_loc));
-    memset(father_min_loc, 0x3f3f3f3f, sizeof(father_min_loc));
-
-    //通过这个循环找到实际那几个数组内，需要复制到缓冲区的偏移的两端
-    for (int i = 0; i < 32; i++)
-    {
-        father_enable[point_data->father[i]] += point_data->enabled[i];
-
-        if (point_data->enabled[i] == 0)
-        {
-            continue;
-        }
-
-        //这里的stride肯定不为0，所以就算是紧密堆积也不存在问题
-        int max_loc = point_data->stride[i] * (point_data->max_index + 1);
-        int min_loc = point_data->stride[i] * point_data->min_index;
-        //这里divisor两个属性都要看，选择其中最大的那个
-        int divisor = point_data->divisor[i];
-        if (divisor)
-        {
-            //这里加divisor-1是为了向上取整
-            max_loc = max(max_loc, point_data->stride[i] * (int)((instancecount + divisor - 1) / divisor));
-        }
-
-        divisor = point_data->divisor[point_data->father[i]];
-        if (divisor)
-        {
-            //这里加divisor-1是为了向上取整
-            max_loc = max(max_loc, point_data->stride[point_data->father[i]] * (int)((instancecount + divisor - 1) / divisor));
-        }
-
-        father_max_loc[point_data->father[i]] = max(max_loc, father_max_loc[point_data->father[i]]);
-        father_min_loc[point_data->father[i]] = min(min_loc, father_min_loc[point_data->father[i]]);
-    }
-
-    //然后把数组根据偏移复制进去
-    for (int i = 0; i < 32; i++)
-    {
-        if (point_data->data[i] != NULL)
-        {
-            //复制完后就通知一下更新一下这小部分
-            host_guest_buffer_exchange(point_data->data[i], map_pointer + father_loc[i], father_min_loc[i], father_max_loc[i] - father_min_loc[i], 1);
-            glFlushMappedBufferRange(GL_ARRAY_BUFFER, father_loc[i] + father_min_loc[i], father_max_loc[i] - father_min_loc[i]);
-        }
-    }
-
-    glUnmapBuffer(GL_ARRAY_BUFFER);
-
-    //此时数据都更新到位了，该设置顶点属性了
-    for (int i = 0; i < 32; i++)
-    {
-        if (point_data->enabled[i])
-        {
-            if (point_data->invoke_type[i] == GL_INT)
-            {
-                glVertexAttribIPointer(i, point_data->size[i], point_data->type[i], point_data->stride[i],
-                                       (void *)(point_data->offset[i] + father_loc[point_data->father[i]]));
-            }
-            else
-            {
-                glVertexAttribPointer(i, point_data->size[i], point_data->type[i], point_data->normalized[i],
-                                      point_data->stride[i], (void *)(point_data->offset[i] + father_loc[point_data->father[i]]));
-            }
-        }
-    }
-
-    //全部操作完成后，这时候数据写入到缓冲区中，然后顶点属性的偏移也设置了，这个时候就可以draw了
-    return;
-}
-
 
 void d_glDeleteProgram_origin(void *context, GLuint program)
 {
@@ -885,6 +831,7 @@ void opengl_context_create(void *context){
     // glGenBuffers(4,temp_buffer);
     temp_point->buffer_object=0;
     temp_point->indices_buffer_object=0;
+
 
     g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(0), (gpointer)temp_point);
 
@@ -1072,7 +1019,7 @@ void glTestString(GLint a, GLint count, const GLchar *const*strings, GLint buf_l
 void glPrintf(GLint buf_len, GLchar *out_string){
     // char *t="temp test abcd";
     // memcpy(out_string,t,strlen(t));
-    // printf("glPrintf %d\n",buf_len);
+    printf("glPrintf %d\n",buf_len);
     // fflush(stdout);
     // int flag=0;
     for(int i=0;i<buf_len;i++){

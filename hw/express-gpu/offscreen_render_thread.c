@@ -9,7 +9,7 @@
  * 
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "direct-express/direct_express_distribute.h"
 
 #include "direct-express/express_log.h"
@@ -55,9 +55,13 @@ void decode_invoke(Thread_Context *context,Direct_Express_Call *call)
     uint64_t fun_id=GET_FUN_ID(call->id);
 
     if(fun_id>10000){
+        // express_printf("egl decode invoke\n");
+
         egl_decode_invoke(render_context,call);
     }else{
         if(buffer_context->has_init&&opengl_context->has_init){
+            // express_printf("gl3 decode invoke\n");
+
             gl3_decode_invoke(render_context,call);
         }else{
             call->callback(call,0);

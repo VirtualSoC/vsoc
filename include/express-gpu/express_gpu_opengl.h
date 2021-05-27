@@ -90,10 +90,11 @@ typedef struct Attrib_Point
     //真实的存储下来的数据
     Scatter_Data *data[32];
     GLint data_len[32];
-
+    
     //father指示其的数据在哪，然后offset指示了在数组中的
     GLint father[32];
     GLintptr offset[32];
+
 
     //顶点的常规属性
     GLint size[32];
@@ -110,6 +111,8 @@ typedef struct Attrib_Point
 
     GLuint indices_buffer_object;
     GLint indices_buffer_len;
+
+    GLboolean in_buffer[32];
 
 
     //表示顶点属性是否启用顶点数组
@@ -157,9 +160,6 @@ void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int
 void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
 
 void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
-
-void flush_array_buffer(Attrib_Point *point_data, GLint instancecount);
-
 
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
