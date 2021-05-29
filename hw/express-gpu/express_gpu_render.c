@@ -17,14 +17,10 @@
 #include "direct-express/direct_express.h"
 #include "direct-express/express_log.h"
 
-
-
 #include <winsock2.h>
 #include <windows.h>
 
 #include "ui/console.h"
-
-
 
 HWND draw_native_window;
 
@@ -38,11 +34,10 @@ static GLint drawVAO = 0;
 static long window_width;
 static long window_height;
 
-volatile int native_render_run=0;
+volatile int native_render_run = 0;
 
 static void opengl_paint(Double_Buffer *d_buffer);
 static void egl_context_create(Double_Buffer *d_buffer, int width, int height);
-
 
 /**
  * @brief 子窗口的消息处理函数，会将鼠标点击等操作直接传递给底层的窗口，并且接受来自draw线程的界面重新绘制消息以及生成context消息，并进行一定的反应
@@ -150,7 +145,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
          * @todo 修改窗口拉伸的逻辑，保证拉伸满足相应的比例关系
          * 
          */
-        
+
         //context只能是由父线程创建，以进行资源共享
         // GetClientRect(GetParent(hwnd), &rcParent);
         // window_height = rcParent.bottom / 2;
@@ -183,7 +178,7 @@ static GLuint LoadShader1(GLenum type, const char *shaderSrc)
 
     if (shader == 0)
     {
-    //    express_printf("Shader==0\n");
+        //    express_printf("Shader==0\n");
         return 0;
     }
 
@@ -212,13 +207,12 @@ static GLuint LoadShader1(GLenum type, const char *shaderSrc)
         }
 
         glDeleteShader(shader);
-    //    express_printf("compiled==0\n");
+        //    express_printf("compiled==0\n");
         return 0;
     }
 
     return shader;
 }
-
 
 /**
  * @brief 当前界面使用OpenGL渲染的前置操作，例如加载着色器，生成顶点等
@@ -254,7 +248,7 @@ static int opengl_prepare(GLint *program, GLint *VAO)
     GLuint programObject = glCreateProgram();
     if (programObject == 0)
     {
-       //express_printf("shit glCreateProgram2 %ld\n", GetLastError());
+        //express_printf("shit glCreateProgram2 %ld\n", GetLastError());
         return 0;
     }
 
@@ -309,7 +303,6 @@ static int opengl_prepare(GLint *program, GLint *VAO)
     return 1;
 }
 
-
 /**
  * @brief 界面上用于画出图像的函数，实际逻辑为取出d_buffer中的display_texture，然后画出来
  * 
@@ -328,21 +321,19 @@ static void opengl_paint(Double_Buffer *d_buffer)
     // express_printf("main has error %x\n",glGetError());
 
     //绘制这个texture时，要get后release，保证这个texture上的东西的确已经画出来了
-    GLuint texture=get_display_texture(d_buffer);
+    GLuint texture = get_display_texture(d_buffer);
     // express_printf("main has error %x\n",glGetError());
-    
+
     glBindTexture(GL_TEXTURE_2D, texture);
 
     // express_printf("main has error %x\n",glGetError());
-    
 
-    express_printf("main window paint texture %u\n",texture);
-    
+    express_printf("main window paint texture %u\n", texture);
+
     glBindVertexArray(drawVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // express_printf("main has error %x\n",glGetError());
-
 
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -356,7 +347,6 @@ static void opengl_paint(Double_Buffer *d_buffer)
     glfwSwapBuffers(glfw_window);
 }
 
-
 /**
  * @brief 创建opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
  * 
@@ -366,7 +356,8 @@ static void opengl_paint(Double_Buffer *d_buffer)
  */
 static void egl_context_create(Double_Buffer *d_buffer, int width, int height)
 {
-    if(d_buffer->has_init){
+    if (d_buffer->has_init)
+    {
         return 0;
     }
 
@@ -401,9 +392,8 @@ static void egl_context_create(Double_Buffer *d_buffer, int width, int height)
 
     // glBindTexture(GL_TEXTURE_2D, 0);
 
-    d_buffer->has_init=1;
+    d_buffer->has_init = 1;
 }
-
 
 /**
  * @brief 创建双缓冲区，注意：这个操作只能在draw子线程中进行，并且在创建了context之后
@@ -418,7 +408,6 @@ int egl_context_make_current(Double_Buffer *d_buffer)
         return 0;
     }
     glfwMakeContextCurrent(d_buffer->window);
-
 
     glGenTextures(1, &d_buffer->fbo_texture_display);
 
@@ -439,9 +428,6 @@ int egl_context_make_current(Double_Buffer *d_buffer)
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-
-
-
     //framebuf只能在子线程中完成
     glGenFramebuffers(1, &d_buffer->fbo_display);
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_display);
@@ -450,42 +436,41 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glGenFramebuffers(1, &d_buffer->fbo_draw);
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_draw);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture_draw, 0);
-    
+
     //这句不能有，不然第一帧黑屏
     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    
+
     return 1;
 }
 
-
-
-int egl_context_destroy(Double_Buffer *d_buffer){
+int egl_context_destroy(Double_Buffer *d_buffer)
+{
     express_printf("egl context destroy\n");
-    
-    if(!d_buffer->has_init){
+
+    if (!d_buffer->has_init)
+    {
         return 0;
     }
     // express_printf("delete fbo_display\n");
 
-    glDeleteFramebuffers(1,&d_buffer->fbo_display);
-    glDeleteFramebuffers(1,&d_buffer->fbo_draw);
-    
+    glDeleteFramebuffers(1, &d_buffer->fbo_display);
+    glDeleteFramebuffers(1, &d_buffer->fbo_draw);
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glDeleteTextures(1,&d_buffer->fbo_texture_display);
-    glDeleteTextures(1,&d_buffer->fbo_texture_draw);
+    glDeleteTextures(1, &d_buffer->fbo_texture_display);
+    glDeleteTextures(1, &d_buffer->fbo_texture_draw);
 
     glDeleteSync(d_buffer->dispaly_sync);
 
     express_printf("windows destroy\n");
 
     glfwDestroyWindow(d_buffer->window);
-    d_buffer->window=NULL;
-    d_buffer->has_init=0;
+    d_buffer->window = NULL;
+    d_buffer->has_init = 0;
     return 1;
 }
-
 
 /**
  * @brief 覆盖在原来窗口上面用于绘制的窗口的线程主函数，主要包括了窗口的建立和设置
@@ -497,7 +482,6 @@ void *native_window_thread(void *opaque)
 {
     VirtIODevice *vdev = opaque;
     Direct_Express *e = DIRECT_EXPRESS(vdev);
-
 
     //通过这个方式获取hwnd要求必须使用SDL接口创建界面
     QemuConsole *con;
@@ -520,13 +504,13 @@ void *native_window_thread(void *opaque)
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
-    express_printf("window width %ld, height %ld\n",rcParent.right, rcParent.bottom);
+    express_printf("window width %ld, height %ld\n", rcParent.right, rcParent.bottom);
 
     //创建一个窗口，这个window也是context
-    glfw_window = glfwCreateWindow(rcParent.right/4, rcParent.bottom/4, "opengl window", NULL, NULL);
+    glfw_window = glfwCreateWindow(rcParent.right / 4, rcParent.bottom / 4, "opengl window", NULL, NULL);
     if (!glfw_window)
     {
-       express_printf("create window error %x\n",glfwGetError(NULL));
+        express_printf("create window error %x\n", glfwGetError(NULL));
 
         glfwTerminate();
         return NULL;
@@ -539,19 +523,18 @@ void *native_window_thread(void *opaque)
     SetWindowLongPtr(draw_native_window, GWLP_WNDPROC, (LONG_PTR)&subWindowProc);
     ShowWindow(draw_native_window, TRUE);
 
-
     glfwMakeContextCurrent(glfw_window);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-       express_printf("load glad error\n");
+        express_printf("load glad error\n");
         return NULL;
     }
 
     opengl_prepare(&programID, &drawVAO);
 
     express_printf("native windows create!\n");
-    native_render_run=2;
+    native_render_run = 2;
 
     // RECT rcParent;
     // long height, width;
@@ -660,10 +643,9 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
     express_printf("swap framebuffer buffer\n");
 
     render_bind_frame_buffer(double_buffer);
-        // express_printf("main has error %x\n",glGetError());
+    // express_printf("main has error %x\n",glGetError());
 
-        // express_printf("main has error %x\n",glGetError());
-
+    // express_printf("main has error %x\n",glGetError());
 }
 
 /**

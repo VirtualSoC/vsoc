@@ -17,6 +17,8 @@ EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context,EGLDisplay dp
 EGLBoolean d_eglMakeCurrent_special(Render_Thread_Context *context,EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);
 
 
-EGLBoolean d_eglTerminate_special(Render_Thread_Context *context,EGLDisplay dpy);
+EGLBoolean d_eglTerminate_special(Render_Thread_Context *context, EGLDisplay dpy);
+
+void d_getEGLConfigParam_special(Render_Thread_Context *context, int *num_configs, int *num_config_attrs);
 
 #endif

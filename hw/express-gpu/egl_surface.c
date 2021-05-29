@@ -1,11 +1,7 @@
 #include "express-gpu/egl_surface.h"
 
-
-
-
-
-
-EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context,EGLDisplay dpy, EGLSurface surface){
+EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context, EGLDisplay dpy, EGLSurface surface)
+{
     printf("eglSwapBuffers inovke!\n");
 
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
@@ -21,19 +17,18 @@ EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context,EGLDisplay dp
     return GL_TRUE;
 }
 
-EGLBoolean d_eglMakeCurrent_special(Render_Thread_Context *context,EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx){
+EGLBoolean d_eglMakeCurrent_special(Render_Thread_Context *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
+{
     printf("eglMakeCurrent invoke!\n");
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     Double_Buffer *egl_context = &(render_context->render_double_buffer);
     render_windows_create(render_context);
     egl_context_make_current(egl_context);
     return GL_TRUE;
-
 }
 
-
-
-EGLBoolean d_eglTerminate_special(Render_Thread_Context *context,EGLDisplay dpy){
+EGLBoolean d_eglTerminate_special(Render_Thread_Context *context, EGLDisplay dpy)
+{
     // Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     // Double_Buffer *egl_context = &(render_context->render_double_buffer);
 
@@ -41,6 +36,12 @@ EGLBoolean d_eglTerminate_special(Render_Thread_Context *context,EGLDisplay dpy)
 
     render_context_destroy((Thread_Context *)context);
     return GL_TRUE;
+}
 
+void d_getEGLConfigParam_special(Render_Thread_Context *context, int *num_configs, int *num_config_attrs)
+{
+    Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     
+    *num_configs = 10;
+    *num_config_attrs = 15;
 }
