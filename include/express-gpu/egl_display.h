@@ -24,8 +24,10 @@ typedef struct {
 typedef struct {
     GHashTable *egl_config_set;
     WGL_Extension* wgl_ext;
+    int is_init;
 } Egl_Display;
 
+void init_display(Egl_Display* display);
 void init_configs(Egl_Display* display);
 void init_wgl_extension(Egl_Display* display);
 

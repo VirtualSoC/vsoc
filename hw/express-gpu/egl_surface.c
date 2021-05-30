@@ -41,7 +41,10 @@ EGLBoolean d_eglTerminate_special(Render_Thread_Context *context, EGLDisplay dpy
 void d_getEGLConfigParam_special(Render_Thread_Context *context, int *num_configs, int *num_config_attrs)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
-    
-    *num_configs = 10;
+    Egl_Display* display = &(context->egl_display);
+    if (!display->is_init) {
+        init_display(display);
+    }
+    *num_configs = g_hash_table_size(display->egl_config_set);
     *num_config_attrs = 15;
 }

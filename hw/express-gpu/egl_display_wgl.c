@@ -2,6 +2,17 @@
 #include "direct-express/express_log.h"
 #include <wingdi.h>
 
+
+/**
+ * @brief 初始化Egl_Display
+ * 
+ * @param display 待初始化的Egl_Display
+ */
+void init_display(Egl_Display* display) {
+    init_configs(display);
+    init_wgl_extension(display);
+}
+
 /**
  * @brief 初始化EGL configuration并将所有可用configuration保存到全局的hash表中
  * 
