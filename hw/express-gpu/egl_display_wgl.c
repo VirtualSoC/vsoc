@@ -1,16 +1,51 @@
+#define STD_DEBUG_LOG ;
 #include "express-gpu/egl_display.h"
 #include "direct-express/express_log.h"
 #include <wingdi.h>
 
+const unsigned int config_attrs[NUM_ATTRS] = {
+    EGL_BUFFER_SIZE,
+    EGL_RED_SIZE,
+    EGL_GREEN_SIZE,
+    EGL_BLUE_SIZE,
+    EGL_ALPHA_SIZE,
+    EGL_BIND_TO_TEXTURE_RGB,
+    EGL_BIND_TO_TEXTURE_RGBA,
+    EGL_CONFIG_CAVEAT,
+    EGL_CONFIG_ID,
+    EGL_LEVEL,
+    EGL_DEPTH_SIZE,
+    EGL_MAX_PBUFFER_WIDTH,
+    EGL_MAX_PBUFFER_HEIGHT,
+    EGL_MAX_PBUFFER_PIXELS,
+    EGL_MAX_SWAP_INTERVAL,
+    EGL_MIN_SWAP_INTERVAL,
+    EGL_NATIVE_RENDERABLE,
+    EGL_RENDERABLE_TYPE,
+    EGL_NATIVE_VISUAL_ID,
+    EGL_NATIVE_VISUAL_TYPE,
+    EGL_SAMPLE_BUFFERS,
+    EGL_SAMPLES,
+    EGL_STENCIL_SIZE,
+    EGL_LUMINANCE_SIZE,
+    EGL_BUFFER_SIZE,
+    EGL_SURFACE_TYPE,
+    EGL_TRANSPARENT_TYPE,
+    EGL_TRANSPARENT_RED_VALUE,
+    EGL_TRANSPARENT_GREEN_VALUE,
+    EGL_TRANSPARENT_BLUE_VALUE,
+    EGL_CONFORMANT,
+    EGL_COLOR_BUFFER_TYPE};
 
 /**
  * @brief 初始化Egl_Display
  * 
  * @param display 待初始化的Egl_Display
  */
-void init_display(Egl_Display* display) {
-    init_configs(display);
+void init_display(Egl_Display *display)
+{
     init_wgl_extension(display);
+    init_configs(display);
 }
 
 /**
@@ -52,7 +87,7 @@ void init_configs(Egl_Display *display)
     int num_formats = DescribePixelFormat(dummy_ctx, 1, sizeof(PIXELFORMATDESCRIPTOR), &pfd);
     if (num_formats == 0)
     {
-        express_printf("No pixel format found!");
+        express_printf("No pixel format found!\n");
     }
 
     for (int idx = 1; idx <= num_formats; idx++)
@@ -72,14 +107,27 @@ void init_wgl_extension(Egl_Display *display)
     if (display->wgl_ext)
         return;
 
+    display->wgl_ext = (WGL_Extension *)malloc(sizeof(WGL_Extension));
+    memset(display->wgl_ext, 0, sizeof(WGL_Extension));
+    // 注意：必须使用MSYS中的完整DLL（将msys64/mingw64/bin/opengl32.dll）拷贝到可执行文件同级目录下
     display->wgl_ext->instance = LoadLibraryA("opengl32.dll");
     if (!display->wgl_ext->instance)
     {
-        express_printf("Cannot initialize opengl32.dll");
+        express_printf("Cannot initialize opengl32.dll\n");
     }
 
-    display->wgl_ext->GetPixelFormatAttribivARB = (EXWGLGETPIXELFORMATATTRIBIVARBPROC)
-        wglGetProcAddress("wglGetPixelFormatAttribivARB");
+    display->wgl_ext->wglGetProcAddress = GetProcAddress(display->wgl_ext->instance, "wglGetProcAddress");
+    if (!display->wgl_ext->wglGetProcAddress)
+    {
+        express_printf("Fail to load wglGetProcAddress\n");
+    }
+
+    display->wgl_ext->GetPixelFormatAttribivARB = (EXWGL_GetPixelFormatAttribivARB_PROC)
+                                                      display->wgl_ext->wglGetProcAddress("wglGetPixelFormatAttribivARB");
+    if (!display->wgl_ext->GetPixelFormatAttribivARB)
+    {
+        express_printf("Fail to load wglGetPixelFormatAttribivARB\n");
+    }
 }
 
 /**
@@ -92,7 +140,7 @@ void init_wgl_extension(Egl_Display *display)
 void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPTOR *pfd, int id)
 {
     eglConfig *config = (eglConfig *)malloc(sizeof(eglConfig));
-    memset(config, 0, sizeof(config));
+    memset(config, 0, sizeof(eglConfig));
 
     if (display->wgl_ext == NULL)
     {
@@ -101,9 +149,12 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
 
     if (!display->wgl_ext->GetPixelFormatAttribivARB)
     {
-        express_printf("No available wglGetPixelFormatAttribivARB");
+        express_printf("No available wglGetPixelFormatAttribivARB\n");
         return;
     }
+
+    if (id >= 49)
+        id = id;
 
     int window = 0, window_attrib = WGL_DRAW_TO_WINDOW_ARB;
     RETURN_IF_FALSE(display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &window_attrib, &window));
@@ -119,7 +170,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
 
     config->native_visual_id = 0;
     config->native_visual_type = EGL_NONE;
-    config->caveat = EGL_FALSE;
+    config->caveat = EGL_NONE;
     config->native_renderable = EGL_FALSE;
     config->renderable_type = RENDERABLE_SUPPORT;
     config->max_pbuffer_width = PBUFFER_MAX_WIDTH;
@@ -128,7 +179,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->samples_per_pixel = 0;
     config->frame_buffer_level = 0;
 
-    int transparent, transparent_attrib = WGL_TRANSPARENT_ARB;
+    int transparent = 0, transparent_attrib = WGL_TRANSPARENT_ARB;
     RETURN_IF_FALSE(display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_attrib, &transparent));
     if (transparent)
     {

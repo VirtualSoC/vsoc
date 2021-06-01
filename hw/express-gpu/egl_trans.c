@@ -35,9 +35,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     Call_Para all_para[MAX_PARA_NUM];
 
     unsigned char ret_local_buf[1024 * 4];
-
-    express_printf("Enter host id %lld", call->id);
-
     switch (call->id)
     {
 
@@ -248,8 +245,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     case FUNID_getEGLConfigParam_special:
 
     {
-        express_printf("Enter getEGLConfigParam Host");
-
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_getEGLConfigParam_special)
         {
@@ -262,9 +257,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         num_config_attrs = (int *)get_direct_ptr(all_para[1].data, &null_flag);
 
         d_getEGLConfigParam_special(render_context, num_configs, num_config_attrs);
-
-        express_printf("NUM CONFIGS %d", *num_configs);
-        express_printf("NUM CONFIG ATTRS %d", *num_config_attrs);
     }
     break;
         /******* end of file '1-1', 2/2 functions*******/

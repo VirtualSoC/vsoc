@@ -14,11 +14,13 @@
 #define RETURN_IF_FALSE(a) \
         do { if (!(a)) {express_printf("%s fails to pass FALSE check at line %d", __FUNCTION__, __LINE__); return;} } while (0)
 
-typedef BOOL (WINAPI * EXWGLGETPIXELFORMATATTRIBIVARBPROC)(HDC,int,int,UINT,const int*,int*);
+typedef PROC (WINAPI * EXWGL_GetProcAddress_PROC)(LPCSTR);
+typedef BOOL (WINAPI * EXWGL_GetPixelFormatAttribivARB_PROC)(HDC,int,int,UINT,const int*,int*);
 
 typedef struct {
     HINSTANCE instance;
-    EXWGLGETPIXELFORMATATTRIBIVARBPROC GetPixelFormatAttribivARB;
+    EXWGL_GetProcAddress_PROC wglGetProcAddress;
+    EXWGL_GetPixelFormatAttribivARB_PROC GetPixelFormatAttribivARB;
 } WGL_Extension;
 
 typedef struct {

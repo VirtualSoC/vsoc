@@ -4,6 +4,8 @@
 #include "egl.h"
 #include "qemu/osdep.h"
 
+#define NUM_ATTRS 32
+// 顺序不能变
 typedef struct
 {
     EGLint      buffer_size;
@@ -14,7 +16,7 @@ typedef struct
     EGLBoolean  bind_to_tex_rgb;
     EGLBoolean  bind_to_tex_rgba;
     EGLenum     caveat;
-    EGLint            config_id;
+    EGLint      config_id;
     EGLint      frame_buffer_level;
     EGLint      depth_size;
     EGLint      max_pbuffer_width;
@@ -41,5 +43,7 @@ typedef struct
 
     void*       pixel_format;
 } eglConfig;
+
+extern const unsigned int config_attrs[NUM_ATTRS];
 
 #endif

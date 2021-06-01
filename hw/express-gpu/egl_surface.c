@@ -1,4 +1,5 @@
 #include "express-gpu/egl_surface.h"
+#include "express-gpu/egl_display.h"
 
 EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context, EGLDisplay dpy, EGLSurface surface)
 {
@@ -41,10 +42,11 @@ EGLBoolean d_eglTerminate_special(Render_Thread_Context *context, EGLDisplay dpy
 void d_getEGLConfigParam_special(Render_Thread_Context *context, int *num_configs, int *num_config_attrs)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
-    Egl_Display* display = &(context->egl_display);
-    if (!display->is_init) {
+    Egl_Display *display = &(context->egl_display);
+    if (!display->is_init)
+    {
         init_display(display);
     }
     *num_configs = g_hash_table_size(display->egl_config_set);
-    *num_config_attrs = 15;
+    *num_config_attrs = sizeof(config_attrs) / sizeof(config_attrs[0]);
 }
