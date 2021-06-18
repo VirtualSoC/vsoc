@@ -131,8 +131,10 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         if (temp_height != window_height)
         {
             window_height = temp_height;
+
             // window_width = temp_width;
             window_width = temp_height;
+
 
             MoveWindow(hwnd, (int)(rcParent.right - window_height), (int)(temp_height * 0.5), window_width, window_height, FALSE);
             // MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
@@ -319,6 +321,8 @@ static int opengl_prepare(GLint *program, GLint *VAO)
 
     glUseProgram(programObject);
 
+    glClearColor(1, 1, 1, 1);
+
     return 1;
 }
 
@@ -337,7 +341,7 @@ static void opengl_paint(Double_Buffer *d_buffer)
     glViewport(0, 0, window_width, window_height);
     // glClear(GL_COLOR_BUFFER_BIT);
     //glClearColor(0, 0, 1, 0);
-    glDisable(GL_DEPTH_TEST);
+    // glDisable(GL_DEPTH_TEST);
     // express_printf("main has error %x\n",glGetError());
 
     //绘制这个texture时，要get后release，保证这个texture上的东西的确已经画出来了
@@ -392,10 +396,14 @@ static void egl_context_create(Double_Buffer *d_buffer, int width, int height)
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
+    //屏幕分离调试专用
     // glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+
     // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-    //debuging 
+    //屏幕分离调试专用
+    //child_window = glfwCreateWindow(width, height, name, NULL, NULL);
+    
     child_window = glfwCreateWindow(width, height, name, NULL, glfw_window);
     d_buffer->window = child_window;
     d_buffer->width = width;
@@ -440,11 +448,12 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glfwMakeContextCurrent(d_buffer->window);
 
 
+
     glGenTextures(1, &d_buffer->fbo_texture_display);
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_display);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, d_buffer->width, d_buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -453,7 +462,7 @@ int egl_context_make_current(Double_Buffer *d_buffer)
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_draw);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, d_buffer->width, d_buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -471,7 +480,8 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_draw);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture_draw, 0);
     
-    //这句不能有，不然第一帧黑屏
+    
+    //屏幕分离调试专用
     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
     
     return 1;
@@ -670,6 +680,8 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
         double_buffer->dispaly_sync = NULL;
     }
 
+    //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
+    glFlush();
 
     //交换FBO
     GLuint temp = double_buffer->fbo_draw;

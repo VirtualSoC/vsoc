@@ -1,11 +1,4 @@
 /.doctrees
-/config-devices.*
-/config-all-devices.*
-/config-all-disas.*
-/config-host.*
-/config-target.*
-/config.status
-/config-temp
 /tools/virtiofsd/50-qemu-virtiofsd.json
 /elf2dmp
 /trace-events-all

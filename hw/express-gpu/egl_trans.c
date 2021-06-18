@@ -10,6 +10,7 @@
  */
 
 // #define EGL_EGLEXT_PROTOTYPES
+#include "express-gpu/egl_define.h"
 
 #include "express-gpu/egl_trans.h"
 
@@ -24,21 +25,23 @@
 
 // } Native_Window;
 
+
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
-    // Double_Buffer *egl_context = &(render_context->render_double_buffer);
-    //uint64_t fun_id=GET_FUN_ID(call->id);
-    //uint64_t is_async=FUN_IS_ASYNC(call->id);
-    uint64_t need_speed = FUN_NEED_SPEED(call->id);
+
+    //Double_Buffer *egl_context = &(render_context->render_double_buffer);
+
     Call_Para all_para[MAX_PARA_NUM];
 
     unsigned char ret_local_buf[1024 * 4];
 
+    unsigned char no_ptr_buf[512];
+
     switch (call->id)
     {
 
-        /******* file '1-1' *******/
+        /******* file '1-1-1' *******/
 
     case FUNID_eglSwapBuffers_special:
 
@@ -63,7 +66,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -76,10 +78,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -94,14 +94,40 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         surface = *(EGLSurface *)(temp + temp_loc);
         temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         EGLBoolean ret = d_eglSwapBuffers_special(render_context, dpy, surface);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -131,7 +157,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 32 * 1)
         {
@@ -144,10 +169,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -168,14 +191,40 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         ctx = *(EGLContext *)(temp + temp_loc);
         temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         EGLBoolean ret = d_eglMakeCurrent_special(render_context, dpy, draw, read, ctx);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -202,7 +251,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -215,10 +263,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -230,42 +276,74 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         dpy = *(EGLDisplay *)(temp + temp_loc);
         temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         EGLBoolean ret = d_eglTerminate_special(render_context, dpy);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
-        /******* end of file '1-1', 2/2 functions*******/
+
+        /******* end of file '1-1-1', 4/3 functions*******/
+
+        /******* file '1-1-2' *******/
+
+        /******* end of file '1-1-2', 1/3 functions*******/
 
         /******* file '1-2' *******/
 
-        /******* end of file '1-2', 0/2 functions*******/
+        /******* end of file '1-2', 1/3 functions*******/
 
-        /******* file '2-1' *******/
+        /******* file '2-1-1' *******/
 
-        /******* end of file '2-1', 0/2 functions*******/
+        /******* end of file '2-1-1', 1/3 functions*******/
+
+        /******* file '2-1-2' *******/
+
+        /******* end of file '2-1-2', 1/3 functions*******/
 
         /******* file '2-2' *******/
 
-        /******* end of file '2-2', 0/2 functions*******/
+        /******* end of file '2-2', 1/3 functions*******/
 
     default:
         break;
     }
 
-    if (need_speed)
-    {
-        call->callback(call, 1);
-    }
-    else
-    {
-        call->callback(call, 0);
-    }
+    //if(need_speed){
+    call->callback(call, 1);
+    //}else{
+    //    call->callback(call, 0);
+    //}
     return;
 }

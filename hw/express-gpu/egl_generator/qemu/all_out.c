@@ -1,271 +1,328 @@
 
+#include "express-gpu/egl_define.h"
 
 #include "express-gpu/egl_trans.h"
 
 #include "express-gpu/egl_surface.h"
 
-
-void egl_decode_invoke(Render_Thread_Context *context,Direct_Express_Call *call)
+void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
 {
-    Render_Thread_Context *render_context=(Render_Thread_Context *)context;
-    Double_Buffer *egl_context = &(render_context->render_double_buffer);
-    //uint64_t fun_id=GET_FUN_ID(call->id);
-    //uint64_t is_async=FUN_IS_ASYNC(call->id);
-    uint64_t need_speed=FUN_NEED_SPEED(call->id);
+    Render_Thread_Context *render_context = (Render_Thread_Context *)context;
+
+    //Double_Buffer *egl_context = &(render_context->render_double_buffer);
+
     Call_Para all_para[MAX_PARA_NUM];
 
-    unsigned char ret_local_buf[1024*4];
-    
+    unsigned char ret_local_buf[1024 * 4];
+
+    unsigned char no_ptr_buf[512];
+
     switch (call->id)
-{
+    {
 
+        /******* file '1-1-1' *******/
 
-/******* file '1-1' *******/
+    case FUNID_eglSwapBuffers_special:
 
+    {
 
-case FUNID_eglSwapBuffers_special:
+        /* readline: "EGLBoolean eglSwapBuffers_special EGLDisplay dpy, EGLSurface surface" */
+        /* func name: "eglSwapBuffers_special" */
+        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'surface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "EGLBoolean" */
+        /* type: "0" */
 
-{
+        /* Define variables */
+        EGLDisplay dpy;
+        EGLSurface surface;
 
-/* readline: "EGLBoolean eglSwapBuffers_special EGLDisplay dpy, EGLSurface surface" */
-/* func name: "eglSwapBuffers_special" */
-/* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'surface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
-/* ret: "EGLBoolean" */
-/* type: "0" */
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_eglSwapBuffers_special)
+        {
+            break;
+        }
 
-/* Define variables */
-EGLDisplay dpy;
-EGLSurface surface;
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
 
-int para_num=get_para_from_call(call,all_para,MAX_PARA_NUM);
-if(para_num<PARA_NUM_MIN_eglSwapBuffers_special){
+        temp_len = all_para[0].data_len;
+        if (temp_len < 16 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        dpy = *(EGLDisplay *)(temp + temp_loc);
+        temp_loc += 8;
+
+        surface = *(EGLSurface *)(temp + temp_loc);
+        temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        EGLBoolean ret = d_eglSwapBuffers_special(render_context, dpy, surface);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
     break;
-}
 
+    case FUNID_eglMakeCurrent_special:
 
+    {
 
-                size_t temp_len=0;
-                unsigned char *temp=NULL;
+        /* readline: "EGLBoolean eglMakeCurrent_special EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx" */
+        /* func name: "eglMakeCurrent_special" */
+        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'draw', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'read', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLContext', 'name': 'ctx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "EGLBoolean" */
+        /* type: "0" */
 
-                int need_delete=0;
-                temp_len=all_para[0].data_len;
-                if(temp_len< 16 * 1){
-                    break;
-                }
+        /* Define variables */
+        EGLDisplay dpy;
+        EGLSurface draw;
+        EGLSurface read;
+        EGLContext ctx;
 
-                int null_flag=0;
-                temp=get_direct_ptr(all_para[0].data,&null_flag);
-                if(temp==NULL){
-                    if(temp_len!=0 && null_flag==0){
-                        temp=g_malloc(all_para[0].data_len);
-                        guest_write(all_para[0].data,temp,0,all_para[0].data_len);
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_eglMakeCurrent_special)
+        {
+            break;
+        }
 
-                        need_delete=1;
-                    }else{
-                        break;
-                    }
-                }
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
 
-            unsigned int temp_loc=0;
+        temp_len = all_para[0].data_len;
+        if (temp_len < 32 * 1)
+        {
+            break;
+        }
 
-                    dpy = *(EGLDisplay *)(temp+temp_loc);
-                    temp_loc+=8;
-                
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
 
-                    surface = *(EGLSurface *)(temp+temp_loc);
-                    temp_loc+=8;
-                
+        unsigned int temp_loc = 0;
 
+        dpy = *(EGLDisplay *)(temp + temp_loc);
+        temp_loc += 8;
 
+        draw = *(EGLSurface *)(temp + temp_loc);
+        temp_loc += 8;
 
-                EGLBoolean ret = d_eglSwapBuffers_special(render_context,dpy, surface);
+        read = *(EGLSurface *)(temp + temp_loc);
+        temp_loc += 8;
 
-                set_call_return_val(call,(unsigned char *)&ret, 4);
-                
+        ctx = *(EGLContext *)(temp + temp_loc);
+        temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
 
-if(need_delete){g_free(temp);}
-}
-break;
+        unsigned char *ret_buf = NULL;
 
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
 
-case FUNID_eglMakeCurrent_special:
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
 
-{
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
-/* readline: "EGLBoolean eglMakeCurrent_special EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx" */
-/* func name: "eglMakeCurrent_special" */
-/* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'draw', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'read', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLContext', 'name': 'ctx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
-/* ret: "EGLBoolean" */
-/* type: "0" */
+        EGLBoolean ret = d_eglMakeCurrent_special(render_context, dpy, draw, read, ctx);
+        *ret_ptr = ret;
 
-/* Define variables */
-EGLDisplay dpy;
-EGLSurface draw;
-EGLSurface read;
-EGLContext ctx;
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-int para_num=get_para_from_call(call,all_para,MAX_PARA_NUM);
-if(para_num<PARA_NUM_MIN_eglMakeCurrent_special){
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
     break;
-}
 
+    case FUNID_eglTerminate_special:
 
+    {
 
-                size_t temp_len=0;
-                unsigned char *temp=NULL;
+        /* readline: "EGLBoolean eglTerminate_special EGLDisplay dpy" */
+        /* func name: "eglTerminate_special" */
+        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "EGLBoolean" */
+        /* type: "0" */
 
-                int need_delete=0;
-                temp_len=all_para[0].data_len;
-                if(temp_len< 32 * 1){
-                    break;
-                }
+        /* Define variables */
+        EGLDisplay dpy;
 
-                int null_flag=0;
-                temp=get_direct_ptr(all_para[0].data,&null_flag);
-                if(temp==NULL){
-                    if(temp_len!=0 && null_flag==0){
-                        temp=g_malloc(all_para[0].data_len);
-                        guest_write(all_para[0].data,temp,0,all_para[0].data_len);
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_eglTerminate_special)
+        {
+            break;
+        }
 
-                        need_delete=1;
-                    }else{
-                        break;
-                    }
-                }
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
 
-            unsigned int temp_loc=0;
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
 
-                    dpy = *(EGLDisplay *)(temp+temp_loc);
-                    temp_loc+=8;
-                
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
 
-                    draw = *(EGLSurface *)(temp+temp_loc);
-                    temp_loc+=8;
-                
+        unsigned int temp_loc = 0;
 
-                    read = *(EGLSurface *)(temp+temp_loc);
-                    temp_loc+=8;
-                
+        dpy = *(EGLDisplay *)(temp + temp_loc);
+        temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
 
-                    ctx = *(EGLContext *)(temp+temp_loc);
-                    temp_loc+=8;
-                
+        unsigned char *ret_buf = NULL;
 
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
 
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
 
-                EGLBoolean ret = d_eglMakeCurrent_special(render_context,dpy, draw, read, ctx);
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
-                set_call_return_val(call,(unsigned char *)&ret, 4);
-                
+        EGLBoolean ret = d_eglTerminate_special(render_context, dpy);
+        *ret_ptr = ret;
 
-if(need_delete){g_free(temp);}
-}
-break;
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-
-case FUNID_eglTerminate_special:
-
-{
-
-/* readline: "EGLBoolean eglTerminate_special EGLDisplay dpy" */
-/* func name: "eglTerminate_special" */
-/* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-/* ret: "EGLBoolean" */
-/* type: "0" */
-
-/* Define variables */
-EGLDisplay dpy;
-
-int para_num=get_para_from_call(call,all_para,MAX_PARA_NUM);
-if(para_num<PARA_NUM_MIN_eglTerminate_special){
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
     break;
-}
 
+        /******* end of file '1-1-1', 4/3 functions*******/
 
+        /******* file '1-1-2' *******/
 
-                size_t temp_len=0;
-                unsigned char *temp=NULL;
+        /******* end of file '1-1-2', 1/3 functions*******/
 
-                int need_delete=0;
-                temp_len=all_para[0].data_len;
-                if(temp_len< 8 * 1){
-                    break;
-                }
+        /******* file '1-2' *******/
 
-                int null_flag=0;
-                temp=get_direct_ptr(all_para[0].data,&null_flag);
-                if(temp==NULL){
-                    if(temp_len!=0 && null_flag==0){
-                        temp=g_malloc(all_para[0].data_len);
-                        guest_write(all_para[0].data,temp,0,all_para[0].data_len);
+        /******* end of file '1-2', 1/3 functions*******/
 
-                        need_delete=1;
-                    }else{
-                        break;
-                    }
-                }
+        /******* file '2-1-1' *******/
 
-            unsigned int temp_loc=0;
+        /******* end of file '2-1-1', 1/3 functions*******/
 
-                    dpy = *(EGLDisplay *)(temp+temp_loc);
-                    temp_loc+=8;
-                
+        /******* file '2-1-2' *******/
 
+        /******* end of file '2-1-2', 1/3 functions*******/
 
+        /******* file '2-2' *******/
 
-                EGLBoolean ret = d_eglTerminate_special(render_context,dpy);
-
-                set_call_return_val(call,(unsigned char *)&ret, 4);
-                
-
-if(need_delete){g_free(temp);}
-}
-break;
-
-
-
-
-/******* end of file '1-1', 4/3 functions*******/
-
-
-
-
-/******* file '1-2' *******/
-
-
-
-
-/******* end of file '1-2', 1/3 functions*******/
-
-
-
-
-/******* file '2-1' *******/
-
-
-
-
-/******* end of file '2-1', 1/3 functions*******/
-
-
-
-
-/******* file '2-2' *******/
-
-
-
-
-/******* end of file '2-2', 1/3 functions*******/
-
+        /******* end of file '2-2', 1/3 functions*******/
 
     default:
-                break;
+        break;
     }
 
-    if(need_speed){
-        call->callback(call, 1);
-    }else{
-        call->callback(call, 0);
-    }
+    //if(need_speed){
+    call->callback(call, 1);
+    //}else{
+    //    call->callback(call, 0);
+    //}
     return;
 }

@@ -20,7 +20,7 @@
 
 #include "express-gpu/glv3_trans.h"
 #include "express-gpu/egl_trans.h"
-
+#include "express-gpu/test_trans.h"
 
 //用于保存draw线程信息的hash表，方便分发到相应的线程
 static GHashTable *render_thread_contexts=NULL;
@@ -50,22 +50,31 @@ void decode_invoke(Thread_Context *context,Direct_Express_Call *call)
     Double_Buffer *buffer_context=&(render_context->render_double_buffer);
     Opengl_Context *opengl_context=&(render_context->opengl_context);
 
-    // express_printf("enter decode invoke\n");
+    express_printf("enter decode invoke\n");
 
     uint64_t fun_id=GET_FUN_ID(call->id);
 
-    if(fun_id>10000){
-        // express_printf("egl decode invoke\n");
+
+    if(fun_id>=200000){
+        express_printf("test decode invoke\n");
+
+        test_decode_invoke(render_context,call);
+    }
+    else if(fun_id>10000){
+        express_printf("egl decode invoke\n");
 
         egl_decode_invoke(render_context,call);
     }else{
-        if(buffer_context->has_init&&opengl_context->has_init){
+
+        express_printf("gl decode invoke\n");
+
+        // if(buffer_context->has_init&&opengl_context->has_init){
             // express_printf("gl3 decode invoke\n");
 
-            gl3_decode_invoke(render_context,call);
-        }else{
-            call->callback(call,0);
-        }
+        gl3_decode_invoke(render_context,call);
+        // }else{
+        //     call->callback(call,0);
+        // }
     }
 
     return;
@@ -106,7 +115,6 @@ void render_windows_create(Render_Thread_Context *context){
         //调用egl_context_create
         SendMessage(draw_native_window, WM_USER_CREATE, 0, (LPARAM)buffer_context );
 
-        opengl_context_create(opengl_context);
     }
 
     return;

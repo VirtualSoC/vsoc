@@ -12,9 +12,9 @@ void d_glDeleteBuffers_origin(void *context, GLsizei n, const GLuint *buffers);
 
 
 void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf);
-void d_glMapBufferRange_write(void *context,const void *int_data, const void *mem_buf);
+void d_glMapBufferRange_write(void *context,GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 GLboolean d_glUnmapBuffer_special(void *context, GLenum target);
 
-void d_glFlushMappedBufferRange_origin(void *context, GLenum target, GLintptr offset, GLsizeiptr length);
+void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr offset, GLsizeiptr length, const void *data);
 
 #endif

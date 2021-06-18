@@ -1,12 +1,13 @@
 
-
-#include "egl_define.h"
-#include "define.h"
+#include "define_egl.h"
 
 
 
+#include "../context_common.h"
 
-/******* file '1-1' *******/
+
+
+/******* file '1-1-1' *******/
 
 
 
@@ -18,11 +19,11 @@
 
 EGLBoolean d_eglSwapBuffers_special(void *context, EGLDisplay dpy, EGLSurface surface)
 {
-            unsigned char send_buf[32+16+0*16];
-            size_t send_buf_len=32+0*16;
-            size_t para_num=1+0;
-            send_buf_len+=16;
-unsigned char *ptr=NULL;
+
+            unsigned char send_buf[16+2*16];
+            size_t send_buf_len=16+2*16;
+            size_t para_num=2;
+            unsigned char *ptr=NULL;
 
             
             uint64_t save_buf_len=16;
@@ -54,24 +55,39 @@ unsigned char *ptr=NULL;
             ptr+=sizeof(uint64_t);
 
             
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
+                        out_buf_len+=sizeof(EGLBoolean);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
 
-            EGLBoolean ret=0;
-            uint64_t ret_long=0;
-            *(uint64_t*)ptr=(uint64_t)sizeof(uint64_t);
-            ptr+=sizeof(uint64_t);
-            *(uint64_t*)ptr=(uint64_t)&ret_long;
-            ptr+=sizeof(uint64_t);
-
-        
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
 
             send_to_host(context,send_buf,send_buf_len);
 
 
-        
-            //ret =(EGLBoolean)ret_long;
-            memcpy(&ret,&ret_long,sizeof(EGLBoolean));
-            return ret;
-}
+        out_buf_ptr=out_buf;
+                    EGLBoolean ret=*(EGLBoolean *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
+
+            }
 
 
 /* readline: "EGLBoolean eglMakeCurrent_special EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx" */
@@ -82,11 +98,11 @@ unsigned char *ptr=NULL;
 
 EGLBoolean d_eglMakeCurrent_special(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
 {
-            unsigned char send_buf[32+16+0*16];
-            size_t send_buf_len=32+0*16;
-            size_t para_num=1+0;
-            send_buf_len+=16;
-unsigned char *ptr=NULL;
+
+            unsigned char send_buf[16+2*16];
+            size_t send_buf_len=16+2*16;
+            size_t para_num=2;
+            unsigned char *ptr=NULL;
 
             
             uint64_t save_buf_len=32;
@@ -126,24 +142,39 @@ unsigned char *ptr=NULL;
             ptr+=sizeof(uint64_t);
 
             
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
+                        out_buf_len+=sizeof(EGLBoolean);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
 
-            EGLBoolean ret=0;
-            uint64_t ret_long=0;
-            *(uint64_t*)ptr=(uint64_t)sizeof(uint64_t);
-            ptr+=sizeof(uint64_t);
-            *(uint64_t*)ptr=(uint64_t)&ret_long;
-            ptr+=sizeof(uint64_t);
-
-        
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
 
             send_to_host(context,send_buf,send_buf_len);
 
 
-        
-            //ret =(EGLBoolean)ret_long;
-            memcpy(&ret,&ret_long,sizeof(EGLBoolean));
-            return ret;
-}
+        out_buf_ptr=out_buf;
+                    EGLBoolean ret=*(EGLBoolean *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
+
+            }
 
 
 /* readline: "EGLBoolean eglTerminate_special EGLDisplay dpy" */
@@ -154,11 +185,11 @@ unsigned char *ptr=NULL;
 
 EGLBoolean d_eglTerminate_special(void *context, EGLDisplay dpy)
 {
-            unsigned char send_buf[32+16+0*16];
-            size_t send_buf_len=32+0*16;
-            size_t para_num=1+0;
-            send_buf_len+=16;
-unsigned char *ptr=NULL;
+
+            unsigned char send_buf[16+2*16];
+            size_t send_buf_len=16+2*16;
+            size_t para_num=2;
+            unsigned char *ptr=NULL;
 
             
             uint64_t save_buf_len=8;
@@ -186,28 +217,53 @@ unsigned char *ptr=NULL;
             ptr+=sizeof(uint64_t);
 
             
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
+                        out_buf_len+=sizeof(EGLBoolean);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
 
-            EGLBoolean ret=0;
-            uint64_t ret_long=0;
-            *(uint64_t*)ptr=(uint64_t)sizeof(uint64_t);
-            ptr+=sizeof(uint64_t);
-            *(uint64_t*)ptr=(uint64_t)&ret_long;
-            ptr+=sizeof(uint64_t);
-
-        
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
 
             send_to_host(context,send_buf,send_buf_len);
 
 
-        
-            //ret =(EGLBoolean)ret_long;
-            memcpy(&ret,&ret_long,sizeof(EGLBoolean));
-            return ret;
-}
+        out_buf_ptr=out_buf;
+                    EGLBoolean ret=*(EGLBoolean *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
+
+            }
 
 
 
-/******* end of file '1-1', 4/3 functions *******/
+/******* end of file '1-1-1', 4/3 functions *******/
+
+
+
+
+/******* file '1-1-2' *******/
+
+
+
+
+/******* end of file '1-1-2', 1/3 functions *******/
 
 
 
@@ -222,12 +278,22 @@ unsigned char *ptr=NULL;
 
 
 
-/******* file '2-1' *******/
+/******* file '2-1-1' *******/
 
 
 
 
-/******* end of file '2-1', 1/3 functions *******/
+/******* end of file '2-1-1', 1/3 functions *******/
+
+
+
+
+/******* file '2-1-2' *******/
+
+
+
+
+/******* end of file '2-1-2', 1/3 functions *******/
 
 
 

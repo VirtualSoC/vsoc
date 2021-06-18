@@ -7,6 +7,8 @@
 #include "express-gpu/express_gpu_render.h"
 
 
+#define MAX_VERTEX_ATTRIBS_NUM 16
+
 typedef struct Pixel_Store_Status
 {
     //表示数据对齐的标准
@@ -50,11 +52,55 @@ typedef struct Buffer_Status
 
 } Buffer_Status;
 
+
+typedef struct Attrib_Point
+{
+    
+    
+    //father指示其的数据在哪，然后offset指示了在数组中的偏移
+    // GLint father[MAX_VERTEX_ATTRIBS_NUM];
+    // GLintptr offset[MAX_VERTEX_ATTRIBS_NUM];
+
+
+    //顶点的常规属性
+    // GLint size[MAX_VERTEX_ATTRIBS_NUM];
+    // GLenum type[MAX_VERTEX_ATTRIBS_NUM];
+    // GLsizei stride[MAX_VERTEX_ATTRIBS_NUM];
+    // GLboolean normalized[MAX_VERTEX_ATTRIBS_NUM];
+    // GLuint divisor[MAX_VERTEX_ATTRIBS_NUM];
+    // GLenum invoke_type[MAX_VERTEX_ATTRIBS_NUM];
+    // GLuint min_index;
+    // GLuint max_index;
+
+    GLuint buffer_object[MAX_VERTEX_ATTRIBS_NUM];
+    GLint buffer_loc[MAX_VERTEX_ATTRIBS_NUM];
+
+    GLint remain_buffer_len[MAX_VERTEX_ATTRIBS_NUM];
+    GLint buffer_len[MAX_VERTEX_ATTRIBS_NUM];
+
+    GLuint indices_buffer_object;
+    GLint indices_buffer_len;
+
+    GLint remain_indices_buffer_len;
+
+    // GLint buffer_num;
+
+    // GLboolean in_buffer[MAX_VERTEX_ATTRIBS_NUM];
+
+
+    //表示顶点属性是否启用顶点数组
+    // GLboolean enabled[MAX_VERTEX_ATTRIBS_NUM];
+
+} Attrib_Point;
+
+
+
 typedef struct Bound_Buffer
 {
 
     //这个buffer_status指针是指向实际vao_status里的值
     Buffer_Status *buffer_status;
+    Attrib_Point *attrib_point;
 
     // std::map<GLint, GLenum> buffer_type;
     GHashTable *buffer_type;
@@ -85,45 +131,10 @@ typedef struct Opengl_Context
 } Opengl_Context;
 
 
-typedef struct Attrib_Point
-{
-    //真实的存储下来的数据
-    Scatter_Data *data[32];
-    GLint data_len[32];
-    
-    //father指示其的数据在哪，然后offset指示了在数组中的
-    GLint father[32];
-    GLintptr offset[32];
-
-
-    //顶点的常规属性
-    GLint size[32];
-    GLenum type[32];
-    GLsizei stride[32];
-    GLboolean normalized[32];
-    GLuint divisor[32];
-    GLenum invoke_type[32];
-    GLuint min_index;
-    GLuint max_index;
-
-    GLuint buffer_object;
-    GLint buffer_len;
-
-    GLuint indices_buffer_object;
-    GLint indices_buffer_len;
-
-    GLboolean in_buffer[32];
-
-
-    //表示顶点属性是否启用顶点数组
-    GLboolean enabled[32];
-
-} Attrib_Point;
 
 
 typedef struct Guest_Host_Map{
     GLubyte *host_data;
-    Scatter_Data *guest_data;
     unsigned long map_len;
     GLenum target;
     GLbitfield access;
@@ -169,6 +180,9 @@ void d_glDeleteProgram_origin(void *context, GLuint program);
 
 void d_glLinkProgram_origin(void *context, GLuint program);
 
+void d_glShaderSource_origin(void *context,GLuint shader, GLsizei count, const GLint *length, const GLchar *const*string);
+
+
 
 void opengl_context_create(void *context);
 
@@ -211,24 +225,10 @@ GLint glTestPointer4(GLint a, const GLint *b, GLint *c);
 
 void glTestString(GLint a, GLint count, const GLchar *const*strings, GLint buf_len, GLchar *char_buf);
 
-void glPrintf(GLint buf_len, GLchar *out_string);
+void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string);
 
 
-
-
-
-void glInOutTest(GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f);
-
-void glSaveLongTime(const void *int_data, const void *pointer);
-
-
-
-
-
-
-
-
-
+void d_glInOutTest(void *context, GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f);
 
 
 

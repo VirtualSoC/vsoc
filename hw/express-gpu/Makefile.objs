@@ -14,6 +14,8 @@ common-obj-$(CONFIG_EXPRESS_GPU) += glv3_vertex.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_trans.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_surface.o
 
+common-obj-$(CONFIG_EXPRESS_GPU) += test_trans.o
+
 
 
 
