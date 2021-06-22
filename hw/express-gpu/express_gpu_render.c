@@ -316,8 +316,9 @@ static int opengl_prepare(GLint *program, GLint *VAO)
     *program = programObject;
     *VAO = quadVAO;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glUseProgram(programObject);
 
@@ -365,7 +366,6 @@ static void opengl_paint(Double_Buffer *d_buffer)
 
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
-    release_display_texture(d_buffer);
 
     // express_printf("main has error %x\n",glGetError());
     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -373,6 +373,9 @@ static void opengl_paint(Double_Buffer *d_buffer)
     // glClearColor(0, 0, 1, 1);
     // glClear(GL_COLOR_BUFFER_BIT);
     glfwSwapBuffers(glfw_window);
+
+    release_display_texture(d_buffer);
+
 }
 
 
@@ -395,16 +398,16 @@ static void egl_context_create(Double_Buffer *d_buffer, int width, int height)
     sprintf(name, "opengl-child-window%d", cnt);
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-
-    //屏幕分离调试专用
-    // glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-
     // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
     //屏幕分离调试专用
-    //child_window = glfwCreateWindow(width, height, name, NULL, NULL);
-    
-    child_window = glfwCreateWindow(width, height, name, NULL, glfw_window);
+    #ifdef DEBUG_INDEPEND_WINDOW
+        glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+        child_window = glfwCreateWindow(width, height, name, NULL, NULL);
+
+    #else
+        child_window = glfwCreateWindow(width, height, name, NULL, glfw_window);
+    #endif
     d_buffer->window = child_window;
     d_buffer->width = width;
     d_buffer->height = height;
@@ -482,8 +485,9 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     
     
     //屏幕分离调试专用
-    // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    
+    #ifdef DEBUG_INDEPEND_WINDOW
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    #endif
     return 1;
 }
 
@@ -669,19 +673,21 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
 
     //这里也使用GPU等待是因为GPU那边画完了之后，这边才能在交换的新的东西上画
     TEXTURE_LOCK(double_buffer->display_texture_is_use);
-    if (double_buffer->dispaly_sync != NULL)
-    {
-        glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
-        express_printf(RED("glWaitSync %x\n"),glGetError());
+    // if (double_buffer->dispaly_sync != NULL)
+    // {
+    //     glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
+    //     express_printf(RED("glWaitSync %x\n"),glGetError());
 
-        glDeleteSync(double_buffer->dispaly_sync);
-        express_printf("glDeleteSync %x\n",glGetError());
+    //     glDeleteSync(double_buffer->dispaly_sync);
+    //     express_printf("glDeleteSync %x\n",glGetError());
 
-        double_buffer->dispaly_sync = NULL;
-    }
+    //     double_buffer->dispaly_sync = NULL;
+    // }
 
     //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
-    glFlush();
+    // glFlush();
+    //这句话让之前的画面都渲染出来
+    glFinish();
 
     //交换FBO
     GLuint temp = double_buffer->fbo_draw;
@@ -694,7 +700,7 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
     double_buffer->fbo_texture_display = temp;
 
     //交换了之后设定一个sync
-    double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     express_printf("glFenceSync %x\n",glGetError());
 
 
@@ -729,13 +735,13 @@ void render_bind_frame_buffer(Double_Buffer *double_buffer)
 GLuint get_display_texture(Double_Buffer *double_buffer)
 {
     TEXTURE_LOCK(double_buffer->display_texture_is_use);
-    glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
+    // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
     // express_printf("main has error %x\n",glGetError());
 
-    glDeleteSync(double_buffer->dispaly_sync);
+    // glDeleteSync(double_buffer->dispaly_sync);
     // express_printf("main has error %x\n",glGetError());
 
-    double_buffer->dispaly_sync = NULL;
+    // double_buffer->dispaly_sync = NULL;
     return double_buffer->fbo_texture_display;
 }
 
@@ -746,6 +752,6 @@ GLuint get_display_texture(Double_Buffer *double_buffer)
  */
 void release_display_texture(Double_Buffer *double_buffer)
 {
-    double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     TEXTURE_UNLOCK(double_buffer->display_texture_is_use);
 }

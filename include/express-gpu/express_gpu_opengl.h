@@ -166,11 +166,11 @@ size_t gl_sizeof(GLenum type);
 size_t gl_pname_size(GLenum pname);
 
 
-void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc);
+// void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc);
 
-void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
+// void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
 
-void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
+// void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
 
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);

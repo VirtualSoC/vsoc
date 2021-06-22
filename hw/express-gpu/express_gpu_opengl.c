@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "express-gpu/express_gpu_opengl.h"
 
@@ -724,75 +724,7 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     glBindBuffer(target, buffer);
 }
 
-void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc){
-    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    GLint asyn_texture=bound_buffer->asyn_unpack_texture_buffer;
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,asyn_texture);
-    //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc,NULL,GL_STREAM_DRAW);
 
-    //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
-    GLubyte *map_pointer=glMapBufferRange(GL_PIXEL_UNPACK_BUFFER,start_loc,end_loc-start_loc,GL_MAP_WRITE_BIT|GL_MAP_UNSYNCHRONIZED_BIT);
-    host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,1);
-}
-
-
-void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc)
-{
-    gl_pixel_data_3d_loc(store_status, width, height, 1, format, type, pack,start_loc,end_loc);
-}
-
-void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc)
-{
-    Pixel_Store_Status *status = (Pixel_Store_Status *)store_status;
-    int align = 4;
-    int row_length = 0;
-    int skip_rows = 0;
-    int skip_pixels = 0;
-    int skip_images = 0;
-    int image_height = 0;
-
-    GLsizei real_width;
-    GLsizei real_height;
-
-    //获得此时的状态值
-    if (pack)
-    {
-        align = status->pack_alignment;
-        row_length = status->pack_row_length;
-        skip_rows = status->pack_skip_rows;
-        skip_pixels = status->pack_skip_pixels;
-    }
-    else
-    {
-        align = status->unpack_alignment;
-        row_length = status->unpack_row_length;
-        skip_rows = status->unpack_skip_rows;
-        skip_pixels = status->unpack_skip_pixels;
-
-        skip_images = status->unpack_skip_images;
-        image_height = status->unpack_image_height;
-    }
-
-    //获得一张图片的真实像素宽度和高度
-    real_width = row_length == 0 ? width : row_length;
-    real_height = image_height == 0 ? height : image_height;
-
-    //每个像素点所占的空间
-    GLsizei pixel_size = pixel_size_calc(format, type);
-    //获得图片每一行的字节数
-    GLsizei width_size = pixel_size * real_width;
-    //每一行的数据进行对其
-    width_size = (width_size + align - 1) & (~(align - 1));
-
-    //数据图像开始读取的地方，等于（跳过的图片数目*图片的高度+跳过的行数）*每行所占的字节数+跳过的像素数*像素大小
-    *start_loc = (skip_images * real_height + skip_rows) * width_size + skip_pixels * pixel_size;
-
-    //数据图像结束读取的地方，等于 开始读取的地方+要读取的图片的高度*图片每行所占的字节数*图片的张数，depth表示深度也就表示要读取多少张图片
-    *end_loc = *start_loc + real_height * width_size * depth;
-
-    return;
-}
 
 
 void d_glDeleteProgram_origin(void *context, GLuint program)
@@ -809,7 +741,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 
 
 void d_glShaderSource_origin(void *context,GLuint shader, GLsizei count, const GLint *length, const GLchar *const*string){
-    express_printf("gl shader source:\n%s",string[0]);
+    // express_printf("gl shader source:\n%s",string[0]);
     glShaderSource(shader,count,string,length);
 }
 
@@ -819,7 +751,8 @@ void opengl_context_create(void *context){
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
-    
+    opengl_context->pixel_store_status.pack_alignment=4;
+    opengl_context->pixel_store_status.unpack_alignment=4;
 
     opengl_context->buffer_map=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_buffer_map_destroy);
 
@@ -847,8 +780,13 @@ void opengl_context_create(void *context){
     bound_buffer->buffer_status=status;
     bound_buffer->attrib_point=temp_point;
 
-    bound_buffer->asyn_pack_texture_buffer=0;
-    bound_buffer->asyn_unpack_texture_buffer=0;
+    
+    glGenBuffers(1,&(bound_buffer->asyn_unpack_texture_buffer));
+    glGenBuffers(1,&(bound_buffer->asyn_pack_texture_buffer));
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_POINT_SPRITE);
+    // bound_buffer->asyn_pack_texture_buffer=0;
+    // bound_buffer->asyn_unpack_texture_buffer=0;
 
     opengl_context->has_init=1;
 

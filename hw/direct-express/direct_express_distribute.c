@@ -121,7 +121,7 @@ void guest_write(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
     express_printf("guest_write length %llu all_len %d\n",length,guest->all_len);
     Scatter_Data *guest_data = guest->scatter_data;
     if(length==0 || host==NULL || length>guest->all_len){
-        printf("error %d %lld\n",guest->all_len,length);
+        printf("guest write error host %lx len %d %lld\n",host,guest->all_len,length);
         return;
     }
     // gint64 start_time=0;

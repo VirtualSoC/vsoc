@@ -7687,7 +7687,7 @@ void d_glActiveTexture(void *context, GLenum texture)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -7716,7 +7716,7 @@ void d_glActiveTexture(void *context, GLenum texture)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -7737,7 +7737,7 @@ void d_glAttachShader(void *context, GLuint program, GLuint shader)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -7769,7 +7769,7 @@ void d_glAttachShader(void *context, GLuint program, GLuint shader)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -7790,7 +7790,7 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -7822,7 +7822,7 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -7843,7 +7843,7 @@ void d_glBindFramebuffer(void *context, GLenum target, GLuint framebuffer)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -7875,7 +7875,7 @@ void d_glBindFramebuffer(void *context, GLenum target, GLuint framebuffer)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -7896,7 +7896,7 @@ void d_glBindRenderbuffer(void *context, GLenum target, GLuint renderbuffer)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -7928,7 +7928,7 @@ void d_glBindRenderbuffer(void *context, GLenum target, GLuint renderbuffer)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -7949,7 +7949,7 @@ void d_glBindTexture(void *context, GLenum target, GLuint texture)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -7981,7 +7981,7 @@ void d_glBindTexture(void *context, GLenum target, GLuint texture)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8002,7 +8002,7 @@ void d_glBlendColor(void *context, GLfloat red, GLfloat green, GLfloat blue, GLf
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8040,7 +8040,7 @@ void d_glBlendColor(void *context, GLfloat red, GLfloat green, GLfloat blue, GLf
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8061,7 +8061,7 @@ void d_glBlendEquation(void *context, GLenum mode)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8090,7 +8090,7 @@ void d_glBlendEquation(void *context, GLenum mode)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8111,7 +8111,7 @@ void d_glBlendEquationSeparate(void *context, GLenum modeRGB, GLenum modeAlpha)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8143,7 +8143,7 @@ void d_glBlendEquationSeparate(void *context, GLenum modeRGB, GLenum modeAlpha)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8164,7 +8164,7 @@ void d_glBlendFunc(void *context, GLenum sfactor, GLenum dfactor)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8196,7 +8196,7 @@ void d_glBlendFunc(void *context, GLenum sfactor, GLenum dfactor)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8217,7 +8217,7 @@ void d_glBlendFuncSeparate(void *context, GLenum sfactorRGB, GLenum dfactorRGB, 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8255,7 +8255,7 @@ void d_glBlendFuncSeparate(void *context, GLenum sfactorRGB, GLenum dfactorRGB, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8276,7 +8276,7 @@ void d_glClear(void *context, GLbitfield mask)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8305,7 +8305,7 @@ void d_glClear(void *context, GLbitfield mask)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8326,7 +8326,7 @@ void d_glClearColor(void *context, GLfloat red, GLfloat green, GLfloat blue, GLf
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8364,7 +8364,7 @@ void d_glClearColor(void *context, GLfloat red, GLfloat green, GLfloat blue, GLf
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8385,7 +8385,7 @@ void d_glClearDepthf(void *context, GLfloat d)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8414,7 +8414,7 @@ void d_glClearDepthf(void *context, GLfloat d)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8435,7 +8435,7 @@ void d_glClearStencil(void *context, GLint s)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8464,7 +8464,7 @@ void d_glClearStencil(void *context, GLint s)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8485,7 +8485,7 @@ void d_glColorMask(void *context, GLboolean red, GLboolean green, GLboolean blue
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8523,7 +8523,7 @@ void d_glColorMask(void *context, GLboolean red, GLboolean green, GLboolean blue
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8544,7 +8544,7 @@ void d_glCompileShader(void *context, GLuint shader)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8573,7 +8573,7 @@ void d_glCompileShader(void *context, GLuint shader)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8594,7 +8594,7 @@ void d_glCopyTexImage2D(void *context, GLenum target, GLint level, GLenum intern
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8644,7 +8644,7 @@ void d_glCopyTexImage2D(void *context, GLenum target, GLint level, GLenum intern
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8665,7 +8665,7 @@ void d_glCopyTexSubImage2D(void *context, GLenum target, GLint level, GLint xoff
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8715,7 +8715,7 @@ void d_glCopyTexSubImage2D(void *context, GLenum target, GLint level, GLint xoff
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8736,7 +8736,7 @@ void d_glCullFace(void *context, GLenum mode)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8765,7 +8765,7 @@ void d_glCullFace(void *context, GLenum mode)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8786,7 +8786,7 @@ void d_glDeleteProgram_origin(void *context, GLuint program)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8815,7 +8815,7 @@ void d_glDeleteProgram_origin(void *context, GLuint program)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8836,7 +8836,7 @@ void d_glDeleteShader(void *context, GLuint shader)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8865,7 +8865,7 @@ void d_glDeleteShader(void *context, GLuint shader)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8886,7 +8886,7 @@ void d_glDepthFunc(void *context, GLenum func)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8915,7 +8915,7 @@ void d_glDepthFunc(void *context, GLenum func)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8936,7 +8936,7 @@ void d_glDepthMask(void *context, GLboolean flag)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -8965,7 +8965,7 @@ void d_glDepthMask(void *context, GLboolean flag)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -8986,7 +8986,7 @@ void d_glDepthRangef(void *context, GLfloat n, GLfloat f)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9018,7 +9018,7 @@ void d_glDepthRangef(void *context, GLfloat n, GLfloat f)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9039,7 +9039,7 @@ void d_glDetachShader(void *context, GLuint program, GLuint shader)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9071,7 +9071,7 @@ void d_glDetachShader(void *context, GLuint program, GLuint shader)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9092,7 +9092,7 @@ void d_glDisable(void *context, GLenum cap)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9121,7 +9121,7 @@ void d_glDisable(void *context, GLenum cap)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9142,7 +9142,7 @@ void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9171,7 +9171,7 @@ void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9192,7 +9192,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9227,7 +9227,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9248,7 +9248,7 @@ void d_glEnable(void *context, GLenum cap)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9277,7 +9277,7 @@ void d_glEnable(void *context, GLenum cap)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9298,7 +9298,7 @@ void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9327,7 +9327,7 @@ void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9348,7 +9348,7 @@ void d_glFlush(void *context)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9369,7 +9369,7 @@ void d_glFlush(void *context)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9390,7 +9390,7 @@ void d_glFramebufferRenderbuffer(void *context, GLenum target, GLenum attachment
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9428,7 +9428,7 @@ void d_glFramebufferRenderbuffer(void *context, GLenum target, GLenum attachment
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9449,7 +9449,7 @@ void d_glFramebufferTexture2D(void *context, GLenum target, GLenum attachment, G
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9490,7 +9490,7 @@ void d_glFramebufferTexture2D(void *context, GLenum target, GLenum attachment, G
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9511,7 +9511,7 @@ void d_glFrontFace(void *context, GLenum mode)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9540,7 +9540,7 @@ void d_glFrontFace(void *context, GLenum mode)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9561,7 +9561,7 @@ void d_glGenerateMipmap(void *context, GLenum target)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9590,7 +9590,7 @@ void d_glGenerateMipmap(void *context, GLenum target)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9611,7 +9611,7 @@ void d_glHint(void *context, GLenum target, GLenum mode)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9643,7 +9643,7 @@ void d_glHint(void *context, GLenum target, GLenum mode)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9664,7 +9664,7 @@ void d_glLineWidth(void *context, GLfloat width)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9693,7 +9693,7 @@ void d_glLineWidth(void *context, GLfloat width)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9714,7 +9714,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9743,7 +9743,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9764,7 +9764,7 @@ void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9796,7 +9796,7 @@ void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9817,7 +9817,7 @@ void d_glPolygonOffset(void *context, GLfloat factor, GLfloat units)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9849,7 +9849,7 @@ void d_glPolygonOffset(void *context, GLfloat factor, GLfloat units)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9870,7 +9870,7 @@ void d_glReleaseShaderCompiler(void *context)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9891,7 +9891,7 @@ void d_glReleaseShaderCompiler(void *context)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9912,7 +9912,7 @@ void d_glRenderbufferStorage(void *context, GLenum target, GLenum internalformat
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -9950,7 +9950,7 @@ void d_glRenderbufferStorage(void *context, GLenum target, GLenum internalformat
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -9971,7 +9971,7 @@ void d_glSampleCoverage(void *context, GLfloat value, GLboolean invert)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10003,7 +10003,7 @@ void d_glSampleCoverage(void *context, GLfloat value, GLboolean invert)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10024,7 +10024,7 @@ void d_glScissor(void *context, GLint x, GLint y, GLsizei width, GLsizei height)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10062,7 +10062,7 @@ void d_glScissor(void *context, GLint x, GLint y, GLsizei width, GLsizei height)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10083,7 +10083,7 @@ void d_glStencilFunc(void *context, GLenum func, GLint ref, GLuint mask)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10118,7 +10118,7 @@ void d_glStencilFunc(void *context, GLenum func, GLint ref, GLuint mask)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10139,7 +10139,7 @@ void d_glStencilFuncSeparate(void *context, GLenum face, GLenum func, GLint ref,
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10177,7 +10177,7 @@ void d_glStencilFuncSeparate(void *context, GLenum face, GLenum func, GLint ref,
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10198,7 +10198,7 @@ void d_glStencilMask(void *context, GLuint mask)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10227,7 +10227,7 @@ void d_glStencilMask(void *context, GLuint mask)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10248,7 +10248,7 @@ void d_glStencilMaskSeparate(void *context, GLenum face, GLuint mask)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10280,7 +10280,7 @@ void d_glStencilMaskSeparate(void *context, GLenum face, GLuint mask)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10301,7 +10301,7 @@ void d_glStencilOp(void *context, GLenum fail, GLenum zfail, GLenum zpass)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10336,7 +10336,7 @@ void d_glStencilOp(void *context, GLenum fail, GLenum zfail, GLenum zpass)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10357,7 +10357,7 @@ void d_glStencilOpSeparate(void *context, GLenum face, GLenum sfail, GLenum dpfa
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10395,7 +10395,7 @@ void d_glStencilOpSeparate(void *context, GLenum face, GLenum sfail, GLenum dpfa
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10416,7 +10416,7 @@ void d_glTexParameterf(void *context, GLenum target, GLenum pname, GLfloat param
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10451,7 +10451,7 @@ void d_glTexParameterf(void *context, GLenum target, GLenum pname, GLfloat param
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10472,7 +10472,7 @@ void d_glTexParameteri(void *context, GLenum target, GLenum pname, GLint param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10507,7 +10507,7 @@ void d_glTexParameteri(void *context, GLenum target, GLenum pname, GLint param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10528,7 +10528,7 @@ void d_glUniform1f(void *context, GLint location, GLfloat v0)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10560,7 +10560,7 @@ void d_glUniform1f(void *context, GLint location, GLfloat v0)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10581,7 +10581,7 @@ void d_glUniform1i(void *context, GLint location, GLint v0)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10613,7 +10613,7 @@ void d_glUniform1i(void *context, GLint location, GLint v0)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10634,7 +10634,7 @@ void d_glUniform2f(void *context, GLint location, GLfloat v0, GLfloat v1)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10669,7 +10669,7 @@ void d_glUniform2f(void *context, GLint location, GLfloat v0, GLfloat v1)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10690,7 +10690,7 @@ void d_glUniform2i(void *context, GLint location, GLint v0, GLint v1)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10725,7 +10725,7 @@ void d_glUniform2i(void *context, GLint location, GLint v0, GLint v1)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10746,7 +10746,7 @@ void d_glUniform3f(void *context, GLint location, GLfloat v0, GLfloat v1, GLfloa
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10784,7 +10784,7 @@ void d_glUniform3f(void *context, GLint location, GLfloat v0, GLfloat v1, GLfloa
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10805,7 +10805,7 @@ void d_glUniform3i(void *context, GLint location, GLint v0, GLint v1, GLint v2)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10843,7 +10843,7 @@ void d_glUniform3i(void *context, GLint location, GLint v0, GLint v1, GLint v2)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10864,7 +10864,7 @@ void d_glUniform4f(void *context, GLint location, GLfloat v0, GLfloat v1, GLfloa
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10905,7 +10905,7 @@ void d_glUniform4f(void *context, GLint location, GLfloat v0, GLfloat v1, GLfloa
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10926,7 +10926,7 @@ void d_glUniform4i(void *context, GLint location, GLint v0, GLint v1, GLint v2, 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -10967,7 +10967,7 @@ void d_glUniform4i(void *context, GLint location, GLint v0, GLint v1, GLint v2, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -10988,7 +10988,7 @@ void d_glUseProgram(void *context, GLuint program)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11017,7 +11017,7 @@ void d_glUseProgram(void *context, GLuint program)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11038,7 +11038,7 @@ void d_glValidateProgram(void *context, GLuint program)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11067,7 +11067,7 @@ void d_glValidateProgram(void *context, GLuint program)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11088,7 +11088,7 @@ void d_glVertexAttrib1f(void *context, GLuint index, GLfloat x)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11120,7 +11120,7 @@ void d_glVertexAttrib1f(void *context, GLuint index, GLfloat x)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11141,7 +11141,7 @@ void d_glVertexAttrib2f(void *context, GLuint index, GLfloat x, GLfloat y)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11176,7 +11176,7 @@ void d_glVertexAttrib2f(void *context, GLuint index, GLfloat x, GLfloat y)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11197,7 +11197,7 @@ void d_glVertexAttrib3f(void *context, GLuint index, GLfloat x, GLfloat y, GLflo
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11235,7 +11235,7 @@ void d_glVertexAttrib3f(void *context, GLuint index, GLfloat x, GLfloat y, GLflo
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11256,7 +11256,7 @@ void d_glVertexAttrib4f(void *context, GLuint index, GLfloat x, GLfloat y, GLflo
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11297,7 +11297,7 @@ void d_glVertexAttrib4f(void *context, GLuint index, GLfloat x, GLfloat y, GLflo
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11318,7 +11318,7 @@ void d_glViewport(void *context, GLint x, GLint y, GLsizei width, GLsizei height
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11356,7 +11356,7 @@ void d_glViewport(void *context, GLint x, GLint y, GLsizei width, GLsizei height
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11377,7 +11377,7 @@ void d_glReadBuffer(void *context, GLenum src)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11406,7 +11406,7 @@ void d_glReadBuffer(void *context, GLenum src)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11427,7 +11427,7 @@ void d_glCopyTexSubImage3D(void *context, GLenum target, GLint level, GLint xoff
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11480,7 +11480,7 @@ void d_glCopyTexSubImage3D(void *context, GLenum target, GLint level, GLint xoff
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11501,7 +11501,7 @@ void d_glBeginQuery(void *context, GLenum target, GLuint id)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11533,7 +11533,7 @@ void d_glBeginQuery(void *context, GLenum target, GLuint id)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11554,7 +11554,7 @@ void d_glEndQuery(void *context, GLenum target)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11583,7 +11583,7 @@ void d_glEndQuery(void *context, GLenum target)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11604,7 +11604,7 @@ void d_glBlitFramebuffer(void *context, GLint srcX0, GLint srcY0, GLint srcX1, G
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11660,7 +11660,7 @@ void d_glBlitFramebuffer(void *context, GLint srcX0, GLint srcY0, GLint srcX1, G
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11681,7 +11681,7 @@ void d_glRenderbufferStorageMultisample(void *context, GLenum target, GLsizei sa
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11722,7 +11722,7 @@ void d_glRenderbufferStorageMultisample(void *context, GLenum target, GLsizei sa
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11743,7 +11743,7 @@ void d_glFramebufferTextureLayer(void *context, GLenum target, GLenum attachment
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11784,7 +11784,7 @@ void d_glFramebufferTextureLayer(void *context, GLenum target, GLenum attachment
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11805,7 +11805,7 @@ void d_glBindVertexArray_origin(void *context, GLuint array)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11834,7 +11834,7 @@ void d_glBindVertexArray_origin(void *context, GLuint array)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11855,7 +11855,7 @@ void d_glBeginTransformFeedback(void *context, GLenum primitiveMode)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11884,7 +11884,7 @@ void d_glBeginTransformFeedback(void *context, GLenum primitiveMode)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11905,7 +11905,7 @@ void d_glEndTransformFeedback(void *context)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11926,7 +11926,7 @@ void d_glEndTransformFeedback(void *context)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -11947,7 +11947,7 @@ void d_glBindBufferRange(void *context, GLenum target, GLuint index, GLuint buff
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -11988,7 +11988,7 @@ void d_glBindBufferRange(void *context, GLenum target, GLuint index, GLuint buff
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12009,7 +12009,7 @@ void d_glBindBufferBase(void *context, GLenum target, GLuint index, GLuint buffe
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12044,7 +12044,7 @@ void d_glBindBufferBase(void *context, GLenum target, GLuint index, GLuint buffe
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12065,7 +12065,7 @@ void d_glVertexAttribI4i(void *context, GLuint index, GLint x, GLint y, GLint z,
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12106,7 +12106,7 @@ void d_glVertexAttribI4i(void *context, GLuint index, GLint x, GLint y, GLint z,
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12127,7 +12127,7 @@ void d_glVertexAttribI4ui(void *context, GLuint index, GLuint x, GLuint y, GLuin
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12168,7 +12168,7 @@ void d_glVertexAttribI4ui(void *context, GLuint index, GLuint x, GLuint y, GLuin
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12189,7 +12189,7 @@ void d_glUniform1ui(void *context, GLint location, GLuint v0)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12221,7 +12221,7 @@ void d_glUniform1ui(void *context, GLint location, GLuint v0)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12242,7 +12242,7 @@ void d_glUniform2ui(void *context, GLint location, GLuint v0, GLuint v1)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12277,7 +12277,7 @@ void d_glUniform2ui(void *context, GLint location, GLuint v0, GLuint v1)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12298,7 +12298,7 @@ void d_glUniform3ui(void *context, GLint location, GLuint v0, GLuint v1, GLuint 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12336,7 +12336,7 @@ void d_glUniform3ui(void *context, GLint location, GLuint v0, GLuint v1, GLuint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12357,7 +12357,7 @@ void d_glUniform4ui(void *context, GLint location, GLuint v0, GLuint v1, GLuint 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12398,7 +12398,7 @@ void d_glUniform4ui(void *context, GLint location, GLuint v0, GLuint v1, GLuint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12419,7 +12419,7 @@ void d_glClearBufferfi(void *context, GLenum buffer, GLint drawbuffer, GLfloat d
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12457,7 +12457,7 @@ void d_glClearBufferfi(void *context, GLenum buffer, GLint drawbuffer, GLfloat d
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12478,7 +12478,7 @@ void d_glCopyBufferSubData(void *context, GLenum readTarget, GLenum writeTarget,
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12519,7 +12519,7 @@ void d_glCopyBufferSubData(void *context, GLenum readTarget, GLenum writeTarget,
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12540,7 +12540,7 @@ void d_glUniformBlockBinding(void *context, GLuint program, GLuint uniformBlockI
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12575,7 +12575,7 @@ void d_glUniformBlockBinding(void *context, GLuint program, GLuint uniformBlockI
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12596,7 +12596,7 @@ void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLs
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12634,7 +12634,7 @@ void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLs
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12655,7 +12655,7 @@ void d_glBindSampler(void *context, GLuint unit, GLuint sampler)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12687,7 +12687,7 @@ void d_glBindSampler(void *context, GLuint unit, GLuint sampler)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12708,7 +12708,7 @@ void d_glSamplerParameteri(void *context, GLuint sampler, GLenum pname, GLint pa
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12743,7 +12743,7 @@ void d_glSamplerParameteri(void *context, GLuint sampler, GLenum pname, GLint pa
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12764,7 +12764,7 @@ void d_glSamplerParameterf(void *context, GLuint sampler, GLenum pname, GLfloat 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12799,7 +12799,7 @@ void d_glSamplerParameterf(void *context, GLuint sampler, GLenum pname, GLfloat 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12820,7 +12820,7 @@ void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12852,7 +12852,7 @@ void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12873,7 +12873,7 @@ void d_glBindTransformFeedback(void *context, GLenum target, GLuint id)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12905,7 +12905,7 @@ void d_glBindTransformFeedback(void *context, GLenum target, GLuint id)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12926,7 +12926,7 @@ void d_glPauseTransformFeedback(void *context)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12947,7 +12947,7 @@ void d_glPauseTransformFeedback(void *context)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -12968,7 +12968,7 @@ void d_glResumeTransformFeedback(void *context)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -12989,7 +12989,7 @@ void d_glResumeTransformFeedback(void *context)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13010,7 +13010,7 @@ void d_glProgramParameteri(void *context, GLuint program, GLenum pname, GLint va
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13045,7 +13045,7 @@ void d_glProgramParameteri(void *context, GLuint program, GLenum pname, GLint va
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13066,7 +13066,7 @@ void d_glTexStorage2D(void *context, GLenum target, GLsizei levels, GLenum inter
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13107,7 +13107,7 @@ void d_glTexStorage2D(void *context, GLenum target, GLsizei levels, GLenum inter
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13128,7 +13128,7 @@ void d_glTexStorage3D(void *context, GLenum target, GLsizei levels, GLenum inter
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13172,7 +13172,7 @@ void d_glTexStorage3D(void *context, GLenum target, GLsizei levels, GLenum inter
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13193,7 +13193,7 @@ void d_glAlphaFuncxOES(void *context, GLenum func, GLfixed ref)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13225,7 +13225,7 @@ void d_glAlphaFuncxOES(void *context, GLenum func, GLfixed ref)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13246,7 +13246,7 @@ void d_glClearColorxOES(void *context, GLfixed red, GLfixed green, GLfixed blue,
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13284,7 +13284,7 @@ void d_glClearColorxOES(void *context, GLfixed red, GLfixed green, GLfixed blue,
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13305,7 +13305,7 @@ void d_glClearDepthxOES(void *context, GLfixed depth)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13334,7 +13334,7 @@ void d_glClearDepthxOES(void *context, GLfixed depth)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13355,7 +13355,7 @@ void d_glColor4xOES(void *context, GLfixed red, GLfixed green, GLfixed blue, GLf
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13393,7 +13393,7 @@ void d_glColor4xOES(void *context, GLfixed red, GLfixed green, GLfixed blue, GLf
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13414,7 +13414,7 @@ void d_glDepthRangexOES(void *context, GLfixed n, GLfixed f)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13446,7 +13446,7 @@ void d_glDepthRangexOES(void *context, GLfixed n, GLfixed f)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13467,7 +13467,7 @@ void d_glFogxOES(void *context, GLenum pname, GLfixed param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13499,7 +13499,7 @@ void d_glFogxOES(void *context, GLenum pname, GLfixed param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13520,7 +13520,7 @@ void d_glFrustumxOES(void *context, GLfixed l, GLfixed r, GLfixed b, GLfixed t, 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13564,7 +13564,7 @@ void d_glFrustumxOES(void *context, GLfixed l, GLfixed r, GLfixed b, GLfixed t, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13585,7 +13585,7 @@ void d_glLightModelxOES(void *context, GLenum pname, GLfixed param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13617,7 +13617,7 @@ void d_glLightModelxOES(void *context, GLenum pname, GLfixed param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13638,7 +13638,7 @@ void d_glLightxOES(void *context, GLenum light, GLenum pname, GLfixed param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13673,7 +13673,7 @@ void d_glLightxOES(void *context, GLenum light, GLenum pname, GLfixed param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13694,7 +13694,7 @@ void d_glLineWidthxOES(void *context, GLfixed width)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13723,7 +13723,7 @@ void d_glLineWidthxOES(void *context, GLfixed width)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13744,7 +13744,7 @@ void d_glMaterialxOES(void *context, GLenum face, GLenum pname, GLfixed param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13779,7 +13779,7 @@ void d_glMaterialxOES(void *context, GLenum face, GLenum pname, GLfixed param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13800,7 +13800,7 @@ void d_glMultiTexCoord4xOES(void *context, GLenum texture, GLfixed s, GLfixed t,
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13841,7 +13841,7 @@ void d_glMultiTexCoord4xOES(void *context, GLenum texture, GLfixed s, GLfixed t,
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13862,7 +13862,7 @@ void d_glNormal3xOES(void *context, GLfixed nx, GLfixed ny, GLfixed nz)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13897,7 +13897,7 @@ void d_glNormal3xOES(void *context, GLfixed nx, GLfixed ny, GLfixed nz)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13918,7 +13918,7 @@ void d_glOrthoxOES(void *context, GLfixed l, GLfixed r, GLfixed b, GLfixed t, GL
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -13962,7 +13962,7 @@ void d_glOrthoxOES(void *context, GLfixed l, GLfixed r, GLfixed b, GLfixed t, GL
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -13983,7 +13983,7 @@ void d_glPointSizexOES(void *context, GLfixed size)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14012,7 +14012,7 @@ void d_glPointSizexOES(void *context, GLfixed size)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14033,7 +14033,7 @@ void d_glPolygonOffsetxOES(void *context, GLfixed factor, GLfixed units)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14065,7 +14065,7 @@ void d_glPolygonOffsetxOES(void *context, GLfixed factor, GLfixed units)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14086,7 +14086,7 @@ void d_glRotatexOES(void *context, GLfixed angle, GLfixed x, GLfixed y, GLfixed 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14124,7 +14124,7 @@ void d_glRotatexOES(void *context, GLfixed angle, GLfixed x, GLfixed y, GLfixed 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14145,7 +14145,7 @@ void d_glScalexOES(void *context, GLfixed x, GLfixed y, GLfixed z)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14180,7 +14180,7 @@ void d_glScalexOES(void *context, GLfixed x, GLfixed y, GLfixed z)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14201,7 +14201,7 @@ void d_glTexEnvxOES(void *context, GLenum target, GLenum pname, GLfixed param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14236,7 +14236,7 @@ void d_glTexEnvxOES(void *context, GLenum target, GLenum pname, GLfixed param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14257,7 +14257,7 @@ void d_glTranslatexOES(void *context, GLfixed x, GLfixed y, GLfixed z)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14292,7 +14292,7 @@ void d_glTranslatexOES(void *context, GLfixed x, GLfixed y, GLfixed z)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14313,7 +14313,7 @@ void d_glPointParameterxOES(void *context, GLenum pname, GLfixed param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14345,7 +14345,7 @@ void d_glPointParameterxOES(void *context, GLenum pname, GLfixed param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14366,7 +14366,7 @@ void d_glSampleCoveragexOES(void *context, GLclampx value, GLboolean invert)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14398,7 +14398,7 @@ void d_glSampleCoveragexOES(void *context, GLclampx value, GLboolean invert)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14419,7 +14419,7 @@ void d_glTexGenxOES(void *context, GLenum coord, GLenum pname, GLfixed param)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14454,7 +14454,7 @@ void d_glTexGenxOES(void *context, GLenum coord, GLenum pname, GLfixed param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14475,7 +14475,7 @@ void d_glClearDepthfOES(void *context, GLclampf depth)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14504,7 +14504,7 @@ void d_glClearDepthfOES(void *context, GLclampf depth)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14525,7 +14525,7 @@ void d_glDepthRangefOES(void *context, GLclampf n, GLclampf f)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14557,7 +14557,7 @@ void d_glDepthRangefOES(void *context, GLclampf n, GLclampf f)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14578,7 +14578,7 @@ void d_glFrustumfOES(void *context, GLfloat l, GLfloat r, GLfloat b, GLfloat t, 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14622,7 +14622,7 @@ void d_glFrustumfOES(void *context, GLfloat l, GLfloat r, GLfloat b, GLfloat t, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14643,7 +14643,7 @@ void d_glOrthofOES(void *context, GLfloat l, GLfloat r, GLfloat b, GLfloat t, GL
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14687,7 +14687,7 @@ void d_glOrthofOES(void *context, GLfloat l, GLfloat r, GLfloat b, GLfloat t, GL
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14708,7 +14708,7 @@ void d_glRenderbufferStorageMultisampleEXT(void *context, GLenum target, GLsizei
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14749,7 +14749,7 @@ void d_glRenderbufferStorageMultisampleEXT(void *context, GLenum target, GLsizei
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14770,7 +14770,7 @@ void d_glUseProgramStages(void *context, GLuint pipeline, GLbitfield stages, GLu
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14805,7 +14805,7 @@ void d_glUseProgramStages(void *context, GLuint pipeline, GLbitfield stages, GLu
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14826,7 +14826,7 @@ void d_glActiveShaderProgram(void *context, GLuint pipeline, GLuint program)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14858,7 +14858,7 @@ void d_glActiveShaderProgram(void *context, GLuint pipeline, GLuint program)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14879,7 +14879,7 @@ void d_glProgramUniform1i(void *context, GLuint program, GLint location, GLint v
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14914,7 +14914,7 @@ void d_glProgramUniform1i(void *context, GLuint program, GLint location, GLint v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14935,7 +14935,7 @@ void d_glProgramUniform2i(void *context, GLuint program, GLint location, GLint v
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -14973,7 +14973,7 @@ void d_glProgramUniform2i(void *context, GLuint program, GLint location, GLint v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -14994,7 +14994,7 @@ void d_glProgramUniform3i(void *context, GLuint program, GLint location, GLint v
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15035,7 +15035,7 @@ void d_glProgramUniform3i(void *context, GLuint program, GLint location, GLint v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15056,7 +15056,7 @@ void d_glProgramUniform4i(void *context, GLuint program, GLint location, GLint v
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15100,7 +15100,7 @@ void d_glProgramUniform4i(void *context, GLuint program, GLint location, GLint v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15121,7 +15121,7 @@ void d_glProgramUniform1ui(void *context, GLuint program, GLint location, GLuint
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15156,7 +15156,7 @@ void d_glProgramUniform1ui(void *context, GLuint program, GLint location, GLuint
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15177,7 +15177,7 @@ void d_glProgramUniform2ui(void *context, GLuint program, GLint location, GLuint
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15215,7 +15215,7 @@ void d_glProgramUniform2ui(void *context, GLuint program, GLint location, GLuint
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15236,7 +15236,7 @@ void d_glProgramUniform3ui(void *context, GLuint program, GLint location, GLuint
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15277,7 +15277,7 @@ void d_glProgramUniform3ui(void *context, GLuint program, GLint location, GLuint
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15298,7 +15298,7 @@ void d_glProgramUniform4ui(void *context, GLuint program, GLint location, GLuint
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15342,7 +15342,7 @@ void d_glProgramUniform4ui(void *context, GLuint program, GLint location, GLuint
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15363,7 +15363,7 @@ void d_glProgramUniform1f(void *context, GLuint program, GLint location, GLfloat
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15398,7 +15398,7 @@ void d_glProgramUniform1f(void *context, GLuint program, GLint location, GLfloat
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15419,7 +15419,7 @@ void d_glProgramUniform2f(void *context, GLuint program, GLint location, GLfloat
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15457,7 +15457,7 @@ void d_glProgramUniform2f(void *context, GLuint program, GLint location, GLfloat
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15478,7 +15478,7 @@ void d_glProgramUniform3f(void *context, GLuint program, GLint location, GLfloat
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15519,7 +15519,7 @@ void d_glProgramUniform3f(void *context, GLuint program, GLint location, GLfloat
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15540,7 +15540,7 @@ void d_glProgramUniform4f(void *context, GLuint program, GLint location, GLfloat
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15584,7 +15584,7 @@ void d_glProgramUniform4f(void *context, GLuint program, GLint location, GLfloat
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15615,7 +15615,7 @@ void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const 
         save_buf_len += string_len[i];
     }
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15656,7 +15656,7 @@ void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15684,7 +15684,7 @@ void d_glTransformFeedbackVaryings(void *context, GLuint program, GLsizei count,
         save_buf_len += varyings_len[i];
     }
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15725,7 +15725,7 @@ void d_glTransformFeedbackVaryings(void *context, GLuint program, GLsizei count,
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15756,7 +15756,7 @@ void d_glDeleteBuffers_origin(void *context, GLsizei n, const GLuint *buffers)
     size_t buffers_len = n * sizeof(GLuint);
     save_buf_len += buffers_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15788,7 +15788,7 @@ void d_glDeleteBuffers_origin(void *context, GLsizei n, const GLuint *buffers)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15819,7 +15819,7 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
     size_t framebuffers_len = n * sizeof(GLuint);
     save_buf_len += framebuffers_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15851,7 +15851,7 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15882,7 +15882,7 @@ void d_glDeleteRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffe
     size_t renderbuffers_len = n * sizeof(GLuint);
     save_buf_len += renderbuffers_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15914,7 +15914,7 @@ void d_glDeleteRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffe
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15945,7 +15945,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     size_t textures_len = n * sizeof(GLuint);
     save_buf_len += textures_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -15977,7 +15977,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -15998,7 +15998,7 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16036,7 +16036,7 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16063,7 +16063,7 @@ void d_glShaderBinary(void *context, GLsizei count, const GLuint *shaders, GLenu
     size_t binary_len = length;
     save_buf_len += binary_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16104,7 +16104,7 @@ void d_glShaderBinary(void *context, GLsizei count, const GLuint *shaders, GLenu
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16132,7 +16132,7 @@ void d_glCompressedTexSubImage2D_with_bound(void *context, GLenum target, GLint 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16185,7 +16185,7 @@ void d_glCompressedTexSubImage2D_with_bound(void *context, GLenum target, GLint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16206,7 +16206,7 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16259,7 +16259,7 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16283,7 +16283,7 @@ void d_glTexParameterfv(void *context, GLenum target, GLenum pname, const GLfloa
     size_t params_len = gl_pname_size(pname) * sizeof(GLfloat);
     save_buf_len += params_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16318,7 +16318,7 @@ void d_glTexParameterfv(void *context, GLenum target, GLenum pname, const GLfloa
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16342,7 +16342,7 @@ void d_glTexParameteriv(void *context, GLenum target, GLenum pname, const GLint 
     size_t params_len = gl_pname_size(pname) * sizeof(GLint);
     save_buf_len += params_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16377,7 +16377,7 @@ void d_glTexParameteriv(void *context, GLenum target, GLenum pname, const GLint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16398,7 +16398,7 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16451,7 +16451,7 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16475,7 +16475,7 @@ void d_glUniform1fv(void *context, GLint location, GLsizei count, const GLfloat 
     size_t value_len = count * sizeof(GLfloat) * 1;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16510,7 +16510,7 @@ void d_glUniform1fv(void *context, GLint location, GLsizei count, const GLfloat 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16534,7 +16534,7 @@ void d_glUniform1iv(void *context, GLint location, GLsizei count, const GLint *v
     size_t value_len = count * sizeof(GLint) * 1;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16569,7 +16569,7 @@ void d_glUniform1iv(void *context, GLint location, GLsizei count, const GLint *v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16593,7 +16593,7 @@ void d_glUniform2fv(void *context, GLint location, GLsizei count, const GLfloat 
     size_t value_len = count * sizeof(GLfloat) * 2;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16628,7 +16628,7 @@ void d_glUniform2fv(void *context, GLint location, GLsizei count, const GLfloat 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16652,7 +16652,7 @@ void d_glUniform2iv(void *context, GLint location, GLsizei count, const GLint *v
     size_t value_len = count * sizeof(GLint) * 2;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16687,7 +16687,7 @@ void d_glUniform2iv(void *context, GLint location, GLsizei count, const GLint *v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16711,7 +16711,7 @@ void d_glUniform3fv(void *context, GLint location, GLsizei count, const GLfloat 
     size_t value_len = count * sizeof(GLfloat) * 3;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16746,7 +16746,7 @@ void d_glUniform3fv(void *context, GLint location, GLsizei count, const GLfloat 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16770,7 +16770,7 @@ void d_glUniform3iv(void *context, GLint location, GLsizei count, const GLint *v
     size_t value_len = count * sizeof(GLint) * 3;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16805,7 +16805,7 @@ void d_glUniform3iv(void *context, GLint location, GLsizei count, const GLint *v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16829,7 +16829,7 @@ void d_glUniform4fv(void *context, GLint location, GLsizei count, const GLfloat 
     size_t value_len = count * sizeof(GLfloat) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16864,7 +16864,7 @@ void d_glUniform4fv(void *context, GLint location, GLsizei count, const GLfloat 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16888,7 +16888,7 @@ void d_glUniform4iv(void *context, GLint location, GLsizei count, const GLint *v
     size_t value_len = count * sizeof(GLint) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16923,7 +16923,7 @@ void d_glUniform4iv(void *context, GLint location, GLsizei count, const GLint *v
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -16947,7 +16947,7 @@ void d_glVertexAttrib1fv(void *context, GLuint index, const GLfloat *v)
     size_t v_len = sizeof(GLfloat) * 1;
     save_buf_len += v_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -16979,7 +16979,7 @@ void d_glVertexAttrib1fv(void *context, GLuint index, const GLfloat *v)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17003,7 +17003,7 @@ void d_glVertexAttrib2fv(void *context, GLuint index, const GLfloat *v)
     size_t v_len = sizeof(GLfloat) * 2;
     save_buf_len += v_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17035,7 +17035,7 @@ void d_glVertexAttrib2fv(void *context, GLuint index, const GLfloat *v)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17059,7 +17059,7 @@ void d_glVertexAttrib3fv(void *context, GLuint index, const GLfloat *v)
     size_t v_len = sizeof(GLfloat) * 3;
     save_buf_len += v_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17091,7 +17091,7 @@ void d_glVertexAttrib3fv(void *context, GLuint index, const GLfloat *v)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17115,7 +17115,7 @@ void d_glVertexAttrib4fv(void *context, GLuint index, const GLfloat *v)
     size_t v_len = sizeof(GLfloat) * 4;
     save_buf_len += v_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17147,7 +17147,7 @@ void d_glVertexAttrib4fv(void *context, GLuint index, const GLfloat *v)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17168,7 +17168,7 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17212,7 +17212,7 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17233,7 +17233,7 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17280,7 +17280,7 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17301,7 +17301,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17345,7 +17345,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17366,7 +17366,7 @@ void d_glTexImage3D_with_bound(void *context, GLenum target, GLint level, GLint 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17422,7 +17422,7 @@ void d_glTexImage3D_with_bound(void *context, GLenum target, GLint level, GLint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17443,7 +17443,7 @@ void d_glTexSubImage3D_with_bound(void *context, GLenum target, GLint level, GLi
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17502,7 +17502,7 @@ void d_glTexSubImage3D_with_bound(void *context, GLenum target, GLint level, GLi
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17530,7 +17530,7 @@ void d_glCompressedTexImage3D_with_bound(void *context, GLenum target, GLint lev
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17583,7 +17583,7 @@ void d_glCompressedTexImage3D_with_bound(void *context, GLenum target, GLint lev
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17604,7 +17604,7 @@ void d_glCompressedTexSubImage3D_with_bound(void *context, GLenum target, GLint 
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17663,7 +17663,7 @@ void d_glCompressedTexSubImage3D_with_bound(void *context, GLenum target, GLint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17691,7 +17691,7 @@ void d_glCompressedTexImage2D_with_bound(void *context, GLenum target, GLint lev
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17741,7 +17741,7 @@ void d_glCompressedTexImage2D_with_bound(void *context, GLenum target, GLint lev
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17772,7 +17772,7 @@ void d_glDeleteQueries(void *context, GLsizei n, const GLuint *ids)
     size_t ids_len = n * sizeof(GLuint);
     save_buf_len += ids_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17804,7 +17804,7 @@ void d_glDeleteQueries(void *context, GLsizei n, const GLuint *ids)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17828,7 +17828,7 @@ void d_glDrawBuffers(void *context, GLsizei n, const GLenum *bufs)
     size_t bufs_len = n * sizeof(GLenum);
     save_buf_len += bufs_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17860,7 +17860,7 @@ void d_glDrawBuffers(void *context, GLsizei n, const GLenum *bufs)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17884,7 +17884,7 @@ void d_glUniformMatrix2fv(void *context, GLint location, GLsizei count, GLboolea
     size_t value_len = count * sizeof(GLfloat) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17922,7 +17922,7 @@ void d_glUniformMatrix2fv(void *context, GLint location, GLsizei count, GLboolea
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -17946,7 +17946,7 @@ void d_glUniformMatrix3fv(void *context, GLint location, GLsizei count, GLboolea
     size_t value_len = count * sizeof(GLfloat) * 9;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -17984,7 +17984,7 @@ void d_glUniformMatrix3fv(void *context, GLint location, GLsizei count, GLboolea
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18008,7 +18008,7 @@ void d_glUniformMatrix4fv(void *context, GLint location, GLsizei count, GLboolea
     size_t value_len = count * sizeof(GLfloat) * 16;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18046,7 +18046,7 @@ void d_glUniformMatrix4fv(void *context, GLint location, GLsizei count, GLboolea
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18070,7 +18070,7 @@ void d_glUniformMatrix2x3fv(void *context, GLint location, GLsizei count, GLbool
     size_t value_len = count * sizeof(GLfloat) * 6;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18108,7 +18108,7 @@ void d_glUniformMatrix2x3fv(void *context, GLint location, GLsizei count, GLbool
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18132,7 +18132,7 @@ void d_glUniformMatrix3x2fv(void *context, GLint location, GLsizei count, GLbool
     size_t value_len = count * sizeof(GLfloat) * 6;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18170,7 +18170,7 @@ void d_glUniformMatrix3x2fv(void *context, GLint location, GLsizei count, GLbool
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18194,7 +18194,7 @@ void d_glUniformMatrix2x4fv(void *context, GLint location, GLsizei count, GLbool
     size_t value_len = count * sizeof(GLfloat) * 8;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18232,7 +18232,7 @@ void d_glUniformMatrix2x4fv(void *context, GLint location, GLsizei count, GLbool
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18256,7 +18256,7 @@ void d_glUniformMatrix4x2fv(void *context, GLint location, GLsizei count, GLbool
     size_t value_len = count * sizeof(GLfloat) * 8;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18294,7 +18294,7 @@ void d_glUniformMatrix4x2fv(void *context, GLint location, GLsizei count, GLbool
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18318,7 +18318,7 @@ void d_glUniformMatrix3x4fv(void *context, GLint location, GLsizei count, GLbool
     size_t value_len = count * sizeof(GLfloat) * 12;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18356,7 +18356,7 @@ void d_glUniformMatrix3x4fv(void *context, GLint location, GLsizei count, GLbool
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18380,7 +18380,7 @@ void d_glUniformMatrix4x3fv(void *context, GLint location, GLsizei count, GLbool
     size_t value_len = count * sizeof(GLfloat) * 12;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18418,7 +18418,7 @@ void d_glUniformMatrix4x3fv(void *context, GLint location, GLsizei count, GLbool
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18449,7 +18449,7 @@ void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *array
     size_t arrays_len = n * sizeof(GLuint);
     save_buf_len += arrays_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18481,7 +18481,7 @@ void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *array
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18502,7 +18502,7 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18543,7 +18543,7 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18564,7 +18564,7 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18608,7 +18608,7 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18632,7 +18632,7 @@ void d_glVertexAttribI4iv(void *context, GLuint index, const GLint *v)
     size_t v_len = sizeof(GLint) * 4;
     save_buf_len += v_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18664,7 +18664,7 @@ void d_glVertexAttribI4iv(void *context, GLuint index, const GLint *v)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18688,7 +18688,7 @@ void d_glVertexAttribI4uiv(void *context, GLuint index, const GLuint *v)
     size_t v_len = sizeof(GLuint) * 4;
     save_buf_len += v_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18720,7 +18720,7 @@ void d_glVertexAttribI4uiv(void *context, GLuint index, const GLuint *v)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18744,7 +18744,7 @@ void d_glUniform1uiv(void *context, GLint location, GLsizei count, const GLuint 
     size_t value_len = count * sizeof(GLuint) * 1;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18779,7 +18779,7 @@ void d_glUniform1uiv(void *context, GLint location, GLsizei count, const GLuint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18803,7 +18803,7 @@ void d_glUniform2uiv(void *context, GLint location, GLsizei count, const GLuint 
     size_t value_len = count * sizeof(GLuint) * 2;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18838,7 +18838,7 @@ void d_glUniform2uiv(void *context, GLint location, GLsizei count, const GLuint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18862,7 +18862,7 @@ void d_glUniform3uiv(void *context, GLint location, GLsizei count, const GLuint 
     size_t value_len = count * sizeof(GLuint) * 3;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18897,7 +18897,7 @@ void d_glUniform3uiv(void *context, GLint location, GLsizei count, const GLuint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18921,7 +18921,7 @@ void d_glUniform4uiv(void *context, GLint location, GLsizei count, const GLuint 
     size_t value_len = count * sizeof(GLuint) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -18956,7 +18956,7 @@ void d_glUniform4uiv(void *context, GLint location, GLsizei count, const GLuint 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -18980,7 +18980,7 @@ void d_glClearBufferiv(void *context, GLenum buffer, GLint drawbuffer, const GLi
     size_t value_len = (buffer == GL_COLOR ? 4 * sizeof(GLint) : 1 * sizeof(GLint));
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19015,7 +19015,7 @@ void d_glClearBufferiv(void *context, GLenum buffer, GLint drawbuffer, const GLi
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19039,7 +19039,7 @@ void d_glClearBufferuiv(void *context, GLenum buffer, GLint drawbuffer, const GL
     size_t value_len = (buffer == GL_COLOR ? 4 * sizeof(GLuint) : 1 * sizeof(GLuint));
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19074,7 +19074,7 @@ void d_glClearBufferuiv(void *context, GLenum buffer, GLint drawbuffer, const GL
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19098,7 +19098,7 @@ void d_glClearBufferfv(void *context, GLenum buffer, GLint drawbuffer, const GLf
     size_t value_len = (buffer == GL_COLOR ? 4 * sizeof(GLfloat) : 1 * sizeof(GLfloat));
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19133,7 +19133,7 @@ void d_glClearBufferfv(void *context, GLenum buffer, GLint drawbuffer, const GLf
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19154,7 +19154,7 @@ void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei co
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19195,7 +19195,7 @@ void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei co
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19226,7 +19226,7 @@ void d_glDeleteSamplers(void *context, GLsizei count, const GLuint *samplers)
     size_t samplers_len = count * sizeof(GLuint);
     save_buf_len += samplers_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19258,7 +19258,7 @@ void d_glDeleteSamplers(void *context, GLsizei count, const GLuint *samplers)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19282,7 +19282,7 @@ void d_glSamplerParameteriv(void *context, GLuint sampler, GLenum pname, const G
     size_t param_len = gl_pname_size(pname) * sizeof(GLint);
     save_buf_len += param_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19317,7 +19317,7 @@ void d_glSamplerParameteriv(void *context, GLuint sampler, GLenum pname, const G
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19341,7 +19341,7 @@ void d_glSamplerParameterfv(void *context, GLuint sampler, GLenum pname, const G
     size_t param_len = gl_pname_size(pname) * sizeof(GLfloat);
     save_buf_len += param_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19376,7 +19376,7 @@ void d_glSamplerParameterfv(void *context, GLuint sampler, GLenum pname, const G
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19407,7 +19407,7 @@ void d_glDeleteTransformFeedbacks(void *context, GLsizei n, const GLuint *ids)
     size_t ids_len = n * sizeof(GLuint);
     save_buf_len += ids_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19439,7 +19439,7 @@ void d_glDeleteTransformFeedbacks(void *context, GLsizei n, const GLuint *ids)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19463,7 +19463,7 @@ void d_glProgramBinary(void *context, GLuint program, GLenum binaryFormat, const
     size_t binary_len = length;
     save_buf_len += binary_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19501,7 +19501,7 @@ void d_glProgramBinary(void *context, GLuint program, GLenum binaryFormat, const
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19525,7 +19525,7 @@ void d_glInvalidateFramebuffer(void *context, GLenum target, GLsizei numAttachme
     size_t attachments_len = numAttachments * sizeof(GLenum);
     save_buf_len += attachments_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19560,7 +19560,7 @@ void d_glInvalidateFramebuffer(void *context, GLenum target, GLsizei numAttachme
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19584,7 +19584,7 @@ void d_glInvalidateSubFramebuffer(void *context, GLenum target, GLsizei numAttac
     size_t attachments_len = numAttachments * sizeof(GLenum);
     save_buf_len += attachments_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19631,7 +19631,7 @@ void d_glInvalidateSubFramebuffer(void *context, GLenum target, GLsizei numAttac
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19655,7 +19655,7 @@ void d_glClipPlanexOES(void *context, GLenum plane, const GLfixed *equation)
     size_t equation_len = sizeof(GLfixed) * 4;
     save_buf_len += equation_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19687,7 +19687,7 @@ void d_glClipPlanexOES(void *context, GLenum plane, const GLfixed *equation)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19711,7 +19711,7 @@ void d_glFogxvOES(void *context, GLenum pname, const GLfixed *param)
     size_t param_len = gl_pname_size(pname) * sizeof(GLfixed);
     save_buf_len += param_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19743,7 +19743,7 @@ void d_glFogxvOES(void *context, GLenum pname, const GLfixed *param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19767,7 +19767,7 @@ void d_glLightModelxvOES(void *context, GLenum pname, const GLfixed *param)
     size_t param_len = gl_pname_size(pname) * sizeof(GLfixed);
     save_buf_len += param_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19799,7 +19799,7 @@ void d_glLightModelxvOES(void *context, GLenum pname, const GLfixed *param)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19823,7 +19823,7 @@ void d_glLightxvOES(void *context, GLenum light, GLenum pname, const GLfixed *pa
     size_t params_len = gl_pname_size(pname) * sizeof(GLfixed);
     save_buf_len += params_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19858,7 +19858,7 @@ void d_glLightxvOES(void *context, GLenum light, GLenum pname, const GLfixed *pa
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19882,7 +19882,7 @@ void d_glLoadMatrixxOES(void *context, const GLfixed *m)
     size_t m_len = 16 * sizeof(GLfixed);
     save_buf_len += m_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19906,7 +19906,7 @@ void d_glLoadMatrixxOES(void *context, const GLfixed *m)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19930,7 +19930,7 @@ void d_glMaterialxvOES(void *context, GLenum face, GLenum pname, const GLfixed *
     size_t param_len = gl_pname_size(pname) * sizeof(GLfixed);
     save_buf_len += param_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -19965,7 +19965,7 @@ void d_glMaterialxvOES(void *context, GLenum face, GLenum pname, const GLfixed *
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -19989,7 +19989,7 @@ void d_glMultMatrixxOES(void *context, const GLfixed *m)
     size_t m_len = 16 * sizeof(GLfixed);
     save_buf_len += m_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20013,7 +20013,7 @@ void d_glMultMatrixxOES(void *context, const GLfixed *m)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20037,7 +20037,7 @@ void d_glPointParameterxvOES(void *context, GLenum pname, const GLfixed *params)
     size_t params_len = gl_pname_size(pname) * sizeof(GLfixed);
     save_buf_len += params_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20069,7 +20069,7 @@ void d_glPointParameterxvOES(void *context, GLenum pname, const GLfixed *params)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20093,7 +20093,7 @@ void d_glTexEnvxvOES(void *context, GLenum target, GLenum pname, const GLfixed *
     size_t params_len = gl_pname_size(pname) * sizeof(GLfixed);
     save_buf_len += params_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20128,7 +20128,7 @@ void d_glTexEnvxvOES(void *context, GLenum target, GLenum pname, const GLfixed *
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20152,7 +20152,7 @@ void d_glClipPlanefOES(void *context, GLenum plane, const GLfloat *equation)
     size_t equation_len = sizeof(GLfloat) * 4;
     save_buf_len += equation_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20184,7 +20184,7 @@ void d_glClipPlanefOES(void *context, GLenum plane, const GLfloat *equation)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20208,7 +20208,7 @@ void d_glTexGenxvOES(void *context, GLenum coord, GLenum pname, const GLfixed *p
     size_t params_len = gl_pname_size(pname) * sizeof(GLfixed);
     save_buf_len += params_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20243,7 +20243,7 @@ void d_glTexGenxvOES(void *context, GLenum coord, GLenum pname, const GLfixed *p
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20274,7 +20274,7 @@ void d_glDeleteProgramPipelines(void *context, GLsizei n, const GLuint *pipeline
     size_t pipelines_len = n * sizeof(GLuint);
     save_buf_len += pipelines_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20306,7 +20306,7 @@ void d_glDeleteProgramPipelines(void *context, GLsizei n, const GLuint *pipeline
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20330,7 +20330,7 @@ void d_glProgramUniform1iv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLint);
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20368,7 +20368,7 @@ void d_glProgramUniform1iv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20392,7 +20392,7 @@ void d_glProgramUniform2iv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLint) * 2;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20430,7 +20430,7 @@ void d_glProgramUniform2iv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20454,7 +20454,7 @@ void d_glProgramUniform3iv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLint) * 3;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20492,7 +20492,7 @@ void d_glProgramUniform3iv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20516,7 +20516,7 @@ void d_glProgramUniform4iv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLint) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20554,7 +20554,7 @@ void d_glProgramUniform4iv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20578,7 +20578,7 @@ void d_glProgramUniform1uiv(void *context, GLuint program, GLint location, GLsiz
     size_t value_len = count * sizeof(GLuint);
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20616,7 +20616,7 @@ void d_glProgramUniform1uiv(void *context, GLuint program, GLint location, GLsiz
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20640,7 +20640,7 @@ void d_glProgramUniform2uiv(void *context, GLuint program, GLint location, GLsiz
     size_t value_len = count * sizeof(GLuint) * 2;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20678,7 +20678,7 @@ void d_glProgramUniform2uiv(void *context, GLuint program, GLint location, GLsiz
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20702,7 +20702,7 @@ void d_glProgramUniform3uiv(void *context, GLuint program, GLint location, GLsiz
     size_t value_len = count * sizeof(GLuint) * 3;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20740,7 +20740,7 @@ void d_glProgramUniform3uiv(void *context, GLuint program, GLint location, GLsiz
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20764,7 +20764,7 @@ void d_glProgramUniform4uiv(void *context, GLuint program, GLint location, GLsiz
     size_t value_len = count * sizeof(GLuint) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20802,7 +20802,7 @@ void d_glProgramUniform4uiv(void *context, GLuint program, GLint location, GLsiz
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20826,7 +20826,7 @@ void d_glProgramUniform1fv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLfloat);
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20864,7 +20864,7 @@ void d_glProgramUniform1fv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20888,7 +20888,7 @@ void d_glProgramUniform2fv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLfloat) * 2;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20926,7 +20926,7 @@ void d_glProgramUniform2fv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -20950,7 +20950,7 @@ void d_glProgramUniform3fv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLfloat) * 3;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -20988,7 +20988,7 @@ void d_glProgramUniform3fv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21012,7 +21012,7 @@ void d_glProgramUniform4fv(void *context, GLuint program, GLint location, GLsize
     size_t value_len = count * sizeof(GLfloat) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21050,7 +21050,7 @@ void d_glProgramUniform4fv(void *context, GLuint program, GLint location, GLsize
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21074,7 +21074,7 @@ void d_glProgramUniformMatrix2fv(void *context, GLuint program, GLint location, 
     size_t value_len = count * sizeof(GLfloat) * 4;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21115,7 +21115,7 @@ void d_glProgramUniformMatrix2fv(void *context, GLuint program, GLint location, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21139,7 +21139,7 @@ void d_glProgramUniformMatrix3fv(void *context, GLuint program, GLint location, 
     size_t value_len = count * sizeof(GLfloat) * 9;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21180,7 +21180,7 @@ void d_glProgramUniformMatrix3fv(void *context, GLuint program, GLint location, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21204,7 +21204,7 @@ void d_glProgramUniformMatrix4fv(void *context, GLuint program, GLint location, 
     size_t value_len = count * sizeof(GLfloat) * 16;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21245,7 +21245,7 @@ void d_glProgramUniformMatrix4fv(void *context, GLuint program, GLint location, 
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21269,7 +21269,7 @@ void d_glProgramUniformMatrix2x3fv(void *context, GLuint program, GLint location
     size_t value_len = count * sizeof(GLfloat) * 6;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21310,7 +21310,7 @@ void d_glProgramUniformMatrix2x3fv(void *context, GLuint program, GLint location
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21334,7 +21334,7 @@ void d_glProgramUniformMatrix3x2fv(void *context, GLuint program, GLint location
     size_t value_len = count * sizeof(GLfloat) * 6;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21375,7 +21375,7 @@ void d_glProgramUniformMatrix3x2fv(void *context, GLuint program, GLint location
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21399,7 +21399,7 @@ void d_glProgramUniformMatrix2x4fv(void *context, GLuint program, GLint location
     size_t value_len = count * sizeof(GLfloat) * 8;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21440,7 +21440,7 @@ void d_glProgramUniformMatrix2x4fv(void *context, GLuint program, GLint location
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21464,7 +21464,7 @@ void d_glProgramUniformMatrix4x2fv(void *context, GLuint program, GLint location
     size_t value_len = count * sizeof(GLfloat) * 8;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21505,7 +21505,7 @@ void d_glProgramUniformMatrix4x2fv(void *context, GLuint program, GLint location
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21529,7 +21529,7 @@ void d_glProgramUniformMatrix3x4fv(void *context, GLuint program, GLint location
     size_t value_len = count * sizeof(GLfloat) * 12;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21570,7 +21570,7 @@ void d_glProgramUniformMatrix3x4fv(void *context, GLuint program, GLint location
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21594,7 +21594,7 @@ void d_glProgramUniformMatrix4x3fv(void *context, GLuint program, GLint location
     size_t value_len = count * sizeof(GLfloat) * 12;
     save_buf_len += value_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21635,7 +21635,7 @@ void d_glProgramUniformMatrix4x3fv(void *context, GLuint program, GLint location
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21656,7 +21656,7 @@ void d_glDeleteSync(void *context, GLsync sync)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21685,7 +21685,7 @@ void d_glDeleteSync(void *context, GLsync sync)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21706,7 +21706,7 @@ void d_glWaitSync(void *context, GLsync sync, GLbitfield flags, GLuint64 timeout
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21741,7 +21741,7 @@ void d_glWaitSync(void *context, GLsync sync, GLbitfield flags, GLuint64 timeout
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21765,7 +21765,7 @@ void d_glBindAttribLocation(void *context, GLuint program, GLuint index, const G
     size_t name_len = strlen(name) + 1;
     save_buf_len += name_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21800,7 +21800,7 @@ void d_glBindAttribLocation(void *context, GLuint program, GLuint index, const G
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21821,7 +21821,7 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21859,7 +21859,7 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21880,7 +21880,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21909,7 +21909,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21932,7 +21932,7 @@ void d_glTestIntAsyn(void *context, GLint a, GLuint b, GLfloat c, GLdouble d)
     unsigned char local_save_buf[4096];
     unsigned char *save_buf;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -21970,7 +21970,7 @@ void d_glTestIntAsyn(void *context, GLint a, GLuint b, GLfloat c, GLdouble d)
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }
@@ -21994,7 +21994,7 @@ void d_glPrintfAsyn(void *context, GLint a, GLuint size, GLdouble c, const GLcha
     size_t out_string_len = strlen(out_string) + 1;
     save_buf_len += out_string_len;
 
-    if (save_buf_len > 4000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         save_buf = (unsigned char *)malloc(save_buf_len);
     }
@@ -22032,7 +22032,7 @@ void d_glPrintfAsyn(void *context, GLint a, GLuint size, GLdouble c, const GLcha
 
     send_to_host(context, send_buf, send_buf_len);
 
-    if (save_buf_len > 1000)
+    if (save_buf_len > MAX_OUT_BUF_LEN)
     {
         free(save_buf);
     }

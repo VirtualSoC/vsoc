@@ -680,7 +680,7 @@ if(para_num<PARA_NUM_MIN_{self.name}){{
 
         main_str+=f"""
 
-            if(save_buf_len>4000){{
+            if(save_buf_len>MAX_OUT_BUF_LEN){{
                 save_buf=(unsigned char *)malloc(save_buf_len);
             }}else{{
                 save_buf=local_save_buf;
@@ -739,7 +739,7 @@ if(para_num<PARA_NUM_MIN_{self.name}){{
         main_str+=f"""
             send_to_host(context,send_buf,send_buf_len);
 
-            if(save_buf_len>1000){{
+            if(save_buf_len>MAX_OUT_BUF_LEN){{
                 free(save_buf);
             }}
 
