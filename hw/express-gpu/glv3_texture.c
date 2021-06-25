@@ -240,7 +240,7 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
     Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc=0,end_loc=0;
-    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+    gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
 
     express_printf("pixel start loc %d end loc %d\n",start_loc,end_loc);
 
@@ -280,7 +280,7 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
     Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc=0,end_loc=0;
-    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+    gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
 
     prepare_unpack_texture(context,guest_mem,start_loc,end_loc);
 

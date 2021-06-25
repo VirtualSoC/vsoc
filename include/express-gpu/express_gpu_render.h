@@ -17,6 +17,8 @@
 #define WM_USER_CREATE WM_USER+11
 #define WM_USER_CLOSE WM_USER+12
 
+
+// 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
 
 extern HWND draw_native_window;
