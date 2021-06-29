@@ -52,10 +52,9 @@
 //设备id（4字节）|标志位（1字节）|函数id（3字节）
 #define GET_DEVICE_ID(id)  ((id) >> 32)
 #define GET_FUN_ID(id)     ((id)&0xffffff)
-#define FUN_IS_ASYNC(id)   (((id)>>24)&0x1)
-#define FUN_NEED_SAVE(id)  (((id)>>24)&0x2)
-#define FUN_NEED_SPEED(id) (((id)>>24)&0x4)
-#define FUN_HAS_RETURN(id) (((id)>>24)&0x8)
+#define FUN_NEED_SYNC(id)   (((id)>>24)&0x1)
+#define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
+
 
 
 /**
@@ -88,7 +87,7 @@ typedef struct Direct_Express_Call
 
     uint64_t process_id;
 
-    // long long get_time;
+    gint64 spend_time;
 
     //参数数目
     uint64_t para_num;
@@ -140,6 +139,8 @@ typedef struct Direct_Express_Flag_Buf
     //用于guest端唤醒进程的flag
     uint64_t flag;
 
+    int64_t mem_spend_time;
+
     //调用的id，注意这是64位，所以肯定是8个字节的
     uint64_t id;
 
@@ -150,10 +151,10 @@ typedef struct Direct_Express_Flag_Buf
 
     uint64_t  process_id;
 
-    uint64_t  num_free;
+    // uint64_t  num_free;
 
-    //调用的普通返回值
-    volatile uint64_t ret;
+    // //调用的普通返回值
+    // volatile uint64_t ret;
 
     //注意：这里没有剩下的几个参数是因为这几个参数qemu不需要，是给驱动在之后用的
 
@@ -181,8 +182,15 @@ typedef struct Thread_Context
     int read_loc;
     int write_loc;
 
+    int atomic_event_lock;
+
     //缓冲区用来通知 有数据/缓冲区有空位置 的event
-    QemuEvent data_event;
+    // QemuEvent data_event;
+    #ifdef _WIN32
+        HANDLE data_event;
+    #else
+
+    #endif
 
     //标示当前线程
     QemuThread this_thread;
@@ -232,7 +240,7 @@ int get_para_from_call(Direct_Express_Call *call, Call_Para *call_para, unsigned
 
 void get_process_mess(Direct_Express_Call *call, int *fun_id, int *process_id, int *thread_id, int *num_free);
 
-void set_call_return_val(Direct_Express_Call *call, unsigned char* ret, size_t len);
+// void set_call_return_val(Direct_Express_Call *call, unsigned char* ret, size_t len);
 
 void express_device_init_common(Express_Device_Info *info);
 

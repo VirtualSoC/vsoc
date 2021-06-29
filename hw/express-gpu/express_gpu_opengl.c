@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "express-gpu/express_gpu_opengl.h"
 
@@ -371,6 +371,8 @@ size_t gl_pname_size(GLenum pname){
     case GL_DEPTH_FUNC:
     case GL_DEPTH_BITS:
     case GL_MAX_CLIP_PLANES:
+    case GL_MAX_COLOR_ATTACHMENTS:
+    case GL_MAX_DRAW_BUFFERS:
     case GL_GREEN_BITS:
     case GL_MAX_MODELVIEW_STACK_DEPTH:
     case GL_MAX_PROJECTION_STACK_DEPTH:
@@ -395,6 +397,7 @@ size_t gl_pname_size(GLenum pname){
     case GL_POINT_SIZE_MIN:
     case GL_POINT_SIZE_MAX:
     case GL_POINT_FADE_THRESHOLD_SIZE:
+    case GL_CULL_FACE:
     case GL_CULL_FACE_MODE:
     case GL_FRONT_FACE:
     case GL_SHADE_MODEL:
@@ -412,6 +415,7 @@ size_t gl_pname_size(GLenum pname){
     case GL_ALPHA_TEST_FUNC:
     case GL_ALPHA_TEST_REF:
     case GL_ALPHA_TEST:
+    case GL_DITHER:
     case GL_BLEND_DST:
     case GL_BLEND_SRC:
     case GL_BLEND:
@@ -473,6 +477,7 @@ size_t gl_pname_size(GLenum pname){
     case GL_SAMPLE_COVERAGE_INVERT:
     case GL_SAMPLE_COVERAGE_VALUE:
     case GL_SAMPLES:
+    case GL_MAX_SAMPLES_EXT:
     case GL_STENCIL_BITS:
     case GL_STENCIL_CLEAR_VALUE:
     case GL_STENCIL_FUNC:
@@ -486,14 +491,18 @@ size_t gl_pname_size(GLenum pname){
     case GL_STENCIL_BACK_PASS_DEPTH_PASS:
     case GL_STENCIL_BACK_WRITEMASK:
     case GL_TEXTURE_2D:
+    case GL_TEXTURE_BASE_LEVEL:
     case GL_TEXTURE_BINDING_2D:
     case GL_TEXTURE_BINDING_CUBE_MAP:
     // case GL_TEXTURE_BINDING_EXTERNAL_OES:
+    case GL_TEXTURE_COMPARE_FUNC:
+    case GL_TEXTURE_COMPARE_MODE:
     case GL_TEXTURE_COORD_ARRAY:
     case GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING:
     case GL_TEXTURE_COORD_ARRAY_SIZE:
     case GL_TEXTURE_COORD_ARRAY_STRIDE:
     case GL_TEXTURE_COORD_ARRAY_TYPE:
+    case GL_TEXTURE_IMMUTABLE_FORMAT:
     case GL_UNPACK_ALIGNMENT:
     case GL_VERTEX_ARRAY:
     case GL_VERTEX_ARRAY_BUFFER_BINDING:
@@ -503,8 +512,15 @@ size_t gl_pname_size(GLenum pname){
     case GL_SPOT_CUTOFF:
     case GL_TEXTURE_MIN_FILTER:
     case GL_TEXTURE_MAG_FILTER:
+    case GL_TEXTURE_MAX_LOD:
+    case GL_TEXTURE_MIN_LOD:
     case GL_TEXTURE_WRAP_S:
     case GL_TEXTURE_WRAP_T:
+    case GL_TEXTURE_WRAP_R:
+    case GL_TEXTURE_SWIZZLE_R:
+    case GL_TEXTURE_SWIZZLE_G:
+    case GL_TEXTURE_SWIZZLE_B:
+    case GL_TEXTURE_SWIZZLE_A:
     case GL_GENERATE_MIPMAP:
     case GL_GENERATE_MIPMAP_HINT:
     // case GL_RENDERBUFFER_WIDTH_OES:
@@ -542,17 +558,12 @@ size_t gl_pname_size(GLenum pname){
     // case GL_BLEND_SRC_ALPHA_OES:
     case GL_MAX_LIGHTS:
     case GL_SHADER_TYPE:
-    case GL_DELETE_STATUS:
     case GL_COMPILE_STATUS:
-    case GL_INFO_LOG_LENGTH:
     case GL_SHADER_SOURCE_LENGTH:
     case GL_CURRENT_PROGRAM:
-    case GL_LINK_STATUS:
-    case GL_VALIDATE_STATUS:
-    case GL_ATTACHED_SHADERS:
-    case GL_ACTIVE_UNIFORMS:
-    case GL_ACTIVE_ATTRIBUTES:
     case GL_SUBPIXEL_BITS:
+    case GL_MAX_3D_TEXTURE_SIZE:
+    case GL_MAX_ARRAY_TEXTURE_LAYERS:
     case GL_MAX_CUBE_MAP_TEXTURE_SIZE:
     case GL_NUM_SHADER_BINARY_FORMATS:
     case GL_SHADER_COMPILER:
@@ -567,6 +578,48 @@ size_t gl_pname_size(GLenum pname){
     // case GL_REQUIRED_TEXTURE_IMAGE_UNITS_OES:
     // case GL_FRAGMENT_SHADER_DERIVATIVE_HINT_OES:
     case GL_LINE_WIDTH:
+    case GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS:
+    case GL_MAX_UNIFORM_BUFFER_BINDINGS:
+    case GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS:
+    case GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS:
+    case GL_UNIFORM_BLOCK_BINDING:
+    case GL_UNIFORM_BLOCK_DATA_SIZE:
+    case GL_UNIFORM_BLOCK_NAME_LENGTH:
+    case GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS:
+    case GL_UNIFORM_BLOCK_REFERENCED_BY_VERTEX_SHADER:
+    case GL_UNIFORM_BLOCK_REFERENCED_BY_FRAGMENT_SHADER:
+    case GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT:
+    case GL_CURRENT_QUERY:
+    case GL_QUERY_RESULT:
+    case GL_QUERY_RESULT_AVAILABLE:
+    case GL_READ_BUFFER:
+    case GL_NUM_PROGRAM_BINARY_FORMATS:
+    case GL_PROGRAM_BINARY_FORMATS:
+
+    case GL_ACTIVE_ATOMIC_COUNTER_BUFFERS:
+    case GL_ACTIVE_ATTRIBUTES:
+    case GL_ACTIVE_ATTRIBUTE_MAX_LENGTH:
+    case GL_ACTIVE_UNIFORM_BLOCKS:
+    case GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH:
+    case GL_ACTIVE_UNIFORMS:
+    case GL_ACTIVE_UNIFORM_MAX_LENGTH:
+    case GL_ATTACHED_SHADERS:
+    case GL_DELETE_STATUS:
+    case GL_INFO_LOG_LENGTH:
+    case GL_LINK_STATUS:
+    case GL_PROGRAM_BINARY_LENGTH:
+    case GL_PROGRAM_BINARY_RETRIEVABLE_HINT:
+    case GL_PROGRAM_SEPARABLE:
+    case GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT:
+    case GL_TRANSFORM_FEEDBACK_BUFFER_MODE:
+    case GL_TRANSFORM_FEEDBACK_VARYINGS:
+    case GL_TRANSFORM_FEEDBACK_VARYING_MAX_LENGTH:
+    case GL_TRANSFORM_FEEDBACK_ACTIVE:
+#define GL_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS 0x8C8A
+#define GL_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS 0x8C80
+    case GL_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS:
+    case GL_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS:
+    case GL_VALIDATE_STATUS:
         s = 1;
         break;
     case GL_ALIASED_LINE_WIDTH_RANGE:
@@ -575,11 +628,13 @@ size_t gl_pname_size(GLenum pname){
     case GL_MAX_VIEWPORT_DIMS:
     case GL_SMOOTH_POINT_SIZE_RANGE:
     case GL_SMOOTH_LINE_WIDTH_RANGE:
+    case GL_SAMPLE_POSITION:
         s= 2;
         break;
     case GL_SPOT_DIRECTION:
     case GL_POINT_DISTANCE_ATTENUATION:
     case GL_CURRENT_NORMAL:
+    case GL_COMPUTE_WORK_GROUP_SIZE:
         s =  3;
         break;
     case GL_CURRENT_VERTEX_ATTRIB:
@@ -626,9 +681,12 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     {
     case GL_ARRAY_BUFFER:
         status->array_buffer = id;
+        express_printf("bind GL_ARRAY_BUFFER %u\n",buffer);
         //bound_buffer->vao_vbo[bound_buffer->vertex_array_buffer] = id;
         break;
     case GL_ELEMENT_ARRAY_BUFFER:
+        express_printf("bind GL_ELEMENT_ARRAY_BUFFER %u\n",buffer);
+
         status->element_array_buffer = id;
         //bound_buffer->vao_ebo[bound_buffer->vertex_array_buffer] = id;
         break;
@@ -666,187 +724,7 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     glBindBuffer(target, buffer);
 }
 
-void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc){
-    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    GLint asyn_texture=bound_buffer->asyn_unpack_texture_buffer;
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER,asyn_texture);
-    //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc,NULL,GL_STREAM_DRAW);
 
-    //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
-    GLubyte *map_pointer=glMapBufferRange(GL_PIXEL_UNPACK_BUFFER,start_loc,end_loc-start_loc,GL_MAP_WRITE_BIT|GL_MAP_UNSYNCHRONIZED_BIT);
-    host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,1);
-}
-
-
-void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc)
-{
-    gl_pixel_data_3d_loc(store_status, width, height, 1, format, type, pack,start_loc,end_loc);
-}
-
-void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc)
-{
-    Pixel_Store_Status *status = (Pixel_Store_Status *)store_status;
-    int align = 4;
-    int row_length = 0;
-    int skip_rows = 0;
-    int skip_pixels = 0;
-    int skip_images = 0;
-    int image_height = 0;
-
-    GLsizei real_width;
-    GLsizei real_height;
-
-    //获得此时的状态值
-    if (pack)
-    {
-        align = status->pack_alignment;
-        row_length = status->pack_row_length;
-        skip_rows = status->pack_skip_rows;
-        skip_pixels = status->pack_skip_pixels;
-    }
-    else
-    {
-        align = status->unpack_alignment;
-        row_length = status->unpack_row_length;
-        skip_rows = status->unpack_skip_rows;
-        skip_pixels = status->unpack_skip_pixels;
-
-        skip_images = status->unpack_skip_images;
-        image_height = status->unpack_image_height;
-    }
-
-    //获得一张图片的真实像素宽度和高度
-    real_width = row_length == 0 ? width : row_length;
-    real_height = image_height == 0 ? height : image_height;
-
-    //每个像素点所占的空间
-    GLsizei pixel_size = pixel_size_calc(format, type);
-    //获得图片每一行的字节数
-    GLsizei width_size = pixel_size * real_width;
-    //每一行的数据进行对其
-    width_size = (width_size + align - 1) & (~(align - 1));
-
-    //数据图像开始读取的地方，等于（跳过的图片数目*图片的高度+跳过的行数）*每行所占的字节数+跳过的像素数*像素大小
-    *start_loc = (skip_images * real_height + skip_rows) * width_size + skip_pixels * pixel_size;
-
-    //数据图像结束读取的地方，等于 开始读取的地方+要读取的图片的高度*图片每行所占的字节数*图片的张数，depth表示深度也就表示要读取多少张图片
-    *end_loc = *start_loc + real_height * width_size * depth;
-
-    return;
-}
-
-void flush_array_buffer(Attrib_Point *point_data, GLint instancecount)
-{
-    //找到当前应该申请的显存空间的最大值
-    int max_len = 0;
-    //这个father_loc用来描述每个真正的数组，对应到缓冲区的哪个地方
-    int father_loc[32];
-    memset(father_loc, 0, sizeof(father_loc));
-    for (int i = 0; i < 32; i++)
-    {
-        if (point_data->data[i] != NULL)
-        {
-            father_loc[i] = max_len;
-            max_len += point_data->data_len[i];
-        }
-    }
-
-    if (max_len > point_data->buffer_len)
-    {
-        //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的两倍，类似于vector的翻倍机制
-        // glDeleteBuffers(1, &(point_data->buffer_object));
-        // glGenBuffers(1, &(point_data->buffer_object));
-        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object);
-
-        //todo stream_draw需要验证
-        glBufferData(GL_ARRAY_BUFFER, max_len * 2, NULL, GL_STREAM_DRAW);
-        point_data->buffer_len=max_len*2;
-    }
-    else
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object);
-        glBufferData(GL_ARRAY_BUFFER, point_data->buffer_len, NULL, GL_STREAM_DRAW);
-
-    }
-    //确定了缓冲区大小后，映射取得其指针，尽可能只修改一小部分
-    //GL_MAP_INVALIDATE_RANGE_BIT 用于缓冲区孤立，防止隐式同步
-    GLubyte *map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, 0, max_len,
-            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT|GL_MAP_INVALIDATE_RANGE_BIT);
-
-    int father_enable[32];
-    int father_max_loc[32];
-    int father_min_loc[32];
-    memset(father_enable, 0, sizeof(father_enable));
-    memset(father_max_loc, 0, sizeof(father_max_loc));
-    memset(father_min_loc, 0x3f3f3f3f, sizeof(father_min_loc));
-
-    //通过这个循环找到实际那几个数组内，需要复制到缓冲区的偏移的两端
-    for (int i = 0; i < 32; i++)
-    {
-        father_enable[point_data->father[i]] += point_data->enabled[i];
-
-        if (point_data->enabled[i] == 0)
-        {
-            continue;
-        }
-
-        //这里的stride肯定不为0，所以就算是紧密堆积也不存在问题
-        int max_loc = point_data->stride[i] * (point_data->max_index + 1);
-        int min_loc = point_data->stride[i] * point_data->min_index;
-        //这里divisor两个属性都要看，选择其中最大的那个
-        int divisor = point_data->divisor[i];
-        if (divisor)
-        {
-            //这里加divisor-1是为了向上取整
-            max_loc = max(max_loc, point_data->stride[i] * (int)((instancecount + divisor - 1) / divisor));
-        }
-
-        divisor = point_data->divisor[point_data->father[i]];
-        if (divisor)
-        {
-            //这里加divisor-1是为了向上取整
-            max_loc = max(max_loc, point_data->stride[point_data->father[i]] * (int)((instancecount + divisor - 1) / divisor));
-        }
-
-        father_max_loc[point_data->father[i]] = max(max_loc, father_max_loc[point_data->father[i]]);
-        father_min_loc[point_data->father[i]] = min(min_loc, father_min_loc[point_data->father[i]]);
-    }
-
-    //然后把数组根据偏移复制进去
-    for (int i = 0; i < 32; i++)
-    {
-        if (point_data->data[i] != NULL)
-        {
-            //复制完后就通知一下更新一下这小部分
-            host_guest_buffer_exchange(point_data->data[i], map_pointer + father_loc[i], father_min_loc[i], father_max_loc[i] - father_min_loc[i], 1);
-            glFlushMappedBufferRange(GL_ARRAY_BUFFER, father_loc[i] + father_min_loc[i], father_max_loc[i] - father_min_loc[i]);
-        }
-    }
-
-    glUnmapBuffer(GL_ARRAY_BUFFER);
-
-    //此时数据都更新到位了，该设置顶点属性了
-    for (int i = 0; i < 32; i++)
-    {
-        if (point_data->enabled[i])
-        {
-            if (point_data->invoke_type[i] == GL_INT)
-            {
-                glVertexAttribIPointer(i, point_data->size[i], point_data->type[i], point_data->stride[i],
-                                       (void *)(point_data->offset[i] + father_loc[point_data->father[i]]));
-            }
-            else
-            {
-                glVertexAttribPointer(i, point_data->size[i], point_data->type[i], point_data->normalized[i],
-                                      point_data->stride[i], (void *)(point_data->offset[i] + father_loc[point_data->father[i]]));
-            }
-        }
-    }
-
-    //全部操作完成后，这时候数据写入到缓冲区中，然后顶点属性的偏移也设置了，这个时候就可以draw了
-    return;
-}
 
 
 void d_glDeleteProgram_origin(void *context, GLuint program)
@@ -861,12 +739,20 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 }
 
 
+
+void d_glShaderSource_origin(void *context,GLuint shader, GLsizei count, const GLint *length, const GLchar *const*string){
+    // express_printf("gl shader source:\n%s",string[0]);
+    glShaderSource(shader,count,string,length);
+}
+
+
 void opengl_context_create(void *context){
     Opengl_Context *opengl_context=(Opengl_Context *)context;
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
-    
+    opengl_context->pixel_store_status.pack_alignment=4;
+    opengl_context->pixel_store_status.unpack_alignment=4;
 
     opengl_context->buffer_map=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_buffer_map_destroy);
 
@@ -879,19 +765,28 @@ void opengl_context_create(void *context){
     memset(status,0,sizeof(Buffer_Status));
     g_hash_table_insert(bound_buffer->vao_status, GINT_TO_POINTER(0), (gpointer)status);
 
+
     Attrib_Point *temp_point=g_malloc(sizeof(Attrib_Point));
     memset(temp_point,0,sizeof(Attrib_Point));
-    // GLuint temp_buffer[4];
-    // glGenBuffers(4,temp_buffer);
-    temp_point->buffer_object=0;
-    temp_point->indices_buffer_object=0;
+    // // GLuint temp_buffer[4];
+    // // glGenBuffers(4,temp_buffer);
+    // temp_point->buffer_object=0;
+    // temp_point->indices_buffer_object=0;
+    glGenBuffers(1,&(temp_point->indices_buffer_object));
+    glGenBuffers(MAX_VERTEX_ATTRIBS_NUM,temp_point->buffer_object);
 
     g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(0), (gpointer)temp_point);
 
     bound_buffer->buffer_status=status;
+    bound_buffer->attrib_point=temp_point;
 
-    bound_buffer->asyn_pack_texture_buffer=0;
-    bound_buffer->asyn_unpack_texture_buffer=0;
+    
+    glGenBuffers(1,&(bound_buffer->asyn_unpack_texture_buffer));
+    glGenBuffers(1,&(bound_buffer->asyn_pack_texture_buffer));
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_POINT_SPRITE);
+    // bound_buffer->asyn_pack_texture_buffer=0;
+    // bound_buffer->asyn_unpack_texture_buffer=0;
 
     opengl_context->has_init=1;
 
@@ -929,10 +824,6 @@ void opengl_context_destroy(void *context){
 static void g_buffer_map_destroy(gpointer data){
     express_printf("buffer_map destroy\n");
     Guest_Host_Map *map_res=(Guest_Host_Map *)data;
-    if(map_res->guest_data!=NULL){
-        g_free(map_res->guest_data);
-        map_res->guest_data=NULL;
-    }
     g_free(map_res);
 }
 
@@ -948,27 +839,30 @@ static void g_vao_status_destroy(gpointer data){
 static void g_vao_point_data_destroy(gpointer data){
     Attrib_Point *vao_point=(Attrib_Point *)data;
 
+    glDeleteBuffers(1,&(vao_point->indices_buffer_object));
+    glDeleteBuffers(MAX_VERTEX_ATTRIBS_NUM,vao_point->buffer_object);
+
     express_printf("vao_point destroy\n");
     
-    GLuint buffer_index[2];
-    int t=0;
-    if(vao_point->indices_buffer_object!=0){
-        buffer_index[t]=vao_point->indices_buffer_object;
-        t++;
-    }
-    if(vao_point->buffer_object){
-        buffer_index[t]=vao_point->buffer_object;
-        t++;
-    }
-    if(t!=0){
-        glDeleteBuffers(t,buffer_index);
-    }
+    // GLuint buffer_index[2];
+    // int t=0;
+    // if(vao_point->indices_buffer_object!=0){
+    //     buffer_index[t]=vao_point->indices_buffer_object;
+    //     t++;
+    // }
+    // if(vao_point->buffer_object){
+    //     buffer_index[t]=vao_point->buffer_object;
+    //     t++;
+    // }
+    // if(t!=0){
+    //     glDeleteBuffers(t,buffer_index);
+    // }
 
-    for(int i=0;i<32;i++){
-        if(vao_point->data[i]!=NULL){
-            g_free(vao_point->data[i]);
-        }
-    }
+    // for(int i=0;i<32;i++){
+    //     if(vao_point->data[i]!=NULL){
+    //         g_free(vao_point->data[i]);
+    //     }
+    // }
 
 
     g_free(vao_point);
@@ -982,12 +876,13 @@ void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d){
 }
 
 void glPrintfAsyn(GLint a, GLuint size, GLdouble c, const GLchar *out_string){
-    // printf("glTestInt asyn string %d,%u,%lf,%s\n",a,size,c,out_string);
+
+    printf("glPrintfAsyn asyn string %d,%u,%lf,%s\n",a,size,c,out_string);
     return;
 }
 
 GLint glTestInt1(GLint a, GLuint b){
-    //printf("glTestInt1 %d,%u\n",a,b);
+    express_printf("glTestInt1 %d,%u\n",a,b);
     //fflush(stdout);
     return 576634565;
 }
@@ -1040,14 +935,6 @@ void glTestPointer2(GLint a, const GLint *b, GLint *c){
     return;
 }
 
-GLint glTestPointer3(GLint a, const GLint *b, GLint *c){
-    printf("glTestPointer3 %d\n",a);
-    for(int i=b[0];i<a;i++){
-        c[i]=b[i];
-    }
-    fflush(stdout);
-    return 12456687;
-}
 
 GLint glTestPointer4(GLint a, const GLint *b, GLint *c){
      printf("glTestPointer4 %d,%d\n",a,*b);
@@ -1057,6 +944,30 @@ GLint glTestPointer4(GLint a, const GLint *b, GLint *c){
     fflush(stdout);
     return 12456687;
 }
+
+
+
+GLint glTestPointer3(GLint a, const GLint *b, GLint *c){
+
+    int len;
+    char *temp = g_malloc(a*sizeof(int));
+    memset(temp,0,a*sizeof(int));
+    printf("glTestPointer3 %d\n",a);
+    guest_write((Guest_Mem *)b,temp,0,a*sizeof(int));
+
+    char *temp_s[100];
+    int loc=0;
+    for(int i=a/2;i<a/2+10;i++){
+        loc+=sprintf(temp_s+loc,"%d ",temp[i]);
+    }
+    printf("glTestPointer3 %s\n",temp_s);
+
+    guest_read((Guest_Mem *)c,temp,0,a*sizeof(int));
+
+    fflush(stdout);
+    return 12456687;
+}
+
 
 
 void glTestString(GLint a, GLint count, const GLchar *const*strings, GLint buf_len, GLchar *char_buf){
@@ -1069,19 +980,33 @@ void glTestString(GLint a, GLint count, const GLchar *const*strings, GLint buf_l
     fflush(stdout);
 }
 
-void glPrintf(GLint buf_len, GLchar *out_string){
+void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string){
     // char *t="temp test abcd";
     // memcpy(out_string,t,strlen(t));
-    // printf("glPrintf %d\n",buf_len);
+    char *temp = g_malloc(buf_len);
+    guest_write((Guest_Mem *)out_string,temp,0,buf_len);
+
+    if(buf_len<100){
+        printf("glPrintf %d %s\n",buf_len,temp);
+
+    }else{
+        int flag=1;
+        for(int i=0;i<buf_len;i++){
+            if(temp[i]!='c'){
+                flag=0;
+            }
+        }
+        if(flag==0){
+            printf("glPrintf check error!\n");
+        }else{
+            printf("glPrintf check ok!\n");
+
+        }
+    }
+    g_free(temp);
     // fflush(stdout);
     // int flag=0;
-    for(int i=0;i<buf_len;i++){
-        out_string[i]='c';
-        // if(out_string[i]!='c'){
-        //     flag=1;
-        //     break;
-        // }
-    }
+
     return;
 }
 
@@ -1091,54 +1016,15 @@ void glPrintf(GLint buf_len, GLchar *out_string){
 
 // glSaveLongTime GLuint a, GLdouble b, const void *pointer#a
 
-void glInOutTest(GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f){
-    printf("glInOutTest %d,%d,%s   buf_len%llu\n",a,b,e,buf_len);
-    *c=78646313;
-    *d=3.141592653543;
+void d_glInOutTest(void *context,GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f){
+    // printf("glInOutTest %d,%d   buf_len%llu\n",a,b,buf_len);
+    // *c=78646313;
+    // *d=3.141592653543;
     
-    char *t="glInOutTest printf ok! test ok!";
-    memcpy(f,t,strlen(t));
-    fflush(stdout);
+
+    // char *temp;
+
+    // char *t="glInOutTest printf ok! test ok!";
+    // memcpy(f,t,strlen(t));
+    // fflush(stdout);
 }
-
-void *pointer_test=NULL;
-
-void glSaveLongTime(const void *int_data, const void *pointer){
-
-    GLuint a;
-    GLdouble b;
-    Guest_Mem *guest_mem_int=(Guest_Mem *)int_data;
-
-    // unsigned char tt[100];
-    // guest_write(guest_mem_int,tt,0,guest_mem_int->all_len);
-
-    // char t[1000];
-    // int loc=0;
-    // for(int i=0;i<12;i++){
-    //     loc+=sprintf(t+loc,"%02x",tt[i]);
-    // }
-    // printf("int_data %llu %s\n",guest_mem_int->all_len,t);
-
-    guest_write(guest_mem_int,&a,0,sizeof(GLuint));
-    guest_write(guest_mem_int,&b,sizeof(GLuint),sizeof(GLdouble));
-
-    // printf("%08x%016x\n",a,b);
-
-    printf("glSaveLongTime int data %u %lf\n",a,b);
-
-    if(b>2.0){
-        if(pointer_test==NULL){
-
-            pointer_test=g_malloc(sizeof(Guest_Mem));
-            memset(pointer_test,0,sizeof(Guest_Mem));
-        }
-        guest_mem_copy(pointer_test,pointer);
-    }
-
-    char temp[100];
-    strcpy(temp,"test");
-    guest_write(pointer_test,temp,0,100);
-    printf("glSaveLongTime %llu %s\n",((Guest_Mem *)pointer_test)->all_len,temp);
-
-}
-

@@ -229,7 +229,7 @@ glDeleteRenderbuffers GLsizei n, const GLuint *renderbuffers#n*sizeof(GLuint)
 glDeleteTextures GLsizei n, const GLuint *textures#n*sizeof(GLuint)
 
 glDrawElements_with_bound GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices
-
+glDrawElements_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)
 //glDrawElements GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)
 //绑定EBO的时候indices里面都存的是偏移，就是相当于是索引，否则就是一个数据数组
 // TODO: sizeof(xxx) depends on type
@@ -335,6 +335,7 @@ glClearBufferfv GLenum buffer, GLint drawbuffer, const GLfloat *value#(buffer==G
 //   if buffer is GL_COLOR, value#4*sizeof(xxx)
 //   if buffer is GL_DEPTH or GL_STENCIL, value#1*sizeof(xxx)
 
+glDrawElementsInstanced_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type), GLsizei instancecount
 glDrawElementsInstanced_with_bound GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices, GLsizei instancecount
 //glDrawElementsInstanced GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type), GLsizei instancecount
 //glDrawElements都需要特意对待，因为可能先绑定了EBO也就是索引数组，然后再调用，这个时候indices是偏移---------------------------- done

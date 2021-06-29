@@ -6,6 +6,15 @@
 
 
 
+
+
+
+void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
+
+void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
+
+
+
 void d_glPixelStorei_origin(void *context, GLenum pname, GLint param);
 
 

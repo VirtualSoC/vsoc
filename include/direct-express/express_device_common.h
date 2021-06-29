@@ -11,10 +11,9 @@
 //设备id（4字节）|标志位（1字节）|函数id（3字节）
 #define GET_DEVICE_ID(id)  ((id) >> 32)
 #define GET_FUN_ID(id)     ((id)&0xffffff)
-#define FUN_IS_ASYNC(id)   (((id)>>24)&0x1)
-#define FUN_NEED_SAVE(id)  (((id)>>24)&0x2)
-#define FUN_NEED_SPEED(id) (((id)>>24)&0x4)
-#define FUN_HAS_RETURN(id) (((id)>>24)&0x8)
+#define FUN_NEED_SYNC(id)   (((id)>>24)&0x1)
+#define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
+
 
 
 //FUN_ID为0是保留字段

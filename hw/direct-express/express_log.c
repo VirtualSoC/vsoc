@@ -24,6 +24,8 @@ static char *print_buf = NULL;
 static int loc = 0;
 static gint64 t_last = 0;
 
+static char *copy_test_buf=NULL;
+static int copy_test_buf_len=0;
 
 void call_printf_flush(void);
 void log_init(struct Thread_Context *context);
@@ -112,7 +114,9 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
     // unsigned long process_id=call->process_id;
 
     // get_process_mess(call,&fun_id,&process_id,&thread_id,&num_free);
-
+    static int64_t count=0;
+    count++;
+    express_printf("log count %lld\n",count);
     if (fun_id==0)
     {
         // print_cnt++;
@@ -161,19 +165,37 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
         // g_date_time_unref(t);
     }else if(fun_id==1){
         //测试复制模式
-        char *temp=g_malloc(all_para[0].data_len);
-        guest_write(all_para[0].data,temp,0,all_para[0].data_len);
-        g_free(temp);
+        if(all_para[0].data_len > copy_test_buf_len){
+            if(copy_test_buf!=NULL){
+                g_free(copy_test_buf);
+            }
+            copy_test_buf=g_malloc(all_para[0].data_len);
+            copy_test_buf_len=all_para[0].data_len;
+        }
+        gint64 start_time=g_get_real_time();
+
+        guest_write(all_para[0].data,copy_test_buf,0,all_para[0].data_len);
+
+        gint64 spend_time= g_get_real_time()-start_time;
+        if(spend_time==0){
+            spend_time=1;
+        }
+
+
+        express_printf("get copy test %lld spend time %lld speed %lf M/s\n",all_para[0].data_len,spend_time,all_para[0].data_len*1.0*1000000/1024/1024/spend_time);
+
     }else if(fun_id==2){
         //非复制测试模式
+        express_printf("get no copy test %lld\n",all_para[0].data_len);
+
     }
 
     //注意在处理完成之后要主动调用下callback函数用以回收数据
-    if(FUN_NEED_SPEED(call->id)){
-        call->callback(call, 1);
-    }else{
-        call->callback(call, 0);
-    }
+    // if(FUN_NEED_SPEED(call->id)){
+    call->callback(call, 1);
+    // }else{
+    //     call->callback(call, 0);
+    // }
     return;
 }
 

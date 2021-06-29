@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 
@@ -113,9 +113,9 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         /******* Resizing window *******/
         //所有重画的操作需要看看窗口大小需不需要重新调整
         GetClientRect(GetParent(hwnd), &rcParent);
-        temp_height = rcParent.bottom / 4;
-        temp_width = rcParent.right / 4;
-
+        temp_height = rcParent.bottom / 2;
+        temp_width = rcParent.right / 2;
+        express_printf("windows size %d %d\n",temp_height,temp_width);
         // if (rcParent.bottom * 4 > rcParent.right * 3){
         //     y = (rcParent.bottom - rcParent.right * 3.0 / 4.0) / 2;
         //     height = width * 3.0 / 4.0;
@@ -123,11 +123,17 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         //     x = (rcParent.right - rcParent.bottom * 4.0 / 3.0) / 2;
         //     width = height * 4.0 / 3.0;
         // }
-        if (temp_height != window_height || temp_width != window_width)
+        if (temp_height != window_height)
         {
             window_height = temp_height;
-            window_width = temp_width;
-            MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
+
+            // window_width = temp_width;
+            window_width = temp_height;
+
+
+            MoveWindow(hwnd, (int)(rcParent.right - window_height), (int)(temp_height * 0.5), window_width, window_height, FALSE);
+            // MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
+
         }
 
         break;
@@ -150,11 +156,20 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         // GetClientRect(GetParent(hwnd), &rcParent);
         // window_height = rcParent.bottom / 2;
         // window_width = rcParent.right / 2;
+        {
 
-        egl_context_create((Double_Buffer *)lParam, window_width, window_height);
+            Double_Buffer *d_buffer=(Double_Buffer *)lParam;
+            egl_context_create(d_buffer,d_buffer->width,d_buffer->height);
 
+        }
+        
         break;
-
+    case WM_USER_CLOSE:
+    {
+        Double_Buffer *d_buffer=(Double_Buffer *)lParam;
+        glfwDestroyWindow(d_buffer->window);
+    }
+        
     default:
         //express_printf("child win msg: %d\n", uMsg);
         break;
@@ -295,10 +310,13 @@ static int opengl_prepare(GLint *program, GLint *VAO)
     *program = programObject;
     *VAO = quadVAO;
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glUseProgram(programObject);
+
+    glClearColor(1, 1, 1, 1);
 
     return 1;
 }
@@ -314,30 +332,31 @@ static void opengl_paint(Double_Buffer *d_buffer)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT);
     // glClearColor(1, 1, 1, 0);
-    glViewport(0, 0, d_buffer->width, d_buffer->height);
+    glViewport(0, 0, window_width, window_height);
     // glClear(GL_COLOR_BUFFER_BIT);
     //glClearColor(0, 0, 1, 0);
-    glDisable(GL_DEPTH_TEST);
+    // glDisable(GL_DEPTH_TEST);
     // express_printf("main has error %x\n",glGetError());
 
     //绘制这个texture时，要get后release，保证这个texture上的东西的确已经画出来了
     GLuint texture = get_display_texture(d_buffer);
     // express_printf("main has error %x\n",glGetError());
+    
+    glBindVertexArray(drawVAO);
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
     // express_printf("main has error %x\n",glGetError());
 
-    express_printf("main window paint texture %u\n", texture);
+    express_printf("main window paint texture %u\n",texture);
+    
 
-    glBindVertexArray(drawVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // express_printf("main has error %x\n",glGetError());
 
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
-    release_display_texture(d_buffer);
 
     // express_printf("main has error %x\n",glGetError());
     // glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -345,6 +364,9 @@ static void opengl_paint(Double_Buffer *d_buffer)
     // glClearColor(0, 0, 1, 1);
     // glClear(GL_COLOR_BUFFER_BIT);
     glfwSwapBuffers(glfw_window);
+
+    release_display_texture(d_buffer);
+
 }
 
 /**
@@ -367,7 +389,16 @@ static void egl_context_create(Double_Buffer *d_buffer, int width, int height)
     sprintf(name, "opengl-child-window%d", cnt);
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    child_window = glfwCreateWindow(width, height, name, NULL, glfw_window);
+    // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+
+    //屏幕分离调试专用
+    #ifdef DEBUG_INDEPEND_WINDOW
+        glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+        child_window = glfwCreateWindow(width, height, name, NULL, NULL);
+
+    #else
+        child_window = glfwCreateWindow(width, height, name, NULL, glfw_window);
+    #endif
     d_buffer->window = child_window;
     d_buffer->width = width;
     d_buffer->height = height;
@@ -409,11 +440,13 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     }
     glfwMakeContextCurrent(d_buffer->window);
 
+
+
     glGenTextures(1, &d_buffer->fbo_texture_display);
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_display);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, d_buffer->width, d_buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -422,7 +455,7 @@ int egl_context_make_current(Double_Buffer *d_buffer)
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_draw);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, d_buffer->width, d_buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -436,10 +469,12 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glGenFramebuffers(1, &d_buffer->fbo_draw);
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_draw);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture_draw, 0);
-
-    //这句不能有，不然第一帧黑屏
-    // glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
+    
+    
+    //屏幕分离调试专用
+    #ifdef DEBUG_INDEPEND_WINDOW
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    #endif
     return 1;
 }
 
@@ -466,9 +501,13 @@ int egl_context_destroy(Double_Buffer *d_buffer)
 
     express_printf("windows destroy\n");
 
-    glfwDestroyWindow(d_buffer->window);
-    d_buffer->window = NULL;
-    d_buffer->has_init = 0;
+    glfwMakeContextCurrent(NULL);
+
+    SendMessage(draw_native_window, WM_USER_CLOSE, 0, (LPARAM)d_buffer );
+
+    // glfwDestroyWindow(d_buffer->window);
+    d_buffer->window=NULL;
+    d_buffer->has_init=0;
     return 1;
 }
 
@@ -618,12 +657,21 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
 
     //这里也使用GPU等待是因为GPU那边画完了之后，这边才能在交换的新的东西上画
     TEXTURE_LOCK(double_buffer->display_texture_is_use);
-    if (double_buffer->dispaly_sync != NULL)
-    {
-        glWaitSync(double_buffer->dispaly_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 10000000000);
-        glDeleteSync(double_buffer->dispaly_sync);
-        double_buffer->dispaly_sync = NULL;
-    }
+    // if (double_buffer->dispaly_sync != NULL)
+    // {
+    //     glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
+    //     express_printf(RED("glWaitSync %x\n"),glGetError());
+
+    //     glDeleteSync(double_buffer->dispaly_sync);
+    //     express_printf("glDeleteSync %x\n",glGetError());
+
+    //     double_buffer->dispaly_sync = NULL;
+    // }
+
+    //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
+    // glFlush();
+    //这句话让之前的画面都渲染出来
+    glFinish();
 
     //交换FBO
     GLuint temp = double_buffer->fbo_draw;
@@ -636,11 +684,12 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
     double_buffer->fbo_texture_display = temp;
 
     //交换了之后设定一个sync
-    double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    express_printf("glFenceSync %x\n",glGetError());
+
 
     TEXTURE_UNLOCK(double_buffer->display_texture_is_use);
 
-    express_printf("swap framebuffer buffer\n");
 
     render_bind_frame_buffer(double_buffer);
     // express_printf("main has error %x\n",glGetError());
@@ -669,13 +718,13 @@ void render_bind_frame_buffer(Double_Buffer *double_buffer)
 GLuint get_display_texture(Double_Buffer *double_buffer)
 {
     TEXTURE_LOCK(double_buffer->display_texture_is_use);
-    glWaitSync(double_buffer->dispaly_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 10000000000);
+    // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
     // express_printf("main has error %x\n",glGetError());
 
-    glDeleteSync(double_buffer->dispaly_sync);
+    // glDeleteSync(double_buffer->dispaly_sync);
     // express_printf("main has error %x\n",glGetError());
 
-    double_buffer->dispaly_sync = NULL;
+    // double_buffer->dispaly_sync = NULL;
     return double_buffer->fbo_texture_display;
 }
 
@@ -686,6 +735,6 @@ GLuint get_display_texture(Double_Buffer *double_buffer)
  */
 void release_display_texture(Double_Buffer *double_buffer)
 {
-    double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     TEXTURE_UNLOCK(double_buffer->display_texture_is_use);
 }

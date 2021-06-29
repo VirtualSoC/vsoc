@@ -22,33 +22,21 @@
 
 #include "express-gpu/express_gpu_opengl.h"
 
-// 1. 可以异步的函数
-//   1.1 没有返回值，并且传入参数全是int/int64型的标号
-//   1.2 没有返回值，传入参数中有指针，但是指针是其他opengl函数产生，正常绘图不会直接操作该指针，而是通过opengl函数操作该指针，因而指针可以直接视为长整型数
-//   1.3 没有返回值，传入参数中有指针，但是指针是不是由opengl函数产生，是用于向gpu传递数据的指针，例如图片数据指针，不会用于返回数据
-// 2. 只能同步的函数
-//   2.1 有返回值，但是传入参数全是int型的标号
-//   2.2 有返回值，但是传入参数有指针，指针与1.2类型，没有直接操作，产生自opengl函数
-//   2.3 有返回值，但是传入参数有指针，指针用于接收从opengl返回的数据
-//   2.4 无返回值，但是传入参数有指针，指针用于接收从opengl返回的数据
-//   2.5 用于cpu和gpu进行同步操作的函数
-//   2.6 有返回值，返回值为指针，但是后续会直接操作该指针，对指针指向的内存进行赋值操作，例如各种内存映射map函数
-//   2.7 传入参数有指针数据，尽管指针是其他opengl函数产生，但是会操作到该指针指向的数据，例如解除映射的unmap函数
-
-//2.5 需要放到其他地方，2.6,2.7后续单独编写，1.2和2.2,2.3不存在，现在的2.2也需要放到其他地方
-
-// 1. 异步的函数
-//   1.1 没有返回值，并且传入参数全是int型（或者long long型）的标号
-//   1.3.1 没有返回值，传入参数中有指针，是用于向gpu传递数据的指针，且指针指向的数据是int型（或者long long型）
-//   1.3.2 没有返回值，传入参数中有指针，是用于向gpu传递数据的指针，且指针指向的数据是非int型
-// 2. 同步的函数
-//   2.1 有返回值，但是传入参数全是int型的标号
-//   2.4 无返回值，但是传入参数有指针，指针用于接收从opengl返回的数据
-
-//对于传入参数，int型(包括long long)都会被放到一个缓冲区中，存储到header后的第一个elem的para中，需要依次取出
-//对于传入参数，假如包括int型的指针，且该指针不用于传出数据，则该指针指向的数据也会被存储到缓冲区上，一般这种函数都有一个参数来说明数组长度
-//对于传入参数，其他类型的指针，都等于相应位置elem的para，假如为同步则可以直接使用，异步则需要把数据复制出来，假如这个指针作为传出，则需要标记now_elem->type|=RET_PARA
-//对于返回值，假如返回值为int型（包括long long），则将其写入到header的para的ret位置处（参照下面示范例子），假如返回值为指针，若只会在opengl里使用则视为unsigned long型，例如GLsync，若为其他的（好像只有名字数组），则将其复制到最后一个elem的para中
+// 1. guest端需要同步的函数
+//  1.1
+//   1.1.1 需要传递给host端参数，但是参数占用空间一般比较小，所以在qemu端数据会全部复制出来，然后调用相应的函数
+//      guest端传递时，各种数值型数据会复制到同一个缓冲区内，各种接受数据的指针（用于数据回写）都不会直接传递过去，
+//          而是只申请一个缓冲区空间传递一个参数过去，作为存放回写的数据（包括返回值）的空间
+//   1.1.2 需要同步的函数，函数都需要正常传输给host端，但是因为数据量可能较大，不复制出来，而是专门写函数来处理，
+//      传入指针参数和传出指针参数一样，都单独传递，但是数值数据会复制到一个缓冲区内
+//  1.2 对于host端来说与前面的1.1.1没有区别，但是对于guest端来说，函数可以不传输给另一端，自己这端就能处理（因为涉及到中间状态）
+// 2. guest端可以不需要同步的函数
+//   2.1 可以异步的函数，这部分没有返回值，不需要两端同步
+//    2.1.1 传过去的数据都是定长短数据，所以都会被保存在一个缓冲区内，host端之后会直接取出
+//    2.1.2 传过去的数据可能为长数据，数据可能较大，因此不会进行数据复制，直接传递guest端内存，因此qemu端实现了专门的处理函数
+//   2.2 本质为需要同步的函数，主要涉及到资源申请，但是目前打算在guest端单独实现，然后将其改造为异步模式
+//      每次调用时，会直接返回之前已经申请好的值，这次的异步调用会用于申请新的值，这样实现了guest端的"异步"
+//      目前调用实现上与之前的1.1.1一致，但是它会额外多一个函数实现来套娃，方便之后修改
 
 //glWaitSync GLsync sync, GLbitfield flags, GLuint64 timeout分类到1.1中
 //注意存在指针的指针,这个时候指针里的每个指针都作为一个para
@@ -72,95 +60,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     Opengl_Context *opengl_context = &(render_context->opengl_context);
     //uint64_t fun_id=GET_FUN_ID(call->id);
     //uint64_t is_async=FUN_IS_ASYNC(call->id);
-    uint64_t need_speed = FUN_NEED_SPEED(call->id);
+    //uint64_t need_speed=FUN_NEED_SPEED(call->id);
     Call_Para all_para[MAX_PARA_NUM];
 
-    unsigned char ret_local_buf[1024 * 4];
+    unsigned char ret_local_buf[MAX_OUT_BUF_LEN];
+
+    unsigned char no_ptr_buf[512];
 
     switch (call->id)
     {
 
-        /******* file '1-1' *******/
-
-    case FUNID_glMapBufferRange_read:
-
-    {
-
-        /* readline: "glMapBufferRange_read GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf#length" */
-        /* func name: "glMapBufferRange_read" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLbitfield', 'name': 'access', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'void*', 'name': 'mem_buf', 'ptr': 'out', 'ptr_len': 'length', 'loc': 4, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLintptr offset;
-        GLsizeiptr length;
-        GLbitfield access;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMapBufferRange_read)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        offset = *(GLintptr *)(temp + temp_loc);
-        temp_loc += 8;
-
-        length = *(GLsizeiptr *)(temp + temp_loc);
-        temp_loc += 8;
-
-        access = *(GLbitfield *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *mem_buf = all_para[1].data;
-
-        d_glMapBufferRange_read(opengl_context, target, offset, length, access, mem_buf);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
+        /******* file '1-1-1' *******/
 
     case FUNID_glCheckFramebufferStatus:
 
     {
 
-        /* readline: "GLenum glCheckFramebufferStatus GLenum target" */
+        /* readline: "GLenum glCheckFramebufferStatus GLenum target @{if(target!=GL_DRAW_FRAMEBUFFER||target!= GL_READ_FRAMEBUFFER||target!=GL_FRAMEBUFFER){set_gl_error(context,GL_INVALID_ENUM);return 0;}}" */
         /* func name: "glCheckFramebufferStatus" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "GLenum" */
@@ -178,7 +94,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -191,10 +106,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -206,1312 +119,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         target = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLenum *ret_ptr = (GLenum *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLenum);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLenum ret = glCheckFramebufferStatus(target);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glCreateProgram:
-
-    {
-
-        /* readline: "GLuint glCreateProgram void" */
-        /* func name: "glCreateProgram" */
-        /* args: [] */
-        /* ret: "GLuint" */
-        /* type: "0" */
-
-        /* Define variables */
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCreateProgram)
-        {
-            break;
-        }
-
-        GLuint ret = glCreateProgram();
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-    }
-    break;
-
-    case FUNID_glCreateShader:
-
-    {
-
-        /* readline: "GLuint glCreateShader GLenum type" */
-        /* func name: "glCreateShader" */
-        /* args: [{'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLuint" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCreateShader)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLuint ret = glCreateShader(type);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetError:
-
-    {
-
-        /* readline: "GLenum glGetError void" */
-        /* func name: "glGetError" */
-        /* args: [] */
-        /* ret: "GLenum" */
-        /* type: "0" */
-
-        /* Define variables */
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetError)
-        {
-            break;
-        }
-
-        GLenum ret = glGetError();
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-    }
-    break;
-
-    case FUNID_glIsBuffer:
-
-    {
-
-        /* readline: "GLboolean glIsBuffer GLuint buffer" */
-        /* func name: "glIsBuffer" */
-        /* args: [{'type': 'GLuint', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint buffer;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsBuffer)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        buffer = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsBuffer(buffer);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsEnabled:
-
-    {
-
-        /* readline: "GLboolean glIsEnabled GLenum cap" */
-        /* func name: "glIsEnabled" */
-        /* args: [{'type': 'GLenum', 'name': 'cap', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum cap;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsEnabled)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        cap = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsEnabled(cap);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsFramebuffer:
-
-    {
-
-        /* readline: "GLboolean glIsFramebuffer GLuint framebuffer" */
-        /* func name: "glIsFramebuffer" */
-        /* args: [{'type': 'GLuint', 'name': 'framebuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint framebuffer;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsFramebuffer)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        framebuffer = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsFramebuffer(framebuffer);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsProgram:
-
-    {
-
-        /* readline: "GLboolean glIsProgram GLuint program" */
-        /* func name: "glIsProgram" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsProgram)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsProgram(program);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsRenderbuffer:
-
-    {
-
-        /* readline: "GLboolean glIsRenderbuffer GLuint renderbuffer" */
-        /* func name: "glIsRenderbuffer" */
-        /* args: [{'type': 'GLuint', 'name': 'renderbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint renderbuffer;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsRenderbuffer)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        renderbuffer = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsRenderbuffer(renderbuffer);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsShader:
-
-    {
-
-        /* readline: "GLboolean glIsShader GLuint shader" */
-        /* func name: "glIsShader" */
-        /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint shader;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsShader)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        shader = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsShader(shader);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsTexture:
-
-    {
-
-        /* readline: "GLboolean glIsTexture GLuint texture" */
-        /* func name: "glIsTexture" */
-        /* args: [{'type': 'GLuint', 'name': 'texture', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint texture;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsTexture)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        texture = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsTexture(texture);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsQuery:
-
-    {
-
-        /* readline: "GLboolean glIsQuery GLuint id" */
-        /* func name: "glIsQuery" */
-        /* args: [{'type': 'GLuint', 'name': 'id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint id;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsQuery)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        id = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsQuery(id);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsVertexArray:
-
-    {
-
-        /* readline: "GLboolean glIsVertexArray GLuint array" */
-        /* func name: "glIsVertexArray" */
-        /* args: [{'type': 'GLuint', 'name': 'array', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint array;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsVertexArray)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        array = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsVertexArray(array);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsSampler:
-
-    {
-
-        /* readline: "GLboolean glIsSampler GLuint sampler" */
-        /* func name: "glIsSampler" */
-        /* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint sampler;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsSampler)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        sampler = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsSampler(sampler);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glIsTransformFeedback:
-
-    {
-
-        /* readline: "GLboolean glIsTransformFeedback GLuint id" */
-        /* func name: "glIsTransformFeedback" */
-        /* args: [{'type': 'GLuint', 'name': 'id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint id;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsTransformFeedback)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        id = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = glIsTransformFeedback(id);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetAttribLocation:
-
-    {
-
-        /* readline: "GLint glGetAttribLocation GLuint program, const GLchar *name#strlen(name)+1" */
-        /* func name: "glGetAttribLocation" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "GLint" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetAttribLocation)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int name_flag = 0;
-        int name_null_flag = 0;
-        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
-
-        if (name == NULL && name_null_flag == 0)
-        {
-            name = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
-
-            name_flag = 1;
-        }
-        else
-        {
-            name_flag = 0;
-        }
-
-        GLint ret = glGetAttribLocation(program, name);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (name_flag == 1)
-        {
-            g_free(name);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetUniformLocation:
-
-    {
-
-        /* readline: "GLint glGetUniformLocation GLuint program, const GLchar *name#strlen(name)+1" */
-        /* func name: "glGetUniformLocation" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "GLint" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformLocation)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int name_flag = 0;
-        int name_null_flag = 0;
-        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
-
-        if (name == NULL && name_null_flag == 0)
-        {
-            name = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
-
-            name_flag = 1;
-        }
-        else
-        {
-            name_flag = 0;
-        }
-
-        GLint ret = glGetUniformLocation(program, name);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (name_flag == 1)
-        {
-            g_free(name);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetFragDataLocation:
-
-    {
-
-        /* readline: "GLint glGetFragDataLocation GLuint program, const GLchar *name#strlen(name)+1" */
-        /* func name: "glGetFragDataLocation" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "GLint" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetFragDataLocation)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int name_flag = 0;
-        int name_null_flag = 0;
-        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
-
-        if (name == NULL && name_null_flag == 0)
-        {
-            name = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
-
-            name_flag = 1;
-        }
-        else
-        {
-            name_flag = 0;
-        }
-
-        GLint ret = glGetFragDataLocation(program, name);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (name_flag == 1)
-        {
-            g_free(name);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetUniformBlockIndex:
-
-    {
-
-        /* readline: "GLuint glGetUniformBlockIndex GLuint program, const GLchar *uniformBlockName#strlen(uniformBlockName)+1" */
-        /* func name: "glGetUniformBlockIndex" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'uniformBlockName', 'ptr': 'in', 'ptr_len': 'strlen(uniformBlockName)+1', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "GLuint" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformBlockIndex)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int uniformBlockName_flag = 0;
-        int uniformBlockName_null_flag = 0;
-        GLchar *uniformBlockName = get_direct_ptr(all_para[1].data, &uniformBlockName_null_flag);
-
-        if (uniformBlockName == NULL && uniformBlockName_null_flag == 0)
-        {
-            uniformBlockName = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, uniformBlockName, 0, all_para[1].data_len);
-
-            uniformBlockName_flag = 1;
-        }
-        else
-        {
-            uniformBlockName_flag = 0;
-        }
-
-        GLuint ret = glGetUniformBlockIndex(program, uniformBlockName);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (uniformBlockName_flag == 1)
-        {
-            g_free(uniformBlockName);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetProgramResourceIndex:
-
-    {
-
-        /* readline: "GLuint glGetProgramResourceIndex GLuint program, GLenum programInterface, const GLchar *name#strlen(name)+1" */
-        /* func name: "glGetProgramResourceIndex" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'programInterface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "GLuint" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLenum programInterface;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramResourceIndex)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        programInterface = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int name_flag = 0;
-        int name_null_flag = 0;
-        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
-
-        if (name == NULL && name_null_flag == 0)
-        {
-            name = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
-
-            name_flag = 1;
-        }
-        else
-        {
-            name_flag = 0;
-        }
-
-        GLuint ret = glGetProgramResourceIndex(program, programInterface, name);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (name_flag == 1)
-        {
-            g_free(name);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetProgramResourceLocation:
-
-    {
-
-        /* readline: "GLint glGetProgramResourceLocation GLuint program, GLenum programInterface, const GLchar *name#strlen(name)+1" */
-        /* func name: "glGetProgramResourceLocation" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'programInterface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "GLint" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLenum programInterface;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramResourceLocation)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        programInterface = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int name_flag = 0;
-        int name_null_flag = 0;
-        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
-
-        if (name == NULL && name_null_flag == 0)
-        {
-            name = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
-
-            name_flag = 1;
-        }
-        else
-        {
-            name_flag = 0;
-        }
-
-        GLint ret = glGetProgramResourceLocation(program, programInterface, name);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (name_flag == 1)
-        {
-            g_free(name);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -1520,7 +161,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "GLuint glCreateShaderProgramv GLenum type, GLsizei count, const GLchar *const*strings#count|strlen(strings[i])+1" */
+        /* readline: "GLuint glCreateShaderProgramv GLenum type, GLsizei count, const GLchar *const*strings#count|strlen(strings[i])+1 @{if(type!=GL_COMPUTE_SHADER||type!=GL_VERTEX_SHADER||type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}if(count<0){set_gl_error(context,GL_INVALID_VALUE);return 0;}}" */
         /* func name: "glCreateShaderProgramv" */
         /* args: [{'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'strings', 'ptr': 'in', 'ptr_len': 'count|strlen(strings[i])+1', 'loc': 2, 'ptr_ptr': True}] */
         /* ret: "GLuint" */
@@ -1539,7 +180,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -1552,10 +192,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -1591,10 +229,36 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
                 strings_flag[i] = 0;
             }
         }
+        int out_buf_len = all_para[1 + count].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLuint ret = glCreateShaderProgramv(type, count, strings);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1 + count].data, ret_buf, 0, out_buf_len);
 
         for (int i = 0; i < count; i++)
         {
@@ -1607,9 +271,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         g_free(strings);
         g_free(strings_flag);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -1633,10 +297,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[0].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -1648,1045 +309,30 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *mantissa = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            mantissa = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLfixed *mantissa = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint) * 16;
 
-        GLint *exponent = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLint *exponent = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint) * 16;
+
+        GLbitfield *ret_ptr = (GLbitfield *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLbitfield);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            exponent = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         GLbitfield ret = glQueryMatrixxOES(mantissa, exponent);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        guest_read(all_para[1].data, mantissa, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, exponent, 0, all_para[2].data_len);
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenBuffers:
-
-    {
-
-        /* readline: "glGenBuffers GLsizei n, GLuint *buffers#n*sizeof(GLuint)" */
-        /* func name: "glGenBuffers" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'buffers', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenBuffers)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *buffers = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            buffers = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenBuffers(n, buffers);
-
-        guest_read(all_para[1].data, buffers, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenFramebuffers:
-
-    {
-
-        /* readline: "glGenFramebuffers GLsizei n, GLuint *framebuffers#n*sizeof(GLuint)" */
-        /* func name: "glGenFramebuffers" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'framebuffers', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenFramebuffers)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *framebuffers = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            framebuffers = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenFramebuffers(n, framebuffers);
-
-        guest_read(all_para[1].data, framebuffers, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenRenderbuffers:
-
-    {
-
-        /* readline: "glGenRenderbuffers GLsizei n, GLuint *renderbuffers#n*sizeof(GLuint)" */
-        /* func name: "glGenRenderbuffers" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'renderbuffers', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenRenderbuffers)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *renderbuffers = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            renderbuffers = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenRenderbuffers(n, renderbuffers);
-
-        guest_read(all_para[1].data, renderbuffers, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenTextures:
-
-    {
-
-        /* readline: "glGenTextures GLsizei n, GLuint *textures#n*sizeof(GLuint)" */
-        /* func name: "glGenTextures" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'textures', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenTextures)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *textures = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            textures = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenTextures(n, textures);
-
-        guest_read(all_para[1].data, textures, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetActiveAttrib:
-
-    {
-
-        /* readline: "glGetActiveAttrib GLuint program, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLint *size#sizeof(GLint), GLenum *type#sizeof(GLenum), GLchar *name#bufSize" */
-        /* func name: "glGetActiveAttrib" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'size', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum*', 'name': 'type', 'ptr': 'out', 'ptr_len': 'sizeof(GLenum)', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'name', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 6, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* TODO: More than one ptr, should check mannually */
-        /* Define variables */
-        GLuint program;
-        GLuint index;
-        GLsizei bufSize;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetActiveAttrib)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        bufSize = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
-        out_buf_len += all_para[3].data_len;
-        out_buf_len += all_para[4].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        GLint *size = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            size = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
-
-        GLenum *type = (GLenum *)(ret_buf + out_buf_len);
-        if (all_para[3].data_len == 0)
-        {
-            //is null ptr
-            type = NULL;
-        }
-        out_buf_len += all_para[3].data_len;
-
-        GLchar *name = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[4].data_len == 0)
-        {
-            //is null ptr
-            name = NULL;
-        }
-        out_buf_len += all_para[4].data_len;
-
-        glGetActiveAttrib(program, index, bufSize, length, size, type, name);
-
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, size, 0, all_para[2].data_len);
-
-        guest_read(all_para[3].data, type, 0, all_para[3].data_len);
-
-        guest_read(all_para[4].data, name, 0, all_para[4].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetActiveUniform:
-
-    {
-
-        /* readline: "glGetActiveUniform GLuint program, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLint *size#sizeof(GLint), GLenum *type#sizeof(GLenum), GLchar *name#bufSize" */
-        /* func name: "glGetActiveUniform" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'size', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum*', 'name': 'type', 'ptr': 'out', 'ptr_len': 'sizeof(GLenum)', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'name', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 6, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* TODO: More than one ptr, should check mannually */
-        /* Define variables */
-        GLuint program;
-        GLuint index;
-        GLsizei bufSize;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetActiveUniform)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        bufSize = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
-        out_buf_len += all_para[3].data_len;
-        out_buf_len += all_para[4].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        GLint *size = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            size = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
-
-        GLenum *type = (GLenum *)(ret_buf + out_buf_len);
-        if (all_para[3].data_len == 0)
-        {
-            //is null ptr
-            type = NULL;
-        }
-        out_buf_len += all_para[3].data_len;
-
-        GLchar *name = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[4].data_len == 0)
-        {
-            //is null ptr
-            name = NULL;
-        }
-        out_buf_len += all_para[4].data_len;
-
-        glGetActiveUniform(program, index, bufSize, length, size, type, name);
-
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, size, 0, all_para[2].data_len);
-
-        guest_read(all_para[3].data, type, 0, all_para[3].data_len);
-
-        guest_read(all_para[4].data, name, 0, all_para[4].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetAttachedShaders:
-
-    {
-
-        /* readline: "glGetAttachedShaders GLuint program, GLsizei maxCount, GLsizei *count#sizeof(GLsizei), GLuint *shaders#maxCount*sizeof(GLuint)" */
-        /* func name: "glGetAttachedShaders" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'maxCount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'count', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'shaders', 'ptr': 'out', 'ptr_len': 'maxCount*sizeof(GLuint)', 'loc': 3, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* TODO: More than one ptr, should check mannually */
-        /* Define variables */
-        GLuint program;
-        GLsizei maxCount;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetAttachedShaders)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        maxCount = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLsizei *count = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            count = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        GLuint *shaders = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            shaders = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
-
-        glGetAttachedShaders(program, maxCount, count, shaders);
-
-        guest_read(all_para[1].data, count, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, shaders, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetBooleanv:
-
-    {
-
-        /* readline: "glGetBooleanv GLenum pname, GLboolean *data#gl_pname_size(pname)*sizeof(GLboolean)" */
-        /* func name: "glGetBooleanv" */
-        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLboolean*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLboolean)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBooleanv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLboolean *data = (GLboolean *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            data = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetBooleanv(pname, data);
-
-        guest_read(all_para[1].data, data, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetBufferParameteriv:
-
-    {
-
-        /* readline: "glGetBufferParameteriv GLenum target, GLenum pname, GLint *params#sizeof(GLint)" */
-        /* func name: "glGetBufferParameteriv" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBufferParameteriv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetBufferParameteriv(target, pname, params);
-
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetFloatv:
-
-    {
-
-        /* readline: "glGetFloatv GLenum pname, GLfloat *data#gl_pname_size(pname)*sizeof(GLfloat)" */
-        /* func name: "glGetFloatv" */
-        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetFloatv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLfloat *data = (GLfloat *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            data = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetFloatv(pname, data);
-
-        guest_read(all_para[1].data, data, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -2719,7 +365,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -2732,10 +377,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -2753,10 +396,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -2768,210 +408,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetFramebufferAttachmentParameteriv(target, attachment, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetIntegerv:
-
-    {
-
-        /* readline: "glGetIntegerv GLenum pname, GLint *data#gl_pname_size(pname)*sizeof(GLint)" */
-        /* func name: "glGetIntegerv" */
-        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetIntegerv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *data = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            data = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetIntegerv(pname, data);
-
-        guest_read(all_para[1].data, data, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetProgramiv:
-
-    {
-
-        /* readline: "glGetProgramiv GLuint program, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
-        /* func name: "glGetProgramiv" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramiv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetProgramiv(program, pname, params);
-
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -2984,7 +437,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetProgramInfoLog GLuint program, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *infoLog#bufSize" */
+        /* readline: "glGetProgramInfoLog GLuint program, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *infoLog#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetProgramInfoLog" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'infoLog', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -3004,7 +457,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -3017,10 +469,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -3035,11 +485,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -3051,34 +497,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLchar *infoLog = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLchar *infoLog = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            infoLog = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetProgramInfoLog(program, bufSize, length, infoLog);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, infoLog, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -3110,7 +548,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -3123,10 +560,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -3141,10 +576,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -3156,119 +588,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetRenderbufferParameteriv(target, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetShaderiv:
-
-    {
-
-        /* readline: "glGetShaderiv GLuint shader, GLenum pname, GLint *params#sizeof(GLint)" */
-        /* func name: "glGetShaderiv" */
-        /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint shader;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetShaderiv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        shader = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetShaderiv(shader, pname, params);
-
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -3281,7 +617,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetShaderInfoLog GLuint shader, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *infoLog#bufSize" */
+        /* readline: "glGetShaderInfoLog GLuint shader, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *infoLog#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetShaderInfoLog" */
         /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'infoLog', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -3301,7 +637,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -3314,10 +649,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -3332,11 +665,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -3348,34 +677,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLchar *infoLog = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLchar *infoLog = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            infoLog = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetShaderInfoLog(shader, bufSize, length, infoLog);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, infoLog, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -3408,7 +729,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -3421,10 +741,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -3439,11 +757,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         precisiontype = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -3455,34 +769,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *range = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            range = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLint *range = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += 2 * sizeof(GLint);
 
-        GLint *precision = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLint *precision = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            precision = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetShaderPrecisionFormat(shadertype, precisiontype, range, precision);
 
-        guest_read(all_para[1].data, range, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, precision, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -3495,7 +801,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetShaderSource GLuint shader, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *source#bufSize" */
+        /* readline: "glGetShaderSource GLuint shader, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *source#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetShaderSource" */
         /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'source', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -3515,7 +821,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -3528,10 +833,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -3546,11 +849,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -3562,34 +861,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLchar *source = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLchar *source = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            source = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetShaderSource(shader, bufSize, length, source);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, source, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -3621,7 +912,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -3634,10 +924,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -3652,10 +940,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -3667,24 +952,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfloat *params = (GLfloat *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetTexParameterfv(target, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -3716,7 +1000,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -3729,10 +1012,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -3747,10 +1028,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -3762,870 +1040,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetTexParameteriv(target, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetUniformfv:
-
-    {
-
-        /* readline: "glGetUniformfv GLuint program, GLint location, GLfloat *params#gl_get_program_uniform_size(context,program,location)" */
-        /* func name: "glGetUniformfv" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_get_program_uniform_size(context,program,location)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLint location;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformfv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        location = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLfloat *params = (GLfloat *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetUniformfv(program, location, params);
-
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetUniformiv:
-
-    {
-
-        /* readline: "glGetUniformiv GLuint program, GLint location, GLint *params#gl_get_program_uniform_size(context,program,location)" */
-        /* func name: "glGetUniformiv" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_get_program_uniform_size(context,program,location)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLint location;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformiv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        location = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetUniformiv(program, location, params);
-
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetUniformuiv:
-
-    {
-
-        /* readline: "glGetUniformuiv GLuint program, GLint location, GLuint *params#gl_get_program_uniform_size(context,program,location)" */
-        /* func name: "glGetUniformuiv" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_get_program_uniform_size(context,program,location)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLint location;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformuiv)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        location = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *params = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetUniformuiv(program, location, params);
-
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetUniformIndices:
-
-    {
-
-        /* readline: "glGetUniformIndices GLuint program, GLsizei uniformCount, const GLchar *const*uniformNames#uniformCount|strlen(uniformNames[i])+1, GLuint *uniformIndices#uniformCount*sizeof(GLuint)" */
-        /* func name: "glGetUniformIndices" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'uniformCount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'uniformNames', 'ptr': 'in', 'ptr_len': 'uniformCount|strlen(uniformNames[i])+1', 'loc': 2, 'ptr_ptr': True}, {'type': 'GLuint*', 'name': 'uniformIndices', 'ptr': 'out', 'ptr_len': 'uniformCount*sizeof(GLuint)', 'loc': 3, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* TODO: More than one ptr, should check mannually */
-        /* Define variables */
-        GLuint program;
-        GLsizei uniformCount;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformIndices)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        uniformCount = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLchar **uniformNames = g_malloc(uniformCount * sizeof(const GLchar *));
-        int *uniformNames_flag = g_malloc(uniformCount * sizeof(int *));
-        int uniformNames_null_flag;
-
-        for (int i = 0; i < uniformCount; i++)
-        {
-            uniformNames[i] = get_direct_ptr(all_para[1 + i].data, &uniformNames_null_flag);
-
-            if (uniformNames[i] == NULL && uniformNames_null_flag == 0)
-            {
-                uniformNames[i] = g_malloc(all_para[1 + i].data_len);
-                guest_write(all_para[1 + i].data, uniformNames[i], 0, all_para[1 + i].data_len);
-
-                uniformNames_flag[i] = 1;
-            }
-            else
-            {
-                uniformNames_flag[i] = 0;
-            }
-        }
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1 + uniformCount].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *uniformIndices = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1 + uniformCount].data_len == 0)
-        {
-            //is null ptr
-            uniformIndices = NULL;
-        }
-        out_buf_len += all_para[1 + uniformCount].data_len;
-
-        glGetUniformIndices(program, uniformCount, uniformNames, uniformIndices);
-
-        guest_read(all_para[1 + uniformCount].data, uniformIndices, 0, all_para[1 + uniformCount].data_len);
-
-        for (int i = 0; i < uniformCount; i++)
-        {
-            if (uniformNames_flag[i] == 1)
-            {
-                g_free(uniformNames[i]);
-            }
-        }
-
-        g_free(uniformNames);
-        g_free(uniformNames_flag);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetVertexAttribfv_origin:
-
-    {
-
-        /* readline: "glGetVertexAttribfv_origin GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)" */
-        /* func name: "glGetVertexAttribfv_origin" */
-        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint index;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribfv_origin)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLfloat *params = (GLfloat *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        d_glGetVertexAttribfv_origin(opengl_context, index, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetVertexAttribiv_origin:
-
-    {
-
-        /* readline: "glGetVertexAttribiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
-        /* func name: "glGetVertexAttribiv_origin" */
-        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint index;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribiv_origin)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        d_glGetVertexAttribiv_origin(opengl_context, index, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glReadPixels_without_bound:
-
-    {
-
-        /* readline: "glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels#gl_pixel_data_size(context,width,height,format,type,1)" */
-        /* func name: "glReadPixels_without_bound" */
-        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'void*', 'name': 'pixels', 'ptr': 'out', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,1)', 'loc': 6, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLint x;
-        GLint y;
-        GLsizei width;
-        GLsizei height;
-        GLenum format;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReadPixels_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        x = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        y = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *pixels = all_para[1].data;
-
-        d_glReadPixels_without_bound(opengl_context, x, y, width, height, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glReadPixels_with_bound:
-
-    {
-
-        /* readline: "glReadPixels_with_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels" */
-        /* func name: "glReadPixels_with_bound" */
-        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pixels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLint x;
-        GLint y;
-        GLsizei width;
-        GLsizei height;
-        GLenum format;
-        GLenum type;
-        GLintptr pixels;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReadPixels_with_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        x = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        y = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pixels = *(GLintptr *)(temp + temp_loc);
-        temp_loc += 8;
-
-        d_glReadPixels_with_bound(opengl_context, x, y, width, height, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGenQueries:
-
-    {
-
-        /* readline: "glGenQueries GLsizei n, GLuint *ids#n*sizeof(GLuint)" */
-        /* func name: "glGenQueries" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'ids', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenQueries)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *ids = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            ids = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenQueries(n, ids);
-
-        guest_read(all_para[1].data, ids, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -4657,7 +1088,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -4670,10 +1100,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -4688,10 +1116,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -4703,24 +1128,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetQueryiv(target, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -4752,7 +1176,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -4765,10 +1188,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -4783,10 +1204,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -4798,203 +1216,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLuint *params = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLuint *params = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetQueryObjectuiv(id, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenVertexArrays_origin:
-
-    {
-
-        /* readline: "glGenVertexArrays_origin GLsizei n, GLuint *arrays#n*sizeof(GLuint)" */
-        /* func name: "glGenVertexArrays_origin" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'arrays', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenVertexArrays_origin)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *arrays = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            arrays = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        d_glGenVertexArrays_origin(opengl_context, n, arrays);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetIntegeri_v:
-
-    {
-
-        /* readline: "glGetIntegeri_v GLenum target, GLuint index, GLint *data#sizeof(GLint)" */
-        /* func name: "glGetIntegeri_v" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLuint index;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetIntegeri_v)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *data = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            data = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetIntegeri_v(target, index, data);
-
-        guest_read(all_para[1].data, data, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -5007,7 +1245,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetTransformFeedbackVarying GLuint program, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLsizei *size#sizeof(GLsizei), GLenum *type#sizeof(GLenum), GLchar *name#bufSize" */
+        /* readline: "glGetTransformFeedbackVarying GLuint program, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLsizei *size#sizeof(GLsizei), GLenum *type#sizeof(GLenum), GLchar *name#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetTransformFeedbackVarying" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'size', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum*', 'name': 'type', 'ptr': 'out', 'ptr_len': 'sizeof(GLenum)', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'name', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 6, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -5028,7 +1266,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -5041,10 +1278,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -5062,13 +1297,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
-        out_buf_len += all_para[3].data_len;
-        out_buf_len += all_para[4].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -5080,234 +1309,36 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLsizei *size = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            size = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
+        GLsizei *size = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLenum *type = (GLenum *)(ret_buf + out_buf_len);
-        if (all_para[3].data_len == 0)
-        {
-            //is null ptr
-            type = NULL;
-        }
-        out_buf_len += all_para[3].data_len;
+        GLenum *type = (GLenum *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLenum);
 
-        GLchar *name = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[4].data_len == 0)
+        GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            name = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[4].data_len;
 
         glGetTransformFeedbackVarying(program, index, bufSize, length, size, type, name);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, size, 0, all_para[2].data_len);
-
-        guest_read(all_para[3].data, type, 0, all_para[3].data_len);
-
-        guest_read(all_para[4].data, name, 0, all_para[4].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
             g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetVertexAttribIiv_origin:
-
-    {
-
-        /* readline: "glGetVertexAttribIiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
-        /* func name: "glGetVertexAttribIiv_origin" */
-        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint index;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIiv_origin)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        d_glGetVertexAttribIiv_origin(opengl_context, index, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glGetVertexAttribIuiv_origin:
-
-    {
-
-        /* readline: "glGetVertexAttribIuiv_origin GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)" */
-        /* func name: "glGetVertexAttribIuiv_origin" */
-        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLuint)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint index;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIuiv_origin)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *params = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        d_glGetVertexAttribIuiv_origin(opengl_context, index, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
         }
     }
     break;
@@ -5337,7 +1368,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -5350,10 +1380,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -5387,10 +1415,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             uniformIndices_flag = 0;
         }
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[2].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -5402,28 +1427,27 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += uniformCount * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetActiveUniformsiv(program, uniformCount, uniformIndices, pname, params);
 
-        guest_read(all_para[2].data, params, 0, all_para[2].data_len);
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
         if (uniformIndices_flag == 1)
         {
             g_free(uniformIndices);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
         }
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -5457,7 +1481,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -5470,10 +1493,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -5491,10 +1512,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -5506,24 +1524,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        //out_buf_loc+=gl_get_uniform_block_para_size(context,program,uniformBlockIndex,pname)*sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetActiveUniformBlockiv(program, uniformBlockIndex, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -5536,7 +1553,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetActiveUniformBlockName GLuint program, GLuint uniformBlockIndex, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *uniformBlockName#bufSize" */
+        /* readline: "glGetActiveUniformBlockName GLuint program, GLuint uniformBlockIndex, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *uniformBlockName#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetActiveUniformBlockName" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'uniformBlockIndex', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'uniformBlockName', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -5557,7 +1574,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -5570,10 +1586,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -5591,11 +1605,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -5607,406 +1617,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLchar *uniformBlockName = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLchar *uniformBlockName = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            uniformBlockName = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetActiveUniformBlockName(program, uniformBlockIndex, bufSize, length, uniformBlockName);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, uniformBlockName, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetInteger64v:
-
-    {
-
-        /* readline: "glGetInteger64v GLenum pname, GLint64 *data#gl_pname_size(pname)*sizeof(GLint64)" */
-        /* func name: "glGetInteger64v" */
-        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint64*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint64)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetInteger64v)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint64 *data = (GLint64 *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            data = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetInteger64v(pname, data);
-
-        guest_read(all_para[1].data, data, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetInteger64i_v:
-
-    {
-
-        /* readline: "glGetInteger64i_v GLenum target, GLuint index, GLint64 *data#sizeof(GLint64)" */
-        /* func name: "glGetInteger64i_v" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint64*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'sizeof(GLint64)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLuint index;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetInteger64i_v)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint64 *data = (GLint64 *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            data = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetInteger64i_v(target, index, data);
-
-        guest_read(all_para[1].data, data, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetBufferParameteri64v:
-
-    {
-
-        /* readline: "glGetBufferParameteri64v GLenum target, GLenum pname, GLint64 *params#gl_pname_size(pname)*sizeof(GLint64)" */
-        /* func name: "glGetBufferParameteri64v" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint64*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint64)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLenum pname;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBufferParameteri64v)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pname = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint64 *params = (GLint64 *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            params = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetBufferParameteri64v(target, pname, params);
-
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenSamplers:
-
-    {
-
-        /* readline: "glGenSamplers GLsizei count, GLuint *samplers#count*sizeof(GLuint)" */
-        /* func name: "glGenSamplers" */
-        /* args: [{'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'samplers', 'ptr': 'out', 'ptr_len': 'count*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei count;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenSamplers)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        count = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *samplers = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            samplers = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenSamplers(count, samplers);
-
-        guest_read(all_para[1].data, samplers, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6038,7 +1668,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -6051,10 +1680,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6069,10 +1696,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6084,24 +1708,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetSamplerParameteriv(sampler, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6133,7 +1756,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -6146,10 +1768,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6164,10 +1784,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6179,115 +1796,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfloat *params = (GLfloat *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetSamplerParameterfv(sampler, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenTransformFeedbacks:
-
-    {
-
-        /* readline: "glGenTransformFeedbacks GLsizei n, GLuint *ids#n*sizeof(GLuint)" */
-        /* func name: "glGenTransformFeedbacks" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'ids', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenTransformFeedbacks)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *ids = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            ids = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenTransformFeedbacks(n, ids);
-
-        guest_read(all_para[1].data, ids, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6300,7 +1825,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetProgramBinary GLuint program, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLenum *binaryFormat#sizeof(GLenum), void *binary#bufSize" */
+        /* readline: "glGetProgramBinary GLuint program, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLenum *binaryFormat#sizeof(GLenum), void *binary#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetProgramBinary" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLenum*', 'name': 'binaryFormat', 'ptr': 'out', 'ptr_len': 'sizeof(GLenum)', 'loc': 3, 'ptr_ptr': False}, {'type': 'void*', 'name': 'binary', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -6320,7 +1845,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -6333,10 +1857,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6351,12 +1873,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
-        out_buf_len += all_para[3].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6368,44 +1885,29 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLenum *binaryFormat = (GLenum *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            binaryFormat = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
+        GLenum *binaryFormat = (GLenum *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLenum);
 
-        void *binary = (void *)(ret_buf + out_buf_len);
-        if (all_para[3].data_len == 0)
+        void *binary = (void *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            binary = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[3].data_len;
 
         glGetProgramBinary(program, bufSize, length, binaryFormat, binary);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, binaryFormat, 0, all_para[2].data_len);
-
-        guest_read(all_para[3].data, binary, 0, all_para[3].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6439,7 +1941,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -6452,10 +1953,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6476,10 +1975,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         count = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6491,24 +1987,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += count * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetInternalformativ(target, internalformat, pname, count, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6539,7 +2034,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -6552,10 +2046,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6567,10 +2059,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         plane = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6582,24 +2071,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *equation = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfixed *equation = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += 4 * sizeof(GLfixed);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            equation = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetClipPlanexOES(plane, equation);
 
-        guest_read(all_para[1].data, equation, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6630,7 +2118,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -6643,10 +2130,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6658,10 +2143,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6673,24 +2155,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *params = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetFixedvOES(pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6722,7 +2203,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -6735,10 +2215,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6753,10 +2231,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6768,24 +2243,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *params = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetTexEnvxvOES(target, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6817,7 +2291,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -6830,10 +2303,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6848,10 +2319,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6863,24 +2331,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *params = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetTexParameterxvOES(target, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -6912,7 +2379,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -6925,10 +2391,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -6943,10 +2407,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -6958,24 +2419,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *params = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetLightxvOES(light, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -7007,7 +2467,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -7020,10 +2479,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7038,10 +2495,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -7053,24 +2507,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *params = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetMaterialxvOES(face, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -7102,7 +2555,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -7115,10 +2567,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7133,10 +2583,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -7148,24 +2595,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfixed *params = (GLfixed *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetTexGenxvOES(coord, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -7174,23 +2620,27 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glShaderSource:
+    case FUNID_glReadPixels_with_bound:
 
     {
 
-        /* readline: "glShaderSource GLuint shader, GLsizei count, const GLchar *const*string#count|strlen(string[i])+1, const GLint *length#count*sizeof(GLint)" */
-        /* func name: "glShaderSource" */
-        /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'string', 'ptr': 'in', 'ptr_len': 'count|strlen(string[i])+1', 'loc': 2, 'ptr_ptr': True}, {'type': 'const GLint*', 'name': 'length', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)', 'loc': 3, 'ptr_ptr': False}] */
+        /* readline: "glReadPixels_with_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels" */
+        /* func name: "glReadPixels_with_bound" */
+        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pixels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "0" */
 
-        /* TODO: More than one ptr, should check mannually */
         /* Define variables */
-        GLuint shader;
-        GLsizei count;
+        GLint x;
+        GLint y;
+        GLsizei width;
+        GLsizei height;
+        GLenum format;
+        GLenum type;
+        GLintptr pixels;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glShaderSource)
+        if (para_num < PARA_NUM_MIN_glReadPixels_with_bound)
         {
             break;
         }
@@ -7198,9 +2648,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (temp_len < 32 * 1)
         {
             break;
         }
@@ -7211,10 +2660,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7224,171 +2671,28 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned int temp_loc = 0;
 
-        shader = *(GLuint *)(temp + temp_loc);
+        x = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
 
-        count = *(GLsizei *)(temp + temp_loc);
+        y = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
 
-        GLchar **string = g_malloc(count * sizeof(const GLchar *));
-        int *string_flag = g_malloc(count * sizeof(int *));
-        int string_null_flag;
-
-        for (int i = 0; i < count; i++)
-        {
-            string[i] = get_direct_ptr(all_para[1 + i].data, &string_null_flag);
-
-            if (string[i] == NULL && string_null_flag == 0)
-            {
-                string[i] = g_malloc(all_para[1 + i].data_len);
-                guest_write(all_para[1 + i].data, string[i], 0, all_para[1 + i].data_len);
-
-                string_flag[i] = 1;
-            }
-            else
-            {
-                string_flag[i] = 0;
-            }
-        }
-
-        int length_flag = 0;
-        int length_null_flag = 0;
-        GLint *length = get_direct_ptr(all_para[1 + count].data, &length_null_flag);
-
-        if (length == NULL && length_null_flag == 0)
-        {
-            length = g_malloc(all_para[1 + count].data_len);
-            guest_write(all_para[1 + count].data, length, 0, all_para[1 + count].data_len);
-
-            length_flag = 1;
-        }
-        else
-        {
-            length_flag = 0;
-        }
-
-        glShaderSource(shader, count, string, length);
-
-        for (int i = 0; i < count; i++)
-        {
-            if (string_flag[i] == 1)
-            {
-                g_free(string[i]);
-            }
-        }
-
-        g_free(string);
-        g_free(string_flag);
-
-        if (length_flag == 1)
-        {
-            g_free(length);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glTransformFeedbackVaryings:
-
-    {
-
-        /* readline: "glTransformFeedbackVaryings GLuint program, GLsizei count, const GLchar *const*varyings#count|strlen(varyings[i])+1, GLenum bufferMode" */
-        /* func name: "glTransformFeedbackVaryings" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'varyings', 'ptr': 'in', 'ptr_len': 'count|strlen(varyings[i])+1', 'loc': 2, 'ptr_ptr': True}, {'type': 'GLenum', 'name': 'bufferMode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLsizei count;
-        GLenum bufferMode;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTransformFeedbackVaryings)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
+        width = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        count = *(GLsizei *)(temp + temp_loc);
+        height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        bufferMode = *(GLenum *)(temp + temp_loc);
+        format = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
-        GLchar **varyings = g_malloc(count * sizeof(const GLchar *));
-        int *varyings_flag = g_malloc(count * sizeof(int *));
-        int varyings_null_flag;
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
 
-        for (int i = 0; i < count; i++)
-        {
-            varyings[i] = get_direct_ptr(all_para[1 + i].data, &varyings_null_flag);
+        pixels = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
 
-            if (varyings[i] == NULL && varyings_null_flag == 0)
-            {
-                varyings[i] = g_malloc(all_para[1 + i].data_len);
-                guest_write(all_para[1 + i].data, varyings[i], 0, all_para[1 + i].data_len);
-
-                varyings_flag[i] = 1;
-            }
-            else
-            {
-                varyings_flag[i] = 0;
-            }
-        }
-
-        glTransformFeedbackVaryings(program, count, varyings, bufferMode);
-
-        for (int i = 0; i < count; i++)
-        {
-            if (varyings_flag[i] == 1)
-            {
-                g_free(varyings[i]);
-            }
-        }
-
-        g_free(varyings);
-        g_free(varyings_flag);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        d_glReadPixels_with_bound(opengl_context, x, y, width, height, format, type, pixels);
     }
     break;
 
@@ -7415,7 +2719,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -7428,10 +2731,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7446,10 +2747,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -7461,24 +2759,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetFramebufferParameteriv(target, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -7511,7 +2808,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -7524,10 +2820,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7545,10 +2839,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -7560,24 +2851,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetProgramInterfaceiv(program, programInterface, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -7590,7 +2880,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetProgramResourceName GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *name#bufSize" */
+        /* readline: "glGetProgramResourceName GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *name#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetProgramResourceName" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'programInterface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'name', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -7612,7 +2902,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -7625,10 +2914,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7649,11 +2936,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -7665,34 +2948,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLchar *name = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            name = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetProgramResourceName(program, programInterface, index, bufSize, length, name);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, name, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -7705,7 +2980,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetProgramResourceiv GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum *props#propCount*sizeof(GLenum), GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLint *params#bufSize*sizeof(GLint)" */
+        /* readline: "glGetProgramResourceiv GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum *props#propCount*sizeof(GLenum), GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLint *params#bufSize*sizeof(GLint) @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetProgramResourceiv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'programInterface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'propCount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLenum*', 'name': 'props', 'ptr': 'in', 'ptr_len': 'propCount*sizeof(GLenum)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'bufSize*sizeof(GLint)', 'loc': 7, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -7728,7 +3003,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -7741,10 +3015,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7784,11 +3056,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             props_flag = 0;
         }
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[2].data_len;
-        out_buf_len += all_para[3].data_len;
+        int out_buf_len = all_para[2].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -7800,129 +3068,30 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[3].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[3].data_len;
 
         glGetProgramResourceiv(program, programInterface, index, propCount, props, bufSize, length, params);
 
-        guest_read(all_para[2].data, length, 0, all_para[2].data_len);
-
-        guest_read(all_para[3].data, params, 0, all_para[3].data_len);
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
         if (props_flag == 1)
         {
             g_free(props);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGenProgramPipelines:
-
-    {
-
-        /* readline: "glGenProgramPipelines GLsizei n, GLuint *pipelines#n*sizeof(GLuint)" */
-        /* func name: "glGenProgramPipelines" */
-        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'pipelines', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLsizei n;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenProgramPipelines)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        n = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLuint *pipelines = (GLuint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            pipelines = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGenProgramPipelines(n, pipelines);
-
-        guest_read(all_para[1].data, pipelines, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
         }
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -7955,7 +3124,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -7968,10 +3136,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -7986,10 +3152,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -8001,24 +3164,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetProgramPipelineiv(pipeline, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -8031,7 +3193,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetProgramPipelineInfoLog GLuint pipeline, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *infoLog#bufSize" */
+        /* readline: "glGetProgramPipelineInfoLog GLuint pipeline, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *infoLog#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetProgramPipelineInfoLog" */
         /* args: [{'type': 'GLuint', 'name': 'pipeline', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'infoLog', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -8051,7 +3213,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -8064,10 +3225,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8082,11 +3241,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -8098,129 +3253,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            length = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
 
-        GLchar *infoLog = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLchar *infoLog = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            infoLog = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glGetProgramPipelineInfoLog(pipeline, bufSize, length, infoLog);
 
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, infoLog, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glGetBooleani_v:
-
-    {
-
-        /* readline: "glGetBooleani_v GLenum target, GLuint index, GLboolean *data#sizeof(GLboolean)" */
-        /* func name: "glGetBooleani_v" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'sizeof(GLboolean)', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLuint index;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBooleani_v)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLboolean *data = (GLboolean *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            data = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glGetBooleani_v(target, index, data);
-
-        guest_read(all_para[1].data, data, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -8252,7 +3304,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -8265,10 +3316,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8283,10 +3332,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         index = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -8298,24 +3344,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfloat *val = (GLfloat *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfloat *val = (GLfloat *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            val = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetMultisamplefv(pname, index, val);
 
-        guest_read(all_para[1].data, val, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -8348,7 +3393,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -8361,10 +3405,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8382,10 +3424,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -8397,24 +3436,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *params = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetTexLevelParameteriv(target, level, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -8447,7 +3485,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -8460,10 +3497,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8481,10 +3516,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -8496,24 +3528,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLfloat *params = (GLfloat *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            params = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
         glGetTexLevelParameterfv(target, level, pname, params);
 
-        guest_read(all_para[1].data, params, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -8545,7 +3576,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -8558,10 +3588,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8576,14 +3604,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         flags = *(GLbitfield *)(temp + temp_loc);
         temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLsync *ret_ptr = (GLsync *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsync);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLsync ret = glFenceSync(condition, flags);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 8);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -8610,7 +3664,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -8623,10 +3676,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8638,14 +3689,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         sync = *(GLsync *)(temp + temp_loc);
         temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLboolean ret = glIsSync(sync);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -8654,9 +3731,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glGetSynciv GLsync sync, GLenum pname, GLsizei count, GLsizei *length#sizeof(GLsizei), GLint *values#count*sizeof(GLint)" */
+        /* readline: "glGetSynciv GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLint *values#bufSize*sizeof(GLint) @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glGetSynciv" */
-        /* args: [{'type': 'GLsync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'values', 'ptr': 'out', 'ptr_len': 'count*sizeof(GLint)', 'loc': 4, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLsync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'values', 'ptr': 'out', 'ptr_len': 'bufSize*sizeof(GLint)', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "0" */
 
@@ -8664,7 +3741,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* Define variables */
         GLsync sync;
         GLenum pname;
-        GLsizei count;
+        GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glGetSynciv)
@@ -8675,7 +3752,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -8688,10 +3764,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8707,13 +3781,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         pname = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
-        count = *(GLsizei *)(temp + temp_loc);
+        bufSize = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -8725,34 +3795,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLsizei *length = (GLsizei *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
+
+        GLint *values = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            length = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1].data_len;
 
-        GLint *values = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            values = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
+        glGetSynciv(sync, pname, bufSize, length, values);
 
-        glGetSynciv(sync, pname, count, length, values);
-
-        guest_read(all_para[1].data, length, 0, all_para[1].data_len);
-
-        guest_read(all_para[2].data, values, 0, all_para[2].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -8785,7 +3847,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -8798,10 +3859,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -8819,14 +3878,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         timeout = *(GLuint64 *)(temp + temp_loc);
         temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLenum *ret_ptr = (GLenum *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLenum);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLenum ret = glClientWaitSync(sync, flags, timeout);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -8853,1251 +3938,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glUnmapBuffer_special:
-
-    {
-
-        /* readline: "GLboolean glUnmapBuffer_special GLenum target" */
-        /* func name: "glUnmapBuffer_special" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
-        /* ret: "GLboolean" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUnmapBuffer_special)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        GLboolean ret = d_glUnmapBuffer_special(opengl_context, target);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glBindAttribLocation:
-
-    {
-
-        /* readline: "glBindAttribLocation GLuint program, GLuint index, const GLchar *name#strlen(name)+1" */
-        /* func name: "glBindAttribLocation" */
-        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLuint program;
-        GLuint index;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindAttribLocation)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        program = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int name_flag = 0;
-        int name_null_flag = 0;
-        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
-
-        if (name == NULL && name_null_flag == 0)
-        {
-            name = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
-
-            name_flag = 1;
-        }
-        else
-        {
-            name_flag = 0;
-        }
-
-        glBindAttribLocation(program, index, name);
-
-        if (name_flag == 1)
-        {
-            g_free(name);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glBufferData_custom:
-
-    {
-
-        /* readline: "glBufferData_custom GLenum target, GLsizeiptr size, const void *data#size, GLenum usage" */
-        /* func name: "glBufferData_custom" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'size', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'usage', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLsizeiptr size;
-        GLenum usage;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBufferData_custom)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        size = *(GLsizeiptr *)(temp + temp_loc);
-        temp_loc += 8;
-
-        usage = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *data = all_para[1].data;
-
-        d_glBufferData_custom(opengl_context, target, size, data, usage);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glBufferSubData_custom:
-
-    {
-
-        /* readline: "glBufferSubData_custom GLenum target, GLintptr offset, GLsizeiptr size, const void *data#size" */
-        /* func name: "glBufferSubData_custom" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'size', 'loc': 3, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLintptr offset;
-        GLsizeiptr size;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBufferSubData_custom)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        offset = *(GLintptr *)(temp + temp_loc);
-        temp_loc += 8;
-
-        size = *(GLsizeiptr *)(temp + temp_loc);
-        temp_loc += 8;
-
-        void *data = all_para[1].data;
-
-        d_glBufferSubData_custom(opengl_context, target, offset, size, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glCompressedTexImage2D_without_bound:
-
-    {
-
-        /* readline: "glCompressedTexImage2D_without_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void *data#imageSize" */
-        /* func name: "glCompressedTexImage2D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 7, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLenum internalformat;
-        GLsizei width;
-        GLsizei height;
-        GLint border;
-        GLsizei imageSize;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexImage2D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        internalformat = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        border = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        imageSize = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *data = all_para[1].data;
-
-        d_glCompressedTexImage2D_without_bound(opengl_context, target, level, internalformat, width, height, border, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glCompressedTexSubImage2D_without_bound:
-
-    {
-
-        /* readline: "glCompressedTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data#imageSize" */
-        /* func name: "glCompressedTexSubImage2D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 8, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLint xoffset;
-        GLint yoffset;
-        GLsizei width;
-        GLsizei height;
-        GLenum format;
-        GLsizei imageSize;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage2D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        xoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        yoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        imageSize = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *data = all_para[1].data;
-
-        d_glCompressedTexSubImage2D_without_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glDrawElements_without_bound:
-
-    {
-
-        /* readline: "glDrawElements_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)" */
-        /* func name: "glDrawElements_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum mode;
-        GLsizei count;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElements_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        mode = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        count = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *indices = all_para[1].data;
-
-        d_glDrawElements_without_bound(opengl_context, mode, count, type, indices);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glTexImage2D_without_bound:
-
-    {
-
-        /* readline: "glTexImage2D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
-        /* func name: "glTexImage2D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLint internalformat;
-        GLsizei width;
-        GLsizei height;
-        GLint border;
-        GLenum format;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexImage2D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        internalformat = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        border = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *pixels = all_para[1].data;
-
-        d_glTexImage2D_without_bound(opengl_context, target, level, internalformat, width, height, border, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glDrawRangeElements_without_bound:
-
-    {
-
-        /* readline: "glDrawRangeElements_without_bound GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)" */
-        /* func name: "glDrawRangeElements_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'start', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'end', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 5, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum mode;
-        GLuint start;
-        GLuint end;
-        GLsizei count;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawRangeElements_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        mode = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        start = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        end = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        count = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *indices = all_para[1].data;
-
-        d_glDrawRangeElements_without_bound(opengl_context, mode, start, end, count, type, indices);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glCompressedTexImage3D_without_bound:
-
-    {
-
-        /* readline: "glCompressedTexImage3D_without_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data#imageSize" */
-        /* func name: "glCompressedTexImage3D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 8, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLenum internalformat;
-        GLsizei width;
-        GLsizei height;
-        GLsizei depth;
-        GLint border;
-        GLsizei imageSize;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexImage3D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        internalformat = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        depth = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        border = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        imageSize = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *data = all_para[1].data;
-
-        d_glCompressedTexImage3D_without_bound(opengl_context, target, level, internalformat, width, height, depth, border, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glCompressedTexSubImage3D_without_bound:
-
-    {
-
-        /* readline: "glCompressedTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data#imageSize" */
-        /* func name: "glCompressedTexSubImage3D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 10, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLint xoffset;
-        GLint yoffset;
-        GLint zoffset;
-        GLsizei width;
-        GLsizei height;
-        GLsizei depth;
-        GLenum format;
-        GLsizei imageSize;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage3D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        xoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        yoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        zoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        depth = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        imageSize = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *data = all_para[1].data;
-
-        d_glCompressedTexSubImage3D_without_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glTexSubImage2D_without_bound:
-
-    {
-
-        /* readline: "glTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
-        /* func name: "glTexSubImage2D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLint xoffset;
-        GLint yoffset;
-        GLsizei width;
-        GLsizei height;
-        GLenum format;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexSubImage2D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        xoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        yoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *pixels = all_para[1].data;
-
-        d_glTexSubImage2D_without_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glTexImage3D_without_bound:
-
-    {
-
-        /* readline: "glTexImage3D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
-        /* func name: "glTexImage3D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 9, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLint internalformat;
-        GLsizei width;
-        GLsizei height;
-        GLsizei depth;
-        GLint border;
-        GLenum format;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexImage3D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        internalformat = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        depth = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        border = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *pixels = all_para[1].data;
-
-        d_glTexImage3D_without_bound(opengl_context, target, level, internalformat, width, height, depth, border, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glTexSubImage3D_without_bound:
-
-    {
-
-        /* readline: "glTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
-        /* func name: "glTexSubImage3D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 10, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum target;
-        GLint level;
-        GLint xoffset;
-        GLint yoffset;
-        GLint zoffset;
-        GLsizei width;
-        GLsizei height;
-        GLsizei depth;
-        GLenum format;
-        GLenum type;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexSubImage3D_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        level = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        xoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        yoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        zoffset = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        width = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        height = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        depth = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        format = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *pixels = all_para[1].data;
-
-        d_glTexSubImage3D_without_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glDrawElementsInstanced_without_bound:
-
-    {
-
-        /* readline: "glDrawElementsInstanced_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type), GLsizei instancecount" */
-        /* func name: "glDrawElementsInstanced_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'instancecount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* Define variables */
-        GLenum mode;
-        GLsizei count;
-        GLenum type;
-        GLsizei instancecount;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElementsInstanced_without_bound)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        mode = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        count = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        type = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        instancecount = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
-        void *indices = all_para[1].data;
-
-        d_glDrawElementsInstanced_without_bound(opengl_context, mode, count, type, indices, instancecount);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
     case FUNID_glTestInt1:
 
     {
@@ -10121,7 +3961,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -10134,10 +3973,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10152,14 +3989,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         b = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLint ret = glTestInt1(a, b);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -10187,7 +4050,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -10200,10 +4062,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10218,14 +4078,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         b = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLuint ret = glTestInt2(a, b);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -10253,7 +4139,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -10266,10 +4151,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10284,14 +4167,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         b = *(GLuint64 *)(temp + temp_loc);
         temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint64 *ret_ptr = (GLint64 *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint64);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLint64 ret = glTestInt3(a, b);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 8);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -10319,7 +4228,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -10332,10 +4240,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10350,14 +4256,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         b = *(GLuint64 *)(temp + temp_loc);
         temp_loc += 8;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint64 *ret_ptr = (GLuint64 *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLuint64);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLuint64 ret = glTestInt4(a, b);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 8);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -10385,7 +4317,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -10398,10 +4329,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10416,14 +4345,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         b = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLfloat *ret_ptr = (GLfloat *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLfloat);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLfloat ret = glTestInt5(a, b);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -10451,7 +4406,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -10464,10 +4418,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10482,14 +4434,40 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         b = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLdouble *ret_ptr = (GLdouble *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLdouble);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
 
         GLdouble ret = glTestInt6(a, b);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 8);
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (need_delete)
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
         }
     }
     break;
@@ -10516,7 +4494,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -10529,10 +4506,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10567,11 +4542,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             g_free(b);
         }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -10598,7 +4568,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -10611,10 +4580,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10642,10 +4609,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             b_flag = 0;
         }
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[2].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -10657,143 +4621,27 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *c = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLint *c = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint) * 10;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            c = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         glTestPointer2(a, b, c);
 
-        guest_read(all_para[2].data, c, 0, all_para[2].data_len);
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
         if (b_flag == 1)
         {
             g_free(b);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glTestPointer3:
-
-    {
-
-        /* readline: "GLint glTestPointer3 GLint a, const GLint *b#sizeof(GLint)*10, GLint *c#sizeof(GLint)*20000" */
-        /* func name: "glTestPointer3" */
-        /* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'b', 'ptr': 'in', 'ptr_len': 'sizeof(GLint)*10', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'c', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)*20000', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "GLint" */
-        /* type: "0" */
-
-        /* TODO: More than one ptr, should check mannually */
-        /* Define variables */
-        GLint a;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestPointer3)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        a = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int b_flag = 0;
-        int b_null_flag = 0;
-        GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
-
-        if (b == NULL && b_null_flag == 0)
-        {
-            b = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, b, 0, all_para[1].data_len);
-
-            b_flag = 1;
-        }
-        else
-        {
-            b_flag = 0;
-        }
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[2].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLint *c = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
-        {
-            //is null ptr
-            c = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
-
-        GLint ret = glTestPointer3(a, b, c);
-
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        guest_read(all_para[2].data, c, 0, all_para[2].data_len);
-
-        if (b_flag == 1)
-        {
-            g_free(b);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
         }
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -10826,7 +4674,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -10839,10 +4686,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10870,10 +4715,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             b_flag = 0;
         }
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[2].data_len;
+        int out_buf_len = all_para[2].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -10885,30 +4727,31 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *c = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLint *c = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint) * 1000;
+
+        GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            c = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[2].data_len;
 
         GLint ret = glTestPointer4(a, b, c);
+        *ret_ptr = ret;
 
-        set_call_return_val(call, (unsigned char *)&ret, 4);
-
-        guest_read(all_para[2].data, c, 0, all_para[2].data_len);
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
         if (b_flag == 1)
         {
             g_free(b);
-        }
-
-        if (need_delete)
-        {
-            g_free(temp);
         }
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -10943,7 +4786,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -10956,10 +4798,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -10998,10 +4838,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
                 strings_flag[i] = 0;
             }
         }
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1 + count].data_len;
+        int out_buf_len = all_para[1 + count].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -11013,19 +4850,23 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLchar *char_buf = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[1 + count].data_len == 0)
+        GLchar *char_buf = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += buf_len;
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            char_buf = NULL;
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
-        out_buf_len += all_para[1 + count].data_len;
 
         glTestString(a, count, strings, buf_len, char_buf);
 
-        guest_read(all_para[1 + count].data, char_buf, 0, all_para[1 + count].data_len);
+        guest_read(all_para[1 + count].data, ret_buf, 0, out_buf_len);
 
         for (int i = 0; i < count; i++)
         {
@@ -11038,11 +4879,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         g_free(strings);
         g_free(strings_flag);
 
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
             g_free(ret_buf);
@@ -11050,21 +4886,28 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glPrintf:
+        /******* end of file '1-1-1', 54/53 functions*******/
+
+        /******* file '1-1-2' *******/
+
+    case FUNID_glMapBufferRange_read:
 
     {
 
-        /* readline: "glPrintf GLint buf_len, GLchar *out_string#buf_len" */
-        /* func name: "glPrintf" */
-        /* args: [{'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'out_string', 'ptr': 'out', 'ptr_len': 'buf_len', 'loc': 1, 'ptr_ptr': False}] */
+        /* readline: "glMapBufferRange_read GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf#length" */
+        /* func name: "glMapBufferRange_read" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLbitfield', 'name': 'access', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'void*', 'name': 'mem_buf', 'ptr': 'out', 'ptr_len': 'length', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "0" */
+        /* type: "1" */
 
         /* Define variables */
-        GLint buf_len;
+        GLenum target;
+        GLintptr offset;
+        GLsizeiptr length;
+        GLbitfield access;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPrintf)
+        if (para_num < PARA_NUM_MIN_glMapBufferRange_read)
         {
             break;
         }
@@ -11072,7 +4915,144 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
+        temp_len = all_para[0].data_len;
+        if (temp_len < 24 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        offset = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        length = *(GLsizeiptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        access = *(GLbitfield *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *mem_buf = all_para[1].data;
+
+        d_glMapBufferRange_read(opengl_context, target, offset, length, access, mem_buf);
+    }
+    break;
+
+    case FUNID_glReadPixels_without_bound:
+
+    {
+
+        /* readline: "glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels#gl_pixel_data_size(context,width,height,format,type,1)" */
+        /* func name: "glReadPixels_without_bound" */
+        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'void*', 'name': 'pixels', 'ptr': 'out', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,1)', 'loc': 6, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "1" */
+
+        /* Define variables */
+        GLint x;
+        GLint y;
+        GLsizei width;
+        GLsizei height;
+        GLenum format;
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glReadPixels_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 24 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        x = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        y = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *pixels = all_para[1].data;
+
+        d_glReadPixels_without_bound(opengl_context, x, y, width, height, format, type, pixels);
+    }
+    break;
+
+    case FUNID_glTestPointer3:
+
+    {
+
+        /* readline: "GLint glTestPointer3 GLint a, const GLint *b#sizeof(GLint)*a, GLint *c#sizeof(GLint)*a" */
+        /* func name: "glTestPointer3" */
+        /* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'b', 'ptr': 'in', 'ptr_len': 'sizeof(GLint)*a', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'c', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)*a', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "GLint" */
+        /* type: "1" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+        GLint a;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTestPointer3)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -11085,104 +5065,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        buf_len = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        out_buf_len = 0;
-
-        GLchar *out_string = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[1].data_len == 0)
-        {
-            //is null ptr
-            out_string = NULL;
-        }
-        out_buf_len += all_para[1].data_len;
-
-        glPrintf(buf_len, out_string);
-
-        guest_read(all_para[1].data, out_string, 0, all_para[1].data_len);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-    }
-    break;
-
-    case FUNID_glInOutTest:
-
-    {
-
-        /* readline: "glInOutTest GLint a, GLint b, const GLchar *e#strlen(e), GLint *c#sizeof(GLint), GLdouble *d#sizeof(GLdouble), GLsizei buf_len, GLchar *f#buf_len" */
-        /* func name: "glInOutTest" */
-        /* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'b', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'e', 'ptr': 'in', 'ptr_len': 'strlen(e)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'c', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLdouble*', 'name': 'd', 'ptr': 'out', 'ptr_len': 'sizeof(GLdouble)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'f', 'ptr': 'out', 'ptr_len': 'buf_len', 'loc': 6, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "0" */
-
-        /* TODO: More than one ptr, should check mannually */
-        /* Define variables */
-        GLint a;
-        GLint b;
-        GLsizei buf_len;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glInOutTest)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-        temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-
-                need_delete = 1;
             }
             else
             {
@@ -11195,33 +5079,39 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         a = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
 
-        b = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
+        void *b = all_para[1].data;
 
-        buf_len = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
+        GLint *c = all_para[2].data;
 
-        int e_flag = 0;
-        int e_null_flag = 0;
-        GLchar *e = get_direct_ptr(all_para[1].data, &e_null_flag);
+        GLint ret = glTestPointer3(a, b, c);
 
-        if (e == NULL && e_null_flag == 0)
+        guest_read(all_para[3].data, &ret, 0, sizeof(GLint));
+    }
+    break;
+
+        /******* end of file '1-1-2', 4/56 functions*******/
+
+        /******* file '1-2' *******/
+
+    case FUNID_glGetError:
+
+    {
+
+        /* readline: "GLenum glGetError void" */
+        /* func name: "glGetError" */
+        /* args: [] */
+        /* ret: "GLenum" */
+        /* type: "2" */
+
+        /* Define variables */
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetError)
         {
-            e = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, e, 0, all_para[1].data_len);
-
-            e_flag = 1;
-        }
-        else
-        {
-            e_flag = 0;
+            break;
         }
 
-        int out_buf_len = 0;
-
-        out_buf_len += all_para[2].data_len;
-        out_buf_len += all_para[3].data_len;
-        out_buf_len += all_para[4].data_len;
+        int out_buf_len = all_para[0].data_len;
 
         unsigned char *ret_buf = NULL;
 
@@ -11233,48 +5123,1064 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             ret_buf = ret_local_buf;
         }
-        out_buf_len = 0;
+        int out_buf_loc = 0;
 
-        GLint *c = (GLint *)(ret_buf + out_buf_len);
-        if (all_para[2].data_len == 0)
+        GLenum *ret_ptr = (GLenum *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLenum);
+
+        if (out_buf_loc > out_buf_len)
         {
-            //is null ptr
-            c = NULL;
-        }
-        out_buf_len += all_para[2].data_len;
-
-        GLdouble *d = (GLdouble *)(ret_buf + out_buf_len);
-        if (all_para[3].data_len == 0)
-        {
-            //is null ptr
-            d = NULL;
-        }
-        out_buf_len += all_para[3].data_len;
-
-        GLchar *f = (GLchar *)(ret_buf + out_buf_len);
-        if (all_para[4].data_len == 0)
-        {
-            //is null ptr
-            f = NULL;
-        }
-        out_buf_len += all_para[4].data_len;
-
-        glInOutTest(a, b, e, c, d, buf_len, f);
-
-        guest_read(all_para[2].data, c, 0, all_para[2].data_len);
-
-        guest_read(all_para[3].data, d, 0, all_para[3].data_len);
-
-        guest_read(all_para[4].data, f, 0, all_para[4].data_len);
-
-        if (e_flag == 1)
-        {
-            g_free(e);
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
         }
 
-        if (need_delete)
+        GLenum ret = glGetError();
+        *ret_ptr = ret;
+
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
         {
-            g_free(temp);
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsBuffer:
+
+    {
+
+        /* readline: "GLboolean glIsBuffer GLuint buffer" */
+        /* func name: "glIsBuffer" */
+        /* args: [{'type': 'GLuint', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint buffer;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsBuffer)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        buffer = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsBuffer(buffer);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsEnabled:
+
+    {
+
+        /* readline: "GLboolean glIsEnabled GLenum cap" */
+        /* func name: "glIsEnabled" */
+        /* args: [{'type': 'GLenum', 'name': 'cap', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum cap;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsEnabled)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        cap = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsEnabled(cap);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsFramebuffer:
+
+    {
+
+        /* readline: "GLboolean glIsFramebuffer GLuint framebuffer" */
+        /* func name: "glIsFramebuffer" */
+        /* args: [{'type': 'GLuint', 'name': 'framebuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint framebuffer;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsFramebuffer)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        framebuffer = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsFramebuffer(framebuffer);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsProgram:
+
+    {
+
+        /* readline: "GLboolean glIsProgram GLuint program" */
+        /* func name: "glIsProgram" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsProgram)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsProgram(program);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsRenderbuffer:
+
+    {
+
+        /* readline: "GLboolean glIsRenderbuffer GLuint renderbuffer" */
+        /* func name: "glIsRenderbuffer" */
+        /* args: [{'type': 'GLuint', 'name': 'renderbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint renderbuffer;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsRenderbuffer)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        renderbuffer = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsRenderbuffer(renderbuffer);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsShader:
+
+    {
+
+        /* readline: "GLboolean glIsShader GLuint shader" */
+        /* func name: "glIsShader" */
+        /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint shader;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsShader)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        shader = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsShader(shader);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsTexture:
+
+    {
+
+        /* readline: "GLboolean glIsTexture GLuint texture" */
+        /* func name: "glIsTexture" */
+        /* args: [{'type': 'GLuint', 'name': 'texture', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint texture;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsTexture)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        texture = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsTexture(texture);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsQuery:
+
+    {
+
+        /* readline: "GLboolean glIsQuery GLuint id" */
+        /* func name: "glIsQuery" */
+        /* args: [{'type': 'GLuint', 'name': 'id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint id;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsQuery)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        id = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsQuery(id);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsVertexArray:
+
+    {
+
+        /* readline: "GLboolean glIsVertexArray GLuint array" */
+        /* func name: "glIsVertexArray" */
+        /* args: [{'type': 'GLuint', 'name': 'array', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint array;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsVertexArray)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        array = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsVertexArray(array);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsSampler:
+
+    {
+
+        /* readline: "GLboolean glIsSampler GLuint sampler" */
+        /* func name: "glIsSampler" */
+        /* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint sampler;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsSampler)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        sampler = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsSampler(sampler);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glIsTransformFeedback:
+
+    {
+
+        /* readline: "GLboolean glIsTransformFeedback GLuint id" */
+        /* func name: "glIsTransformFeedback" */
+        /* args: [{'type': 'GLuint', 'name': 'id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint id;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glIsTransformFeedback)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        id = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *ret_ptr = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLboolean ret = glIsTransformFeedback(id);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetAttribLocation:
+
+    {
+
+        /* readline: "GLint glGetAttribLocation GLuint program, const GLchar *name#strlen(name)+1" */
+        /* func name: "glGetAttribLocation" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "GLint" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetAttribLocation)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        int name_flag = 0;
+        int name_null_flag = 0;
+        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
+
+        if (name == NULL && name_null_flag == 0)
+        {
+            name = g_malloc(all_para[1].data_len);
+            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
+
+            name_flag = 1;
+        }
+        else
+        {
+            name_flag = 0;
+        }
+        int out_buf_len = all_para[2].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLint ret = glGetAttribLocation(program, name);
+        *ret_ptr = ret;
+
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+
+        if (name_flag == 1)
+        {
+            g_free(name);
         }
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -11284,13 +6190,2532 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '1-1', 126/126 functions*******/
+    case FUNID_glGetUniformLocation:
 
-        /******* file '1-2' *******/
+    {
 
-        /******* end of file '1-2', 0/126 functions*******/
+        /* readline: "GLint glGetUniformLocation GLuint program, const GLchar *name#strlen(name)+1" */
+        /* func name: "glGetUniformLocation" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "GLint" */
+        /* type: "2" */
 
-        /******* file '2-1' *******/
+        /* Define variables */
+        GLuint program;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetUniformLocation)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        int name_flag = 0;
+        int name_null_flag = 0;
+        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
+
+        if (name == NULL && name_null_flag == 0)
+        {
+            name = g_malloc(all_para[1].data_len);
+            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
+
+            name_flag = 1;
+        }
+        else
+        {
+            name_flag = 0;
+        }
+        int out_buf_len = all_para[2].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLint ret = glGetUniformLocation(program, name);
+        *ret_ptr = ret;
+
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+
+        if (name_flag == 1)
+        {
+            g_free(name);
+        }
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetFragDataLocation:
+
+    {
+
+        /* readline: "GLint glGetFragDataLocation GLuint program, const GLchar *name#strlen(name)+1" */
+        /* func name: "glGetFragDataLocation" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "GLint" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetFragDataLocation)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        int name_flag = 0;
+        int name_null_flag = 0;
+        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
+
+        if (name == NULL && name_null_flag == 0)
+        {
+            name = g_malloc(all_para[1].data_len);
+            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
+
+            name_flag = 1;
+        }
+        else
+        {
+            name_flag = 0;
+        }
+        int out_buf_len = all_para[2].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLint ret = glGetFragDataLocation(program, name);
+        *ret_ptr = ret;
+
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+
+        if (name_flag == 1)
+        {
+            g_free(name);
+        }
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetUniformBlockIndex:
+
+    {
+
+        /* readline: "GLuint glGetUniformBlockIndex GLuint program, const GLchar *uniformBlockName#strlen(uniformBlockName)+1" */
+        /* func name: "glGetUniformBlockIndex" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'uniformBlockName', 'ptr': 'in', 'ptr_len': 'strlen(uniformBlockName)+1', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "GLuint" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetUniformBlockIndex)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        int uniformBlockName_flag = 0;
+        int uniformBlockName_null_flag = 0;
+        GLchar *uniformBlockName = get_direct_ptr(all_para[1].data, &uniformBlockName_null_flag);
+
+        if (uniformBlockName == NULL && uniformBlockName_null_flag == 0)
+        {
+            uniformBlockName = g_malloc(all_para[1].data_len);
+            guest_write(all_para[1].data, uniformBlockName, 0, all_para[1].data_len);
+
+            uniformBlockName_flag = 1;
+        }
+        else
+        {
+            uniformBlockName_flag = 0;
+        }
+        int out_buf_len = all_para[2].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLuint ret = glGetUniformBlockIndex(program, uniformBlockName);
+        *ret_ptr = ret;
+
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+
+        if (uniformBlockName_flag == 1)
+        {
+            g_free(uniformBlockName);
+        }
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetProgramResourceIndex:
+
+    {
+
+        /* readline: "GLuint glGetProgramResourceIndex GLuint program, GLenum programInterface, const GLchar *name#strlen(name)+1" */
+        /* func name: "glGetProgramResourceIndex" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'programInterface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "GLuint" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+        GLenum programInterface;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetProgramResourceIndex)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        programInterface = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        int name_flag = 0;
+        int name_null_flag = 0;
+        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
+
+        if (name == NULL && name_null_flag == 0)
+        {
+            name = g_malloc(all_para[1].data_len);
+            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
+
+            name_flag = 1;
+        }
+        else
+        {
+            name_flag = 0;
+        }
+        int out_buf_len = all_para[2].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLuint ret = glGetProgramResourceIndex(program, programInterface, name);
+        *ret_ptr = ret;
+
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+
+        if (name_flag == 1)
+        {
+            g_free(name);
+        }
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetProgramResourceLocation:
+
+    {
+
+        /* readline: "GLint glGetProgramResourceLocation GLuint program, GLenum programInterface, const GLchar *name#strlen(name)+1" */
+        /* func name: "glGetProgramResourceLocation" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'programInterface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "GLint" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+        GLenum programInterface;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetProgramResourceLocation)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        programInterface = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        int name_flag = 0;
+        int name_null_flag = 0;
+        GLchar *name = get_direct_ptr(all_para[1].data, &name_null_flag);
+
+        if (name == NULL && name_null_flag == 0)
+        {
+            name = g_malloc(all_para[1].data_len);
+            guest_write(all_para[1].data, name, 0, all_para[1].data_len);
+
+            name_flag = 1;
+        }
+        else
+        {
+            name_flag = 0;
+        }
+        int out_buf_len = all_para[2].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLint ret = glGetProgramResourceLocation(program, programInterface, name);
+        *ret_ptr = ret;
+
+        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+
+        if (name_flag == 1)
+        {
+            g_free(name);
+        }
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetActiveAttrib:
+
+    {
+
+        /* readline: "glGetActiveAttrib GLuint program, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLint *size#sizeof(GLint), GLenum *type#sizeof(GLenum), GLchar *name#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGetActiveAttrib" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'size', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum*', 'name': 'type', 'ptr': 'out', 'ptr_len': 'sizeof(GLenum)', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'name', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 6, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+        GLuint program;
+        GLuint index;
+        GLsizei bufSize;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetActiveAttrib)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        bufSize = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
+
+        GLint *size = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        GLenum *type = (GLenum *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLenum);
+
+        GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetActiveAttrib(program, index, bufSize, length, size, type, name);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetActiveUniform:
+
+    {
+
+        /* readline: "glGetActiveUniform GLuint program, GLuint index, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLint *size#sizeof(GLint), GLenum *type#sizeof(GLenum), GLchar *name#bufSize @{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGetActiveUniform" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'bufSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'length', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'size', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum*', 'name': 'type', 'ptr': 'out', 'ptr_len': 'sizeof(GLenum)', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLchar*', 'name': 'name', 'ptr': 'out', 'ptr_len': 'bufSize', 'loc': 6, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+        GLuint program;
+        GLuint index;
+        GLsizei bufSize;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetActiveUniform)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        bufSize = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLsizei *length = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
+
+        GLint *size = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        GLenum *type = (GLenum *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLenum);
+
+        GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
+        out_buf_loc += bufSize;
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetActiveUniform(program, index, bufSize, length, size, type, name);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetAttachedShaders:
+
+    {
+
+        /* readline: "glGetAttachedShaders GLuint program, GLsizei maxCount, GLsizei *count#sizeof(GLsizei), GLuint *shaders#maxCount*sizeof(GLuint)" */
+        /* func name: "glGetAttachedShaders" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'maxCount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei*', 'name': 'count', 'ptr': 'out', 'ptr_len': 'sizeof(GLsizei)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'shaders', 'ptr': 'out', 'ptr_len': 'maxCount*sizeof(GLuint)', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+        GLuint program;
+        GLsizei maxCount;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetAttachedShaders)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        maxCount = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLsizei *count = (GLsizei *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLsizei);
+
+        GLuint *shaders = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += maxCount * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetAttachedShaders(program, maxCount, count, shaders);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetProgramiv:
+
+    {
+
+        /* readline: "glGetProgramiv GLuint program, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
+        /* func name: "glGetProgramiv" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetProgramiv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetProgramiv(program, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetShaderiv:
+
+    {
+
+        /* readline: "glGetShaderiv GLuint shader, GLenum pname, GLint *params#sizeof(GLint)" */
+        /* func name: "glGetShaderiv" */
+        /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint shader;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetShaderiv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        shader = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetShaderiv(shader, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetUniformfv:
+
+    {
+
+        /* readline: "glGetUniformfv GLuint program, GLint location, GLfloat *params#gl_get_program_uniform_size(context,program,location)" */
+        /* func name: "glGetUniformfv" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_get_program_uniform_size(context,program,location)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+        GLint location;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetUniformfv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        location = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
+        //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetUniformfv(program, location, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetUniformiv:
+
+    {
+
+        /* readline: "glGetUniformiv GLuint program, GLint location, GLint *params#gl_get_program_uniform_size(context,program,location)" */
+        /* func name: "glGetUniformiv" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_get_program_uniform_size(context,program,location)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+        GLint location;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetUniformiv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        location = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetUniformiv(program, location, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetUniformuiv:
+
+    {
+
+        /* readline: "glGetUniformuiv GLuint program, GLint location, GLuint *params#gl_get_program_uniform_size(context,program,location)" */
+        /* func name: "glGetUniformuiv" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_get_program_uniform_size(context,program,location)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint program;
+        GLint location;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetUniformuiv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        location = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *params = (GLuint *)(ret_buf + out_buf_loc);
+        //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetUniformuiv(program, location, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetUniformIndices:
+
+    {
+
+        /* readline: "glGetUniformIndices GLuint program, GLsizei uniformCount, const GLchar *const*uniformNames#uniformCount|strlen(uniformNames[i])+1, GLuint *uniformIndices#uniformCount*sizeof(GLuint)" */
+        /* func name: "glGetUniformIndices" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'uniformCount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'uniformNames', 'ptr': 'in', 'ptr_len': 'uniformCount|strlen(uniformNames[i])+1', 'loc': 2, 'ptr_ptr': True}, {'type': 'GLuint*', 'name': 'uniformIndices', 'ptr': 'out', 'ptr_len': 'uniformCount*sizeof(GLuint)', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+        GLuint program;
+        GLsizei uniformCount;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetUniformIndices)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        uniformCount = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        GLchar **uniformNames = g_malloc(uniformCount * sizeof(const GLchar *));
+        int *uniformNames_flag = g_malloc(uniformCount * sizeof(int *));
+        int uniformNames_null_flag;
+
+        for (int i = 0; i < uniformCount; i++)
+        {
+            uniformNames[i] = get_direct_ptr(all_para[1 + i].data, &uniformNames_null_flag);
+
+            if (uniformNames[i] == NULL && uniformNames_null_flag == 0)
+            {
+                uniformNames[i] = g_malloc(all_para[1 + i].data_len);
+                guest_write(all_para[1 + i].data, uniformNames[i], 0, all_para[1 + i].data_len);
+
+                uniformNames_flag[i] = 1;
+            }
+            else
+            {
+                uniformNames_flag[i] = 0;
+            }
+        }
+        int out_buf_len = all_para[1 + uniformCount].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *uniformIndices = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += uniformCount * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetUniformIndices(program, uniformCount, uniformNames, uniformIndices);
+
+        guest_read(all_para[1 + uniformCount].data, ret_buf, 0, out_buf_len);
+
+        for (int i = 0; i < uniformCount; i++)
+        {
+            if (uniformNames_flag[i] == 1)
+            {
+                g_free(uniformNames[i]);
+            }
+        }
+
+        g_free(uniformNames);
+        g_free(uniformNames_flag);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetVertexAttribfv_origin:
+
+    {
+
+        /* readline: "glGetVertexAttribfv_origin GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)" */
+        /* func name: "glGetVertexAttribfv_origin" */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint index;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribfv_origin)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        d_glGetVertexAttribfv_origin(opengl_context, index, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetVertexAttribiv_origin:
+
+    {
+
+        /* readline: "glGetVertexAttribiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
+        /* func name: "glGetVertexAttribiv_origin" */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint index;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribiv_origin)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        d_glGetVertexAttribiv_origin(opengl_context, index, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetVertexAttribIiv_origin:
+
+    {
+
+        /* readline: "glGetVertexAttribIiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
+        /* func name: "glGetVertexAttribIiv_origin" */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint index;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribIiv_origin)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        d_glGetVertexAttribIiv_origin(opengl_context, index, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetVertexAttribIuiv_origin:
+
+    {
+
+        /* readline: "glGetVertexAttribIuiv_origin GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)" */
+        /* func name: "glGetVertexAttribIuiv_origin" */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLuint)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLuint index;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribIuiv_origin)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *params = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        d_glGetVertexAttribIuiv_origin(opengl_context, index, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetBufferParameteriv:
+
+    {
+
+        /* readline: "glGetBufferParameteriv GLenum target, GLenum pname, GLint *params#sizeof(GLint)" */
+        /* func name: "glGetBufferParameteriv" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetBufferParameteriv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *params = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetBufferParameteriv(target, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetBufferParameteri64v:
+
+    {
+
+        /* readline: "glGetBufferParameteri64v GLenum target, GLenum pname, GLint64 *params#gl_pname_size(pname)*sizeof(GLint64)" */
+        /* func name: "glGetBufferParameteri64v" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint64*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint64)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetBufferParameteri64v)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint64 *params = (GLint64 *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint64);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetBufferParameteri64v(target, pname, params);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetBooleanv:
+
+    {
+
+        /* readline: "glGetBooleanv GLenum pname, GLboolean *data#gl_pname_size(pname)*sizeof(GLboolean)" */
+        /* func name: "glGetBooleanv" */
+        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLboolean*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLboolean)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetBooleanv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *data = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetBooleanv(pname, data);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetBooleani_v:
+
+    {
+
+        /* readline: "glGetBooleani_v GLenum target, GLuint index, GLboolean *data#sizeof(GLboolean)" */
+        /* func name: "glGetBooleani_v" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'sizeof(GLboolean)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum target;
+        GLuint index;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetBooleani_v)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLboolean *data = (GLboolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLboolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetBooleani_v(target, index, data);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetFloatv:
+
+    {
+
+        /* readline: "glGetFloatv GLenum pname, GLfloat *data#gl_pname_size(pname)*sizeof(GLfloat)" */
+        /* func name: "glGetFloatv" */
+        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetFloatv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLfloat *data = (GLfloat *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetFloatv(pname, data);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetIntegerv:
+
+    {
+
+        /* readline: "glGetIntegerv GLenum pname, GLint *data#gl_pname_size(pname)*sizeof(GLint)" */
+        /* func name: "glGetIntegerv" */
+        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetIntegerv)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *data = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetIntegerv(pname, data);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetIntegeri_v:
+
+    {
+
+        /* readline: "glGetIntegeri_v GLenum target, GLuint index, GLint *data#sizeof(GLint)" */
+        /* func name: "glGetIntegeri_v" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum target;
+        GLuint index;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetIntegeri_v)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint *data = (GLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetIntegeri_v(target, index, data);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetInteger64v:
+
+    {
+
+        /* readline: "glGetInteger64v GLenum pname, GLint64 *data#gl_pname_size(pname)*sizeof(GLint64)" */
+        /* func name: "glGetInteger64v" */
+        /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint64*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint64)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum pname;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetInteger64v)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint64 *data = (GLint64 *)(ret_buf + out_buf_loc);
+        out_buf_loc += gl_pname_size(pname) * sizeof(GLint64);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetInteger64v(pname, data);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGetInteger64i_v:
+
+    {
+
+        /* readline: "glGetInteger64i_v GLenum target, GLuint index, GLint64 *data#sizeof(GLint64)" */
+        /* func name: "glGetInteger64i_v" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint64*', 'name': 'data', 'ptr': 'out', 'ptr_len': 'sizeof(GLint64)', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "2" */
+
+        /* Define variables */
+        GLenum target;
+        GLuint index;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetInteger64i_v)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLint64 *data = (GLint64 *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLint64);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGetInteger64i_v(target, index, data);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+        /******* end of file '1-2', 41/96 functions*******/
+
+        /******* file '2-1-1' *******/
 
     case FUNID_glActiveTexture:
 
@@ -11300,7 +8725,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glActiveTexture" */
         /* args: [{'type': 'GLenum', 'name': 'texture', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum texture;
@@ -11314,8 +8739,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -11328,9 +8751,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11349,11 +8771,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glActiveTexture(texture);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11365,7 +8782,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glAttachShader" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -11380,8 +8797,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -11394,9 +8809,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11418,11 +8832,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glAttachShader(program, shader);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11434,7 +8843,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindBuffer_origin" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -11449,8 +8858,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -11463,9 +8870,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11487,11 +8893,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glBindBuffer_origin(opengl_context, target, buffer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11503,7 +8904,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindFramebuffer" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'framebuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -11518,8 +8919,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -11532,9 +8931,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11556,11 +8954,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindFramebuffer(target, framebuffer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11572,7 +8965,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindRenderbuffer" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'renderbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -11587,8 +8980,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -11601,9 +8992,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11625,11 +9015,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindRenderbuffer(target, renderbuffer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11641,7 +9026,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindTexture" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'texture', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -11656,8 +9041,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -11670,9 +9053,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11694,11 +9076,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindTexture(target, texture);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11710,7 +9087,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBlendColor" */
         /* args: [{'type': 'GLfloat', 'name': 'red', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'green', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'blue', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'alpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat red;
@@ -11727,8 +9104,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -11741,9 +9116,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11771,11 +9145,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBlendColor(red, green, blue, alpha);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11787,7 +9156,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBlendEquation" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -11801,8 +9170,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -11815,9 +9182,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11836,11 +9202,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBlendEquation(mode);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11852,7 +9213,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBlendEquationSeparate" */
         /* args: [{'type': 'GLenum', 'name': 'modeRGB', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'modeAlpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum modeRGB;
@@ -11867,8 +9228,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -11881,9 +9240,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11905,11 +9263,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBlendEquationSeparate(modeRGB, modeAlpha);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11921,7 +9274,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBlendFunc" */
         /* args: [{'type': 'GLenum', 'name': 'sfactor', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'dfactor', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum sfactor;
@@ -11936,8 +9289,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -11950,9 +9301,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -11974,11 +9324,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBlendFunc(sfactor, dfactor);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -11990,7 +9335,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBlendFuncSeparate" */
         /* args: [{'type': 'GLenum', 'name': 'sfactorRGB', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'dfactorRGB', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'sfactorAlpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'dfactorAlpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum sfactorRGB;
@@ -12007,8 +9352,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -12021,9 +9364,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12051,11 +9393,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12067,7 +9404,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClear" */
         /* args: [{'type': 'GLbitfield', 'name': 'mask', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLbitfield mask;
@@ -12081,8 +9418,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12095,9 +9430,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12116,11 +9450,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClear(mask);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12132,7 +9461,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearColor" */
         /* args: [{'type': 'GLfloat', 'name': 'red', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'green', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'blue', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'alpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat red;
@@ -12149,8 +9478,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -12163,9 +9490,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12193,11 +9519,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearColor(red, green, blue, alpha);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12209,7 +9530,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearDepthf" */
         /* args: [{'type': 'GLfloat', 'name': 'd', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat d;
@@ -12223,8 +9544,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12237,9 +9556,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12258,11 +9576,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearDepthf(d);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12274,7 +9587,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearStencil" */
         /* args: [{'type': 'GLint', 'name': 's', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint s;
@@ -12288,8 +9601,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12302,9 +9613,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12323,11 +9633,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearStencil(s);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12339,7 +9644,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glColorMask" */
         /* args: [{'type': 'GLboolean', 'name': 'red', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'green', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'blue', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'alpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLboolean red;
@@ -12356,8 +9661,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -12370,9 +9673,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12400,11 +9702,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glColorMask(red, green, blue, alpha);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12416,7 +9713,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glCompileShader" */
         /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint shader;
@@ -12430,8 +9727,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12444,9 +9739,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12465,11 +9759,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCompileShader(shader);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12481,7 +9770,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glCopyTexImage2D" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -12502,8 +9791,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 32 * 1)
         {
@@ -12516,9 +9803,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12558,11 +9844,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCopyTexImage2D(target, level, internalformat, x, y, width, height, border);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12574,7 +9855,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glCopyTexSubImage2D" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -12595,8 +9876,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 32 * 1)
         {
@@ -12609,9 +9888,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12651,11 +9929,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12667,7 +9940,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glCullFace" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -12681,8 +9954,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12695,9 +9966,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12716,11 +9986,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCullFace(mode);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12732,7 +9997,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDeleteProgram_origin" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -12746,8 +10011,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12760,9 +10023,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12781,11 +10043,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDeleteProgram_origin(opengl_context, program);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12797,7 +10054,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDeleteShader" */
         /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint shader;
@@ -12811,8 +10068,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12825,9 +10080,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12846,11 +10100,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteShader(shader);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12862,7 +10111,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDepthFunc" */
         /* args: [{'type': 'GLenum', 'name': 'func', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum func;
@@ -12876,8 +10125,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12890,9 +10137,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12911,11 +10157,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDepthFunc(func);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12927,7 +10168,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDepthMask" */
         /* args: [{'type': 'GLboolean', 'name': 'flag', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLboolean flag;
@@ -12941,8 +10182,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -12955,9 +10194,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -12976,11 +10214,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDepthMask(flag);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -12992,7 +10225,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDepthRangef" */
         /* args: [{'type': 'GLfloat', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'f', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat n;
@@ -13007,8 +10240,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -13021,9 +10252,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13045,11 +10275,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDepthRangef(n, f);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13061,7 +10286,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDetachShader" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -13076,8 +10301,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -13090,9 +10313,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13114,11 +10336,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDetachShader(program, shader);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13130,7 +10347,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDisable" */
         /* args: [{'type': 'GLenum', 'name': 'cap', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum cap;
@@ -13144,8 +10361,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13158,9 +10373,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13179,11 +10393,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDisable(cap);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13195,7 +10404,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDisableVertexAttribArray_origin" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -13209,8 +10418,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13223,9 +10430,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13244,11 +10450,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDisableVertexAttribArray_origin(opengl_context, index);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13260,7 +10461,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDrawArrays_origin" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'first', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -13276,8 +10477,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -13290,9 +10489,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13317,11 +10515,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDrawArrays_origin(opengl_context, mode, first, count);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13333,7 +10526,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glEnable" */
         /* args: [{'type': 'GLenum', 'name': 'cap', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum cap;
@@ -13347,8 +10540,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13361,9 +10552,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13382,11 +10572,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glEnable(cap);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13398,7 +10583,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glEnableVertexAttribArray_origin" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -13412,8 +10597,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13426,9 +10609,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13447,11 +10629,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glEnableVertexAttribArray_origin(opengl_context, index);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13463,7 +10640,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFlush" */
         /* args: [] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
 
@@ -13485,7 +10662,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFramebufferRenderbuffer" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'attachment', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'renderbuffertarget', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'renderbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -13502,8 +10679,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -13516,9 +10691,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13546,11 +10720,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFramebufferRenderbuffer(target, attachment, renderbuffertarget, renderbuffer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13562,7 +10731,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFramebufferTexture2D" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'attachment', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'textarget', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'texture', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -13580,8 +10749,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -13594,9 +10761,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13627,11 +10793,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFramebufferTexture2D(target, attachment, textarget, texture, level);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13643,7 +10804,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFrontFace" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -13657,8 +10818,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13671,9 +10830,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13692,11 +10850,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFrontFace(mode);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13708,7 +10861,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glGenerateMipmap" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -13722,8 +10875,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13736,9 +10887,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13757,11 +10907,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glGenerateMipmap(target);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13773,7 +10918,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glHint" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -13788,8 +10933,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -13802,9 +10945,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13826,11 +10968,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glHint(target, mode);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13842,7 +10979,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLineWidth" */
         /* args: [{'type': 'GLfloat', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat width;
@@ -13856,8 +10993,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13870,9 +11005,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13891,11 +11025,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glLineWidth(width);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13907,7 +11036,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLinkProgram_origin" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -13921,8 +11050,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -13935,9 +11062,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -13956,11 +11082,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glLinkProgram_origin(opengl_context, program);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -13972,7 +11093,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPixelStorei_origin" */
         /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum pname;
@@ -13987,8 +11108,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -14001,9 +11120,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14025,11 +11143,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glPixelStorei_origin(opengl_context, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14041,7 +11154,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPolygonOffset" */
         /* args: [{'type': 'GLfloat', 'name': 'factor', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'units', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat factor;
@@ -14056,8 +11169,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -14070,9 +11181,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14094,11 +11204,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glPolygonOffset(factor, units);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14110,7 +11215,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glReleaseShaderCompiler" */
         /* args: [] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
 
@@ -14132,7 +11237,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glRenderbufferStorage" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -14149,8 +11254,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -14163,9 +11266,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14193,11 +11295,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glRenderbufferStorage(target, internalformat, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14209,7 +11306,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glSampleCoverage" */
         /* args: [{'type': 'GLfloat', 'name': 'value', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'invert', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat value;
@@ -14224,8 +11321,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -14238,9 +11333,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14262,11 +11356,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glSampleCoverage(value, invert);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14278,7 +11367,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glScissor" */
         /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint x;
@@ -14295,8 +11384,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -14309,9 +11396,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14339,11 +11425,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glScissor(x, y, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14355,7 +11436,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glStencilFunc" */
         /* args: [{'type': 'GLenum', 'name': 'func', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'ref', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'mask', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum func;
@@ -14371,8 +11452,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -14385,9 +11464,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14412,11 +11490,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glStencilFunc(func, ref, mask);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14428,7 +11501,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glStencilFuncSeparate" */
         /* args: [{'type': 'GLenum', 'name': 'face', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'func', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'ref', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'mask', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum face;
@@ -14445,8 +11518,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -14459,9 +11530,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14489,11 +11559,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glStencilFuncSeparate(face, func, ref, mask);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14505,7 +11570,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glStencilMask" */
         /* args: [{'type': 'GLuint', 'name': 'mask', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint mask;
@@ -14519,8 +11584,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -14533,9 +11596,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14554,11 +11616,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glStencilMask(mask);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14570,7 +11627,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glStencilMaskSeparate" */
         /* args: [{'type': 'GLenum', 'name': 'face', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'mask', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum face;
@@ -14585,8 +11642,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -14599,9 +11654,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14623,11 +11677,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glStencilMaskSeparate(face, mask);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14639,7 +11688,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glStencilOp" */
         /* args: [{'type': 'GLenum', 'name': 'fail', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'zfail', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'zpass', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum fail;
@@ -14655,8 +11704,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -14669,9 +11716,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14696,11 +11742,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glStencilOp(fail, zfail, zpass);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14712,7 +11753,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glStencilOpSeparate" */
         /* args: [{'type': 'GLenum', 'name': 'face', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'sfail', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'dpfail', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'dppass', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum face;
@@ -14729,8 +11770,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -14743,9 +11782,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14773,11 +11811,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glStencilOpSeparate(face, sfail, dpfail, dppass);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14789,7 +11822,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexParameterf" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -14805,8 +11838,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -14819,9 +11850,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14846,11 +11876,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexParameterf(target, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14862,7 +11887,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexParameteri" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -14878,8 +11903,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -14892,9 +11915,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14919,11 +11941,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexParameteri(target, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -14935,7 +11952,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform1f" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -14950,8 +11967,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -14964,9 +11979,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -14988,11 +12002,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform1f(location, v0);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15004,7 +12013,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform1i" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -15019,8 +12028,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -15033,9 +12040,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15057,11 +12063,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform1i(location, v0);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15073,7 +12074,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform2f" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -15089,8 +12090,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -15103,9 +12102,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15130,11 +12128,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform2f(location, v0, v1);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15146,7 +12139,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform2i" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -15162,8 +12155,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -15176,9 +12167,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15203,11 +12193,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform2i(location, v0, v1);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15219,7 +12204,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform3f" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -15236,8 +12221,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -15250,9 +12233,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15280,11 +12262,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform3f(location, v0, v1, v2);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15296,7 +12273,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform3i" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -15313,8 +12290,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -15327,9 +12302,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15357,11 +12331,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform3i(location, v0, v1, v2);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15373,7 +12342,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform4f" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v3', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -15391,8 +12360,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -15405,9 +12372,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15438,11 +12404,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform4f(location, v0, v1, v2, v3);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15454,7 +12415,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform4i" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v3', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -15472,8 +12433,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -15486,9 +12445,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15519,11 +12477,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform4i(location, v0, v1, v2, v3);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15535,7 +12488,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUseProgram" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -15549,8 +12502,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -15563,9 +12514,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15584,11 +12534,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUseProgram(program);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15600,7 +12545,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glValidateProgram" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -15614,8 +12559,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -15628,9 +12571,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15649,11 +12591,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glValidateProgram(program);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15665,7 +12602,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib1f" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -15680,8 +12617,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -15694,9 +12629,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15718,11 +12652,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib1f(index, x);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15734,7 +12663,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib2f" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -15750,8 +12679,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -15764,9 +12691,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15791,11 +12717,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib2f(index, x, y);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15807,7 +12728,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib3f" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -15824,8 +12745,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -15838,9 +12757,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15868,11 +12786,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib3f(index, x, y, z);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15884,7 +12797,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib4f" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'w', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -15902,8 +12815,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -15916,9 +12827,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -15949,11 +12859,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib4f(index, x, y, z, w);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -15965,7 +12870,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glViewport" */
         /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint x;
@@ -15982,8 +12887,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -15996,9 +12899,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16026,11 +12928,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glViewport(x, y, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16042,7 +12939,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glReadBuffer" */
         /* args: [{'type': 'GLenum', 'name': 'src', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum src;
@@ -16056,8 +12953,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -16070,9 +12965,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16091,11 +12985,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glReadBuffer(src);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16107,7 +12996,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glCopyTexSubImage3D" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -16129,8 +13018,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 36 * 1)
         {
@@ -16143,9 +13030,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16188,11 +13074,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCopyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16204,7 +13085,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBeginQuery" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -16219,8 +13100,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -16233,9 +13112,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16257,11 +13135,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBeginQuery(target, id);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16273,7 +13146,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glEndQuery" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -16287,8 +13160,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -16301,9 +13172,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16322,11 +13192,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glEndQuery(target);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16338,7 +13203,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBlitFramebuffer" */
         /* args: [{'type': 'GLint', 'name': 'srcX0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'srcY0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'srcX1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'srcY1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'dstX0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'dstY0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'dstX1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'dstY1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLbitfield', 'name': 'mask', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'filter', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint srcX0;
@@ -16361,8 +13226,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 40 * 1)
         {
@@ -16375,9 +13238,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16423,11 +13285,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16439,7 +13296,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glRenderbufferStorageMultisample" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'samples', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -16457,8 +13314,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -16471,9 +13326,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16504,11 +13358,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glRenderbufferStorageMultisample(target, samples, internalformat, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16520,7 +13369,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFramebufferTextureLayer" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'attachment', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'texture', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'layer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -16538,8 +13387,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -16552,9 +13399,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16585,11 +13431,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFramebufferTextureLayer(target, attachment, texture, level, layer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16601,7 +13442,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindVertexArray_origin" */
         /* args: [{'type': 'GLuint', 'name': 'array', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint array;
@@ -16615,8 +13456,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -16629,9 +13468,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16650,11 +13488,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glBindVertexArray_origin(opengl_context, array);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16666,7 +13499,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBeginTransformFeedback" */
         /* args: [{'type': 'GLenum', 'name': 'primitiveMode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum primitiveMode;
@@ -16680,8 +13513,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -16694,9 +13525,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16715,11 +13545,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBeginTransformFeedback(primitiveMode);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16731,7 +13556,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glEndTransformFeedback" */
         /* args: [] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
 
@@ -16753,7 +13578,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindBufferRange" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -16771,8 +13596,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 28 * 1)
         {
@@ -16785,9 +13608,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16818,11 +13640,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindBufferRange(target, index, buffer, offset, size);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16834,7 +13651,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindBufferBase" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -16850,8 +13667,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -16864,9 +13679,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16891,11 +13705,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindBufferBase(target, index, buffer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16907,7 +13716,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttribI4i" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'w', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -16925,8 +13734,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -16939,9 +13746,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -16972,11 +13778,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttribI4i(index, x, y, z, w);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -16988,7 +13789,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttribI4ui" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'w', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -17006,8 +13807,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -17020,9 +13819,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17053,11 +13851,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttribI4ui(index, x, y, z, w);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17069,7 +13862,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform1ui" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -17084,8 +13877,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -17098,9 +13889,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17122,11 +13912,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform1ui(location, v0);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17138,7 +13923,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform2ui" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -17154,8 +13939,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -17168,9 +13951,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17195,11 +13977,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform2ui(location, v0, v1);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17211,7 +13988,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform3ui" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -17228,8 +14005,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -17242,9 +14017,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17272,11 +14046,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform3ui(location, v0, v1, v2);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17288,7 +14057,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform4ui" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v3', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -17306,8 +14075,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -17320,9 +14087,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17353,11 +14119,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform4ui(location, v0, v1, v2, v3);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17369,7 +14130,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearBufferfi" */
         /* args: [{'type': 'GLenum', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'drawbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'stencil', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum buffer;
@@ -17386,8 +14147,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -17400,9 +14159,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17430,11 +14188,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearBufferfi(buffer, drawbuffer, depth, stencil);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17446,7 +14199,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glCopyBufferSubData" */
         /* args: [{'type': 'GLenum', 'name': 'readTarget', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'writeTarget', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'readOffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'writeOffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum readTarget;
@@ -17464,8 +14217,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 32 * 1)
         {
@@ -17478,9 +14229,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17511,11 +14261,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCopyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17527,7 +14272,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformBlockBinding" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'uniformBlockIndex', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'uniformBlockBinding', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -17543,8 +14288,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -17557,9 +14300,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17584,11 +14326,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformBlockBinding(program, uniformBlockIndex, uniformBlockBinding);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17600,7 +14337,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDrawArraysInstanced_origin" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'first', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'instancecount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -17617,8 +14354,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -17631,9 +14366,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17661,11 +14395,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDrawArraysInstanced_origin(opengl_context, mode, first, count, instancecount);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17677,7 +14406,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindSampler" */
         /* args: [{'type': 'GLuint', 'name': 'unit', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint unit;
@@ -17692,8 +14421,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -17706,9 +14433,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17730,11 +14456,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindSampler(unit, sampler);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17746,7 +14467,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glSamplerParameteri" */
         /* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint sampler;
@@ -17762,8 +14483,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -17776,9 +14495,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17803,11 +14521,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glSamplerParameteri(sampler, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17819,7 +14532,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glSamplerParameterf" */
         /* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint sampler;
@@ -17835,8 +14548,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -17849,9 +14560,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17876,11 +14586,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glSamplerParameterf(sampler, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17892,7 +14597,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttribDivisor_origin" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'divisor', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -17907,8 +14612,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -17921,9 +14624,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -17945,11 +14647,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glVertexAttribDivisor_origin(opengl_context, index, divisor);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -17961,7 +14658,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glBindTransformFeedback" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -17976,8 +14673,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -17990,9 +14685,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18014,11 +14708,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindTransformFeedback(target, id);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18030,7 +14719,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPauseTransformFeedback" */
         /* args: [] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
 
@@ -18052,7 +14741,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glResumeTransformFeedback" */
         /* args: [] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
 
@@ -18074,7 +14763,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramParameteri" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'value', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -18090,8 +14779,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -18104,9 +14791,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18131,11 +14817,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramParameteri(program, pname, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18147,7 +14828,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexStorage2D" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'levels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -18165,8 +14846,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -18179,9 +14858,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18212,11 +14890,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexStorage2D(target, levels, internalformat, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18228,7 +14901,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexStorage3D" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'levels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -18247,8 +14920,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -18261,9 +14932,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18297,11 +14967,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexStorage3D(target, levels, internalformat, width, height, depth);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18313,7 +14978,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glAlphaFuncxOES" */
         /* args: [{'type': 'GLenum', 'name': 'func', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'ref', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum func;
@@ -18328,8 +14993,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -18342,9 +15005,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18366,11 +15028,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glAlphaFuncxOES(func, ref);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18382,7 +15039,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearColorxOES" */
         /* args: [{'type': 'GLfixed', 'name': 'red', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'green', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'blue', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'alpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed red;
@@ -18399,8 +15056,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -18413,9 +15068,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18443,11 +15097,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearColorxOES(red, green, blue, alpha);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18459,7 +15108,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearDepthxOES" */
         /* args: [{'type': 'GLfixed', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed depth;
@@ -18473,8 +15122,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -18487,9 +15134,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18508,11 +15154,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearDepthxOES(depth);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18524,7 +15165,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glColor4xOES" */
         /* args: [{'type': 'GLfixed', 'name': 'red', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'green', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'blue', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'alpha', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed red;
@@ -18541,8 +15182,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -18555,9 +15194,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18585,11 +15223,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glColor4xOES(red, green, blue, alpha);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18601,7 +15234,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDepthRangexOES" */
         /* args: [{'type': 'GLfixed', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'f', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed n;
@@ -18616,8 +15249,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -18630,9 +15261,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18654,11 +15284,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDepthRangexOES(n, f);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18670,7 +15295,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFogxOES" */
         /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum pname;
@@ -18685,8 +15310,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -18699,9 +15322,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18723,11 +15345,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFogxOES(pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18739,7 +15356,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFrustumxOES" */
         /* args: [{'type': 'GLfixed', 'name': 'l', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'r', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'b', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 't', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'f', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed l;
@@ -18758,8 +15375,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -18772,9 +15387,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18808,11 +15422,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFrustumxOES(l, r, b, t, n, f);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18824,7 +15433,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLightModelxOES" */
         /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum pname;
@@ -18839,8 +15448,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -18853,9 +15460,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18877,11 +15483,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glLightModelxOES(pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18893,7 +15494,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLightxOES" */
         /* args: [{'type': 'GLenum', 'name': 'light', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum light;
@@ -18909,8 +15510,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -18923,9 +15522,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -18950,11 +15548,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glLightxOES(light, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -18966,7 +15559,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLineWidthxOES" */
         /* args: [{'type': 'GLfixed', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed width;
@@ -18980,8 +15573,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -18994,9 +15585,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19015,11 +15605,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glLineWidthxOES(width);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19031,7 +15616,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glMaterialxOES" */
         /* args: [{'type': 'GLenum', 'name': 'face', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum face;
@@ -19047,8 +15632,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -19061,9 +15644,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19088,11 +15670,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glMaterialxOES(face, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19104,7 +15681,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glMultiTexCoord4xOES" */
         /* args: [{'type': 'GLenum', 'name': 'texture', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 's', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 't', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'r', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'q', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum texture;
@@ -19122,8 +15699,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -19136,9 +15711,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19169,11 +15743,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glMultiTexCoord4xOES(texture, s, t, r, q);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19185,7 +15754,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glNormal3xOES" */
         /* args: [{'type': 'GLfixed', 'name': 'nx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'ny', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'nz', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed nx;
@@ -19201,8 +15770,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -19215,9 +15782,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19242,11 +15808,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glNormal3xOES(nx, ny, nz);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19258,7 +15819,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glOrthoxOES" */
         /* args: [{'type': 'GLfixed', 'name': 'l', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'r', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'b', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 't', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'f', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed l;
@@ -19277,8 +15838,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -19291,9 +15850,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19327,11 +15885,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glOrthoxOES(l, r, b, t, n, f);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19343,7 +15896,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPointSizexOES" */
         /* args: [{'type': 'GLfixed', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed size;
@@ -19357,8 +15910,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -19371,9 +15922,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19392,11 +15942,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glPointSizexOES(size);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19408,7 +15953,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPolygonOffsetxOES" */
         /* args: [{'type': 'GLfixed', 'name': 'factor', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'units', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed factor;
@@ -19423,8 +15968,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -19437,9 +15980,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19461,11 +16003,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glPolygonOffsetxOES(factor, units);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19477,7 +16014,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glRotatexOES" */
         /* args: [{'type': 'GLfixed', 'name': 'angle', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed angle;
@@ -19494,8 +16031,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -19508,9 +16043,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19538,11 +16072,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glRotatexOES(angle, x, y, z);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19554,7 +16083,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glScalexOES" */
         /* args: [{'type': 'GLfixed', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed x;
@@ -19570,8 +16099,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -19584,9 +16111,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19611,11 +16137,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glScalexOES(x, y, z);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19627,7 +16148,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexEnvxOES" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -19643,8 +16164,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -19657,9 +16176,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19684,11 +16202,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexEnvxOES(target, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19700,7 +16213,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTranslatexOES" */
         /* args: [{'type': 'GLfixed', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfixed x;
@@ -19716,8 +16229,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -19730,9 +16241,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19757,11 +16267,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTranslatexOES(x, y, z);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19773,7 +16278,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPointParameterxOES" */
         /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum pname;
@@ -19788,8 +16293,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -19802,9 +16305,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19826,11 +16328,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glPointParameterxOES(pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19842,7 +16339,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glSampleCoveragexOES" */
         /* args: [{'type': 'GLclampx', 'name': 'value', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'invert', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLclampx value;
@@ -19857,8 +16354,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -19871,9 +16366,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19895,11 +16389,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glSampleCoveragexOES(value, invert);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19911,7 +16400,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexGenxOES" */
         /* args: [{'type': 'GLenum', 'name': 'coord', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum coord;
@@ -19927,8 +16416,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -19941,9 +16428,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -19968,11 +16454,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexGenxOES(coord, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -19984,7 +16465,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearDepthfOES" */
         /* args: [{'type': 'GLclampf', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLclampf depth;
@@ -19998,8 +16479,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -20012,9 +16491,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20033,11 +16511,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearDepthfOES(depth);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20049,7 +16522,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDepthRangefOES" */
         /* args: [{'type': 'GLclampf', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLclampf', 'name': 'f', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLclampf n;
@@ -20064,8 +16537,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -20078,9 +16549,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20102,11 +16572,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDepthRangefOES(n, f);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20118,7 +16583,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFrustumfOES" */
         /* args: [{'type': 'GLfloat', 'name': 'l', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'r', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'b', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 't', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'f', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat l;
@@ -20137,8 +16602,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -20151,9 +16614,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20187,11 +16649,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFrustumfOES(l, r, b, t, n, f);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20203,7 +16660,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glOrthofOES" */
         /* args: [{'type': 'GLfloat', 'name': 'l', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'r', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'b', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 't', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'f', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLfloat l;
@@ -20222,8 +16679,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -20236,9 +16691,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20272,11 +16726,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glOrthofOES(l, r, b, t, n, f);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20288,7 +16737,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glRenderbufferStorageMultisampleEXT" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'samples', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -20306,8 +16755,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -20320,9 +16767,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20353,11 +16799,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glRenderbufferStorageMultisampleEXT(target, samples, internalformat, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20369,7 +16810,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUseProgramStages" */
         /* args: [{'type': 'GLuint', 'name': 'pipeline', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLbitfield', 'name': 'stages', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint pipeline;
@@ -20385,8 +16826,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -20399,9 +16838,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20426,11 +16864,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUseProgramStages(pipeline, stages, program);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20442,7 +16875,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glActiveShaderProgram" */
         /* args: [{'type': 'GLuint', 'name': 'pipeline', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint pipeline;
@@ -20457,8 +16890,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -20471,9 +16902,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20495,11 +16925,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glActiveShaderProgram(pipeline, program);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20511,7 +16936,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform1i" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -20527,8 +16952,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -20541,9 +16964,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20568,11 +16990,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform1i(program, location, v0);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20584,7 +17001,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform2i" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -20601,8 +17018,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -20615,9 +17030,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20645,11 +17059,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform2i(program, location, v0, v1);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20661,7 +17070,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform3i" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -20679,8 +17088,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -20693,9 +17100,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20726,11 +17132,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform3i(program, location, v0, v1, v2);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20742,7 +17143,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform4i" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'v3', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -20761,8 +17162,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -20775,9 +17174,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20811,11 +17209,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform4i(program, location, v0, v1, v2, v3);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20827,7 +17220,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform1ui" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -20843,8 +17236,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -20857,9 +17248,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20884,11 +17274,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform1ui(program, location, v0);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20900,7 +17285,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform2ui" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -20917,8 +17302,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -20931,9 +17314,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -20961,11 +17343,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform2ui(program, location, v0, v1);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -20977,7 +17354,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform3ui" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -20995,8 +17372,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -21009,9 +17384,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21042,11 +17416,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform3ui(program, location, v0, v1, v2);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21058,7 +17427,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform4ui" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'v3', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -21077,8 +17446,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -21091,9 +17458,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21127,11 +17493,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform4ui(program, location, v0, v1, v2, v3);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21143,7 +17504,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform1f" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -21159,8 +17520,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -21173,9 +17532,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21200,11 +17558,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform1f(program, location, v0);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21216,7 +17569,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform2f" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -21233,8 +17586,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -21247,9 +17598,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21277,11 +17627,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform2f(program, location, v0, v1);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21293,7 +17638,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform3f" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -21311,8 +17656,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -21325,9 +17668,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21358,11 +17700,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform3f(program, location, v0, v1, v2);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21374,7 +17711,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform4f" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v0', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v1', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v2', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'v3', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -21393,8 +17730,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -21407,9 +17742,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21443,11 +17777,156 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform4f(program, location, v0, v1, v2, v3);
+    }
+    break;
 
-        if (need_delete)
+    case FUNID_glShaderSource_origin:
+
+    {
+
+        /* readline: "glShaderSource_origin GLuint shader, GLsizei count, const GLint *length#count*sizeof(GLint), const GLchar *const*string#count|length[i]" */
+        /* func name: "glShaderSource_origin" */
+        /* args: [{'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'length', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'string', 'ptr': 'in', 'ptr_len': 'count|length[i]', 'loc': 3, 'ptr_ptr': True}] */
+        /* ret: "" */
+        /* type: "3" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+        GLuint shader;
+        GLsizei count;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glShaderSource_origin)
         {
-            g_free(temp);
+            break;
         }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        shader = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        const GLint *length = (const GLint *)(temp + temp_loc);
+        temp_loc += count * sizeof(GLint);
+
+        GLchar **string = g_malloc(count * sizeof(const GLchar *));
+
+        for (int i = 0; i < count; i++)
+        {
+            string[i] = (GLchar *)(temp + temp_loc);
+            temp_loc += length[i];
+        }
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glShaderSource_origin(opengl_context, shader, count, length, string);
+
+        g_free(string);
+    }
+    break;
+
+    case FUNID_glTransformFeedbackVaryings:
+
+    {
+
+        /* readline: "glTransformFeedbackVaryings GLuint program, GLsizei count, const GLchar *const*varyings#count|strlen(varyings[i])+1, GLenum bufferMode" */
+        /* func name: "glTransformFeedbackVaryings" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'varyings', 'ptr': 'in', 'ptr_len': 'count|strlen(varyings[i])+1', 'loc': 2, 'ptr_ptr': True}, {'type': 'GLenum', 'name': 'bufferMode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "3" */
+
+        /* Define variables */
+        GLuint program;
+        GLsizei count;
+        GLenum bufferMode;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTransformFeedbackVaryings)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        bufferMode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        GLchar **varyings = g_malloc(count * sizeof(const GLchar *));
+
+        for (int i = 0; i < count; i++)
+        {
+            varyings[i] = (GLchar *)(temp + temp_loc);
+            temp_loc += strlen(varyings[i]) + 1;
+        }
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glTransformFeedbackVaryings(program, count, varyings, bufferMode);
+
+        g_free(varyings);
     }
     break;
 
@@ -21455,11 +17934,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteBuffers_origin GLsizei n, const GLuint *buffers#n*sizeof(GLuint)" */
+        /* readline: "glDeleteBuffers_origin GLsizei n, const GLuint *buffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteBuffers_origin" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'buffers', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -21473,8 +17952,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -21487,9 +17964,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21511,11 +17987,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDeleteBuffers_origin(opengl_context, n, buffers);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21523,11 +17994,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteFramebuffers GLsizei n, const GLuint *framebuffers#n*sizeof(GLuint)" */
+        /* readline: "glDeleteFramebuffers GLsizei n, const GLuint *framebuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteFramebuffers" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'framebuffers', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -21541,8 +18012,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -21555,9 +18024,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21579,11 +18047,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteFramebuffers(n, framebuffers);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21591,11 +18054,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteRenderbuffers GLsizei n, const GLuint *renderbuffers#n*sizeof(GLuint)" */
+        /* readline: "glDeleteRenderbuffers GLsizei n, const GLuint *renderbuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteRenderbuffers" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'renderbuffers', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -21609,8 +18072,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -21623,9 +18084,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21647,11 +18107,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteRenderbuffers(n, renderbuffers);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21659,11 +18114,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteTextures GLsizei n, const GLuint *textures#n*sizeof(GLuint)" */
+        /* readline: "glDeleteTextures GLsizei n, const GLuint *textures#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteTextures" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'textures', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -21677,8 +18132,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -21691,9 +18144,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21715,11 +18167,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteTextures(n, textures);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21731,7 +18178,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDrawElements_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'indices', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -21748,8 +18195,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -21762,9 +18207,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21792,11 +18236,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDrawElements_with_bound(opengl_context, mode, count, type, indices);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21808,7 +18247,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glShaderBinary" */
         /* args: [{'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'shaders', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'binaryFormat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'binary', 'ptr': 'in', 'ptr_len': 'length', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* TODO: More than one ptr, should check mannually */
         /* Define variables */
@@ -21825,8 +18264,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -21839,9 +18276,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21872,11 +18308,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glShaderBinary(count, shaders, binaryFormat, binary, length);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21884,11 +18315,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glCompressedTexSubImage2D_with_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr data" */
+        /* readline: "glCompressedTexSubImage2D_with_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr data  @{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glCompressedTexSubImage2D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'data', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -21910,8 +18341,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 40 * 1)
         {
@@ -21924,9 +18353,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -21969,11 +18397,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glCompressedTexSubImage2D_with_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -21985,7 +18408,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexImage2D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pixels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -22007,8 +18430,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 40 * 1)
         {
@@ -22021,9 +18442,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22066,11 +18486,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glTexImage2D_with_bound(opengl_context, target, level, internalformat, width, height, border, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22082,7 +18497,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexParameterfv" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'params', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -22097,8 +18512,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22111,9 +18524,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22138,11 +18550,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexParameterfv(target, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22154,7 +18561,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexParameteriv" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'params', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -22169,8 +18576,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22183,9 +18588,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22210,11 +18614,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexParameteriv(target, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22226,7 +18625,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexSubImage2D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pixels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -22248,8 +18647,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 40 * 1)
         {
@@ -22262,9 +18659,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22307,11 +18703,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glTexSubImage2D_with_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22323,7 +18714,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform1fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*1', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22338,8 +18729,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22352,9 +18741,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22379,11 +18767,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform1fv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22395,7 +18778,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform1iv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)*1', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22410,8 +18793,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22424,9 +18805,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22451,11 +18831,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform1iv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22467,7 +18842,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform2fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*2', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22482,8 +18857,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22496,9 +18869,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22523,11 +18895,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform2fv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22539,7 +18906,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform2iv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)*2', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22554,8 +18921,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22568,9 +18933,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22595,11 +18959,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform2iv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22611,7 +18970,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform3fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*3', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22626,8 +18985,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22640,9 +18997,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22667,11 +19023,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform3fv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22683,7 +19034,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform3iv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)*3', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22698,8 +19049,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22712,9 +19061,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22739,11 +19087,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform3iv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22755,7 +19098,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform4fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*4', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22770,8 +19113,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22784,9 +19125,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22811,11 +19151,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform4fv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22827,7 +19162,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform4iv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)*4', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -22842,8 +19177,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -22856,9 +19189,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22883,11 +19215,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform4iv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22899,7 +19226,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib1fv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'v', 'ptr': 'in', 'ptr_len': 'sizeof(GLfloat)*1', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -22913,8 +19240,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -22927,9 +19252,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -22951,11 +19275,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib1fv(index, v);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -22967,7 +19286,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib2fv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'v', 'ptr': 'in', 'ptr_len': 'sizeof(GLfloat)*2', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -22981,8 +19300,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -22995,9 +19312,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23019,11 +19335,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib2fv(index, v);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23035,7 +19346,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib3fv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'v', 'ptr': 'in', 'ptr_len': 'sizeof(GLfloat)*3', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -23049,8 +19360,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -23063,9 +19372,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23087,11 +19395,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib3fv(index, v);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23103,7 +19406,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttrib4fv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'v', 'ptr': 'in', 'ptr_len': 'sizeof(GLfloat)*4', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -23117,8 +19420,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -23131,9 +19432,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23155,11 +19455,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttrib4fv(index, v);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23171,7 +19466,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttribPointer_with_bound" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'normalized', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pointer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -23190,8 +19485,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 28 * 1)
         {
@@ -23204,9 +19497,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23240,11 +19532,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glVertexAttribPointer_with_bound(opengl_context, index, size, type, normalized, stride, pointer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23252,11 +19539,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glVertexAttribPointer_offset GLuint index, GLuint size, GLenum type, GLboolean normalized, GLsizei stride, GLuint min_index, GLuint max_index, GLuint index_father, GLuint divisor, GLboolean enabled, GLintptr pointer" */
+        /* readline: "glVertexAttribPointer_offset GLuint index, GLuint size, GLenum type, GLboolean normalized, GLsizei stride, GLuint index_father, GLintptr offset" */
         /* func name: "glVertexAttribPointer_offset" */
-        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'normalized', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'min_index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'max_index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index_father', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'divisor', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'enabled', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pointer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 10, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'normalized', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index_father', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -23264,12 +19551,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum type;
         GLboolean normalized;
         GLsizei stride;
-        GLuint min_index;
-        GLuint max_index;
         GLuint index_father;
-        GLuint divisor;
-        GLboolean enabled;
-        GLintptr pointer;
+        GLintptr offset;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glVertexAttribPointer_offset)
@@ -23280,10 +19563,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
-        if (temp_len < 48 * 1)
+        if (temp_len < 32 * 1)
         {
             break;
         }
@@ -23294,9 +19575,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23321,22 +19601,10 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         stride = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        min_index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        max_index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
         index_father = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
 
-        divisor = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        enabled = *(GLboolean *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pointer = *(GLintptr *)(temp + temp_loc);
+        offset = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
         if (temp_len < temp_loc)
@@ -23344,12 +19612,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glVertexAttribPointer_offset(opengl_context, index, size, type, normalized, stride, min_index, max_index, index_father, divisor, enabled, pointer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        d_glVertexAttribPointer_offset(opengl_context, index, size, type, normalized, stride, index_father, offset);
     }
     break;
 
@@ -23361,7 +19624,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDrawRangeElements_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'start', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'end', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'indices', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -23380,8 +19643,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 28 * 1)
         {
@@ -23394,9 +19655,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23430,11 +19690,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDrawRangeElements_with_bound(opengl_context, mode, start, end, count, type, indices);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23446,7 +19701,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexImage3D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pixels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -23469,8 +19724,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 44 * 1)
         {
@@ -23483,9 +19736,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23531,11 +19783,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glTexImage3D_with_bound(opengl_context, target, level, internalformat, width, height, depth, border, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23547,7 +19794,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexSubImage3D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pixels', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 10, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -23571,8 +19818,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 48 * 1)
         {
@@ -23585,9 +19830,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23636,11 +19880,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glTexSubImage3D_with_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23648,11 +19887,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glCompressedTexImage3D_with_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, GLintptr data" */
+        /* readline: "glCompressedTexImage3D_with_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, GLintptr data @{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glCompressedTexImage3D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'data', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -23674,8 +19913,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 40 * 1)
         {
@@ -23688,9 +19925,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23733,11 +19969,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glCompressedTexImage3D_with_bound(opengl_context, target, level, internalformat, width, height, depth, border, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23749,7 +19980,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glCompressedTexSubImage3D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'data', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 10, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -23773,8 +20004,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 48 * 1)
         {
@@ -23787,9 +20016,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23838,11 +20066,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glCompressedTexSubImage3D_with_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23850,11 +20073,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glCompressedTexImage2D_with_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, GLintptr data" */
+        /* readline: "glCompressedTexImage2D_with_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, GLintptr data @{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glCompressedTexImage2D_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'data', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -23875,8 +20098,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 36 * 1)
         {
@@ -23889,9 +20110,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23931,11 +20151,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glCompressedTexImage2D_with_bound(opengl_context, target, level, internalformat, width, height, border, imageSize, data);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -23943,11 +20158,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteQueries GLsizei n, const GLuint *ids#n*sizeof(GLuint)" */
+        /* readline: "glDeleteQueries GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteQueries" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'ids', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -23961,8 +20176,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -23975,9 +20188,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -23999,11 +20211,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteQueries(n, ids);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24015,7 +20222,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDrawBuffers" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLenum*', 'name': 'bufs', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLenum)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -24029,8 +20236,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -24043,9 +20248,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24067,11 +20271,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDrawBuffers(n, bufs);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24083,7 +20282,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix2fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*4', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24099,8 +20298,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24113,9 +20310,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24143,11 +20339,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix2fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24159,7 +20350,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix3fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*9', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24175,8 +20366,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24189,9 +20378,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24219,11 +20407,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix3fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24235,7 +20418,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix4fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*16', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24251,8 +20434,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24265,9 +20446,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24295,11 +20475,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix4fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24311,7 +20486,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix2x3fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*6', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24327,8 +20502,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24341,9 +20514,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24371,11 +20543,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix2x3fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24387,7 +20554,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix3x2fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*6', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24403,8 +20570,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24417,9 +20582,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24447,11 +20611,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix3x2fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24463,7 +20622,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix2x4fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*8', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24479,8 +20638,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24493,9 +20650,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24523,11 +20679,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix2x4fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24539,7 +20690,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix4x2fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*8', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24555,8 +20706,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24569,9 +20718,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24599,11 +20747,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix4x2fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24615,7 +20758,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix3x4fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*12', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24631,8 +20774,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24645,9 +20786,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24675,11 +20815,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix3x4fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24691,7 +20826,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniformMatrix4x3fv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*12', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -24707,8 +20842,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -24721,9 +20854,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24751,11 +20883,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniformMatrix4x3fv(location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24763,11 +20890,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteVertexArrays_origin GLsizei n, const GLuint *arrays#n*sizeof(GLuint)" */
+        /* readline: "glDeleteVertexArrays_origin GLsizei n, const GLuint *arrays#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteVertexArrays_origin" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'arrays', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -24781,8 +20908,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -24795,9 +20920,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24819,11 +20943,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDeleteVertexArrays_origin(opengl_context, n, arrays);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24835,7 +20954,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttribIPointer_with_bound" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pointer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -24853,8 +20972,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -24867,9 +20984,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24900,11 +21016,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glVertexAttribIPointer_with_bound(opengl_context, index, size, type, stride, pointer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -24912,23 +21023,19 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glVertexAttribIPointer_offset GLuint index, GLint size, GLenum type, GLsizei stride, GLuint min_index, GLuint max_index, GLuint index_father, GLuint divisor, GLboolean enabled, GLintptr pointer" */
+        /* readline: "glVertexAttribIPointer_offset GLuint index, GLint size, GLenum type, GLsizei stride, GLuint index_father, GLintptr offset" */
         /* func name: "glVertexAttribIPointer_offset" */
-        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'min_index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'max_index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index_father', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'divisor', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'enabled', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'pointer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index_father', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
         GLint size;
         GLenum type;
         GLsizei stride;
-        GLuint min_index;
-        GLuint max_index;
         GLuint index_father;
-        GLuint divisor;
-        GLboolean enabled;
-        GLintptr pointer;
+        GLintptr offset;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glVertexAttribIPointer_offset)
@@ -24939,10 +21046,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
-        if (temp_len < 44 * 1)
+        if (temp_len < 28 * 1)
         {
             break;
         }
@@ -24953,9 +21058,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -24977,22 +21081,10 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         stride = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        min_index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        max_index = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
         index_father = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
 
-        divisor = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
-        enabled = *(GLboolean *)(temp + temp_loc);
-        temp_loc += 4;
-
-        pointer = *(GLintptr *)(temp + temp_loc);
+        offset = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
         if (temp_len < temp_loc)
@@ -25000,12 +21092,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glVertexAttribIPointer_offset(opengl_context, index, size, type, stride, min_index, max_index, index_father, divisor, enabled, pointer);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
+        d_glVertexAttribIPointer_offset(opengl_context, index, size, type, stride, index_father, offset);
     }
     break;
 
@@ -25017,7 +21104,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttribI4iv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'v', 'ptr': 'in', 'ptr_len': 'sizeof(GLint)*4', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -25031,8 +21118,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -25045,9 +21130,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25069,11 +21153,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttribI4iv(index, v);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25085,7 +21164,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glVertexAttribI4uiv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'v', 'ptr': 'in', 'ptr_len': 'sizeof(GLuint)*4', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint index;
@@ -25099,8 +21178,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -25113,9 +21190,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25137,11 +21213,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glVertexAttribI4uiv(index, v);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25153,7 +21224,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform1uiv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)*1', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -25168,8 +21239,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25182,9 +21251,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25209,11 +21277,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform1uiv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25225,7 +21288,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform2uiv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)*2', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -25240,8 +21303,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25254,9 +21315,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25281,11 +21341,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform2uiv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25297,7 +21352,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform3uiv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)*3', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -25312,8 +21367,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25326,9 +21379,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25353,11 +21405,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform3uiv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25369,7 +21416,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glUniform4uiv" */
         /* args: [{'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)*4', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint location;
@@ -25384,8 +21431,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25398,9 +21443,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25425,11 +21469,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glUniform4uiv(location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25441,7 +21480,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearBufferiv" */
         /* args: [{'type': 'GLenum', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'drawbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': '(buffer==GL_COLOR?4*sizeof(GLint):1*sizeof(GLint))', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum buffer;
@@ -25456,8 +21495,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25470,9 +21507,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25497,11 +21533,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearBufferiv(buffer, drawbuffer, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25513,7 +21544,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearBufferuiv" */
         /* args: [{'type': 'GLenum', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'drawbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': '(buffer==GL_COLOR?4*sizeof(GLuint):1*sizeof(GLuint))', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum buffer;
@@ -25528,8 +21559,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25542,9 +21571,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25569,11 +21597,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearBufferuiv(buffer, drawbuffer, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25585,7 +21608,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClearBufferfv" */
         /* args: [{'type': 'GLenum', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'drawbuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': '(buffer==GL_COLOR?4*sizeof(GLfloat):1*sizeof(GLfloat))', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum buffer;
@@ -25600,8 +21623,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25614,9 +21635,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25641,11 +21661,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClearBufferfv(buffer, drawbuffer, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25657,7 +21672,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDrawElementsInstanced_with_bound" */
         /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'indices', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'instancecount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum mode;
@@ -25675,8 +21690,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -25689,9 +21702,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25722,11 +21734,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_glDrawElementsInstanced_with_bound(opengl_context, mode, count, type, indices, instancecount);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25734,11 +21741,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteSamplers GLsizei count, const GLuint *samplers#count*sizeof(GLuint)" */
+        /* readline: "glDeleteSamplers GLsizei count, const GLuint *samplers#count*sizeof(GLuint) @{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteSamplers" */
         /* args: [{'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'samplers', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei count;
@@ -25752,8 +21759,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -25766,9 +21771,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25790,11 +21794,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteSamplers(count, samplers);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25806,7 +21805,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glSamplerParameteriv" */
         /* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'param', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint sampler;
@@ -25821,8 +21820,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25835,9 +21832,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25862,11 +21858,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glSamplerParameteriv(sampler, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25878,7 +21869,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glSamplerParameterfv" */
         /* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'param', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint sampler;
@@ -25893,8 +21884,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -25907,9 +21896,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -25934,11 +21922,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glSamplerParameterfv(sampler, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -25946,11 +21929,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteTransformFeedbacks GLsizei n, const GLuint *ids#n*sizeof(GLuint)" */
+        /* readline: "glDeleteTransformFeedbacks GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteTransformFeedbacks" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'ids', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -25964,8 +21947,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -25978,9 +21959,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26002,11 +21982,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteTransformFeedbacks(n, ids);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26018,7 +21993,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramBinary" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'binaryFormat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'binary', 'ptr': 'in', 'ptr_len': 'length', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -26034,8 +22009,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -26048,9 +22021,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26078,11 +22050,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramBinary(program, binaryFormat, binary, length);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26094,7 +22061,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glInvalidateFramebuffer" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'numAttachments', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLenum*', 'name': 'attachments', 'ptr': 'in', 'ptr_len': 'numAttachments*sizeof(GLenum)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -26109,8 +22076,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -26123,9 +22088,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26150,11 +22114,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glInvalidateFramebuffer(target, numAttachments, attachments);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26166,7 +22125,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glInvalidateSubFramebuffer" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'numAttachments', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLenum*', 'name': 'attachments', 'ptr': 'in', 'ptr_len': 'numAttachments*sizeof(GLenum)', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -26185,8 +22144,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 24 * 1)
         {
@@ -26199,9 +22156,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26238,11 +22194,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glInvalidateSubFramebuffer(target, numAttachments, attachments, x, y, width, height);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26254,7 +22205,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClipPlanexOES" */
         /* args: [{'type': 'GLenum', 'name': 'plane', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'equation', 'ptr': 'in', 'ptr_len': 'sizeof(GLfixed)*4', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum plane;
@@ -26268,8 +22219,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -26282,9 +22231,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26306,11 +22254,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClipPlanexOES(plane, equation);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26322,7 +22265,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glFogxvOES" */
         /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'param', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfixed)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum pname;
@@ -26336,8 +22279,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -26350,9 +22291,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26374,11 +22314,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glFogxvOES(pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26390,7 +22325,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLightModelxvOES" */
         /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'param', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfixed)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum pname;
@@ -26404,8 +22339,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -26418,9 +22351,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26442,11 +22374,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glLightModelxvOES(pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26458,7 +22385,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLightxvOES" */
         /* args: [{'type': 'GLenum', 'name': 'light', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'params', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfixed)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum light;
@@ -26473,8 +22400,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -26487,9 +22412,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26514,11 +22438,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glLightxvOES(light, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26530,7 +22449,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glLoadMatrixxOES" */
         /* args: [{'type': 'const GLfixed*', 'name': 'm', 'ptr': 'in', 'ptr_len': '16*sizeof(GLfixed)', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
 
@@ -26542,8 +22461,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         size_t temp_len = 0;
         unsigned char *temp = NULL;
-
-        int need_delete = 0;
 
         temp_len = all_para[0].data_len;
         if (temp_len < 0 * 1)
@@ -26557,9 +22474,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26578,11 +22494,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glLoadMatrixxOES(m);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26594,7 +22505,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glMaterialxvOES" */
         /* args: [{'type': 'GLenum', 'name': 'face', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'param', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfixed)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum face;
@@ -26609,8 +22520,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -26623,9 +22532,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26650,11 +22558,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glMaterialxvOES(face, pname, param);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26666,7 +22569,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glMultMatrixxOES" */
         /* args: [{'type': 'const GLfixed*', 'name': 'm', 'ptr': 'in', 'ptr_len': '16*sizeof(GLfixed)', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
 
@@ -26678,8 +22581,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         size_t temp_len = 0;
         unsigned char *temp = NULL;
-
-        int need_delete = 0;
 
         temp_len = all_para[0].data_len;
         if (temp_len < 0 * 1)
@@ -26693,9 +22594,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26714,11 +22614,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glMultMatrixxOES(m);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26730,7 +22625,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPointParameterxvOES" */
         /* args: [{'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'params', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfixed)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum pname;
@@ -26744,8 +22639,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -26758,9 +22651,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26782,11 +22674,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glPointParameterxvOES(pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26798,7 +22685,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexEnvxvOES" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'params', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfixed)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum target;
@@ -26813,8 +22700,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -26827,9 +22712,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26854,11 +22738,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexEnvxvOES(target, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26870,7 +22749,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glClipPlanefOES" */
         /* args: [{'type': 'GLenum', 'name': 'plane', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'equation', 'ptr': 'in', 'ptr_len': 'sizeof(GLfloat)*4', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum plane;
@@ -26884,8 +22763,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -26898,9 +22775,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26922,11 +22798,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glClipPlanefOES(plane, equation);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -26938,7 +22809,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTexGenxvOES" */
         /* args: [{'type': 'GLenum', 'name': 'coord', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfixed*', 'name': 'params', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfixed)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLenum coord;
@@ -26953,8 +22824,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -26967,9 +22836,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -26994,11 +22862,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTexGenxvOES(coord, pname, params);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27006,11 +22869,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDeleteProgramPipelines GLsizei n, const GLuint *pipelines#n*sizeof(GLuint)" */
+        /* readline: "glDeleteProgramPipelines GLsizei n, const GLuint *pipelines#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
         /* func name: "glDeleteProgramPipelines" */
         /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'pipelines', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsizei n;
@@ -27024,8 +22887,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 4 * 1)
         {
@@ -27038,9 +22899,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27062,11 +22922,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteProgramPipelines(n, pipelines);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27078,7 +22933,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform1iv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27094,8 +22949,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27108,9 +22961,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27138,11 +22990,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform1iv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27154,7 +23001,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform2iv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)*2', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27170,8 +23017,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27184,9 +23029,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27214,11 +23058,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform2iv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27230,7 +23069,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform3iv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)*3', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27246,8 +23085,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27260,9 +23097,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27290,11 +23126,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform3iv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27306,7 +23137,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform4iv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLint)*4', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27322,8 +23153,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27336,9 +23165,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27366,11 +23194,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform4iv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27382,7 +23205,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform1uiv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27398,8 +23221,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27412,9 +23233,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27442,11 +23262,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform1uiv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27458,7 +23273,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform2uiv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)*2', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27474,8 +23289,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27488,9 +23301,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27518,11 +23330,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform2uiv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27534,7 +23341,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform3uiv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)*3', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27550,8 +23357,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27564,9 +23369,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27594,11 +23398,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform3uiv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27610,7 +23409,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform4uiv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)*4', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27626,8 +23425,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27640,9 +23437,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27670,11 +23466,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform4uiv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27686,7 +23477,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform1fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27702,8 +23493,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27716,9 +23505,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27746,11 +23534,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform1fv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27762,7 +23545,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform2fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*2', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27778,8 +23561,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27792,9 +23573,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27822,11 +23602,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform2fv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27838,7 +23613,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform3fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*3', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27854,8 +23629,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27868,9 +23641,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27898,11 +23670,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform3fv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27914,7 +23681,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniform4fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*4', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -27930,8 +23697,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 12 * 1)
         {
@@ -27944,9 +23709,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -27974,11 +23738,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniform4fv(program, location, count, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -27990,7 +23749,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix2fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*4', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28007,8 +23766,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28021,9 +23778,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28054,11 +23810,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix2fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28070,7 +23821,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix3fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*9', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28087,8 +23838,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28101,9 +23850,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28134,11 +23882,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix3fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28150,7 +23893,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix4fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*16', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28167,8 +23910,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28181,9 +23922,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28214,11 +23954,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix4fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28230,7 +23965,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix2x3fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*6', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28247,8 +23982,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28261,9 +23994,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28294,11 +24026,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix2x3fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28310,7 +24037,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix3x2fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*6', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28327,8 +24054,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28341,9 +24066,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28374,11 +24098,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix3x2fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28390,7 +24109,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix2x4fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*8', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28407,8 +24126,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28421,9 +24138,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28454,11 +24170,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix2x4fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28470,7 +24181,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix4x2fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*8', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28487,8 +24198,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28501,9 +24210,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28534,11 +24242,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix4x2fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28550,7 +24253,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix3x4fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*12', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28567,8 +24270,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28581,9 +24282,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28614,11 +24314,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix3x4fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28630,7 +24325,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glProgramUniformMatrix4x3fv" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'location', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'transpose', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'value', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLfloat)*12', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLuint program;
@@ -28647,8 +24342,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -28661,9 +24354,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28694,84 +24386,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glProgramUniformMatrix4x3fv(program, location, count, transpose, value);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
-    }
-    break;
-
-    case FUNID_glFlushMappedBufferRange_origin:
-
-    {
-
-        /* readline: "glFlushMappedBufferRange_origin GLenum target, GLintptr offset, GLsizeiptr length" */
-        /* func name: "glFlushMappedBufferRange_origin" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "2" */
-
-        /* Define variables */
-        GLenum target;
-        GLintptr offset;
-        GLsizeiptr length;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFlushMappedBufferRange_origin)
-        {
-            break;
-        }
-
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
-
-        int need_delete = 0;
-
-        temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(all_para[0].data_len);
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        unsigned int temp_loc = 0;
-
-        target = *(GLenum *)(temp + temp_loc);
-        temp_loc += 4;
-
-        offset = *(GLintptr *)(temp + temp_loc);
-        temp_loc += 8;
-
-        length = *(GLsizeiptr *)(temp + temp_loc);
-        temp_loc += 8;
-        /* Check length */
-        if (temp_len < temp_loc)
-        {
-            break;
-        }
-
-        d_glFlushMappedBufferRange_origin(opengl_context, target, offset, length);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28783,7 +24397,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glDeleteSync" */
         /* args: [{'type': 'GLsync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsync sync;
@@ -28797,8 +24411,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 8 * 1)
         {
@@ -28811,9 +24423,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28832,11 +24443,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glDeleteSync(sync);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28848,7 +24454,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glWaitSync" */
         /* args: [{'type': 'GLsync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLbitfield', 'name': 'flags', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint64', 'name': 'timeout', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLsync sync;
@@ -28864,8 +24470,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -28878,9 +24482,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28905,11 +24508,196 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glWaitSync(sync, flags, timeout);
+    }
+    break;
 
-        if (need_delete)
+    case FUNID_glBindAttribLocation:
+
+    {
+
+        /* readline: "glBindAttribLocation GLuint program, GLuint index, const GLchar *name#strlen(name)+1" */
+        /* func name: "glBindAttribLocation" */
+        /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'name', 'ptr': 'in', 'ptr_len': 'strlen(name)+1', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "3" */
+
+        /* Define variables */
+        GLuint program;
+        GLuint index;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBindAttribLocation)
         {
-            g_free(temp);
+            break;
         }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        const GLchar *name = (const GLchar *)(temp + temp_loc);
+        temp_loc += strlen(name) + 1;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glBindAttribLocation(program, index, name);
+    }
+    break;
+
+    case FUNID_glMapBufferRange_write:
+
+    {
+
+        /* readline: "glMapBufferRange_write GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access" */
+        /* func name: "glMapBufferRange_write" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLbitfield', 'name': 'access', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "3" */
+
+        /* Define variables */
+        GLenum target;
+        GLintptr offset;
+        GLsizeiptr length;
+        GLbitfield access;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glMapBufferRange_write)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 24 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        offset = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        length = *(GLsizeiptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        access = *(GLbitfield *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glMapBufferRange_write(opengl_context, target, offset, length, access);
+    }
+    break;
+
+    case FUNID_glUnmapBuffer_special:
+
+    {
+
+        /* readline: "GLboolean glUnmapBuffer_special GLenum target" */
+        /* func name: "glUnmapBuffer_special" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLboolean" */
+        /* type: "3" */
+
+        /* Define variables */
+        GLenum target;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glUnmapBuffer_special)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glUnmapBuffer_special(opengl_context, target);
     }
     break;
 
@@ -28921,7 +24709,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glTestIntAsyn" */
         /* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'b', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'c', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLdouble', 'name': 'd', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint a;
@@ -28938,8 +24726,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 20 * 1)
         {
@@ -28952,9 +24738,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -28982,11 +24767,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glTestIntAsyn(a, b, c, d);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
@@ -28998,7 +24778,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* func name: "glPrintfAsyn" */
         /* args: [{'type': 'GLint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLdouble', 'name': 'c', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'out_string', 'ptr': 'in', 'ptr_len': 'strlen(out_string)+1', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "2" */
+        /* type: "3" */
 
         /* Define variables */
         GLint a;
@@ -29014,8 +24794,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         size_t temp_len = 0;
         unsigned char *temp = NULL;
 
-        int need_delete = 0;
-
         temp_len = all_para[0].data_len;
         if (temp_len < 16 * 1)
         {
@@ -29028,9 +24806,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(all_para[0].data_len);
+                temp = no_ptr_buf;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-                need_delete = 1;
             }
             else
             {
@@ -29058,143 +24835,2186 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glPrintfAsyn(a, size, c, out_string);
-
-        if (need_delete)
-        {
-            g_free(temp);
-        }
     }
     break;
 
-        /******* end of file '2-1', 242/368 functions*******/
+        /******* end of file '2-1-1', 247/342 functions*******/
 
-        /******* file '2-2' *******/
+        /******* file '2-1-2' *******/
 
-    case FUNID_glVertexAttribPointer_data:
+    case FUNID_glDrawElements_without_bound:
 
     {
 
-        /* readline: "glVertexAttribPointer_data GLuint length, const void *int_data#sizeof(GLuint)+sizeof(GLuint), const void *pointer#length" */
-        /* func name: "glVertexAttribPointer_data" */
-        /* args: [{'type': 'GLuint', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'int_data', 'ptr': 'in', 'ptr_len': 'sizeof(GLuint)+sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pointer', 'ptr': 'in', 'ptr_len': 'length', 'loc': 2, 'ptr_ptr': False}] */
+        /* readline: "glDrawElements_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)" */
+        /* func name: "glDrawElements_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "3" */
+        /* type: "4" */
 
-        /* TODO: More than one ptr, should check mannually */
         /* Define variables */
-        GLuint length;
+        GLenum mode;
+        GLsizei count;
+        GLenum type;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribPointer_data)
+        if (para_num < PARA_NUM_MIN_glDrawElements_without_bound)
         {
             break;
         }
 
-        void *int_data = all_para[0].data;
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
 
-        void *pointer = all_para[1].data;
-
-        d_glVertexAttribPointer_data(opengl_context, int_data, pointer);
-    }
-    break;
-
-    case FUNID_glVertexAttribIPointer_data:
-
-    {
-
-        /* readline: "glVertexAttribIPointer_data GLuint length, const void *int_data#sizeof(GLuint)+sizeof(GLuint), const void *pointer#length" */
-        /* func name: "glVertexAttribIPointer_data" */
-        /* args: [{'type': 'GLuint', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'int_data', 'ptr': 'in', 'ptr_len': 'sizeof(GLuint)+sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pointer', 'ptr': 'in', 'ptr_len': 'length', 'loc': 2, 'ptr_ptr': False}] */
-        /* ret: "" */
-        /* type: "3" */
-
-        /* TODO: More than one ptr, should check mannually */
-        /* Define variables */
-        GLuint length;
-
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribIPointer_data)
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
         {
             break;
         }
 
-        void *int_data = all_para[0].data;
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
 
-        void *pointer = all_para[1].data;
+        unsigned int temp_loc = 0;
 
-        d_glVertexAttribIPointer_data(opengl_context, int_data, pointer);
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *indices = all_para[1].data;
+
+        d_glDrawElements_without_bound(opengl_context, mode, count, type, indices);
     }
     break;
 
-    case FUNID_glMapBufferRange_write:
+    case FUNID_glVertexAttribIPointer_without_bound:
 
     {
 
-        /* readline: "glMapBufferRange_write GLsizeiptr length, const void *int_data#sizeof(GLenum)+sizeof(GLintptr)+sizeof(GLsizeiptr)+sizeof(GLbitfield), const void *mem_buf#length" */
-        /* func name: "glMapBufferRange_write" */
-        /* args: [{'type': 'GLsizeiptr', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'int_data', 'ptr': 'in', 'ptr_len': 'sizeof(GLenum)+sizeof(GLintptr)+sizeof(GLsizeiptr)+sizeof(GLbitfield)', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'mem_buf', 'ptr': 'in', 'ptr_len': 'length', 'loc': 2, 'ptr_ptr': False}] */
+        /* readline: "glVertexAttribIPointer_without_bound GLuint index, GLint size, GLenum type, GLsizei stride, GLuint offset, GLsizei length, const void *pointer#length" */
+        /* func name: "glVertexAttribIPointer_without_bound" */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pointer', 'ptr': 'in', 'ptr_len': 'length', 'loc': 6, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "3" */
+        /* type: "4" */
 
-        /* TODO: More than one ptr, should check mannually */
         /* Define variables */
+        GLuint index;
+        GLint size;
+        GLenum type;
+        GLsizei stride;
+        GLuint offset;
+        GLsizei length;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glVertexAttribIPointer_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 24 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        size = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        stride = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        offset = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        length = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *pointer = all_para[1].data;
+
+        d_glVertexAttribIPointer_without_bound(opengl_context, index, size, type, stride, offset, length, pointer);
+    }
+    break;
+
+    case FUNID_glVertexAttribPointer_without_bound:
+
+    {
+
+        /* readline: "glVertexAttribPointer_without_bound GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLuint offset, GLuint length, const void *pointer#length" */
+        /* func name: "glVertexAttribPointer_without_bound" */
+        /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLboolean', 'name': 'normalized', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'stride', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pointer', 'ptr': 'in', 'ptr_len': 'length', 'loc': 7, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLuint index;
+        GLint size;
+        GLenum type;
+        GLboolean normalized;
+        GLsizei stride;
+        GLuint offset;
+        GLuint length;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glVertexAttribPointer_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 28 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        index = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        size = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        normalized = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 4;
+
+        stride = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        offset = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        length = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *pointer = all_para[1].data;
+
+        d_glVertexAttribPointer_without_bound(opengl_context, index, size, type, normalized, stride, offset, length, pointer);
+    }
+    break;
+
+    case FUNID_glDrawElementsInstanced_without_bound:
+
+    {
+
+        /* readline: "glDrawElementsInstanced_without_bound GLenum mode, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type), GLsizei instancecount" */
+        /* func name: "glDrawElementsInstanced_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'instancecount', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum mode;
+        GLsizei count;
+        GLenum type;
+        GLsizei instancecount;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawElementsInstanced_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 16 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        instancecount = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *indices = all_para[1].data;
+
+        d_glDrawElementsInstanced_without_bound(opengl_context, mode, count, type, indices, instancecount);
+    }
+    break;
+
+    case FUNID_glBufferData_custom:
+
+    {
+
+        /* readline: "glBufferData_custom GLenum target, GLsizeiptr size, const void *data#size, GLenum usage" */
+        /* func name: "glBufferData_custom" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'size', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'usage', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLsizeiptr size;
+        GLenum usage;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBufferData_custom)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 16 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        size = *(GLsizeiptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        usage = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *data = all_para[1].data;
+
+        d_glBufferData_custom(opengl_context, target, size, data, usage);
+    }
+    break;
+
+    case FUNID_glBufferSubData_custom:
+
+    {
+
+        /* readline: "glBufferSubData_custom GLenum target, GLintptr offset, GLsizeiptr size, const void *data#size" */
+        /* func name: "glBufferSubData_custom" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'size', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'size', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLintptr offset;
+        GLsizeiptr size;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBufferSubData_custom)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 20 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        offset = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        size = *(GLsizeiptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        void *data = all_para[1].data;
+
+        d_glBufferSubData_custom(opengl_context, target, offset, size, data);
+    }
+    break;
+
+    case FUNID_glCompressedTexImage2D_without_bound:
+
+    {
+
+        /* readline: "glCompressedTexImage2D_without_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void *data#imageSize  @{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glCompressedTexImage2D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 7, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLenum internalformat;
+        GLsizei width;
+        GLsizei height;
+        GLint border;
+        GLsizei imageSize;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glCompressedTexImage2D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 28 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        internalformat = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        border = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        imageSize = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *data = all_para[1].data;
+
+        d_glCompressedTexImage2D_without_bound(opengl_context, target, level, internalformat, width, height, border, imageSize, data);
+    }
+    break;
+
+    case FUNID_glCompressedTexSubImage2D_without_bound:
+
+    {
+
+        /* readline: "glCompressedTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data#imageSize @{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glCompressedTexSubImage2D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 8, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLint xoffset;
+        GLint yoffset;
+        GLsizei width;
+        GLsizei height;
+        GLenum format;
+        GLsizei imageSize;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage2D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 32 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        xoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        yoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        imageSize = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *data = all_para[1].data;
+
+        d_glCompressedTexSubImage2D_without_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, imageSize, data);
+    }
+    break;
+
+    case FUNID_glTexImage2D_without_bound:
+
+    {
+
+        /* readline: "glTexImage2D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
+        /* func name: "glTexImage2D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLint internalformat;
+        GLsizei width;
+        GLsizei height;
+        GLint border;
+        GLenum format;
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexImage2D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 32 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        internalformat = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        border = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *pixels = all_para[1].data;
+
+        d_glTexImage2D_without_bound(opengl_context, target, level, internalformat, width, height, border, format, type, pixels);
+    }
+    break;
+
+    case FUNID_glDrawRangeElements_without_bound:
+
+    {
+
+        /* readline: "glDrawRangeElements_without_bound GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices#count*gl_sizeof(type)" */
+        /* func name: "glDrawRangeElements_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'start', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'end', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'indices', 'ptr': 'in', 'ptr_len': 'count*gl_sizeof(type)', 'loc': 5, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum mode;
+        GLuint start;
+        GLuint end;
+        GLsizei count;
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawRangeElements_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 20 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        start = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        end = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *indices = all_para[1].data;
+
+        d_glDrawRangeElements_without_bound(opengl_context, mode, start, end, count, type, indices);
+    }
+    break;
+
+    case FUNID_glCompressedTexImage3D_without_bound:
+
+    {
+
+        /* readline: "glCompressedTexImage3D_without_bound GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data#imageSize @{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glCompressedTexImage3D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 8, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLenum internalformat;
+        GLsizei width;
+        GLsizei height;
+        GLsizei depth;
+        GLint border;
+        GLsizei imageSize;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glCompressedTexImage3D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 32 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        internalformat = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        depth = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        border = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        imageSize = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *data = all_para[1].data;
+
+        d_glCompressedTexImage3D_without_bound(opengl_context, target, level, internalformat, width, height, depth, border, imageSize, data);
+    }
+    break;
+
+    case FUNID_glCompressedTexSubImage3D_without_bound:
+
+    {
+
+        /* readline: "glCompressedTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data#imageSize @{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glCompressedTexSubImage3D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'imageSize', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'imageSize', 'loc': 10, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLint xoffset;
+        GLint yoffset;
+        GLint zoffset;
+        GLsizei width;
+        GLsizei height;
+        GLsizei depth;
+        GLenum format;
+        GLsizei imageSize;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage3D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 40 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        xoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        yoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        zoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        depth = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        imageSize = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *data = all_para[1].data;
+
+        d_glCompressedTexSubImage3D_without_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data);
+    }
+    break;
+
+    case FUNID_glTexSubImage2D_without_bound:
+
+    {
+
+        /* readline: "glTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
+        /* func name: "glTexSubImage2D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLint xoffset;
+        GLint yoffset;
+        GLsizei width;
+        GLsizei height;
+        GLenum format;
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexSubImage2D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 32 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        xoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        yoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *pixels = all_para[1].data;
+
+        d_glTexSubImage2D_without_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, type, pixels);
+    }
+    break;
+
+    case FUNID_glTexImage3D_without_bound:
+
+    {
+
+        /* readline: "glTexImage3D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
+        /* func name: "glTexImage3D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 9, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLint internalformat;
+        GLsizei width;
+        GLsizei height;
+        GLsizei depth;
+        GLint border;
+        GLenum format;
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexImage3D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 36 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        internalformat = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        depth = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        border = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *pixels = all_para[1].data;
+
+        d_glTexImage3D_without_bound(opengl_context, target, level, internalformat, width, height, depth, border, format, type, pixels);
+    }
+    break;
+
+    case FUNID_glTexSubImage3D_without_bound:
+
+    {
+
+        /* readline: "glTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
+        /* func name: "glTexSubImage3D_without_bound" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 10, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLint level;
+        GLint xoffset;
+        GLint yoffset;
+        GLint zoffset;
+        GLsizei width;
+        GLsizei height;
+        GLsizei depth;
+        GLenum format;
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexSubImage3D_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 40 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        xoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        yoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        zoffset = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        depth = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *pixels = all_para[1].data;
+
+        d_glTexSubImage3D_without_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels);
+    }
+    break;
+
+    case FUNID_glFlushMappedBufferRange_special:
+
+    {
+
+        /* readline: "glFlushMappedBufferRange_special GLenum target, GLintptr offset, GLsizeiptr length, const void *data#length" */
+        /* func name: "glFlushMappedBufferRange_special" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLintptr', 'name': 'offset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizeiptr', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'data', 'ptr': 'in', 'ptr_len': 'length', 'loc': 3, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "4" */
+
+        /* Define variables */
+        GLenum target;
+        GLintptr offset;
         GLsizeiptr length;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMapBufferRange_write)
+        if (para_num < PARA_NUM_MIN_glFlushMappedBufferRange_special)
         {
             break;
         }
 
-        void *int_data = all_para[0].data;
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
 
-        void *mem_buf = all_para[1].data;
+        temp_len = all_para[0].data_len;
+        if (temp_len < 20 * 1)
+        {
+            break;
+        }
 
-        d_glMapBufferRange_write(opengl_context, int_data, mem_buf);
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        offset = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        length = *(GLsizeiptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        void *data = all_para[1].data;
+
+        d_glFlushMappedBufferRange_special(opengl_context, target, offset, length, data);
     }
     break;
 
-    case FUNID_glSaveLongTime:
+    case FUNID_glPrintf:
 
     {
 
-        /* readline: "glSaveLongTime GLuint a, const void *int_data#sizeof(GLuint)+sizeof(GLdouble), const void *pointer#a" */
-        /* func name: "glSaveLongTime" */
-        /* args: [{'type': 'GLuint', 'name': 'a', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'int_data', 'ptr': 'in', 'ptr_len': 'sizeof(GLuint)+sizeof(GLdouble)', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pointer', 'ptr': 'in', 'ptr_len': 'a', 'loc': 2, 'ptr_ptr': False}] */
+        /* readline: "glPrintf GLint buf_len, const GLchar *out_string#buf_len" */
+        /* func name: "glPrintf" */
+        /* args: [{'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLchar*', 'name': 'out_string', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
-        /* type: "3" */
+        /* type: "4" */
 
-        /* TODO: More than one ptr, should check mannually */
         /* Define variables */
-        GLuint a;
+        GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSaveLongTime)
+        if (para_num < PARA_NUM_MIN_glPrintf)
         {
             break;
         }
 
-        void *int_data = all_para[0].data;
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
 
-        void *pointer = all_para[1].data;
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
 
-        glSaveLongTime(int_data, pointer);
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        buf_len = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        void *out_string = all_para[1].data;
+
+        d_glPrintf(opengl_context, buf_len, out_string);
     }
     break;
 
-        /******* end of file '2-2', 4/372 functions*******/
+        /******* end of file '2-1-2', 18/359 functions*******/
+
+        /******* file '2-2' *******/
+
+    case FUNID_glGenBuffers:
+
+    {
+
+        /* readline: "glGenBuffers GLsizei n, GLuint *buffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenBuffers" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'buffers', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenBuffers)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *buffers = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenBuffers(n, buffers);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenFramebuffers:
+
+    {
+
+        /* readline: "glGenFramebuffers GLsizei n, GLuint *framebuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenFramebuffers" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'framebuffers', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenFramebuffers)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *framebuffers = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenFramebuffers(n, framebuffers);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenRenderbuffers:
+
+    {
+
+        /* readline: "glGenRenderbuffers GLsizei n, GLuint *renderbuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenRenderbuffers" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'renderbuffers', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenRenderbuffers)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *renderbuffers = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenRenderbuffers(n, renderbuffers);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenTextures:
+
+    {
+
+        /* readline: "glGenTextures GLsizei n, GLuint *textures#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenTextures" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'textures', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenTextures)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *textures = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenTextures(n, textures);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenQueries:
+
+    {
+
+        /* readline: "glGenQueries GLsizei n, GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenQueries" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'ids', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenQueries)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ids = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenQueries(n, ids);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenVertexArrays_origin:
+
+    {
+
+        /* readline: "glGenVertexArrays_origin GLsizei n, GLuint *arrays#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenVertexArrays_origin" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'arrays', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenVertexArrays_origin)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *arrays = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        d_glGenVertexArrays_origin(opengl_context, n, arrays);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenSamplers:
+
+    {
+
+        /* readline: "glGenSamplers GLsizei count, GLuint *samplers#count*sizeof(GLuint) @{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenSamplers" */
+        /* args: [{'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'samplers', 'ptr': 'out', 'ptr_len': 'count*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei count;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenSamplers)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        count = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *samplers = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += count * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenSamplers(count, samplers);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenTransformFeedbacks:
+
+    {
+
+        /* readline: "glGenTransformFeedbacks GLsizei n, GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenTransformFeedbacks" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'ids', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenTransformFeedbacks)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ids = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenTransformFeedbacks(n, ids);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glGenProgramPipelines:
+
+    {
+
+        /* readline: "glGenProgramPipelines GLsizei n, GLuint *pipelines#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+        /* func name: "glGenProgramPipelines" */
+        /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'pipelines', 'ptr': 'out', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLsizei n;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGenProgramPipelines)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        n = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *pipelines = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += n * sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        glGenProgramPipelines(n, pipelines);
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glCreateProgram:
+
+    {
+
+        /* readline: "GLuint glCreateProgram void" */
+        /* func name: "glCreateProgram" */
+        /* args: [] */
+        /* ret: "GLuint" */
+        /* type: "5" */
+
+        /* Define variables */
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glCreateProgram)
+        {
+            break;
+        }
+
+        int out_buf_len = all_para[0].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLuint ret = glCreateProgram();
+        *ret_ptr = ret;
+
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_glCreateShader:
+
+    {
+
+        /* readline: "GLuint glCreateShader GLenum type @if(type!=GL_COMPUTE_SHADER||type!=GL_VERTEX_SHADER||type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}" */
+        /* func name: "glCreateShader" */
+        /* args: [{'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "GLuint" */
+        /* type: "5" */
+
+        /* Define variables */
+        GLenum type;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glCreateShader)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(GLuint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        GLuint ret = glCreateShader(type);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+        /******* end of file '2-2', 12/370 functions*******/
 
     default:
         break;
     }
 
-    if (need_speed)
-    {
-        call->callback(call, 1);
-    }
-    else
-    {
-        call->callback(call, 0);
-    }
+    //if(need_speed){
+    call->callback(call, 1);
+    //}else{
+    //    call->callback(call, 0);
+    //}
     return;
 }

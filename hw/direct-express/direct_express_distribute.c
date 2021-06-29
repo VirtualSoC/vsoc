@@ -115,12 +115,36 @@ void *get_direct_ptr(Guest_Mem *guest_mem, int *flag)
  */
 void guest_write(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
 {
-
-    Scatter_Data *guest_data = guest->scatter_data;
-    if(length==0 || host==NULL || length>guest->all_len){
+    if(guest==NULL){
         return;
     }
+    express_printf("guest_write length %llu all_len %d\n",length,guest->all_len);
+    Scatter_Data *guest_data = guest->scatter_data;
+    if(length==0 || host==NULL || length>guest->all_len){
+        printf("guest write error host %lx len %d %lld\n",host,guest->all_len,length);
+        return;
+    }
+    // gint64 start_time=0;
+    // int32_t spend_time=0;
+    // if(length>5*1024*1024){
+    //     start_time=g_get_real_time();
+    // }
+
     host_guest_buffer_exchange(guest_data, (unsigned char *)host, start_loc, length, 1);
+
+    // if(length>5*1024*1024){
+    //     spend_time = (int32_t)(g_get_real_time()-start_time);
+    //     if(spend_time>0){
+    //         uint32_t mem_speed=1024*1024*24/(uint32_t)spend_time;
+
+    //         express_printf("mem cpy speed %u\n", mem_speed);
+    //         if(mem_speed>100 && mem_speed<1000000){
+    //             *(uint32_t *)guest_null_ptr=mem_speed;
+    //         }
+
+    //     }
+    // }
+
 }
 
 /**
@@ -133,6 +157,10 @@ void guest_write(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
  */
 void guest_read(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
 {
+    if(guest==NULL){
+        return;
+    }
+    express_printf("guest_read length %llu all_len %d\n",length,guest->all_len);
 
     Scatter_Data *guest_data = guest->scatter_data;
     if(length==0 || host==NULL|| length>guest->all_len){
@@ -155,6 +183,9 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
 {
 
     // int walk_loc = 0;
+    if(guest_data==NULL || host_data==NULL){
+        return;
+    }
 
     size_t remain_len = length;
     // express_printf("memcpy data len %llu,%d\n",length,remain_len);
@@ -178,7 +209,7 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
                 }
                 else
                 {
-                    express_printf("memcpy data %llu,%llu %llu %llu %llu\n",guest_data[guest_index].data , guest_loc, host_data , host_loc, remain_len);
+                    // express_printf("memcpy data %llu,%llu %llu %llu %llu\n",guest_data[guest_index].data , guest_loc, host_data , host_loc, remain_len);
                     memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, remain_len);
                 }
                 break;
@@ -301,6 +332,8 @@ static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsig
 
         }
         buf_len += guest_mem->scatter_data[i].len;
+        
+        // express_printf("guest_mem %d i %d len %d now %d\n",num,i, guest_mem->scatter_data[i].len, buf_len);
 
     }
 
@@ -400,6 +433,7 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
     while (elem)
     {
 
+
         if (unlikely(fill_direct_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &para_num) == 0))
         {
             //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
@@ -418,21 +452,31 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
         call->id = fun_id;
         call->thread_id = thread_id;
         call->process_id = process_id;
-
+        call->spend_time =0;
         call->next = NULL;
+        // gint64 start_time=g_get_real_time();
 
         //会有para_num个传入参数，这些elem本应该都是out类型
         for (int i = 0; i < para_num; i++)
         {
             //由于有时候取数据取的过快，安卓那边还没把剩下的一个大数据放进去vring内，这个时候pop会pop一个空的
             //所以要在这里搞个循环，循环的取。但是循环时间又不能过长，以免影响其他数据的传输
-            //因此这里使用了一个循环计数机制，10000000基本相当于10ms左右，这个时间不够的话还要继续加
+            //因此这里使用了一个循环计数机制，50000000基本相当于50ms左右，这个时间不够的话还要继续加
             int cnt_timeout=0;
+            // gint64 t_int = g_get_real_time();
+
             elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
+            
             while(elem == NULL && cnt_timeout<10000000){
+                // t_int = g_get_real_time();
+                // start_time = g_get_real_time();
+
                 elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
                 cnt_timeout++;
             }
+            
+
+
             if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_direct_express_queue_elem(elem, NULL, NULL, NULL, NULL) == 0))
             {
                 //要么是数据复制有问题，要么是这个elem是个in的类型，破坏了调用结构
@@ -442,15 +486,45 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
                 g_free(call);
                 call = NULL;
                 if(elem==NULL){
-                    express_printf("fill para error NULL\n");
+                    express_printf(YELLOW("fill para error NULL\n"));
                 }else{
-                    express_printf("fill para error %u,%u\n", elem->elem.in_num , elem->elem.out_num);
+                    express_printf(YELLOW("fill para error %u,%u\n"), elem->elem.in_num , elem->elem.out_num);
                 }
                 break;
             }
             call->elem_tail->next = elem;
             call->elem_tail = elem;
+
+
+            // gint64 spend_time = g_get_real_time()-t_int;
+
+
+            // static gint64 all_spend_time=0;
+            // static int now_len=4096;
+            // static int now_cnt=1;
+            // // printf("now len %u\n",elem->len);
+            // if(elem->len%4096==0){
+            //     if(now_len!=elem->len){
+            //         printf("size %d cnt %d all_time %lld avg time %lld 4k avg time %lld\n",now_len,now_cnt,all_spend_time,all_spend_time/now_cnt,all_spend_time/now_cnt/(now_len/4096));
+            //         now_len=elem->len;
+            //         now_cnt=1;
+            //         all_spend_time=spend_time;
+            //     }else{
+            //         all_spend_time+=spend_time;
+            //         now_cnt+=1;
+            //     }
+            // }
         }
+        // gint64 spend_time = g_get_real_time()-start_time;
+
+        // if(spend_time>0){
+        //     Guest_Mem *mem = call->elem_header->para;
+        //     // guest_read(mem,&ret,(size_t)((char *)&(((Direct_Express_Flag_Buf *)0)->ret)-(char *)0),8);
+
+        //     guest_read(mem, &spend_time, __builtin_offsetof(Direct_Express_Flag_Buf, map_spend_time), 8);
+        //     // guest_write(mem, &t_flag, __builtin_offsetof(Direct_Express_Flag_Buf, id), 8);
+        // }
+
         //不让用goto就得break后continue
         if (call == NULL)
         {
@@ -483,6 +557,7 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
 
     context->read_loc = 0;
     context->write_loc = 0;
+    context->atomic_event_lock=0;
     context->init = 0;
     context->thread_run = 1;
 
@@ -493,7 +568,13 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
     context->direct_express_device = direct_express_device;
 
     //线程缓冲区事件初始化
-    qemu_event_init(&(context->data_event), false);
+    //qemu_event_init(&(context->data_event), false);
+    #ifdef _WIN32
+        context->data_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    #else
+
+    #endif
+
 
     
     express_printf("ready to create thread\n");
@@ -526,7 +607,7 @@ void push_to_thread(Direct_Express_Call *call)
         call->callback(call, 0);
         return;
     }
-    express_printf("push to %s %llu,%llu\n", device_info->name, call->id, device_type_id);
+    express_printf("\033[31mpush to %s thread_id %llu %08x %llu %llu %08x\033[0m\n", device_info->name, call->thread_id, call->thread_id,device_type_id,fun_id, call->id );
 
 
     Thread_Context *context = device_info->get_context(device_type_id, thread_id, device_info);
@@ -652,7 +733,26 @@ void *call_distribute_thread(void *opaque)
     if (elem->out_sg->iov_len == 4 && elem->out_num == 1 && elem->in_num == 0)
     {
         guest_null_ptr = elem->out_sg->iov_base;
+
         express_printf("null ptr %llu\n", (unsigned long)guest_null_ptr);
+
+        //计算内存复制速度
+        char *temp1=g_malloc(1024*1024*24);
+        char *temp2=g_malloc(1024*1024*24);
+        memset(temp1,0,1024*1024*24);
+        // memset(temp2,1,1024*1024*24);
+        gint64 t_start = g_get_real_time();
+        memcpy(temp1,temp2,1024*1024*24);
+        uint32_t t_spend=(uint32_t)(g_get_real_time()-t_start);
+        uint32_t mem_speed=1024*1024*24/t_spend;
+
+        express_printf("mem cpy speed %u\n", mem_speed);
+
+        *(uint32_t *)guest_null_ptr=mem_speed;
+
+        g_free(temp1);
+        g_free(temp2);
+
     }
     else
     {
@@ -661,8 +761,13 @@ void *call_distribute_thread(void *opaque)
     virtqueue_push(vq, elem, 1);
     // int release_cnt_debug=0;
     // int pop_cnt_debug=0;
+
+    int64_t spend_time_all=0;
+    int64_t call_num=0; 
     while (e->thread_run)
     {
+
+        int has_handle_flag = 0;
         if ((call = pack_call_from_queue(vq)) != NULL)
         {
             //从queue中打包调用，假如打包失败的话，失败的部分也还是会还给guest
@@ -677,6 +782,7 @@ void *call_distribute_thread(void *opaque)
             call->callback = push_free_callback;
             call->is_end=0;
             push_to_thread(call);
+            has_handle_flag=1;
             // pop_cnt_debug++;
             // printf("pop %d\n",pop_cnt_debug);
 
@@ -687,7 +793,9 @@ void *call_distribute_thread(void *opaque)
             // virtio_notify(VIRTIO_DEVICE(vdev), vq);
             // push_free_callback(draw_call);
         }
-        else if (call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] != NULL)
+        //这里之前是else if，高负载下导致大量call被堆积到这里，一直没法回收，影响了性能，因此这里进行修改
+        //改为一次取数据对应着一次回收数据
+        if (call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] != NULL)
         {
             //将回收的部分和分发的部分放到一起是为了减小延迟
 
@@ -697,22 +805,32 @@ void *call_distribute_thread(void *opaque)
             call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
             // Direct_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
             call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
-            express_printf("recycle one\n");
+            // express_printf("recycle one\n");
             //express_printf("recycle one %s\n",(char *)out_call->elem_tail->para);
             in_handle_num -= 1;
+            // gint64 start_time =g_get_real_time();
+            // uint64_t thread_id=out_call->thread_id;
             release_call(out_call);
+            // spend_time_all += g_get_real_time()-start_time;
+            // call_num+=1;
+            // express_printf("call release time %lld %lld %lld %llu\n",spend_time_all/call_num,spend_time_all,call_num,thread_id);
+
             // release_cnt_debug+=1;
             // printf("%d %d %d\n",release_cnt_debug,call_recycle_queue_header,call_recycle_queue_tail);
             release_cnt += 1;
+            has_handle_flag=1;
         }
-        else
-        {
 
+        //前面两个改为if后，这里也改为判断前面两个if有没有进入
+        if(!has_handle_flag)
+        // else
+        {
             //休眠前注入中断，通知对方，防止部分call的延迟过大
             if (release_cnt != 0)
             {
 
                 release_cnt = 0;
+                express_printf("notify guest\n");
                 virtio_notify(VIRTIO_DEVICE(vdev), vq);
             }
 
@@ -730,10 +848,13 @@ void *call_distribute_thread(void *opaque)
             //     }
             // }
         }
+
+        //下面这个不需要，因为高负载下，并不依赖与中断注入来回收数据
+        //高负载下依赖flag标志来回收数据
         if (release_cnt >= 128)
         {
             //express_printf("recycle 128\n");
-            //平均一个call占用的空间为3左右，所以queue里理论上最大有1024/3=341个call，保留一定量的余量空间
+            //平均一个call占用的空间为2左右，所以queue里理论上最大有1024/2=512个call，保留一定量的余量空间
             //剩下的空间里留一部分给处理过程消耗，因此假设留给释放的call大概在128左右
             //所以这时需要赶紧释放空间，防止queue满了
             // express_printf("%s notify 128 with %d\n",get_now_time(),release_cnt);
@@ -877,26 +998,26 @@ void mark_call_return(Direct_Express_Call *call, int loc)
     return;
 }
 
-void set_call_return_val(Direct_Express_Call *call, unsigned char *ret_ptr, size_t len)
-{
+// void set_call_return_val(Direct_Express_Call *call, unsigned char *ret_ptr, size_t len)
+// {
 
-    // Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)call->elem_header->para;
+//     // Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)call->elem_header->para;
 
-    Guest_Mem *mem = call->elem_header->para;
-    // guest_read(mem,&ret,(size_t)((char *)&(((Direct_Express_Flag_Buf *)0)->ret)-(char *)0),8);
+//     Guest_Mem *mem = call->elem_header->para;
+//     // guest_read(mem,&ret,(size_t)((char *)&(((Direct_Express_Flag_Buf *)0)->ret)-(char *)0),8);
 
-    // unsigned long long t=0;
-    // guest_write(mem,&t,__builtin_offsetof(Direct_Express_Flag_Buf,ret),8);
+//     // unsigned long long t=0;
+//     // guest_write(mem,&t,__builtin_offsetof(Direct_Express_Flag_Buf,ret),8);
 
-    express_printf("return value %llu\n",*(unsigned long long*)ret_ptr);
-    // Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)mem->scatter_data[0].data;
-    guest_read(mem, ret_ptr, __builtin_offsetof(Direct_Express_Flag_Buf, ret), len);
-    // flag_buf->ret=*(uint64_t *)ret_ptr;
+//     express_printf("return value %llu\n",*(unsigned long long*)ret_ptr);
+//     // Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)mem->scatter_data[0].data;
+//     guest_read(mem, ret_ptr, __builtin_offsetof(Direct_Express_Flag_Buf, ret), len);
+//     // flag_buf->ret=*(uint64_t *)ret_ptr;
 
-    // express_printf("set return value %llu %llu -- %llu\n",ret_ptr);
+//     // express_printf("set return value %llu %llu -- %llu\n",ret_ptr);
 
-    return;
-}
+//     return;
+// }
 
 /**
  * @brief 从call中获得其保存的参数，并返回参数数目，假如返回的是0，则说明获取失败
@@ -915,6 +1036,8 @@ int get_para_from_call(Direct_Express_Call *call, Call_Para *call_para, unsigned
     {
         return 0;
     }
+    call->spend_time=g_get_real_time();
+
     // if (now_elem == NULL)
     // {
     //     //调用没有传入参数
@@ -972,12 +1095,20 @@ void push_free_callback(Direct_Express_Call *call, int notify)
     // Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)call->elem_header->para;
     // flag_buf->flag = 1;
 
+    if(call->spend_time!=0){
+        call->spend_time=g_get_real_time()-call->spend_time;
+    }
+
+
+    //设置guest端的flag标志，防止中断丢失
     Guest_Mem *mem = call->elem_header->para;
     // guest_read(mem,&ret,(size_t)((char *)&(((Direct_Express_Flag_Buf *)0)->ret)-(char *)0),8);
     unsigned long long t_flag = 1;
     guest_read(mem, &t_flag, __builtin_offsetof(Direct_Express_Flag_Buf, flag), 8);
+    guest_read(mem, &(call->spend_time), __builtin_offsetof(Direct_Express_Flag_Buf, mem_spend_time), 8);
+
     // guest_write(mem, &t_flag, __builtin_offsetof(Direct_Express_Flag_Buf, id), 8);
-    express_printf("write flag id %llu\n",t_flag);
+    express_printf("write flag id %llu %llu\n",t_flag,call->thread_id);
 
     // printf("push cnt %d\n",push_cnt);
 
