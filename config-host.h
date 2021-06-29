@@ -35,11 +35,16 @@
 #define QEMU_VERSION_MICRO 50
 #define CONFIG_SDL m
 #define CONFIG_ICONV 1
+#define CONFIG_CURL m
+#define CONFIG_GTK m
 #define CONFIG_GIO 1
 #define CONFIG_TLS_PRIORITY "NORMAL"
-#define CONFIG_QEMU_PRIVATE_XTS 1
+#define CONFIG_GNUTLS 1
+#define CONFIG_NETTLE 1
+#define CONFIG_NETTLE_VERSION_MAJOR 3
 #define CONFIG_TASN1 1
 #define CONFIG_TCG 1
+#define CONFIG_USB_LIBUSB 1
 #define CONFIG_AVX2_OPT 1
 #define CONFIG_LZO 1
 #define CONFIG_BZIP2 1
@@ -71,5 +76,5 @@
 #define CONFIG_QED 1
 #define CONFIG_PARALLELS 1
 #define CONFIG_SHEEPDOG 1
-#define HAVE_GDB_BIN /mingw64/bin/gdb-multiarch
+#define HAVE_GDB_BIN /mingw64/bin/gdb
 #define HOST_DSOSUF ".dll"
