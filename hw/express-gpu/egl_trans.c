@@ -25,7 +25,6 @@
 
 // } Native_Window;
 
-
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
@@ -317,18 +316,59 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     case FUNID_getEGLConfigParam_special:
 
     {
+
+        /* readline: "int getEGLConfigParam_special int *num_configs#sizeof(int)" */
+        /* func name: "getEGLConfigParam_special" */
+        /* args: [{'type': 'int*', 'name': 'num_configs', 'ptr': 'out', 'ptr_len': 'sizeof(int)', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "int" */
+        /* type: "0" */
+
+        /* Define variables */
+
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_getEGLConfigParam_special)
         {
             break;
         }
 
-        int *num_configs = NULL, *num_config_attrs = NULL;
-        int null_flag = 0;
-        num_configs = (int *)get_direct_ptr(all_para[0].data, &null_flag);
-        num_config_attrs = (int *)get_direct_ptr(all_para[1].data, &null_flag);
+        int out_buf_len = all_para[0].data_len;
 
-        d_getEGLConfigParam_special(render_context, num_configs, num_config_attrs);
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        int *num_configs = (int *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(int);
+
+        int *ret_ptr = (int *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(int);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        int ret = d_getEGLConfigParam_special(render_context, num_configs);
+        *ret_ptr = ret;
+
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
     }
     break;
         /******* end of file '1-1', 2/2 functions*******/

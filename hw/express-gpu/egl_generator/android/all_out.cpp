@@ -1,9 +1,15 @@
 
 #include "define_egl.h"
 
+
+
 #include "../context_common.h"
 
+
+
 /******* file '1-1-1' *******/
+
+
 
 /* readline: "EGLBoolean eglSwapBuffers_special EGLDisplay dpy, EGLSurface surface" */
 /* func name: "eglSwapBuffers_special" */
@@ -14,71 +20,75 @@
 EGLBoolean d_eglSwapBuffers_special(void *context, EGLDisplay dpy, EGLSurface surface)
 {
 
-    unsigned char send_buf[16 + 2 * 16];
-    size_t send_buf_len = 16 + 2 * 16;
-    size_t para_num = 2;
-    unsigned char *ptr = NULL;
+            unsigned char send_buf[16+2*16];
+            size_t send_buf_len=16+2*16;
+            size_t para_num=2;
+            unsigned char *ptr=NULL;
 
-    uint64_t save_buf_len = 16;
-    unsigned char *save_buf;
+            
+            uint64_t save_buf_len=16;
+            unsigned char *save_buf;
+            
+            unsigned char local_save_buf[16];
+            save_buf=local_save_buf;
+            ptr=save_buf;
+            
 
-    unsigned char local_save_buf[16];
-    save_buf = local_save_buf;
-    ptr = save_buf;
+            *(EGLDisplay *)ptr = dpy;
+            ptr += 8;
+            
 
-    *(EGLDisplay *)ptr = dpy;
-    ptr += 8;
+            *(EGLSurface *)ptr = surface;
+            ptr += 8;
+            
 
-    *(EGLSurface *)ptr = surface;
-    ptr += 8;
+        ptr=send_buf;
+        *(uint64_t*)ptr=FUNID_eglSwapBuffers_special;
+        ptr+=sizeof(uint64_t);
+        
+            *(uint64_t*)ptr=(uint64_t)para_num;
+            ptr+=sizeof(uint64_t);
 
-    ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_eglSwapBuffers_special;
-    ptr += sizeof(uint64_t);
+            *(uint64_t*)ptr=(uint64_t)save_buf_len;
+            ptr+=sizeof(uint64_t);
+            *(uint64_t*)ptr=(uint64_t)save_buf;
+            ptr+=sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)para_num;
-    ptr += sizeof(uint64_t);
+            
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
+                        out_buf_len+=sizeof(EGLBoolean);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
 
-    *(uint64_t *)ptr = (uint64_t)save_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)save_buf;
-    ptr += sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
 
-    unsigned char *out_buf;
-    unsigned char *out_buf_ptr;
-    uint64_t out_buf_len = 0;
-    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+            send_to_host(context,send_buf,send_buf_len);
 
-    out_buf_len += sizeof(EGLBoolean);
 
-    if (out_buf_len > MAX_OUT_BUF_LEN)
-    {
-        out_buf = (unsigned char *)malloc(out_buf_len);
-    }
-    else
-    {
-        out_buf = out_buf_local;
-    }
+        out_buf_ptr=out_buf;
+                    EGLBoolean ret=*(EGLBoolean *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
 
-    *(uint64_t *)ptr = (uint64_t)out_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)out_buf;
-    ptr += sizeof(uint64_t);
+            }
 
-    send_to_host(context, send_buf, send_buf_len);
-
-    out_buf_ptr = out_buf;
-    EGLBoolean ret = *(EGLBoolean *)out_buf_ptr;
-
-    if (out_buf_len > MAX_OUT_BUF_LEN)
-    {
-        {
-            free(out_buf);
-        }
-    }
-
-    return ret;
-}
 
 /* readline: "EGLBoolean eglMakeCurrent_special EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx" */
 /* func name: "eglMakeCurrent_special" */
@@ -89,77 +99,83 @@ EGLBoolean d_eglSwapBuffers_special(void *context, EGLDisplay dpy, EGLSurface su
 EGLBoolean d_eglMakeCurrent_special(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
 {
 
-    unsigned char send_buf[16 + 2 * 16];
-    size_t send_buf_len = 16 + 2 * 16;
-    size_t para_num = 2;
-    unsigned char *ptr = NULL;
+            unsigned char send_buf[16+2*16];
+            size_t send_buf_len=16+2*16;
+            size_t para_num=2;
+            unsigned char *ptr=NULL;
 
-    uint64_t save_buf_len = 32;
-    unsigned char *save_buf;
+            
+            uint64_t save_buf_len=32;
+            unsigned char *save_buf;
+            
+            unsigned char local_save_buf[32];
+            save_buf=local_save_buf;
+            ptr=save_buf;
+            
 
-    unsigned char local_save_buf[32];
-    save_buf = local_save_buf;
-    ptr = save_buf;
+            *(EGLDisplay *)ptr = dpy;
+            ptr += 8;
+            
 
-    *(EGLDisplay *)ptr = dpy;
-    ptr += 8;
+            *(EGLSurface *)ptr = draw;
+            ptr += 8;
+            
 
-    *(EGLSurface *)ptr = draw;
-    ptr += 8;
+            *(EGLSurface *)ptr = read;
+            ptr += 8;
+            
 
-    *(EGLSurface *)ptr = read;
-    ptr += 8;
+            *(EGLContext *)ptr = ctx;
+            ptr += 8;
+            
 
-    *(EGLContext *)ptr = ctx;
-    ptr += 8;
+        ptr=send_buf;
+        *(uint64_t*)ptr=FUNID_eglMakeCurrent_special;
+        ptr+=sizeof(uint64_t);
+        
+            *(uint64_t*)ptr=(uint64_t)para_num;
+            ptr+=sizeof(uint64_t);
 
-    ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_eglMakeCurrent_special;
-    ptr += sizeof(uint64_t);
+            *(uint64_t*)ptr=(uint64_t)save_buf_len;
+            ptr+=sizeof(uint64_t);
+            *(uint64_t*)ptr=(uint64_t)save_buf;
+            ptr+=sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)para_num;
-    ptr += sizeof(uint64_t);
+            
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
+                        out_buf_len+=sizeof(EGLBoolean);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
 
-    *(uint64_t *)ptr = (uint64_t)save_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)save_buf;
-    ptr += sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
 
-    unsigned char *out_buf;
-    unsigned char *out_buf_ptr;
-    uint64_t out_buf_len = 0;
-    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+            send_to_host(context,send_buf,send_buf_len);
 
-    out_buf_len += sizeof(EGLBoolean);
 
-    if (out_buf_len > MAX_OUT_BUF_LEN)
-    {
-        out_buf = (unsigned char *)malloc(out_buf_len);
-    }
-    else
-    {
-        out_buf = out_buf_local;
-    }
+        out_buf_ptr=out_buf;
+                    EGLBoolean ret=*(EGLBoolean *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
 
-    *(uint64_t *)ptr = (uint64_t)out_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)out_buf;
-    ptr += sizeof(uint64_t);
+            }
 
-    send_to_host(context, send_buf, send_buf_len);
-
-    out_buf_ptr = out_buf;
-    EGLBoolean ret = *(EGLBoolean *)out_buf_ptr;
-
-    if (out_buf_len > MAX_OUT_BUF_LEN)
-    {
-        {
-            free(out_buf);
-        }
-    }
-
-    return ret;
-}
 
 /* readline: "EGLBoolean eglTerminate_special EGLDisplay dpy" */
 /* func name: "eglTerminate_special" */
@@ -170,87 +186,136 @@ EGLBoolean d_eglMakeCurrent_special(void *context, EGLDisplay dpy, EGLSurface dr
 EGLBoolean d_eglTerminate_special(void *context, EGLDisplay dpy)
 {
 
-    unsigned char send_buf[16 + 2 * 16];
-    size_t send_buf_len = 16 + 2 * 16;
-    size_t para_num = 2;
-    unsigned char *ptr = NULL;
+            unsigned char send_buf[16+2*16];
+            size_t send_buf_len=16+2*16;
+            size_t para_num=2;
+            unsigned char *ptr=NULL;
 
-    uint64_t save_buf_len = 8;
-    unsigned char *save_buf;
+            
+            uint64_t save_buf_len=8;
+            unsigned char *save_buf;
+            
+            unsigned char local_save_buf[8];
+            save_buf=local_save_buf;
+            ptr=save_buf;
+            
 
-    unsigned char local_save_buf[8];
-    save_buf = local_save_buf;
-    ptr = save_buf;
+            *(EGLDisplay *)ptr = dpy;
+            ptr += 8;
+            
 
-    *(EGLDisplay *)ptr = dpy;
-    ptr += 8;
+        ptr=send_buf;
+        *(uint64_t*)ptr=FUNID_eglTerminate_special;
+        ptr+=sizeof(uint64_t);
+        
+            *(uint64_t*)ptr=(uint64_t)para_num;
+            ptr+=sizeof(uint64_t);
 
-    ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_eglTerminate_special;
-    ptr += sizeof(uint64_t);
+            *(uint64_t*)ptr=(uint64_t)save_buf_len;
+            ptr+=sizeof(uint64_t);
+            *(uint64_t*)ptr=(uint64_t)save_buf;
+            ptr+=sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)para_num;
-    ptr += sizeof(uint64_t);
+            
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
+                        out_buf_len+=sizeof(EGLBoolean);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
 
-    *(uint64_t *)ptr = (uint64_t)save_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)save_buf;
-    ptr += sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
 
-    unsigned char *out_buf;
-    unsigned char *out_buf_ptr;
-    uint64_t out_buf_len = 0;
-    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+            send_to_host(context,send_buf,send_buf_len);
 
-    out_buf_len += sizeof(EGLBoolean);
 
-    if (out_buf_len > MAX_OUT_BUF_LEN)
-    {
-        out_buf = (unsigned char *)malloc(out_buf_len);
-    }
-    else
-    {
-        out_buf = out_buf_local;
-    }
+        out_buf_ptr=out_buf;
+                    EGLBoolean ret=*(EGLBoolean *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
 
-    *(uint64_t *)ptr = (uint64_t)out_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)out_buf;
-    ptr += sizeof(uint64_t);
+            }
 
-    send_to_host(context, send_buf, send_buf_len);
 
-    out_buf_ptr = out_buf;
-    EGLBoolean ret = *(EGLBoolean *)out_buf_ptr;
+/* readline: "int getEGLConfigParam_special int *num_configs#sizeof(int)" */
+/* func name: "getEGLConfigParam_special" */
+/* args: [{'type': 'int*', 'name': 'num_configs', 'ptr': 'out', 'ptr_len': 'sizeof(int)', 'loc': 0, 'ptr_ptr': False}] */
+/* ret: "int" */
+/* type: "0" */
 
-    if (out_buf_len > MAX_OUT_BUF_LEN)
-    {
-        {
-            free(out_buf);
-        }
-    }
+int d_getEGLConfigParam_special(void *context, int* num_configs)
+{
 
-    return ret;
-}
+            unsigned char send_buf[16+1*16];
+            size_t send_buf_len=16+1*16;
+            size_t para_num=1;
+            unsigned char *ptr=NULL;
 
-/******* end of file '1-1-1', 4/3 functions *******/
 
-/******* file '1-1-2' *******/
+        ptr=send_buf;
+        *(uint64_t*)ptr=FUNID_getEGLConfigParam_special;
+        ptr+=sizeof(uint64_t);
+        
+            *(uint64_t*)ptr=(uint64_t)para_num;
+            ptr+=sizeof(uint64_t);
 
-/******* end of file '1-1-2', 1/3 functions *******/
+        
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
 
-/******* file '1-2' *******/
+                    uint64_t num_configs_len=(uint64_t)sizeof(int);
+                    out_buf_len+=num_configs_len;
+                    
+                        out_buf_len+=sizeof(int);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
 
-/******* end of file '1-2', 1/3 functions *******/
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
 
-/******* file '2-1-1' *******/
+            send_to_host(context,send_buf,send_buf_len);
 
-/******* end of file '2-1-1', 1/3 functions *******/
 
-/******* file '2-1-2' *******/
+        out_buf_ptr=out_buf;
+                    if(num_configs!=NULL){
 
-/******* end of file '2-1-2', 1/3 functions *******/
+                        memcpy(num_configs,(int*)out_buf_ptr,num_configs_len);
+                    }
+                    out_buf_ptr+=num_configs_len;
+                
+                    int ret=*(int *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
 
-/******* file '2-2' *******/
+            }
 
-/******* end of file '2-2', 1/3 functions *******/

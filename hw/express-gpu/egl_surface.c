@@ -54,7 +54,7 @@ EGLBoolean d_eglTerminate_special(Render_Thread_Context *context, EGLDisplay dpy
     return GL_TRUE;
 }
 
-void d_getEGLConfigParam_special(Render_Thread_Context *context, int *num_configs, int *num_config_attrs)
+int d_getEGLConfigParam_special(Render_Thread_Context *context, int *num_configs)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     Egl_Display *display = &(context->egl_display);
@@ -63,5 +63,5 @@ void d_getEGLConfigParam_special(Render_Thread_Context *context, int *num_config
         init_display(display);
     }
     *num_configs = g_hash_table_size(display->egl_config_set);
-    *num_config_attrs = sizeof(config_attrs) / sizeof(config_attrs[0]);
+    return sizeof(config_attrs) / sizeof(config_attrs[0]);
 }
