@@ -68,13 +68,13 @@ void decode_invoke(Thread_Context *context,Direct_Express_Call *call)
 
         express_printf("gl decode invoke\n");
 
-        // if(buffer_context->has_init&&opengl_context->has_init){
-            // express_printf("gl3 decode invoke\n");
+        if(buffer_context->has_init&&opengl_context->has_init){
+            express_printf("gl3 decode invoke\n");
 
-        gl3_decode_invoke(render_context,call);
-        // }else{
-        //     call->callback(call,0);
-        // }
+            gl3_decode_invoke(render_context,call);
+        }else{
+            call->callback(call,0);
+        }
     }
 
     return;

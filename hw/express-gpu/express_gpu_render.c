@@ -451,23 +451,35 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glfwMakeContextCurrent(d_buffer->window);
 
 
-
     glGenTextures(1, &d_buffer->fbo_texture_display);
+    glGenRenderbuffers(1, &d_buffer->rbo_display);
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_display);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
+    
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+    glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_display); 
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, d_buffer->width, d_buffer->height); // Use a single renderbuffer object for both a depth AND stencil buffer.
+
+
+
     glGenTextures(1, &d_buffer->fbo_texture_draw);
+    glGenRenderbuffers(1, &d_buffer->rbo_draw);
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_draw);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+    glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_draw); 
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, d_buffer->width, d_buffer->height); // Use a single renderbuffer object for both a depth AND stencil buffer.
+
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -478,11 +490,24 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glGenFramebuffers(1, &d_buffer->fbo_display);
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_display);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture_display, 0);
+    //glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_display); 
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->rbo_display); // Now actually attach it
+
+
 
     glGenFramebuffers(1, &d_buffer->fbo_draw);
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_draw);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture_draw, 0);
-    
+    //glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_draw); 
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->rbo_draw); // Now actually attach it
+
+    glBindRenderbuffer(GL_RENDERBUFFER, 0); 
+
+    //这里将读写的framebuffer分离，是为了readpixel时，能够从后缓冲区读取数据
+    //（对于我们的程序，后缓冲区就是fbo_dispaly，而对于绑定fbo不为0时时会选择从read fbo读取，所以要这样把fbo_display设置为read）
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->fbo_draw);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, d_buffer->fbo_display);
+
     
     //屏幕分离调试专用
     #ifdef DEBUG_INDEPEND_WINDOW
@@ -706,8 +731,12 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
 
     TEXTURE_UNLOCK(double_buffer->display_texture_is_use);
 
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, double_buffer->fbo_draw);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, double_buffer->fbo_display);
 
-    render_bind_frame_buffer(double_buffer);
+
+
+    // render_bind_frame_buffer(double_buffer);
         // express_printf("main has error %x\n",glGetError());
 
         // express_printf("main has error %x\n",glGetError());

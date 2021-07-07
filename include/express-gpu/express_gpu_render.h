@@ -35,6 +35,9 @@ typedef struct {
 
     GLuint fbo_texture_draw;
     GLuint fbo_texture_display;
+
+    GLuint rbo_draw;
+    GLuint rbo_display;
     
     int display_texture_is_use;
     GLsync dispaly_sync;

@@ -6,7 +6,7 @@ glMapBufferRange_read GLenum target, GLintptr offset, GLsizeiptr length, GLbitfi
 
 
 
-glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels#gl_pixel_data_size(context,width,height,format,type,1)
+glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, void *pixels#buf_len
 
 
 GLint glTestPointer3 GLint a, const GLint *b#sizeof(GLint)*a, GLint *c#sizeof(GLint)*a

@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 
 #include "express-gpu/glv3_texture.h"
@@ -11,42 +11,43 @@ void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 {
 
     Pixel_Store_Status *pixel_store = &(((Opengl_Context *)context)->pixel_store_status);
-    switch (pname)
-    {
-    case GL_UNPACK_ALIGNMENT:
-        pixel_store->unpack_alignment = param;
-        break;
-    case GL_PACK_ALIGNMENT:
-        pixel_store->pack_alignment = param;
-        break;
-    case GL_UNPACK_ROW_LENGTH:
-        pixel_store->unpack_row_length = param;
-        break;
-    case GL_UNPACK_IMAGE_HEIGHT:
-        pixel_store->unpack_image_height = param;
-        break;
-    case GL_UNPACK_SKIP_PIXELS:
-        pixel_store->unpack_skip_pixels = param;
-        break;
-    case GL_UNPACK_SKIP_ROWS:
-        pixel_store->unpack_skip_rows = param;
-        break;
-    case GL_UNPACK_SKIP_IMAGES:
-        pixel_store->unpack_skip_images = param;
-        break;
-    case GL_PACK_ROW_LENGTH:
-        pixel_store->pack_row_length = param;
-        break;
-    case GL_PACK_SKIP_PIXELS:
-        pixel_store->pack_skip_pixels = param;
-        break;
-    case GL_PACK_SKIP_ROWS:
-        pixel_store->pack_skip_rows = param;
-        break;
-    default:
-        return;
-    }
+    // switch (pname)
+    // {
+    // case GL_UNPACK_ALIGNMENT:
+    //     pixel_store->unpack_alignment = param;
+    //     break;
+    // case GL_PACK_ALIGNMENT:
+    //     pixel_store->pack_alignment = param;
+    //     break;
+    // case GL_UNPACK_ROW_LENGTH:
+    //     pixel_store->unpack_row_length = param;
+    //     break;
+    // case GL_UNPACK_IMAGE_HEIGHT:
+    //     pixel_store->unpack_image_height = param;
+    //     break;
+    // case GL_UNPACK_SKIP_PIXELS:
+    //     pixel_store->unpack_skip_pixels = param;
+    //     break;
+    // case GL_UNPACK_SKIP_ROWS:
+    //     pixel_store->unpack_skip_rows = param;
+    //     break;
+    // case GL_UNPACK_SKIP_IMAGES:
+    //     pixel_store->unpack_skip_images = param;
+    //     break;
+    // case GL_PACK_ROW_LENGTH:
+    //     pixel_store->pack_row_length = param;
+    //     break;
+    // case GL_PACK_SKIP_PIXELS:
+    //     pixel_store->pack_skip_pixels = param;
+    //     break;
+    // case GL_PACK_SKIP_ROWS:
+    //     pixel_store->pack_skip_rows = param;
+    //     break;
+    // default:
+    //     return;
+    // }
     glPixelStorei(pname, param);
+    //express_printf("glPixelStorei %x %d\n",pname,param);
     
     return;
 }
@@ -141,7 +142,7 @@ void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLs
 }
 
 
-void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels)
+void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
     // if(pixels==NULL){
     //     glTexImage2D(target,level,internalformat,width,height,border,format,type,NULL);
@@ -160,8 +161,8 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
-    int start_loc=0,end_loc=0;
-    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+    int start_loc=0,end_loc=buf_len;
+    //gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
     prepare_unpack_texture(context,guest_mem,start_loc,end_loc);
 
@@ -186,7 +187,7 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
     glTexImage2D(target,level,internalformat,width,height,border,format,type,(void *)pixels);
 }
 
-void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels)
+void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
     // if(pixels==NULL){
     //     glTexSubImage2D(target, level, xoffset, yoffset, width, height, format,  type,  NULL);
@@ -203,8 +204,8 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
 
     Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
-    int start_loc=0,end_loc=0;
-    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+    int start_loc=0,end_loc=buf_len;
+    // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
     prepare_unpack_texture(context,guest_mem,start_loc,end_loc);
 
@@ -219,7 +220,7 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
     glTexSubImage2D(target, level, xoffset, yoffset, width, height, format,  type, (void *)pixels);
 }
 
-void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels)
+void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
     // if(pixels==NULL){
     //     glTexImage3D(target, level, internalformat, width, height, depth, border, format, type, NULL);
@@ -239,8 +240,8 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
 
     Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
-    int start_loc=0,end_loc=0;
-    gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
+    int start_loc=0,end_loc=buf_len;
+    // gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
 
     express_printf("pixel start loc %d end loc %d\n",start_loc,end_loc);
 
@@ -260,7 +261,7 @@ void d_glTexImage3D_with_bound(void *context, GLenum target, GLint level, GLint 
     glTexImage3D(target, level, internalformat, width, height, depth, border, format, type, (void *)pixels);
 }
 
-void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels){
+void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLint buf_len, const void *pixels){
 
     // if(pixels==NULL){
     //     glTexSubImage3D( target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, NULL);
@@ -279,8 +280,8 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
 
     Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
-    int start_loc=0,end_loc=0;
-    gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
+    int start_loc=0,end_loc=buf_len;
+    // gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
 
     prepare_unpack_texture(context,guest_mem,start_loc,end_loc);
 
@@ -391,7 +392,7 @@ void d_glCompressedTexSubImage2D_with_bound(void *context,GLenum target, GLint l
 
 
 
-void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels){
+void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, void *pixels){
     //由于没有绑定的情况还是需要读取完数据后再进行复制，所以这里实际上无法做到异步
     Guest_Mem *guest_mem=(Guest_Mem *)pixels;
     // Scatter_Data *s_data=guest_mem->scatter_data;
@@ -405,8 +406,8 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
 
     Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
-    int start_loc=0,end_loc=0;
-    gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
+    int start_loc=0,end_loc=buf_len;
+    // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
 
@@ -417,7 +418,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     glReadPixels(x,y,width,height,format,type,0);
     
     //注意，此句会阻塞，直到pixels全部下载下来
-    GLubyte *map_pointer=glMapBufferRange(GL_PIXEL_UNPACK_BUFFER,start_loc,end_loc-start_loc,GL_MAP_READ_BIT);
+    GLubyte *map_pointer=glMapBufferRange(GL_PIXEL_PACK_BUFFER,start_loc,end_loc-start_loc,GL_MAP_READ_BIT);
     // host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,0);
 
     guest_read(guest_mem,map_pointer,0,end_loc-start_loc);
@@ -430,6 +431,11 @@ void d_glReadPixels_with_bound(void *context, GLint x, GLint y, GLsizei width, G
     glReadPixels(x, y, width, height, format, type, (void *)pixels);
 }
 
+
+
+void d_glReadBuffer_special(void *context, GLenum src){
+    glReadBuffer(src);
+}
 
 
 
