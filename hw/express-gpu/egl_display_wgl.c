@@ -208,6 +208,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->pixel_format = pfd;
     config->config_id = id;
 
+    // 资源需要释放
     g_hash_table_insert(display->egl_config_set, GINT_TO_POINTER(id), (gpointer)config);
 }
 

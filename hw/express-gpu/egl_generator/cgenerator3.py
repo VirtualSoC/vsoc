@@ -20,7 +20,7 @@ target64bit = True
 ptrbits = 64 if target64bit else 32
 sizeof_dic = {
     'EGLBoolean': 32,     'EGLenum': 32,           'EGLTime': 64,
-    'EGLInt':32,
+    'EGLint':32,
     'EGLConfig': ptrbits, 'EGLSurface': ptrbits, 'EGLContext': ptrbits,
     'EGLDisplay': ptrbits, 'EGLClientBuffer':ptrbits,'EGLSync':ptrbits,
     'EGLAttrib':ptrbits, 'EGLImage':ptrbits,'EGLClientBuffer':ptrbits,

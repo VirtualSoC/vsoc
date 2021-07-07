@@ -370,6 +370,93 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             g_free(ret_buf);
         }
     }
+
+    case FUNID_getEGLConfigs_special:
+
+    {
+
+        /* readline: "EGLint getEGLConfigs_special EGLint num_attrs, EGLint *attr_list#num_attrs*sizeof(EGLint)" */
+        /* func name: "getEGLConfigs_special" */
+        /* args: [{'type': 'EGLint', 'name': 'num_attrs', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'attr_list', 'ptr': 'out', 'ptr_len': 'num_attrs*sizeof(EGLint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "EGLint" */
+        /* type: "0" */
+
+        /* Define variables */
+        EGLint num_attrs;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_getEGLConfigs_special)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        num_attrs = *(EGLint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLint *attr_list = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += num_attrs * sizeof(EGLint);
+
+        EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        EGLint ret = d_getEGLConfigs_special(render_context, num_attrs, attr_list);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
     break;
         /******* end of file '1-1', 2/2 functions*******/
 

@@ -319,3 +319,143 @@ int d_getEGLConfigParam_special(void *context, int* num_configs)
 
             }
 
+
+/* readline: "EGLint getEGLConfigs_special EGLint num_attrs, EGLint *attr_list#num_attrs*sizeof(EGLint)" */
+/* func name: "getEGLConfigs_special" */
+/* args: [{'type': 'EGLint', 'name': 'num_attrs', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'attr_list', 'ptr': 'out', 'ptr_len': 'num_attrs*sizeof(EGLint)', 'loc': 1, 'ptr_ptr': False}] */
+/* ret: "EGLint" */
+/* type: "0" */
+
+EGLint d_getEGLConfigs_special(void *context, EGLint num_attrs, EGLint* attr_list)
+{
+
+            unsigned char send_buf[16+2*16];
+            size_t send_buf_len=16+2*16;
+            size_t para_num=2;
+            unsigned char *ptr=NULL;
+
+            
+            uint64_t save_buf_len=4;
+            unsigned char *save_buf;
+            
+            unsigned char local_save_buf[4];
+            save_buf=local_save_buf;
+            ptr=save_buf;
+            
+
+            *(EGLint *)ptr = num_attrs;
+            ptr += 4;
+            
+
+        ptr=send_buf;
+        *(uint64_t*)ptr=FUNID_getEGLConfigs_special;
+        ptr+=sizeof(uint64_t);
+        
+            *(uint64_t*)ptr=(uint64_t)para_num;
+            ptr+=sizeof(uint64_t);
+
+            *(uint64_t*)ptr=(uint64_t)save_buf_len;
+            ptr+=sizeof(uint64_t);
+            *(uint64_t*)ptr=(uint64_t)save_buf;
+            ptr+=sizeof(uint64_t);
+
+            
+                    unsigned char * out_buf;
+                    unsigned char * out_buf_ptr;
+                    uint64_t out_buf_len=0;
+                    unsigned char out_buf_local[MAX_OUT_BUF_LEN];
+                
+
+                    uint64_t attr_list_len=(uint64_t)num_attrs*sizeof(EGLint);
+                    out_buf_len+=attr_list_len;
+                    
+                        out_buf_len+=sizeof(EGLint);
+                    
+                    if(out_buf_len>MAX_OUT_BUF_LEN){
+                        out_buf=(unsigned char *)malloc(out_buf_len); 
+                    }else{
+                        out_buf=out_buf_local;
+                    }
+                
+
+                    *(uint64_t*)ptr=(uint64_t)out_buf_len;
+                    ptr+=sizeof(uint64_t);
+                    *(uint64_t*)ptr=(uint64_t)out_buf;
+                    ptr+=sizeof(uint64_t);
+                
+
+            send_to_host(context,send_buf,send_buf_len);
+
+
+        out_buf_ptr=out_buf;
+                    if(attr_list!=NULL){
+
+                        memcpy(attr_list,(EGLint*)out_buf_ptr,attr_list_len);
+                    }
+                    out_buf_ptr+=attr_list_len;
+                
+                    EGLint ret=*(EGLint *)out_buf_ptr;
+                
+                if(out_buf_len>MAX_OUT_BUF_LEN){{
+                    free(out_buf); 
+                }}
+            
+                return ret;
+
+            }
+
+
+
+/******* end of file '1-1-1', 6/5 functions *******/
+
+
+
+
+/******* file '1-1-2' *******/
+
+
+
+
+/******* end of file '1-1-2', 1/5 functions *******/
+
+
+
+
+/******* file '1-2' *******/
+
+
+
+
+/******* end of file '1-2', 1/5 functions *******/
+
+
+
+
+/******* file '2-1-1' *******/
+
+
+
+
+/******* end of file '2-1-1', 1/5 functions *******/
+
+
+
+
+/******* file '2-1-2' *******/
+
+
+
+
+/******* end of file '2-1-2', 1/5 functions *******/
+
+
+
+
+/******* file '2-2' *******/
+
+
+
+
+/******* end of file '2-2', 1/5 functions *******/
+
+
