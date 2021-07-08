@@ -156,7 +156,6 @@ trace-ust-all.c
 /target/arm/decode-sve.inc.c
 /build
 /.idea
-/.vscode
 /storage-daemon
 /qemu.code-workspace
 .gitlab-ci.yml

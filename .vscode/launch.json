@@ -1,0 +1,31 @@
+
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "targetArchitecture": "x64",
+            "program": "${workspaceFolder}\\x86_64-softmmu\\qemu-system-x86_64.exe",
+            "args": ["-accel", "hax", "-m", "4096", "-smp", "4", "-machine", "usb=on", "-device", "usb-kbd", "-device", "usb-tablet", "-boot", "menu=on", "-serial", "mon:stdio", "-net", "nic", "-net", "user,hostfwd=tcp::5555-:5555", "-device", "direct-express-pci", "-display", "sdl", "-hda", "D:/hda.img", "-cdrom", "D:/android_x86_64.iso"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}\\x86_64-softmmu",
+            // "environment": [{
+            //     "name": "PATH",
+            //     "value": "/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/c/Windows/System32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0/:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl"
+            // }],
+            "externalConsole": true,
+            "MIMode" : "gdb",
+            "miDebuggerPath": "C:/msys64/mingw64/bin/gdb-multiarch.exe",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            // "logging": { "engineLogging": true },
+        }
+    ]
+}
