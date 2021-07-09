@@ -95,7 +95,7 @@ void real_egl_swap_buffer(Render_Thread_Context *context)
 
     //post是异步的，发送完消息后就返回了
     
-    SendMessage(draw_native_window, WM_USER_PAINT, 0, (LPARAM)buffer_context );
+    PostMessage(draw_native_window, WM_USER_PAINT, 0, (LPARAM)buffer_context );
 
     express_printf("real egl swap buffer\n");
 

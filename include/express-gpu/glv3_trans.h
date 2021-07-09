@@ -51,7 +51,7 @@
 #define FUNID_glIsSync ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 40)
 #define FUNID_glGetSynciv ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 41)
 #define FUNID_glClientWaitSync ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 42)
-#define FUNID_glFinish ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 43)
+#define FUNID_glFinish ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x0) << 24u) + 43)
 #define FUNID_glTestInt1 ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 44)
 #define FUNID_glTestInt2 ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 45)
 #define FUNID_glTestInt3 ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 46)
