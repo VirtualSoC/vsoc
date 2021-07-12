@@ -26,6 +26,8 @@ typedef struct {
 typedef struct {
     GHashTable *egl_config_set;
     WGL_Extension* wgl_ext;
+    EGLint guest_ver_major;
+    EGLint guest_ver_minor;
     int is_init;
 } Egl_Display;
 

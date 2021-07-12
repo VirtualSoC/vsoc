@@ -27,6 +27,9 @@ int d_getEGLConfigParam_special(void *context, int* num_configs);
 #define FUNID_getEGLConfigs_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100004)
 EGLint d_getEGLConfigs_special(void *context, EGLint num_attrs, EGLint* attr_list);
 
+#define FUNID_getEGLVersion_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100005)
+EGLBoolean d_getEGLVersion_special(void *context, EGLint* ver_major, EGLint* ver_minor);
+
 
 
 

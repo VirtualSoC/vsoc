@@ -18,5 +18,6 @@ EGLBoolean d_eglMakeCurrent_special(Render_Thread_Context *context,EGLDisplay dp
 EGLBoolean d_eglTerminate_special(Render_Thread_Context *context, EGLDisplay dpy);
 int d_getEGLConfigParam_special(Render_Thread_Context *context, int* num_configs);
 EGLint d_getEGLConfigs_special(Render_Thread_Context *context, EGLint num_attrs, EGLint* attr_list);
+EGLBoolean d_getEGLVersion_special(Render_Thread_Context *context, EGLint* ver_major, EGLint* ver_minor);
 
 #endif

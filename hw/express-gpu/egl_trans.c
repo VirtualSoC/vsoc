@@ -457,6 +457,67 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             g_free(ret_buf);
         }
     }
+    case FUNID_getEGLVersion_special:
+
+    {
+
+        /* readline: "EGLBoolean getEGLVersion_special EGLint *ver_major#sizeof(EGLint), EGLint *ver_minor#sizeof(EGLint)" */
+        /* func name: "getEGLVersion_special" */
+        /* args: [{'type': 'EGLint*', 'name': 'ver_major', 'ptr': 'out', 'ptr_len': 'sizeof(EGLint)', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'ver_minor', 'ptr': 'out', 'ptr_len': 'sizeof(EGLint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "EGLBoolean" */
+        /* type: "0" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_getEGLVersion_special)
+        {
+            break;
+        }
+
+        int out_buf_len = all_para[0].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLint *ver_major = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        EGLint *ver_minor = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        EGLBoolean ret = d_getEGLVersion_special(render_context, ver_major, ver_minor);
+        *ret_ptr = ret;
+
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
     break;
         /******* end of file '1-1', 2/2 functions*******/
 

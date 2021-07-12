@@ -46,6 +46,9 @@ void init_display(Egl_Display *display)
 {
     init_wgl_extension(display);
     init_configs(display);
+
+    display->guest_ver_major = 1;
+    display->guest_ver_minor = 5;
 }
 
 /**

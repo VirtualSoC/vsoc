@@ -8,5 +8,6 @@ EGLBoolean d_eglMakeCurrent_special(void *context, EGLDisplay dpy, EGLSurface dr
 EGLBoolean d_eglTerminate_special(void *context, EGLDisplay dpy);
 int d_getEGLConfigParam_special(void *context, int* num_configs);
 EGLint d_getEGLConfigs_special(void *context, EGLint num_attrs, EGLint* attr_list);
+EGLBoolean d_getEGLVersion_special(void *context, EGLint* ver_major, EGLint* ver_minor);
 
 #endif

@@ -356,9 +356,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "EGLint getEGLConfigs_special EGLint num_attrs, EGLint *attr_list#num_attrs*sizeof(EGLint)" */
+        /* readline: "EGLint getEGLConfigs_special EGLint num_attrs, EGLint *attr_list#num_attrs*sizeof(EGLint" */
         /* func name: "getEGLConfigs_special" */
-        /* args: [{'type': 'EGLint', 'name': 'num_attrs', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'attr_list', 'ptr': 'out', 'ptr_len': 'num_attrs*sizeof(EGLint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* args: [{'type': 'EGLint', 'name': 'num_attrs', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'attr_list', 'ptr': 'out', 'ptr_len': 'num_attrs*sizeof(EGLint', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "EGLint" */
         /* type: "0" */
 
@@ -414,10 +414,72 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         int out_buf_loc = 0;
 
         EGLint *attr_list = (EGLint *)(ret_buf + out_buf_loc);
-        out_buf_loc += num_attrs * sizeof(EGLint);
+                            out_buf_loc+=num_attrs*sizeof(EGLint;
+                        
+                        EGLint *ret_ptr=(EGLint *)(ret_buf+out_buf_loc);
+                        out_buf_loc+=sizeof(EGLint);
+                    
+                    if(out_buf_loc > out_buf_len){
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+                    }
+                
 
-        EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
+EGLint ret = d_getEGLConfigs_special(render_context,num_attrs, attr_list);
+*ret_ptr=ret;
+
+                    guest_read(all_para[1].data,ret_buf,0,out_buf_len);
+                
+
+if(out_buf_len>MAX_OUT_BUF_LEN){
+            g_free(ret_buf);}
+    }
+    break;
+
+    case FUNID_getEGLVersion_special:
+
+    {
+
+        /* readline: "EGLBoolean getEGLVersion_special EGLint *ver_major#sizeof(EGLint), EGLint *ver_minor#sizeof(EGLint)" */
+        /* func name: "getEGLVersion_special" */
+        /* args: [{'type': 'EGLint*', 'name': 'ver_major', 'ptr': 'out', 'ptr_len': 'sizeof(EGLint)', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'ver_minor', 'ptr': 'out', 'ptr_len': 'sizeof(EGLint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "EGLBoolean" */
+        /* type: "0" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_getEGLVersion_special)
+        {
+            break;
+        }
+
+        int out_buf_len = all_para[0].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLint *ver_major = (EGLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLint);
+
+        EGLint *ver_minor = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
 
         if (out_buf_loc > out_buf_len)
         {
@@ -428,10 +490,10 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        EGLint ret = d_getEGLConfigs_special(render_context, num_attrs, attr_list);
+        EGLBoolean ret = d_getEGLVersion_special(render_context, ver_major, ver_minor);
         *ret_ptr = ret;
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
         {
@@ -440,27 +502,27 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '1-1-1', 6/5 functions*******/
+        /******* end of file '1-1-1', 7/6 functions*******/
 
         /******* file '1-1-2' *******/
 
-        /******* end of file '1-1-2', 1/5 functions*******/
+        /******* end of file '1-1-2', 1/6 functions*******/
 
         /******* file '1-2' *******/
 
-        /******* end of file '1-2', 1/5 functions*******/
+        /******* end of file '1-2', 1/6 functions*******/
 
         /******* file '2-1-1' *******/
 
-        /******* end of file '2-1-1', 1/5 functions*******/
+        /******* end of file '2-1-1', 1/6 functions*******/
 
         /******* file '2-1-2' *******/
 
-        /******* end of file '2-1-2', 1/5 functions*******/
+        /******* end of file '2-1-2', 1/6 functions*******/
 
         /******* file '2-2' *******/
 
-        /******* end of file '2-2', 1/5 functions*******/
+        /******* end of file '2-2', 1/6 functions*******/
 
     default:
         break;

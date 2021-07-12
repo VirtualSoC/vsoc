@@ -77,3 +77,14 @@ EGLint d_getEGLConfigs_special(Render_Thread_Context *context, EGLint num_attrs,
 
     return index - 1;
 }
+
+EGLBoolean d_getEGLVersion_special(Render_Thread_Context *context, EGLint* ver_major, EGLint* ver_minor) {
+    VALIDATE_DISPLAY;
+
+    if (!display->is_init) return EGL_FALSE;
+
+    *ver_major = display->guest_ver_major;
+    *ver_minor = display->guest_ver_minor;
+
+    return EGL_TRUE;
+}

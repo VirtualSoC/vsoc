@@ -159,7 +159,7 @@ void *handle_thread_run(void *opaque)
 
     // qemu_event_destroy(&(context->data_event));
     #ifdef _WIN32
-        CloseHandle(&(context->data_event));
+        CloseHandle(context->data_event);
     #else
 
     #endif

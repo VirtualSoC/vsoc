@@ -9,4 +9,6 @@ EGLBoolean eglTerminate_special EGLDisplay dpy
 
 int getEGLConfigParam_special int *num_configs#sizeof(int)
 
-EGLint getEGLConfigs_special EGLint num_attrs, EGLint *attr_list#num_attrs*sizeof(EGLint)
+EGLint getEGLConfigs_special EGLint num_attrs, EGLint *attr_list#num_attrs*sizeof(EGLint
+
+EGLBoolean getEGLVersion_special EGLint *ver_major#sizeof(EGLint), EGLint *ver_minor#sizeof(EGLint)
