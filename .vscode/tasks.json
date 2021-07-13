@@ -48,6 +48,30 @@
                 "focus": true
             },
             "problemMatcher": []
+        },
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "./x86_64-softmmu/qemu-system-x86_64 -accel hax -m 4096 -smp 6 -machine usb=on -device usb-kbd -device usb-tablet -boot menu=on -serial mon:stdio -net nic -net user,hostfwd=tcp::5555-:5555 -device direct-express-pci -display sdl -hda D:/hda.img -cdrom D:/android_x86_64.iso",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "options": {
+                "shell": {
+                    "executable": "C:/msys64/usr/bin/bash.exe",
+                    "args": [
+                        "--login",
+                        "-c"
+                    ]
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "echo": false,
+                "focus": true
+            },
+            "problemMatcher": []
         }
     ]
 }
