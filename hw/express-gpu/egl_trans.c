@@ -457,6 +457,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             g_free(ret_buf);
         }
     }
+    break;
+
     case FUNID_getEGLVersion_special:
 
     {

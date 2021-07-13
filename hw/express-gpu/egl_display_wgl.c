@@ -49,6 +49,8 @@ void init_display(Egl_Display *display)
 
     display->guest_ver_major = 1;
     display->guest_ver_minor = 5;
+
+    display->is_init = true;
 }
 
 /**

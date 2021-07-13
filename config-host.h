@@ -27,6 +27,7 @@
 #define CONFIG_BDRV_RO_WHITELIST\
     NULL
 #define CONFIG_VNC 1
+#define CONFIG_VNC_JPEG 1
 #define CONFIG_VNC_PNG 1
 #define QEMU_VERSION "5.0.50"
 #define QEMU_VERSION_MAJOR 5
@@ -40,6 +41,7 @@
 #define CONFIG_TASN1 1
 #define CONFIG_TCG 1
 #define CONFIG_AVX2_OPT 1
+#define CONFIG_LZO 1
 #define CONFIG_BZIP2 1
 #define CONFIG_ZSTD 1
 #define CONFIG_QOM_CAST_DEBUG 1
@@ -69,5 +71,5 @@
 #define CONFIG_QED 1
 #define CONFIG_PARALLELS 1
 #define CONFIG_SHEEPDOG 1
-#define HAVE_GDB_BIN /mingw64/bin/gdb
+#define HAVE_GDB_BIN /mingw64/bin/gdb-multiarch
 #define HOST_DSOSUF ".dll"

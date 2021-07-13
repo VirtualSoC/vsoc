@@ -15,7 +15,7 @@ unset LIBTOOL
 unset MAKE
 unset NM
 unset OBJCOPY
-PATH='/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/c/Program Files/AdoptOpenJDK/jdk-11.0.10.9-hotspot/bin:/c/Program Files (x86)/Common Files/Oracle/Java/javapath:/c/WINDOWS/system32:/c/WINDOWS:/c/WINDOWS/System32/Wbem:/c/WINDOWS/System32/WindowsPowerShell/v1.0:/c/WINDOWS/System32/OpenSSH:/c/Program Files/Git/cmd:/c/Program Files/Microsoft VS Code/bin:/c/Program Files/Pandoc:/c/ChromeDriver/chromedriver.exe:/c/Users/linli/AppData/Local/Programs/Python/Python38-32/Scripts:/c/Users/linli/AppData/Local/Programs/Python/Python38-32:/c/Users/linli/AppData/Local/Microsoft/WindowsApps:/c/texlive/2019/bin/win32:/c/Program Files/Java/jdk1.8.0_241/bin:/c/Program Files/Java/jdk1.8.0_241/jre/bin:/c/Program Files (x86)/Nmap:/c/ChromeDriver/chromedriver.exe:/c/apache-maven-3.6.3/bin:/d/Android/Sdk/platform-tools:/d/Android/Sdk/tools/bin:/c/Program Files/Bandizip:/c/Users/linli/AppData/Local/Programs/Fiddler:/c/Users/linli/AppData/Local/Microsoft/WindowsApps:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl'
+PATH='/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/c/Users/linli/AppData/Local/Programs/Python/Python39/Scripts:/c/Users/linli/AppData/Local/Programs/Python/Python39:/c/Program Files (x86)/Common Files/Intel/Shared Libraries/redist/intel64/compiler:/c/Program Files (x86)/VMware/VMware Player/bin:/c/Program Files/Common Files/Oracle/Java/javapath:/c/Windows/system32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0:/c/Windows/System32/OpenSSH:/c/Program Files/dotnet:/c/Program Files/NVIDIA Corporation/NVIDIA NvDLISR:/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/c/texlive/2020/bin/win32:/c/Program Files/Java/jdk-11.0.10/bin:/c/Program Files/MATLAB/R2020b/bin:/c/Users/linli/AppData/Local/Android/Sdk/platform-tools:/c/Program Files/CMake/bin:/c/ProgramData/chocolatey/bin:/c/Program Files/Git/cmd:/c/Program Files/Microsoft VS Code/bin:/c/Users/linli/bin:/c/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Auxiliary/Build:/c/Users/linli/AppData/Local/Microsoft/WindowsApps:/c/Users/linli/AppData/Local/Programs/Microsoft VS Code/bin:/c/Users/linli/.dotnet/tools:/c/Program Files/Bandizip:/c/Users/linli/AppData/Local/Programs/Fiddler:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl'
 export PATH
 unset PKG_CONFIG
 unset PKG_CONFIG_LIBDIR
@@ -26,4 +26,4 @@ unset SDL2_CONFIG
 unset SMBD
 unset STRIP
 unset WINDRES
-exec './configure' '--cross-prefix=x86_64-w64-mingw32-' '--disable-gtk' '--enable-sdl' '--target-list=x86_64-softmmu' '--disable-werror' "$@"
+exec '/c/Users/linli/Downloads/qemu5.0/configure' '--cross-prefix=x86_64-w64-mingw32-' '--disable-gtk' '--enable-sdl' '--target-list=x86_64-softmmu' '--disable-werror' "$@"
