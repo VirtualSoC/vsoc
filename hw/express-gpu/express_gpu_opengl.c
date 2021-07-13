@@ -670,6 +670,16 @@ size_t gl_pname_size(GLenum pname){
 }
 
 
+void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer){
+
+    if(framebuffer==0){
+        GLint fbo0 = ((Opengl_Context *)context)->fbo0;
+        framebuffer=fbo0;
+    }
+    glBindFramebuffer(target, framebuffer);
+}
+
+
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
 {
 
@@ -787,6 +797,8 @@ void opengl_context_create(void *context){
     glEnable(GL_POINT_SPRITE);
     // bound_buffer->asyn_pack_texture_buffer=0;
     // bound_buffer->asyn_unpack_texture_buffer=0;
+
+    opengl_context->fbo0 = 0;
 
     opengl_context->has_init=1;
 

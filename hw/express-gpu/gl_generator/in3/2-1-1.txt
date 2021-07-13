@@ -6,7 +6,7 @@ glActiveTexture GLenum texture
 glAttachShader GLuint program, GLuint shader
 glBindBuffer_origin GLenum target, GLuint buffer
 //glBindBuffer GLenum target, GLuint buffer
-glBindFramebuffer GLenum target, GLuint framebuffer
+glBindFramebuffer_special GLenum target, GLuint framebuffer
 glBindRenderbuffer GLenum target, GLuint renderbuffer
 glBindTexture GLenum target, GLuint texture
 glBlendColor GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha
@@ -78,7 +78,7 @@ glVertexAttrib2f GLuint index, GLfloat x, GLfloat y
 glVertexAttrib3f GLuint index, GLfloat x, GLfloat y, GLfloat z
 glVertexAttrib4f GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w
 glViewport GLint x, GLint y, GLsizei width, GLsizei height
-glReadBuffer GLenum src
+glReadBuffer_special GLenum src
 glCopyTexSubImage3D GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height
 glBeginQuery GLenum target, GLuint id
 glEndQuery GLenum target

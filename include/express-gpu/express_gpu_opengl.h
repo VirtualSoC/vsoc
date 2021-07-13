@@ -125,6 +125,7 @@ typedef struct Opengl_Context
     Bound_Buffer bound_buffer_status;
 
     GHashTable *buffer_map;
+    GLuint fbo0;
 
     int has_init;
 
@@ -172,6 +173,7 @@ size_t gl_pname_size(GLenum pname);
 
 // void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
 
+void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer);
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
 

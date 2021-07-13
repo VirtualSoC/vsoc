@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:\\msys64\\mingw64\\include\\**",
+                "C:\\msys64\\mingw64\\lib\\**",
+                "C:/msys64/mingw64/include/pixman-1/",
+                "C:/msys64/mingw64/include/glib-2.0/",
+                "C:/msys64/mingw64/include/capstone/",
+                "C:/msys64/mingw64/include/libpng16/"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "windowsSdkVersion": "10.0.19041.0",
+            // "compilerPath": "C:/msys64/mingw64/bin/x86_64-w64-mingw32-gcc.exe",
+            "compilerPath": "C:/msys64/mingw64/bin/gcc.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64"
+        }
+    ],
+    "version": 4
+}

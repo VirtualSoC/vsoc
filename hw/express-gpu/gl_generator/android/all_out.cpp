@@ -11,7 +11,7 @@
 
 /******* file '1-1-1' *******/
 
-/* readline: "GLenum glCheckFramebufferStatus GLenum target @{if(target!=GL_DRAW_FRAMEBUFFER||target!= GL_READ_FRAMEBUFFER||target!=GL_FRAMEBUFFER){set_gl_error(context,GL_INVALID_ENUM);return 0;}}" */
+/* readline: "GLenum glCheckFramebufferStatus GLenum target @{if(target!=GL_DRAW_FRAMEBUFFER&&target!= GL_READ_FRAMEBUFFER&&target!=GL_FRAMEBUFFER){set_gl_error(context,GL_INVALID_ENUM);return 0;}}" */
 /* func name: "glCheckFramebufferStatus" */
 /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
 /* ret: "GLenum" */
@@ -20,7 +20,7 @@
 GLenum d_glCheckFramebufferStatus(void *context, GLenum target)
 {
     {
-        if (target != GL_DRAW_FRAMEBUFFER || target != GL_READ_FRAMEBUFFER || target != GL_FRAMEBUFFER)
+        if (target != GL_DRAW_FRAMEBUFFER && target != GL_READ_FRAMEBUFFER && target != GL_FRAMEBUFFER)
         {
             set_gl_error(context, GL_INVALID_ENUM);
             return 0;
@@ -4406,13 +4406,13 @@ void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsi
     send_to_host(context, send_buf, send_buf_len);
 }
 
-/* readline: "glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels#gl_pixel_data_size(context,width,height,format,type,1)" */
+/* readline: "glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, void *pixels#buf_len" */
 /* func name: "glReadPixels_without_bound" */
-/* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'void*', 'name': 'pixels', 'ptr': 'out', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,1)', 'loc': 6, 'ptr_ptr': False}] */
+/* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'void*', 'name': 'pixels', 'ptr': 'out', 'ptr_len': 'buf_len', 'loc': 7, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "1" */
 
-void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels)
+void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, void *pixels)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -4420,10 +4420,10 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     size_t para_num = 2;
     unsigned char *ptr = NULL;
 
-    uint64_t save_buf_len = 24;
+    uint64_t save_buf_len = 28;
     unsigned char *save_buf;
 
-    unsigned char local_save_buf[24];
+    unsigned char local_save_buf[28];
     save_buf = local_save_buf;
     ptr = save_buf;
 
@@ -4445,6 +4445,9 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     *(GLenum *)ptr = type;
     ptr += 4;
 
+    *(GLint *)ptr = buf_len;
+    ptr += 4;
+
     ptr = send_buf;
     *(uint64_t *)ptr = FUNID_glReadPixels_without_bound;
     ptr += sizeof(uint64_t);
@@ -4457,7 +4460,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     *(uint64_t *)ptr = (uint64_t)save_buf;
     ptr += sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)gl_pixel_data_size(context, width, height, format, type, 1);
+    *(uint64_t *)ptr = (uint64_t)buf_len;
     ptr += sizeof(uint64_t);
     *(uint64_t *)ptr = (uint64_t)pixels;
     ptr += sizeof(uint64_t);
@@ -7828,13 +7831,13 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     }
 }
 
-/* readline: "glBindFramebuffer GLenum target, GLuint framebuffer" */
-/* func name: "glBindFramebuffer" */
+/* readline: "glBindFramebuffer_special GLenum target, GLuint framebuffer" */
+/* func name: "glBindFramebuffer_special" */
 /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'framebuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "3" */
 
-void d_glBindFramebuffer(void *context, GLenum target, GLuint framebuffer)
+void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -7862,7 +7865,7 @@ void d_glBindFramebuffer(void *context, GLenum target, GLuint framebuffer)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glBindFramebuffer;
+    *(uint64_t *)ptr = FUNID_glBindFramebuffer_special;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -11362,13 +11365,13 @@ void d_glViewport(void *context, GLint x, GLint y, GLsizei width, GLsizei height
     }
 }
 
-/* readline: "glReadBuffer GLenum src" */
-/* func name: "glReadBuffer" */
+/* readline: "glReadBuffer_special GLenum src" */
+/* func name: "glReadBuffer_special" */
 /* args: [{'type': 'GLenum', 'name': 'src', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "3" */
 
-void d_glReadBuffer(void *context, GLenum src)
+void d_glReadBuffer_special(void *context, GLenum src)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -11393,7 +11396,7 @@ void d_glReadBuffer(void *context, GLenum src)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glReadBuffer;
+    *(uint64_t *)ptr = FUNID_glReadBuffer_special;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -22507,23 +22510,23 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
     send_to_host(context, send_buf, send_buf_len);
 }
 
-/* readline: "glTexImage2D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
+/* readline: "glTexImage2D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
 /* func name: "glTexImage2D_without_bound" */
-/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 9, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "4" */
 
-void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels)
+void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
 
     unsigned char send_buf[16 + (2) * 16];
     size_t send_buf_len = 16 + (2) * 16;
     unsigned char *ptr = NULL;
 
-    uint64_t save_buf_len = 32;
+    uint64_t save_buf_len = 36;
     unsigned char *save_buf;
 
-    unsigned char local_save_buf[32];
+    unsigned char local_save_buf[36];
     save_buf = local_save_buf;
     ptr = save_buf;
 
@@ -22551,6 +22554,9 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     *(GLenum *)ptr = type;
     ptr += 4;
 
+    *(GLint *)ptr = buf_len;
+    ptr += 4;
+
     ptr = send_buf;
 
     *(uint64_t *)ptr = FUNID_glTexImage2D_without_bound;
@@ -22564,7 +22570,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     *(uint64_t *)ptr = (uint64_t)save_buf;
     ptr += sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)gl_pixel_data_size(context, width, height, format, type, 0);
+    *(uint64_t *)ptr = (uint64_t)buf_len;
     ptr += sizeof(uint64_t);
     *(uint64_t *)ptr = (uint64_t)pixels;
     ptr += sizeof(uint64_t);
@@ -22778,23 +22784,23 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
     send_to_host(context, send_buf, send_buf_len);
 }
 
-/* readline: "glTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
+/* readline: "glTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
 /* func name: "glTexSubImage2D_without_bound" */
-/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 9, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "4" */
 
-void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels)
+void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
 
     unsigned char send_buf[16 + (2) * 16];
     size_t send_buf_len = 16 + (2) * 16;
     unsigned char *ptr = NULL;
 
-    uint64_t save_buf_len = 32;
+    uint64_t save_buf_len = 36;
     unsigned char *save_buf;
 
-    unsigned char local_save_buf[32];
+    unsigned char local_save_buf[36];
     save_buf = local_save_buf;
     ptr = save_buf;
 
@@ -22822,6 +22828,9 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     *(GLenum *)ptr = type;
     ptr += 4;
 
+    *(GLint *)ptr = buf_len;
+    ptr += 4;
+
     ptr = send_buf;
 
     *(uint64_t *)ptr = FUNID_glTexSubImage2D_without_bound;
@@ -22835,7 +22844,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     *(uint64_t *)ptr = (uint64_t)save_buf;
     ptr += sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)gl_pixel_data_size(context, width, height, format, type, 0);
+    *(uint64_t *)ptr = (uint64_t)buf_len;
     ptr += sizeof(uint64_t);
     *(uint64_t *)ptr = (uint64_t)pixels;
     ptr += sizeof(uint64_t);
@@ -22843,23 +22852,23 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     send_to_host(context, send_buf, send_buf_len);
 }
 
-/* readline: "glTexImage3D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
+/* readline: "glTexImage3D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
 /* func name: "glTexImage3D_without_bound" */
-/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 9, 'ptr_ptr': False}] */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 10, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "4" */
 
-void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels)
+void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
 
     unsigned char send_buf[16 + (2) * 16];
     size_t send_buf_len = 16 + (2) * 16;
     unsigned char *ptr = NULL;
 
-    uint64_t save_buf_len = 36;
+    uint64_t save_buf_len = 40;
     unsigned char *save_buf;
 
-    unsigned char local_save_buf[36];
+    unsigned char local_save_buf[40];
     save_buf = local_save_buf;
     ptr = save_buf;
 
@@ -22890,6 +22899,9 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
     *(GLenum *)ptr = type;
     ptr += 4;
 
+    *(GLint *)ptr = buf_len;
+    ptr += 4;
+
     ptr = send_buf;
 
     *(uint64_t *)ptr = FUNID_glTexImage3D_without_bound;
@@ -22903,7 +22915,7 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
     *(uint64_t *)ptr = (uint64_t)save_buf;
     ptr += sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)gl_pixel_data_3d_size(context, width, height, depth, format, type, 0);
+    *(uint64_t *)ptr = (uint64_t)buf_len;
     ptr += sizeof(uint64_t);
     *(uint64_t *)ptr = (uint64_t)pixels;
     ptr += sizeof(uint64_t);
@@ -22911,23 +22923,23 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
     send_to_host(context, send_buf, send_buf_len);
 }
 
-/* readline: "glTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
+/* readline: "glTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
 /* func name: "glTexSubImage3D_without_bound" */
-/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 10, 'ptr_ptr': False}] */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 10, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 11, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "4" */
 
-void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels)
+void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
 
     unsigned char send_buf[16 + (2) * 16];
     size_t send_buf_len = 16 + (2) * 16;
     unsigned char *ptr = NULL;
 
-    uint64_t save_buf_len = 40;
+    uint64_t save_buf_len = 44;
     unsigned char *save_buf;
 
-    unsigned char local_save_buf[40];
+    unsigned char local_save_buf[44];
     save_buf = local_save_buf;
     ptr = save_buf;
 
@@ -22961,6 +22973,9 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
     *(GLenum *)ptr = type;
     ptr += 4;
 
+    *(GLint *)ptr = buf_len;
+    ptr += 4;
+
     ptr = send_buf;
 
     *(uint64_t *)ptr = FUNID_glTexSubImage3D_without_bound;
@@ -22974,7 +22989,7 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
     *(uint64_t *)ptr = (uint64_t)save_buf;
     ptr += sizeof(uint64_t);
 
-    *(uint64_t *)ptr = (uint64_t)gl_pixel_data_3d_size(context, width, height, depth, format, type, 0);
+    *(uint64_t *)ptr = (uint64_t)buf_len;
     ptr += sizeof(uint64_t);
     *(uint64_t *)ptr = (uint64_t)pixels;
     ptr += sizeof(uint64_t);

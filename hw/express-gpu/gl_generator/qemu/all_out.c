@@ -29,7 +29,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "GLenum glCheckFramebufferStatus GLenum target @{if(target!=GL_DRAW_FRAMEBUFFER||target!= GL_READ_FRAMEBUFFER||target!=GL_FRAMEBUFFER){set_gl_error(context,GL_INVALID_ENUM);return 0;}}" */
+        /* readline: "GLenum glCheckFramebufferStatus GLenum target @{if(target!=GL_DRAW_FRAMEBUFFER&&target!= GL_READ_FRAMEBUFFER&&target!=GL_FRAMEBUFFER){set_gl_error(context,GL_INVALID_ENUM);return 0;}}" */
         /* func name: "glCheckFramebufferStatus" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "GLenum" */
@@ -4913,9 +4913,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void *pixels#gl_pixel_data_size(context,width,height,format,type,1)" */
+        /* readline: "glReadPixels_without_bound GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, void *pixels#buf_len" */
         /* func name: "glReadPixels_without_bound" */
-        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'void*', 'name': 'pixels', 'ptr': 'out', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,1)', 'loc': 6, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'void*', 'name': 'pixels', 'ptr': 'out', 'ptr_len': 'buf_len', 'loc': 7, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "1" */
 
@@ -4926,6 +4926,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLsizei height;
         GLenum format;
         GLenum type;
+        GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glReadPixels_without_bound)
@@ -4937,7 +4938,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (temp_len < 28 * 1)
         {
             break;
         }
@@ -4977,9 +4978,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         type = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
+        buf_len = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
         void *pixels = all_para[1].data;
 
-        d_glReadPixels_without_bound(opengl_context, x, y, width, height, format, type, pixels);
+        d_glReadPixels_without_bound(opengl_context, x, y, width, height, format, type, buf_len, pixels);
     }
     break;
 
@@ -8849,12 +8853,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glBindFramebuffer:
+    case FUNID_glBindFramebuffer_special:
 
     {
 
-        /* readline: "glBindFramebuffer GLenum target, GLuint framebuffer" */
-        /* func name: "glBindFramebuffer" */
+        /* readline: "glBindFramebuffer_special GLenum target, GLuint framebuffer" */
+        /* func name: "glBindFramebuffer_special" */
         /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'framebuffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "3" */
@@ -8864,7 +8868,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLuint framebuffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindFramebuffer)
+        if (para_num < PARA_NUM_MIN_glBindFramebuffer_special)
         {
             break;
         }
@@ -8906,7 +8910,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindFramebuffer(target, framebuffer);
+        glBindFramebuffer_special(target, framebuffer);
     }
     break;
 
@@ -12884,12 +12888,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glReadBuffer:
+    case FUNID_glReadBuffer_special:
 
     {
 
-        /* readline: "glReadBuffer GLenum src" */
-        /* func name: "glReadBuffer" */
+        /* readline: "glReadBuffer_special GLenum src" */
+        /* func name: "glReadBuffer_special" */
         /* args: [{'type': 'GLenum', 'name': 'src', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "3" */
@@ -12898,7 +12902,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum src;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReadBuffer)
+        if (para_num < PARA_NUM_MIN_glReadBuffer_special)
         {
             break;
         }
@@ -12937,7 +12941,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glReadBuffer(src);
+        d_glReadBuffer_special(opengl_context, src);
     }
     break;
 
@@ -25363,9 +25367,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glTexImage2D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
+        /* readline: "glTexImage2D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
         /* func name: "glTexImage2D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 9, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "4" */
 
@@ -25378,6 +25382,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLint border;
         GLenum format;
         GLenum type;
+        GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glTexImage2D_without_bound)
@@ -25389,7 +25394,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (temp_len < 36 * 1)
         {
             break;
         }
@@ -25435,9 +25440,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         type = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
+        buf_len = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
         void *pixels = all_para[1].data;
 
-        d_glTexImage2D_without_bound(opengl_context, target, level, internalformat, width, height, border, format, type, pixels);
+        d_glTexImage2D_without_bound(opengl_context, target, level, internalformat, width, height, border, format, type, buf_len, pixels);
     }
     break;
 
@@ -25687,9 +25695,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void *pixels#gl_pixel_data_size(context,width,height,format,type,0)" */
+        /* readline: "glTexSubImage2D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
         /* func name: "glTexSubImage2D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_size(context,width,height,format,type,0)', 'loc': 8, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 9, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "4" */
 
@@ -25702,6 +25710,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLsizei height;
         GLenum format;
         GLenum type;
+        GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glTexSubImage2D_without_bound)
@@ -25713,7 +25722,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (temp_len < 36 * 1)
         {
             break;
         }
@@ -25759,9 +25768,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         type = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
+        buf_len = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
         void *pixels = all_para[1].data;
 
-        d_glTexSubImage2D_without_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, type, pixels);
+        d_glTexSubImage2D_without_bound(opengl_context, target, level, xoffset, yoffset, width, height, format, type, buf_len, pixels);
     }
     break;
 
@@ -25769,9 +25781,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glTexImage3D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
+        /* readline: "glTexImage3D_without_bound GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
         /* func name: "glTexImage3D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 9, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'internalformat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'border', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 10, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "4" */
 
@@ -25785,6 +25797,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLint border;
         GLenum format;
         GLenum type;
+        GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glTexImage3D_without_bound)
@@ -25796,7 +25809,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
+        if (temp_len < 40 * 1)
         {
             break;
         }
@@ -25845,9 +25858,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         type = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
+        buf_len = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
         void *pixels = all_para[1].data;
 
-        d_glTexImage3D_without_bound(opengl_context, target, level, internalformat, width, height, depth, border, format, type, pixels);
+        d_glTexImage3D_without_bound(opengl_context, target, level, internalformat, width, height, depth, border, format, type, buf_len, pixels);
     }
     break;
 
@@ -25855,9 +25871,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels#gl_pixel_data_3d_size(context,width,height,depth,format,type,0)" */
+        /* readline: "glTexSubImage3D_without_bound GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLint buf_len, const void *pixels#buf_len" */
         /* func name: "glTexSubImage3D_without_bound" */
-        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'gl_pixel_data_3d_size(context,width,height,depth,format,type,0)', 'loc': 10, 'ptr_ptr': False}] */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'level', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'xoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'yoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'zoffset', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 6, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'depth', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 7, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'format', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 8, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 9, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'buf_len', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 10, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'pixels', 'ptr': 'in', 'ptr_len': 'buf_len', 'loc': 11, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "4" */
 
@@ -25872,6 +25888,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLsizei depth;
         GLenum format;
         GLenum type;
+        GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glTexSubImage3D_without_bound)
@@ -25883,7 +25900,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (temp_len < 44 * 1)
         {
             break;
         }
@@ -25935,9 +25952,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         type = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
+        buf_len = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
         void *pixels = all_para[1].data;
 
-        d_glTexSubImage3D_without_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels);
+        d_glTexSubImage3D_without_bound(opengl_context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, buf_len, pixels);
     }
     break;
 

@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "express-gpu/glv3_vertex.h"
 
@@ -202,7 +202,7 @@ void d_glVertexAttribPointer_offset(void *context,GLuint index, GLuint size, GLe
 
     glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
 
-
+    express_printf("pointer offset %lld\n",offset+point_data->buffer_loc[index_father]);
     glVertexAttribPointer(index, size, type, normalized,stride, offset+point_data->buffer_loc[index_father]);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -220,6 +220,7 @@ void d_glVertexAttribIPointer_offset(void *context,GLuint index, GLint size, GLe
 
     glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
 
+    express_printf("pointer offset %lld\n",offset+point_data->buffer_loc[index_father]);
 
     glVertexAttribIPointer(index, size, type, stride, offset+point_data->buffer_loc[index_father]);
 
