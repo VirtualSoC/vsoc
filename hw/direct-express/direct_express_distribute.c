@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-#define STD_DEBUG_LOG
+//#define STD_DEBUG_LOG
 
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_handle_thread.h"

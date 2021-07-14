@@ -4,7 +4,7 @@
 
 EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context, EGLDisplay dpy, EGLSurface surface)
 {
-    printf("eglSwapBuffers inovke!\n");
+    //printf("eglSwapBuffers inovke!\n");
 
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     Double_Buffer *egl_context = &(render_context->render_double_buffer);
@@ -28,7 +28,7 @@ EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context, EGLDisplay d
 
 EGLBoolean d_eglMakeCurrent_special(Render_Thread_Context *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
 {
-    printf("eglMakeCurrent invoke!\n");
+    //printf("eglMakeCurrent invoke!\n");
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     Double_Buffer *egl_context = &(render_context->render_double_buffer);
     Opengl_Context *opengl_context = &(render_context->opengl_context);
