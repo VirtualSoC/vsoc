@@ -193,6 +193,7 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
     int host_loc = 0;
     // int cpy_len = 0;
     int guest_index = 0;
+    char *last_data=NULL;
     while (remain_len > 0 && remain_len < 100000000000)
     {
         if(guest_data[guest_index].len==0 || guest_data[guest_index].data==NULL){
@@ -209,7 +210,8 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
                 }
                 else
                 {
-                    // express_printf("memcpy data %llu,%llu %llu %llu %llu\n",guest_data[guest_index].data , guest_loc, host_data , host_loc, remain_len);
+                    
+                    express_printf("memcpy data %lx index %d loc %d host %lx loc %d remain %llu\n",guest_data[guest_index].data,guest_index , guest_loc, host_data , host_loc, remain_len);
                     memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, remain_len);
                 }
                 break;
@@ -222,6 +224,16 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
                 }
                 else
                 {
+                    
+                    express_printf("memcpy data %lx index %d loc %d len %llu,host %lx loc %d remain %llu\n",guest_data[guest_index].data,guest_index , guest_loc,guest_data[guest_index].len, host_data , host_loc, remain_len);
+                    
+                    if(last_data!=guest_data[guest_index].data){
+                        last_data=guest_data[guest_index].data;
+
+                    }else{
+                        printf("error map data! same scatter data pointer");
+                    }
+
                     memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, guest_data[guest_index].len - guest_loc);
                 }
                 host_loc += guest_data[guest_index].len - guest_loc;
