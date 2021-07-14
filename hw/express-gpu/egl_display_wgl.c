@@ -95,13 +95,11 @@ void init_wgl_extension(Egl_Display *display)
         express_printf("Cannot initialize opengl32.dll\n");
     }
 
-    LOAD_WGLPROC_CHECK(wglGetProcAddress);
-    LOAD_WGLPROC_CHECK(wglCreateContext);
-    LOAD_WGLPROC_CHECK(wglDeleteContext);
-    LOAD_WGLPROC_CHECK(wglGetCurrentDC);
-    LOAD_WGLPROC_CHECK(wglGetCurrentContext);
-    LOAD_WGLPROC_CHECK(wglMakeCurrent);
-    LOAD_WGLPROC_CHECK(wglShareLists);
+    // 加载WGL函数
+#define LOAD_WGL_FUNCS(return_type, func_name, param) \
+    wgl_display->wgl_ext->func_name = (return_type (WINAPI *) param) GetProcAddress(wgl_display->wgl_ext->instance, #func_name); \
+    if (!(wgl_display->wgl_ext->func_name)) { express_printf("Fail to load %s\n", #func_name); }
+    LIST_WGL_FUNCTIONS(LOAD_WGL_FUNCS);
 
     // 必须创建一个dummy window以便opengl32.dll来查询配置，具体的pfd配置参考的glfw的实现
     HWND dummy_window = create_dummy_window();
@@ -128,13 +126,11 @@ void init_wgl_extension(Egl_Display *display)
         return;
     }
 
-    // 获取关键的用以查询RGB配置的函数
-    wgl_display->wgl_ext->GetPixelFormatAttribivARB = (EXWGL_GetPixelFormatAttribivARB_PROC)
-                                                      wgl_display->wgl_ext->wglGetProcAddress("wglGetPixelFormatAttribivARB");
-    if (!wgl_display->wgl_ext->GetPixelFormatAttribivARB)
-    {
-        express_printf("Fail to load wglGetPixelFormatAttribivARB\n");
-    }
+    // 加载WGL Extension函数
+#define LOAD_WGL_EXT_FUNCS(return_type, func_name, param) \
+    wgl_display->wgl_ext->func_name = (return_type (WINAPI *) param) wgl_display->wgl_ext->wglGetProcAddress(#func_name); \
+    if (!(wgl_display->wgl_ext->func_name)) { express_printf("Fail to load %s\n", #func_name); }
+    LIST_WGL_EXT_FUNCTIONS(LOAD_WGL_EXT_FUNCS);
 
     wglMakeCurrent(pdc, prc);
     wglDeleteContext(rc);
@@ -160,17 +156,17 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
         init_wgl_extension(wgl_display);
     }
 
-    if (!wgl_display->wgl_ext->GetPixelFormatAttribivARB)
+    if (!wgl_display->wgl_ext->wglGetPixelFormatAttribivARB)
     {
         express_printf("No available wglGetPixelFormatAttribivARB\n");
         return;
     }
 
     int window = 0, window_attrib = WGL_DRAW_TO_WINDOW_ARB;
-    RETURN_IF_FALSE(wgl_display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &window_attrib, &window));
+    RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &window_attrib, &window));
 
     int pbuffer = 0, pbuffer_attrib = WGL_DRAW_TO_PBUFFER_ARB;
-    RETURN_IF_FALSE(wgl_display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &pbuffer_attrib, &pbuffer));
+    RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &pbuffer_attrib, &pbuffer));
 
     config->surface_type = 0;
     if (window)
@@ -190,18 +186,18 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->frame_buffer_level = 0;
 
     int transparent = 0, transparent_attrib = WGL_TRANSPARENT_ARB;
-    RETURN_IF_FALSE(wgl_display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_attrib, &transparent));
+    RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_attrib, &transparent));
     if (transparent)
     {
         config->transparent_type = EGL_TRANSPARENT_RGB;
         int transparent_red_attrib = WGL_TRANSPARENT_RED_VALUE_ARB;
-        RETURN_IF_FALSE(wgl_display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_red_attrib, &config->trans_red_val));
+        RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_red_attrib, &config->trans_red_val));
 
         int transparent_green_attrib = WGL_TRANSPARENT_GREEN_VALUE_ARB;
-        RETURN_IF_FALSE(wgl_display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_green_attrib, &config->trans_green_val));
+        RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_green_attrib, &config->trans_green_val));
 
         int transparent_blue_attrib = WGL_TRANSPARENT_BLUE_VALUE_ARB;
-        RETURN_IF_FALSE(wgl_display->wgl_ext->GetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_blue_attrib, &config->trans_blue_val));
+        RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_blue_attrib, &config->trans_blue_val));
     }
     else
     {

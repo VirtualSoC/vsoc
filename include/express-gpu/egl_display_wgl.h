@@ -5,31 +5,26 @@
 #include <windows.h>
 #include "wglext.h"
 
-#define LOAD_WGLPROC_CHECK(PROC_NAME) \
-    wgl_display->wgl_ext->PROC_NAME = GetProcAddress(wgl_display->wgl_ext->instance, #PROC_NAME); \
-    if (!(wgl_display->wgl_ext->PROC_NAME)) { express_printf("Fail to load %s\n", #PROC_NAME); }
+// 用X Macros的形式定义针对WGL函数的一系列行为
+#define LIST_WGL_FUNCTIONS(X) \
+    X(HGLRC, wglCreateContext, (HDC hdc)) \
+    X(BOOL, wglDeleteContext, (HGLRC hglrc)) \
+    X(BOOL, wglMakeCurrent, (HDC hdc, HGLRC hglrc)) \
+    X(BOOL, wglShareLists, (HGLRC hglrc1, HGLRC hglrc2)) \
+    X(HGLRC, wglGetCurrentContext, (void)) \
+    X(HDC, wglGetCurrentDC, (void)) \
+    X(PROC, wglGetProcAddress, (LPCSTR func_name)) \
 
-typedef PROC (WINAPI * EXWGL_GetProcAddress_PROC)(LPCSTR);
-typedef HGLRC (WINAPI * EXWGL_CreateContext_PROC)(HDC);
-typedef BOOL (WINAPI * EXWGL_DeleteContext_PROC)(HGLRC);
-typedef HDC (WINAPI * EXWGL_GetCurrentDC_PROC)(void);
-typedef HGLRC (WINAPI * EXWGL_GetCurrentContext_PROC)(void);
-typedef BOOL (WINAPI * EXWGL_MakeCurrent_PROC)(HDC,HGLRC);
-typedef BOOL (WINAPI * EXWGL_ShareLists_PROC)(HGLRC,HGLRC);
-typedef BOOL (WINAPI * EXWGL_GetPixelFormatAttribivARB_PROC)(HDC,int,int,UINT,const int*,int*);
+// 同上，但以下函数为extension函数，只能通过wglGetProcAddress获得
+#define LIST_WGL_EXT_FUNCTIONS(X) \
+    X(BOOL, wglGetPixelFormatAttribivARB, (HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, const int *piAttributes, int *piValues))
 
 typedef struct {
     HINSTANCE instance;
-    EXWGL_GetProcAddress_PROC wglGetProcAddress;
-    EXWGL_CreateContext_PROC wglCreateContext;
-    EXWGL_DeleteContext_PROC wglDeleteContext;
-    EXWGL_GetCurrentDC_PROC wglGetCurrentDC;
-    EXWGL_GetCurrentContext_PROC wglGetCurrentContext;
-    EXWGL_MakeCurrent_PROC wglMakeCurrent;
-    EXWGL_ShareLists_PROC wglShareLists;
-
-    // 下面函数只能通过wglGetProcAddress获得
-    EXWGL_GetPixelFormatAttribivARB_PROC GetPixelFormatAttribivARB;
+#define DECLARE_WGL_FUNCS(return_type, func_name, param) \
+    return_type (WINAPI * func_name) param;
+    LIST_WGL_FUNCTIONS(DECLARE_WGL_FUNCS);
+    LIST_WGL_EXT_FUNCTIONS(DECLARE_WGL_FUNCS);
 } WGL_Extension;
 
 void init_wgl_extension(Egl_Display* display);
