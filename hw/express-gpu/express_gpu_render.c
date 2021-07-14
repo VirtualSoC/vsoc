@@ -85,7 +85,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
     case WM_XBUTTONUP:     //X 键释放
     case WM_MOUSEWHEEL:    //滚滚轮
         //鼠标事件都要传输给父窗口
-        SendMessage(GetParent(hwnd), uMsg, wParam, lParam);
+        PostMessage(GetParent(hwnd), uMsg, wParam, lParam);
         break;
 
     case WM_DESTROY:
@@ -695,7 +695,12 @@ void *native_window_thread(void *opaque)
  */
 void egl_swap_buffer(Double_Buffer *double_buffer)
 {
+    //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
+    // glFlush();
+    //这句话让之前的画面都渲染出来
+    glFinish();
 
+    
     //这里也使用GPU等待是因为GPU那边画完了之后，这边才能在交换的新的东西上画
     TEXTURE_LOCK(double_buffer->display_texture_is_use);
     // if (double_buffer->dispaly_sync != NULL)
@@ -709,10 +714,6 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
     //     double_buffer->dispaly_sync = NULL;
     // }
 
-    //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
-    // glFlush();
-    //这句话让之前的画面都渲染出来
-    glFinish();
 
     //交换FBO
     GLuint temp = double_buffer->fbo_draw;
@@ -729,11 +730,11 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
     express_printf("glFenceSync %x\n",glGetError());
 
 
-    TEXTURE_UNLOCK(double_buffer->display_texture_is_use);
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, double_buffer->fbo_draw);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, double_buffer->fbo_display);
 
+    TEXTURE_UNLOCK(double_buffer->display_texture_is_use);
 
 
     // render_bind_frame_buffer(double_buffer);
