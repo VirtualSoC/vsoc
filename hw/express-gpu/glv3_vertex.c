@@ -281,9 +281,10 @@ void d_glBindVertexArray_special(void *context, GLuint array)
 
     // bound_buffer->buffer_status=vao_status;
 
-    Attrib_Point *temp_point=g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(array));
-    if(temp_point==NULL){
-        temp_point=g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(0));
+    Attrib_Point *temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(array));
+    if (temp_point == NULL)
+    {
+        temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(0));
     }
 
     bound_buffer->attrib_point = temp_point;
@@ -303,8 +304,6 @@ void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
 // {
 //     aaaaa
 // }
-
-
 
 void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
 {
