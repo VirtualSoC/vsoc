@@ -30,7 +30,7 @@ static QemuThread render_thread;
 
 
 //这三个函数不提供外部调用接口
-Thread_Context *get_render_thread_context(uint64_t type_id,uint64_t thread_id,struct Express_Device_Info *info);
+Thread_Context *get_render_thread_context(uint64_t type_id,uint64_t thread_id,uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 void render_context_init(Thread_Context *context);
 
 void decode_invoke(Thread_Context *context,Direct_Express_Call *call);
@@ -123,7 +123,7 @@ void render_windows_create(Render_Thread_Context *context){
 
 
 
-Thread_Context *get_render_thread_context(uint64_t type_id,uint64_t thread_id,struct Express_Device_Info *info){
+Thread_Context *get_render_thread_context(uint64_t type_id,uint64_t thread_id,uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info){
     if(render_thread_contexts==NULL){
         render_thread_contexts=g_hash_table_new(g_direct_hash,g_direct_equal);
     }
@@ -131,6 +131,7 @@ Thread_Context *get_render_thread_context(uint64_t type_id,uint64_t thread_id,st
     // express_printf("g_hash table lookup\n");
     //没有context就新建线程
     if(context==NULL){
+        // @todo 需要支持context状态转移
         // express_printf("create new thread\n");
         express_printf("create new context thread opengl\n");
         context=thread_context_create(thread_id,type_id,sizeof(Render_Thread_Context),info);

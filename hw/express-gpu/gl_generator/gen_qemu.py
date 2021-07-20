@@ -19,6 +19,34 @@ sizeof_dic = {
     # files
 }
 
+def arg_pack(arg):
+    if arg['name']=="buffer" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_buffer_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="framebuffer" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_framebuffer_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="program" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_program_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="renderbuffer" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_renderbuffer_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="shader" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_shader_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="texture" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_texture_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="id" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_query_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="array" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_array_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="sampler" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_sampler_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="feedback_id" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_feedback_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="sync" and arg['type']=="GLsync":
+        return f"(GLsync)get_host_sync_id(opengl_context,(unsigned int){arg['name']})"
+    elif arg['name']=="pipeline" and arg['type']=="GLuint":
+        return f"(GLuint)get_host_pipeline_id(opengl_context,(unsigned int){arg['name']})"
+    else:
+        return f"{arg['name']}"
+
 
 
 
@@ -101,7 +129,10 @@ def gen_qemu_asyn_copy(opengl_fun, out_file,is_special):
         call_str = f"d_{opengl_fun.name}(opengl_context,"
 
     for arg in opengl_fun.args:
-        call_str += f"{arg['name']}, "
+        if opengl_fun.type%10==1:
+            call_str += f"{arg['name']}, "
+        else:
+            call_str += arg_pack(arg)+", "
     if len(opengl_fun.args) > 0:
         call_str = call_str[:-2]  # Remove last ', '
     call_str += ');\n'
@@ -119,7 +150,6 @@ def gen_qemu_asyn_copy(opengl_fun, out_file,is_special):
     out_file.write(main_str)
 
 
-buffer_id()
 
 def gen_qemu_asyn_no_copy(opengl_fun, out_file):
     non_ptr_args_length = f"{int(opengl_fun.get_non_ptr_arg_length())}"
@@ -185,7 +215,7 @@ def gen_qemu_asyn_no_copy(opengl_fun, out_file):
 
     call_str = f"d_{opengl_fun.name}(opengl_context,"
     for arg in opengl_fun.args:
-        call_str += f"{arg['name']}, "
+        call_str += arg_pack(arg)+", "
     if len(opengl_fun.args) > 0:
         call_str = call_str[:-2]  # Remove last ', '
     call_str += ');\n'
@@ -353,7 +383,7 @@ def gen_qemu_sync(opengl_fun, out_file,is_copy):
         call_str = f"d_{opengl_fun.name}(opengl_context,"
 
     for arg in opengl_fun.args:
-        call_str += f"{arg['name']}, "
+        call_str += arg_pack(arg)+", "
     if len(opengl_fun.args) > 0:
         call_str = call_str[:-2]  # Remove last ', '
     call_str += ');\n'

@@ -1,3058 +1,2516 @@
 
 #include "define_gl.h"
-#include "utils_gl.h"
-
+#include "glv3_utils.h"
 
 //#include "all_gl.h"
 
 #include <cstring>
 
-
-
-
 /******* file '1-1' *******/
 
-
-GLenum d_glClientWaitSync(void *context, GLsyncconst* sync, GLbitfieldconst* flags, GLuint64const* timeout)
+GLenum d_glClientWaitSync(void *context, GLsync sync, GLbitfield flags, GLuint64 timeout)
 {
 
-return r_glClientWaitSync(context, sync, flags, timeout);
-
+    return r_glClientWaitSync(context, sync, flags, timeout);
 }
 
-
-GLint d_glTestInt1(void *context, GLintconst* a, GLuintconst* b)
+GLint d_glTestInt1(void *context, GLint a, GLuint b)
 {
 
-return r_glTestInt1(context, a, b);
-
+    return r_glTestInt1(context, a, b);
 }
 
-
-GLuint d_glTestInt2(void *context, GLintconst* a, GLuintconst* b)
+GLuint d_glTestInt2(void *context, GLint a, GLuint b)
 {
 
-return r_glTestInt2(context, a, b);
-
+    return r_glTestInt2(context, a, b);
 }
 
-
-GLint64 d_glTestInt3(void *context, GLint64const* a, GLuint64const* b)
+GLint64 d_glTestInt3(void *context, GLint64 a, GLuint64 b)
 {
 
-return r_glTestInt3(context, a, b);
-
+    return r_glTestInt3(context, a, b);
 }
 
-
-GLuint64 d_glTestInt4(void *context, GLint64const* a, GLuint64const* b)
+GLuint64 d_glTestInt4(void *context, GLint64 a, GLuint64 b)
 {
 
-return r_glTestInt4(context, a, b);
-
+    return r_glTestInt4(context, a, b);
 }
 
-
-GLfloat d_glTestInt5(void *context, GLintconst* a, GLuintconst* b)
+GLfloat d_glTestInt5(void *context, GLint a, GLuint b)
 {
 
-return r_glTestInt5(context, a, b);
-
+    return r_glTestInt5(context, a, b);
 }
 
-
-GLdouble d_glTestInt6(void *context, GLintconst* a, GLuintconst* b)
+GLdouble d_glTestInt6(void *context, GLint a, GLuint b)
 {
 
-return r_glTestInt6(context, a, b);
-
+    return r_glTestInt6(context, a, b);
 }
 
-
-void d_glTestPointer1(void *context, GLintconst* a, const GLint*const* b)
+void d_glTestPointer1(void *context, GLint a, const GLint *b)
 {
 
-r_glTestPointer1(context, a, b);
-
+    r_glTestPointer1(context, a, b);
 }
 
-
-void d_glTestPointer2(void *context, GLintconst* a, const GLint*const* b, GLint*const* c)
+void d_glTestPointer2(void *context, GLint a, const GLint *b, GLint *c)
 {
 
-r_glTestPointer2(context, a, b, c);
-
+    r_glTestPointer2(context, a, b, c);
 }
 
-
-GLint d_glTestPointer4(void *context, GLintconst* a, const GLint*const* b, GLint*const* c)
+GLint d_glTestPointer4(void *context, GLint a, const GLint *b, GLint *c)
 {
 
-return r_glTestPointer4(context, a, b, c);
-
+    return r_glTestPointer4(context, a, b, c);
 }
 
-
-void d_glTestString(void *context, GLintconst* a, GLintconst* count, const GLchar*const* strings, GLintconst* buf_len, GLchar*const* char_buf)
+void d_glTestString(void *context, GLint a, GLint count, const GLchar *const *strings, GLint buf_len, GLchar *char_buf)
 {
 
-r_glTestString(context, a, count, strings, buf_len, char_buf);
-
+    r_glTestString(context, a, count, strings, buf_len, char_buf);
 }
-
-
-
 
 /******* file '1-1-1' *******/
 
-
-GLboolean d_glIsBuffer(void *context, GLuintconst* buffer)
+GLboolean d_glIsBuffer(void *context, GLuint buffer)
 {
 
-return r_glIsBuffer(context, buffer);
-
+    return r_glIsBuffer(context, buffer);
 }
 
-
-GLboolean d_glIsEnabled(void *context, GLenumconst* cap)
+GLboolean d_glIsEnabled(void *context, GLenum cap)
 {
 
-return r_glIsEnabled(context, cap);
-
+    return r_glIsEnabled(context, cap);
 }
 
-
-GLboolean d_glIsFramebuffer(void *context, GLuintconst* framebuffer)
+GLboolean d_glIsFramebuffer(void *context, GLuint framebuffer)
 {
 
-return r_glIsFramebuffer(context, framebuffer);
-
+    return r_glIsFramebuffer(context, framebuffer);
 }
 
-
-GLboolean d_glIsProgram(void *context, GLuintconst* program)
+GLboolean d_glIsProgram(void *context, GLuint program)
 {
 
-return r_glIsProgram(context, program);
-
+    return r_glIsProgram(context, program);
 }
 
-
-GLboolean d_glIsRenderbuffer(void *context, GLuintconst* renderbuffer)
+GLboolean d_glIsRenderbuffer(void *context, GLuint renderbuffer)
 {
 
-return r_glIsRenderbuffer(context, renderbuffer);
-
+    return r_glIsRenderbuffer(context, renderbuffer);
 }
 
-
-GLboolean d_glIsShader(void *context, GLuintconst* shader)
+GLboolean d_glIsShader(void *context, GLuint shader)
 {
 
-return r_glIsShader(context, shader);
-
+    return r_glIsShader(context, shader);
 }
 
-
-GLboolean d_glIsTexture(void *context, GLuintconst* texture)
+GLboolean d_glIsTexture(void *context, GLuint texture)
 {
 
-return r_glIsTexture(context, texture);
-
+    return r_glIsTexture(context, texture);
 }
 
-
-GLboolean d_glIsQuery(void *context, GLuintconst* id)
+GLboolean d_glIsQuery(void *context, GLuint id)
 {
 
-return r_glIsQuery(context, id);
-
+    return r_glIsQuery(context, id);
 }
 
-
-GLboolean d_glIsVertexArray(void *context, GLuintconst* array)
+GLboolean d_glIsVertexArray(void *context, GLuint array)
 {
 
-return r_glIsVertexArray(context, array);
-
+    return r_glIsVertexArray(context, array);
 }
 
-
-GLboolean d_glIsSampler(void *context, GLuintconst* sampler)
+GLboolean d_glIsSampler(void *context, GLuint sampler)
 {
 
-return r_glIsSampler(context, sampler);
-
+    return r_glIsSampler(context, sampler);
 }
 
-
-GLboolean d_glIsTransformFeedback(void *context, GLuintconst* id)
+GLboolean d_glIsTransformFeedback(void *context, GLuint id)
 {
 
-return r_glIsTransformFeedback(context, id);
-
+    return r_glIsTransformFeedback(context, id);
 }
 
+GLboolean d_glIsSync(void *context, GLsync sync)
+{
 
-
+    return r_glIsSync(context, sync);
+}
 
 /******* file '1-1-2' *******/
-
 
 GLenum d_glGetError(void *context)
 {
 
-return r_glGetError(context);
-
+    return r_glGetError(context);
 }
-
 
-void d_glGetString(void *context, GLenumconst* name, GLubyte*const* buffer)
+void d_glGetString(void *context, GLenum name, GLubyte *buffer)
 {
 
-r_glGetString(context, name, buffer);
-
+    r_glGetString_special(context, name, buffer);
 }
-
 
-void d_glGetStringi(void *context, GLenumconst* name, GLuintconst* index, GLubyte*const* buffer)
+void d_glGetStringi(void *context, GLenum name, GLuint index, GLubyte *buffer)
 {
 
-r_glGetStringi(context, name, index, buffer);
-
+    r_glGetStringi_special(context, name, index, buffer);
 }
-
 
-GLenum d_glCheckFramebufferStatus(void *context, GLenumconst* target)
+GLenum d_glCheckFramebufferStatus(void *context, GLenum target)
 {
-{if(target!=GL_DRAW_FRAMEBUFFER&&target!= GL_READ_FRAMEBUFFER&&target!=GL_FRAMEBUFFER){set_gl_error(context,GL_INVALID_ENUM);return 0;}}
-return r_glCheckFramebufferStatus(context, target);
-
+    {
+        if (target != GL_DRAW_FRAMEBUFFER && target != GL_READ_FRAMEBUFFER && target != GL_FRAMEBUFFER)
+        {
+            set_gl_error(context, GL_INVALID_ENUM);
+            return 0;
+        }
+    }
+    return r_glCheckFramebufferStatus(context, target);
 }
-
 
-GLbitfield d_glQueryMatrixxOES(void *context, GLfixed*const* mantissa, GLint*const* exponent)
+GLbitfield d_glQueryMatrixxOES(void *context, GLfixed *mantissa, GLint *exponent)
 {
 
-return r_glQueryMatrixxOES(context, mantissa, exponent);
-
+    return r_glQueryMatrixxOES(context, mantissa, exponent);
 }
-
 
-void d_glGetFramebufferAttachmentParameteriv(void *context, GLenumconst* target, GLenumconst* attachment, GLenumconst* pname, GLint*const* params)
+void d_glGetFramebufferAttachmentParameteriv(void *context, GLenum target, GLenum attachment, GLenum pname, GLint *params)
 {
 
-r_glGetFramebufferAttachmentParameteriv(context, target, attachment, pname, params);
-
+    r_glGetFramebufferAttachmentParameteriv(context, target, attachment, pname, params);
 }
-
 
-void d_glGetProgramInfoLog(void *context, GLuintconst* program, GLsizeiconst* bufSize, GLsizei*const* length, GLchar*const* infoLog)
+void d_glGetProgramInfoLog(void *context, GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetProgramInfoLog(context, program, bufSize, length, infoLog);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetProgramInfoLog(context, program, bufSize, length, infoLog);
 }
-
 
-void d_glGetRenderbufferParameteriv(void *context, GLenumconst* target, GLenumconst* pname, GLint*const* params)
+void d_glGetRenderbufferParameteriv(void *context, GLenum target, GLenum pname, GLint *params)
 {
 
-r_glGetRenderbufferParameteriv(context, target, pname, params);
-
+    r_glGetRenderbufferParameteriv(context, target, pname, params);
 }
 
-
-void d_glGetShaderInfoLog(void *context, GLuintconst* shader, GLsizeiconst* bufSize, GLsizei*const* length, GLchar*const* infoLog)
+void d_glGetShaderInfoLog(void *context, GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetShaderInfoLog(context, shader, bufSize, length, infoLog);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetShaderInfoLog(context, shader, bufSize, length, infoLog);
 }
 
-
-void d_glGetShaderPrecisionFormat(void *context, GLenumconst* shadertype, GLenumconst* precisiontype, GLint*const* range, GLint*const* precision)
+void d_glGetShaderPrecisionFormat(void *context, GLenum shadertype, GLenum precisiontype, GLint *range, GLint *precision)
 {
-
-r_glGetShaderPrecisionFormat(context, shadertype, precisiontype, range, precision);
 
+    r_glGetShaderPrecisionFormat(context, shadertype, precisiontype, range, precision);
 }
 
-
-void d_glGetShaderSource(void *context, GLuintconst* shader, GLsizeiconst* bufSize, GLsizei*const* length, GLchar*const* source)
+void d_glGetShaderSource(void *context, GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *source)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetShaderSource(context, shader, bufSize, length, source);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetShaderSource(context, shader, bufSize, length, source);
 }
 
-
-void d_glGetTexParameterfv(void *context, GLenumconst* target, GLenumconst* pname, GLfloat*const* params)
+void d_glGetTexParameterfv(void *context, GLenum target, GLenum pname, GLfloat *params)
 {
-
-r_glGetTexParameterfv(context, target, pname, params);
 
+    r_glGetTexParameterfv(context, target, pname, params);
 }
 
-
-void d_glGetTexParameteriv(void *context, GLenumconst* target, GLenumconst* pname, GLint*const* params)
+void d_glGetTexParameteriv(void *context, GLenum target, GLenum pname, GLint *params)
 {
-
-r_glGetTexParameteriv(context, target, pname, params);
 
+    r_glGetTexParameteriv(context, target, pname, params);
 }
 
-
-void d_glGetQueryiv(void *context, GLenumconst* target, GLenumconst* pname, GLint*const* params)
+void d_glGetQueryiv(void *context, GLenum target, GLenum pname, GLint *params)
 {
-
-r_glGetQueryiv(context, target, pname, params);
 
+    r_glGetQueryiv(context, target, pname, params);
 }
 
-
-void d_glGetQueryObjectuiv(void *context, GLuintconst* id, GLenumconst* pname, GLuint*const* params)
+void d_glGetQueryObjectuiv(void *context, GLuint id, GLenum pname, GLuint *params)
 {
-
-r_glGetQueryObjectuiv(context, id, pname, params);
 
+    r_glGetQueryObjectuiv(context, id, pname, params);
 }
 
-
-void d_glGetTransformFeedbackVarying(void *context, GLuintconst* program, GLuintconst* index, GLsizeiconst* bufSize, GLsizei*const* length, GLsizei*const* size, GLenum*const* type, GLchar*const* name)
+void d_glGetTransformFeedbackVarying(void *context, GLuint program, GLuint index, GLsizei bufSize, GLsizei *length, GLsizei *size, GLenum *type, GLchar *name)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetTransformFeedbackVarying(context, program, index, bufSize, length, size, type, name);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetTransformFeedbackVarying(context, program, index, bufSize, length, size, type, name);
 }
 
-
-void d_glGetActiveUniformsiv(void *context, GLuintconst* program, GLsizeiconst* uniformCount, const GLuint*const* uniformIndices, GLenumconst* pname, GLint*const* params)
+void d_glGetActiveUniformsiv(void *context, GLuint program, GLsizei uniformCount, const GLuint *uniformIndices, GLenum pname, GLint *params)
 {
 
-r_glGetActiveUniformsiv(context, program, uniformCount, uniformIndices, pname, params);
-
+    r_glGetActiveUniformsiv(context, program, uniformCount, uniformIndices, pname, params);
 }
-
 
-void d_glGetActiveUniformBlockiv(void *context, GLuintconst* program, GLuintconst* uniformBlockIndex, GLenumconst* pname, GLint*const* params)
+void d_glGetActiveUniformBlockiv(void *context, GLuint program, GLuint uniformBlockIndex, GLenum pname, GLint *params)
 {
 
-r_glGetActiveUniformBlockiv(context, program, uniformBlockIndex, pname, params);
-
+    r_glGetActiveUniformBlockiv(context, program, uniformBlockIndex, pname, params);
 }
-
 
-void d_glGetActiveUniformBlockName(void *context, GLuintconst* program, GLuintconst* uniformBlockIndex, GLsizeiconst* bufSize, GLsizei*const* length, GLchar*const* uniformBlockName)
+void d_glGetActiveUniformBlockName(void *context, GLuint program, GLuint uniformBlockIndex, GLsizei bufSize, GLsizei *length, GLchar *uniformBlockName)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetActiveUniformBlockName(context, program, uniformBlockIndex, bufSize, length, uniformBlockName);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetActiveUniformBlockName(context, program, uniformBlockIndex, bufSize, length, uniformBlockName);
 }
-
 
-void d_glGetSamplerParameteriv(void *context, GLuintconst* sampler, GLenumconst* pname, GLint*const* params)
+void d_glGetSamplerParameteriv(void *context, GLuint sampler, GLenum pname, GLint *params)
 {
 
-r_glGetSamplerParameteriv(context, sampler, pname, params);
-
+    r_glGetSamplerParameteriv(context, sampler, pname, params);
 }
-
 
-void d_glGetSamplerParameterfv(void *context, GLuintconst* sampler, GLenumconst* pname, GLfloat*const* params)
+void d_glGetSamplerParameterfv(void *context, GLuint sampler, GLenum pname, GLfloat *params)
 {
 
-r_glGetSamplerParameterfv(context, sampler, pname, params);
-
+    r_glGetSamplerParameterfv(context, sampler, pname, params);
 }
-
 
-void d_glGetProgramBinary(void *context, GLuintconst* program, GLsizeiconst* bufSize, GLsizei*const* length, GLenum*const* binaryFormat, void*const* binary)
+void d_glGetProgramBinary(void *context, GLuint program, GLsizei bufSize, GLsizei *length, GLenum *binaryFormat, void *binary)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetProgramBinary(context, program, bufSize, length, binaryFormat, binary);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetProgramBinary(context, program, bufSize, length, binaryFormat, binary);
 }
-
 
-void d_glGetInternalformativ(void *context, GLenumconst* target, GLenumconst* internalformat, GLenumconst* pname, GLsizeiconst* count, GLint*const* params)
+void d_glGetInternalformativ(void *context, GLenum target, GLenum internalformat, GLenum pname, GLsizei count, GLint *params)
 {
 
-r_glGetInternalformativ(context, target, internalformat, pname, count, params);
-
+    r_glGetInternalformativ(context, target, internalformat, pname, count, params);
 }
-
 
-void d_glGetClipPlanexOES(void *context, GLenumconst* plane, GLfixed*const* equation)
+void d_glGetClipPlanexOES(void *context, GLenum plane, GLfixed *equation)
 {
 
-r_glGetClipPlanexOES(context, plane, equation);
-
+    r_glGetClipPlanexOES(context, plane, equation);
 }
-
 
-void d_glGetFixedvOES(void *context, GLenumconst* pname, GLfixed*const* params)
+void d_glGetFixedvOES(void *context, GLenum pname, GLfixed *params)
 {
 
-r_glGetFixedvOES(context, pname, params);
-
+    r_glGetFixedvOES(context, pname, params);
 }
 
-
-void d_glGetTexEnvxvOES(void *context, GLenumconst* target, GLenumconst* pname, GLfixed*const* params)
+void d_glGetTexEnvxvOES(void *context, GLenum target, GLenum pname, GLfixed *params)
 {
-
-r_glGetTexEnvxvOES(context, target, pname, params);
 
+    r_glGetTexEnvxvOES(context, target, pname, params);
 }
 
-
-void d_glGetTexParameterxvOES(void *context, GLenumconst* target, GLenumconst* pname, GLfixed*const* params)
+void d_glGetTexParameterxvOES(void *context, GLenum target, GLenum pname, GLfixed *params)
 {
-
-r_glGetTexParameterxvOES(context, target, pname, params);
 
+    r_glGetTexParameterxvOES(context, target, pname, params);
 }
 
-
-void d_glGetLightxvOES(void *context, GLenumconst* light, GLenumconst* pname, GLfixed*const* params)
+void d_glGetLightxvOES(void *context, GLenum light, GLenum pname, GLfixed *params)
 {
-
-r_glGetLightxvOES(context, light, pname, params);
 
+    r_glGetLightxvOES(context, light, pname, params);
 }
 
-
-void d_glGetMaterialxvOES(void *context, GLenumconst* face, GLenumconst* pname, GLfixed*const* params)
+void d_glGetMaterialxvOES(void *context, GLenum face, GLenum pname, GLfixed *params)
 {
-
-r_glGetMaterialxvOES(context, face, pname, params);
 
+    r_glGetMaterialxvOES(context, face, pname, params);
 }
 
-
-void d_glGetTexGenxvOES(void *context, GLenumconst* coord, GLenumconst* pname, GLfixed*const* params)
+void d_glGetTexGenxvOES(void *context, GLenum coord, GLenum pname, GLfixed *params)
 {
 
-r_glGetTexGenxvOES(context, coord, pname, params);
-
+    r_glGetTexGenxvOES(context, coord, pname, params);
 }
-
 
-void d_glGetFramebufferParameteriv(void *context, GLenumconst* target, GLenumconst* pname, GLint*const* params)
+void d_glGetFramebufferParameteriv(void *context, GLenum target, GLenum pname, GLint *params)
 {
 
-r_glGetFramebufferParameteriv(context, target, pname, params);
-
+    r_glGetFramebufferParameteriv(context, target, pname, params);
 }
-
 
-void d_glGetProgramInterfaceiv(void *context, GLuintconst* program, GLenumconst* programInterface, GLenumconst* pname, GLint*const* params)
+void d_glGetProgramInterfaceiv(void *context, GLuint program, GLenum programInterface, GLenum pname, GLint *params)
 {
 
-r_glGetProgramInterfaceiv(context, program, programInterface, pname, params);
-
+    r_glGetProgramInterfaceiv(context, program, programInterface, pname, params);
 }
-
 
-void d_glGetProgramResourceName(void *context, GLuintconst* program, GLenumconst* programInterface, GLuintconst* index, GLsizeiconst* bufSize, GLsizei*const* length, GLchar*const* name)
+void d_glGetProgramResourceName(void *context, GLuint program, GLenum programInterface, GLuint index, GLsizei bufSize, GLsizei *length, GLchar *name)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetProgramResourceName(context, program, programInterface, index, bufSize, length, name);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetProgramResourceName(context, program, programInterface, index, bufSize, length, name);
 }
-
 
-void d_glGetProgramResourceiv(void *context, GLuintconst* program, GLenumconst* programInterface, GLuintconst* index, GLsizeiconst* propCount, const GLenum*const* props, GLsizeiconst* bufSize, GLsizei*const* length, GLint*const* params)
+void d_glGetProgramResourceiv(void *context, GLuint program, GLenum programInterface, GLuint index, GLsizei propCount, const GLenum *props, GLsizei bufSize, GLsizei *length, GLint *params)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetProgramResourceiv(context, program, programInterface, index, propCount, props, bufSize, length, params);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetProgramResourceiv(context, program, programInterface, index, propCount, props, bufSize, length, params);
 }
 
-
-void d_glGetProgramPipelineiv(void *context, GLuintconst* pipeline, GLenumconst* pname, GLint*const* params)
+void d_glGetProgramPipelineiv(void *context, GLuint pipeline, GLenum pname, GLint *params)
 {
-
-r_glGetProgramPipelineiv(context, pipeline, pname, params);
 
+    r_glGetProgramPipelineiv(context, pipeline, pname, params);
 }
 
-
-void d_glGetProgramPipelineInfoLog(void *context, GLuintconst* pipeline, GLsizeiconst* bufSize, GLsizei*const* length, GLchar*const* infoLog)
+void d_glGetProgramPipelineInfoLog(void *context, GLuint pipeline, GLsizei bufSize, GLsizei *length, GLchar *infoLog)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetProgramPipelineInfoLog(context, pipeline, bufSize, length, infoLog);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetProgramPipelineInfoLog(context, pipeline, bufSize, length, infoLog);
 }
 
-
-void d_glGetMultisamplefv(void *context, GLenumconst* pname, GLuintconst* index, GLfloat*const* val)
+void d_glGetMultisamplefv(void *context, GLenum pname, GLuint index, GLfloat *val)
 {
-
-r_glGetMultisamplefv(context, pname, index, val);
 
+    r_glGetMultisamplefv(context, pname, index, val);
 }
 
-
-void d_glGetTexLevelParameteriv(void *context, GLenumconst* target, GLintconst* level, GLenumconst* pname, GLint*const* params)
+void d_glGetTexLevelParameteriv(void *context, GLenum target, GLint level, GLenum pname, GLint *params)
 {
-
-r_glGetTexLevelParameteriv(context, target, level, pname, params);
 
+    r_glGetTexLevelParameteriv(context, target, level, pname, params);
 }
 
-
-void d_glGetTexLevelParameterfv(void *context, GLenumconst* target, GLintconst* level, GLenumconst* pname, GLfloat*const* params)
+void d_glGetTexLevelParameterfv(void *context, GLenum target, GLint level, GLenum pname, GLfloat *params)
 {
-
-r_glGetTexLevelParameterfv(context, target, level, pname, params);
 
+    r_glGetTexLevelParameterfv(context, target, level, pname, params);
 }
 
-
-void d_glGetSynciv(void *context, GLsyncconst* sync, GLenumconst* pname, GLsizeiconst* bufSize, GLsizei*const* length, GLint*const* values)
+void d_glGetSynciv(void *context, GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length, GLint *values)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetSynciv(context, sync, pname, bufSize, length, values);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetSynciv(context, sync, pname, bufSize, length, values);
 }
 
-
-GLint d_glGetAttribLocation(void *context, GLuintconst* program, const GLchar*const* name)
+GLint d_glGetAttribLocation(void *context, GLuint program, const GLchar *name)
 {
-
-return r_glGetAttribLocation(context, program, name);
 
+    return r_glGetAttribLocation(context, program, name);
 }
 
-
-GLint d_glGetUniformLocation(void *context, GLuintconst* program, const GLchar*const* name)
+GLint d_glGetUniformLocation(void *context, GLuint program, const GLchar *name)
 {
-
-return r_glGetUniformLocation(context, program, name);
 
+    return r_glGetUniformLocation(context, program, name);
 }
 
-
-GLint d_glGetFragDataLocation(void *context, GLuintconst* program, const GLchar*const* name)
+GLint d_glGetFragDataLocation(void *context, GLuint program, const GLchar *name)
 {
 
-return r_glGetFragDataLocation(context, program, name);
-
+    return r_glGetFragDataLocation(context, program, name);
 }
-
 
-GLuint d_glGetUniformBlockIndex(void *context, GLuintconst* program, const GLchar*const* uniformBlockName)
+GLuint d_glGetUniformBlockIndex(void *context, GLuint program, const GLchar *uniformBlockName)
 {
 
-return r_glGetUniformBlockIndex(context, program, uniformBlockName);
-
+    return r_glGetUniformBlockIndex(context, program, uniformBlockName);
 }
-
 
-GLuint d_glGetProgramResourceIndex(void *context, GLuintconst* program, GLenumconst* programInterface, const GLchar*const* name)
+GLuint d_glGetProgramResourceIndex(void *context, GLuint program, GLenum programInterface, const GLchar *name)
 {
 
-return r_glGetProgramResourceIndex(context, program, programInterface, name);
-
+    return r_glGetProgramResourceIndex(context, program, programInterface, name);
 }
-
 
-GLint d_glGetProgramResourceLocation(void *context, GLuintconst* program, GLenumconst* programInterface, const GLchar*const* name)
+GLint d_glGetProgramResourceLocation(void *context, GLuint program, GLenum programInterface, const GLchar *name)
 {
 
-return r_glGetProgramResourceLocation(context, program, programInterface, name);
-
+    return r_glGetProgramResourceLocation(context, program, programInterface, name);
 }
-
 
-void d_glGetActiveAttrib(void *context, GLuintconst* program, GLuintconst* index, GLsizeiconst* bufSize, GLsizei*const* length, GLint*const* size, GLenum*const* type, GLchar*const* name)
+void d_glGetActiveAttrib(void *context, GLuint program, GLuint index, GLsizei bufSize, GLsizei *length, GLint *size, GLenum *type, GLchar *name)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetActiveAttrib(context, program, index, bufSize, length, size, type, name);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetActiveAttrib(context, program, index, bufSize, length, size, type, name);
 }
-
 
-void d_glGetActiveUniform(void *context, GLuintconst* program, GLuintconst* index, GLsizeiconst* bufSize, GLsizei*const* length, GLint*const* size, GLenum*const* type, GLchar*const* name)
+void d_glGetActiveUniform(void *context, GLuint program, GLuint index, GLsizei bufSize, GLsizei *length, GLint *size, GLenum *type, GLchar *name)
 {
-{if(bufSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGetActiveUniform(context, program, index, bufSize, length, size, type, name);
-
+    {
+        if (bufSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGetActiveUniform(context, program, index, bufSize, length, size, type, name);
 }
-
 
-void d_glGetAttachedShaders(void *context, GLuintconst* program, GLsizeiconst* maxCount, GLsizei*const* count, GLuint*const* shaders)
+void d_glGetAttachedShaders(void *context, GLuint program, GLsizei maxCount, GLsizei *count, GLuint *shaders)
 {
 
-r_glGetAttachedShaders(context, program, maxCount, count, shaders);
-
+    r_glGetAttachedShaders(context, program, maxCount, count, shaders);
 }
-
 
-void d_glGetProgramiv(void *context, GLuintconst* program, GLenumconst* pname, GLint*const* params)
+void d_glGetProgramiv(void *context, GLuint program, GLenum pname, GLint *params)
 {
 
-r_glGetProgramiv(context, program, pname, params);
-
+    r_glGetProgramiv(context, program, pname, params);
 }
-
 
-void d_glGetShaderiv(void *context, GLuintconst* shader, GLenumconst* pname, GLint*const* params)
+void d_glGetShaderiv(void *context, GLuint shader, GLenum pname, GLint *params)
 {
 
-r_glGetShaderiv(context, shader, pname, params);
-
+    r_glGetShaderiv(context, shader, pname, params);
 }
 
-
-void d_glGetUniformfv(void *context, GLuintconst* program, GLintconst* location, GLfloat*const* params)
+void d_glGetUniformfv(void *context, GLuint program, GLint location, GLfloat *params)
 {
-
-r_glGetUniformfv(context, program, location, params);
 
+    r_glGetUniformfv(context, program, location, params);
 }
 
-
-void d_glGetUniformiv(void *context, GLuintconst* program, GLintconst* location, GLint*const* params)
+void d_glGetUniformiv(void *context, GLuint program, GLint location, GLint *params)
 {
-
-r_glGetUniformiv(context, program, location, params);
 
+    r_glGetUniformiv(context, program, location, params);
 }
 
-
-void d_glGetUniformuiv(void *context, GLuintconst* program, GLintconst* location, GLuint*const* params)
+void d_glGetUniformuiv(void *context, GLuint program, GLint location, GLuint *params)
 {
-
-r_glGetUniformuiv(context, program, location, params);
 
+    r_glGetUniformuiv(context, program, location, params);
 }
 
-
-void d_glGetUniformIndices(void *context, GLuintconst* program, GLsizeiconst* uniformCount, const GLchar*const* uniformNames, GLuint*const* uniformIndices)
+void d_glGetUniformIndices(void *context, GLuint program, GLsizei uniformCount, const GLchar *const *uniformNames, GLuint *uniformIndices)
 {
-
-r_glGetUniformIndices(context, program, uniformCount, uniformNames, uniformIndices);
 
+    r_glGetUniformIndices(context, program, uniformCount, uniformNames, uniformIndices);
 }
 
-
-void d_glGetVertexAttribfv_origin(void *context, GLuintconst* index, GLenumconst* pname, GLfloat*const* params)
+void d_glGetVertexAttribfv(void *context, GLuint index, GLenum pname, GLfloat *params)
 {
-
-r_glGetVertexAttribfv_origin(context, index, pname, params);
 
+    r_glGetVertexAttribfv_origin(context, index, pname, params);
 }
 
-
-void d_glGetVertexAttribiv_origin(void *context, GLuintconst* index, GLenumconst* pname, GLint*const* params)
+void d_glGetVertexAttribiv(void *context, GLuint index, GLenum pname, GLint *params)
 {
-
-r_glGetVertexAttribiv_origin(context, index, pname, params);
 
+    r_glGetVertexAttribiv_origin(context, index, pname, params);
 }
 
-
-void d_glGetVertexAttribIiv_origin(void *context, GLuintconst* index, GLenumconst* pname, GLint*const* params)
+void d_glGetVertexAttribIiv(void *context, GLuint index, GLenum pname, GLint *params)
 {
-
-r_glGetVertexAttribIiv_origin(context, index, pname, params);
 
+    r_glGetVertexAttribIiv_origin(context, index, pname, params);
 }
 
-
-void d_glGetVertexAttribIuiv_origin(void *context, GLuintconst* index, GLenumconst* pname, GLuint*const* params)
+void d_glGetVertexAttribIuiv(void *context, GLuint index, GLenum pname, GLuint *params)
 {
-
-r_glGetVertexAttribIuiv_origin(context, index, pname, params);
 
+    r_glGetVertexAttribIuiv_origin(context, index, pname, params);
 }
 
-
-void d_glGetBufferParameteriv(void *context, GLenumconst* target, GLenumconst* pname, GLint*const* params)
+void d_glGetBufferParameteriv(void *context, GLenum target, GLenum pname, GLint *params)
 {
 
-r_glGetBufferParameteriv(context, target, pname, params);
-
+    r_glGetBufferParameteriv(context, target, pname, params);
 }
-
 
-void d_glGetBufferParameteri64v(void *context, GLenumconst* target, GLenumconst* pname, GLint64*const* params)
+void d_glGetBufferParameteri64v(void *context, GLenum target, GLenum pname, GLint64 *params)
 {
 
-r_glGetBufferParameteri64v(context, target, pname, params);
-
+    r_glGetBufferParameteri64v(context, target, pname, params);
 }
-
 
-void d_glGetBooleanv(void *context, GLenumconst* pname, GLboolean*const* data)
+void d_glGetBooleanv(void *context, GLenum pname, GLboolean *data)
 {
 
-r_glGetBooleanv(context, pname, data);
-
+    r_glGetBooleanv(context, pname, data);
 }
-
 
-void d_glGetBooleani_v(void *context, GLenumconst* target, GLuintconst* index, GLboolean*const* data)
+void d_glGetBooleani_v(void *context, GLenum target, GLuint index, GLboolean *data)
 {
 
-r_glGetBooleani_v(context, target, index, data);
-
+    r_glGetBooleani_v(context, target, index, data);
 }
-
 
-void d_glGetFloatv(void *context, GLenumconst* pname, GLfloat*const* data)
+void d_glGetFloatv(void *context, GLenum pname, GLfloat *data)
 {
 
-r_glGetFloatv(context, pname, data);
-
+    r_glGetFloatv(context, pname, data);
 }
 
-
-void d_glGetIntegerv(void *context, GLenumconst* pname, GLint*const* data)
+void d_glGetIntegerv(void *context, GLenum pname, GLint *data)
 {
-
-r_glGetIntegerv(context, pname, data);
 
+    r_glGetIntegerv(context, pname, data);
 }
 
-
-void d_glGetIntegeri_v(void *context, GLenumconst* target, GLuintconst* index, GLint*const* data)
+void d_glGetIntegeri_v(void *context, GLenum target, GLuint index, GLint *data)
 {
-
-r_glGetIntegeri_v(context, target, index, data);
 
+    r_glGetIntegeri_v(context, target, index, data);
 }
 
-
-void d_glGetInteger64v(void *context, GLenumconst* pname, GLint64*const* data)
+void d_glGetInteger64v(void *context, GLenum pname, GLint64 *data)
 {
-
-r_glGetInteger64v(context, pname, data);
 
+    r_glGetInteger64v(context, pname, data);
 }
 
-
-void d_glGetInteger64i_v(void *context, GLenumconst* target, GLuintconst* index, GLint64*const* data)
+void d_glGetInteger64i_v(void *context, GLenum target, GLuint index, GLint64 *data)
 {
-
-r_glGetInteger64i_v(context, target, index, data);
 
+    r_glGetInteger64i_v(context, target, index, data);
 }
-
-
-
 
 /******* file '1-2' *******/
 
-
-void d_glMapBufferRange_read(void *context, GLenumconst* target, GLintptrconst* offset, GLsizeiptrconst* length, GLbitfieldconst* access, void*const* mem_buf)
+void d_glMapBufferRange(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf)
 {
 
-r_glMapBufferRange_read(context, target, offset, length, access, mem_buf);
-
+    r_glMapBufferRange_read(context, target, offset, length, access, mem_buf);
 }
 
-
-void d_glReadPixels_without_bound(void *context, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height, GLenumconst* format, GLenumconst* type, GLintconst* buf_len, void*const* pixels)
+void d_glReadPixels(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, void *pixels)
 {
 
-r_glReadPixels_without_bound(context, x, y, width, height, format, type, buf_len, pixels);
-
+    r_glReadPixels_without_bound(context, x, y, width, height, format, type, buf_len, pixels);
 }
 
-
-GLint d_glTestPointer3(void *context, GLintconst* a, const GLint*const* b, GLint*const* c)
+GLint d_glTestPointer3(void *context, GLint a, const GLint *b, GLint *c)
 {
 
-return r_glTestPointer3(context, a, b, c);
-
+    return r_glTestPointer3(context, a, b, c);
 }
-
-
-
 
 /******* file '2-1' *******/
-
 
 void d_glFlush(void *context)
 {
 
-r_glFlush(context);
-
+    r_glFlush(context);
 }
-
 
 void d_glFinish(void *context)
 {
 
-r_glFinish(context);
-
+    r_glFinish(context);
 }
 
-
-void d_glBeginQuery(void *context, GLenumconst* target, GLuintconst* id)
+void d_glBeginQuery(void *context, GLenum target, GLuint id)
 {
 
-r_glBeginQuery(context, target, id);
-
+    r_glBeginQuery(context, target, id);
 }
 
-
-void d_glEndQuery(void *context, GLenumconst* target)
+void d_glEndQuery(void *context, GLenum target)
 {
 
-r_glEndQuery(context, target);
-
+    r_glEndQuery(context, target);
 }
 
-
-void d_glViewport(void *context, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height)
+void d_glViewport(void *context, GLint x, GLint y, GLsizei width, GLsizei height)
 {
 
-r_glViewport(context, x, y, width, height);
-
+    r_glViewport(context, x, y, width, height);
 }
 
-
-void d_glTexStorage2D(void *context, GLenumconst* target, GLsizeiconst* levels, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height)
+void d_glTexStorage2D(void *context, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height)
 {
 
-r_glTexStorage2D(context, target, levels, internalformat, width, height);
-
+    r_glTexStorage2D(context, target, levels, internalformat, width, height);
 }
 
-
-void d_glTexStorage3D(void *context, GLenumconst* target, GLsizeiconst* levels, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth)
+void d_glTexStorage3D(void *context, GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth)
 {
 
-r_glTexStorage3D(context, target, levels, internalformat, width, height, depth);
-
+    r_glTexStorage3D(context, target, levels, internalformat, width, height, depth);
 }
 
-
-void d_glTexImage2D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLintconst* border, GLenumconst* format, GLenumconst* type, GLintptrconst* pixels)
+void d_glTexImage2D(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
 
-r_glTexImage2D_with_bound(context, target, level, internalformat, width, height, border, format, type, pixels);
-
+    r_glTexImage2D_with_bound(context, target, level, internalformat, width, height, border, format, type, pixels);
 }
 
-
-void d_glTexSubImage2D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLsizeiconst* width, GLsizeiconst* height, GLenumconst* format, GLenumconst* type, GLintptrconst* pixels)
+void d_glTexSubImage2D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
 {
 
-r_glTexSubImage2D_with_bound(context, target, level, xoffset, yoffset, width, height, format, type, pixels);
-
+    r_glTexSubImage2D_with_bound(context, target, level, xoffset, yoffset, width, height, format, type, pixels);
 }
 
-
-void d_glTexImage3D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLintconst* border, GLenumconst* format, GLenumconst* type, GLintptrconst* pixels)
+void d_glTexImage3D(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
 
-r_glTexImage3D_with_bound(context, target, level, internalformat, width, height, depth, border, format, type, pixels);
-
+    r_glTexImage3D_with_bound(context, target, level, internalformat, width, height, depth, border, format, type, pixels);
 }
 
-
-void d_glTexSubImage3D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLintconst* zoffset, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLenumconst* format, GLenumconst* type, GLintptrconst* pixels)
+void d_glTexSubImage3D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLintptr pixels)
 {
 
-r_glTexSubImage3D_with_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels);
-
+    r_glTexSubImage3D_with_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, pixels);
 }
 
-
-void d_glReadPixels_with_bound(void *context, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height, GLenumconst* format, GLenumconst* type, GLintptrconst* pixels)
+void d_glReadPixels(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
 {
 
-r_glReadPixels_with_bound(context, x, y, width, height, format, type, pixels);
-
+    r_glReadPixels_with_bound(context, x, y, width, height, format, type, pixels);
 }
 
-
-void d_glCompressedTexImage2D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLintconst* border, GLsizeiconst* imageSize, GLintptrconst* data)
+void d_glCompressedTexImage2D(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, GLintptr data)
 {
-{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glCompressedTexImage2D_with_bound(context, target, level, internalformat, width, height, border, imageSize, data);
-
+    {
+        if (imageSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glCompressedTexImage2D_with_bound(context, target, level, internalformat, width, height, border, imageSize, data);
 }
 
-
-void d_glCompressedTexSubImage2D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLsizeiconst* width, GLsizeiconst* height, GLenumconst* format, GLsizeiconst* imageSize, GLintptrconst* data)
+void d_glCompressedTexSubImage2D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr data)
 {
-{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glCompressedTexSubImage2D_with_bound(context, target, level, xoffset, yoffset, width, height, format, imageSize, data);
-
+    {
+        if (imageSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glCompressedTexSubImage2D_with_bound(context, target, level, xoffset, yoffset, width, height, format, imageSize, data);
 }
 
-
-void d_glCompressedTexImage3D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLintconst* border, GLsizeiconst* imageSize, GLintptrconst* data)
+void d_glCompressedTexImage3D(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, GLintptr data)
 {
-{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glCompressedTexImage3D_with_bound(context, target, level, internalformat, width, height, depth, border, imageSize, data);
-
+    {
+        if (imageSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glCompressedTexImage3D_with_bound(context, target, level, internalformat, width, height, depth, border, imageSize, data);
 }
 
-
-void d_glCompressedTexSubImage3D_with_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLintconst* zoffset, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLenumconst* format, GLsizeiconst* imageSize, GLintptrconst* data)
-{
-
-r_glCompressedTexSubImage3D_with_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data);
-
-}
-
-
-void d_glCopyTexImage2D(void *context, GLenumconst* target, GLintconst* level, GLenumconst* internalformat, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height, GLintconst* border)
-{
-
-r_glCopyTexImage2D(context, target, level, internalformat, x, y, width, height, border);
-
-}
-
-
-void d_glCopyTexSubImage2D(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height)
+void d_glCompressedTexSubImage3D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, GLintptr data)
 {
 
-r_glCopyTexSubImage2D(context, target, level, xoffset, yoffset, x, y, width, height);
-
+    r_glCompressedTexSubImage3D_with_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data);
 }
 
-
-void d_glCopyTexSubImage3D(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLintconst* zoffset, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height)
+void d_glCopyTexImage2D(void *context, GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border)
 {
 
-r_glCopyTexSubImage3D(context, target, level, xoffset, yoffset, zoffset, x, y, width, height);
-
+    r_glCopyTexImage2D(context, target, level, internalformat, x, y, width, height, border);
 }
 
-
-void d_glVertexAttribPointer_with_bound(void *context, GLuintconst* index, GLintconst* size, GLenumconst* type, GLbooleanconst* normalized, GLsizeiconst* stride, GLintptrconst* pointer)
+void d_glCopyTexSubImage2D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
 {
 
-r_glVertexAttribPointer_with_bound(context, index, size, type, normalized, stride, pointer);
-
+    r_glCopyTexSubImage2D(context, target, level, xoffset, yoffset, x, y, width, height);
 }
 
-
-void d_glVertexAttribPointer_offset(void *context, GLuintconst* index, GLuintconst* size, GLenumconst* type, GLbooleanconst* normalized, GLsizeiconst* stride, GLuintconst* index_father, GLintptrconst* offset)
+void d_glCopyTexSubImage3D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLint x, GLint y, GLsizei width, GLsizei height)
 {
 
-r_glVertexAttribPointer_offset(context, index, size, type, normalized, stride, index_father, offset);
-
+    r_glCopyTexSubImage3D(context, target, level, xoffset, yoffset, zoffset, x, y, width, height);
 }
 
-
-void d_glMapBufferRange_write(void *context, GLenumconst* target, GLintptrconst* offset, GLsizeiptrconst* length, GLbitfieldconst* access)
+void d_glVertexAttribPointer(void *context, GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLintptr pointer)
 {
 
-r_glMapBufferRange_write(context, target, offset, length, access);
-
+    r_glVertexAttribPointer_with_bound(context, index, size, type, normalized, stride, pointer);
 }
 
-
-void d_glUnmapBuffer_special(void *context, GLenumconst* target)
+void d_glVertexAttribPointer(void *context, GLuint index, GLuint size, GLenum type, GLboolean normalized, GLsizei stride, GLuint index_father, GLintptr offset)
 {
 
-r_glUnmapBuffer_special(context, target);
-
+    r_glVertexAttribPointer_offset(context, index, size, type, normalized, stride, index_father, offset);
 }
 
-
-void d_glWaitSync(void *context, GLsyncconst* sync, GLbitfieldconst* flags, GLuint64const* timeout)
+void d_glMapBufferRange(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access)
 {
 
-r_glWaitSync(context, sync, flags, timeout);
-
+    r_glMapBufferRange_write(context, target, offset, length, access);
 }
 
-
-void d_glShaderBinary(void *context, GLsizeiconst* count, const GLuint*const* shaders, GLenumconst* binaryFormat, const void*const* binary, GLsizeiconst* length)
+void d_glUnmapBuffer(void *context, GLenum target)
 {
 
-r_glShaderBinary(context, count, shaders, binaryFormat, binary, length);
-
+    r_glUnmapBuffer_special(context, target);
 }
 
-
-void d_glProgramBinary(void *context, GLuintconst* program, GLenumconst* binaryFormat, const void*const* binary, GLsizeiconst* length)
+void d_glWaitSync(void *context, GLsync sync, GLbitfield flags, GLuint64 timeout)
 {
 
-r_glProgramBinary(context, program, binaryFormat, binary, length);
-
+    r_glWaitSync(context, sync, flags, timeout);
 }
 
-
-void d_glDrawBuffers(void *context, GLsizeiconst* n, const GLenum*const* bufs)
+void d_glShaderBinary(void *context, GLsizei count, const GLuint *shaders, GLenum binaryFormat, const void *binary, GLsizei length)
 {
 
-r_glDrawBuffers(context, n, bufs);
-
+    r_glShaderBinary(context, count, shaders, binaryFormat, binary, length);
 }
 
-
-void d_glDrawArrays_origin(void *context, GLenumconst* mode, GLintconst* first, GLsizeiconst* count)
+void d_glProgramBinary(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length)
 {
 
-r_glDrawArrays_origin(context, mode, first, count);
-
+    r_glProgramBinary(context, program, binaryFormat, binary, length);
 }
 
-
-void d_glDrawArraysInstanced_origin(void *context, GLenumconst* mode, GLintconst* first, GLsizeiconst* count, GLsizeiconst* instancecount)
+void d_glDrawBuffers(void *context, GLsizei n, const GLenum *bufs)
 {
 
-r_glDrawArraysInstanced_origin(context, mode, first, count, instancecount);
-
+    r_glDrawBuffers(context, n, bufs);
 }
 
-
-void d_glDrawElementsInstanced_with_bound(void *context, GLenumconst* mode, GLsizeiconst* count, GLenumconst* type, GLsizeiptrconst* indices, GLsizeiconst* instancecount)
+void d_glDrawArrays(void *context, GLenum mode, GLint first, GLsizei count)
 {
 
-r_glDrawElementsInstanced_with_bound(context, mode, count, type, indices, instancecount);
-
+    r_glDrawArrays_origin(context, mode, first, count);
 }
 
-
-void d_glDrawElements_with_bound(void *context, GLenumconst* mode, GLsizeiconst* count, GLenumconst* type, GLsizeiptrconst* indices)
+void d_glDrawArraysInstanced(void *context, GLenum mode, GLint first, GLsizei count, GLsizei instancecount)
 {
 
-r_glDrawElements_with_bound(context, mode, count, type, indices);
-
+    r_glDrawArraysInstanced_origin(context, mode, first, count, instancecount);
 }
 
-
-void d_glDrawRangeElements_with_bound(void *context, GLenumconst* mode, GLuintconst* start, GLuintconst* end, GLsizeiconst* count, GLenumconst* type, GLsizeiptrconst* indices)
+void d_glDrawElementsInstanced(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices, GLsizei instancecount)
 {
 
-r_glDrawRangeElements_with_bound(context, mode, start, end, count, type, indices);
-
+    r_glDrawElementsInstanced_with_bound(context, mode, count, type, indices, instancecount);
 }
 
-
-void d_glTestIntAsyn(void *context, GLintconst* a, GLuintconst* b, GLfloatconst* c, GLdoubleconst* d)
+void d_glDrawElements(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices)
 {
 
-r_glTestIntAsyn(context, a, b, c, d);
-
+    r_glDrawElements_with_bound(context, mode, count, type, indices);
 }
 
-
-void d_glPrintfAsyn(void *context, GLintconst* a, GLuintconst* size, GLdoubleconst* c, const GLchar*const* out_string)
+void d_glDrawRangeElements(void *context, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, GLsizeiptr indices)
 {
 
-r_glPrintfAsyn(context, a, size, c, out_string);
-
+    r_glDrawRangeElements_with_bound(context, mode, start, end, count, type, indices);
 }
 
-
-void d_glEGLImageTargetTexture2DOES(void *context, GLenumconst* target, GLeglImageOESconst* imageSize)
+void d_glTestIntAsyn(void *context, GLint a, GLuint b, GLfloat c, GLdouble d)
 {
 
-r_glEGLImageTargetTexture2DOES(context, target, imageSize);
-
+    r_glTestIntAsyn(context, a, b, c, d);
 }
 
-
-void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenumconst* target, GLeglImageOESconst* image)
+void d_glPrintfAsyn(void *context, GLint a, GLuint size, GLdouble c, const GLchar *out_string)
 {
 
-r_glEGLImageTargetRenderbufferStorageOES(context, target, image);
-
+    r_glPrintfAsyn(context, a, size, c, out_string);
 }
 
+void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES imageSize)
+{
 
+    r_glEGLImageTargetTexture2DOES(context, target, imageSize);
+}
 
+void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image)
+{
+
+    r_glEGLImageTargetRenderbufferStorageOES(context, target, image);
+}
 
 /******* file '2-1-1' *******/
 
-
-void d_glGenBuffers_special(void *context, GLsizeiconst* n, const GLuint*const* buffers)
+void d_glGenBuffers(void *context, GLsizei n, const GLuint *buffers)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenBuffers_special(context, n, buffers);
-
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenBuffers(context, n, buffers);
 }
 
-
-void d_glGenRenderbuffers_special(void *context, GLsizeiconst* n, const GLuint*const* renderbuffers)
+void d_glGenRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffers)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenRenderbuffers_special(context, n, renderbuffers);
-
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenRenderbuffers(context, n, renderbuffers);
 }
 
-
-void d_glGenTextures_special(void *context, GLsizeiconst* n, const GLuint*const* textures)
+void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenTextures_special(context, n, textures);
-
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenTextures(context, n, textures);
 }
 
-
-void d_glGenSamplers_special(void *context, GLsizeiconst* count, const GLuint*const* samplers)
+void d_glGenSamplers(void *context, GLsizei count, const GLuint *samplers)
 {
-{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenSamplers_special(context, count, samplers);
-
+    {
+        if (count < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenSamplers(context, count, samplers);
 }
 
-
-void d_glCreateProgram_special(void *context, GLuintconst* program)
+void d_glCreateProgram(void *context, GLuint program)
 {
 
-r_glCreateProgram_special(context, program);
-
+    r_glCreateProgram(context, program);
 }
 
-
-void d_glCreateShader_special(void *context, GLenumconst* type, GLuintconst* shader)
+void d_glCreateShader(void *context, GLenum type, GLuint shader)
 {
-if(type!=GL_COMPUTE_SHADER&&type!=GL_VERTEX_SHADER&&type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}
-r_glCreateShader_special(context, type, shader);
-
+    if (type != GL_COMPUTE_SHADER && type != GL_VERTEX_SHADER && type != GL_FRAGMENT_SHADER)
+    {
+        set_gl_error(context, GL_INVALID_ENUM);
+        return 0;
+    }
+    r_glCreateShader(context, type, shader);
 }
 
-
-void d_glFenceSync_special(void *context, GLenumconst* condition, GLbitfieldconst* flags, GLsyncconst* sync)
-{
-
-r_glFenceSync_special(context, condition, flags, sync);
-
-}
-
-
-void d_glCreateShaderProgramv(void *context, GLenumconst* type, GLsizeiconst* count, const GLchar*const* strings, GLuintconst* program)
-{
-{if(type!=GL_COMPUTE_SHADER&&type!=GL_VERTEX_SHADER&&type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}if(count<0){set_gl_error(context,GL_INVALID_VALUE);return 0;}}
-r_glCreateShaderProgramv(context, type, count, strings, program);
-
-}
-
-
-void d_glGenFramebuffers_special(void *context, GLsizeiconst* n, const GLuint*const* framebuffers)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenFramebuffers_special(context, n, framebuffers);
-
-}
-
-
-void d_glGenProgramPipelines_special(void *context, GLsizeiconst* n, const GLuint*const* pipelines)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenProgramPipelines_special(context, n, pipelines);
-
-}
-
-
-void d_glGenTransformFeedbacks_special(void *context, GLsizeiconst* n, const GLuint*const* ids)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenTransformFeedbacks_special(context, n, ids);
-
-}
-
-
-void d_glGenVertexArrays_special(void *context, GLsizeiconst* n, const GLuint*const* arrays)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenVertexArrays_special(context, n, arrays);
-
-}
-
-
-void d_glGenQueries_special(void *context, GLsizeiconst* n, const GLuint*const* ids)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glGenQueries_special(context, n, ids);
-
-}
-
-
-void d_glDeleteBuffers_origin(void *context, GLsizeiconst* n, const GLuint*const* buffers)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteBuffers_origin(context, n, buffers);
-
-}
-
-
-void d_glDeleteRenderbuffers(void *context, GLsizeiconst* n, const GLuint*const* renderbuffers)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteRenderbuffers(context, n, renderbuffers);
-
-}
-
-
-void d_glDeleteTextures(void *context, GLsizeiconst* n, const GLuint*const* textures)
-{
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteTextures(context, n, textures);
-
-}
-
-
-void d_glDeleteSamplers(void *context, GLsizeiconst* count, const GLuint*const* samplers)
-{
-{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteSamplers(context, count, samplers);
-
-}
-
-
-void d_glDeleteProgram_origin(void *context, GLuintconst* program)
+void d_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync sync)
 {
 
-r_glDeleteProgram_origin(context, program);
-
+    r_glFenceSync(context, condition, flags, sync);
 }
 
+void d_glCreateShaderProgramv(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program)
+{
+    {
+        if (type != GL_COMPUTE_SHADER && type != GL_VERTEX_SHADER && type != GL_FRAGMENT_SHADER)
+        {
+            set_gl_error(context, GL_INVALID_ENUM);
+            return 0;
+        }
+        if (count < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return 0;
+        }
+    }
+    r_glCreateShaderProgramv(context, type, count, strings, program);
+}
 
-void d_glDeleteShader(void *context, GLuintconst* shader)
+void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenFramebuffers(context, n, framebuffers);
+}
+
+void d_glGenProgramPipelines(void *context, GLsizei n, const GLuint *pipelines)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenProgramPipelines(context, n, pipelines);
+}
+
+void d_glGenTransformFeedbacks(void *context, GLsizei n, const GLuint *ids)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenTransformFeedbacks(context, n, ids);
+}
+
+void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenVertexArrays(context, n, arrays);
+}
+
+void d_glGenQueries(void *context, GLsizei n, const GLuint *ids)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glGenQueries(context, n, ids);
+}
+
+void d_glDeleteBuffers(void *context, GLsizei n, const GLuint *buffers)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteBuffers_origin(context, n, buffers);
+}
+
+void d_glDeleteRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffers)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteRenderbuffers(context, n, renderbuffers);
+}
+
+void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteTextures(context, n, textures);
+}
+
+void d_glDeleteSamplers(void *context, GLsizei count, const GLuint *samplers)
+{
+    {
+        if (count < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteSamplers(context, count, samplers);
+}
+
+void d_glDeleteProgram(void *context, GLuint program)
 {
 
-r_glDeleteShader(context, shader);
-
+    r_glDeleteProgram_origin(context, program);
 }
 
-
-void d_glDeleteSync(void *context, GLsyncconst* sync)
+void d_glDeleteShader(void *context, GLuint shader)
 {
 
-r_glDeleteSync(context, sync);
-
+    r_glDeleteShader(context, shader);
 }
 
-
-void d_glDeleteFramebuffers(void *context, GLsizeiconst* n, const GLuint*const* framebuffers)
+void d_glDeleteSync(void *context, GLsync sync)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteFramebuffers(context, n, framebuffers);
 
+    r_glDeleteSync(context, sync);
 }
 
-
-void d_glDeleteProgramPipelines(void *context, GLsizeiconst* n, const GLuint*const* pipelines)
+void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteProgramPipelines(context, n, pipelines);
-
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteFramebuffers(context, n, framebuffers);
 }
 
-
-void d_glDeleteTransformFeedbacks(void *context, GLsizeiconst* n, const GLuint*const* ids)
+void d_glDeleteProgramPipelines(void *context, GLsizei n, const GLuint *pipelines)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteTransformFeedbacks(context, n, ids);
-
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteProgramPipelines(context, n, pipelines);
 }
 
-
-void d_glDeleteVertexArrays_origin(void *context, GLsizeiconst* n, const GLuint*const* arrays)
+void d_glDeleteTransformFeedbacks(void *context, GLsizei n, const GLuint *ids)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteVertexArrays_origin(context, n, arrays);
-
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteTransformFeedbacks(context, n, ids);
 }
 
-
-void d_glDeleteQueries(void *context, GLsizeiconst* n, const GLuint*const* ids)
+void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
 {
-{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glDeleteQueries(context, n, ids);
-
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteVertexArrays_origin(context, n, arrays);
 }
 
-
-
+void d_glDeleteQueries(void *context, GLsizei n, const GLuint *ids)
+{
+    {
+        if (n < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glDeleteQueries(context, n, ids);
+}
 
 /******* file '2-1-2' *******/
 
-
-void d_glLinkProgram_origin(void *context, GLuintconst* program)
+void d_glLinkProgram(void *context, GLuint program)
 {
 
-r_glLinkProgram_origin(context, program);
-
+    r_glLinkProgram_origin(context, program);
 }
 
-
-void d_glPixelStorei_origin(void *context, GLenumconst* pname, GLintconst* param)
+void d_glPixelStorei(void *context, GLenum pname, GLint param)
 {
 
-r_glPixelStorei_origin(context, pname, param);
-
+    r_glPixelStorei_origin(context, pname, param);
 }
 
-
-void d_glDisableVertexAttribArray_origin(void *context, GLuintconst* index)
+void d_glDisableVertexAttribArray(void *context, GLuint index)
 {
 
-r_glDisableVertexAttribArray_origin(context, index);
-
+    r_glDisableVertexAttribArray_origin(context, index);
 }
 
-
-void d_glEnableVertexAttribArray_origin(void *context, GLuintconst* index)
+void d_glEnableVertexAttribArray(void *context, GLuint index)
 {
 
-r_glEnableVertexAttribArray_origin(context, index);
-
+    r_glEnableVertexAttribArray_origin(context, index);
 }
 
-
-void d_glReadBuffer_special(void *context, GLenumconst* src)
+void d_glReadBuffer(void *context, GLenum src)
 {
 
-r_glReadBuffer_special(context, src);
-
+    r_glReadBuffer_special(context, src);
 }
 
-
-void d_glVertexAttribDivisor_origin(void *context, GLuintconst* index, GLuintconst* divisor)
+void d_glVertexAttribDivisor(void *context, GLuint index, GLuint divisor)
 {
 
-r_glVertexAttribDivisor_origin(context, index, divisor);
-
+    r_glVertexAttribDivisor_origin(context, index, divisor);
 }
 
-
-void d_glShaderSource_origin(void *context, GLuintconst* shader, GLsizeiconst* count, const GLint*const* length, const GLchar*const* string)
+void d_glShaderSource(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
 {
 
-r_glShaderSource_origin(context, shader, count, length, string);
-
+    r_glShaderSource_origin(context, shader, count, length, string);
 }
 
-
-void d_glVertexAttribIPointer_with_bound(void *context, GLuintconst* index, GLintconst* size, GLenumconst* type, GLsizeiconst* stride, GLintptrconst* pointer)
+void d_glVertexAttribIPointer(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr pointer)
 {
 
-r_glVertexAttribIPointer_with_bound(context, index, size, type, stride, pointer);
-
+    r_glVertexAttribIPointer_with_bound(context, index, size, type, stride, pointer);
 }
 
-
-void d_glVertexAttribIPointer_offset(void *context, GLuintconst* index, GLintconst* size, GLenumconst* type, GLsizeiconst* stride, GLuintconst* index_father, GLintptrconst* offset)
+void d_glVertexAttribIPointer(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLuint index_father, GLintptr offset)
 {
 
-r_glVertexAttribIPointer_offset(context, index, size, type, stride, index_father, offset);
-
+    r_glVertexAttribIPointer_offset(context, index, size, type, stride, index_father, offset);
 }
 
-
-void d_glBindVertexArray_special(void *context, GLuintconst* array)
+void d_glBindVertexArray(void *context, GLuint array)
 {
 
-r_glBindVertexArray_special(context, array);
-
+    r_glBindVertexArray_special(context, array);
 }
 
-
-void d_glBindBuffer_origin(void *context, GLenumconst* target, GLuintconst* buffer)
+void d_glBindBuffer(void *context, GLenum target, GLuint buffer)
 {
 
-r_glBindBuffer_origin(context, target, buffer);
-
+    r_glBindBuffer_origin(context, target, buffer);
 }
 
-
-void d_glBeginTransformFeedback(void *context, GLenumconst* primitiveMode)
+void d_glBeginTransformFeedback(void *context, GLenum primitiveMode)
 {
 
-r_glBeginTransformFeedback(context, primitiveMode);
-
+    r_glBeginTransformFeedback(context, primitiveMode);
 }
-
 
 void d_glEndTransformFeedback(void *context)
 {
 
-r_glEndTransformFeedback(context);
-
+    r_glEndTransformFeedback(context);
 }
-
 
 void d_glPauseTransformFeedback(void *context)
 {
 
-r_glPauseTransformFeedback(context);
-
+    r_glPauseTransformFeedback(context);
 }
-
 
 void d_glResumeTransformFeedback(void *context)
 {
 
-r_glResumeTransformFeedback(context);
-
+    r_glResumeTransformFeedback(context);
 }
 
-
-void d_glBindBufferRange(void *context, GLenumconst* target, GLuintconst* index, GLuintconst* buffer, GLintptrconst* offset, GLsizeiptrconst* size)
+void d_glBindBufferRange(void *context, GLenum target, GLuint index, GLuint buffer, GLintptr offset, GLsizeiptr size)
 {
 
-r_glBindBufferRange(context, target, index, buffer, offset, size);
-
+    r_glBindBufferRange(context, target, index, buffer, offset, size);
 }
 
-
-void d_glBindBufferBase(void *context, GLenumconst* target, GLuintconst* index, GLuintconst* buffer)
+void d_glBindBufferBase(void *context, GLenum target, GLuint index, GLuint buffer)
 {
 
-r_glBindBufferBase(context, target, index, buffer);
-
+    r_glBindBufferBase(context, target, index, buffer);
 }
 
-
-void d_glBindTexture(void *context, GLenumconst* target, GLuintconst* texture)
+void d_glBindTexture(void *context, GLenum target, GLuint texture)
 {
 
-r_glBindTexture(context, target, texture);
-
+    r_glBindTexture(context, target, texture);
 }
 
-
-void d_glBindRenderbuffer(void *context, GLenumconst* target, GLuintconst* renderbuffer)
+void d_glBindRenderbuffer(void *context, GLenum target, GLuint renderbuffer)
 {
 
-r_glBindRenderbuffer(context, target, renderbuffer);
-
+    r_glBindRenderbuffer(context, target, renderbuffer);
 }
 
-
-void d_glBindSampler(void *context, GLuintconst* unit, GLuintconst* sampler)
+void d_glBindSampler(void *context, GLuint unit, GLuint sampler)
 {
 
-r_glBindSampler(context, unit, sampler);
-
+    r_glBindSampler(context, unit, sampler);
 }
 
-
-void d_glBindFramebuffer(void *context, GLenumconst* target, GLuintconst* framebuffer)
+void d_glBindFramebuffer(void *context, GLenum target, GLuint framebuffer)
 {
 
-r_glBindFramebuffer(context, target, framebuffer);
-
+    r_glBindFramebuffer(context, target, framebuffer);
 }
 
-
-void d_glBindProgramPipeline(void *context, GLuintconst* pipeline)
+void d_glBindProgramPipeline(void *context, GLuint pipeline)
 {
 
-r_glBindProgramPipeline(context, pipeline);
-
+    r_glBindProgramPipeline(context, pipeline);
 }
 
-
-void d_glBindTransformFeedback(void *context, GLenumconst* target, GLuintconst* id)
+void d_glBindTransformFeedback(void *context, GLenum target, GLuint feedback_id)
 {
 
-r_glBindTransformFeedback(context, target, id);
-
+    r_glBindTransformFeedback(context, target, feedback_id);
 }
 
-
-void d_glSamplerParameteriv(void *context, GLuintconst* sampler, GLenumconst* pname, const GLint*const* param)
+void d_glActiveTexture(void *context, GLenum texture)
 {
 
-r_glSamplerParameteriv(context, sampler, pname, param);
-
+    r_glActiveTexture(context, texture);
 }
 
-
-void d_glSamplerParameterfv(void *context, GLuintconst* sampler, GLenumconst* pname, const GLfloat*const* param)
+void d_glAttachShader(void *context, GLuint program, GLuint shader)
 {
 
-r_glSamplerParameterfv(context, sampler, pname, param);
-
+    r_glAttachShader(context, program, shader);
 }
 
-
-void d_glActiveTexture(void *context, GLenumconst* texture)
+void d_glBlendColor(void *context, GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 {
 
-r_glActiveTexture(context, texture);
-
+    r_glBlendColor(context, red, green, blue, alpha);
 }
 
-
-void d_glAttachShader(void *context, GLuintconst* program, GLuintconst* shader)
+void d_glBlendEquation(void *context, GLenum mode)
 {
 
-r_glAttachShader(context, program, shader);
-
+    r_glBlendEquation(context, mode);
 }
 
-
-void d_glBlendColor(void *context, GLfloatconst* red, GLfloatconst* green, GLfloatconst* blue, GLfloatconst* alpha)
+void d_glBlendEquationSeparate(void *context, GLenum modeRGB, GLenum modeAlpha)
 {
 
-r_glBlendColor(context, red, green, blue, alpha);
-
+    r_glBlendEquationSeparate(context, modeRGB, modeAlpha);
 }
 
-
-void d_glBlendEquation(void *context, GLenumconst* mode)
+void d_glBlendFunc(void *context, GLenum sfactor, GLenum dfactor)
 {
 
-r_glBlendEquation(context, mode);
-
+    r_glBlendFunc(context, sfactor, dfactor);
 }
 
-
-void d_glBlendEquationSeparate(void *context, GLenumconst* modeRGB, GLenumconst* modeAlpha)
+void d_glBlendFuncSeparate(void *context, GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha)
 {
 
-r_glBlendEquationSeparate(context, modeRGB, modeAlpha);
-
+    r_glBlendFuncSeparate(context, sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
 }
 
-
-void d_glBlendFunc(void *context, GLenumconst* sfactor, GLenumconst* dfactor)
+void d_glClear(void *context, GLbitfield mask)
 {
 
-r_glBlendFunc(context, sfactor, dfactor);
-
+    r_glClear(context, mask);
 }
 
-
-void d_glBlendFuncSeparate(void *context, GLenumconst* sfactorRGB, GLenumconst* dfactorRGB, GLenumconst* sfactorAlpha, GLenumconst* dfactorAlpha)
+void d_glClearColor(void *context, GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
 {
 
-r_glBlendFuncSeparate(context, sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
-
+    r_glClearColor(context, red, green, blue, alpha);
 }
 
-
-void d_glClear(void *context, GLbitfieldconst* mask)
+void d_glClearDepthf(void *context, GLfloat d)
 {
 
-r_glClear(context, mask);
-
+    r_glClearDepthf(context, d);
 }
 
-
-void d_glClearColor(void *context, GLfloatconst* red, GLfloatconst* green, GLfloatconst* blue, GLfloatconst* alpha)
+void d_glClearStencil(void *context, GLint s)
 {
 
-r_glClearColor(context, red, green, blue, alpha);
-
+    r_glClearStencil(context, s);
 }
 
-
-void d_glClearDepthf(void *context, GLfloatconst* d)
+void d_glColorMask(void *context, GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)
 {
 
-r_glClearDepthf(context, d);
-
+    r_glColorMask(context, red, green, blue, alpha);
 }
 
-
-void d_glClearStencil(void *context, GLintconst* s)
+void d_glCompileShader(void *context, GLuint shader)
 {
 
-r_glClearStencil(context, s);
-
+    r_glCompileShader(context, shader);
 }
 
-
-void d_glColorMask(void *context, GLbooleanconst* red, GLbooleanconst* green, GLbooleanconst* blue, GLbooleanconst* alpha)
+void d_glCullFace(void *context, GLenum mode)
 {
 
-r_glColorMask(context, red, green, blue, alpha);
-
+    r_glCullFace(context, mode);
 }
 
-
-void d_glCompileShader(void *context, GLuintconst* shader)
+void d_glDepthFunc(void *context, GLenum func)
 {
 
-r_glCompileShader(context, shader);
-
+    r_glDepthFunc(context, func);
 }
 
-
-void d_glCullFace(void *context, GLenumconst* mode)
+void d_glDepthMask(void *context, GLboolean flag)
 {
 
-r_glCullFace(context, mode);
-
+    r_glDepthMask(context, flag);
 }
 
-
-void d_glDepthFunc(void *context, GLenumconst* func)
+void d_glDepthRangef(void *context, GLfloat n, GLfloat f)
 {
 
-r_glDepthFunc(context, func);
-
+    r_glDepthRangef(context, n, f);
 }
 
-
-void d_glDepthMask(void *context, GLbooleanconst* flag)
+void d_glDetachShader(void *context, GLuint program, GLuint shader)
 {
 
-r_glDepthMask(context, flag);
-
+    r_glDetachShader(context, program, shader);
 }
 
-
-void d_glDepthRangef(void *context, GLfloatconst* n, GLfloatconst* f)
+void d_glDisable(void *context, GLenum cap)
 {
 
-r_glDepthRangef(context, n, f);
-
+    r_glDisable(context, cap);
 }
 
-
-void d_glDetachShader(void *context, GLuintconst* program, GLuintconst* shader)
+void d_glEnable(void *context, GLenum cap)
 {
 
-r_glDetachShader(context, program, shader);
-
+    r_glEnable(context, cap);
 }
 
-
-void d_glDisable(void *context, GLenumconst* cap)
+void d_glFramebufferRenderbuffer(void *context, GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)
 {
 
-r_glDisable(context, cap);
-
+    r_glFramebufferRenderbuffer(context, target, attachment, renderbuffertarget, renderbuffer);
 }
 
-
-void d_glEnable(void *context, GLenumconst* cap)
+void d_glFramebufferTexture2D(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level)
 {
 
-r_glEnable(context, cap);
-
+    r_glFramebufferTexture2D(context, target, attachment, textarget, texture, level);
 }
 
-
-void d_glFramebufferRenderbuffer(void *context, GLenumconst* target, GLenumconst* attachment, GLenumconst* renderbuffertarget, GLuintconst* renderbuffer)
+void d_glFrontFace(void *context, GLenum mode)
 {
 
-r_glFramebufferRenderbuffer(context, target, attachment, renderbuffertarget, renderbuffer);
-
+    r_glFrontFace(context, mode);
 }
 
-
-void d_glFramebufferTexture2D(void *context, GLenumconst* target, GLenumconst* attachment, GLenumconst* textarget, GLuintconst* texture, GLintconst* level)
+void d_glGenerateMipmap(void *context, GLenum target)
 {
 
-r_glFramebufferTexture2D(context, target, attachment, textarget, texture, level);
-
+    r_glGenerateMipmap(context, target);
 }
 
-
-void d_glFrontFace(void *context, GLenumconst* mode)
+void d_glHint(void *context, GLenum target, GLenum mode)
 {
 
-r_glFrontFace(context, mode);
-
+    r_glHint(context, target, mode);
 }
 
-
-void d_glGenerateMipmap(void *context, GLenumconst* target)
+void d_glLineWidth(void *context, GLfloat width)
 {
 
-r_glGenerateMipmap(context, target);
-
+    r_glLineWidth(context, width);
 }
 
-
-void d_glHint(void *context, GLenumconst* target, GLenumconst* mode)
+void d_glPolygonOffset(void *context, GLfloat factor, GLfloat units)
 {
 
-r_glHint(context, target, mode);
-
+    r_glPolygonOffset(context, factor, units);
 }
-
-
-void d_glLineWidth(void *context, GLfloatconst* width)
-{
-
-r_glLineWidth(context, width);
-
-}
-
-
-void d_glPolygonOffset(void *context, GLfloatconst* factor, GLfloatconst* units)
-{
-
-r_glPolygonOffset(context, factor, units);
-
-}
-
 
 void d_glReleaseShaderCompiler(void *context)
 {
 
-r_glReleaseShaderCompiler(context);
-
+    r_glReleaseShaderCompiler(context);
 }
-
 
-void d_glRenderbufferStorage(void *context, GLenumconst* target, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height)
+void d_glRenderbufferStorage(void *context, GLenum target, GLenum internalformat, GLsizei width, GLsizei height)
 {
 
-r_glRenderbufferStorage(context, target, internalformat, width, height);
-
+    r_glRenderbufferStorage(context, target, internalformat, width, height);
 }
-
 
-void d_glSampleCoverage(void *context, GLfloatconst* value, GLbooleanconst* invert)
+void d_glSampleCoverage(void *context, GLfloat value, GLboolean invert)
 {
 
-r_glSampleCoverage(context, value, invert);
-
+    r_glSampleCoverage(context, value, invert);
 }
-
 
-void d_glScissor(void *context, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height)
+void d_glScissor(void *context, GLint x, GLint y, GLsizei width, GLsizei height)
 {
 
-r_glScissor(context, x, y, width, height);
-
+    r_glScissor(context, x, y, width, height);
 }
 
-
-void d_glStencilFunc(void *context, GLenumconst* func, GLintconst* ref, GLuintconst* mask)
+void d_glStencilFunc(void *context, GLenum func, GLint ref, GLuint mask)
 {
-
-r_glStencilFunc(context, func, ref, mask);
 
+    r_glStencilFunc(context, func, ref, mask);
 }
 
-
-void d_glStencilFuncSeparate(void *context, GLenumconst* face, GLenumconst* func, GLintconst* ref, GLuintconst* mask)
+void d_glStencilFuncSeparate(void *context, GLenum face, GLenum func, GLint ref, GLuint mask)
 {
-
-r_glStencilFuncSeparate(context, face, func, ref, mask);
 
+    r_glStencilFuncSeparate(context, face, func, ref, mask);
 }
 
-
-void d_glStencilMask(void *context, GLuintconst* mask)
+void d_glStencilMask(void *context, GLuint mask)
 {
 
-r_glStencilMask(context, mask);
-
+    r_glStencilMask(context, mask);
 }
-
 
-void d_glStencilMaskSeparate(void *context, GLenumconst* face, GLuintconst* mask)
+void d_glStencilMaskSeparate(void *context, GLenum face, GLuint mask)
 {
 
-r_glStencilMaskSeparate(context, face, mask);
-
+    r_glStencilMaskSeparate(context, face, mask);
 }
-
 
-void d_glStencilOp(void *context, GLenumconst* fail, GLenumconst* zfail, GLenumconst* zpass)
+void d_glStencilOp(void *context, GLenum fail, GLenum zfail, GLenum zpass)
 {
 
-r_glStencilOp(context, fail, zfail, zpass);
-
+    r_glStencilOp(context, fail, zfail, zpass);
 }
 
-
-void d_glStencilOpSeparate(void *context, GLenumconst* face, GLenumconst* sfail, GLenumconst* dpfail, GLenumconst* dppass)
+void d_glStencilOpSeparate(void *context, GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass)
 {
-
-r_glStencilOpSeparate(context, face, sfail, dpfail, dppass);
 
+    r_glStencilOpSeparate(context, face, sfail, dpfail, dppass);
 }
 
-
-void d_glTexParameterf(void *context, GLenumconst* target, GLenumconst* pname, GLfloatconst* param)
+void d_glTexParameterf(void *context, GLenum target, GLenum pname, GLfloat param)
 {
-
-r_glTexParameterf(context, target, pname, param);
 
+    r_glTexParameterf(context, target, pname, param);
 }
 
-
-void d_glTexParameteri(void *context, GLenumconst* target, GLenumconst* pname, GLintconst* param)
+void d_glTexParameteri(void *context, GLenum target, GLenum pname, GLint param)
 {
-
-r_glTexParameteri(context, target, pname, param);
 
+    r_glTexParameteri(context, target, pname, param);
 }
 
-
-void d_glUniform1f(void *context, GLintconst* location, GLfloatconst* v0)
+void d_glUniform1f(void *context, GLint location, GLfloat v0)
 {
-
-r_glUniform1f(context, location, v0);
 
+    r_glUniform1f(context, location, v0);
 }
 
-
-void d_glUniform1i(void *context, GLintconst* location, GLintconst* v0)
+void d_glUniform1i(void *context, GLint location, GLint v0)
 {
 
-r_glUniform1i(context, location, v0);
-
+    r_glUniform1i(context, location, v0);
 }
-
 
-void d_glUniform2f(void *context, GLintconst* location, GLfloatconst* v0, GLfloatconst* v1)
+void d_glUniform2f(void *context, GLint location, GLfloat v0, GLfloat v1)
 {
 
-r_glUniform2f(context, location, v0, v1);
-
+    r_glUniform2f(context, location, v0, v1);
 }
-
 
-void d_glUniform2i(void *context, GLintconst* location, GLintconst* v0, GLintconst* v1)
+void d_glUniform2i(void *context, GLint location, GLint v0, GLint v1)
 {
 
-r_glUniform2i(context, location, v0, v1);
-
+    r_glUniform2i(context, location, v0, v1);
 }
 
-
-void d_glUniform3f(void *context, GLintconst* location, GLfloatconst* v0, GLfloatconst* v1, GLfloatconst* v2)
+void d_glUniform3f(void *context, GLint location, GLfloat v0, GLfloat v1, GLfloat v2)
 {
-
-r_glUniform3f(context, location, v0, v1, v2);
 
+    r_glUniform3f(context, location, v0, v1, v2);
 }
 
-
-void d_glUniform3i(void *context, GLintconst* location, GLintconst* v0, GLintconst* v1, GLintconst* v2)
+void d_glUniform3i(void *context, GLint location, GLint v0, GLint v1, GLint v2)
 {
-
-r_glUniform3i(context, location, v0, v1, v2);
 
+    r_glUniform3i(context, location, v0, v1, v2);
 }
 
-
-void d_glUniform4f(void *context, GLintconst* location, GLfloatconst* v0, GLfloatconst* v1, GLfloatconst* v2, GLfloatconst* v3)
+void d_glUniform4f(void *context, GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
 {
 
-r_glUniform4f(context, location, v0, v1, v2, v3);
-
+    r_glUniform4f(context, location, v0, v1, v2, v3);
 }
-
 
-void d_glUniform4i(void *context, GLintconst* location, GLintconst* v0, GLintconst* v1, GLintconst* v2, GLintconst* v3)
+void d_glUniform4i(void *context, GLint location, GLint v0, GLint v1, GLint v2, GLint v3)
 {
 
-r_glUniform4i(context, location, v0, v1, v2, v3);
-
+    r_glUniform4i(context, location, v0, v1, v2, v3);
 }
-
 
-void d_glUseProgram(void *context, GLuintconst* program)
+void d_glUseProgram(void *context, GLuint program)
 {
 
-r_glUseProgram(context, program);
-
+    r_glUseProgram(context, program);
 }
-
 
-void d_glValidateProgram(void *context, GLuintconst* program)
+void d_glValidateProgram(void *context, GLuint program)
 {
 
-r_glValidateProgram(context, program);
-
+    r_glValidateProgram(context, program);
 }
-
 
-void d_glVertexAttrib1f(void *context, GLuintconst* index, GLfloatconst* x)
+void d_glVertexAttrib1f(void *context, GLuint index, GLfloat x)
 {
 
-r_glVertexAttrib1f(context, index, x);
-
+    r_glVertexAttrib1f(context, index, x);
 }
 
-
-void d_glVertexAttrib2f(void *context, GLuintconst* index, GLfloatconst* x, GLfloatconst* y)
+void d_glVertexAttrib2f(void *context, GLuint index, GLfloat x, GLfloat y)
 {
-
-r_glVertexAttrib2f(context, index, x, y);
 
+    r_glVertexAttrib2f(context, index, x, y);
 }
 
-
-void d_glVertexAttrib3f(void *context, GLuintconst* index, GLfloatconst* x, GLfloatconst* y, GLfloatconst* z)
+void d_glVertexAttrib3f(void *context, GLuint index, GLfloat x, GLfloat y, GLfloat z)
 {
-
-r_glVertexAttrib3f(context, index, x, y, z);
 
+    r_glVertexAttrib3f(context, index, x, y, z);
 }
 
-
-void d_glVertexAttrib4f(void *context, GLuintconst* index, GLfloatconst* x, GLfloatconst* y, GLfloatconst* z, GLfloatconst* w)
+void d_glVertexAttrib4f(void *context, GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
 
-r_glVertexAttrib4f(context, index, x, y, z, w);
-
+    r_glVertexAttrib4f(context, index, x, y, z, w);
 }
-
 
-void d_glBlitFramebuffer(void *context, GLintconst* srcX0, GLintconst* srcY0, GLintconst* srcX1, GLintconst* srcY1, GLintconst* dstX0, GLintconst* dstY0, GLintconst* dstX1, GLintconst* dstY1, GLbitfieldconst* mask, GLenumconst* filter)
+void d_glBlitFramebuffer(void *context, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter)
 {
 
-r_glBlitFramebuffer(context, srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
-
+    r_glBlitFramebuffer(context, srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
 }
-
 
-void d_glRenderbufferStorageMultisample(void *context, GLenumconst* target, GLsizeiconst* samples, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height)
+void d_glRenderbufferStorageMultisample(void *context, GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)
 {
 
-r_glRenderbufferStorageMultisample(context, target, samples, internalformat, width, height);
-
+    r_glRenderbufferStorageMultisample(context, target, samples, internalformat, width, height);
 }
 
-
-void d_glFramebufferTextureLayer(void *context, GLenumconst* target, GLenumconst* attachment, GLuintconst* texture, GLintconst* level, GLintconst* layer)
+void d_glFramebufferTextureLayer(void *context, GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer)
 {
-
-r_glFramebufferTextureLayer(context, target, attachment, texture, level, layer);
 
+    r_glFramebufferTextureLayer(context, target, attachment, texture, level, layer);
 }
 
-
-void d_glVertexAttribI4i(void *context, GLuintconst* index, GLintconst* x, GLintconst* y, GLintconst* z, GLintconst* w)
+void d_glVertexAttribI4i(void *context, GLuint index, GLint x, GLint y, GLint z, GLint w)
 {
-
-r_glVertexAttribI4i(context, index, x, y, z, w);
 
+    r_glVertexAttribI4i(context, index, x, y, z, w);
 }
 
-
-void d_glVertexAttribI4ui(void *context, GLuintconst* index, GLuintconst* x, GLuintconst* y, GLuintconst* z, GLuintconst* w)
+void d_glVertexAttribI4ui(void *context, GLuint index, GLuint x, GLuint y, GLuint z, GLuint w)
 {
 
-r_glVertexAttribI4ui(context, index, x, y, z, w);
-
+    r_glVertexAttribI4ui(context, index, x, y, z, w);
 }
-
 
-void d_glUniform1ui(void *context, GLintconst* location, GLuintconst* v0)
+void d_glUniform1ui(void *context, GLint location, GLuint v0)
 {
 
-r_glUniform1ui(context, location, v0);
-
+    r_glUniform1ui(context, location, v0);
 }
-
 
-void d_glUniform2ui(void *context, GLintconst* location, GLuintconst* v0, GLuintconst* v1)
+void d_glUniform2ui(void *context, GLint location, GLuint v0, GLuint v1)
 {
 
-r_glUniform2ui(context, location, v0, v1);
-
+    r_glUniform2ui(context, location, v0, v1);
 }
 
-
-void d_glUniform3ui(void *context, GLintconst* location, GLuintconst* v0, GLuintconst* v1, GLuintconst* v2)
+void d_glUniform3ui(void *context, GLint location, GLuint v0, GLuint v1, GLuint v2)
 {
-
-r_glUniform3ui(context, location, v0, v1, v2);
 
+    r_glUniform3ui(context, location, v0, v1, v2);
 }
 
-
-void d_glUniform4ui(void *context, GLintconst* location, GLuintconst* v0, GLuintconst* v1, GLuintconst* v2, GLuintconst* v3)
+void d_glUniform4ui(void *context, GLint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3)
 {
-
-r_glUniform4ui(context, location, v0, v1, v2, v3);
 
+    r_glUniform4ui(context, location, v0, v1, v2, v3);
 }
 
-
-void d_glClearBufferfi(void *context, GLenumconst* buffer, GLintconst* drawbuffer, GLfloatconst* depth, GLintconst* stencil)
+void d_glClearBufferfi(void *context, GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil)
 {
 
-r_glClearBufferfi(context, buffer, drawbuffer, depth, stencil);
-
+    r_glClearBufferfi(context, buffer, drawbuffer, depth, stencil);
 }
-
 
-void d_glCopyBufferSubData(void *context, GLenumconst* readTarget, GLenumconst* writeTarget, GLintptrconst* readOffset, GLintptrconst* writeOffset, GLsizeiptrconst* size)
+void d_glCopyBufferSubData(void *context, GLenum readTarget, GLenum writeTarget, GLintptr readOffset, GLintptr writeOffset, GLsizeiptr size)
 {
 
-r_glCopyBufferSubData(context, readTarget, writeTarget, readOffset, writeOffset, size);
-
+    r_glCopyBufferSubData(context, readTarget, writeTarget, readOffset, writeOffset, size);
 }
-
 
-void d_glUniformBlockBinding(void *context, GLuintconst* program, GLuintconst* uniformBlockIndex, GLuintconst* uniformBlockBinding)
+void d_glUniformBlockBinding(void *context, GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding)
 {
 
-r_glUniformBlockBinding(context, program, uniformBlockIndex, uniformBlockBinding);
-
+    r_glUniformBlockBinding(context, program, uniformBlockIndex, uniformBlockBinding);
 }
 
-
-void d_glSamplerParameteri(void *context, GLuintconst* sampler, GLenumconst* pname, GLintconst* param)
+void d_glSamplerParameteri(void *context, GLuint sampler, GLenum pname, GLint param)
 {
-
-r_glSamplerParameteri(context, sampler, pname, param);
 
+    r_glSamplerParameteri(context, sampler, pname, param);
 }
 
-
-void d_glSamplerParameterf(void *context, GLuintconst* sampler, GLenumconst* pname, GLfloatconst* param)
+void d_glSamplerParameterf(void *context, GLuint sampler, GLenum pname, GLfloat param)
 {
-
-r_glSamplerParameterf(context, sampler, pname, param);
 
+    r_glSamplerParameterf(context, sampler, pname, param);
 }
 
-
-void d_glProgramParameteri(void *context, GLuintconst* program, GLenumconst* pname, GLintconst* value)
+void d_glProgramParameteri(void *context, GLuint program, GLenum pname, GLint value)
 {
-
-r_glProgramParameteri(context, program, pname, value);
 
+    r_glProgramParameteri(context, program, pname, value);
 }
 
-
-void d_glAlphaFuncxOES(void *context, GLenumconst* func, GLfixedconst* ref)
+void d_glAlphaFuncxOES(void *context, GLenum func, GLfixed ref)
 {
-
-r_glAlphaFuncxOES(context, func, ref);
 
+    r_glAlphaFuncxOES(context, func, ref);
 }
 
-
-void d_glClearColorxOES(void *context, GLfixedconst* red, GLfixedconst* green, GLfixedconst* blue, GLfixedconst* alpha)
+void d_glClearColorxOES(void *context, GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha)
 {
 
-r_glClearColorxOES(context, red, green, blue, alpha);
-
+    r_glClearColorxOES(context, red, green, blue, alpha);
 }
-
 
-void d_glClearDepthxOES(void *context, GLfixedconst* depth)
+void d_glClearDepthxOES(void *context, GLfixed depth)
 {
 
-r_glClearDepthxOES(context, depth);
-
+    r_glClearDepthxOES(context, depth);
 }
-
 
-void d_glColor4xOES(void *context, GLfixedconst* red, GLfixedconst* green, GLfixedconst* blue, GLfixedconst* alpha)
+void d_glColor4xOES(void *context, GLfixed red, GLfixed green, GLfixed blue, GLfixed alpha)
 {
 
-r_glColor4xOES(context, red, green, blue, alpha);
-
+    r_glColor4xOES(context, red, green, blue, alpha);
 }
 
-
-void d_glDepthRangexOES(void *context, GLfixedconst* n, GLfixedconst* f)
+void d_glDepthRangexOES(void *context, GLfixed n, GLfixed f)
 {
-
-r_glDepthRangexOES(context, n, f);
 
+    r_glDepthRangexOES(context, n, f);
 }
 
-
-void d_glFogxOES(void *context, GLenumconst* pname, GLfixedconst* param)
+void d_glFogxOES(void *context, GLenum pname, GLfixed param)
 {
-
-r_glFogxOES(context, pname, param);
 
+    r_glFogxOES(context, pname, param);
 }
 
-
-void d_glFrustumxOES(void *context, GLfixedconst* l, GLfixedconst* r, GLfixedconst* b, GLfixedconst* t, GLfixedconst* n, GLfixedconst* f)
+void d_glFrustumxOES(void *context, GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
 {
 
-r_glFrustumxOES(context, l, r, b, t, n, f);
-
+    r_glFrustumxOES(context, l, r, b, t, n, f);
 }
-
 
-void d_glLightModelxOES(void *context, GLenumconst* pname, GLfixedconst* param)
+void d_glLightModelxOES(void *context, GLenum pname, GLfixed param)
 {
 
-r_glLightModelxOES(context, pname, param);
-
+    r_glLightModelxOES(context, pname, param);
 }
-
 
-void d_glLightxOES(void *context, GLenumconst* light, GLenumconst* pname, GLfixedconst* param)
+void d_glLightxOES(void *context, GLenum light, GLenum pname, GLfixed param)
 {
 
-r_glLightxOES(context, light, pname, param);
-
+    r_glLightxOES(context, light, pname, param);
 }
-
 
-void d_glLineWidthxOES(void *context, GLfixedconst* width)
+void d_glLineWidthxOES(void *context, GLfixed width)
 {
 
-r_glLineWidthxOES(context, width);
-
+    r_glLineWidthxOES(context, width);
 }
-
 
-void d_glMaterialxOES(void *context, GLenumconst* face, GLenumconst* pname, GLfixedconst* param)
+void d_glMaterialxOES(void *context, GLenum face, GLenum pname, GLfixed param)
 {
 
-r_glMaterialxOES(context, face, pname, param);
-
+    r_glMaterialxOES(context, face, pname, param);
 }
 
-
-void d_glMultiTexCoord4xOES(void *context, GLenumconst* texture, GLfixedconst* s, GLfixedconst* t, GLfixedconst* r, GLfixedconst* q)
+void d_glMultiTexCoord4xOES(void *context, GLenum texture, GLfixed s, GLfixed t, GLfixed r, GLfixed q)
 {
-
-r_glMultiTexCoord4xOES(context, texture, s, t, r, q);
 
+    r_glMultiTexCoord4xOES(context, texture, s, t, r, q);
 }
 
-
-void d_glNormal3xOES(void *context, GLfixedconst* nx, GLfixedconst* ny, GLfixedconst* nz)
+void d_glNormal3xOES(void *context, GLfixed nx, GLfixed ny, GLfixed nz)
 {
-
-r_glNormal3xOES(context, nx, ny, nz);
 
+    r_glNormal3xOES(context, nx, ny, nz);
 }
 
-
-void d_glOrthoxOES(void *context, GLfixedconst* l, GLfixedconst* r, GLfixedconst* b, GLfixedconst* t, GLfixedconst* n, GLfixedconst* f)
+void d_glOrthoxOES(void *context, GLfixed l, GLfixed r, GLfixed b, GLfixed t, GLfixed n, GLfixed f)
 {
 
-r_glOrthoxOES(context, l, r, b, t, n, f);
-
+    r_glOrthoxOES(context, l, r, b, t, n, f);
 }
-
 
-void d_glPointSizexOES(void *context, GLfixedconst* size)
+void d_glPointSizexOES(void *context, GLfixed size)
 {
 
-r_glPointSizexOES(context, size);
-
+    r_glPointSizexOES(context, size);
 }
-
 
-void d_glPolygonOffsetxOES(void *context, GLfixedconst* factor, GLfixedconst* units)
+void d_glPolygonOffsetxOES(void *context, GLfixed factor, GLfixed units)
 {
 
-r_glPolygonOffsetxOES(context, factor, units);
-
+    r_glPolygonOffsetxOES(context, factor, units);
 }
 
-
-void d_glRotatexOES(void *context, GLfixedconst* angle, GLfixedconst* x, GLfixedconst* y, GLfixedconst* z)
+void d_glRotatexOES(void *context, GLfixed angle, GLfixed x, GLfixed y, GLfixed z)
 {
-
-r_glRotatexOES(context, angle, x, y, z);
 
+    r_glRotatexOES(context, angle, x, y, z);
 }
 
-
-void d_glScalexOES(void *context, GLfixedconst* x, GLfixedconst* y, GLfixedconst* z)
+void d_glScalexOES(void *context, GLfixed x, GLfixed y, GLfixed z)
 {
-
-r_glScalexOES(context, x, y, z);
 
+    r_glScalexOES(context, x, y, z);
 }
 
-
-void d_glTexEnvxOES(void *context, GLenumconst* target, GLenumconst* pname, GLfixedconst* param)
+void d_glTexEnvxOES(void *context, GLenum target, GLenum pname, GLfixed param)
 {
-
-r_glTexEnvxOES(context, target, pname, param);
 
+    r_glTexEnvxOES(context, target, pname, param);
 }
 
-
-void d_glTranslatexOES(void *context, GLfixedconst* x, GLfixedconst* y, GLfixedconst* z)
+void d_glTranslatexOES(void *context, GLfixed x, GLfixed y, GLfixed z)
 {
-
-r_glTranslatexOES(context, x, y, z);
 
+    r_glTranslatexOES(context, x, y, z);
 }
 
-
-void d_glPointParameterxOES(void *context, GLenumconst* pname, GLfixedconst* param)
+void d_glPointParameterxOES(void *context, GLenum pname, GLfixed param)
 {
 
-r_glPointParameterxOES(context, pname, param);
-
+    r_glPointParameterxOES(context, pname, param);
 }
-
 
-void d_glSampleCoveragexOES(void *context, GLclampxconst* value, GLbooleanconst* invert)
+void d_glSampleCoveragexOES(void *context, GLclampx value, GLboolean invert)
 {
 
-r_glSampleCoveragexOES(context, value, invert);
-
+    r_glSampleCoveragexOES(context, value, invert);
 }
-
 
-void d_glTexGenxOES(void *context, GLenumconst* coord, GLenumconst* pname, GLfixedconst* param)
+void d_glTexGenxOES(void *context, GLenum coord, GLenum pname, GLfixed param)
 {
 
-r_glTexGenxOES(context, coord, pname, param);
-
+    r_glTexGenxOES(context, coord, pname, param);
 }
 
-
-void d_glClearDepthfOES(void *context, GLclampfconst* depth)
+void d_glClearDepthfOES(void *context, GLclampf depth)
 {
-
-r_glClearDepthfOES(context, depth);
 
+    r_glClearDepthfOES(context, depth);
 }
 
-
-void d_glDepthRangefOES(void *context, GLclampfconst* n, GLclampfconst* f)
+void d_glDepthRangefOES(void *context, GLclampf n, GLclampf f)
 {
-
-r_glDepthRangefOES(context, n, f);
 
+    r_glDepthRangefOES(context, n, f);
 }
 
-
-void d_glFrustumfOES(void *context, GLfloatconst* l, GLfloatconst* r, GLfloatconst* b, GLfloatconst* t, GLfloatconst* n, GLfloatconst* f)
+void d_glFrustumfOES(void *context, GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
 {
 
-r_glFrustumfOES(context, l, r, b, t, n, f);
-
+    r_glFrustumfOES(context, l, r, b, t, n, f);
 }
-
 
-void d_glOrthofOES(void *context, GLfloatconst* l, GLfloatconst* r, GLfloatconst* b, GLfloatconst* t, GLfloatconst* n, GLfloatconst* f)
+void d_glOrthofOES(void *context, GLfloat l, GLfloat r, GLfloat b, GLfloat t, GLfloat n, GLfloat f)
 {
 
-r_glOrthofOES(context, l, r, b, t, n, f);
-
+    r_glOrthofOES(context, l, r, b, t, n, f);
 }
-
 
-void d_glRenderbufferStorageMultisampleEXT(void *context, GLenumconst* target, GLsizeiconst* samples, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height)
+void d_glRenderbufferStorageMultisampleEXT(void *context, GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)
 {
 
-r_glRenderbufferStorageMultisampleEXT(context, target, samples, internalformat, width, height);
-
+    r_glRenderbufferStorageMultisampleEXT(context, target, samples, internalformat, width, height);
 }
 
-
-void d_glUseProgramStages(void *context, GLuintconst* pipeline, GLbitfieldconst* stages, GLuintconst* program)
+void d_glUseProgramStages(void *context, GLuint pipeline, GLbitfield stages, GLuint program)
 {
-
-r_glUseProgramStages(context, pipeline, stages, program);
 
+    r_glUseProgramStages(context, pipeline, stages, program);
 }
 
-
-void d_glActiveShaderProgram(void *context, GLuintconst* pipeline, GLuintconst* program)
+void d_glActiveShaderProgram(void *context, GLuint pipeline, GLuint program)
 {
-
-r_glActiveShaderProgram(context, pipeline, program);
 
+    r_glActiveShaderProgram(context, pipeline, program);
 }
 
-
-void d_glProgramUniform1i(void *context, GLuintconst* program, GLintconst* location, GLintconst* v0)
+void d_glProgramUniform1i(void *context, GLuint program, GLint location, GLint v0)
 {
 
-r_glProgramUniform1i(context, program, location, v0);
-
+    r_glProgramUniform1i(context, program, location, v0);
 }
-
 
-void d_glProgramUniform2i(void *context, GLuintconst* program, GLintconst* location, GLintconst* v0, GLintconst* v1)
+void d_glProgramUniform2i(void *context, GLuint program, GLint location, GLint v0, GLint v1)
 {
 
-r_glProgramUniform2i(context, program, location, v0, v1);
-
+    r_glProgramUniform2i(context, program, location, v0, v1);
 }
-
 
-void d_glProgramUniform3i(void *context, GLuintconst* program, GLintconst* location, GLintconst* v0, GLintconst* v1, GLintconst* v2)
+void d_glProgramUniform3i(void *context, GLuint program, GLint location, GLint v0, GLint v1, GLint v2)
 {
 
-r_glProgramUniform3i(context, program, location, v0, v1, v2);
-
+    r_glProgramUniform3i(context, program, location, v0, v1, v2);
 }
 
-
-void d_glProgramUniform4i(void *context, GLuintconst* program, GLintconst* location, GLintconst* v0, GLintconst* v1, GLintconst* v2, GLintconst* v3)
+void d_glProgramUniform4i(void *context, GLuint program, GLint location, GLint v0, GLint v1, GLint v2, GLint v3)
 {
-
-r_glProgramUniform4i(context, program, location, v0, v1, v2, v3);
 
+    r_glProgramUniform4i(context, program, location, v0, v1, v2, v3);
 }
 
-
-void d_glProgramUniform1ui(void *context, GLuintconst* program, GLintconst* location, GLuintconst* v0)
+void d_glProgramUniform1ui(void *context, GLuint program, GLint location, GLuint v0)
 {
-
-r_glProgramUniform1ui(context, program, location, v0);
 
+    r_glProgramUniform1ui(context, program, location, v0);
 }
 
-
-void d_glProgramUniform2ui(void *context, GLuintconst* program, GLintconst* location, GLuintconst* v0, GLuintconst* v1)
+void d_glProgramUniform2ui(void *context, GLuint program, GLint location, GLuint v0, GLuint v1)
 {
 
-r_glProgramUniform2ui(context, program, location, v0, v1);
-
+    r_glProgramUniform2ui(context, program, location, v0, v1);
 }
-
 
-void d_glProgramUniform3ui(void *context, GLuintconst* program, GLintconst* location, GLuintconst* v0, GLuintconst* v1, GLuintconst* v2)
+void d_glProgramUniform3ui(void *context, GLuint program, GLint location, GLuint v0, GLuint v1, GLuint v2)
 {
 
-r_glProgramUniform3ui(context, program, location, v0, v1, v2);
-
+    r_glProgramUniform3ui(context, program, location, v0, v1, v2);
 }
-
 
-void d_glProgramUniform4ui(void *context, GLuintconst* program, GLintconst* location, GLuintconst* v0, GLuintconst* v1, GLuintconst* v2, GLuintconst* v3)
+void d_glProgramUniform4ui(void *context, GLuint program, GLint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3)
 {
 
-r_glProgramUniform4ui(context, program, location, v0, v1, v2, v3);
-
+    r_glProgramUniform4ui(context, program, location, v0, v1, v2, v3);
 }
-
 
-void d_glProgramUniform1f(void *context, GLuintconst* program, GLintconst* location, GLfloatconst* v0)
+void d_glProgramUniform1f(void *context, GLuint program, GLint location, GLfloat v0)
 {
 
-r_glProgramUniform1f(context, program, location, v0);
-
+    r_glProgramUniform1f(context, program, location, v0);
 }
-
 
-void d_glProgramUniform2f(void *context, GLuintconst* program, GLintconst* location, GLfloatconst* v0, GLfloatconst* v1)
+void d_glProgramUniform2f(void *context, GLuint program, GLint location, GLfloat v0, GLfloat v1)
 {
 
-r_glProgramUniform2f(context, program, location, v0, v1);
-
+    r_glProgramUniform2f(context, program, location, v0, v1);
 }
 
-
-void d_glProgramUniform3f(void *context, GLuintconst* program, GLintconst* location, GLfloatconst* v0, GLfloatconst* v1, GLfloatconst* v2)
+void d_glProgramUniform3f(void *context, GLuint program, GLint location, GLfloat v0, GLfloat v1, GLfloat v2)
 {
-
-r_glProgramUniform3f(context, program, location, v0, v1, v2);
 
+    r_glProgramUniform3f(context, program, location, v0, v1, v2);
 }
 
-
-void d_glProgramUniform4f(void *context, GLuintconst* program, GLintconst* location, GLfloatconst* v0, GLfloatconst* v1, GLfloatconst* v2, GLfloatconst* v3)
+void d_glProgramUniform4f(void *context, GLuint program, GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
 {
-
-r_glProgramUniform4f(context, program, location, v0, v1, v2, v3);
 
+    r_glProgramUniform4f(context, program, location, v0, v1, v2, v3);
 }
 
-
-void d_glTransformFeedbackVaryings(void *context, GLuintconst* program, GLsizeiconst* count, const GLchar*const* varyings, GLenumconst* bufferMode)
+void d_glTransformFeedbackVaryings(void *context, GLuint program, GLsizei count, const GLchar *const *varyings, GLenum bufferMode)
 {
 
-r_glTransformFeedbackVaryings(context, program, count, varyings, bufferMode);
-
+    r_glTransformFeedbackVaryings(context, program, count, varyings, bufferMode);
 }
-
 
-void d_glTexParameterfv(void *context, GLenumconst* target, GLenumconst* pname, const GLfloat*const* params)
+void d_glTexParameterfv(void *context, GLenum target, GLenum pname, const GLfloat *params)
 {
 
-r_glTexParameterfv(context, target, pname, params);
-
+    r_glTexParameterfv(context, target, pname, params);
 }
-
 
-void d_glTexParameteriv(void *context, GLenumconst* target, GLenumconst* pname, const GLint*const* params)
+void d_glTexParameteriv(void *context, GLenum target, GLenum pname, const GLint *params)
 {
 
-r_glTexParameteriv(context, target, pname, params);
-
+    r_glTexParameteriv(context, target, pname, params);
 }
 
-
-void d_glUniform1fv(void *context, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glUniform1fv(void *context, GLint location, GLsizei count, const GLfloat *value)
 {
-
-r_glUniform1fv(context, location, count, value);
 
+    r_glUniform1fv(context, location, count, value);
 }
 
-
-void d_glUniform1iv(void *context, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glUniform1iv(void *context, GLint location, GLsizei count, const GLint *value)
 {
-
-r_glUniform1iv(context, location, count, value);
 
+    r_glUniform1iv(context, location, count, value);
 }
 
-
-void d_glUniform2fv(void *context, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glUniform2fv(void *context, GLint location, GLsizei count, const GLfloat *value)
 {
-
-r_glUniform2fv(context, location, count, value);
 
+    r_glUniform2fv(context, location, count, value);
 }
 
-
-void d_glUniform2iv(void *context, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glUniform2iv(void *context, GLint location, GLsizei count, const GLint *value)
 {
-
-r_glUniform2iv(context, location, count, value);
 
+    r_glUniform2iv(context, location, count, value);
 }
 
-
-void d_glUniform3fv(void *context, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glUniform3fv(void *context, GLint location, GLsizei count, const GLfloat *value)
 {
 
-r_glUniform3fv(context, location, count, value);
-
+    r_glUniform3fv(context, location, count, value);
 }
-
 
-void d_glUniform3iv(void *context, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glUniform3iv(void *context, GLint location, GLsizei count, const GLint *value)
 {
 
-r_glUniform3iv(context, location, count, value);
-
+    r_glUniform3iv(context, location, count, value);
 }
-
 
-void d_glUniform4fv(void *context, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glUniform4fv(void *context, GLint location, GLsizei count, const GLfloat *value)
 {
 
-r_glUniform4fv(context, location, count, value);
-
+    r_glUniform4fv(context, location, count, value);
 }
 
-
-void d_glUniform4iv(void *context, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glUniform4iv(void *context, GLint location, GLsizei count, const GLint *value)
 {
-
-r_glUniform4iv(context, location, count, value);
 
+    r_glUniform4iv(context, location, count, value);
 }
 
-
-void d_glVertexAttrib1fv(void *context, GLuintconst* index, const GLfloat*const* v)
+void d_glVertexAttrib1fv(void *context, GLuint index, const GLfloat *v)
 {
-
-r_glVertexAttrib1fv(context, index, v);
 
+    r_glVertexAttrib1fv(context, index, v);
 }
 
-
-void d_glVertexAttrib2fv(void *context, GLuintconst* index, const GLfloat*const* v)
+void d_glVertexAttrib2fv(void *context, GLuint index, const GLfloat *v)
 {
 
-r_glVertexAttrib2fv(context, index, v);
-
+    r_glVertexAttrib2fv(context, index, v);
 }
-
 
-void d_glVertexAttrib3fv(void *context, GLuintconst* index, const GLfloat*const* v)
+void d_glVertexAttrib3fv(void *context, GLuint index, const GLfloat *v)
 {
 
-r_glVertexAttrib3fv(context, index, v);
-
+    r_glVertexAttrib3fv(context, index, v);
 }
-
 
-void d_glVertexAttrib4fv(void *context, GLuintconst* index, const GLfloat*const* v)
+void d_glVertexAttrib4fv(void *context, GLuint index, const GLfloat *v)
 {
 
-r_glVertexAttrib4fv(context, index, v);
-
+    r_glVertexAttrib4fv(context, index, v);
 }
-
 
-void d_glUniformMatrix2fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix2fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glUniformMatrix2fv(context, location, count, transpose, value);
-
+    r_glUniformMatrix2fv(context, location, count, transpose, value);
 }
-
 
-void d_glUniformMatrix3fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix3fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glUniformMatrix3fv(context, location, count, transpose, value);
-
+    r_glUniformMatrix3fv(context, location, count, transpose, value);
 }
 
-
-void d_glUniformMatrix4fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix4fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
-
-r_glUniformMatrix4fv(context, location, count, transpose, value);
 
+    r_glUniformMatrix4fv(context, location, count, transpose, value);
 }
 
-
-void d_glUniformMatrix2x3fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix2x3fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
-
-r_glUniformMatrix2x3fv(context, location, count, transpose, value);
 
+    r_glUniformMatrix2x3fv(context, location, count, transpose, value);
 }
 
-
-void d_glUniformMatrix3x2fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix3x2fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glUniformMatrix3x2fv(context, location, count, transpose, value);
-
+    r_glUniformMatrix3x2fv(context, location, count, transpose, value);
 }
-
 
-void d_glUniformMatrix2x4fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix2x4fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glUniformMatrix2x4fv(context, location, count, transpose, value);
-
+    r_glUniformMatrix2x4fv(context, location, count, transpose, value);
 }
-
 
-void d_glUniformMatrix4x2fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix4x2fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glUniformMatrix4x2fv(context, location, count, transpose, value);
-
+    r_glUniformMatrix4x2fv(context, location, count, transpose, value);
 }
 
-
-void d_glUniformMatrix3x4fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix3x4fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
-
-r_glUniformMatrix3x4fv(context, location, count, transpose, value);
 
+    r_glUniformMatrix3x4fv(context, location, count, transpose, value);
 }
 
-
-void d_glUniformMatrix4x3fv(void *context, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glUniformMatrix4x3fv(void *context, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
-
-r_glUniformMatrix4x3fv(context, location, count, transpose, value);
 
+    r_glUniformMatrix4x3fv(context, location, count, transpose, value);
 }
 
-
-void d_glVertexAttribI4iv(void *context, GLuintconst* index, const GLint*const* v)
+void d_glVertexAttribI4iv(void *context, GLuint index, const GLint *v)
 {
 
-r_glVertexAttribI4iv(context, index, v);
-
+    r_glVertexAttribI4iv(context, index, v);
 }
-
 
-void d_glVertexAttribI4uiv(void *context, GLuintconst* index, const GLuint*const* v)
+void d_glVertexAttribI4uiv(void *context, GLuint index, const GLuint *v)
 {
 
-r_glVertexAttribI4uiv(context, index, v);
-
+    r_glVertexAttribI4uiv(context, index, v);
 }
-
 
-void d_glUniform1uiv(void *context, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glUniform1uiv(void *context, GLint location, GLsizei count, const GLuint *value)
 {
 
-r_glUniform1uiv(context, location, count, value);
-
+    r_glUniform1uiv(context, location, count, value);
 }
 
-
-void d_glUniform2uiv(void *context, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glUniform2uiv(void *context, GLint location, GLsizei count, const GLuint *value)
 {
-
-r_glUniform2uiv(context, location, count, value);
 
+    r_glUniform2uiv(context, location, count, value);
 }
 
-
-void d_glUniform3uiv(void *context, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glUniform3uiv(void *context, GLint location, GLsizei count, const GLuint *value)
 {
-
-r_glUniform3uiv(context, location, count, value);
 
+    r_glUniform3uiv(context, location, count, value);
 }
 
-
-void d_glUniform4uiv(void *context, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glUniform4uiv(void *context, GLint location, GLsizei count, const GLuint *value)
 {
 
-r_glUniform4uiv(context, location, count, value);
-
+    r_glUniform4uiv(context, location, count, value);
 }
-
 
-void d_glClearBufferiv(void *context, GLenumconst* buffer, GLintconst* drawbuffer, const GLint*const* value)
+void d_glClearBufferiv(void *context, GLenum buffer, GLint drawbuffer, const GLint *value)
 {
 
-r_glClearBufferiv(context, buffer, drawbuffer, value);
-
+    r_glClearBufferiv(context, buffer, drawbuffer, value);
 }
-
 
-void d_glClearBufferuiv(void *context, GLenumconst* buffer, GLintconst* drawbuffer, const GLuint*const* value)
+void d_glClearBufferuiv(void *context, GLenum buffer, GLint drawbuffer, const GLuint *value)
 {
 
-r_glClearBufferuiv(context, buffer, drawbuffer, value);
-
+    r_glClearBufferuiv(context, buffer, drawbuffer, value);
 }
 
-
-void d_glClearBufferfv(void *context, GLenumconst* buffer, GLintconst* drawbuffer, const GLfloat*const* value)
+void d_glClearBufferfv(void *context, GLenum buffer, GLint drawbuffer, const GLfloat *value)
 {
-
-r_glClearBufferfv(context, buffer, drawbuffer, value);
 
+    r_glClearBufferfv(context, buffer, drawbuffer, value);
 }
 
-
-void d_glSamplerParameteriv(void *context, GLuintconst* sampler, GLenumconst* pname, const GLint*const* param)
+void d_glSamplerParameteriv(void *context, GLuint sampler, GLenum pname, const GLint *param)
 {
-
-r_glSamplerParameteriv(context, sampler, pname, param);
 
+    r_glSamplerParameteriv(context, sampler, pname, param);
 }
 
-
-void d_glSamplerParameterfv(void *context, GLuintconst* sampler, GLenumconst* pname, const GLfloat*const* param)
+void d_glSamplerParameterfv(void *context, GLuint sampler, GLenum pname, const GLfloat *param)
 {
-
-r_glSamplerParameterfv(context, sampler, pname, param);
 
+    r_glSamplerParameterfv(context, sampler, pname, param);
 }
 
-
-void d_glInvalidateFramebuffer(void *context, GLenumconst* target, GLsizeiconst* numAttachments, const GLenum*const* attachments)
+void d_glInvalidateFramebuffer(void *context, GLenum target, GLsizei numAttachments, const GLenum *attachments)
 {
-
-r_glInvalidateFramebuffer(context, target, numAttachments, attachments);
 
+    r_glInvalidateFramebuffer(context, target, numAttachments, attachments);
 }
 
-
-void d_glInvalidateSubFramebuffer(void *context, GLenumconst* target, GLsizeiconst* numAttachments, const GLenum*const* attachments, GLintconst* x, GLintconst* y, GLsizeiconst* width, GLsizeiconst* height)
+void d_glInvalidateSubFramebuffer(void *context, GLenum target, GLsizei numAttachments, const GLenum *attachments, GLint x, GLint y, GLsizei width, GLsizei height)
 {
 
-r_glInvalidateSubFramebuffer(context, target, numAttachments, attachments, x, y, width, height);
-
+    r_glInvalidateSubFramebuffer(context, target, numAttachments, attachments, x, y, width, height);
 }
-
 
-void d_glClipPlanexOES(void *context, GLenumconst* plane, const GLfixed*const* equation)
+void d_glClipPlanexOES(void *context, GLenum plane, const GLfixed *equation)
 {
 
-r_glClipPlanexOES(context, plane, equation);
-
+    r_glClipPlanexOES(context, plane, equation);
 }
-
 
-void d_glFogxvOES(void *context, GLenumconst* pname, const GLfixed*const* param)
+void d_glFogxvOES(void *context, GLenum pname, const GLfixed *param)
 {
 
-r_glFogxvOES(context, pname, param);
-
+    r_glFogxvOES(context, pname, param);
 }
 
-
-void d_glLightModelxvOES(void *context, GLenumconst* pname, const GLfixed*const* param)
+void d_glLightModelxvOES(void *context, GLenum pname, const GLfixed *param)
 {
-
-r_glLightModelxvOES(context, pname, param);
 
+    r_glLightModelxvOES(context, pname, param);
 }
 
-
-void d_glLightxvOES(void *context, GLenumconst* light, GLenumconst* pname, const GLfixed*const* params)
+void d_glLightxvOES(void *context, GLenum light, GLenum pname, const GLfixed *params)
 {
-
-r_glLightxvOES(context, light, pname, params);
 
+    r_glLightxvOES(context, light, pname, params);
 }
 
-
-void d_glLoadMatrixxOES(void *context, const GLfixed*const* m)
+void d_glLoadMatrixxOES(void *context, const GLfixed *m)
 {
 
-r_glLoadMatrixxOES(context, m);
-
+    r_glLoadMatrixxOES(context, m);
 }
-
 
-void d_glMaterialxvOES(void *context, GLenumconst* face, GLenumconst* pname, const GLfixed*const* param)
+void d_glMaterialxvOES(void *context, GLenum face, GLenum pname, const GLfixed *param)
 {
 
-r_glMaterialxvOES(context, face, pname, param);
-
+    r_glMaterialxvOES(context, face, pname, param);
 }
-
 
-void d_glMultMatrixxOES(void *context, const GLfixed*const* m)
+void d_glMultMatrixxOES(void *context, const GLfixed *m)
 {
 
-r_glMultMatrixxOES(context, m);
-
+    r_glMultMatrixxOES(context, m);
 }
-
 
-void d_glPointParameterxvOES(void *context, GLenumconst* pname, const GLfixed*const* params)
+void d_glPointParameterxvOES(void *context, GLenum pname, const GLfixed *params)
 {
 
-r_glPointParameterxvOES(context, pname, params);
-
+    r_glPointParameterxvOES(context, pname, params);
 }
-
 
-void d_glTexEnvxvOES(void *context, GLenumconst* target, GLenumconst* pname, const GLfixed*const* params)
+void d_glTexEnvxvOES(void *context, GLenum target, GLenum pname, const GLfixed *params)
 {
 
-r_glTexEnvxvOES(context, target, pname, params);
-
+    r_glTexEnvxvOES(context, target, pname, params);
 }
 
-
-void d_glClipPlanefOES(void *context, GLenumconst* plane, const GLfloat*const* equation)
+void d_glClipPlanefOES(void *context, GLenum plane, const GLfloat *equation)
 {
-
-r_glClipPlanefOES(context, plane, equation);
 
+    r_glClipPlanefOES(context, plane, equation);
 }
 
-
-void d_glTexGenxvOES(void *context, GLenumconst* coord, GLenumconst* pname, const GLfixed*const* params)
+void d_glTexGenxvOES(void *context, GLenum coord, GLenum pname, const GLfixed *params)
 {
-
-r_glTexGenxvOES(context, coord, pname, params);
 
+    r_glTexGenxvOES(context, coord, pname, params);
 }
 
-
-void d_glProgramUniform1iv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glProgramUniform1iv(void *context, GLuint program, GLint location, GLsizei count, const GLint *value)
 {
 
-r_glProgramUniform1iv(context, program, location, count, value);
-
+    r_glProgramUniform1iv(context, program, location, count, value);
 }
-
 
-void d_glProgramUniform2iv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glProgramUniform2iv(void *context, GLuint program, GLint location, GLsizei count, const GLint *value)
 {
 
-r_glProgramUniform2iv(context, program, location, count, value);
-
+    r_glProgramUniform2iv(context, program, location, count, value);
 }
-
 
-void d_glProgramUniform3iv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glProgramUniform3iv(void *context, GLuint program, GLint location, GLsizei count, const GLint *value)
 {
 
-r_glProgramUniform3iv(context, program, location, count, value);
-
+    r_glProgramUniform3iv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniform4iv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLint*const* value)
+void d_glProgramUniform4iv(void *context, GLuint program, GLint location, GLsizei count, const GLint *value)
 {
-
-r_glProgramUniform4iv(context, program, location, count, value);
 
+    r_glProgramUniform4iv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniform1uiv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glProgramUniform1uiv(void *context, GLuint program, GLint location, GLsizei count, const GLuint *value)
 {
-
-r_glProgramUniform1uiv(context, program, location, count, value);
 
+    r_glProgramUniform1uiv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniform2uiv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glProgramUniform2uiv(void *context, GLuint program, GLint location, GLsizei count, const GLuint *value)
 {
-
-r_glProgramUniform2uiv(context, program, location, count, value);
 
+    r_glProgramUniform2uiv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniform3uiv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glProgramUniform3uiv(void *context, GLuint program, GLint location, GLsizei count, const GLuint *value)
 {
-
-r_glProgramUniform3uiv(context, program, location, count, value);
 
+    r_glProgramUniform3uiv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniform4uiv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLuint*const* value)
+void d_glProgramUniform4uiv(void *context, GLuint program, GLint location, GLsizei count, const GLuint *value)
 {
 
-r_glProgramUniform4uiv(context, program, location, count, value);
-
+    r_glProgramUniform4uiv(context, program, location, count, value);
 }
-
 
-void d_glProgramUniform1fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glProgramUniform1fv(void *context, GLuint program, GLint location, GLsizei count, const GLfloat *value)
 {
 
-r_glProgramUniform1fv(context, program, location, count, value);
-
+    r_glProgramUniform1fv(context, program, location, count, value);
 }
-
 
-void d_glProgramUniform2fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glProgramUniform2fv(void *context, GLuint program, GLint location, GLsizei count, const GLfloat *value)
 {
 
-r_glProgramUniform2fv(context, program, location, count, value);
-
+    r_glProgramUniform2fv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniform3fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glProgramUniform3fv(void *context, GLuint program, GLint location, GLsizei count, const GLfloat *value)
 {
-
-r_glProgramUniform3fv(context, program, location, count, value);
 
+    r_glProgramUniform3fv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniform4fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, const GLfloat*const* value)
+void d_glProgramUniform4fv(void *context, GLuint program, GLint location, GLsizei count, const GLfloat *value)
 {
-
-r_glProgramUniform4fv(context, program, location, count, value);
 
+    r_glProgramUniform4fv(context, program, location, count, value);
 }
 
-
-void d_glProgramUniformMatrix2fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix2fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glProgramUniformMatrix2fv(context, program, location, count, transpose, value);
-
+    r_glProgramUniformMatrix2fv(context, program, location, count, transpose, value);
 }
-
 
-void d_glProgramUniformMatrix3fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix3fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glProgramUniformMatrix3fv(context, program, location, count, transpose, value);
-
+    r_glProgramUniformMatrix3fv(context, program, location, count, transpose, value);
 }
-
 
-void d_glProgramUniformMatrix4fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix4fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glProgramUniformMatrix4fv(context, program, location, count, transpose, value);
-
+    r_glProgramUniformMatrix4fv(context, program, location, count, transpose, value);
 }
 
-
-void d_glProgramUniformMatrix2x3fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix2x3fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
-
-r_glProgramUniformMatrix2x3fv(context, program, location, count, transpose, value);
 
+    r_glProgramUniformMatrix2x3fv(context, program, location, count, transpose, value);
 }
 
-
-void d_glProgramUniformMatrix3x2fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix3x2fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
-
-r_glProgramUniformMatrix3x2fv(context, program, location, count, transpose, value);
 
+    r_glProgramUniformMatrix3x2fv(context, program, location, count, transpose, value);
 }
 
-
-void d_glProgramUniformMatrix2x4fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix2x4fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glProgramUniformMatrix2x4fv(context, program, location, count, transpose, value);
-
+    r_glProgramUniformMatrix2x4fv(context, program, location, count, transpose, value);
 }
-
 
-void d_glProgramUniformMatrix4x2fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix4x2fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glProgramUniformMatrix4x2fv(context, program, location, count, transpose, value);
-
+    r_glProgramUniformMatrix4x2fv(context, program, location, count, transpose, value);
 }
-
 
-void d_glProgramUniformMatrix3x4fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix3x4fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
 
-r_glProgramUniformMatrix3x4fv(context, program, location, count, transpose, value);
-
+    r_glProgramUniformMatrix3x4fv(context, program, location, count, transpose, value);
 }
 
-
-void d_glProgramUniformMatrix4x3fv(void *context, GLuintconst* program, GLintconst* location, GLsizeiconst* count, GLbooleanconst* transpose, const GLfloat*const* value)
+void d_glProgramUniformMatrix4x3fv(void *context, GLuint program, GLint location, GLsizei count, GLboolean transpose, const GLfloat *value)
 {
-
-r_glProgramUniformMatrix4x3fv(context, program, location, count, transpose, value);
 
+    r_glProgramUniformMatrix4x3fv(context, program, location, count, transpose, value);
 }
 
-
-void d_glBindAttribLocation(void *context, GLuintconst* program, GLuintconst* index, const GLchar*const* name)
+void d_glBindAttribLocation(void *context, GLuint program, GLuint index, const GLchar *name)
 {
-
-r_glBindAttribLocation(context, program, index, name);
 
+    r_glBindAttribLocation(context, program, index, name);
 }
-
-
-
 
 /******* file '2-2' *******/
 
-
-void d_glVertexAttribIPointer_without_bound(void *context, GLuintconst* index, GLintconst* size, GLenumconst* type, GLsizeiconst* stride, GLuintconst* offset, GLsizeiconst* length, const void*const* pointer)
+void d_glVertexAttribIPointer(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLuint offset, GLsizei length, const void *pointer)
 {
 
-r_glVertexAttribIPointer_without_bound(context, index, size, type, stride, offset, length, pointer);
-
+    r_glVertexAttribIPointer_without_bound(context, index, size, type, stride, offset, length, pointer);
 }
 
-
-void d_glVertexAttribPointer_without_bound(void *context, GLuintconst* index, GLintconst* size, GLenumconst* type, GLbooleanconst* normalized, GLsizeiconst* stride, GLuintconst* offset, GLuintconst* length, const void*const* pointer)
+void d_glVertexAttribPointer(void *context, GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLuint offset, GLuint length, const void *pointer)
 {
 
-r_glVertexAttribPointer_without_bound(context, index, size, type, normalized, stride, offset, length, pointer);
-
+    r_glVertexAttribPointer_without_bound(context, index, size, type, normalized, stride, offset, length, pointer);
 }
 
-
-void d_glDrawElements_without_bound(void *context, GLenumconst* mode, GLsizeiconst* count, GLenumconst* type, const void*const* indices)
+void d_glDrawElements(void *context, GLenum mode, GLsizei count, GLenum type, const void *indices)
 {
 
-r_glDrawElements_without_bound(context, mode, count, type, indices);
-
+    r_glDrawElements_without_bound(context, mode, count, type, indices);
 }
 
-
-void d_glDrawElementsInstanced_without_bound(void *context, GLenumconst* mode, GLsizeiconst* count, GLenumconst* type, const void*const* indices, GLsizeiconst* instancecount)
+void d_glDrawElementsInstanced(void *context, GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount)
 {
 
-r_glDrawElementsInstanced_without_bound(context, mode, count, type, indices, instancecount);
-
+    r_glDrawElementsInstanced_without_bound(context, mode, count, type, indices, instancecount);
 }
 
-
-void d_glDrawRangeElements_without_bound(void *context, GLenumconst* mode, GLuintconst* start, GLuintconst* end, GLsizeiconst* count, GLenumconst* type, const void*const* indices)
+void d_glDrawRangeElements(void *context, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices)
 {
 
-r_glDrawRangeElements_without_bound(context, mode, start, end, count, type, indices);
-
+    r_glDrawRangeElements_without_bound(context, mode, start, end, count, type, indices);
 }
 
-
-void d_glFlushMappedBufferRange_special(void *context, GLenumconst* target, GLintptrconst* offset, GLsizeiptrconst* length, const void*const* data)
+void d_glFlushMappedBufferRange(void *context, GLenum target, GLintptr offset, GLsizeiptr length, const void *data)
 {
 
-r_glFlushMappedBufferRange_special(context, target, offset, length, data);
-
+    r_glFlushMappedBufferRange_special(context, target, offset, length, data);
 }
 
-
-void d_glBufferData_custom(void *context, GLenumconst* target, GLsizeiptrconst* size, const void*const* data, GLenumconst* usage)
+void d_glBufferData(void *context, GLenum target, GLsizeiptr size, const void *data, GLenum usage)
 {
 
-r_glBufferData_custom(context, target, size, data, usage);
-
+    r_glBufferData_custom(context, target, size, data, usage);
 }
 
-
-void d_glBufferSubData_custom(void *context, GLenumconst* target, GLintptrconst* offset, GLsizeiptrconst* size, const void*const* data)
+void d_glBufferSubData(void *context, GLenum target, GLintptr offset, GLsizeiptr size, const void *data)
 {
 
-r_glBufferSubData_custom(context, target, offset, size, data);
-
+    r_glBufferSubData_custom(context, target, offset, size, data);
 }
 
-
-void d_glCompressedTexImage2D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLintconst* border, GLsizeiconst* imageSize, const void*const* data)
+void d_glCompressedTexImage2D(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void *data)
 {
-{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glCompressedTexImage2D_without_bound(context, target, level, internalformat, width, height, border, imageSize, data);
-
+    {
+        if (imageSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glCompressedTexImage2D_without_bound(context, target, level, internalformat, width, height, border, imageSize, data);
 }
 
-
-void d_glCompressedTexSubImage2D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLsizeiconst* width, GLsizeiconst* height, GLenumconst* format, GLsizeiconst* imageSize, const void*const* data)
+void d_glCompressedTexSubImage2D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data)
 {
-{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glCompressedTexSubImage2D_without_bound(context, target, level, xoffset, yoffset, width, height, format, imageSize, data);
-
+    {
+        if (imageSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glCompressedTexSubImage2D_without_bound(context, target, level, xoffset, yoffset, width, height, format, imageSize, data);
 }
 
-
-void d_glCompressedTexImage3D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLenumconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLintconst* border, GLsizeiconst* imageSize, const void*const* data)
+void d_glCompressedTexImage3D(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data)
 {
-{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glCompressedTexImage3D_without_bound(context, target, level, internalformat, width, height, depth, border, imageSize, data);
-
+    {
+        if (imageSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glCompressedTexImage3D_without_bound(context, target, level, internalformat, width, height, depth, border, imageSize, data);
 }
 
-
-void d_glCompressedTexSubImage3D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLintconst* zoffset, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLenumconst* format, GLsizeiconst* imageSize, const void*const* data)
+void d_glCompressedTexSubImage3D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data)
 {
-{if(imageSize<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-r_glCompressedTexSubImage3D_without_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data);
-
+    {
+        if (imageSize < 0)
+        {
+            set_gl_error(context, GL_INVALID_VALUE);
+            return;
+        }
+    }
+    r_glCompressedTexSubImage3D_without_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, data);
 }
 
-
-void d_glTexImage2D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLintconst* border, GLenumconst* format, GLenumconst* type, GLintconst* buf_len, const void*const* pixels)
-{
-
-r_glTexImage2D_without_bound(context, target, level, internalformat, width, height, border, format, type, buf_len, pixels);
-
-}
-
-
-void d_glTexImage3D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* internalformat, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLintconst* border, GLenumconst* format, GLenumconst* type, GLintconst* buf_len, const void*const* pixels)
-{
-
-r_glTexImage3D_without_bound(context, target, level, internalformat, width, height, depth, border, format, type, buf_len, pixels);
-
-}
-
-
-void d_glTexSubImage2D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLsizeiconst* width, GLsizeiconst* height, GLenumconst* format, GLenumconst* type, GLintconst* buf_len, const void*const* pixels)
+void d_glTexImage2D(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
 
-r_glTexSubImage2D_without_bound(context, target, level, xoffset, yoffset, width, height, format, type, buf_len, pixels);
-
+    r_glTexImage2D_without_bound(context, target, level, internalformat, width, height, border, format, type, buf_len, pixels);
 }
 
-
-void d_glTexSubImage3D_without_bound(void *context, GLenumconst* target, GLintconst* level, GLintconst* xoffset, GLintconst* yoffset, GLintconst* zoffset, GLsizeiconst* width, GLsizeiconst* height, GLsizeiconst* depth, GLenumconst* format, GLenumconst* type, GLintconst* buf_len, const void*const* pixels)
+void d_glTexImage3D(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
 
-r_glTexSubImage3D_without_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, buf_len, pixels);
-
+    r_glTexImage3D_without_bound(context, target, level, internalformat, width, height, depth, border, format, type, buf_len, pixels);
 }
 
-
-void d_glPrintf(void *context, GLintconst* buf_len, const GLchar*const* out_string)
+void d_glTexSubImage2D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
 
-r_glPrintf(context, buf_len, out_string);
-
+    r_glTexSubImage2D_without_bound(context, target, level, xoffset, yoffset, width, height, format, type, buf_len, pixels);
 }
 
+void d_glTexSubImage3D(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLint buf_len, const void *pixels)
+{
 
+    r_glTexSubImage3D_without_bound(context, target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, buf_len, pixels);
+}
+
+void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
+{
+
+    r_glPrintf(context, buf_len, out_string);
+}

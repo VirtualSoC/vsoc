@@ -3,29 +3,29 @@
 
 //gen
 
-glGenBuffers_special GLsizei n, const GLuint *buffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-glGenRenderbuffers_special GLsizei n, const GLuint *renderbuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-glGenTextures_special GLsizei n, const GLuint *textures#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-glGenSamplers_special GLsizei count, const GLuint *samplers#count*sizeof(GLuint) @{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenBuffers GLsizei n, const GLuint *buffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenRenderbuffers GLsizei n, const GLuint *renderbuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenTextures GLsizei n, const GLuint *textures#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenSamplers GLsizei count, const GLuint *samplers#count*sizeof(GLuint) @{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
 
 
-glCreateProgram_special GLuint program
-glCreateShader_special GLenum type, GLuint shader @if(type!=GL_COMPUTE_SHADER&&type!=GL_VERTEX_SHADER&&type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}
+glCreateProgram GLuint program
+glCreateShader GLenum type, GLuint shader @if(type!=GL_COMPUTE_SHADER&&type!=GL_VERTEX_SHADER&&type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}
 
 
-glFenceSync_special GLenum condition, GLbitfield flags, GLsync sync
+glFenceSync GLenum condition, GLbitfield flags, GLsync sync
 
 
 glCreateShaderProgramv GLenum type, GLsizei count, const GLchar *const*strings#count|strlen(strings[i])+1, GLuint program @{if(type!=GL_COMPUTE_SHADER&&type!=GL_VERTEX_SHADER&&type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}if(count<0){set_gl_error(context,GL_INVALID_VALUE);return 0;}}
 
 
-glGenFramebuffers_special GLsizei n, const GLuint *framebuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-glGenProgramPipelines_special GLsizei n, const GLuint *pipelines#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-glGenTransformFeedbacks_special GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
-glGenVertexArrays_special GLsizei n, const GLuint *arrays#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenFramebuffers GLsizei n, const GLuint *framebuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenProgramPipelines GLsizei n, const GLuint *pipelines#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenTransformFeedbacks GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenVertexArrays GLsizei n, const GLuint *arrays#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
 
 
-glGenQueries_special GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
+glGenQueries GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}
 
 
 //delete

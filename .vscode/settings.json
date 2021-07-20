@@ -94,6 +94,7 @@
         "osdep.h": "c",
         "thread.h": "c",
         "test_trans.h": "c",
-        "atomic.h": "c"
+        "atomic.h": "c",
+        "glv3_resource.h": "c"
     }
 }

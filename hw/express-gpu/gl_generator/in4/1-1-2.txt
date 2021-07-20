@@ -4,8 +4,8 @@
 
 GLenum glGetError void
 
-glGetString GLenum name, GLubyte *buffer#1024
-glGetStringi GLenum name, GLuint index, GLubyte *buffer#1024
+glGetString_special GLenum name, GLubyte *buffer#1024
+glGetStringi_special GLenum name, GLuint index, GLubyte *buffer#1024
 
 
 GLenum glCheckFramebufferStatus GLenum target @{if(target!=GL_DRAW_FRAMEBUFFER&&target!= GL_READ_FRAMEBUFFER&&target!=GL_FRAMEBUFFER){set_gl_error(context,GL_INVALID_ENUM);return 0;}}
@@ -125,12 +125,12 @@ glGetUniformIndices GLuint program, GLsizei uniformCount, const GLchar *const*un
 
 
 //顶点数据状态相关查询函数
-glGetVertexAttribfv_origin GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)
-glGetVertexAttribiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)
+glGetVertexAttribfv GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)
+glGetVertexAttribiv GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)
 
 
-glGetVertexAttribIiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)
-glGetVertexAttribIuiv_origin GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)
+glGetVertexAttribIiv GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)
+glGetVertexAttribIuiv GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)
 
 
 

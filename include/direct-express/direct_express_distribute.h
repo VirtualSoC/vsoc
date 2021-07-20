@@ -87,6 +87,8 @@ typedef struct Direct_Express_Call
 
     uint64_t process_id;
 
+    uint64_t unique_id;
+
     gint64 spend_time;
 
     //参数数目
@@ -150,6 +152,8 @@ typedef struct Direct_Express_Flag_Buf
     uint64_t thread_id;
 
     uint64_t  process_id;
+
+    uint64_t unique_id;
 
     // uint64_t  num_free;
 
@@ -223,7 +227,7 @@ typedef struct Express_Device_Info
     void (*call_handle)(struct Thread_Context *context, Direct_Express_Call *call);
 
     //设备定义的用于获取context的函数，例如有一个统一的context或者对每一个线程维护一个context
-    Thread_Context *(*get_context)(uint64_t type_id, uint64_t thread_id, struct Express_Device_Info *info);
+    Thread_Context *(*get_context)(uint64_t type_id, uint64_t thread_id,uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
     void (*remove_context)(uint64_t type_id, uint64_t thread_id, struct Express_Device_Info *info);
 

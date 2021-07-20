@@ -1,11 +1,9 @@
 #ifndef EXPRESS_GPU_OPENGL_H
 #define EXPRESS_GPU_OPENGL_H
 
-
 #include "direct-express/express_device_common.h"
 #include "direct-express/express_log.h"
 #include "express-gpu/express_gpu_render.h"
-
 
 #define MAX_VERTEX_ATTRIBS_NUM 16
 
@@ -52,15 +50,12 @@ typedef struct Buffer_Status
 
 } Buffer_Status;
 
-
 typedef struct Attrib_Point
 {
-    
-    
+
     //father指示其的数据在哪，然后offset指示了在数组中的偏移
     // GLint father[MAX_VERTEX_ATTRIBS_NUM];
     // GLintptr offset[MAX_VERTEX_ATTRIBS_NUM];
-
 
     //顶点的常规属性
     // GLint size[MAX_VERTEX_ATTRIBS_NUM];
@@ -87,42 +82,116 @@ typedef struct Attrib_Point
 
     // GLboolean in_buffer[MAX_VERTEX_ATTRIBS_NUM];
 
-
     //表示顶点属性是否启用顶点数组
     // GLboolean enabled[MAX_VERTEX_ATTRIBS_NUM];
 
 } Attrib_Point;
 
-
-
 typedef struct Bound_Buffer
 {
 
     //这个buffer_status指针是指向实际vao_status里的值
-    Buffer_Status *buffer_status;
+    // Buffer_Status *buffer_status;
     Attrib_Point *attrib_point;
 
-    // std::map<GLint, GLenum> buffer_type;
-    GHashTable *buffer_type;
+    // // std::map<GLint, GLenum> buffer_type;
+    // GHashTable *buffer_type;
 
-    //std::map<GLint, Buffer_Status *> vao_status;
-    GHashTable *vao_status;
+    // //std::map<GLint, Buffer_Status *> vao_status;
+    // GHashTable *vao_status;
 
-    //std::map<GLint, Attrib_Point *> vao_point_data;
+    // //std::map<GLint, Attrib_Point *> vao_point_data;
     GHashTable *vao_point_data;
 
-    GLint asyn_unpack_texture_buffer;
-    GLint asyn_pack_texture_buffer;
-
+    GLuint asyn_unpack_texture_buffer;
+    GLuint asyn_pack_texture_buffer;
 
     //std::map<GLint, Element_Array_Buffer *> ebo_buffer;
 
 } Bound_Buffer;
 
+typedef struct Resource_Map_Status
+{
+
+    //不需要lock，因为android那边已经lock过了
+    // int lock;
+
+    unsigned int max_id;
+    unsigned int map_size;
+    // unsigned int now_map_len;
+    unsigned long long *resource_id_map;
+} Resource_Map_Status;
+
+typedef struct Share_Resources
+{
+
+    int counter;
+
+    //Regular objects
+    Resource_Map_Status texture_resource;
+    Resource_Map_Status buffer_resource;
+    Resource_Map_Status render_buffer_resource;
+    Resource_Map_Status sample_resource;
+
+    //GLSL objects, include program,shader
+    //    Resource_Creater glsl_resource;
+    Resource_Map_Status program_resource;
+    Resource_Map_Status shader_resource;
+
+    //Sync objects
+    Resource_Map_Status sync_resource;
+
+} Share_Resources;
+
+typedef struct Exclusive_Resources
+{
+
+    //Container objects
+    Resource_Map_Status frame_buffer_resource;
+    Resource_Map_Status program_pipeline_resource;
+    Resource_Map_Status transform_feedback_resource;
+    Resource_Map_Status vertex_array_resource;
+
+    //query objects
+    Resource_Map_Status query_resource;
+
+} Exclusive_Resources;
+
+typedef struct Resource_Context
+{
+    // Regular objects
+    Resource_Map_Status *texture_resource;
+    Resource_Map_Status *buffer_resource;
+    Resource_Map_Status *render_buffer_resource;
+    Resource_Map_Status *sampler_resource;
+
+    //GLSL objects, include program,shader
+    Resource_Map_Status *shader_resource;
+    Resource_Map_Status *program_resource;
+
+    //Sync objects
+    Resource_Map_Status *sync_resource;
+
+    //Container objects
+    Resource_Map_Status *frame_buffer_resource;
+    Resource_Map_Status *program_pipeline_resource;
+    Resource_Map_Status *transform_feedback_resource;
+    Resource_Map_Status *vertex_array_resource;
+
+    // query objects
+    Resource_Map_Status *query_resource;
+
+    Share_Resources *share_resources;
+    Exclusive_Resources *exclusive_resources;
+
+} Resource_Context;
+
 typedef struct Opengl_Context
 {
-    Pixel_Store_Status pixel_store_status;
+    // Pixel_Store_Status pixel_store_status;
     Bound_Buffer bound_buffer_status;
+
+    Resource_Context resource_status;
 
     GHashTable *buffer_map;
     GLuint fbo0;
@@ -131,19 +200,14 @@ typedef struct Opengl_Context
 
 } Opengl_Context;
 
-
-
-
-typedef struct Guest_Host_Map{
+typedef struct Guest_Host_Map
+{
     GLubyte *host_data;
     unsigned long map_len;
     GLenum target;
     GLbitfield access;
 
-}Guest_Host_Map;
-
-
-
+} Guest_Host_Map;
 
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
@@ -154,7 +218,6 @@ typedef struct Guest_Host_Map{
  */
 int pixel_size_calc(GLenum format, GLenum type);
 
-
 /**
  * @brief opengl各种类型数据的sizeof函数
  * 
@@ -163,9 +226,7 @@ int pixel_size_calc(GLenum format, GLenum type);
  */
 size_t gl_sizeof(GLenum type);
 
-
 size_t gl_pname_size(GLenum pname);
-
 
 // void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc);
 
@@ -177,31 +238,32 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
 
-
 void d_glDeleteProgram_origin(void *context, GLuint program);
 
 void d_glLinkProgram_origin(void *context, GLuint program);
 
-void d_glShaderSource_origin(void *context,GLuint shader, GLsizei count, const GLint *length, const GLchar *const*string);
+void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string);
+
+void d_glGetString_special(void *context, GLenum name, GLubyte *buffer);
+
+void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer);
+
+//
+
+void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES imageSize);
+
+void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
 
 
+//
 
-void opengl_context_create(void *context);
+void resource_context_init(Resource_Context *resources, Share_Resources *share_resources);
 
+void resource_context_destroy(Resource_Context *resources);
 
+void opengl_context_create(void *context, void *share_context);
 
 void opengl_context_destroy(void *context);
-
-
-
-
-
-
-
-
-
-
-
 
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d);
 
@@ -220,19 +282,14 @@ void glTestPointer1(GLint a, const GLint *b);
 
 void glTestPointer2(GLint a, const GLint *b, GLint *c);
 
-GLint glTestPointer3(GLint a, const GLint *b, GLint *c);
+GLint d_glTestPointer3(void *context, GLint a, const GLint *b, GLint *c);
 
 GLint glTestPointer4(GLint a, const GLint *b, GLint *c);
 
-
-void glTestString(GLint a, GLint count, const GLchar *const*strings, GLint buf_len, GLchar *char_buf);
+void glTestString(GLint a, GLint count, const GLchar *const *strings, GLint buf_len, GLchar *char_buf);
 
 void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string);
 
-
 void d_glInOutTest(void *context, GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f);
-
-
-
 
 #endif

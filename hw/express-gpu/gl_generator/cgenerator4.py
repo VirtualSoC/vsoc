@@ -179,6 +179,7 @@ class Func:
 
     def generate_android_header_local(self,head_file,local_file,id_define):
 
+        fun_strs=""
         # Write definition string
         def_str1 = ""
         def_str2= ""
@@ -189,16 +190,19 @@ class Func:
         def_str2=def_str1
 
         def_str1 += f"r_{self.name}(void *context, "
-        def_str2 += f"d_{self.name}(void *context, "
+        t_name=self.name
+        if t_name.find("_")!=-1 and t_name.find("_v")==-1:
+            t_name=t_name[:t_name.find("_")]
+        def_str2 += f"d_{t_name}(void *context, "
 
         for arg in self.args:
             if arg['ptr_ptr']:
-                def_str1 += f"{arg['type']}const* {arg['name']}, "
+                def_str1 += f"{arg['type']}const* {arg['name']}, "    
                 def_str2 += f"{arg['type']}const* {arg['name']}, "
 
             else:
                 def_str1 += f"{arg['type']} {arg['name']}, "
-                def_str2 += f"{arg['type']}const* {arg['name']}, "
+                def_str2 += f"{arg['type']} {arg['name']}, "
 
         # if len(self.args) > 0:
         def_str1 = def_str1[:-2]  # Remove last ', '
@@ -206,9 +210,9 @@ class Func:
 
         head_file.write(id_define)
 
-        head_file.write(def_str1+');\n')
+        fun_strs+=def_str1+');\n'
 
-        head_file.write(def_str2+');\n\n')
+        fun_strs+=def_str2+');\n\n'
 
         local_fun_str=""
         local_fun_str+=def_str2
@@ -230,14 +234,14 @@ class Func:
         local_file.write(local_fun_str)
 
 
-        return def_str1+"){\n"
+        return def_str1+"){\n",fun_strs
 
 
     def generate_android_func(self,header_file,local_file,out_file,id_define):
         # Debug information
 
-        ret_str=self.generate_android_header_local(header_file,local_file,id_define)
-
+        ret=self.generate_android_header_local(header_file,local_file,id_define)
+        ret_str=ret[0]
         out_file.write("\n")
         out_file.write(f"/* readline: \"{self.line}\" */\n")
         out_file.write(f"/* func name: \"{self.name}\" */\n")
@@ -264,7 +268,7 @@ class Func:
                 
         # End of function
         out_file.write("}\n\n")
-
+        return ret[1]
 
 
 
@@ -364,7 +368,7 @@ android_out.write("""
 
 android_local_out.write("""
 #include "define_gl.h"
-#include "utils_gl.h"
+#include "glv3_utils.h"
 
 
 //#include "all_gl.h"
@@ -437,6 +441,7 @@ android_define.write("""
 
 #define MAX_OUT_BUF_LEN 4096\n
 """)
+android_local_funs=""
 
 define_id = 1
 for filename in filenames:
@@ -472,6 +477,8 @@ for filename in filenames:
     
 
     func_count = 1
+
+
     for line in input_file:
 
 
@@ -500,8 +507,8 @@ for filename in filenames:
             all_include.write(real_name+"\n")
 
         # Work
+        android_local_funs+=func.generate_android_func(android_define,android_local_out,android_out,define_id_str)
         func.generate_qemu_case(qemu_out,qemu_define, define_id_str)
-        func.generate_android_func(android_define,android_local_out,android_out,define_id_str)
                     
 
         define_id += 1
@@ -513,6 +520,8 @@ for filename in filenames:
                       f"{func_count}/{all_func_count} functions *******/\n\n\n")
     input_file.close()
     # qemu_out.close()
+
+android_define.write(android_local_funs)
 
 qemu_out.write(
     """    default:

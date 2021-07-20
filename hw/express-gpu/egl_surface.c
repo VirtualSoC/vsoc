@@ -39,7 +39,7 @@ EGLBoolean d_eglMakeCurrent_special(Render_Thread_Context *context,EGLDisplay dp
 
     render_windows_create(render_context);
     egl_context_make_current(egl_context);
-    opengl_context_create(opengl_context);
+    opengl_context_create(opengl_context,NULL);
     
     opengl_context->fbo0 = egl_context->fbo_draw;
     

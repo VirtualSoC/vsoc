@@ -13,6 +13,7 @@ GLboolean glIsQuery GLuint id
 GLboolean glIsVertexArray GLuint array
 GLboolean glIsSampler GLuint sampler
 GLboolean glIsTransformFeedback GLuint id
+GLboolean glIsSync GLsync sync
 
 
 

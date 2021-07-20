@@ -65,7 +65,7 @@ void log_init(struct Thread_Context *context)
  * @param info 
  * @return Thread_Context* 
  */
-static Thread_Context *get_log_thread_context(unsigned long long  type_id, unsigned long long thread_id, struct Express_Device_Info *info)
+static Thread_Context *get_log_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
 
     if (log_thread_context == NULL)

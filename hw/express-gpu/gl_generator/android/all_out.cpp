@@ -934,7 +934,16 @@ GLboolean r_glIsTransformFeedback(void *context, GLuint id)
 {
 }
 
-/******* end of file '1-1-1', 12/22 functions *******/
+/* readline: "GLboolean glIsSync GLsync sync" */
+/* func name: "glIsSync" */
+/* args: [{'type': 'GLsync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+/* ret: "GLboolean" */
+/* type: "111" */
+GLboolean r_glIsSync(void *context, GLsync sync)
+{
+}
+
+/******* end of file '1-1-1', 13/23 functions *******/
 
 /******* file '1-1-2' *******/
 
@@ -994,12 +1003,12 @@ GLenum r_glGetError(void *context)
     return ret;
 }
 
-/* readline: "glGetString GLenum name, GLubyte *buffer#1024" */
-/* func name: "glGetString" */
+/* readline: "glGetString_special GLenum name, GLubyte *buffer#1024" */
+/* func name: "glGetString_special" */
 /* args: [{'type': 'GLenum', 'name': 'name', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLubyte*', 'name': 'buffer', 'ptr': 'out', 'ptr_len': '1024', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "112" */
-void r_glGetString(void *context, GLenum name, GLubyte *buffer)
+void r_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -1018,7 +1027,7 @@ void r_glGetString(void *context, GLenum name, GLubyte *buffer)
     ptr += 4;
 
     ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_glGetString;
+    *(uint64_t *)ptr = FUNID_glGetString_special;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = (uint64_t)para_num;
@@ -1069,12 +1078,12 @@ void r_glGetString(void *context, GLenum name, GLubyte *buffer)
     }
 }
 
-/* readline: "glGetStringi GLenum name, GLuint index, GLubyte *buffer#1024" */
-/* func name: "glGetStringi" */
+/* readline: "glGetStringi_special GLenum name, GLuint index, GLubyte *buffer#1024" */
+/* func name: "glGetStringi_special" */
 /* args: [{'type': 'GLenum', 'name': 'name', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLubyte*', 'name': 'buffer', 'ptr': 'out', 'ptr_len': '1024', 'loc': 2, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "112" */
-void r_glGetStringi(void *context, GLenum name, GLuint index, GLubyte *buffer)
+void r_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -1096,7 +1105,7 @@ void r_glGetStringi(void *context, GLenum name, GLuint index, GLubyte *buffer)
     ptr += 4;
 
     ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_glGetStringi;
+    *(uint64_t *)ptr = FUNID_glGetStringi_special;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = (uint64_t)para_num;
@@ -6467,7 +6476,7 @@ void r_glGetInteger64i_v(void *context, GLenum target, GLuint index, GLint64 *da
     }
 }
 
-/******* end of file '1-1-2', 69/90 functions *******/
+/******* end of file '1-1-2', 69/91 functions *******/
 
 /******* file '1-2' *******/
 
@@ -6640,7 +6649,7 @@ GLint r_glTestPointer3(void *context, GLint a, const GLint *b, GLint *c)
     return ret;
 }
 
-/******* end of file '1-2', 4/93 functions *******/
+/******* end of file '1-2', 4/94 functions *******/
 
 /******* file '2-1' *******/
 
@@ -8881,16 +8890,16 @@ void r_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeg
     }
 }
 
-/******* end of file '2-1', 37/129 functions *******/
+/******* end of file '2-1', 37/130 functions *******/
 
 /******* file '2-1-1' *******/
 
-/* readline: "glGenBuffers_special GLsizei n, const GLuint *buffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenBuffers_special" */
+/* readline: "glGenBuffers GLsizei n, const GLuint *buffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenBuffers" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'buffers', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenBuffers_special(void *context, GLsizei n, const GLuint *buffers)
+void r_glGenBuffers(void *context, GLsizei n, const GLuint *buffers)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -8921,7 +8930,7 @@ void r_glGenBuffers_special(void *context, GLsizei n, const GLuint *buffers)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenBuffers_special;
+    *(uint64_t *)ptr = FUNID_glGenBuffers;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -8940,12 +8949,12 @@ void r_glGenBuffers_special(void *context, GLsizei n, const GLuint *buffers)
     }
 }
 
-/* readline: "glGenRenderbuffers_special GLsizei n, const GLuint *renderbuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenRenderbuffers_special" */
+/* readline: "glGenRenderbuffers GLsizei n, const GLuint *renderbuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenRenderbuffers" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'renderbuffers', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenRenderbuffers_special(void *context, GLsizei n, const GLuint *renderbuffers)
+void r_glGenRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffers)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -8976,7 +8985,7 @@ void r_glGenRenderbuffers_special(void *context, GLsizei n, const GLuint *render
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenRenderbuffers_special;
+    *(uint64_t *)ptr = FUNID_glGenRenderbuffers;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -8995,12 +9004,12 @@ void r_glGenRenderbuffers_special(void *context, GLsizei n, const GLuint *render
     }
 }
 
-/* readline: "glGenTextures_special GLsizei n, const GLuint *textures#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenTextures_special" */
+/* readline: "glGenTextures GLsizei n, const GLuint *textures#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenTextures" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'textures', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenTextures_special(void *context, GLsizei n, const GLuint *textures)
+void r_glGenTextures(void *context, GLsizei n, const GLuint *textures)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9031,7 +9040,7 @@ void r_glGenTextures_special(void *context, GLsizei n, const GLuint *textures)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenTextures_special;
+    *(uint64_t *)ptr = FUNID_glGenTextures;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9050,12 +9059,12 @@ void r_glGenTextures_special(void *context, GLsizei n, const GLuint *textures)
     }
 }
 
-/* readline: "glGenSamplers_special GLsizei count, const GLuint *samplers#count*sizeof(GLuint) @{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenSamplers_special" */
+/* readline: "glGenSamplers GLsizei count, const GLuint *samplers#count*sizeof(GLuint) @{if(count<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenSamplers" */
 /* args: [{'type': 'GLsizei', 'name': 'count', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'samplers', 'ptr': 'in', 'ptr_len': 'count*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenSamplers_special(void *context, GLsizei count, const GLuint *samplers)
+void r_glGenSamplers(void *context, GLsizei count, const GLuint *samplers)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9086,7 +9095,7 @@ void r_glGenSamplers_special(void *context, GLsizei count, const GLuint *sampler
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenSamplers_special;
+    *(uint64_t *)ptr = FUNID_glGenSamplers;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9105,12 +9114,12 @@ void r_glGenSamplers_special(void *context, GLsizei count, const GLuint *sampler
     }
 }
 
-/* readline: "glCreateProgram_special GLuint program" */
-/* func name: "glCreateProgram_special" */
+/* readline: "glCreateProgram GLuint program" */
+/* func name: "glCreateProgram" */
 /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glCreateProgram_special(void *context, GLuint program)
+void r_glCreateProgram(void *context, GLuint program)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9135,7 +9144,7 @@ void r_glCreateProgram_special(void *context, GLuint program)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glCreateProgram_special;
+    *(uint64_t *)ptr = FUNID_glCreateProgram;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9154,12 +9163,12 @@ void r_glCreateProgram_special(void *context, GLuint program)
     }
 }
 
-/* readline: "glCreateShader_special GLenum type, GLuint shader @if(type!=GL_COMPUTE_SHADER&&type!=GL_VERTEX_SHADER&&type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}" */
-/* func name: "glCreateShader_special" */
+/* readline: "glCreateShader GLenum type, GLuint shader @if(type!=GL_COMPUTE_SHADER&&type!=GL_VERTEX_SHADER&&type!=GL_FRAGMENT_SHADER){set_gl_error(context,GL_INVALID_ENUM);return 0;}" */
+/* func name: "glCreateShader" */
 /* args: [{'type': 'GLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'shader', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glCreateShader_special(void *context, GLenum type, GLuint shader)
+void r_glCreateShader(void *context, GLenum type, GLuint shader)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9187,7 +9196,7 @@ void r_glCreateShader_special(void *context, GLenum type, GLuint shader)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glCreateShader_special;
+    *(uint64_t *)ptr = FUNID_glCreateShader;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9206,12 +9215,12 @@ void r_glCreateShader_special(void *context, GLenum type, GLuint shader)
     }
 }
 
-/* readline: "glFenceSync_special GLenum condition, GLbitfield flags, GLsync sync" */
-/* func name: "glFenceSync_special" */
+/* readline: "glFenceSync GLenum condition, GLbitfield flags, GLsync sync" */
+/* func name: "glFenceSync" */
 /* args: [{'type': 'GLenum', 'name': 'condition', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLbitfield', 'name': 'flags', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLsync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glFenceSync_special(void *context, GLenum condition, GLbitfield flags, GLsync sync)
+void r_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync sync)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9242,7 +9251,7 @@ void r_glFenceSync_special(void *context, GLenum condition, GLbitfield flags, GL
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glFenceSync_special;
+    *(uint64_t *)ptr = FUNID_glFenceSync;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9329,12 +9338,12 @@ void r_glCreateShaderProgramv(void *context, GLenum type, GLsizei count, const G
     }
 }
 
-/* readline: "glGenFramebuffers_special GLsizei n, const GLuint *framebuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenFramebuffers_special" */
+/* readline: "glGenFramebuffers GLsizei n, const GLuint *framebuffers#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenFramebuffers" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'framebuffers', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenFramebuffers_special(void *context, GLsizei n, const GLuint *framebuffers)
+void r_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9365,7 +9374,7 @@ void r_glGenFramebuffers_special(void *context, GLsizei n, const GLuint *framebu
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenFramebuffers_special;
+    *(uint64_t *)ptr = FUNID_glGenFramebuffers;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9384,12 +9393,12 @@ void r_glGenFramebuffers_special(void *context, GLsizei n, const GLuint *framebu
     }
 }
 
-/* readline: "glGenProgramPipelines_special GLsizei n, const GLuint *pipelines#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenProgramPipelines_special" */
+/* readline: "glGenProgramPipelines GLsizei n, const GLuint *pipelines#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenProgramPipelines" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'pipelines', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenProgramPipelines_special(void *context, GLsizei n, const GLuint *pipelines)
+void r_glGenProgramPipelines(void *context, GLsizei n, const GLuint *pipelines)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9420,7 +9429,7 @@ void r_glGenProgramPipelines_special(void *context, GLsizei n, const GLuint *pip
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenProgramPipelines_special;
+    *(uint64_t *)ptr = FUNID_glGenProgramPipelines;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9439,12 +9448,12 @@ void r_glGenProgramPipelines_special(void *context, GLsizei n, const GLuint *pip
     }
 }
 
-/* readline: "glGenTransformFeedbacks_special GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenTransformFeedbacks_special" */
+/* readline: "glGenTransformFeedbacks GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenTransformFeedbacks" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'ids', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenTransformFeedbacks_special(void *context, GLsizei n, const GLuint *ids)
+void r_glGenTransformFeedbacks(void *context, GLsizei n, const GLuint *ids)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9475,7 +9484,7 @@ void r_glGenTransformFeedbacks_special(void *context, GLsizei n, const GLuint *i
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenTransformFeedbacks_special;
+    *(uint64_t *)ptr = FUNID_glGenTransformFeedbacks;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9494,12 +9503,12 @@ void r_glGenTransformFeedbacks_special(void *context, GLsizei n, const GLuint *i
     }
 }
 
-/* readline: "glGenVertexArrays_special GLsizei n, const GLuint *arrays#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenVertexArrays_special" */
+/* readline: "glGenVertexArrays GLsizei n, const GLuint *arrays#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenVertexArrays" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'arrays', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenVertexArrays_special(void *context, GLsizei n, const GLuint *arrays)
+void r_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9530,7 +9539,7 @@ void r_glGenVertexArrays_special(void *context, GLsizei n, const GLuint *arrays)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenVertexArrays_special;
+    *(uint64_t *)ptr = FUNID_glGenVertexArrays;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -9549,12 +9558,12 @@ void r_glGenVertexArrays_special(void *context, GLsizei n, const GLuint *arrays)
     }
 }
 
-/* readline: "glGenQueries_special GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
-/* func name: "glGenQueries_special" */
+/* readline: "glGenQueries GLsizei n, const GLuint *ids#n*sizeof(GLuint) @{if(n<0){ set_gl_error(context,GL_INVALID_VALUE); return; }}" */
+/* func name: "glGenQueries" */
 /* args: [{'type': 'GLsizei', 'name': 'n', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'const GLuint*', 'name': 'ids', 'ptr': 'in', 'ptr_len': 'n*sizeof(GLuint)', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "211" */
-void r_glGenQueries_special(void *context, GLsizei n, const GLuint *ids)
+void r_glGenQueries(void *context, GLsizei n, const GLuint *ids)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -9585,7 +9594,7 @@ void r_glGenQueries_special(void *context, GLsizei n, const GLuint *ids)
 
     ptr = send_buf;
 
-    *(uint64_t *)ptr = FUNID_glGenQueries_special;
+    *(uint64_t *)ptr = FUNID_glGenQueries;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -10246,7 +10255,7 @@ void r_glDeleteQueries(void *context, GLsizei n, const GLuint *ids)
     }
 }
 
-/******* end of file '2-1-1', 26/154 functions *******/
+/******* end of file '2-1-1', 26/155 functions *******/
 
 /******* file '2-1-2' *******/
 
@@ -11392,12 +11401,12 @@ void r_glBindProgramPipeline(void *context, GLuint pipeline)
     }
 }
 
-/* readline: "glBindTransformFeedback GLenum target, GLuint id" */
+/* readline: "glBindTransformFeedback GLenum target, GLuint feedback_id" */
 /* func name: "glBindTransformFeedback" */
-/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLuint', 'name': 'feedback_id', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "212" */
-void r_glBindTransformFeedback(void *context, GLenum target, GLuint id)
+void r_glBindTransformFeedback(void *context, GLenum target, GLuint feedback_id)
 {
 
     unsigned char send_buf[16 + 16 * 1];
@@ -11420,128 +11429,12 @@ void r_glBindTransformFeedback(void *context, GLenum target, GLuint id)
     *(GLenum *)ptr = target;
     ptr += 4;
 
-    *(GLuint *)ptr = id;
+    *(GLuint *)ptr = feedback_id;
     ptr += 4;
 
     ptr = send_buf;
 
     *(uint64_t *)ptr = FUNID_glBindTransformFeedback;
-    ptr += sizeof(uint64_t);
-
-    *(uint64_t *)ptr = 1;
-    ptr += sizeof(uint64_t);
-
-    *(uint64_t *)ptr = (uint64_t)save_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)save_buf;
-    ptr += sizeof(uint64_t);
-
-    send_to_host(context, send_buf, send_buf_len, 0);
-
-    if (save_buf_len > MAX_OUT_BUF_LEN)
-    {
-        free(save_buf);
-    }
-}
-
-/* readline: "glSamplerParameteriv GLuint sampler, GLenum pname, const GLint *param#gl_pname_size(pname)*sizeof(GLint)" */
-/* func name: "glSamplerParameteriv" */
-/* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLint*', 'name': 'param', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
-/* ret: "" */
-/* type: "212" */
-void r_glSamplerParameteriv(void *context, GLuint sampler, GLenum pname, const GLint *param)
-{
-
-    unsigned char send_buf[16 + 16 * 1];
-    size_t send_buf_len = 16 + 16 * 1;
-    uint64_t save_buf_len = 8;
-    unsigned char local_save_buf[4096];
-    unsigned char *save_buf;
-
-    size_t param_len = gl_pname_size(pname) * sizeof(GLint);
-    save_buf_len += param_len;
-
-    if (save_buf_len > MAX_OUT_BUF_LEN)
-    {
-        save_buf = (unsigned char *)malloc(save_buf_len);
-    }
-    else
-    {
-        save_buf = local_save_buf;
-    }
-
-    unsigned char *ptr = save_buf;
-
-    *(GLuint *)ptr = sampler;
-    ptr += 4;
-
-    *(GLenum *)ptr = pname;
-    ptr += 4;
-
-    memcpy(ptr, (unsigned char *)param, param_len);
-    ptr += param_len;
-
-    ptr = send_buf;
-
-    *(uint64_t *)ptr = FUNID_glSamplerParameteriv;
-    ptr += sizeof(uint64_t);
-
-    *(uint64_t *)ptr = 1;
-    ptr += sizeof(uint64_t);
-
-    *(uint64_t *)ptr = (uint64_t)save_buf_len;
-    ptr += sizeof(uint64_t);
-    *(uint64_t *)ptr = (uint64_t)save_buf;
-    ptr += sizeof(uint64_t);
-
-    send_to_host(context, send_buf, send_buf_len, 0);
-
-    if (save_buf_len > MAX_OUT_BUF_LEN)
-    {
-        free(save_buf);
-    }
-}
-
-/* readline: "glSamplerParameterfv GLuint sampler, GLenum pname, const GLfloat *param#gl_pname_size(pname)*sizeof(GLfloat)" */
-/* func name: "glSamplerParameterfv" */
-/* args: [{'type': 'GLuint', 'name': 'sampler', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const GLfloat*', 'name': 'param', 'ptr': 'in', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 2, 'ptr_ptr': False}] */
-/* ret: "" */
-/* type: "212" */
-void r_glSamplerParameterfv(void *context, GLuint sampler, GLenum pname, const GLfloat *param)
-{
-
-    unsigned char send_buf[16 + 16 * 1];
-    size_t send_buf_len = 16 + 16 * 1;
-    uint64_t save_buf_len = 8;
-    unsigned char local_save_buf[4096];
-    unsigned char *save_buf;
-
-    size_t param_len = gl_pname_size(pname) * sizeof(GLfloat);
-    save_buf_len += param_len;
-
-    if (save_buf_len > MAX_OUT_BUF_LEN)
-    {
-        save_buf = (unsigned char *)malloc(save_buf_len);
-    }
-    else
-    {
-        save_buf = local_save_buf;
-    }
-
-    unsigned char *ptr = save_buf;
-
-    *(GLuint *)ptr = sampler;
-    ptr += 4;
-
-    *(GLenum *)ptr = pname;
-    ptr += 4;
-
-    memcpy(ptr, (unsigned char *)param, param_len);
-    ptr += param_len;
-
-    ptr = send_buf;
-
-    *(uint64_t *)ptr = FUNID_glSamplerParameterfv;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = 1;
@@ -21782,7 +21675,7 @@ void r_glBindAttribLocation(void *context, GLuint program, GLuint index, const G
     }
 }
 
-/******* end of file '2-1-2', 206/359 functions *******/
+/******* end of file '2-1-2', 204/358 functions *******/
 
 /******* file '2-2' *******/
 
@@ -22787,4 +22680,4 @@ void r_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
     send_to_host(context, send_buf, send_buf_len, 1);
 }
 
-/******* end of file '2-2', 18/376 functions *******/
+/******* end of file '2-2', 18/375 functions *******/

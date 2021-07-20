@@ -45,19 +45,11 @@ glBindSampler GLuint unit, GLuint sampler
 
 glBindFramebuffer GLenum target, GLuint framebuffer
 glBindProgramPipeline GLuint pipeline
-glBindTransformFeedback GLenum target, GLuint id
+glBindTransformFeedback GLenum target, GLuint feedback_id
 
 
 
 
-
-
-//glBindVertexArray GLuint array
-
-glSamplerParameteriv GLuint sampler, GLenum pname, const GLint *param#gl_pname_size(pname)*sizeof(GLint)
-glSamplerParameterfv GLuint sampler, GLenum pname, const GLfloat *param#gl_pname_size(pname)*sizeof(GLfloat)
-// if pname is GL_TEXTURE_BORDER_COLOR, param#4*sizeof(xxx)
-// else param#1*sizeof(xxx)
 
 
 glActiveTexture GLenum texture

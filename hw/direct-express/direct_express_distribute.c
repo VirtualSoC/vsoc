@@ -304,10 +304,11 @@ void *alloc_buf_from_iov(struct iovec *sg, unsigned int num, size_t *all_cnt)
  * @param id 需要回传的函数调用id（假如有的话），不需要则设为NULL（只有第一个elem需要）
  * @param thread_id 需要回传的线程id（假如有的话），不需要则设为NULL（只有第一个elem需要）
  * @param process_id 需要回传的进程id（假如有的话），不需要则设为NULL（只有第一个elem需要）
+ * @param unique_id 需要回传的通道文件唯一id（假如有的话），不需要则设为NULL（只有第一个elem需要）
  * @param num 需要回传的参数数目（假如有的话），不需要则设为NULL（只有第一个elem需要）
  * @return int 返回填充是否完成，1表示完成，0表示失败
  */
-static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsigned long long *id, unsigned long long *thread_id, unsigned long long *process_id, unsigned long long *num)
+static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsigned long long *id, unsigned long long *thread_id, unsigned long long *process_id,unsigned long long *unique_id, unsigned long long *num)
 {
     VirtQueueElement *v_elem = &elem->elem;
     // printf("fill elem num %u %u\n",v_elem->out_num,v_elem->in_num);
@@ -404,15 +405,17 @@ static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsig
             *process_id = flag_buf->process_id;
             *thread_id = flag_buf->thread_id;
             *num = flag_buf->para_num;
+            *unique_id = flag_buf->unique_id;
         }
         else
         {
             Direct_Express_Flag_Buf flag_buf_temp;
             guest_write(guest_mem, &flag_buf_temp, 0, sizeof(Direct_Express_Flag_Buf));
             *id = flag_buf_temp.id;
-            // *process_id=flag_buf_temp.process_id;
+            *process_id=flag_buf_temp.process_id;
             *thread_id = flag_buf_temp.thread_id;
             *num = flag_buf_temp.para_num;
+            *unique_id = flag_buf->unique_id;
         }
         // if (!check_fun_id_para_num(*id, *num))
         // {
@@ -440,13 +443,15 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
     unsigned long long fun_id;
     unsigned long long thread_id;
     unsigned long long process_id;
+    unsigned long long unique_id;
+
 
     elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
     while (elem)
     {
 
 
-        if (unlikely(fill_direct_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &para_num) == 0))
+        if (unlikely(fill_direct_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0))
         {
             //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
             VIRTIO_ELEM_PUSH_ALL(vq, Direct_Express_Queue_Elem, elem, 1, next);
@@ -464,6 +469,7 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
         call->id = fun_id;
         call->thread_id = thread_id;
         call->process_id = process_id;
+        call->unique_id = unique_id;
         call->spend_time =0;
         call->next = NULL;
         // gint64 start_time=g_get_real_time();
@@ -489,7 +495,7 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
             
 
 
-            if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_direct_express_queue_elem(elem, NULL, NULL, NULL, NULL) == 0))
+            if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_direct_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
             {
                 //要么是数据复制有问题，要么是这个elem是个in的类型，破坏了调用结构
                 //因此将已经保存的数据抛弃，将这个elem作为第一个elem重新尝试fill，所以是break后continue
@@ -605,6 +611,10 @@ void push_to_thread(Direct_Express_Call *call)
 
     //express_printf("push to thread\n");
     uint64_t thread_id = call->thread_id;
+    uint64_t process_id = call->process_id;
+    uint64_t unique_id = call->unique_id;
+
+
     // unsigned long fun_id = GET_FUN_ID(call->id);
     uint64_t device_type_id = GET_DEVICE_ID(call->id);
     uint64_t fun_id =GET_FUN_ID(call->id);
@@ -621,7 +631,7 @@ void push_to_thread(Direct_Express_Call *call)
     express_printf("\033[31mpush to %s thread_id %llu %08x %llu %llu %08x\033[0m\n", device_info->name, call->thread_id, call->thread_id,device_type_id,fun_id, call->id );
 
 
-    Thread_Context *context = device_info->get_context(device_type_id, thread_id, device_info);
+    Thread_Context *context = device_info->get_context(device_type_id, thread_id, process_id, unique_id, device_info);
 
     //找得到相应的设备处理时才把他推送到相应的设备线程
     if (context != NULL)
