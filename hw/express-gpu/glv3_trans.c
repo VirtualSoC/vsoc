@@ -1503,7 +1503,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glGetString_special(context, name, buffer);
+        d_glGetString_special(opengl_context, name, buffer);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -1591,7 +1591,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glGetStringi_special(context, name, index, buffer);
+        d_glGetStringi_special(opengl_context, name, index, buffer);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -10367,7 +10367,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glEGLImageTargetTexture2DOES(context, target, imageSize);
+        d_glEGLImageTargetTexture2DOES(opengl_context, target, imageSize);
     }
     break;
 
@@ -10428,7 +10428,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glEGLImageTargetRenderbufferStorageOES(context, target, image);
+        d_glEGLImageTargetRenderbufferStorageOES(opengl_context, target, image);
     }
     break;
 
@@ -13143,7 +13143,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glBindFramebuffer_special(context, target, (GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
+        d_glBindFramebuffer_special(opengl_context, target, (GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
     }
     break;
 
