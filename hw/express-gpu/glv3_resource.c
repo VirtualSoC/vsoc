@@ -76,7 +76,7 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
 
     for (int i = 0; i < n; i++)
     {
-        if (guest_ids[i] > status->max_id || guest_ids[i] == 0)
+        if (guest_ids[i] > status->max_id || status->max_id == 0 || guest_ids[i] == 0)
         {
             continue;
         }
@@ -93,7 +93,7 @@ void get_host_resource_ids(Resource_Map_Status *status, GLsizei n, const unsigne
 {
     for (int i = 0; i < n; i++)
     {
-        if (guest_ids[i] > status->max_id)
+        if (guest_ids[i] > status->max_id || status->max_id == 0)
         {
             host_ids[i] = 0;
         }
@@ -113,7 +113,7 @@ void get_host_resource_ids(Resource_Map_Status *status, GLsizei n, const unsigne
  */
 unsigned long long get_host_resource_id(Resource_Map_Status *status, unsigned int id)
 {
-    if (id > status->max_id)
+    if (id > status->max_id || status->max_id == 0)
     {
         return 0;
     }
@@ -122,7 +122,7 @@ unsigned long long get_host_resource_id(Resource_Map_Status *status, unsigned in
 
 int guest_has_resource_id(Resource_Map_Status *status, unsigned int id)
 {
-    if (id > status->max_id || status->resource_id_map[id] == 0)
+    if (id > status->max_id || status->max_id == 0 || status->resource_id_map[id] == 0)
     {
         return 0;
     }

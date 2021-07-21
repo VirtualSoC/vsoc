@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "express-gpu/express_gpu_opengl.h"
 
