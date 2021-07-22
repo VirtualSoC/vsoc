@@ -10,7 +10,7 @@
 void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 {
 
-    Pixel_Store_Status *pixel_store = &(((Opengl_Context *)context)->pixel_store_status);
+    // Pixel_Store_Status *pixel_store = &(((Opengl_Context *)context)->pixel_store_status);
     // switch (pname)
     // {
     // case GL_UNPACK_ALIGNMENT:
@@ -159,7 +159,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     }
 
 
-    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc=0,end_loc=buf_len;
     //gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
@@ -202,7 +202,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
         return;
     }
 
-    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc=0,end_loc=buf_len;
     // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
@@ -238,7 +238,7 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
         return;
     }
 
-    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc=0,end_loc=buf_len;
     // gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
@@ -278,7 +278,7 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
     }
 
 
-    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc=0,end_loc=buf_len;
     // gl_pixel_data_3d_loc(status,width,height,depth,format,type,0,&start_loc,&end_loc);
@@ -404,7 +404,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
         return;
     }
 
-    Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
+    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc=0,end_loc=buf_len;
     // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);

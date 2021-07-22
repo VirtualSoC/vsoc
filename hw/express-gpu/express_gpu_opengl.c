@@ -4,29 +4,18 @@
 
 // #include "gl.h"
 
-
-
 // #include "express-gpu/gl.h"
 #include "glad/glad.h"
-
 
 // #include "express-gpu/glext.h"
 // #include "express-gpu/gl2ext.h"
 
-
-
-
-
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
 static void g_buffer_map_destroy(gpointer data);
 
-static void g_vao_status_destroy(gpointer data);
+// static void g_vao_status_destroy(gpointer data);
 
 static void g_vao_point_data_destroy(gpointer data);
-
-
-
-
 
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
@@ -35,174 +24,243 @@ static void g_vao_point_data_destroy(gpointer data);
  * @param type 像素类型
  * @return int 
  */
-int pixel_size_calc(GLenum format, GLenum type) {
-    switch(type) {
+int pixel_size_calc(GLenum format, GLenum type)
+{
+    switch (type)
+    {
     case GL_BYTE:
-        switch(format) {
+        switch (format)
+        {
         case GL_R8:
         case GL_R8I:
         case GL_R8_SNORM:
-        case GL_RED:             return sizeof(char);
-        case GL_RED_INTEGER:     return sizeof(char);
+        case GL_RED:
+            return sizeof(char);
+        case GL_RED_INTEGER:
+            return sizeof(char);
         case GL_RG8:
         case GL_RG8I:
         case GL_RG8_SNORM:
-        case GL_RG:              return sizeof(char) * 2;
-        case GL_RG_INTEGER:      return sizeof(char) * 2;
+        case GL_RG:
+            return sizeof(char) * 2;
+        case GL_RG_INTEGER:
+            return sizeof(char) * 2;
         case GL_RGB8:
         case GL_RGB8I:
         case GL_RGB8_SNORM:
-        case GL_RGB:             return sizeof(char) * 3;
-        case GL_RGB_INTEGER:     return sizeof(char) * 3;
+        case GL_RGB:
+            return sizeof(char) * 3;
+        case GL_RGB_INTEGER:
+            return sizeof(char) * 3;
         case GL_RGBA8:
         case GL_RGBA8I:
         case GL_RGBA8_SNORM:
-        case GL_RGBA:            return sizeof(char) * 4;
-        case GL_RGBA_INTEGER:    return sizeof(char) * 4;
+        case GL_RGBA:
+            return sizeof(char) * 4;
+        case GL_RGBA_INTEGER:
+            return sizeof(char) * 4;
         }
         break;
     case GL_UNSIGNED_BYTE:
-        switch(format) {
+        switch (format)
+        {
         case GL_R8:
         case GL_R8UI:
-        case GL_RED:             return sizeof(unsigned char);
-        case GL_RED_INTEGER:     return sizeof(unsigned char);
+        case GL_RED:
+            return sizeof(unsigned char);
+        case GL_RED_INTEGER:
+            return sizeof(unsigned char);
         case GL_ALPHA8_EXT:
-        case GL_ALPHA:           return sizeof(unsigned char);
+        case GL_ALPHA:
+            return sizeof(unsigned char);
         case GL_LUMINANCE8_EXT:
-        case GL_LUMINANCE:       return sizeof(unsigned char);
+        case GL_LUMINANCE:
+            return sizeof(unsigned char);
         case GL_LUMINANCE8_ALPHA8_EXT:
-        case GL_LUMINANCE_ALPHA: return sizeof(unsigned char) * 2;
+        case GL_LUMINANCE_ALPHA:
+            return sizeof(unsigned char) * 2;
         case GL_RG8:
         case GL_RG8UI:
-        case GL_RG:              return sizeof(unsigned char) * 2;
-        case GL_RG_INTEGER:      return sizeof(unsigned char) * 2;
+        case GL_RG:
+            return sizeof(unsigned char) * 2;
+        case GL_RG_INTEGER:
+            return sizeof(unsigned char) * 2;
         case GL_RGB8:
         case GL_RGB8UI:
         case GL_SRGB8:
-        case GL_RGB:             return sizeof(unsigned char) * 3;
-        case GL_RGB_INTEGER:     return sizeof(unsigned char) * 3;
+        case GL_RGB:
+            return sizeof(unsigned char) * 3;
+        case GL_RGB_INTEGER:
+            return sizeof(unsigned char) * 3;
         case GL_RGBA8:
         case GL_RGBA8UI:
         case GL_SRGB8_ALPHA8:
-        case GL_RGBA:            return sizeof(unsigned char) * 4;
-        case GL_RGBA_INTEGER:    return sizeof(unsigned char) * 4;
+        case GL_RGBA:
+            return sizeof(unsigned char) * 4;
+        case GL_RGBA_INTEGER:
+            return sizeof(unsigned char) * 4;
         case GL_BGRA_EXT:
-        //case GL_BGRA8_EXT:       
-            return sizeof(unsigned char)* 4;
+            //case GL_BGRA8_EXT:
+            return sizeof(unsigned char) * 4;
         }
         break;
     case GL_SHORT:
-        switch(format) {
+        switch (format)
+        {
         case GL_R16I:
-        case GL_RED_INTEGER:     return sizeof(short);
+        case GL_RED_INTEGER:
+            return sizeof(short);
         case GL_RG16I:
-        case GL_RG_INTEGER:      return sizeof(short) * 2;
+        case GL_RG_INTEGER:
+            return sizeof(short) * 2;
         case GL_RGB16I:
-        case GL_RGB_INTEGER:     return sizeof(short) * 3;
+        case GL_RGB_INTEGER:
+            return sizeof(short) * 3;
         case GL_RGBA16I:
-        case GL_RGBA_INTEGER:    return sizeof(short) * 4;
+        case GL_RGBA_INTEGER:
+            return sizeof(short) * 4;
         }
         break;
     case GL_UNSIGNED_SHORT:
-        switch(format) {
+        switch (format)
+        {
         case GL_DEPTH_COMPONENT16:
-        case GL_DEPTH_COMPONENT: return sizeof(unsigned short);
+        case GL_DEPTH_COMPONENT:
+            return sizeof(unsigned short);
         case GL_R16UI:
-        case GL_RED_INTEGER:     return sizeof(unsigned short);
+        case GL_RED_INTEGER:
+            return sizeof(unsigned short);
         case GL_RG16UI:
-        case GL_RG_INTEGER:      return sizeof(unsigned short) * 2;
+        case GL_RG_INTEGER:
+            return sizeof(unsigned short) * 2;
         case GL_RGB16UI:
-        case GL_RGB_INTEGER:     return sizeof(unsigned short) * 3;
+        case GL_RGB_INTEGER:
+            return sizeof(unsigned short) * 3;
         case GL_RGBA16UI:
-        case GL_RGBA_INTEGER:    return sizeof(unsigned short) * 4;
+        case GL_RGBA_INTEGER:
+            return sizeof(unsigned short) * 4;
         }
         break;
     case GL_INT:
-        switch(format) {
+        switch (format)
+        {
         case GL_R32I:
-        case GL_RED_INTEGER:     return sizeof(int);
+        case GL_RED_INTEGER:
+            return sizeof(int);
         case GL_RG32I:
-        case GL_RG_INTEGER:      return sizeof(int) * 2;
+        case GL_RG_INTEGER:
+            return sizeof(int) * 2;
         case GL_RGB32I:
-        case GL_RGB_INTEGER:     return sizeof(int) * 3;
+        case GL_RGB_INTEGER:
+            return sizeof(int) * 3;
         case GL_RGBA32I:
-        case GL_RGBA_INTEGER:    return sizeof(int) * 4;
+        case GL_RGBA_INTEGER:
+            return sizeof(int) * 4;
         }
         break;
     case GL_UNSIGNED_INT:
-        switch(format) {
+        switch (format)
+        {
         case GL_DEPTH_COMPONENT16:
         case GL_DEPTH_COMPONENT24:
         // case GL_DEPTH_COMPONENT32_OES:
-        case GL_DEPTH_COMPONENT: return sizeof(unsigned int);
+        case GL_DEPTH_COMPONENT:
+            return sizeof(unsigned int);
         case GL_R32UI:
-        case GL_RED_INTEGER:     return sizeof(unsigned int);
+        case GL_RED_INTEGER:
+            return sizeof(unsigned int);
         case GL_RG32UI:
-        case GL_RG_INTEGER:      return sizeof(unsigned int) * 2;
+        case GL_RG_INTEGER:
+            return sizeof(unsigned int) * 2;
         case GL_RGB32UI:
-        case GL_RGB_INTEGER:     return sizeof(unsigned int) * 3;
+        case GL_RGB_INTEGER:
+            return sizeof(unsigned int) * 3;
         case GL_RGBA32UI:
-        case GL_RGBA_INTEGER:    return sizeof(unsigned int) * 4;
+        case GL_RGBA_INTEGER:
+            return sizeof(unsigned int) * 4;
         }
         break;
     case GL_UNSIGNED_SHORT_4_4_4_4:
     case GL_UNSIGNED_SHORT_5_5_5_1:
     case GL_UNSIGNED_SHORT_5_6_5:
-    // case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
-    // case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
+        // case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
+        // case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
         return sizeof(unsigned short);
     case GL_UNSIGNED_INT_10F_11F_11F_REV:
     case GL_UNSIGNED_INT_5_9_9_9_REV:
     case GL_UNSIGNED_INT_2_10_10_10_REV:
-    // case GL_UNSIGNED_INT_24_8_OES:
+        // case GL_UNSIGNED_INT_24_8_OES:
         return sizeof(unsigned int);
     case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
         return sizeof(float) + sizeof(unsigned int);
     case GL_FLOAT:
-        switch(format) {
+        switch (format)
+        {
         case GL_DEPTH_COMPONENT32F:
-        case GL_DEPTH_COMPONENT: return sizeof(float);
+        case GL_DEPTH_COMPONENT:
+            return sizeof(float);
         // case GL_ALPHA32F_EXT:
-        case GL_ALPHA:           return sizeof(float);
+        case GL_ALPHA:
+            return sizeof(float);
         // case GL_LUMINANCE32F_EXT:
-        case GL_LUMINANCE:       return sizeof(float);
+        case GL_LUMINANCE:
+            return sizeof(float);
         // case GL_LUMINANCE_ALPHA32F_EXT:
-        case GL_LUMINANCE_ALPHA: return sizeof(float) * 2;
-        case GL_RED:             return sizeof(float);
-        case GL_R32F:            return sizeof(float);
-        case GL_RG:              return sizeof(float) * 2;
-        case GL_RG32F:           return sizeof(float) * 2;
-        case GL_RGB:             return sizeof(float) * 3;
-        case GL_RGB32F:          return sizeof(float) * 3;
-        case GL_RGBA:            return sizeof(float) * 4;
-        case GL_RGBA32F:         return sizeof(float) * 4;
+        case GL_LUMINANCE_ALPHA:
+            return sizeof(float) * 2;
+        case GL_RED:
+            return sizeof(float);
+        case GL_R32F:
+            return sizeof(float);
+        case GL_RG:
+            return sizeof(float) * 2;
+        case GL_RG32F:
+            return sizeof(float) * 2;
+        case GL_RGB:
+            return sizeof(float) * 3;
+        case GL_RGB32F:
+            return sizeof(float) * 3;
+        case GL_RGBA:
+            return sizeof(float) * 4;
+        case GL_RGBA32F:
+            return sizeof(float) * 4;
         }
         break;
     case GL_HALF_FLOAT:
-    // case GL_HALF_FLOAT_OES:
-        switch(format) {
+        // case GL_HALF_FLOAT_OES:
+        switch (format)
+        {
         // case GL_ALPHA16F_EXT:
-        case GL_ALPHA:           return sizeof(unsigned short);
+        case GL_ALPHA:
+            return sizeof(unsigned short);
         // case GL_LUMINANCE16F_EXT:
-        case GL_LUMINANCE:       return sizeof(unsigned short);
+        case GL_LUMINANCE:
+            return sizeof(unsigned short);
         // case GL_LUMINANCE_ALPHA16F_EXT:
-        case GL_LUMINANCE_ALPHA: return sizeof(unsigned short) * 2;
-        case GL_RED:             return sizeof(unsigned short);
-        case GL_R16F:            return sizeof(unsigned short);
-        case GL_RG:              return sizeof(unsigned short) * 2;
-        case GL_RG16F:           return sizeof(unsigned short) * 2;
-        case GL_RGB:             return sizeof(unsigned short) * 3;
-        case GL_RGB16F:          return sizeof(unsigned short) * 3;
-        case GL_RGBA:            return sizeof(unsigned short) * 4;
-        case GL_RGBA16F:         return sizeof(unsigned short) * 4;
+        case GL_LUMINANCE_ALPHA:
+            return sizeof(unsigned short) * 2;
+        case GL_RED:
+            return sizeof(unsigned short);
+        case GL_R16F:
+            return sizeof(unsigned short);
+        case GL_RG:
+            return sizeof(unsigned short) * 2;
+        case GL_RG16F:
+            return sizeof(unsigned short) * 2;
+        case GL_RGB:
+            return sizeof(unsigned short) * 3;
+        case GL_RGB16F:
+            return sizeof(unsigned short) * 3;
+        case GL_RGBA:
+            return sizeof(unsigned short) * 4;
+        case GL_RGBA16F:
+            return sizeof(unsigned short) * 4;
         }
         break;
     }
 
     return 0;
 }
-
 
 /**
  * @brief opengl各种类型数据的sizeof函数
@@ -213,7 +271,8 @@ int pixel_size_calc(GLenum format, GLenum type) {
 size_t gl_sizeof(GLenum type)
 {
     size_t retval = 0;
-    switch(type) {
+    switch (type)
+    {
     case GL_BYTE:
     case GL_UNSIGNED_BYTE:
         retval = 1;
@@ -221,7 +280,7 @@ size_t gl_sizeof(GLenum type)
     case GL_SHORT:
     case GL_UNSIGNED_SHORT:
     case GL_HALF_FLOAT:
-    // case GL_HALF_FLOAT_OES:
+        // case GL_HALF_FLOAT_OES:
         retval = 2;
         break;
     case GL_IMAGE_2D:
@@ -231,7 +290,7 @@ size_t gl_sizeof(GLenum type)
     case GL_FLOAT:
     case GL_FIXED:
     case GL_BOOL:
-        retval =  4;
+        retval = 4;
         break;
 #ifdef GL_DOUBLE
     case GL_DOUBLE:
@@ -337,35 +396,34 @@ size_t gl_sizeof(GLenum type)
         retval = 4;
         break;
     case GL_UNSIGNED_SHORT_4_4_4_4:
-	case GL_UNSIGNED_SHORT_5_5_5_1:
-	case GL_UNSIGNED_SHORT_5_6_5:
-	// case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
-	// case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
+    case GL_UNSIGNED_SHORT_5_5_5_1:
+    case GL_UNSIGNED_SHORT_5_6_5:
+        // case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
+        // case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
         retval = 2;
         break;
-	case GL_INT_2_10_10_10_REV:
-	case GL_UNSIGNED_INT_10F_11F_11F_REV:
-	case GL_UNSIGNED_INT_5_9_9_9_REV:
-	case GL_UNSIGNED_INT_2_10_10_10_REV:
-	// case GL_UNSIGNED_INT_24_8_OES:
+    case GL_INT_2_10_10_10_REV:
+    case GL_UNSIGNED_INT_10F_11F_11F_REV:
+    case GL_UNSIGNED_INT_5_9_9_9_REV:
+    case GL_UNSIGNED_INT_2_10_10_10_REV:
+        // case GL_UNSIGNED_INT_24_8_OES:
         retval = 4;
         break;
-	case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
-		retval = 4 + 4;
+    case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
+        retval = 4 + 4;
         break;
     default:
-        printf("**** ERROR unknown type 0x%x (%s,%d)\n", type, __FUNCTION__,__LINE__);
+        printf("**** ERROR unknown type 0x%x (%s,%d)\n", type, __FUNCTION__, __LINE__);
         retval = 4;
-    } 
+    }
     return retval;
-
 }
 
-
-size_t gl_pname_size(GLenum pname){
+size_t gl_pname_size(GLenum pname)
+{
     size_t s = 0;
 
-    switch(pname)
+    switch (pname)
     {
     case GL_DEPTH_TEST:
     case GL_DEPTH_FUNC:
@@ -629,13 +687,13 @@ size_t gl_pname_size(GLenum pname){
     case GL_SMOOTH_POINT_SIZE_RANGE:
     case GL_SMOOTH_LINE_WIDTH_RANGE:
     case GL_SAMPLE_POSITION:
-        s= 2;
+        s = 2;
         break;
     case GL_SPOT_DIRECTION:
     case GL_POINT_DISTANCE_ATTENUATION:
     case GL_CURRENT_NORMAL:
     case GL_COMPUTE_WORK_GROUP_SIZE:
-        s =  3;
+        s = 3;
         break;
     case GL_CURRENT_VERTEX_ATTRIB:
     case GL_CURRENT_TEXTURE_COORDS:
@@ -655,13 +713,13 @@ size_t gl_pname_size(GLenum pname){
     case GL_COLOR_WRITEMASK:
     case GL_AMBIENT_AND_DIFFUSE:
     case GL_BLEND_COLOR:
-        s =  4;
+        s = 4;
         break;
     case GL_MODELVIEW_MATRIX:
     case GL_PROJECTION_MATRIX:
     case GL_TEXTURE_MATRIX:
         s = 16;
-    break;
+        break;
     default:
         printf("gl_pname_size: unknow pname 0x%08x\n", pname);
         s = 1; // assume 1
@@ -669,130 +727,317 @@ size_t gl_pname_size(GLenum pname){
     return s;
 }
 
+void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
+{
 
-void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer){
-
-    if(framebuffer==0){
-        GLint fbo0 = ((Opengl_Context *)context)->fbo0;
-        framebuffer=fbo0;
+    if (framebuffer == 0)
+    {
+        GLuint fbo0 = ((Opengl_Context *)context)->fbo0;
+        framebuffer = fbo0;
     }
+    express_printf("bind framebuffer %u\n",framebuffer);
     glBindFramebuffer(target, framebuffer);
 }
-
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
 {
 
-    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    Buffer_Status *status = bound_buffer->buffer_status;
-    GLint id = buffer;
-    //由于这里status是指针，所以对这个status的更新也会直接反映到vao相应的status上去
-    switch (target)
-    {
-    case GL_ARRAY_BUFFER:
-        status->array_buffer = id;
-        express_printf("bind GL_ARRAY_BUFFER %u\n",buffer);
-        //bound_buffer->vao_vbo[bound_buffer->vertex_array_buffer] = id;
-        break;
-    case GL_ELEMENT_ARRAY_BUFFER:
-        express_printf("bind GL_ELEMENT_ARRAY_BUFFER %u\n",buffer);
+    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    // // Buffer_Status *status = bound_buffer->buffer_status;
+    // GLint id = buffer;
+    // //由于这里status是指针，所以对这个status的更新也会直接反映到vao相应的status上去
+    // switch (target)
+    // {
+    // case GL_ARRAY_BUFFER:
+    //     status->array_buffer = id;
+    //     express_printf("bind GL_ARRAY_BUFFER %u\n",buffer);
+    //     //bound_buffer->vao_vbo[bound_buffer->vertex_array_buffer] = id;
+    //     break;
+    // case GL_ELEMENT_ARRAY_BUFFER:
+    //     express_printf("bind GL_ELEMENT_ARRAY_BUFFER %u\n",buffer);
 
-        status->element_array_buffer = id;
-        //bound_buffer->vao_ebo[bound_buffer->vertex_array_buffer] = id;
-        break;
-    case GL_COPY_READ_BUFFER:
-        status->copy_read_buffer = id;
-        break;
-    case GL_COPY_WRITE_BUFFER:
-        status->copy_write_buffer = id;
-        break;
-    case GL_PIXEL_PACK_BUFFER:
-        status->pixel_pack_buffer = id;
-        break;
-    case GL_PIXEL_UNPACK_BUFFER:
-        status->pixel_unpack_buffer = id;
-        break;
-    case GL_TRANSFORM_FEEDBACK_BUFFER:
-        status->transform_feedback_buffer = id;
-        break;
-    case GL_UNIFORM_BUFFER:
-        status->uniform_buffer = id;
-        break;
-    case GL_ATOMIC_COUNTER_BUFFER:
-        status->atomic_counter_buffer = id;
-        break;
-    case GL_DISPATCH_INDIRECT_BUFFER:
-        status->dispatch_indirect_buffer = id;
-        break;
-    case GL_DRAW_INDIRECT_BUFFER:
-        status->draw_indirect_buffer = id;
-        break;
-    case GL_SHADER_STORAGE_BUFFER:
-        status->shader_storage_buffer = id;
-    }
+    //     status->element_array_buffer = id;
+    //     //bound_buffer->vao_ebo[bound_buffer->vertex_array_buffer] = id;
+    //     break;
+    // case GL_COPY_READ_BUFFER:
+    //     status->copy_read_buffer = id;
+    //     break;
+    // case GL_COPY_WRITE_BUFFER:
+    //     status->copy_write_buffer = id;
+    //     break;
+    // case GL_PIXEL_PACK_BUFFER:
+    //     status->pixel_pack_buffer = id;
+    //     break;
+    // case GL_PIXEL_UNPACK_BUFFER:
+    //     status->pixel_unpack_buffer = id;
+    //     break;
+    // case GL_TRANSFORM_FEEDBACK_BUFFER:
+    //     status->transform_feedback_buffer = id;
+    //     break;
+    // case GL_UNIFORM_BUFFER:
+    //     status->uniform_buffer = id;
+    //     break;
+    // case GL_ATOMIC_COUNTER_BUFFER:
+    //     status->atomic_counter_buffer = id;
+    //     break;
+    // case GL_DISPATCH_INDIRECT_BUFFER:
+    //     status->dispatch_indirect_buffer = id;
+    //     break;
+    // case GL_DRAW_INDIRECT_BUFFER:
+    //     status->draw_indirect_buffer = id;
+    //     break;
+    // case GL_SHADER_STORAGE_BUFFER:
+    //     status->shader_storage_buffer = id;
+    // }
+    express_printf("bind buffer %u\n",buffer);
 
     glBindBuffer(target, buffer);
 }
-
-
-
 
 void d_glDeleteProgram_origin(void *context, GLuint program)
 {
     glDeleteProgram(program);
 }
 
-
 void d_glLinkProgram_origin(void *context, GLuint program)
 {
     glLinkProgram(program);
 }
 
-
-
-void d_glShaderSource_origin(void *context,GLuint shader, GLsizei count, const GLint *length, const GLchar *const*string){
+void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
+{
     // express_printf("gl shader source:\n%s",string[0]);
-    glShaderSource(shader,count,string,length);
+    glShaderSource(shader, count, string, length);
 }
 
+void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
+{
+    const GLubyte *static_string = glGetString(name);
+    int len = strlen((const char *)static_string);
+    if (len >= 1024)
+    {
+        len = 1023;
+        printf("error, glGetString string too long %x %s", name, static_string);
+    }
+    memcpy(buffer, static_string, len);
+    //#1024
+}
 
-void opengl_context_create(void *context){
-    Opengl_Context *opengl_context=(Opengl_Context *)context;
+void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer)
+{
+    const GLubyte *static_string = glGetStringi(name, index);
+    int len = strlen((const char *)static_string);
+    if (len >= 1024)
+    {
+        len = 1023;
+        printf("error, glGetStringi string too long %x %u %s", name, index, static_string);
+    }
+    memcpy(buffer, static_string, len);
+}
+
+void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES imageSize)
+{
+}
+
+void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image)
+{
+}
+
+void resource_context_init(Resource_Context *resources, Share_Resources *share_resources)
+{
+    if (share_resources != NULL)
+    {
+        resources->share_resources = share_resources;
+        resources->share_resources->counter += 1;
+    }
+    else
+    {
+        resources->share_resources = g_malloc(sizeof(Share_Resources));
+        memset(resources->share_resources, 0, sizeof(Share_Resources));
+        resources->share_resources->counter = 1;
+    }
+
+    resources->exclusive_resources = g_malloc(sizeof(Exclusive_Resources));
+    memset(resources->exclusive_resources, 0, sizeof(Exclusive_Resources));
+
+    resources->texture_resource = &(resources->share_resources->texture_resource);
+    resources->buffer_resource = &(resources->share_resources->buffer_resource);
+    resources->render_buffer_resource = &(resources->share_resources->render_buffer_resource);
+    resources->sampler_resource = &(resources->share_resources->sample_resource);
+
+    resources->shader_resource = &(resources->share_resources->shader_resource);
+    resources->program_resource = &(resources->share_resources->program_resource);
+
+    resources->sync_resource = &(resources->share_resources->sync_resource);
+
+    resources->frame_buffer_resource = &(resources->exclusive_resources->frame_buffer_resource);
+    resources->program_pipeline_resource = &(resources->exclusive_resources->program_pipeline_resource);
+    resources->transform_feedback_resource = &(resources->exclusive_resources->transform_feedback_resource);
+    resources->vertex_array_resource = &(resources->exclusive_resources->vertex_array_resource);
+
+    resources->query_resource = &(resources->exclusive_resources->query_resource);
+}
+
+#define DESTROY_RESOURCES(resource_name, resource_delete)                                              \
+    if (resources->resource_name->resource_id_map != NULL)                                             \
+    {                                                                                                  \
+        for (int i = 1; i <= resources->resource_name->max_id; i++)                                    \
+        {                                                                                              \
+            if (resources->resource_name->resource_id_map[i] == 0)                                     \
+                continue;                                                                              \
+            if (now_delete_len < 1000)                                                                 \
+            {                                                                                          \
+                delete_buffers[now_delete_len] = (GLuint)resources->resource_name->resource_id_map[i]; \
+                now_delete_len += 1;                                                                   \
+            }                                                                                          \
+            else                                                                                       \
+            {                                                                                          \
+                resource_delete(now_delete_len, delete_buffers);                                       \
+                now_delete_len = 0;                                                                    \
+            }                                                                                          \
+        }                                                                                              \
+        if (now_delete_len != 0)                                                                       \
+        {                                                                                              \
+            resource_delete(now_delete_len, delete_buffers);                                           \
+            now_delete_len = 0;                                                                        \
+        }                                                                                              \
+        g_free(resources->resource_name->resource_id_map);                                             \
+    }
+
+void resource_context_destroy(Resource_Context *resources)
+{
+    GLuint delete_buffers[1000];
+    GLuint now_delete_len = 0;
+    resources->share_resources->counter -= 1;
+    if (resources->share_resources->counter == 0)
+    {
+        DESTROY_RESOURCES(texture_resource, glDeleteTextures);
+        DESTROY_RESOURCES(buffer_resource, glDeleteBuffers);
+        DESTROY_RESOURCES(render_buffer_resource, glDeleteRenderbuffers);
+        DESTROY_RESOURCES(sampler_resource, glDeleteSamplers);
+
+        if (resources->shader_resource->resource_id_map != NULL)
+        {
+            for (int i = 1; i <= resources->shader_resource->max_id; i++)
+            {
+                if (resources->shader_resource->resource_id_map[i] != 0)
+                {
+                    glDeleteShader((GLuint)resources->shader_resource->resource_id_map[i]);
+                }
+            }
+            g_free(resources->shader_resource->resource_id_map);
+        }
+
+        if (resources->program_resource->resource_id_map != NULL)
+        {
+            for (int i = 1; i <= resources->program_resource->max_id; i++)
+            {
+                if (resources->program_resource->resource_id_map[i] != 0)
+                {
+                    glDeleteProgram((GLuint)resources->program_resource->resource_id_map[i]);
+                }
+            }
+            g_free(resources->program_resource->resource_id_map);
+        }
+
+        if (resources->sync_resource->resource_id_map != NULL)
+        {
+            for (int i = 1; i <= resources->sync_resource->max_id; i++)
+            {
+                if (resources->sync_resource->resource_id_map[i] != 0)
+                {
+                    glDeleteSync((GLsync)resources->sync_resource->resource_id_map[i]);
+                }
+            }
+            g_free(resources->sync_resource->resource_id_map);
+        }
+
+        g_free(resources->share_resources);
+    }
+
+    DESTROY_RESOURCES(frame_buffer_resource, glDeleteFramebuffers);
+    DESTROY_RESOURCES(program_pipeline_resource, glDeleteProgramPipelines);
+    DESTROY_RESOURCES(transform_feedback_resource, glDeleteTransformFeedbacks);
+    DESTROY_RESOURCES(vertex_array_resource, glDeleteVertexArrays);
+
+    DESTROY_RESOURCES(query_resource, glDeleteQueries);
+
+    g_free(resources->exclusive_resources);
+
+    // if (resources->texture_resource->resource_id_map != NULL)
+    // {
+    //     for (int i = 1; i <= resources->texture_resource->max_id; i++)
+    //     {
+    //         if (resources->texture_resource->resource_id_map[i] == 0)
+    //         {
+    //             continue;
+    //         }
+    //         if (now_delete_len < 1000)
+    //         {
+    //             delete_buffers[now_delete_len] = (GLuint)resources->texture_resource->resource_id_map[i];
+    //             now_delete_len += 1;
+    //         }
+    //         else
+    //         {
+    //             glDeleteTextures(now_delete_len, delete_buffers);
+    //             now_delete_len = 0;
+    //         }
+    //     }
+    //     if (now_delete_len != 0)
+    //     {
+    //         glDeleteTextures(now_delete_len, delete_buffers);
+    //         now_delete_len = 0;
+    //     }
+    //     g_free(resources->texture_resource->resource_id_map);
+    // }
+}
+
+void opengl_context_create(void *context, void *share_context)
+{
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+
+    Share_Resources *share_resources = NULL;
+    if (share_context != NULL)
+    {
+        share_resources = ((Opengl_Context *)share_context)->resource_status.share_resources;
+    }
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
-    opengl_context->pixel_store_status.pack_alignment=4;
-    opengl_context->pixel_store_status.unpack_alignment=4;
+    // opengl_context->pixel_store_status.pack_alignment=4;
+    // opengl_context->pixel_store_status.unpack_alignment=4;
 
-    opengl_context->buffer_map=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_buffer_map_destroy);
+    opengl_context->buffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
 
-    bound_buffer->vao_status=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_vao_status_destroy);
-    bound_buffer->vao_point_data=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_vao_point_data_destroy);
+    // bound_buffer->vao_status=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_vao_status_destroy);
+    bound_buffer->vao_point_data = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_vao_point_data_destroy);
 
-    bound_buffer->buffer_type=g_hash_table_new(g_direct_hash, g_direct_equal);
-    
-    Buffer_Status *status=g_malloc(sizeof(Buffer_Status));
-    memset(status,0,sizeof(Buffer_Status));
-    g_hash_table_insert(bound_buffer->vao_status, GINT_TO_POINTER(0), (gpointer)status);
+    // bound_buffer->buffer_type=g_hash_table_new(g_direct_hash, g_direct_equal);
 
+    // Buffer_Status *status=g_malloc(sizeof(Buffer_Status));
+    // memset(status,0,sizeof(Buffer_Status));
+    // g_hash_table_insert(bound_buffer->vao_status, GINT_TO_POINTER(0), (gpointer)status);
 
-    Attrib_Point *temp_point=g_malloc(sizeof(Attrib_Point));
-    memset(temp_point,0,sizeof(Attrib_Point));
+    Attrib_Point *temp_point = g_malloc(sizeof(Attrib_Point));
+    memset(temp_point, 0, sizeof(Attrib_Point));
     // // GLuint temp_buffer[4];
     // // glGenBuffers(4,temp_buffer);
     // temp_point->buffer_object=0;
     // temp_point->indices_buffer_object=0;
-    glGenBuffers(1,&(temp_point->indices_buffer_object));
-    glGenBuffers(MAX_VERTEX_ATTRIBS_NUM,temp_point->buffer_object);
+    glGenBuffers(1, &(temp_point->indices_buffer_object));
+    glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, temp_point->buffer_object);
 
     g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(0), (gpointer)temp_point);
 
-    bound_buffer->buffer_status=status;
-    bound_buffer->attrib_point=temp_point;
+    // bound_buffer->buffer_status=status;
+    bound_buffer->attrib_point = temp_point;
 
-    
-    glGenBuffers(1,&(bound_buffer->asyn_unpack_texture_buffer));
-    glGenBuffers(1,&(bound_buffer->asyn_pack_texture_buffer));
+    resource_context_init(&(opengl_context->resource_status), share_resources);
+
+    glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
+    glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+
+    //这两个选项在gles中是默认开启，这样能够在着色器中获取到一些内建变量，所以在gl中要手动开启
     glEnable(GL_PROGRAM_POINT_SIZE);
     glEnable(GL_POINT_SPRITE);
     // bound_buffer->asyn_pack_texture_buffer=0;
@@ -800,17 +1045,16 @@ void opengl_context_create(void *context){
 
     opengl_context->fbo0 = 0;
 
-    opengl_context->has_init=1;
-
+    opengl_context->has_init = 1;
 }
 
-
-
-void opengl_context_destroy(void *context){
+void opengl_context_destroy(void *context)
+{
     express_printf("opengl context destroy\n");
-    Opengl_Context *opengl_context=(Opengl_Context *)context;
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
 
-    if(!opengl_context->has_init){
+    if (!opengl_context->has_init)
+    {
         return;
     }
 
@@ -819,43 +1063,42 @@ void opengl_context_destroy(void *context){
     //这三个remove后都有默认的销毁函数
     // g_hash_table_remove_all(opengl_context->buffer_map);
     g_hash_table_destroy(opengl_context->buffer_map);
-    g_hash_table_destroy(bound_buffer->vao_status);
+    // g_hash_table_destroy(bound_buffer->vao_status);
     g_hash_table_destroy(bound_buffer->vao_point_data);
-    
+
+    resource_context_destroy(&(opengl_context->resource_status));
+
     //但是这个没有
-    g_hash_table_destroy(bound_buffer->buffer_type);
+    // g_hash_table_destroy(bound_buffer->buffer_type);
 
-    opengl_context->has_init=0;
-
+    opengl_context->has_init = 0;
 }
 
-
-
-
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
-static void g_buffer_map_destroy(gpointer data){
+static void g_buffer_map_destroy(gpointer data)
+{
     express_printf("buffer_map destroy\n");
-    Guest_Host_Map *map_res=(Guest_Host_Map *)data;
+    Guest_Host_Map *map_res = (Guest_Host_Map *)data;
     g_free(map_res);
 }
 
+// static void g_vao_status_destroy(gpointer data)
+// {
+//     express_printf("vao_status destroy\n");
 
-static void g_vao_status_destroy(gpointer data){
-    express_printf("vao_status destroy\n");
+//     Buffer_Status *vao_status = (Buffer_Status *)data;
+//     g_free(vao_status);
+// }
 
-    Buffer_Status *vao_status=(Buffer_Status *)data;
-    g_free(vao_status);
-}
+static void g_vao_point_data_destroy(gpointer data)
+{
+    Attrib_Point *vao_point = (Attrib_Point *)data;
 
-
-static void g_vao_point_data_destroy(gpointer data){
-    Attrib_Point *vao_point=(Attrib_Point *)data;
-
-    glDeleteBuffers(1,&(vao_point->indices_buffer_object));
-    glDeleteBuffers(MAX_VERTEX_ATTRIBS_NUM,vao_point->buffer_object);
+    glDeleteBuffers(1, &(vao_point->indices_buffer_object));
+    glDeleteBuffers(MAX_VERTEX_ATTRIBS_NUM, vao_point->buffer_object);
 
     express_printf("vao_point destroy\n");
-    
+
     // GLuint buffer_index[2];
     // int t=0;
     // if(vao_point->indices_buffer_object!=0){
@@ -876,143 +1119,158 @@ static void g_vao_point_data_destroy(gpointer data){
     //     }
     // }
 
-
     g_free(vao_point);
 }
 
-
-
-void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d){
-    printf("glTestInt asyn %d,%u,%f,%lf\n",a,b,c,d);
+void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d)
+{
+    printf("glTestInt asyn %d,%u,%f,%lf\n", a, b, c, d);
     fflush(stdout);
 }
 
-void glPrintfAsyn(GLint a, GLuint size, GLdouble c, const GLchar *out_string){
+void glPrintfAsyn(GLint a, GLuint size, GLdouble c, const GLchar *out_string)
+{
 
-    printf("glPrintfAsyn asyn string %d,%u,%lf,%s\n",a,size,c,out_string);
+    printf("glPrintfAsyn asyn string %d,%u,%lf,%s\n", a, size, c, out_string);
     return;
 }
 
-GLint glTestInt1(GLint a, GLuint b){
-    express_printf("glTestInt1 %d,%u\n",a,b);
+GLint glTestInt1(GLint a, GLuint b)
+{
+    express_printf("glTestInt1 %d,%u\n", a, b);
     //fflush(stdout);
     return 576634565;
 }
-GLuint glTestInt2(GLint a, GLuint b){
-    printf("glTestInt2 %d,%u\n",a,b);
+GLuint glTestInt2(GLint a, GLuint b)
+{
+    printf("glTestInt2 %d,%u\n", a, b);
     fflush(stdout);
     return 4000001200u;
 }
 
-GLint64 glTestInt3(GLint64 a, GLuint64 b){
-printf("glTestInt3 %lld,%llu\n",a,b);
-fflush(stdout);
+GLint64 glTestInt3(GLint64 a, GLuint64 b)
+{
+    printf("glTestInt3 %lld,%llu\n", a, b);
+    fflush(stdout);
     return 453489431344456;
-
 }
-GLuint64 glTestInt4(GLint64 a, GLuint64 b){
-    printf("glTestInt4 %lld,%llu\n",a,b);
+GLuint64 glTestInt4(GLint64 a, GLuint64 b)
+{
+    printf("glTestInt4 %lld,%llu\n", a, b);
     fflush(stdout);
     return 436004354364364345;
-
 }
 
-GLfloat glTestInt5(GLint a, GLuint b){
-     printf("glTestInt5 %d,%u\n",a,b);
-     fflush(stdout);
+GLfloat glTestInt5(GLint a, GLuint b)
+{
+    printf("glTestInt5 %d,%u\n", a, b);
+    fflush(stdout);
     return 3.1415926;
 }
-GLdouble glTestInt6(GLint a, GLuint b){
-     printf("glTestInt6 %d,%u\n",a,b);
-     fflush(stdout);
+GLdouble glTestInt6(GLint a, GLuint b)
+{
+    printf("glTestInt6 %d,%u\n", a, b);
+    fflush(stdout);
     return 3.1415926535;
 }
 
-void glTestPointer1(GLint a, const GLint *b){
-    printf("glTestPointer1 %d ",a);
-    for(int i=0;i<10;i++){
-        printf("%d ",b[i]);
+void glTestPointer1(GLint a, const GLint *b)
+{
+    printf("glTestPointer1 %d ", a);
+    for (int i = 0; i < 10; i++)
+    {
+        printf("%d ", b[i]);
     }
     printf("\n");
     fflush(stdout);
     return;
 }
 
-void glTestPointer2(GLint a, const GLint *b, GLint *c){
-    printf("glTestPointer2 %d %d\n",a,*b);
-    for(int i=0;i<10;i++){
-        c[i]=b[i];
+void glTestPointer2(GLint a, const GLint *b, GLint *c)
+{
+    printf("glTestPointer2 %d %d\n", a, *b);
+    for (int i = 0; i < 10; i++)
+    {
+        c[i] = b[i];
     }
     fflush(stdout);
     return;
 }
 
-
-GLint glTestPointer4(GLint a, const GLint *b, GLint *c){
-     printf("glTestPointer4 %d,%d\n",a,*b);
-    for(int i=0;i<1000;i++){
-        c[i]=b[i];
+GLint glTestPointer4(GLint a, const GLint *b, GLint *c)
+{
+    printf("glTestPointer4 %d,%d\n", a, *b);
+    for (int i = 0; i < 1000; i++)
+    {
+        c[i] = b[i];
     }
     fflush(stdout);
     return 12456687;
 }
 
-
-
-GLint glTestPointer3(GLint a, const GLint *b, GLint *c){
+GLint d_glTestPointer3(void *context, GLint a, const GLint *b, GLint *c)
+{
 
     int len;
-    char *temp = g_malloc(a*sizeof(int));
-    memset(temp,0,a*sizeof(int));
-    printf("glTestPointer3 %d\n",a);
-    guest_write((Guest_Mem *)b,temp,0,a*sizeof(int));
+    char *temp = g_malloc(a * sizeof(int));
+    memset(temp, 0, a * sizeof(int));
+    printf("glTestPointer3 %d\n", a);
+    guest_write((Guest_Mem *)b, temp, 0, a * sizeof(int));
 
     char *temp_s[100];
-    int loc=0;
-    for(int i=a/2;i<a/2+10;i++){
-        loc+=sprintf(temp_s+loc,"%d ",temp[i]);
+    int loc = 0;
+    for (int i = a / 2; i < a / 2 + 10; i++)
+    {
+        loc += sprintf(temp_s + loc, "%d ", temp[i]);
     }
-    printf("glTestPointer3 %s\n",temp_s);
+    printf("glTestPointer3 %s\n", temp_s);
 
-    guest_read((Guest_Mem *)c,temp,0,a*sizeof(int));
+    guest_read((Guest_Mem *)c, temp, 0, a * sizeof(int));
 
     fflush(stdout);
     return 12456687;
 }
 
-
-
-void glTestString(GLint a, GLint count, const GLchar *const*strings, GLint buf_len, GLchar *char_buf){
-    printf("glTestString %d %d %d\nString:\n",a,count,buf_len);
-    for(int i=0;i<count;i++){
-        printf("%s\n",strings[i]);
+void glTestString(GLint a, GLint count, const GLchar *const *strings, GLint buf_len, GLchar *char_buf)
+{
+    printf("glTestString %d %d %d\nString:\n", a, count, buf_len);
+    for (int i = 0; i < count; i++)
+    {
+        printf("%s\n", strings[i]);
     }
-    char *t="printf ok!";
-    memcpy(char_buf,t,strlen(t));
+    char *t = "printf ok!";
+    memcpy(char_buf, t, strlen(t));
     fflush(stdout);
 }
 
-void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string){
+void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
+{
     // char *t="temp test abcd";
     // memcpy(out_string,t,strlen(t));
     char *temp = g_malloc(buf_len);
-    guest_write((Guest_Mem *)out_string,temp,0,buf_len);
+    guest_write((Guest_Mem *)out_string, temp, 0, buf_len);
 
-    if(buf_len<100){
-        printf("glPrintf %d %s\n",buf_len,temp);
-
-    }else{
-        int flag=1;
-        for(int i=0;i<buf_len;i++){
-            if(temp[i]!='c'){
-                flag=0;
+    if (buf_len < 100)
+    {
+        printf("glPrintf %d %s\n", buf_len, temp);
+    }
+    else
+    {
+        int flag = 1;
+        for (int i = 0; i < buf_len; i++)
+        {
+            if (temp[i] != 'c')
+            {
+                flag = 0;
             }
         }
-        if(flag==0){
+        if (flag == 0)
+        {
             printf("glPrintf check error!\n");
-        }else{
+        }
+        else
+        {
             printf("glPrintf check ok!\n");
-
         }
     }
     g_free(temp);
@@ -1022,17 +1280,15 @@ void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string){
     return;
 }
 
-
-
 // glInOutTest GLint a, GLint b, const GLchar *e#strlen(e), GLint *c#sizeof(GLint), GLdouble *d#sizeof(GLdouble), GLsizei buf_len, GLchar *f#buf_len
 
 // glSaveLongTime GLuint a, GLdouble b, const void *pointer#a
 
-void d_glInOutTest(void *context,GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f){
+void d_glInOutTest(void *context, GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f)
+{
     // printf("glInOutTest %d,%d   buf_len%llu\n",a,b,buf_len);
     // *c=78646313;
     // *d=3.141592653543;
-    
 
     // char *temp;
 

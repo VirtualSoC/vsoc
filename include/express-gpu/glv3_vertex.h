@@ -7,23 +7,23 @@
 #include "express-gpu/express_gpu_opengl.h"
 
 
-#define SYNC_TIMEOUT 10000000
+// #define SYNC_TIMEOUT 10000000
 
 
 #define BUFFER_MULTIPLY_FACTOR 2
 
 
 
-void safe_release_point_data_data(Attrib_Point *point_data,int index);
+// void safe_release_point_data_data(Attrib_Point *point_data,int index);
 
 // void set_attrib_point_index(void *context,Scatter_Data *data,int len);
-void set_attrib_point_index(void *context,void *data,int len);
+// void set_attrib_point_index(void *context,void *data,int len);
 
 
-void set_attrib_point(void *context,GLsizei instancecount);
+// void set_attrib_point(void *context,GLsizei instancecount);
 
 
-void flush_array_buffer(Attrib_Point *point_data, GLint instancecount);
+// void flush_array_buffer(Attrib_Point *point_data, GLint instancecount);
 
 
 
@@ -50,15 +50,12 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
 void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr pointer);
 
 
-void d_glGenVertexArrays_origin(void *context, GLsizei n, GLuint *arrays);
-void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *arrays);
-void d_glBindVertexArray_origin(void *context, GLuint array);
+// void d_glGenVertexArrays_origin(void *context, GLsizei n, GLuint *arrays);
+// void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *arrays);
+void d_glBindVertexArray_special(void *context, GLuint array);
 
 void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor);
-void d_glGetVertexAttribIiv_origin(void *context, GLuint index, GLenum pname, GLint *params);
-void d_glGetVertexAttribIuiv_origin(void *context, GLuint index, GLenum pname, GLuint *params);
-void d_glGetVertexAttribfv_origin(void *context, GLuint index, GLenum pname, GLfloat *params);
-void d_glGetVertexAttribiv_origin(void *context, GLuint index, GLenum pname, GLint *params);
+
 
 void d_glDisableVertexAttribArray_origin(void *context, GLuint index);
 void d_glEnableVertexAttribArray_origin(void *context, GLuint index);
