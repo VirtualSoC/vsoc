@@ -1,0 +1,6 @@
+//异步小数据，两边都不需要进行特殊处理,直接调用这些函数就行
+
+
+
+EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx
+
