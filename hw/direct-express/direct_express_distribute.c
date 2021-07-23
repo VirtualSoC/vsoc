@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-// #define STD_DEBUG_LOG
+//#define STD_DEBUG_LOG
 
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_handle_thread.h"
@@ -625,6 +625,7 @@ void push_to_thread(Direct_Express_Call *call)
     Express_Device_Info *device_info = (Express_Device_Info *)g_hash_table_lookup(device_thread_info, GINT_TO_POINTER(device_type_id));
     if (device_info == NULL)
     {
+        express_printf("something bad happened %llu %llu\n", device_type_id, fun_id);
         call->callback(call, 0);
         return;
     }
@@ -1200,6 +1201,6 @@ void express_device_init_common(Express_Device_Info *info)
     {
         device_thread_info = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
-
+    printf("type id %llu\n", info->type_id);
     g_hash_table_insert(device_thread_info, GINT_TO_POINTER(info->type_id), (gpointer)info);
 }

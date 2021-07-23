@@ -4,6 +4,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/include/**",
                 "C:\\msys64\\mingw64\\include\\**",
                 "C:\\msys64\\mingw64\\lib\\**",
                 "C:/msys64/mingw64/include/pixman-1/",

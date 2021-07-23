@@ -25,7 +25,6 @@
 
 // } Native_Window;
 
-
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
@@ -314,11 +313,215 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '1-1-1', 4/3 functions*******/
+    case FUNID_getEGLConfigParam_special:
 
-        /******* file '1-1-2' *******/
+    {
 
-        /******* end of file '1-1-2', 1/3 functions*******/
+        /* readline: "int getEGLConfigParam_special int *num_configs#sizeof(int)" */
+        /* func name: "getEGLConfigParam_special" */
+        /* args: [{'type': 'int*', 'name': 'num_configs', 'ptr': 'out', 'ptr_len': 'sizeof(int)', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "int" */
+        /* type: "0" */
+
+        /* Define variables */
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_getEGLConfigParam_special)
+        {
+            break;
+        }
+
+        int out_buf_len = all_para[0].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        int *num_configs = (int *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(int);
+
+        int *ret_ptr = (int *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(int);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        int ret = d_getEGLConfigParam_special(render_context, num_configs);
+        *ret_ptr = ret;
+
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+
+    case FUNID_getEGLConfigs_special:
+
+    {
+
+        /* readline: "EGLint getEGLConfigs_special EGLint num_attrs, EGLint *attr_list#num_attrs*sizeof(EGLint)" */
+        /* func name: "getEGLConfigs_special" */
+        /* args: [{'type': 'EGLint', 'name': 'num_attrs', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'attr_list', 'ptr': 'out', 'ptr_len': 'num_attrs*sizeof(EGLint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "EGLint" */
+        /* type: "0" */
+
+        /* Define variables */
+        EGLint num_attrs;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_getEGLConfigs_special)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        num_attrs = *(EGLint *)(temp + temp_loc);
+        temp_loc += 4;
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLint *attr_list = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += num_attrs * sizeof(EGLint);
+
+        EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        EGLint ret = d_getEGLConfigs_special(render_context, num_attrs, attr_list);
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+
+    case FUNID_getEGLVersion_special:
+
+    {
+
+        /* readline: "EGLBoolean getEGLVersion_special EGLint *ver_major#sizeof(EGLint), EGLint *ver_minor#sizeof(EGLint)" */
+        /* func name: "getEGLVersion_special" */
+        /* args: [{'type': 'EGLint*', 'name': 'ver_major', 'ptr': 'out', 'ptr_len': 'sizeof(EGLint)', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'ver_minor', 'ptr': 'out', 'ptr_len': 'sizeof(EGLint)', 'loc': 1, 'ptr_ptr': False}] */
+        /* ret: "EGLBoolean" */
+        /* type: "0" */
+
+        /* TODO: More than one ptr, should check mannually */
+        /* Define variables */
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_getEGLVersion_special)
+        {
+            break;
+        }
+
+        int out_buf_len = all_para[0].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLint *ver_major = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        EGLint *ver_minor = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLBoolean);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+
+        EGLBoolean ret = d_getEGLVersion_special(render_context, ver_major, ver_minor);
+        *ret_ptr = ret;
+
+        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+    }
+    break;
+        /******* end of file '1-1', 2/2 functions*******/
 
         /******* file '1-2' *******/
 

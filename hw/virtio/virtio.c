@@ -1411,7 +1411,7 @@ static void *virtqueue_alloc_element(size_t sz, unsigned out_num, unsigned in_nu
 
 static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
 {
-    unsigned int i, head, max=0;
+    unsigned int i, head, max = 0;
     VRingMemoryRegionCaches *caches;
     MemoryRegionCache indirect_desc_cache = MEMORY_REGION_CACHE_INVALID;
     MemoryRegionCache *desc_cache;
@@ -1559,7 +1559,7 @@ err_undo_map:
 
 static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
 {
-    unsigned int i, max=0;
+    unsigned int i, max = 0;
     VRingMemoryRegionCaches *caches;
     MemoryRegionCache indirect_desc_cache = MEMORY_REGION_CACHE_INVALID;
     MemoryRegionCache *desc_cache;

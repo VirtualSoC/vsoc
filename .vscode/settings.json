@@ -95,6 +95,9 @@
         "thread.h": "c",
         "test_trans.h": "c",
         "atomic.h": "c",
+        "egl_display.h": "c",
+        "egl_config.h": "c",
+        "egl_display_wgl.h": "c",
         "glv3_resource.h": "c"
     }
 }
