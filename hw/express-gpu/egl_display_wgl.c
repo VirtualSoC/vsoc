@@ -84,11 +84,11 @@ void init_configs(Egl_Display *display)
  */
 void init_wgl_extension(Egl_Display *display)
 {
-    Egl_Display_WGL* wgl_display = (Egl_Display_WGL*) display;
+    Egl_Display_WGL *wgl_display = (Egl_Display_WGL *)display;
 
     wgl_display->wgl_ext = (WGL_Extension *)malloc(sizeof(WGL_Extension));
     ZeroMemory(wgl_display->wgl_ext, sizeof(WGL_Extension));
-    
+
     wgl_display->wgl_ext->instance = LoadLibraryA("opengl32.dll");
     if (!wgl_display->wgl_ext->instance)
     {
@@ -96,9 +96,12 @@ void init_wgl_extension(Egl_Display *display)
     }
 
     // 加载WGL函数
-#define LOAD_WGL_FUNCS(return_type, func_name, param) \
-    wgl_display->wgl_ext->func_name = (return_type (WINAPI *) param) GetProcAddress(wgl_display->wgl_ext->instance, #func_name); \
-    if (!(wgl_display->wgl_ext->func_name)) { express_printf("Fail to load %s\n", #func_name); }
+#define LOAD_WGL_FUNCS(return_type, func_name, param)                                                                          \
+    wgl_display->wgl_ext->func_name = (return_type(WINAPI *) param)GetProcAddress(wgl_display->wgl_ext->instance, #func_name); \
+    if (!(wgl_display->wgl_ext->func_name))                                                                                    \
+    {                                                                                                                          \
+        express_printf("Fail to load %s\n", #func_name);                                                                       \
+    }
     LIST_WGL_FUNCTIONS(LOAD_WGL_FUNCS);
 
     // 必须创建一个dummy window以便opengl32.dll来查询配置，具体的pfd配置参考的glfw的实现
@@ -127,9 +130,12 @@ void init_wgl_extension(Egl_Display *display)
     }
 
     // 加载WGL Extension函数
-#define LOAD_WGL_EXT_FUNCS(return_type, func_name, param) \
-    wgl_display->wgl_ext->func_name = (return_type (WINAPI *) param) wgl_display->wgl_ext->wglGetProcAddress(#func_name); \
-    if (!(wgl_display->wgl_ext->func_name)) { express_printf("Fail to load %s\n", #func_name); }
+#define LOAD_WGL_EXT_FUNCS(return_type, func_name, param)                                                               \
+    wgl_display->wgl_ext->func_name = (return_type(WINAPI *) param)wgl_display->wgl_ext->wglGetProcAddress(#func_name); \
+    if (!(wgl_display->wgl_ext->func_name))                                                                             \
+    {                                                                                                                   \
+        express_printf("Fail to load %s\n", #func_name);                                                                \
+    }
     LIST_WGL_EXT_FUNCTIONS(LOAD_WGL_EXT_FUNCS);
 
     wglMakeCurrent(pdc, prc);
@@ -150,7 +156,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     eglConfig *config = (eglConfig *)malloc(sizeof(eglConfig));
     ZeroMemory(config, sizeof(eglConfig));
 
-    Egl_Display_WGL* wgl_display = (Egl_Display_WGL*) display;
+    Egl_Display_WGL *wgl_display = (Egl_Display_WGL *)display;
     if (wgl_display->wgl_ext == NULL)
     {
         init_wgl_extension(wgl_display);

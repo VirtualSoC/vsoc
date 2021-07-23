@@ -254,7 +254,6 @@ void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES 
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
 
-
 //
 
 void resource_context_init(Resource_Context *resources, Share_Resources *share_resources);

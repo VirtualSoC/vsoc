@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "direct-express/direct_express.h"
 
 #include "direct-express/direct_express_distribute.h"
@@ -32,7 +32,9 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
         g->thread_run = 1;
         qemu_thread_create(&g->render_thread, "direct-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
-    }else{
+    }
+    else
+    {
         wake_up_distribute();
     }
 }
@@ -60,7 +62,6 @@ static void direct_express_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
     Direct_Express *g = DIRECT_EXPRESS(vdev);
     // qemu_bh_schedule(g->data_bh);
     direct_express_handle(&g->parent_obj, g->data_queue);
-
 }
 
 static void direct_express_realize(DeviceState *qdev, Error **errp)
@@ -94,7 +95,7 @@ static void direct_express_realize(DeviceState *qdev, Error **errp)
 
 static uint64_t
 direct_express_get_features(VirtIODevice *vdev, uint64_t features,
-                    Error **errp)
+                            Error **errp)
 {
     // 设备独特的特性，下面是virtio-GPU的例子
     //    VirtIOGPUBase *g = VIRTIO_GPU_BASE(vdev);

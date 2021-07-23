@@ -1,22 +1,19 @@
 #ifndef QEMU_EXPRESS_GPU_RENDER_H
 #define QEMU_EXPRESS_GPU_RENDER_H
 
-
 #include "qemu/atomic.h"
 
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 #ifdef _WIN32
-    #define GLFW_EXPOSE_NATIVE_WIN32
-    #define GLFW_EXPOSE_NATIVE_WGL
+#define GLFW_EXPOSE_NATIVE_WIN32
+#define GLFW_EXPOSE_NATIVE_WGL
 #endif
 #include <GLFW/glfw3native.h>
 
-
-#define WM_USER_PAINT WM_USER+10
-#define WM_USER_CREATE WM_USER+11
-#define WM_USER_CLOSE WM_USER+12
-
+#define WM_USER_PAINT WM_USER + 10
+#define WM_USER_CREATE WM_USER + 11
+#define WM_USER_CLOSE WM_USER + 12
 
 // 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
@@ -25,8 +22,8 @@ extern HWND draw_native_window;
 
 extern volatile int native_render_run;
 
-
-typedef struct {
+typedef struct
+{
 
     GLFWwindow *window;
 
@@ -38,20 +35,21 @@ typedef struct {
 
     GLuint rbo_draw;
     GLuint rbo_display;
-    
+
     int display_texture_is_use;
     GLsync dispaly_sync;
 
     int width;
     int height;
-    
+
     int has_init;
 
 } Double_Buffer;
 
-#define TEXTURE_LOCK(use_texture) while(atomic_cmpxchg(&(use_texture), 0, 1) == 1);
+#define TEXTURE_LOCK(use_texture)                     \
+    while (atomic_cmpxchg(&(use_texture), 0, 1) == 1) \
+        ;
 #define TEXTURE_UNLOCK(use_texture) atomic_cmpxchg(&(use_texture), 1, 0)
-
 
 void egl_swap_buffer(Double_Buffer *double_buffer);
 
@@ -60,7 +58,6 @@ void render_bind_frame_buffer(Double_Buffer *double_buffer);
 GLuint get_display_texture(Double_Buffer *double_buffer);
 
 void release_display_texture(Double_Buffer *double_buffer);
-
 
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);
@@ -75,7 +72,5 @@ int egl_context_destroy(Double_Buffer *d_buffer);
 // void opengl_invoke(MYGPU_Opengl_Call *call);
 
 // MYGPU_Opengl_Call *pack_call_from_queue(VirtQueue *vq);
-
-
 
 #endif

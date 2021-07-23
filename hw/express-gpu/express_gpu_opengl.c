@@ -735,7 +735,7 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
         GLuint fbo0 = ((Opengl_Context *)context)->fbo0;
         framebuffer = fbo0;
     }
-    express_printf("bind framebuffer %u\n",framebuffer);
+    express_printf("bind framebuffer %u\n", framebuffer);
     glBindFramebuffer(target, framebuffer);
 }
 
@@ -789,7 +789,7 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     // case GL_SHADER_STORAGE_BUFFER:
     //     status->shader_storage_buffer = id;
     // }
-    express_printf("bind buffer %u\n",buffer);
+    express_printf("bind buffer %u\n", buffer);
 
     glBindBuffer(target, buffer);
 }

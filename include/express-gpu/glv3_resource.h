@@ -4,39 +4,30 @@
 #include "direct-express/express_device_common.h"
 #include "express-gpu/express_gpu_opengl.h"
 
-
-
-
 int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids, unsigned long long *host_ids);
 void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids);
 
-void get_host_resource_ids(Resource_Map_Status *status, GLsizei n, const unsigned int *guest_ids,unsigned int *host_ids);
+void get_host_resource_ids(Resource_Map_Status *status, GLsizei n, const unsigned int *guest_ids, unsigned int *host_ids);
 
 unsigned long long get_host_resource_id(Resource_Map_Status *status, unsigned int id);
 int guest_has_resource_id(Resource_Map_Status *status, unsigned int id);
 
+unsigned long long get_host_texture_id(void *context, unsigned int id);
+unsigned long long get_host_buffer_id(void *context, unsigned int id);
+unsigned long long get_host_renderbuffer_id(void *context, unsigned int id);
+unsigned long long get_host_sampler_id(void *context, unsigned int id);
 
+unsigned long long get_host_shader_id(void *context, unsigned int id);
+unsigned long long get_host_program_id(void *context, unsigned int id);
 
+unsigned long long get_host_sync_id(void *context, unsigned int id);
 
-unsigned long long get_host_texture_id(void *context,unsigned int id);
-unsigned long long get_host_buffer_id(void *context,unsigned int id);
-unsigned long long get_host_renderbuffer_id(void *context,unsigned int id);
-unsigned long long get_host_sampler_id(void *context,unsigned int id);
+unsigned long long get_host_framebuffer_id(void *context, unsigned int id);
+unsigned long long get_host_pipeline_id(void *context, unsigned int id);
+unsigned long long get_host_feedback_id(void *context, unsigned int id);
+unsigned long long get_host_array_id(void *context, unsigned int id);
 
-unsigned long long get_host_shader_id(void *context,unsigned int id);
-unsigned long long get_host_program_id(void *context,unsigned int id);
-
-unsigned long long get_host_sync_id(void *context,unsigned int id);
-
-unsigned long long get_host_framebuffer_id(void *context,unsigned int id);
-unsigned long long get_host_pipeline_id(void *context,unsigned int id);
-unsigned long long get_host_feedback_id(void *context,unsigned int id);
-unsigned long long get_host_array_id(void *context,unsigned int id);
-
-unsigned long long get_host_query_id(void *context,unsigned int id);
-
-
-
+unsigned long long get_host_query_id(void *context, unsigned int id);
 
 void d_glGenBuffers(void *context, GLsizei n, const GLuint *buffers);
 
@@ -87,11 +78,5 @@ void d_glDeleteTransformFeedbacks(void *context, GLsizei n, const GLuint *ids);
 void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays);
 
 void d_glDeleteQueries(void *context, GLsizei n, const GLuint *ids);
-
-
-
-
-
-
 
 #endif

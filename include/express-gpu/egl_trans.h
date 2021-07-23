@@ -7,12 +7,12 @@
 #include "express-gpu/egl_define.h"
 
 #define MAX_OUT_BUF_LEN 4096
-#define FUNID_eglSwapBuffers_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100000)
-#define FUNID_eglMakeCurrent_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100001)
-#define FUNID_eglTerminate_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100002)
-#define FUNID_getEGLConfigParam_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100003)
-#define FUNID_getEGLConfigs_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100004)
-#define FUNID_getEGLVersion_special ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+100005)
+#define FUNID_eglSwapBuffers_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 100000)
+#define FUNID_eglMakeCurrent_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 100001)
+#define FUNID_eglTerminate_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 100002)
+#define FUNID_getEGLConfigParam_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 100003)
+#define FUNID_getEGLConfigs_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 100004)
+#define FUNID_getEGLVersion_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 100005)
 
 #define PARA_NUM_MIN_eglSwapBuffers_special (1)
 #define PARA_NUM_MIN_eglMakeCurrent_special (1)

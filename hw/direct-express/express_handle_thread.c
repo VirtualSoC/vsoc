@@ -17,8 +17,6 @@
 #include "direct-express/express_log.h"
 // #define express_printf null_printf
 
-
-
 Direct_Express_Call *call_pop(Thread_Context *context);
 
 /**
@@ -31,38 +29,36 @@ Direct_Express_Call *call_pop(Thread_Context *context)
 {
     while (context->write_loc == context->read_loc)
     {
-        //缓冲区为空
-        // qemu_event_reset(&(context->data_event));
-        // qemu_event_wait(&(context->data_event));
-        #ifdef _WIN32
-            if (context->data_event != NULL)
-            {
-                WaitForSingleObject(context->data_event, INFINITE);
-            }
-        #else
+//缓冲区为空
+// qemu_event_reset(&(context->data_event));
+// qemu_event_wait(&(context->data_event));
+#ifdef _WIN32
+        if (context->data_event != NULL)
+        {
+            WaitForSingleObject(context->data_event, INFINITE);
+        }
+#else
 
-        #endif
+#endif
     }
     Direct_Express_Call *ret = context->call_buf[context->read_loc];
 
-
     context->read_loc = (context->read_loc + 1) % CALL_BUF_SIZE;
 
-    //通知已经非满
-    // qemu_event_set(&(context->data_event));
-    #ifdef _WIN32
-        if (context->data_event != NULL)
-        {
-            SetEvent(context->data_event);
-        }
-    #else
+//通知已经非满
+// qemu_event_set(&(context->data_event));
+#ifdef _WIN32
+    if (context->data_event != NULL)
+    {
+        SetEvent(context->data_event);
+    }
+#else
 
-    #endif
-    
+#endif
+
     // express_printf("call buf get one\n");
     return ret;
 }
-
 
 /**
  * @brief 将call加入到线程context的缓冲区中
@@ -76,39 +72,37 @@ void call_push(Thread_Context *context, Direct_Express_Call *call)
 
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
-        //缓冲区为满
-        // qemu_event_reset(&(context->data_event));
-        // qemu_event_wait(&(context->data_event));
-        #ifdef _WIN32
-            if (context->data_event != NULL)
-            {
-                WaitForSingleObject(context->data_event, INFINITE);
-            }
-        #else
+//缓冲区为满
+// qemu_event_reset(&(context->data_event));
+// qemu_event_wait(&(context->data_event));
+#ifdef _WIN32
+        if (context->data_event != NULL)
+        {
+            WaitForSingleObject(context->data_event, INFINITE);
+        }
+#else
 
-        #endif
-
+#endif
     }
     context->call_buf[context->write_loc] = call;
 
     context->write_loc = (context->write_loc + 1) % CALL_BUF_SIZE;
 
-    //通知已经非空
-    //qemu_event_set(&(context->data_event));
-    #ifdef _WIN32
-        if (context->data_event != NULL)
-        {
-            SetEvent(context->data_event);
-        }
-    #else
+//通知已经非空
+//qemu_event_set(&(context->data_event));
+#ifdef _WIN32
+    if (context->data_event != NULL)
+    {
+        SetEvent(context->data_event);
+    }
+#else
 
-    #endif
-    
+#endif
+
     // express_printf("call push\n");
     // express_printf("call buf set\n");
     return;
 }
-
 
 /**
  * @brief 处理线程运行函数，分发线程会分发call到这个线程，然后调用call_handle进行处理
@@ -126,25 +120,25 @@ void *handle_thread_run(void *opaque)
     {
         context->context_init(context);
     }
-    context->thread_run=1;
+    context->thread_run = 1;
     while (context->thread_run)
     {
         Direct_Express_Call *call = call_pop(context);
 
-        if(call->is_end){
-            call->callback(call,0);
-            context->thread_run=0;
+        if (call->is_end)
+        {
+            call->callback(call, 0);
+            context->thread_run = 0;
             continue;
         }
 
-        //my_print(NULL);  
+        //my_print(NULL);
         // express_printf("call pop\n");
         //实际对每个call调用的操作
-        if(context->call_handle!=NULL){
+        if (context->call_handle != NULL)
+        {
             express_printf("handle thread call handle\n");
-            context->call_handle(context,call);
-
-
+            context->call_handle(context, call);
         }
 
         // decode_invoke(call);
@@ -157,12 +151,12 @@ void *handle_thread_run(void *opaque)
         // call->callback(call);
     }
 
-    // qemu_event_destroy(&(context->data_event));
-    #ifdef _WIN32
-        CloseHandle(context->data_event);
-    #else
+// qemu_event_destroy(&(context->data_event));
+#ifdef _WIN32
+    CloseHandle(context->data_event);
+#else
 
-    #endif
+#endif
 
     if (context->context_destory != NULL)
     {
@@ -170,8 +164,6 @@ void *handle_thread_run(void *opaque)
     }
 
     g_free(context);
-    express_printf("handle thread exit %d\n",context->thread_run);
+    express_printf("handle thread exit %d\n", context->thread_run);
     return NULL;
 }
-
-

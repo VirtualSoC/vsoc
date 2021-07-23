@@ -5,8 +5,6 @@
 void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const void *data, GLenum usage)
 {
 
-    
-
     //todo 测试到底是直接bufferdata快，还是用map后复制快，这里两个都实现下(但是subdata实现的还不完全)，根据数据大小决定采用哪种方式
     Guest_Mem *guest_mem = (Guest_Mem *)data;
     Scatter_Data *s_data = guest_mem->scatter_data;
@@ -28,7 +26,6 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
         //     express_printf("%f ",temp[i]);
         // }
         // express_printf("\n");
-
     }
     else
     {
@@ -36,7 +33,7 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
         glBufferData(target, size, NULL, usage);
         GLubyte *map_pointer = glMapBufferRange(target, 0, size, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
         host_guest_buffer_exchange(s_data, map_pointer, 0, size, 1);
-        
+
         // express_printf("glBufferData %d:",size);
         // float *temp=g_malloc(size);
         // host_guest_buffer_exchange(s_data, temp, 0, size, 1);
@@ -53,7 +50,6 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
 }
 void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLsizeiptr size, const void *data)
 {
-    
 
     //todo 测试到底是直接bufferdata快，还是用map后复制快，这里两个都实现下(但是subdata实现的还不完全)，根据数据大小决定采用哪种方式
     Guest_Mem *guest_mem = (Guest_Mem *)data;
@@ -87,7 +83,6 @@ void d_glDeleteBuffers_origin(void *context, GLsizei n, const GLuint *buffers)
 void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf)
 {
 
-
     d_glMapBufferRange_write(context, target, offset, length, access);
 
     //写入的情况需要把map里的数据读取到缓冲区里
@@ -95,7 +90,7 @@ void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsi
     {
         GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
         Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, GINT_TO_POINTER(target));
-        guest_read((Guest_Mem *)mem_buf,(void *)map_res->host_data,0,length);
+        guest_read((Guest_Mem *)mem_buf, (void *)map_res->host_data, 0, length);
         //host_guest_buffer_exchange(map_res->guest_data, map_res->host_data, 0, length, 0);
     }
 }
@@ -144,8 +139,6 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     // start_loc+=sizeof(GLsizeiptr);
     // guest_write(guest_mem_int,&access,start_loc,sizeof(GLbitfield));
 
-
-    
     // Guest_Mem *guest_mem = (Guest_Mem *)mem_buf;
     // Scatter_Data *s_data = guest_mem->scatter_data;
 
@@ -191,7 +184,6 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
         g_hash_table_insert(buffer_map, GINT_TO_POINTER(target), (gpointer)map_res);
         return GL_FALSE;
     }
-    
 
     //这里不需要更新映射的这个缓冲区
     GLboolean ret = glUnmapBuffer(target);
@@ -200,7 +192,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
     return ret;
 }
 
-void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr offset, GLsizeiptr length,const void *data)
+void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr offset, GLsizeiptr length, const void *data)
 {
     GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
     Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, GINT_TO_POINTER(target));
@@ -211,12 +203,13 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
         g_hash_table_insert(buffer_map, GINT_TO_POINTER(target), (gpointer)map_res);
         return;
     }
-    if(map_res->host_data==NULL){
+    if (map_res->host_data == NULL)
+    {
         return;
     }
     if (map_res->access & GL_MAP_WRITE_BIT)
     {
-        guest_write((Guest_Mem *)data,map_res->host_data+offset,0,length);
+        guest_write((Guest_Mem *)data, map_res->host_data + offset, 0, length);
         if ((map_res->access & GL_MAP_FLUSH_EXPLICIT_BIT))
         {
             glFlushMappedBufferRange(target, offset, length);

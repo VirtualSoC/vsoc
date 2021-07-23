@@ -24,8 +24,8 @@ static char *print_buf = NULL;
 static int loc = 0;
 static gint64 t_last = 0;
 
-static char *copy_test_buf=NULL;
-static int copy_test_buf_len=0;
+static char *copy_test_buf = NULL;
+static int copy_test_buf_len = 0;
 
 void call_printf_flush(void);
 void log_init(struct Thread_Context *context);
@@ -78,7 +78,6 @@ static Thread_Context *get_log_thread_context(uint64_t type_id, uint64_t thread_
 static char time_str[1024];
 static unsigned long long time_cnt = 0;
 
-
 char *get_now_time(void)
 {
     time_cnt++;
@@ -103,21 +102,22 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
 
     // int para_num=1;
     Call_Para all_para[1];
-    if(get_para_from_call(call,all_para,1)!=1){
+    if (get_para_from_call(call, all_para, 1) != 1)
+    {
         call->callback(call, 0);
         return;
     }
 
-    unsigned long fun_id=GET_FUN_ID(call->id);
-    unsigned long process_id=call->process_id;
-    unsigned long thread_id=call->thread_id;
+    unsigned long fun_id = GET_FUN_ID(call->id);
+    unsigned long process_id = call->process_id;
+    unsigned long thread_id = call->thread_id;
     // unsigned long process_id=call->process_id;
 
     // get_process_mess(call,&fun_id,&process_id,&thread_id,&num_free);
-    static int64_t count=0;
+    static int64_t count = 0;
     count++;
-    express_printf("log count %lld\n",count);
-    if (fun_id==0)
+    express_printf("log count %lld\n", count);
+    if (fun_id == 0)
     {
         // print_cnt++;
         gint64 t_int = g_get_real_time();
@@ -126,7 +126,8 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
         // g_date_time_unref(t);
         // t=g_date_time_new_from_unix_utc((gint64)call->get_time/1000000);
         // gchar *t_s2=g_date_time_format(t,"%F %T");
-        if(all_para[0].data_len < LOG_FILE_SIZE - 256){
+        if (all_para[0].data_len < LOG_FILE_SIZE - 256)
+        {
             //写入的数据不能太多
             if (all_para[0].data_len + loc > LOG_FILE_SIZE - 256 || t_int - t_last > 1000000)
             {
@@ -154,40 +155,43 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
                 loc = 0;
                 t_last = t_int;
             }
-            int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#LOG_GUEST %s %ld %ld :", get_now_time(), process_id,thread_id);
-            loc+=num;
-            guest_write(all_para[0].data,print_buf+loc,0,all_para[0].data_len);
-            loc+=all_para[0].data_len;
+            int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#LOG_GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
+            loc += num;
+            guest_write(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
+            loc += all_para[0].data_len;
         }
 
-    
         // g_free(t_s1);
         // g_date_time_unref(t);
-    }else if(fun_id==1){
+    }
+    else if (fun_id == 1)
+    {
         //测试复制模式
-        if(all_para[0].data_len > copy_test_buf_len){
-            if(copy_test_buf!=NULL){
+        if (all_para[0].data_len > copy_test_buf_len)
+        {
+            if (copy_test_buf != NULL)
+            {
                 g_free(copy_test_buf);
             }
-            copy_test_buf=g_malloc(all_para[0].data_len);
-            copy_test_buf_len=all_para[0].data_len;
+            copy_test_buf = g_malloc(all_para[0].data_len);
+            copy_test_buf_len = all_para[0].data_len;
         }
-        gint64 start_time=g_get_real_time();
+        gint64 start_time = g_get_real_time();
 
-        guest_write(all_para[0].data,copy_test_buf,0,all_para[0].data_len);
+        guest_write(all_para[0].data, copy_test_buf, 0, all_para[0].data_len);
 
-        gint64 spend_time= g_get_real_time()-start_time;
-        if(spend_time==0){
-            spend_time=1;
+        gint64 spend_time = g_get_real_time() - start_time;
+        if (spend_time == 0)
+        {
+            spend_time = 1;
         }
 
-
-        express_printf("get copy test %lld spend time %lld speed %lf M/s\n",all_para[0].data_len,spend_time,all_para[0].data_len*1.0*1000000/1024/1024/spend_time);
-
-    }else if(fun_id==2){
+        express_printf("get copy test %lld spend time %lld speed %lf M/s\n", all_para[0].data_len, spend_time, all_para[0].data_len * 1.0 * 1000000 / 1024 / 1024 / spend_time);
+    }
+    else if (fun_id == 2)
+    {
         //非复制测试模式
-        express_printf("get no copy test %lld\n",all_para[0].data_len);
-
+        express_printf("get no copy test %lld\n", all_para[0].data_len);
     }
 
     //注意在处理完成之后要主动调用下callback函数用以回收数据

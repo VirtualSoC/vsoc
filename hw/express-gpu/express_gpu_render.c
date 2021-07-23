@@ -115,7 +115,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         GetClientRect(GetParent(hwnd), &rcParent);
         temp_height = rcParent.bottom / 2;
         temp_width = rcParent.right / 2;
-        express_printf("windows size %d %d\n",temp_height,temp_width);
+        express_printf("windows size %d %d\n", temp_height, temp_width);
         // if (rcParent.bottom * 4 > rcParent.right * 3){
         //     y = (rcParent.bottom - rcParent.right * 3.0 / 4.0) / 2;
         //     height = width * 3.0 / 4.0;
@@ -130,10 +130,8 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
             // window_width = temp_width;
             window_width = temp_height;
 
-
             MoveWindow(hwnd, (int)(rcParent.right - window_height), (int)(temp_height * 0.5), window_width, window_height, FALSE);
             // MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
-
         }
 
         break;
@@ -158,18 +156,17 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         // window_width = rcParent.right / 2;
         {
 
-            Double_Buffer *d_buffer=(Double_Buffer *)lParam;
-            egl_context_create(d_buffer,d_buffer->width,d_buffer->height);
-
+            Double_Buffer *d_buffer = (Double_Buffer *)lParam;
+            egl_context_create(d_buffer, d_buffer->width, d_buffer->height);
         }
-        
+
         break;
     case WM_USER_CLOSE:
     {
-        Double_Buffer *d_buffer=(Double_Buffer *)lParam;
+        Double_Buffer *d_buffer = (Double_Buffer *)lParam;
         glfwDestroyWindow(d_buffer->window);
     }
-        
+
     default:
         //express_printf("child win msg: %d\n", uMsg);
         break;
@@ -341,15 +338,14 @@ static void opengl_paint(Double_Buffer *d_buffer)
     //绘制这个texture时，要get后release，保证这个texture上的东西的确已经画出来了
     GLuint texture = get_display_texture(d_buffer);
     // express_printf("main has error %x\n",glGetError());
-    
+
     glBindVertexArray(drawVAO);
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
     // express_printf("main has error %x\n",glGetError());
 
-    express_printf("main window paint texture %u\n",texture);
-    
+    express_printf("main window paint texture %u\n", texture);
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -366,7 +362,6 @@ static void opengl_paint(Double_Buffer *d_buffer)
     glfwSwapBuffers(glfw_window);
 
     release_display_texture(d_buffer);
-
 }
 
 /**
@@ -389,16 +384,16 @@ static void egl_context_create(Double_Buffer *d_buffer, int width, int height)
     sprintf(name, "opengl-child-window%d", cnt);
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+// glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-    //屏幕分离调试专用
-    #ifdef DEBUG_INDEPEND_WINDOW
-        glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-        child_window = glfwCreateWindow(width, height, name, NULL, NULL);
+//屏幕分离调试专用
+#ifdef DEBUG_INDEPEND_WINDOW
+    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+    child_window = glfwCreateWindow(width, height, name, NULL, NULL);
 
-    #else
-        child_window = glfwCreateWindow(width, height, name, NULL, glfw_window);
-    #endif
+#else
+    child_window = glfwCreateWindow(width, height, name, NULL, glfw_window);
+#endif
     d_buffer->window = child_window;
     d_buffer->width = width;
     d_buffer->height = height;
@@ -440,21 +435,18 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     }
     glfwMakeContextCurrent(d_buffer->window);
 
-
     glGenTextures(1, &d_buffer->fbo_texture_display);
     glGenRenderbuffers(1, &d_buffer->rbo_display);
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_display);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_display); 
+    glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_display);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, d_buffer->width, d_buffer->height); // Use a single renderbuffer object for both a depth AND stencil buffer.
-
-
 
     glGenTextures(1, &d_buffer->fbo_texture_draw);
     glGenRenderbuffers(1, &d_buffer->rbo_draw);
@@ -462,14 +454,12 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture_draw);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-    
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-
-    glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_draw); 
+    glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_draw);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, d_buffer->width, d_buffer->height); // Use a single renderbuffer object for both a depth AND stencil buffer.
-
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -477,29 +467,26 @@ int egl_context_make_current(Double_Buffer *d_buffer)
     glGenFramebuffers(1, &d_buffer->fbo_display);
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_display);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture_display, 0);
-    //glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_display); 
+    //glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_display);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->rbo_display); // Now actually attach it
-
-
 
     glGenFramebuffers(1, &d_buffer->fbo_draw);
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->fbo_draw);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture_draw, 0);
-    //glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_draw); 
+    //glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->rbo_draw);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->rbo_draw); // Now actually attach it
 
-    glBindRenderbuffer(GL_RENDERBUFFER, 0); 
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     //这里将读写的framebuffer分离，是为了readpixel时，能够从后缓冲区读取数据
     //（对于我们的程序，后缓冲区就是fbo_dispaly，而对于绑定fbo不为0时时会选择从read fbo读取，所以要这样把fbo_display设置为read）
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->fbo_draw);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, d_buffer->fbo_display);
 
-    
-    //屏幕分离调试专用
-    #ifdef DEBUG_INDEPEND_WINDOW
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    #endif
+//屏幕分离调试专用
+#ifdef DEBUG_INDEPEND_WINDOW
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#endif
     return 1;
 }
 
@@ -528,11 +515,11 @@ int egl_context_destroy(Double_Buffer *d_buffer)
 
     glfwMakeContextCurrent(NULL);
 
-    SendMessage(draw_native_window, WM_USER_CLOSE, 0, (LPARAM)d_buffer );
+    SendMessage(draw_native_window, WM_USER_CLOSE, 0, (LPARAM)d_buffer);
 
     // glfwDestroyWindow(d_buffer->window);
-    d_buffer->window=NULL;
-    d_buffer->has_init=0;
+    d_buffer->window = NULL;
+    d_buffer->has_init = 0;
     return 1;
 }
 
@@ -684,7 +671,6 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
     //这句话让之前的画面都渲染出来
     glFinish();
 
-    
     //这里也使用GPU等待是因为GPU那边画完了之后，这边才能在交换的新的东西上画
     TEXTURE_LOCK(double_buffer->display_texture_is_use);
     // if (double_buffer->dispaly_sync != NULL)
@@ -698,7 +684,6 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
     //     double_buffer->dispaly_sync = NULL;
     // }
 
-
     //交换FBO
     GLuint temp = double_buffer->fbo_draw;
     double_buffer->fbo_draw = double_buffer->fbo_display;
@@ -711,20 +696,17 @@ void egl_swap_buffer(Double_Buffer *double_buffer)
 
     //交换了之后设定一个sync
     // double_buffer->dispaly_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-    express_printf("glFenceSync %x\n",glGetError());
-
-
+    express_printf("glFenceSync %x\n", glGetError());
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, double_buffer->fbo_draw);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, double_buffer->fbo_display);
 
     TEXTURE_UNLOCK(double_buffer->display_texture_is_use);
 
-
     // render_bind_frame_buffer(double_buffer);
-        // express_printf("main has error %x\n",glGetError());
+    // express_printf("main has error %x\n",glGetError());
 
-        // express_printf("main has error %x\n",glGetError());
+    // express_printf("main has error %x\n",glGetError());
 
     // express_printf("main has error %x\n",glGetError());
 }
