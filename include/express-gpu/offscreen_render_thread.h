@@ -2,22 +2,37 @@
 #define OFFSCREEN_RENDER_THREAD_H
 
 #include "direct-express/express_device_common.h"
-#include "express-gpu/express_gpu_render.h"
-#include "express-gpu/express_gpu_opengl.h"
+#include "express-gpu/glv3_context.h"
 #include "express-gpu/egl_display.h"
+#include "express-gpu/egl_surface.h"
+// #include "express-gpu/express_gpu_render.h"
+
+
+typedef struct Process_Context{
+    GHashTable *surface_map;
+    GHashTable *context_map;
+    
+    GHashTable *egl_image_map;
+    GHashTable *egl_sync_map;
+
+    int thread_cnt;
+} Process_Context;
 
 typedef struct
 {
     Thread_Context context;
-    Double_Buffer render_double_buffer;
-    Opengl_Context opengl_context;
-    Egl_Display egl_display;
+    Process_Context *process_context;
+
+    //好像没见到过read和draw不一样的情况
+    Double_Buffer *render_double_buffer_read;
+    Double_Buffer *render_double_buffer_draw;
+
+    Opengl_Context *opengl_context;
+    Egl_Display *egl_display;
 } Render_Thread_Context;
 
 void real_egl_swap_buffer(Render_Thread_Context *context);
 
-void render_windows_create(Render_Thread_Context *context);
 
-void render_context_destroy(Thread_Context *context);
 
 #endif

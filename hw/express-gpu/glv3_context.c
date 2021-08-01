@@ -1,6 +1,6 @@
 // #define STD_DEBUG_LOG
 
-#include "express-gpu/express_gpu_opengl.h"
+#include "express-gpu/glv3_context.h"
 
 // #include "gl.h"
 
@@ -720,6 +720,9 @@ size_t gl_pname_size(GLenum pname)
     case GL_TEXTURE_MATRIX:
         s = 16;
         break;
+    case GL_COMPRESSED_TEXTURE_FORMATS:
+        s = 16;
+        break;
     default:
         printf("gl_pname_size: unknow pname 0x%08x\n", pname);
         s = 1; // assume 1
@@ -729,14 +732,28 @@ size_t gl_pname_size(GLenum pname)
 
 void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
 {
+    GLuint draw_fbo0 = ((Opengl_Context *)context)->draw_fbo0;
+    GLuint read_fbo0 = ((Opengl_Context *)context)->read_fbo0;
 
     if (framebuffer == 0)
     {
-        GLuint fbo0 = ((Opengl_Context *)context)->fbo0;
-        framebuffer = fbo0;
+        if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
+        {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_fbo0);
+        }
+        if (target == GL_READ_FRAMEBUFFER || target == GL_FRAMEBUFFER)
+        {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, read_fbo0);
+        }
     }
-    express_printf("bind framebuffer %u\n", framebuffer);
-    glBindFramebuffer(target, framebuffer);
+    else
+    {
+        express_printf("bind framebuffer %u\n", framebuffer);
+        glBindFramebuffer(target, framebuffer);
+    }
+
+    // glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
+    // glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
 }
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
@@ -992,14 +1009,16 @@ void resource_context_destroy(Resource_Context *resources)
     // }
 }
 
-void opengl_context_create(void *context, void *share_context)
+Opengl_Context *opengl_context_create(Opengl_Context *share_context)
 {
-    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Opengl_Context *opengl_context = g_malloc(sizeof(Opengl_Context));
+    opengl_context->is_current = 0;
+    opengl_context->need_destroy = 0;
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)
     {
-        share_resources = ((Opengl_Context *)share_context)->resource_status.share_resources;
+        share_resources = share_context->resource_status.share_resources;
     }
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
@@ -1020,12 +1039,6 @@ void opengl_context_create(void *context, void *share_context)
 
     Attrib_Point *temp_point = g_malloc(sizeof(Attrib_Point));
     memset(temp_point, 0, sizeof(Attrib_Point));
-    // // GLuint temp_buffer[4];
-    // // glGenBuffers(4,temp_buffer);
-    // temp_point->buffer_object=0;
-    // temp_point->indices_buffer_object=0;
-    glGenBuffers(1, &(temp_point->indices_buffer_object));
-    glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, temp_point->buffer_object);
 
     g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(0), (gpointer)temp_point);
 
@@ -1034,29 +1047,38 @@ void opengl_context_create(void *context, void *share_context)
 
     resource_context_init(&(opengl_context->resource_status), share_resources);
 
-    glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
-    glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+    //下面这些调用需要makecurrent之后，但是我们不知道此时窗口是否已经创建起来了，所以没法设置这些
+    //这些留到了makecurrent的时候才初始化
+    // glGenBuffers(1, &(temp_point->indices_buffer_object));
+    // glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, temp_point->buffer_object);
 
-    //这两个选项在gles中是默认开启，这样能够在着色器中获取到一些内建变量，所以在gl中要手动开启
-    glEnable(GL_PROGRAM_POINT_SIZE);
-    glEnable(GL_POINT_SPRITE);
-    // bound_buffer->asyn_pack_texture_buffer=0;
-    // bound_buffer->asyn_unpack_texture_buffer=0;
+    // glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
+    // glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
 
-    opengl_context->fbo0 = 0;
+    // //这两个选项在gles中是默认开启，这样能够在着色器中获取到一些内建变量，所以在gl中要手动开启
+    // glEnable(GL_PROGRAM_POINT_SIZE);
+    // glEnable(GL_POINT_SPRITE);
+    bound_buffer->asyn_unpack_texture_buffer = 0;
+    bound_buffer->asyn_pack_texture_buffer = 0;
 
-    opengl_context->has_init = 1;
+    bound_buffer->has_init = 0;
+
+    opengl_context->draw_fbo0 = 0;
+    opengl_context->read_fbo0 = 0;
+
+    return opengl_context;
 }
 
-void opengl_context_destroy(void *context)
+/**
+ * @brief 销毁opengl_context函数，只能由主窗口线程调用，通过发送WM_USER_CONTEXT_DESTROY消息实现调用
+ * 因为销毁的时候肯定没有makecurrent了，就不能调用opengl函数了
+ * 
+ * @param context 
+ */
+void opengl_context_destroy(Opengl_Context *context)
 {
     express_printf("opengl context destroy\n");
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-
-    if (!opengl_context->has_init)
-    {
-        return;
-    }
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
@@ -1066,12 +1088,10 @@ void opengl_context_destroy(void *context)
     // g_hash_table_destroy(bound_buffer->vao_status);
     g_hash_table_destroy(bound_buffer->vao_point_data);
 
+    glDeleteBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
+    glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+
     resource_context_destroy(&(opengl_context->resource_status));
-
-    //但是这个没有
-    // g_hash_table_destroy(bound_buffer->buffer_type);
-
-    opengl_context->has_init = 0;
 }
 
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用

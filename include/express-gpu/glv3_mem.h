@@ -2,7 +2,7 @@
 #define GLV3_MEM_H
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_device_common.h"
-#include "express-gpu/express_gpu_opengl.h"
+#include "express-gpu/glv3_context.h"
 
 void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const void *data, GLenum usage);
 void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLsizeiptr size, const void *data);

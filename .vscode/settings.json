@@ -98,6 +98,10 @@
         "egl_display.h": "c",
         "egl_config.h": "c",
         "egl_display_wgl.h": "c",
-        "glv3_resource.h": "c"
+        "glv3_resource.h": "c",
+        "egl_context.h": "c",
+        "egl_draw.h": "c",
+        "egl_sync.h": "c",
+        "glv3_context.h": "c"
     }
 }

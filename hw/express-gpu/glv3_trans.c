@@ -21,7 +21,7 @@
 #include "express-gpu/glv3_vertex.h"
 #include "express-gpu/glv3_resource.h"
 
-#include "express-gpu/express_gpu_opengl.h"
+#include "express-gpu/glv3_context.h"
 
 // 1. guest端需要同步的函数
 //  1.1
@@ -58,7 +58,11 @@
 void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
-    Opengl_Context *opengl_context = &(render_context->opengl_context);
+    Opengl_Context *opengl_context = render_context->opengl_context;
+    if(opengl_context==NULL){
+        call->callback(call, 0);
+        return;
+    }
     //uint64_t fun_id=GET_FUN_ID(call->id);
     //uint64_t is_async=FUN_IS_ASYNC(call->id);
     //uint64_t need_speed=FUN_NEED_SPEED(call->id);

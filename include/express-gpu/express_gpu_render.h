@@ -11,9 +11,17 @@
 #endif
 #include <GLFW/glfw3native.h>
 
+#include "express-gpu/egl_surface.h"
+
+
+
 #define WM_USER_PAINT WM_USER + 10
 #define WM_USER_CREATE WM_USER + 11
-#define WM_USER_CLOSE WM_USER + 12
+#define WM_USER_SURFACE_DESTROY WM_USER + 12
+#define WM_USER_CONTEXT_DESTROY WM_USER + 13
+
+
+
 
 // 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
@@ -22,55 +30,15 @@ extern HWND draw_native_window;
 
 extern volatile int native_render_run;
 
-typedef struct
-{
-
-    GLFWwindow *window;
-
-    GLuint fbo_draw;
-    GLuint fbo_display;
-
-    GLuint fbo_texture_draw;
-    GLuint fbo_texture_display;
-
-    GLuint rbo_draw;
-    GLuint rbo_display;
-
-    int display_texture_is_use;
-    GLsync dispaly_sync;
-
-    int width;
-    int height;
-
-    int has_init;
-
-} Double_Buffer;
-
-#define TEXTURE_LOCK(use_texture)                     \
-    while (atomic_cmpxchg(&(use_texture), 0, 1) == 1) \
-        ;
-#define TEXTURE_UNLOCK(use_texture) atomic_cmpxchg(&(use_texture), 1, 0)
-
-void egl_swap_buffer(Double_Buffer *double_buffer);
-
-void render_bind_frame_buffer(Double_Buffer *double_buffer);
-
-GLuint get_display_texture(Double_Buffer *double_buffer);
-
-void release_display_texture(Double_Buffer *double_buffer);
 
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);
 
-int egl_context_make_current(Double_Buffer *d_buffer);
+int draw_wait_GSYNC(HANDLE event, int interval);
 
-int egl_context_destroy(Double_Buffer *d_buffer);
+void render_windows_create(Double_Buffer *context);
 
-// void *my_gpu_render_thread(void *opaque);
-// void push_to_render_buf(MYGPU_Opengl_Call *call);
-// MYGPU_Opengl_Call *pop_from_render_buf(void);
-// void opengl_invoke(MYGPU_Opengl_Call *call);
+void set_compose_surface(Double_Buffer *surface);
 
-// MYGPU_Opengl_Call *pack_call_from_queue(VirtQueue *vq);
 
 #endif

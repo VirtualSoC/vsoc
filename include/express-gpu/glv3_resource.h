@@ -2,7 +2,7 @@
 #define GLV3_RESOURCE_H
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_device_common.h"
-#include "express-gpu/express_gpu_opengl.h"
+#include "express-gpu/glv3_context.h"
 
 int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids, unsigned long long *host_ids);
 void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids);

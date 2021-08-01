@@ -158,9 +158,9 @@ void *handle_thread_run(void *opaque)
 
 #endif
 
-    if (context->context_destory != NULL)
+    if (context->context_destroy != NULL)
     {
-        context->context_destory(context);
+        context->context_destroy(context);
     }
 
     g_free(context);

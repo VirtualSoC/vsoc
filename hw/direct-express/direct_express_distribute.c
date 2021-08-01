@@ -13,6 +13,7 @@
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_handle_thread.h"
 #include "direct-express/express_log.h"
+#include "direct-express/express_device_common.h"
 // #include <EGL/eglplatform.h>
 
 // #define express_printf null_printf
@@ -584,7 +585,7 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
     context->thread_run = 1;
 
     context->context_init = info->context_init;
-    context->context_destory = info->context_destory;
+    context->context_destroy = info->context_destroy;
     context->call_handle = info->call_handle;
 
     context->direct_express_device = direct_express_device;
@@ -639,7 +640,7 @@ void push_to_thread(Direct_Express_Call *call)
         {
             if (device_info->remove_context)
             {
-                device_info->remove_context(device_type_id, thread_id, device_info);
+                device_info->remove_context(device_type_id, thread_id, process_id, unique_id, device_info);
                 call->is_end = 1;
             }
         }

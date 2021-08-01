@@ -1,5 +1,5 @@
-#ifndef EXPRESS_GPU_OPENGL_H
-#define EXPRESS_GPU_OPENGL_H
+#ifndef GLV3_CONTEXT_H
+#define GLV3_CONTEXT_H
 
 #include "direct-express/express_device_common.h"
 #include "direct-express/express_log.h"
@@ -106,6 +106,7 @@ typedef struct Bound_Buffer
     GLuint asyn_unpack_texture_buffer;
     GLuint asyn_pack_texture_buffer;
 
+    int has_init;
     //std::map<GLint, Element_Array_Buffer *> ebo_buffer;
 
 } Bound_Buffer;
@@ -194,9 +195,13 @@ typedef struct Opengl_Context
     Resource_Context resource_status;
 
     GHashTable *buffer_map;
-    GLuint fbo0;
+    GLuint draw_fbo0;
+    GLuint read_fbo0;
 
-    int has_init;
+
+    // int has_init;
+    int is_current;
+    int need_destroy;
 
 } Opengl_Context;
 
@@ -260,9 +265,10 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
 
 void resource_context_destroy(Resource_Context *resources);
 
-void opengl_context_create(void *context, void *share_context);
+Opengl_Context *opengl_context_create(Opengl_Context *share_context);
 
-void opengl_context_destroy(void *context);
+
+void opengl_context_destroy(Opengl_Context *context);
 
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d);
 

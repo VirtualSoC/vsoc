@@ -27,6 +27,10 @@ typedef struct
     int is_init;
 } Egl_Display;
 
+extern Egl_Display *default_egl_display;
+
+
+
 void init_display(Egl_Display *display);
 void init_configs(Egl_Display *display);
 

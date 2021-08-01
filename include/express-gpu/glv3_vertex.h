@@ -4,7 +4,7 @@
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_device_common.h"
 
-#include "express-gpu/express_gpu_opengl.h"
+#include "express-gpu/glv3_context.h"
 
 // #define SYNC_TIMEOUT 10000000
 

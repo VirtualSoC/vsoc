@@ -1,2 +1,0 @@
-//异步小数据，guest进行资源的申请和释放，host guest都需要自定义
-//guest申请逻辑改为自己生成一个id，把这个id异步传递给host端，host端生成id后，与guest的这个id形成一一映射关系，并且host之后操作这些id都能自动转换到真实的id

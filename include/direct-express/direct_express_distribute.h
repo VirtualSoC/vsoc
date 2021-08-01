@@ -13,7 +13,6 @@
 //最多的参数数目
 #define MAX_PARA_NUM 64
 
-
 #define TERMINATE_FUN_ID 0
 
 /**
@@ -50,12 +49,10 @@
 
 //device设备的id在高4字节，需要调用的函数id在低3字节，设备id决定到底哪个线程去处理，函数id决定怎么处理，中间一个字节的每个位决定函数处理是异步同步等信息
 //设备id（4字节）|标志位（1字节）|函数id（3字节）
-#define GET_DEVICE_ID(id)  ((id) >> 32)
-#define GET_FUN_ID(id)     ((id)&0xffffff)
-#define FUN_NEED_SYNC(id)   (((id)>>24)&0x1)
-#define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
-
-
+// #define GET_DEVICE_ID(id) ((id) >> 32)
+// #define GET_FUN_ID(id) ((id)&0xffffff)
+// #define FUN_NEED_SYNC(id) (((id) >> 24) & 0x1)
+// #define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
 
 /**
  * @brief 自定义的Queue_Elem结构体，用来接收guest端传输过来的数据元信息
@@ -120,14 +117,12 @@ typedef struct Scatter_Data
     size_t len;
 } Scatter_Data;
 
-
 typedef struct Guest_Mem
 {
     Scatter_Data *scatter_data;
     int num;
     int all_len;
 } Guest_Mem;
-
 
 typedef struct Call_Para
 {
@@ -147,11 +142,11 @@ typedef struct Direct_Express_Flag_Buf
     uint64_t id;
 
     //总共的参数数目
-    uint64_t  para_num;
+    uint64_t para_num;
 
     uint64_t thread_id;
 
-    uint64_t  process_id;
+    uint64_t process_id;
 
     uint64_t unique_id;
 
@@ -180,7 +175,7 @@ typedef struct Thread_Context
     uint64_t type_id;
 
     //用于缓冲call的环形缓冲区
-    Direct_Express_Call *call_buf[CALL_BUF_SIZE+2];
+    Direct_Express_Call *call_buf[CALL_BUF_SIZE + 2];
 
     //环形缓冲区的读写位置
     int read_loc;
@@ -188,13 +183,13 @@ typedef struct Thread_Context
 
     int atomic_event_lock;
 
-    //缓冲区用来通知 有数据/缓冲区有空位置 的event
-    // QemuEvent data_event;
-    #ifdef _WIN32
-        HANDLE data_event;
-    #else
+//缓冲区用来通知 有数据/缓冲区有空位置 的event
+// QemuEvent data_event;
+#ifdef _WIN32
+    HANDLE data_event;
+#else
 
-    #endif
+#endif
 
     //标示当前线程
     QemuThread this_thread;
@@ -205,7 +200,7 @@ typedef struct Thread_Context
     //特定设备自定义的context初始化函数
     void (*context_init)(struct Thread_Context *context);
 
-    void (*context_destory)(struct Thread_Context *context);
+    void (*context_destroy)(struct Thread_Context *context);
 
     //在数据到来后，特定设备自定义的处理call数据的函数，需要在这个函数中调用callback
     void (*call_handle)(struct Thread_Context *context, Direct_Express_Call *call);
@@ -223,20 +218,19 @@ typedef struct Express_Device_Info
 
     //对应到Thread_Context中的两个设备自定义的函数——初始化函数和call处理函数
     void (*context_init)(struct Thread_Context *context);
-    void (*context_destory)(struct Thread_Context *context);
+    void (*context_destroy)(struct Thread_Context *context);
     void (*call_handle)(struct Thread_Context *context, Direct_Express_Call *call);
 
     //设备定义的用于获取context的函数，例如有一个统一的context或者对每一个线程维护一个context
-    Thread_Context *(*get_context)(uint64_t type_id, uint64_t thread_id,uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    Thread_Context *(*get_context)(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
-    void (*remove_context)(uint64_t type_id, uint64_t thread_id, struct Express_Device_Info *info);
+    void (*remove_context)(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
 } Express_Device_Info;
 
-
 void *call_distribute_thread(void *opaque);
 
-Thread_Context *thread_context_create(uint64_t thread_id, uint64_t  type_id, uint64_t len, Express_Device_Info *info);
+Thread_Context *thread_context_create(uint64_t thread_id, uint64_t type_id, uint64_t len, Express_Device_Info *info);
 
 void mark_call_return(Direct_Express_Call *call, int loc);
 
@@ -250,17 +244,14 @@ void express_device_init_common(Express_Device_Info *info);
 
 void wake_up_distribute(void);
 
-
-
 void *get_direct_ptr(Guest_Mem *guest_mem, int *flag);
 
+void guest_write(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 
-void guest_write(Guest_Mem *guest,void *host,size_t start_loc, size_t length);
-
-void guest_read(Guest_Mem *guest,void *host,size_t start_loc, size_t length);
+void guest_read(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 
 void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_data, size_t start_loc, size_t length, int is_guest_to_host);
 
-void guest_mem_copy(Guest_Mem *dst_guest_mem,Guest_Mem *src_guest_mem);
+void guest_mem_copy(Guest_Mem *dst_guest_mem, Guest_Mem *src_guest_mem);
 
 #endif

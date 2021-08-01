@@ -43,7 +43,7 @@ void test_copy(void *data, size_t len)
 void test_decode_invoke(void *context, Direct_Express_Call *call)
 {
 
-    //Double_Buffer *egl_context = &(render_context->render_double_buffer);
+    //Double_Buffer *egl_context = (render_context->render_double_buffer);
 
     Call_Para all_para[MAX_PARA_NUM];
 
