@@ -1,3 +1,5 @@
+#define STD_DEBUG_LOG
+
 #include "express-gpu/egl_draw.h"
 #include "express-gpu/egl_surface.h"
 #include "express-gpu/egl_context.h"
@@ -14,19 +16,9 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GINT_TO_POINTER(ctx));
 
     //原来current的surface可能要destroy
-    if (thread_context->render_double_buffer_read != NULL && thread_context->render_double_buffer_read != real_surface_read)
-    {
-        if (thread_context->render_double_buffer_read->need_destroy)
-        {
-            PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)(thread_context->render_double_buffer_read));
-        }
-        else
-        {
-            thread_context->render_double_buffer_read->is_current = 0;
-        }
-    }
 
-    if (thread_context->render_double_buffer_draw != NULL && thread_context->render_double_buffer_draw != real_surface_draw)
+    if (thread_context->render_double_buffer_draw != NULL &&
+        thread_context->render_double_buffer_draw != real_surface_draw)
     {
         if (thread_context->render_double_buffer_draw->I_am_composer)
         {
@@ -43,6 +35,21 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         }
     }
 
+    //有可能draw和read可能一样，就不能删除两次
+    if (thread_context->render_double_buffer_draw != thread_context->render_double_buffer_read &&
+        thread_context->render_double_buffer_read != NULL &&
+        thread_context->render_double_buffer_read != real_surface_read)
+    {
+        if (thread_context->render_double_buffer_read->need_destroy)
+        {
+            PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)(thread_context->render_double_buffer_read));
+        }
+        else
+        {
+            thread_context->render_double_buffer_read->is_current = 0;
+        }
+    }
+
     //原来current的context要destroy
     if (thread_context->opengl_context != NULL && thread_context->opengl_context != real_opengl_context)
     {
@@ -54,6 +61,12 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         {
             thread_context->opengl_context->is_current = 0;
         }
+    }
+
+    if (real_surface_read == NULL || real_surface_draw == NULL || real_opengl_context == NULL)
+    {
+        glfwMakeContextCurrent(NULL);
+        return EGL_TRUE;
     }
 
     //然后设置当前的surface和context
@@ -110,9 +123,15 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
-
+    assert(surface > 1000);
     Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
+    express_printf("swapbuffer %lx %lx\n", surface, real_surface);
+
+    if (real_surface == NULL)
+    {
+        return EGL_FALSE;
+    }
     Opengl_Context *real_opengl_context = thread_context->opengl_context;
 
     egl_surface_swap_buffer(real_surface);
@@ -136,7 +155,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, E
 
         guest_read(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
     }
-    return EGL_TRUE;
+    return ret;
 }
 
 EGLBoolean d_eglSwapInterval(void *context, EGLDisplay dpy, EGLint interval)

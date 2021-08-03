@@ -3,16 +3,23 @@
 #include "direct-express/express_log.h"
 #include <wingdi.h>
 
+Egl_Display_WGL default_wgl_display;
+
+
 /**
  * @brief 初始化Egl_Display
  * 
  * @param display 待初始化的Egl_Display
  */
-void init_display(Egl_Display *display)
+void init_display(Egl_Display **display_point)
 {
+    Egl_Display *display=(Egl_Display *)&default_wgl_display;
+    *display_point=&default_wgl_display;
+
     Egl_Display_WGL *wgl_display = (Egl_Display_WGL *)display;
     ZeroMemory(wgl_display, sizeof(Egl_Display_WGL));
 
+    express_printf("init display\n");
     init_wgl_extension(display);
     init_configs(display);
 

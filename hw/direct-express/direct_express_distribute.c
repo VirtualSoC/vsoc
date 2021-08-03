@@ -1201,6 +1201,6 @@ void express_device_init_common(Express_Device_Info *info)
     {
         device_thread_info = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
-    printf("type id %llu\n", info->type_id);
+    // printf("type id %llu\n", info->type_id);
     g_hash_table_insert(device_thread_info, GINT_TO_POINTER(info->type_id), (gpointer)info);
 }

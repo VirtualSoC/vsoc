@@ -9,7 +9,7 @@
  * 
  */
 
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "express-gpu/egl_surface.h"
 #include "express-gpu/egl_display.h"
 
@@ -135,7 +135,7 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
     //这里先根据attrb_list获取窗口的宽和高
 
     Double_Buffer *surface = g_malloc(sizeof(Double_Buffer));
-    memset(surface, 0, sizeof(sizeof(Double_Buffer)));
+    memset(surface, 0, sizeof(Double_Buffer));
     surface->type = type;
     surface->width = 0;
     surface->height = 0;
@@ -161,6 +161,8 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
 
     //创建真实的窗口
     render_windows_create(surface);
+    assert(surface->window!=NULL);
+
     egl_surface_init(surface);
 
     return surface;
@@ -211,6 +213,9 @@ void d_eglIamComposer(void *context, EGLSurface surface)
     Process_Context *process_context = thread_context->process_context;
 
     Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
+    
+    express_printf("surface is composer %lx %lx\n",real_surface,surface);
+
     real_surface->I_am_composer = 1;
 }
 
@@ -219,7 +224,7 @@ void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    EGLSurface host_surface = render_surface_create(config, attrib_list, P_SURFACE);
+    EGLSurface host_surface = (EGLSurface)render_surface_create(config, attrib_list, P_SURFACE);
 
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
@@ -229,8 +234,9 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    EGLSurface host_surface = render_surface_create(config, attrib_list, WINDOW_SURFACE);
+    EGLSurface host_surface =  (EGLSurface)render_surface_create(config, attrib_list, WINDOW_SURFACE);
 
+    express_printf("surface create %lx %lx\n",host_surface,guest_surface);
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
 
@@ -246,6 +252,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     // }
     //g_map设定了destroy函数
     // render_surface_destroy(real_surface);
+    express_printf("destroy surface %lx\n",surface);
     g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
     return EGL_TRUE;
 }

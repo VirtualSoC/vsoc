@@ -35,6 +35,7 @@ const unsigned int config_attrs[NUM_ATTRS] = {
     EGL_CONFORMANT,
     EGL_COLOR_BUFFER_TYPE};
 
+
 Egl_Display *default_egl_display;
 
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs)
@@ -65,6 +66,7 @@ EGLBoolean d_eglChooseConfig(void *context, EGLDisplay dpy, const EGLint *attrib
 {
     //@todo 可能要在render_thread_context里加点啥，方便之后建立窗口的时候设置上去
     //记得加点啥后要初始化
+    return EGL_TRUE;
 }
 
 void d_eglGetDisplay(void *context, EGLNativeDisplayType display_id, EGLDisplay guest_display)
@@ -79,5 +81,5 @@ size_t get_attrib_list_len(const EGLint *attrib_list)
     {
         i++;
     }
-    return i + 1;
+    return (i + 1)*sizeof(EGLint);
 }

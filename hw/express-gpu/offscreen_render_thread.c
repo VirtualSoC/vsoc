@@ -65,14 +65,14 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     }
     else if (fun_id > 10000)
     {
-        express_printf("egl decode invoke\n");
+        express_printf("egl decode invoke %llu\n", fun_id);
 
         egl_decode_invoke(render_context, call);
     }
     else
     {
 
-        express_printf("gl decode invoke\n");
+        express_printf("gl decode invoke %llu\n", fun_id);
         gl3_decode_invoke(render_context, call);
     }
 
@@ -88,22 +88,7 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
         render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 
-    //新建进程上下文
-    Process_Context *process = g_hash_table_lookup(render_process_contexts, GINT_TO_POINTER(process_id));
-    if (process == NULL)
-    {
-        express_printf("create new process context\n");
-        process = g_malloc(sizeof(Process_Context));
-        process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
-        process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
-        process->egl_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-        process->egl_sync_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-        process->thread_cnt = 0;
-
-        g_hash_table_insert(render_process_contexts, GINT_TO_POINTER(process_id), (gpointer)process);
-    }
-
-    Thread_Context *context = g_hash_table_lookup(render_thread_contexts, GINT_TO_POINTER(thread_id));
+    Thread_Context *context = g_hash_table_lookup(render_thread_contexts, GINT_TO_POINTER(unique_id));
     // express_printf("g_hash table lookup\n");
     //没有context就新建线程
     if (context == NULL)
@@ -113,9 +98,23 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
         context = thread_context_create(thread_id, type_id, sizeof(Render_Thread_Context), info);
         Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
         //处理好process_context与thread_context的关系
+        //新建进程上下文
+        Process_Context *process = g_hash_table_lookup(render_process_contexts, GINT_TO_POINTER(process_id));
+        if (process == NULL)
+        {
+            express_printf("create new process context\n");
+            process = g_malloc(sizeof(Process_Context));
+            process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
+            process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
+            process->egl_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+            process->egl_sync_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+            process->thread_cnt = 0;
+
+            g_hash_table_insert(render_process_contexts, GINT_TO_POINTER(process_id), (gpointer)process);
+        }
         process->thread_cnt += 1;
         thread_context->process_context = process;
-        g_hash_table_insert(render_thread_contexts, GINT_TO_POINTER(thread_id), (gpointer)context);
+        g_hash_table_insert(render_thread_contexts, GINT_TO_POINTER(unique_id), (gpointer)context);
     }
     return context;
 }

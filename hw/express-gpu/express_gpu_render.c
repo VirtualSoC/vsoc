@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 
@@ -184,6 +184,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
             {
                 break;
             }
+            express_printf("create window %lx\n",d_buffer);
             egl_surface_create(d_buffer);
         }
 
@@ -195,6 +196,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         {
             break;
         }
+        express_printf("main windows destroy window %lx\n",d_buffer);
         glfwDestroyWindow(d_buffer->window);
 
         //destroywindows后，fbo会自动被删除，因为它不共享
@@ -204,6 +206,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo);
         g_free(d_buffer);
     }
+        break;
     case WM_USER_CONTEXT_DESTROY:
     {
         Opengl_Context *opengl_context = (Opengl_Context *)lParam;
@@ -214,7 +217,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         opengl_context_destroy(opengl_context);
         g_free(opengl_context);
     }
-
+        break;
     default:
         //express_printf("child win msg: %d\n", uMsg);
         break;
@@ -430,9 +433,17 @@ static void egl_surface_create(Double_Buffer *d_buffer)
 
 #else
     child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, glfw_window);
+    if(child_window==NULL){
+        char *s;
+        int ret=glfwGetError(&s);
+        express_printf("error code %d detail %s",ret,s);
+    }
+    
+    assert(child_window!=NULL);
 #endif
     d_buffer->window = child_window;
-
+    
+    express_printf("create windows surface %lx",d_buffer);
     //todo 根据配置设置窗口属性
 }
 

@@ -220,6 +220,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             }
             break;
         }
+        assert(surface>1000);
 
         EGLBoolean ret = d_eglSwapBuffers_sync(egl_context, dpy, surface);
         *ret_ptr = ret;
@@ -997,7 +998,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLDisplay dpy;
         EGLConfig config;
         EGLContext share_context;
-        EGLContext egl_context;
+        EGLContext guest_egl_context;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglCreateContext)
@@ -1040,7 +1041,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         share_context = *(EGLContext *)(temp + temp_loc);
         temp_loc += 8;
 
-        egl_context = *(EGLContext *)(temp + temp_loc);
+        guest_egl_context = *(EGLContext *)(temp + temp_loc);
         temp_loc += 8;
 
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
@@ -1051,7 +1052,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_eglCreateContext(egl_context, dpy, config, share_context, attrib_list, egl_context);
+        d_eglCreateContext(egl_context, dpy, config, share_context, attrib_list, guest_egl_context);
     }
     break;
 
@@ -2079,6 +2080,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         temp_loc += 8;
 
         EGLint *ret_flag = all_para[1].data;
+        assert(surface>1000);
 
         d_eglSwapBuffers(egl_context, dpy, surface, ret_flag);
     }

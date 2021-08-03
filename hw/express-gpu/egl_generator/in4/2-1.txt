@@ -4,7 +4,7 @@ EGLBoolean eglChooseConfig EGLDisplay dpy, const EGLint *attrib_list#get_attrib_
 
 EGLSurface eglCreatePbufferSurface EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list#get_attrib_list_len(attrib_list), EGLSurface surface
 EGLSurface eglCreateWindowSurface EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list#get_attrib_list_len(attrib_list), EGLSurface surface
-EGLContext eglCreateContext EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list#get_attrib_list_len(attrib_list), EGLContext egl_context
+EGLContext eglCreateContext EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list#get_attrib_list_len(attrib_list), EGLContext guest_egl_context
 
 EGLBoolean eglDestroyContext EGLDisplay dpy, EGLContext ctx
 EGLBoolean eglDestroySurface EGLDisplay dpy, EGLSurface surface

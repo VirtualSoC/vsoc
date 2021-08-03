@@ -1,5 +1,9 @@
+#define STD_DEBUG_LOG
+
+
 #include "express-gpu/egl_context.h"
 #include "express-gpu/glv3_context.h"
+
 
 EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
 {
@@ -29,7 +33,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
     Opengl_Context *real_share_context = NULL;
-    if (share_context != NULL)
+    if (share_context != NULL && share_context!=EGL_NO_CONTEXT)
     {
         real_share_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GINT_TO_POINTER(share_context));
     }
@@ -37,6 +41,8 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
     Opengl_Context *opengl_context = opengl_context_create(real_share_context);
 
     //todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
+
+    express_printf("context create %lx %lx\n",guest_context,opengl_context);
 
     g_hash_table_insert(process_context->context_map, GINT_TO_POINTER(guest_context), (gpointer)opengl_context);
 }
