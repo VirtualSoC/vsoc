@@ -34,7 +34,7 @@ extern volatile int native_render_run;
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);
 
-int draw_wait_GSYNC(HANDLE event, int interval);
+int draw_wait_GSYNC(HANDLE event, int wait_frame_num);
 
 void render_windows_create(Double_Buffer *context);
 

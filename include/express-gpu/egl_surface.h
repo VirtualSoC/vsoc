@@ -59,6 +59,15 @@ typedef struct Double_Buffer
 
      // //它绑定的opengl指针
      // void *opengl_context;
+     
+     // int calc_hz;
+     // int draw_hz;
+
+     // int frame_gen_time;
+     // gint64 last_gen_time;
+
+     // gint64 last_swap_time;
+
 
 
 } Double_Buffer;

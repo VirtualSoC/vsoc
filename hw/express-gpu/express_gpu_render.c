@@ -9,6 +9,7 @@
  * 
  */
 #define STD_DEBUG_LOG
+// #define TIMER_LOG
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 
@@ -27,16 +28,24 @@
 
 HWND draw_native_window;
 
-#ifdef _WIN32
-static HANDLE swap_event;
-#else
-static void *swap_event;
-#endif
+// #ifdef _WIN32
+// static HANDLE swap_event;
+// #else
+// static void *swap_event;
+// #endif
 
-static unsigned int main_frame_num;
+static unsigned int main_frame_num = 0;
 
 static int event_queue_lock;
 static GQueue *event_queue;
+
+static int calc_screen_hz = 0;
+
+static int now_screen_hz = 0;
+
+static gint64 last_swap_time = 0;
+
+// static int force_gsync = 0;
 
 #define EVENT_QUEUE_LOCK                                   \
     while (atomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
@@ -184,7 +193,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
             {
                 break;
             }
-            express_printf("create window %lx\n",d_buffer);
+            express_printf("create window %lx\n", d_buffer);
             egl_surface_create(d_buffer);
         }
 
@@ -196,7 +205,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         {
             break;
         }
-        express_printf("main windows destroy window %lx\n",d_buffer);
+        express_printf("main windows destroy window %lx\n", d_buffer);
         glfwDestroyWindow(d_buffer->window);
 
         //destroywindows后，fbo会自动被删除，因为它不共享
@@ -206,7 +215,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo);
         g_free(d_buffer);
     }
-        break;
+    break;
     case WM_USER_CONTEXT_DESTROY:
     {
         Opengl_Context *opengl_context = (Opengl_Context *)lParam;
@@ -217,7 +226,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         opengl_context_destroy(opengl_context);
         g_free(opengl_context);
     }
-        break;
+    break;
     default:
         //express_printf("child win msg: %d\n", uMsg);
         break;
@@ -383,16 +392,39 @@ static void opengl_paint(Double_Buffer *d_buffer)
     //glClearColor(0, 0, 1, 0);
     // glDisable(GL_DEPTH_TEST);
     int now_read = d_buffer->now_read;
+    // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
+    TIMER_START(texture_loc)
 
     TEXTURE_LOCK(d_buffer->display_texture_is_use[now_read]);
+
+    TIMER_END(texture_loc)
+
+    TIMER_OUTPUT(texture_loc, 100)
+    // gint64 t_loc=g_get_real_time();
+    // lock_time += t_loc-t_start;
+
     // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
     // express_printf("main has error %x\n",glGetError());
+
+    TIMER_START(sync)
+
     if (d_buffer->fbo_sync[now_read] != NULL)
     {
+        glWaitSync(d_buffer->fbo_sync[now_read], 0, GL_TIMEOUT_IGNORED);
+        glDeleteSync(d_buffer->fbo_sync[now_read]);
+
         //最多等待8ms
-        glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 8000000);
+        // glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 8000000);
     }
     // glDeleteSync(double_buffer->dispaly_sync);
+
+    TIMER_END(sync)
+
+    TIMER_OUTPUT(sync, 100)
+
+    // static gint64 sync_time=0;
+    // gint64 t_sync=g_get_real_time();
+    // sync_time += t_sync-t_loc;
 
     GLuint texture = d_buffer->fbo_texture[now_read];
 
@@ -400,10 +432,19 @@ static void opengl_paint(Double_Buffer *d_buffer)
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
-    express_printf("main window paint texture %u\n", texture);
+    // express_printf("main window paint texture %u\n", texture);
+
+    // TIMER_START(finish)
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    glFinish();
+
+    GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+    d_buffer->fbo_sync[now_read] = wait_sync;
+    // glFinish();
+    // TIMER_END(finish)
+
+    // TIMER_OUTPUT(finish,100)
 
     TEXTURE_UNLOCK(d_buffer->display_texture_is_use[now_read]);
 }
@@ -433,17 +474,18 @@ static void egl_surface_create(Double_Buffer *d_buffer)
 
 #else
     child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, glfw_window);
-    if(child_window==NULL){
+    if (child_window == NULL)
+    {
         char *s;
-        int ret=glfwGetError(&s);
-        express_printf("error code %d detail %s",ret,s);
+        int ret = glfwGetError(&s);
+        express_printf("error code %d detail %s", ret, s);
     }
-    
-    assert(child_window!=NULL);
+
+    assert(child_window != NULL);
 #endif
     d_buffer->window = child_window;
-    
-    express_printf("create windows surface %lx",d_buffer);
+
+    express_printf("create windows surface %lx", d_buffer);
     //todo 根据配置设置窗口属性
 }
 
@@ -574,16 +616,54 @@ void *native_window_thread(void *opaque)
 
         main_frame_num = (main_frame_num + 1) % 65536;
 
+        // TIMER_START(queue)
         EVENT_QUEUE_LOCK;
+        // if (compose_surface != NULL)
+        //     SetEvent((HANDLE)compose_surface->swap_event);
         g_queue_foreach(event_queue, g_queue_event_notify, NULL);
         g_queue_clear(event_queue);
         EVENT_QUEUE_UNLOCK;
+        // TIMER_END(queue)
+        // TIMER_OUTPUT(queue, 100)
+
         if (compose_surface != NULL)
         {
+            TIMER_START(paint)
             opengl_paint(compose_surface);
-        }
+            TIMER_END(paint)
 
-        glfwSwapBuffers(glfw_window);
+            TIMER_START(swap)
+            glfwSwapBuffers(glfw_window);
+
+            TIMER_END(swap)
+
+            TIMER_OUTPUT(paint, 100)
+            TIMER_OUTPUT(swap, 100)
+        }
+        else
+        {
+
+            glfwSwapBuffers(glfw_window);
+        }
+        //计算真实窗口帧率
+        gint64 now_time = g_get_real_time();
+        if (now_time - last_swap_time > 1000000 && last_swap_time != 0)
+        {
+            calc_screen_hz += 1;
+            now_screen_hz = calc_screen_hz;
+            express_printf("screen draw %dHz\n", calc_screen_hz);
+            calc_screen_hz = 0;
+            last_swap_time = now_time;
+        }
+        else if (last_swap_time == 0)
+        {
+            last_swap_time = now_time;
+            calc_screen_hz = 0;
+        }
+        else
+        {
+            calc_screen_hz += 1;
+        }
     }
 
     express_printf("native windows close!\n");
@@ -594,31 +674,122 @@ void *native_window_thread(void *opaque)
     return NULL;
 }
 
+/**
+ * @brief swapbuffer时的垂直同步
+ * 
+ * @param event 
+ * @param interval 
+ * @param now_hz 
+ * @return int
+ */
 int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
 {
-    EVENT_QUEUE_LOCK;
-    g_queue_push_tail(event_queue, (gpointer)event);
-    EVENT_QUEUE_UNLOCK;
 
-#ifdef _WIN32
-    //最多等待17ms，为一帧
-    WaitForSingleObject(swap_event, 17);
-#elif
-#endif
-    //这里wait_frame_num溢出的时候，wait很小，但是main很大
-    //这种时候直接不进循环里去，因为初始情况也是wait_frame很小
-    while (main_frame_num < wait_frame_num && wait_frame_num > 5)
+    //帧率太小的情况，赶不及窗口帧率，直接返回当前窗口frame_num
+
+    if (wait_frame_num - main_frame_num > 60000)
     {
-        //再次等待，直到跳过的frame_num对着了
-        EVENT_QUEUE_LOCK;
-        g_queue_push_tail(event_queue, (gpointer)event);
-        EVENT_QUEUE_UNLOCK;
+
+        return main_frame_num;
+    }
+    else if (main_frame_num - wait_frame_num > 60000)
+    {
+        while (wait_frame_num != main_frame_num)
+        {
+            EVENT_QUEUE_LOCK;
+            g_queue_push_tail(event_queue, (gpointer)event);
+            EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
-        WaitForSingleObject(swap_event, 17);
+            DWORD ret = WaitForSingleObject(event, 17);
 #elif
 #endif
+            if (ret == WAIT_TIMEOUT)
+            {
+                express_printf("gsync wait timeout\n");
+            }
+        }
+        return main_frame_num;
     }
-    return main_frame_num;
+    else if (wait_frame_num <= main_frame_num)
+    {
+        return main_frame_num;
+    }
+    else if (wait_frame_num > main_frame_num)
+    {
+        while (wait_frame_num != main_frame_num)
+        {
+            EVENT_QUEUE_LOCK;
+            g_queue_push_tail(event_queue, (gpointer)event);
+            EVENT_QUEUE_UNLOCK;
+#ifdef _WIN32
+            DWORD ret = WaitForSingleObject(event, 17);
+#elif
+#endif
+            if (ret == WAIT_TIMEOUT)
+            {
+                express_printf("gsync wait timeout\n");
+            }
+        }
+        return main_frame_num;
+    }
+
+    //     if (wait_frame_num <= main_frame_num || wait_frame_num - main_frame_num > 60000)
+    //     {
+    //         //帧率太小了，赶不及窗口帧率，直接返回当前窗口frame_num
+    //         return main_frame_num;
+    //     }
+    //     else
+    //     {
+    //         while (wait_frame_num > main_frame_num || main_frame_num - wait_frame_num > 60000)
+    //         {
+    //             EVENT_QUEUE_LOCK;
+    //             g_queue_push_tail(event_queue, (gpointer)event);
+    //             EVENT_QUEUE_UNLOCK;
+    // #ifdef _WIN32
+    //             DWORD ret = WaitForSingleObject(event, 20);
+    // #elif
+    // #endif
+    //             if (ret == WAIT_TIMEOUT)
+    //             {
+    //                 express_printf("gsync wait timeout\n");
+    //             }
+    //         }
+    //     }
+    //     if (gen_time == 0 || interval == 0)
+    //     {
+    //         //假如这个时候帧率还没计算出来，则等待着最高帧率计算，或者程序设定不进行垂直同步
+    //         return;
+    //     }
+    //     else if (gen_time * now_screen_hz > 10000 * interval)
+    //     {
+    //         // gen_time>1000000/(now_screen_hz/interval)
+    //         //如果当前帧数达不到设定的垂直同步帧数，也就是帧生成时间大于该帧数的帧生成时间，则不进行垂直同步
+    //         return;
+    //     }
+    //     else
+    //     {
+    //         //否则，说明帧生成时间过短，需要等待信号
+    //         //等待的信号数量等于（需要等待的时间除以真正的帧生成时间 的向上取整）
+    //         int wait_cnt = interval - (gen_time * now_screen_hz) / 1000000;
+
+    //         while (wait_cnt != 0)
+    //         {
+    //             EVENT_QUEUE_LOCK;
+    //             g_queue_push_tail(event_queue, (gpointer)event);
+    //             EVENT_QUEUE_UNLOCK;
+    // #ifdef _WIN32
+    //             DWORD ret = WaitForSingleObject(event, 20);
+    // #elif
+    // #endif
+
+    //             if (ret == WAIT_TIMEOUT)
+    //             {
+    //                 express_printf("gsync wait timeout\n");
+    //             }
+    //             wait_cnt--;
+    //         }
+    //     }
+    // return;
 }
 
 static void g_queue_event_notify(gpointer data, gpointer user_data)

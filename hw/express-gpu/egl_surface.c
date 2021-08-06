@@ -25,29 +25,66 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     // glFinish();
 
     int now_draw_buffer = surface->now_draw;
+
+    if (surface->fbo_sync[now_draw_buffer] == NULL)
+    {
+        // glDeleteSync(surface->fbo_sync[now_draw_buffer]);
+        surface->fbo_sync[now_draw_buffer] = wait_sync;
+    }
+    else
+    {
+        express_printf("sync not null\n");
+    }
+
     //解除对当前绘制的缓冲区的锁定，这个时候这个缓冲区能够被使用
     TEXTURE_UNLOCK(surface->display_texture_is_use[now_draw_buffer]);
 
-    if (surface->fbo_sync[now_draw_buffer] != NULL)
-    {
-        glDeleteSync(surface->fbo_sync[now_draw_buffer]);
-        surface->fbo_sync[now_draw_buffer] = wait_sync;
-    }
     surface->now_read = surface->now_draw;
 
-    if (surface->swap_interval > 0)
-    {
-        int next_frame_num = (surface->last_frame_num + surface->swap_interval) % 65536;
-        surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, next_frame_num);
-    }
+    //垂直同步
+    int next_frame_num = (surface->last_frame_num + surface->swap_interval) % 65536;
+    surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, next_frame_num);
 
     //尝试锁定下一个将要绘制的缓冲区
     int next_draw_buffer = (surface->now_draw + 1) % surface->buffer_num;
     TEXTURE_LOCK(surface->display_texture_is_use[next_draw_buffer]);
     surface->now_draw = next_draw_buffer;
 
+    //最多等待1s，这句是让host端窗口帧率优先得到保证的关键
+    glClientWaitSync(surface->fbo_sync[next_draw_buffer], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+
+    // glWaitSync(surface->fbo_sync[next_draw_buffer],0,GL_TIMEOUT_IGNORED);
+    glDeleteSync(surface->fbo_sync[next_draw_buffer]);
+    surface->fbo_sync[next_draw_buffer] = NULL;
+
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[surface->now_read]);
+
+    // //假如帧率比真实屏幕帧率还要小的话，这个时候有垂直同步会造成帧率极不稳定
+    // //因此这个时候需要移除垂直同步
+    // gint64 now_time = g_get_real_time();
+    // if(surface->last_gen_time!=0){
+    //     surface->frame_gen_time=(int)(now_time - surface->last_gen_time);
+    // }
+    // surface->last_gen_time=now_time;
+
+    // if (now_time - surface->last_swap_time > 1000000 && surface->last_swap_time != 0)
+    // {
+    //     surface->calc_hz += 1;
+    //     surface->draw_hz = surface->calc_hz;
+    //     express_printf("surface draw %dHz\n", surface->draw_hz);
+    //     surface->calc_hz = 0;
+    //     surface->last_swap_time = now_time;
+    // }
+    // else if (surface->last_swap_time == 0)
+    // {
+    //     surface->last_swap_time = now_time;
+    //     surface->calc_hz = 0;
+    // }
+    // else
+    // {
+    //     surface->calc_hz += 1;
+    // }
 }
 
 /**
@@ -161,7 +198,7 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
 
     //创建真实的窗口
     render_windows_create(surface);
-    assert(surface->window!=NULL);
+    assert(surface->window != NULL);
 
     egl_surface_init(surface);
 
@@ -213,8 +250,8 @@ void d_eglIamComposer(void *context, EGLSurface surface)
     Process_Context *process_context = thread_context->process_context;
 
     Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
-    
-    express_printf("surface is composer %lx %lx\n",real_surface,surface);
+
+    express_printf("surface is composer %lx %lx\n", real_surface, surface);
 
     real_surface->I_am_composer = 1;
 }
@@ -234,9 +271,9 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    EGLSurface host_surface =  (EGLSurface)render_surface_create(config, attrib_list, WINDOW_SURFACE);
+    EGLSurface host_surface = (EGLSurface)render_surface_create(config, attrib_list, WINDOW_SURFACE);
 
-    express_printf("surface create %lx %lx\n",host_surface,guest_surface);
+    express_printf("surface create %lx %lx\n", host_surface, guest_surface);
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
 
@@ -252,7 +289,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     // }
     //g_map设定了destroy函数
     // render_surface_destroy(real_surface);
-    express_printf("destroy surface %lx\n",surface);
+    express_printf("destroy surface %lx\n", surface);
     g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
     return EGL_TRUE;
 }

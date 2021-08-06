@@ -126,7 +126,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     assert(surface > 1000);
     Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
-    express_printf("swapbuffer %lx %lx\n", surface, real_surface);
+    // express_printf("swapbuffer %lx %lx\n", surface, real_surface);
 
     if (real_surface == NULL)
     {
