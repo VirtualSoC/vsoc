@@ -8,6 +8,8 @@
 #define PBUFFER_MAX_WIDTH 32767
 #define PBUFFER_MAX_HEIGHT 32767
 #define PBUFFER_MAX_PIXELS (PBUFFER_MAX_WIDTH * PBUFFER_MAX_HEIGHT)
+#define MIN_SWAP_INTERVAL 1
+#define MAX_SWAP_INTERVAL 10
 
 #define RETURN_IF_FALSE(a)                                                                     \
     do                                                                                         \

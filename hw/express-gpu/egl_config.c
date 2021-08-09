@@ -2,7 +2,6 @@
 #include "express-gpu/egl_config.h"
 
 const unsigned int config_attrs[NUM_ATTRS] = {
-    EGL_BUFFER_SIZE,
     EGL_RED_SIZE,
     EGL_GREEN_SIZE,
     EGL_BLUE_SIZE,
