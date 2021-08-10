@@ -24,6 +24,8 @@ typedef struct Double_Buffer
      GLuint display_fbo[5];
      GLuint now_draw;
      GLuint now_read;
+     // GLuint draw_num;
+     // GLuint read_num;
 
      GLuint buffer_num;
  
@@ -34,6 +36,8 @@ typedef struct Double_Buffer
      GLuint display_rbo[5];
 
      GLsync fbo_sync[5];
+
+     // GLuint fbo_used_type[5];
      // GLuint fbo_texture_draw;
      // GLuint fbo_texture_display;
 
@@ -72,10 +76,10 @@ typedef struct Double_Buffer
 
 } Double_Buffer;
 
-#define TEXTURE_LOCK(use_texture)                      \
-     while (atomic_cmpxchg(&(use_texture), 0, 1) == 1) \
+#define ATOMIC_LOCK(s)                      \
+     while (atomic_cmpxchg(&(s), 0, 1) == 1) \
           ;
-#define TEXTURE_UNLOCK(use_texture) atomic_cmpxchg(&(use_texture), 1, 0)
+#define ATOMIC_UNLOCK(s) atomic_cmpxchg(&(s), 1, 0)
 
 void egl_surface_swap_buffer(Double_Buffer *surface);
 

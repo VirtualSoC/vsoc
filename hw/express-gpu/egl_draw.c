@@ -103,18 +103,17 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
 
+#ifdef DEBUG_INDEPEND_WINDOW
+    //屏幕分离调试专用
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    ShowWindow(real_surface_draw->window, TRUE);
+#else
     if (real_surface_draw->I_am_composer)
     {
         set_compose_surface(real_surface_draw);
     }
-
-    TEXTURE_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
-
-#ifdef DEBUG_INDEPEND_WINDOW
-    //屏幕分离调试专用
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    ShowWindow(render_context->render_double_buffer->window, TRUE);
 #endif
+    ATOMIC_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
 
     return EGL_TRUE;
 }

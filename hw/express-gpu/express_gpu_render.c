@@ -45,6 +45,14 @@ static int now_screen_hz = 0;
 
 static gint64 last_swap_time = 0;
 
+// static gint64 stand_frame_time = 0;
+static volatile gint64 last_gen_frame_time = 0;
+static gint64 gen_frame_time_all = 0;
+static gen_frame_cnt = 0;
+// static gint64 now_gen_frame_time = 0;
+
+static gint64 gen_frame_time_avg_1s = 0;
+
 // static int force_gsync = 0;
 
 #define EVENT_QUEUE_LOCK                                   \
@@ -64,6 +72,7 @@ static long window_width;
 static long window_height;
 
 static Double_Buffer *compose_surface;
+static int compose_surface_lock=0;
 
 volatile int native_render_run = 0;
 
@@ -385,7 +394,7 @@ static int opengl_prepare(GLint *program, GLint *VAO)
  */
 static void opengl_paint(Double_Buffer *d_buffer)
 {
-    glClear(GL_COLOR_BUFFER_BIT);
+    // glClear(GL_COLOR_BUFFER_BIT);
     // glClearColor(1, 1, 1, 0);
     glViewport(0, 0, window_width, window_height);
     // glClear(GL_COLOR_BUFFER_BIT);
@@ -393,34 +402,33 @@ static void opengl_paint(Double_Buffer *d_buffer)
     // glDisable(GL_DEPTH_TEST);
     int now_read = d_buffer->now_read;
     // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
-    TIMER_START(texture_loc)
+    // TIMER_START(texture_loc)
 
-    TEXTURE_LOCK(d_buffer->display_texture_is_use[now_read]);
+    ATOMIC_LOCK(d_buffer->display_texture_is_use[now_read]);
 
-    TIMER_END(texture_loc)
+    // TIMER_END(texture_loc)
 
-    TIMER_OUTPUT(texture_loc, 100)
+    // TIMER_OUTPUT(texture_loc, 100)
     // gint64 t_loc=g_get_real_time();
     // lock_time += t_loc-t_start;
 
     // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
     // express_printf("main has error %x\n",glGetError());
 
-    TIMER_START(sync)
+    // TIMER_START(sync)
 
     if (d_buffer->fbo_sync[now_read] != NULL)
     {
+        //最多等待8ms
+        // glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
         glWaitSync(d_buffer->fbo_sync[now_read], 0, GL_TIMEOUT_IGNORED);
         glDeleteSync(d_buffer->fbo_sync[now_read]);
-
-        //最多等待8ms
-        // glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 8000000);
     }
     // glDeleteSync(double_buffer->dispaly_sync);
 
-    TIMER_END(sync)
+    // TIMER_END(sync)
 
-    TIMER_OUTPUT(sync, 100)
+    // TIMER_OUTPUT(sync, 100)
 
     // static gint64 sync_time=0;
     // gint64 t_sync=g_get_real_time();
@@ -432,7 +440,8 @@ static void opengl_paint(Double_Buffer *d_buffer)
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
-    // express_printf("main window paint texture %u\n", texture);
+
+    // express_printf("main window paint fbo %u\n", d_buffer->display_fbo[now_read]);
 
     // TIMER_START(finish)
 
@@ -446,7 +455,7 @@ static void opengl_paint(Double_Buffer *d_buffer)
 
     // TIMER_OUTPUT(finish,100)
 
-    TEXTURE_UNLOCK(d_buffer->display_texture_is_use[now_read]);
+    ATOMIC_UNLOCK(d_buffer->display_texture_is_use[now_read]);
 }
 
 /**
@@ -470,7 +479,7 @@ static void egl_surface_create(Double_Buffer *d_buffer)
 //屏幕分离调试专用
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    child_window = glfwCreateWindow(width, height, name, NULL, NULL);
+    child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, NULL);
 
 #else
     child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, glfw_window);
@@ -485,7 +494,7 @@ static void egl_surface_create(Double_Buffer *d_buffer)
 #endif
     d_buffer->window = child_window;
 
-    express_printf("create windows surface %lx", d_buffer);
+    express_printf("create windows surface %lx\n", d_buffer);
     //todo 根据配置设置窗口属性
 }
 
@@ -611,8 +620,7 @@ void *native_window_thread(void *opaque)
     {
 
         // glfwWaitEvents();
-
-        glfwPollEvents();
+        gint64 frame_start_time = g_get_real_time();
 
         main_frame_num = (main_frame_num + 1) % 65536;
 
@@ -625,34 +633,77 @@ void *native_window_thread(void *opaque)
         EVENT_QUEUE_UNLOCK;
         // TIMER_END(queue)
         // TIMER_OUTPUT(queue, 100)
+        // glClear(GL_COLOR_BUFFER_BIT);
 
+        ATOMIC_LOCK(compose_surface_lock);
         if (compose_surface != NULL)
         {
-            TIMER_START(paint)
+            // if(main_frame_num%100==0){
+            // express_printf("main draw surface %lx\n",compose_surface);
+            // }
+            // TIMER_START(paint)
             opengl_paint(compose_surface);
-            TIMER_END(paint)
+            // TIMER_END(paint)
 
-            TIMER_START(swap)
+            // TIMER_START(event)
+            ATOMIC_UNLOCK(compose_surface_lock);
+            glfwPollEvents();
+            // TIMER_END(event)
+            // TIMER_OUTPUT(event, 100)
+
+            // TIMER_START(swap)
             glfwSwapBuffers(glfw_window);
 
-            TIMER_END(swap)
+            // TIMER_END(swap)
 
-            TIMER_OUTPUT(paint, 100)
-            TIMER_OUTPUT(swap, 100)
+            // TIMER_OUTPUT(paint, 100)
+            // TIMER_OUTPUT(swap, 100)
         }
         else
         {
-
+            // TIMER_START(event)
+            ATOMIC_UNLOCK(compose_surface_lock);
+            glfwPollEvents();
+            // TIMER_END(event)
+            // TIMER_OUTPUT(event, 100)
             glfwSwapBuffers(glfw_window);
         }
-        //计算真实窗口帧率
         gint64 now_time = g_get_real_time();
+
+        //计算帧生成时间
+        // gen_frame_cnt++;
+        // gen_frame_time_all += now_time - frame_start_time;
+        // if (gen_frame_cnt == 100)
+        // {
+        //     last_gen_frame_time = gen_frame_time_all / 100;
+        //     gen_frame_cnt = 0;
+        //     gen_frame_time_all = 0;
+        //     express_printf("avg_gen_frame_time %lld\n", last_gen_frame_time);
+        // }
+
+        //计算真实窗口帧率
         if (now_time - last_swap_time > 1000000 && last_swap_time != 0)
         {
             calc_screen_hz += 1;
             now_screen_hz = calc_screen_hz;
-            express_printf("screen draw %dHz\n", calc_screen_hz);
             calc_screen_hz = 0;
+            gen_frame_time_avg_1s = 1000000 / now_screen_hz;
+            // express_printf("screen draw %dHz avg %lld\n", now_screen_hz, gen_frame_time_avg_1s);
+
+            // if (stand_frame_time == 0)
+            // {
+            //     stand_frame_time = gen_frame_time_avg_1s;
+            //     express_printf("now stand frame time %lld\n",stand_frame_time);
+            // }
+
+            // //假如帧产生时间小于标准帧产生时间的90%或者大于标准帧产生时间的110%
+            // //则说明此时系统帧数发生了变化，需要更新标准帧产生时间，此时需要保证主窗口GPU资源足够
+            // if (gen_frame_time_avg_1s * 10 < stand_frame_time * 9 || gen_frame_time_avg_1s * 10 > stand_frame_time * 11)
+            // {
+            //     express_printf("regenenate stand frame time %lld %lld\n",gen_frame_time_avg_1s,stand_frame_time);
+            //     stand_frame_time = 0;
+            // }
+
             last_swap_time = now_time;
         }
         else if (last_swap_time == 0)
@@ -792,6 +843,22 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
     // return;
 }
 
+// bool should_give_up_gpu()
+// {
+//     if(stand_frame_time == 0){
+//         //正在计算标准的帧生成时间，此时需要放弃gpu，优先保证主窗口
+//         return true;
+//     }
+//     if (last_gen_frame_time * 10 > stand_frame_time * 11 ){
+//         //上一次帧生成时间过大，超过标准的110%，则需要放弃gpu，优先保证主窗口
+//         express_printf("give up gpu %lld %lld\n",last_gen_frame_time,stand_frame_time);
+//         return true;
+//     }
+//     express_printf("hold gpu %lld %lld\n",last_gen_frame_time,stand_frame_time);
+//     //默认情况都不需要放弃GPU
+//     return false;
+// }
+
 static void g_queue_event_notify(gpointer data, gpointer user_data)
 {
     SetEvent((HANDLE)data);
@@ -817,5 +884,8 @@ void render_windows_create(Double_Buffer *context)
 
 void set_compose_surface(Double_Buffer *surface)
 {
+    ATOMIC_LOCK(compose_surface_lock);
     compose_surface = surface;
+    ATOMIC_UNLOCK(compose_surface_lock);
+    express_printf("change compose surface %lx\n",compose_surface);
 }

@@ -7,7 +7,7 @@ EGLSurface eglCreateWindowSurface EGLDisplay dpy, EGLConfig config, EGLNativeWin
 EGLContext eglCreateContext EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list#get_attrib_list_len(attrib_list), EGLContext guest_egl_context
 
 EGLBoolean eglDestroyContext EGLDisplay dpy, EGLContext ctx
-EGLBoolean eglDestroySurface EGLDisplay dpy, EGLSurface surface
+//EGLBoolean eglDestroySurface EGLDisplay dpy, EGLSurface surface
 
 EGLBoolean eglTerminate EGLDisplay dpy
 

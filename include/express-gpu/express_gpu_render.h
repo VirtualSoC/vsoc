@@ -40,5 +40,6 @@ void render_windows_create(Double_Buffer *context);
 
 void set_compose_surface(Double_Buffer *surface);
 
+// bool should_give_up_gpu();
 
 #endif

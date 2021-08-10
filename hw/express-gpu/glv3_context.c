@@ -972,12 +972,22 @@ void resource_context_destroy(Resource_Context *resources)
         g_free(resources->share_resources);
     }
 
-    DESTROY_RESOURCES(frame_buffer_resource, glDeleteFramebuffers);
-    DESTROY_RESOURCES(program_pipeline_resource, glDeleteProgramPipelines);
-    DESTROY_RESOURCES(transform_feedback_resource, glDeleteTransformFeedbacks);
-    DESTROY_RESOURCES(vertex_array_resource, glDeleteVertexArrays);
+    //下面这些资源不是共享资源，在surface释放后就会释放，所以不去管它
+    //但是需要注意的是，假如程序在不同线程间切换context，而且makecurrent的时候这同一个context是和不同的surface组合的
+    //那将导致下面保存的这些资源失效，实际生活中会不会利用这种奇怪的方式进行数据的共享存疑，即到底context是和EGLContext绑定
+    //还是同时和EGLSurface、EGLContext绑定? @todo
+    // DESTROY_RESOURCES(frame_buffer_resource, glDeleteFramebuffers);
+    // DESTROY_RESOURCES(program_pipeline_resource, glDeleteProgramPipelines);
+    // DESTROY_RESOURCES(transform_feedback_resource, glDeleteTransformFeedbacks);
+    // DESTROY_RESOURCES(vertex_array_resource, glDeleteVertexArrays);
 
-    DESTROY_RESOURCES(query_resource, glDeleteQueries);
+    // DESTROY_RESOURCES(query_resource, glDeleteQueries);
+
+    g_free(resources->frame_buffer_resource->resource_id_map);
+    g_free(resources->program_pipeline_resource->resource_id_map);
+    g_free(resources->transform_feedback_resource->resource_id_map);
+    g_free(resources->vertex_array_resource->resource_id_map);
+    g_free(resources->query_resource->resource_id_map);
 
     g_free(resources->exclusive_resources);
 

@@ -160,3 +160,5 @@ trace-ust-all.c
 /storage-daemon
 /qemu.code-workspace
 .gitlab-ci.yml
+config-host.mak
+config.status

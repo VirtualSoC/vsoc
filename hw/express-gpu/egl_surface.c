@@ -10,6 +10,7 @@
  */
 
 #define STD_DEBUG_LOG
+// #define TIMER_LOG
 #include "express-gpu/egl_surface.h"
 #include "express-gpu/egl_display.h"
 
@@ -18,6 +19,12 @@
 
 void egl_surface_swap_buffer(Double_Buffer *surface)
 {
+
+    #ifdef DEBUG_INDEPEND_WINDOW
+    glfwSwapBuffers(surface->window);
+    return;
+    #endif
+
     //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     glFlush();
@@ -37,9 +44,10 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     }
 
     //解除对当前绘制的缓冲区的锁定，这个时候这个缓冲区能够被使用
-    TEXTURE_UNLOCK(surface->display_texture_is_use[now_draw_buffer]);
+    ATOMIC_UNLOCK(surface->display_texture_is_use[now_draw_buffer]);
 
     surface->now_read = surface->now_draw;
+    // surface->read_num=surface->draw_num;
 
     //垂直同步
     int next_frame_num = (surface->last_frame_num + surface->swap_interval) % 65536;
@@ -47,16 +55,39 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
 
     //尝试锁定下一个将要绘制的缓冲区
     int next_draw_buffer = (surface->now_draw + 1) % surface->buffer_num;
-    TEXTURE_LOCK(surface->display_texture_is_use[next_draw_buffer]);
+    ATOMIC_LOCK(surface->display_texture_is_use[next_draw_buffer]);
     surface->now_draw = next_draw_buffer;
+    // surface->draw_num+=1;
 
-    //最多等待1s，这句是让host端窗口帧率优先得到保证的关键
+    TIMER_START(sync)
     glClientWaitSync(surface->fbo_sync[next_draw_buffer], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    TIMER_END(sync)
+    TIMER_OUTPUT(sync, 100)
+    // if(surface->fbo_used_type[next_draw_buffer]==SELF_USE){
+    //     //根本不需要等待，因为它是被自己使用，所以不用担心延迟问题
+    //     glWaitSync(surface->fbo_sync[next_draw_buffer],0,GL_TIMEOUT_IGNORED);
+    //     // GLenum ret=glClientWaitSync(surface->fbo_sync[next_draw_buffer], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    //     express_printf("direct draw  %u\n",surface->draw_num);
+    // }else if(surface->fbo_used_type[next_draw_buffer]==OTHER_USE){
+        // if(ret==GL_TIMEOUT_EXPIRED){
+        //     express_printf("client wait timeout\n");
+        // }
+        // express_printf("need cpu wait %x %u\n",ret,surface->draw_num);GL_CONDITION_SATISFIED;
+        // surface->fbo_used_type[next_draw_buffer]=SELF_USE;
+    // }
 
-    // glWaitSync(surface->fbo_sync[next_draw_buffer],0,GL_TIMEOUT_IGNORED);
+    // //需要放弃gpu的时候，进行cpu等待，否则进行gpu等待
+    // if(should_give_up_gpu()){
+    //     //最多等待1s，这句是让host端窗口帧率优先得到保证的关键
+    //     glClientWaitSync(surface->fbo_sync[next_draw_buffer], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    // }else{
+    //     glWaitSync(surface->fbo_sync[next_draw_buffer],0,GL_TIMEOUT_IGNORED);
+    // }
+
     glDeleteSync(surface->fbo_sync[next_draw_buffer]);
     surface->fbo_sync[next_draw_buffer] = NULL;
 
+    // express_printf("client paint fbo %u\n", surface->display_fbo[surface->now_draw]);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[surface->now_read]);
 
@@ -106,7 +137,8 @@ int egl_surface_init(Double_Buffer *d_buffer)
 
     if (d_buffer->type == WINDOW_SURFACE)
     {
-        d_buffer->buffer_num = 2;
+        //windows_surface使用三重缓冲
+        d_buffer->buffer_num = 3;
         d_buffer->now_read = 0;
         d_buffer->now_draw = 1;
     }
@@ -216,10 +248,10 @@ int render_surface_destroy(Double_Buffer *surface)
 
     express_printf("windows destroy\n");
 
-    if (surface->I_am_composer)
-    {
-        set_compose_surface(NULL);
-    }
+    // if (surface->I_am_composer)
+    // {
+    //     set_compose_surface(NULL);
+    // }
 
     if (surface->is_current)
     {
@@ -273,7 +305,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
 
     EGLSurface host_surface = (EGLSurface)render_surface_create(config, attrib_list, WINDOW_SURFACE);
 
-    express_printf("surface create %lx %lx\n", host_surface, guest_surface);
+    // express_printf("surface create %lx %lx\n", host_surface, guest_surface);
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
 

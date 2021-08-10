@@ -170,6 +170,7 @@ static void g_context_map_destroy(gpointer data)
     else
     {
         //实际上是到主窗口调用opengl_context_destroy了
+        //注意，有部分数据在不同线程间是不共享的
         PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
     }
 }
