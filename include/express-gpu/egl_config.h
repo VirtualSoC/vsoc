@@ -6,11 +6,10 @@
 
 #include "express-gpu/egl_display.h"
 
-#define NUM_ATTRS 32
+#define NUM_ATTRS 31
 // 顺序不能变
 typedef struct
 {
-    EGLint buffer_size;
     EGLint red_size;
     EGLint green_size;
     EGLint blue_size;

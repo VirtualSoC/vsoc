@@ -5,16 +5,15 @@
 
 Egl_Display_WGL default_wgl_display;
 
-
 /**
  * @brief 初始化Egl_Display
  * 
- * @param display 待初始化的Egl_Display
+ * @param display_point 待初始化的Egl_Display
  */
 void init_display(Egl_Display **display_point)
 {
-    Egl_Display *display=(Egl_Display *)&default_wgl_display;
-    *display_point=&default_wgl_display;
+    Egl_Display *display = (Egl_Display *)&default_wgl_display;
+    *display_point = &default_wgl_display;
 
     Egl_Display_WGL *wgl_display = (Egl_Display_WGL *)display;
     ZeroMemory(wgl_display, sizeof(Egl_Display_WGL));
@@ -187,16 +186,24 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     if (pbuffer)
         config->surface_type |= EGL_PBUFFER_BIT;
 
+    config->bind_to_tex_rgb = EGL_FALSE;  // 暂不支持
+    config->bind_to_tex_rgba = EGL_FALSE; // 暂不支持
     config->native_visual_id = 0;
     config->native_visual_type = EGL_NONE;
     config->caveat = EGL_NONE;
     config->native_renderable = EGL_FALSE;
+    config->min_swap_interval = MIN_SWAP_INTERVAL;
+    config->max_swap_interval = MAX_SWAP_INTERVAL;
     config->renderable_type = RENDERABLE_SUPPORT;
     config->max_pbuffer_width = PBUFFER_MAX_WIDTH;
     config->max_pbuffer_height = PBUFFER_MAX_HEIGHT;
     config->max_pbuffer_size = PBUFFER_MAX_PIXELS;
     config->samples_per_pixel = 0;
+    config->sample_buffers_num = config->samples_per_pixel > 0 ? 1 : 0;
+    config->luminance_size = 0;
+    config->wanted_buffer_size = EGL_DONT_CARE;
     config->frame_buffer_level = 0;
+    config->color_buffer_type = EGL_RGB_BUFFER;
 
     int transparent = 0, transparent_attrib = WGL_TRANSPARENT_ARB;
     RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &transparent_attrib, &transparent));
@@ -223,7 +230,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->alpha_size = pfd->cAlphaBits;
     config->depth_size = pfd->cDepthBits;
     config->stencil_size = pfd->cStencilBits;
-
+    config->conformant = (((config->red_size + config->green_size + config->blue_size + config->alpha_size) > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
     config->pixel_format = pfd;
     config->config_id = id;
 

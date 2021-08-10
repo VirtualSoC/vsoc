@@ -51,7 +51,7 @@ CONFIG_VNC_JPEG=y
 CONFIG_VNC_PNG=y
 VERSION=5.0.50
 PKGVERSION=
-SRC_PATH=/home/gaodi/qemu
+SRC_PATH=/c/Users/linli/Downloads/qemu5.0
 TARGET_DIRS=x86_64-softmmu
 CONFIG_SDL=m
 SDL_CFLAGS=-IC:/msys64/mingw64/include/SDL2 -Dmain=SDL_main  -Wno-undef
