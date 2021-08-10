@@ -162,3 +162,4 @@ trace-ust-all.c
 .gitlab-ci.yml
 config-host.mak
 config.status
+roms/vgabios/config.mak
