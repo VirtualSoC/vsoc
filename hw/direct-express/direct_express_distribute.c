@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-//#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_handle_thread.h"
@@ -629,7 +629,7 @@ void push_to_thread(Direct_Express_Call *call)
         call->callback(call, 0);
         return;
     }
-    express_printf("\033[31mpush to %s thread_id %llu %08x %llu %llu %08x\033[0m\n", device_info->name, call->thread_id, call->thread_id, device_type_id, fun_id, call->id);
+    express_printf("\033[31mpush to %s thread_id %llu %08x fun id%llu %llu %08x unique id %08x\033[0m\n", device_info->name, call->thread_id, call->thread_id, device_type_id, fun_id, call->id,call->unique_id);
 
     Thread_Context *context = device_info->get_context(device_type_id, thread_id, process_id, unique_id, device_info);
 

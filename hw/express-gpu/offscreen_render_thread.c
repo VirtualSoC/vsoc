@@ -130,7 +130,7 @@ void remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t
         }
     }
 
-    g_hash_table_remove(render_thread_contexts, GINT_TO_POINTER(thread_id));
+    g_hash_table_remove(render_thread_contexts, GINT_TO_POINTER(unique_id));
 }
 
 void render_context_init(Thread_Context *context)
