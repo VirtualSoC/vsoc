@@ -806,7 +806,7 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     // case GL_SHADER_STORAGE_BUFFER:
     //     status->shader_storage_buffer = id;
     // }
-    express_printf("bind buffer %u\n", buffer);
+    // express_printf("bind buffer %u\n", buffer);
 
     glBindBuffer(target, buffer);
 }
@@ -823,7 +823,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 
 void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
 {
-    // express_printf("gl shader source:\n%s",string[0]);
+    express_printf("gl shader source:\n%s",string[0]);
     glShaderSource(shader, count, string, length);
 }
 

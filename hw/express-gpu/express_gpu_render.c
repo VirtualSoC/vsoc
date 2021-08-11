@@ -633,7 +633,7 @@ void *native_window_thread(void *opaque)
         EVENT_QUEUE_UNLOCK;
         // TIMER_END(queue)
         // TIMER_OUTPUT(queue, 100)
-        // glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT);
 
         ATOMIC_LOCK(compose_surface_lock);
         if (compose_surface != NULL)
