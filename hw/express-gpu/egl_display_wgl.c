@@ -201,7 +201,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->samples_per_pixel = 0;
     config->sample_buffers_num = config->samples_per_pixel > 0 ? 1 : 0;
     config->luminance_size = 0;
-    config->wanted_buffer_size = EGL_DONT_CARE;
+    config->buffer_size = 0;
     config->frame_buffer_level = 0;
     config->color_buffer_type = EGL_RGB_BUFFER;
 
@@ -230,12 +230,15 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->alpha_size = pfd->cAlphaBits;
     config->depth_size = pfd->cDepthBits;
     config->stencil_size = pfd->cStencilBits;
-    config->conformant = (((config->red_size + config->green_size + config->blue_size + config->alpha_size) > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+    config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+    config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
     config->pixel_format = pfd;
-    config->config_id = id;
+    config->framebuffer_target_android = (config->buffer_size == 16  || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
 
-    // 资源需要释放
-    g_hash_table_insert(display->egl_config_set, GINT_TO_POINTER(id), (gpointer)config);
+    // Table中的资源需要在线程结束后释放
+    if (!add_config(display, config)) {
+        free(config);
+    }
 }
 
 /**

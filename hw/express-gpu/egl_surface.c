@@ -228,6 +228,8 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
         i += 2;
     }
 
+    config_to_hints(config, &surface->window_hints);
+
     //创建真实的窗口
     render_windows_create(surface);
     assert(surface->window != NULL);

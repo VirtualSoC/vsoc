@@ -2,11 +2,10 @@
 #define EGL_CONFIG_H
 
 #include "egl.h"
+#include "eglext.h"
 #include "qemu/osdep.h"
 
-#include "express-gpu/egl_display.h"
-
-#define NUM_ATTRS 31
+#define NUM_ATTRS 34
 // 顺序不能变
 typedef struct
 {
@@ -33,7 +32,7 @@ typedef struct
     EGLint samples_per_pixel;
     EGLint stencil_size;
     EGLint luminance_size;
-    EGLint wanted_buffer_size;
+    EGLint buffer_size;
     EGLint surface_type;
     EGLenum transparent_type;
     EGLint trans_red_val;
@@ -41,12 +40,28 @@ typedef struct
     EGLint trans_blue_val;
     EGLenum conformant;
     EGLint color_buffer_type;
+    EGLint alpha_mask_size;
+    EGLBoolean recordable_android;
+    EGLBoolean framebuffer_target_android;
 
     void *pixel_format;
 } eglConfig;
 
-extern const unsigned int config_attrs[NUM_ATTRS];
+#define NUM_HINTS 6
+#define HINTS_LEN 2 * NUM_HINTS + 1
+// 仿照EGL的attribute表，[ENUM1, VALUE1, ENUM2, VALUE2, ...]，以GLFW_DONT_CARE结尾
+typedef struct {int64_t hints[HINTS_LEN]} GLFWHints;
 
+extern const unsigned int config_attrs[NUM_ATTRS];
+extern const int64_t config_hints[NUM_HINTS];
+
+#define ATTRIB_EQ(attr) \
+    (config->attr == other->attr)
+
+EGLBoolean is_config_in_table(eglConfig *config, GHashTable *table);
+EGLBoolean is_config_equaled(eglConfig *config, eglConfig *other);
+EGLint get_hint_by_config(eglConfig *config, int64_t hint_enum);
+EGLBoolean config_to_hints(EGLConfig cfg, GLFWHints *hints);
 
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs);
 
@@ -56,7 +71,6 @@ EGLBoolean d_eglChooseConfig(void *context, EGLDisplay dpy, const EGLint *attrib
                              EGLConfig *configs, EGLint config_size, EGLint *num_config);
 
 void d_eglGetDisplay(void *context, EGLNativeDisplayType display_id, EGLDisplay guest_display);
-
 
 size_t get_attrib_list_len(const EGLint *attrib_list);
 

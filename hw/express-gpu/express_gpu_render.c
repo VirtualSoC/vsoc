@@ -475,6 +475,15 @@ static void egl_surface_create(Double_Buffer *d_buffer)
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+    int idx = 0;
+    while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
+    {
+        int64_t hint_enum = d_buffer->window_hints.hints[idx];
+        int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
+        glfwWindowHint(hint_enum, hint_val);
+        idx += 2;
+    }
+    
 
 //屏幕分离调试专用
 #ifdef DEBUG_INDEPEND_WINDOW

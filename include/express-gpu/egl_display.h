@@ -1,7 +1,7 @@
 #ifndef EGL_DISPLAY_H
 #define EGL_DISPLAY_H
 
-#include "egl_config.h"
+#include "express-gpu/egl_config.h"
 #include "direct-express/express_log.h"
 
 #define RENDERABLE_SUPPORT 0 | EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT;
@@ -35,5 +35,6 @@ extern Egl_Display *default_egl_display;
 
 void init_display(Egl_Display **display);
 void init_configs(Egl_Display *display);
+EGLBoolean add_config(Egl_Display *display, eglConfig *config);
 
 #endif

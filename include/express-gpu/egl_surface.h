@@ -3,6 +3,7 @@
 
 #include "direct-express/direct_express_distribute.h"
 #include "express-gpu/egl_define.h"
+#include "express-gpu/egl_config.h"
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 
@@ -16,6 +17,7 @@ typedef struct Double_Buffer
 
      //原始的native窗口
      GLFWwindow *window;
+     GLFWHints window_hints;
 
      //可以交换的事件
      HANDLE swap_event;

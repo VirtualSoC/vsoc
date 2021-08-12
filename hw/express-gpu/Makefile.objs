@@ -16,6 +16,7 @@ common-obj-$(CONFIG_EXPRESS_GPU) += glv3_resource.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_trans.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_surface.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_config.o
+common-obj-$(CONFIG_EXPRESS_GPU) += egl_display.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_display_wgl.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_context.o
 common-obj-$(CONFIG_EXPRESS_GPU) += egl_draw.o
