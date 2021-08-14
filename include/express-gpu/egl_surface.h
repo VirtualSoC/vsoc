@@ -19,6 +19,8 @@ typedef struct Double_Buffer
      GLFWwindow *window;
      GLFWHints window_hints;
 
+     eglConfig *config;
+
      //可以交换的事件
      HANDLE swap_event;
 
@@ -35,7 +37,9 @@ typedef struct Double_Buffer
      // GLuint fbo_display;
 
      GLuint fbo_texture[5];
-     GLuint display_rbo[5];
+     GLuint display_rbo_depth[5];
+     GLuint display_rbo_stencil[5];
+
 
      GLsync fbo_sync[5];
 

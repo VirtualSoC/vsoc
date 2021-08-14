@@ -61,7 +61,7 @@ extern const int64_t config_hints[NUM_HINTS];
 EGLBoolean is_config_in_table(eglConfig *config, GHashTable *table);
 EGLBoolean is_config_equaled(eglConfig *config, eglConfig *other);
 EGLint get_hint_by_config(eglConfig *config, int64_t hint_enum);
-EGLBoolean config_to_hints(EGLConfig cfg, GLFWHints *hints);
+eglConfig *config_to_hints(EGLConfig cfg, GLFWHints *hints);
 
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs);
 

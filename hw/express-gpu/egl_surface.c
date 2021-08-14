@@ -20,10 +20,10 @@
 void egl_surface_swap_buffer(Double_Buffer *surface)
 {
 
-    #ifdef DEBUG_INDEPEND_WINDOW
+#ifdef DEBUG_INDEPEND_WINDOW
     glfwSwapBuffers(surface->window);
     return;
-    #endif
+#endif
 
     //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -69,11 +69,11 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     //     // GLenum ret=glClientWaitSync(surface->fbo_sync[next_draw_buffer], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
     //     express_printf("direct draw  %u\n",surface->draw_num);
     // }else if(surface->fbo_used_type[next_draw_buffer]==OTHER_USE){
-        // if(ret==GL_TIMEOUT_EXPIRED){
-        //     express_printf("client wait timeout\n");
-        // }
-        // express_printf("need cpu wait %x %u\n",ret,surface->draw_num);GL_CONDITION_SATISFIED;
-        // surface->fbo_used_type[next_draw_buffer]=SELF_USE;
+    // if(ret==GL_TIMEOUT_EXPIRED){
+    //     express_printf("client wait timeout\n");
+    // }
+    // express_printf("need cpu wait %x %u\n",ret,surface->draw_num);GL_CONDITION_SATISFIED;
+    // surface->fbo_used_type[next_draw_buffer]=SELF_USE;
     // }
 
     // //需要放弃gpu的时候，进行cpu等待，否则进行gpu等待
@@ -118,6 +118,258 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     // }
 }
 
+void create_fbo_texture(Double_Buffer *d_buffer, int index)
+{
+
+    EGLint internal_format = GL_RGB;
+    EGLenum format = GL_RGB;
+    EGLenum type = GL_UNSIGNED_BYTE;
+
+    EGLenum depth_internal_format = 0;
+    EGLenum stencil_internal_format = 0;
+
+    EGLint red_bits = d_buffer->config->red_size;
+    EGLint green_bits = d_buffer->config->green_size;
+    EGLint blue_bits = d_buffer->config->blue_size;
+    EGLint alpha_bits = d_buffer->config->alpha_size;
+    EGLint stencil_bits = d_buffer->config->stencil_size;
+    EGLint depth_bits = d_buffer->config->depth_size;
+
+    express_printf("rgba %d %d %d %d ds %d %d\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits);
+
+    // 2222
+    // 3320
+    // 4440
+    // 4444
+    // 5550
+    // 5551
+    // 5650
+    // 8000
+    // 8800
+    // 8880
+    // 8888
+    // 1010100
+    // 1010102
+    // 1212120
+    // 12121212
+    // 1616160
+    // 16161616
+    if (red_bits == 2 && green_bits == 2 && blue_bits == 2 && alpha_bits == 2)
+    {
+        //2222
+        internal_format = GL_RGBA2;
+        format = GL_RGBA;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 2222 ");
+    }
+    else if (red_bits == 3 && green_bits == 3 && blue_bits == 2 && alpha_bits == 0)
+    {
+        //3320
+        internal_format = GL_R3_G3_B2;
+        format = GL_RGB;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 3320 ");
+    }
+    else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 0)
+    {
+        //4440
+        internal_format = GL_RGB4;
+        format = GL_RGB;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 4440 ");
+    }
+    else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 4)
+    {
+        //4444
+        internal_format = GL_RGBA4;
+        format = GL_RGBA;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 4444 ");
+    }
+    else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 0)
+    {
+        //5550
+        internal_format = GL_RGB5;
+        format = GL_RGB;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 5550 ");
+    }
+    else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 1)
+    {
+        //5551
+        internal_format = GL_RGB5_A1;
+        format = GL_RGBA;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 5551 ");
+    }
+    else if (red_bits == 5 && green_bits == 6 && blue_bits == 5 && alpha_bits == 0)
+    {
+        //5650
+        internal_format = GL_RGB565;
+        format = GL_RGB;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 5650 ");
+    }
+    else if (red_bits == 8 && green_bits == 0 && blue_bits == 0 && alpha_bits == 0)
+    {
+        //8000
+        internal_format = GL_R8;
+        format = GL_RED;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 8000 ");
+    }
+    else if (red_bits == 8 && green_bits == 8 && blue_bits == 0 && alpha_bits == 0)
+    {
+        //8800
+        internal_format = GL_RG8;
+        format = GL_RG;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 8800 ");
+    }
+    else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 0)
+    {
+        //8880
+        internal_format = GL_RGB8;
+        format = GL_RGB;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 8880 ");
+    }
+    else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 8)
+    {
+        //8888
+        internal_format = GL_RGBA8;
+        format = GL_RGBA;
+        type = GL_UNSIGNED_BYTE;
+        express_printf("choose rgba 8888 ");
+    }
+    else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 0)
+    {
+        //1010100
+        internal_format = GL_RGB10;
+        format = GL_RGB;
+        type = GL_UNSIGNED_INT;
+        express_printf("choose rgba 1010100 ");
+    }
+    else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 2)
+    {
+        //1010102
+        internal_format = GL_RGB10_A2;
+        format = GL_RGBA;
+        type = GL_UNSIGNED_INT_2_10_10_10_REV;
+        express_printf("choose rgba 1010102 ");
+    }
+    else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 0)
+    {
+        //1212120
+        internal_format = GL_RGB12;
+        format = GL_RGB;
+        type = GL_UNSIGNED_INT;
+        express_printf("choose rgba 1212120 ");
+    }
+    else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 12)
+    {
+        //1212120
+        internal_format = GL_RGBA12;
+        format = GL_RGBA;
+        type = GL_UNSIGNED_INT;
+        express_printf("choose rgba 12121212 ");
+    }
+    else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 0)
+    {
+        //1616160
+        internal_format = GL_RGB16;
+        format = GL_RGB;
+        type = GL_UNSIGNED_INT;
+        express_printf("choose rgba 1616160 ");
+    }
+    else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 16)
+    {
+        //1616160
+        internal_format = GL_RGBA16;
+        format = GL_RGBA;
+        type = GL_UNSIGNED_INT;
+        express_printf("choose rgba 16161616 ");
+    }
+    else
+    {
+        express_printf("choose rgba default ");
+    }
+
+    // internal_format = GL_RG8;
+    // format = GL_RG;
+    // type = GL_UNSIGNED_BYTE;
+
+    if (depth_bits == 16)
+    {
+        depth_internal_format = GL_DEPTH_COMPONENT16;
+        express_printf("GL_DEPTH_COMPONENT16\n");
+    }
+    else if (depth_bits == 24)
+    {
+        depth_internal_format = GL_DEPTH_COMPONENT24;
+        express_printf("GL_DEPTH_COMPONENT24\n");
+    }
+    else if (depth_bits == 32)
+    {
+        depth_internal_format = GL_DEPTH_COMPONENT32F;
+        express_printf("GL_DEPTH_COMPONENT32F\n");
+    }
+
+    if (stencil_bits == 8)
+    {
+        stencil_internal_format = GL_STENCIL_INDEX8;
+        express_printf("GL_STENCIL_INDEX8\n");
+        if (depth_internal_format == GL_DEPTH_COMPONENT24)
+        {
+            depth_internal_format = GL_DEPTH24_STENCIL8;
+            express_printf("GL_DEPTH24_STENCIL8\n");
+
+        }
+    }
+    // depth_internal_format=0;
+    // stencil_internal_format=0;
+
+    glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture[index]);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, internal_format, d_buffer->width, d_buffer->height, 0, format, type, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    if (depth_internal_format != 0)
+    {
+        //这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
+        glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->display_rbo_depth[index]);
+        glRenderbufferStorage(GL_RENDERBUFFER, depth_internal_format, d_buffer->width, d_buffer->height);
+    }
+
+    //之所以当深度24模板8时要合并，是因为这样效率更高
+    if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->display_rbo_stencil[index]);
+        glRenderbufferStorage(GL_RENDERBUFFER, stencil_internal_format, d_buffer->width, d_buffer->height);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->display_fbo[index]);
+    //附加颜色缓冲区
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture[index], 0);
+    //附加深度缓冲区
+    if (depth_internal_format == GL_DEPTH24_STENCIL8)
+    {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->display_rbo_depth[index]);
+    }
+    else if (depth_internal_format != 0)
+    {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, d_buffer->display_rbo_depth[index]);
+    }
+    //附加模板缓冲区
+    if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
+    {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->display_rbo_stencil[index]);
+
+    }
+}
+
 /**
  * @brief 利用windows初始化surface，注意：这个操作只能在draw子线程中进行，并且在创建了context之后
  * 
@@ -137,7 +389,8 @@ int egl_surface_init(Double_Buffer *d_buffer)
 
     if (d_buffer->type == WINDOW_SURFACE)
     {
-        //windows_surface使用三重缓冲
+        //windows_surface是否应该使用三重缓冲?
+        //@todo 三重缓冲有点奇怪闪烁来着，似乎是同步没到位，需要看咋解决
         d_buffer->buffer_num = 3;
         d_buffer->now_read = 0;
         d_buffer->now_draw = 1;
@@ -153,28 +406,12 @@ int egl_surface_init(Double_Buffer *d_buffer)
 
     glGenTextures(buffer_num, d_buffer->fbo_texture);
     glGenFramebuffers(buffer_num, d_buffer->display_fbo);
-    glGenRenderbuffers(buffer_num, d_buffer->display_rbo);
+    glGenRenderbuffers(buffer_num, d_buffer->display_rbo_depth);
+    glGenRenderbuffers(buffer_num, d_buffer->display_rbo_stencil);
 
     for (int i = 0; i < buffer_num; i++)
     {
-        //@todo 验证这样的默认设置是否足够显示(例如颜色空间是否足够，深度空间是否足够)
-        glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture[i]);
-
-        //因为这个是最终画面，所以不需要透明，RGB就行，不需要RGBA
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, d_buffer->width, d_buffer->height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        //这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区
-        glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->display_rbo[i]);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, d_buffer->width, d_buffer->height); // Use a single renderbuffer object for both a depth AND stencil buffer.
-
-        glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->display_fbo[i]);
-        //附加颜色缓冲区
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture[i], 0);
-        //附加深度缓冲区
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->display_rbo[i]); // Now actually attach it
+        create_fbo_texture(d_buffer, i);
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -228,7 +465,7 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
         i += 2;
     }
 
-    config_to_hints(config, &surface->window_hints);
+    surface->config = config_to_hints(config, &surface->window_hints);
 
     //创建真实的窗口
     render_windows_create(surface);

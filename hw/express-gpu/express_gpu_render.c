@@ -221,7 +221,8 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         // glDeleteFramebuffers(surface->buffer_num, surface->display_fbo);
 
         glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
-        glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo);
+        glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
+        glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
         g_free(d_buffer);
     }
     break;
@@ -396,7 +397,7 @@ static void opengl_paint(Double_Buffer *d_buffer)
 {
     // glClear(GL_COLOR_BUFFER_BIT);
     // glClearColor(1, 1, 1, 0);
-    glViewport(0, 0, window_width, window_height);
+    // glViewport(0, 0, window_width, window_height);
     // glClear(GL_COLOR_BUFFER_BIT);
     //glClearColor(0, 0, 1, 0);
     // glDisable(GL_DEPTH_TEST);
@@ -625,6 +626,16 @@ void *native_window_thread(void *opaque)
     // }
 
     // int a = 1;
+    glViewport(0, 0, window_width, window_height);
+    //因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+
+    //开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+    glDisable(GL_BLEND);
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
 

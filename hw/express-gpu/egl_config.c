@@ -95,15 +95,17 @@ EGLBoolean is_config_equaled(eglConfig *config, eglConfig *other)
            ATTRIB_EQ(color_buffer_type);
 }
 
-EGLBoolean config_to_hints(EGLConfig cfg, GLFWHints *hints)
+eglConfig *config_to_hints(EGLConfig cfg, GLFWHints *hints)
 {
     eglConfig *config = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GINT_TO_POINTER(cfg));
+    
     for (int i = 0; i < NUM_HINTS; i++)
     {
         hints->hints[i * 2] = config_hints[i];
         hints->hints[i * 2 + 1] = get_hint_by_config(config, config_hints[i]);
     }
     hints->hints[HINTS_LEN - 1] = GLFW_DONT_CARE;
+    return config;
 }
 
 EGLint get_hint_by_config(eglConfig *config, int64_t hint_enum)
