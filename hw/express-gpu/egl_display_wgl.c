@@ -79,6 +79,11 @@ void init_configs(Egl_Display *display)
         parse_pixel_format(display, dummy_ctx, &pfd, idx);
     }
 
+    // 添加一些与窗口无关的配置
+    add_window_independent_config(display, EGL_DEPTH_SIZE, depth_vals, NUM_DEPTH_VAL, NULL);
+    add_window_independent_config(display, EGL_STENCIL_SIZE, stencil_vals, NUM_STENCILE_VAL, NULL);
+    add_window_independent_config(display, EGL_SAMPLES, sample_vals, NUM_SAMPLE_VAL, set_sample_operation);
+
     ReleaseDC(dummy_window, dummy_ctx);
     DestroyWindow(dummy_window);
 }
@@ -233,10 +238,11 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
     config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
     config->pixel_format = pfd;
-    config->framebuffer_target_android = (config->buffer_size == 16  || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
+    config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
 
     // Table中的资源需要在线程结束后释放
-    if (!add_config(display, config)) {
+    if (!add_config(display, config))
+    {
         free(config);
     }
 }

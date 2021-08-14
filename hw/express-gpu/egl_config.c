@@ -46,6 +46,10 @@ const int64_t config_hints[NUM_HINTS] = {
     GLFW_STENCIL_BITS,
     GLFW_DEPTH_BITS};
 
+const int depth_vals[NUM_DEPTH_VAL] = {0, 16, 24, 32};
+const int stencil_vals[NUM_STENCILE_VAL] = {0, 8};
+const int sample_vals[NUM_SAMPLE_VAL] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+
 EGLBoolean is_config_in_table(eglConfig *config, GHashTable *table)
 {
     GList *config_list = g_hash_table_get_values(table);
@@ -128,6 +132,119 @@ EGLint get_hint_by_config(eglConfig *config, int64_t hint_enum)
     default:
         return 0;
     }
+}
+
+void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum) {
+    switch (attr_enum) {
+        case EGL_MAX_PBUFFER_WIDTH:
+            config->max_pbuffer_width = val;
+            break;
+        case EGL_MAX_PBUFFER_HEIGHT:
+            config->max_pbuffer_height = val;
+            break;
+        case EGL_MAX_PBUFFER_PIXELS:
+            config->max_pbuffer_size = val;
+            break;
+        case EGL_NATIVE_VISUAL_ID:
+            config->native_visual_id = val;
+            break;
+        case EGL_LEVEL:
+            config->frame_buffer_level = val;
+            break;
+        case EGL_BUFFER_SIZE:
+            config->buffer_size = val;
+            break;
+        case EGL_RED_SIZE:
+            config->red_size = val;
+            break;
+        case EGL_GREEN_SIZE:
+            config->green_size = val;
+            break;
+        case EGL_BLUE_SIZE:
+            config->blue_size = val;
+            break;
+        case EGL_LUMINANCE_SIZE:
+            config->luminance_size = val;
+            break;
+        case EGL_ALPHA_SIZE:
+            config->alpha_size = val;
+            break;
+        case EGL_BIND_TO_TEXTURE_RGB:
+            config->bind_to_tex_rgb = val;
+            break;
+        case EGL_BIND_TO_TEXTURE_RGBA:
+            config->bind_to_tex_rgba = val;
+            break;
+        case EGL_CONFIG_CAVEAT:
+            config->caveat = val;
+            break;
+        case EGL_CONFORMANT:
+            config->conformant = val;
+            break;
+        case EGL_CONFIG_ID:
+            config->config_id = val;
+            break;
+        case EGL_DEPTH_SIZE:
+            config->depth_size = val;
+            break;
+        case EGL_MAX_SWAP_INTERVAL:
+            config->max_swap_interval = val;
+            break;
+        case EGL_MIN_SWAP_INTERVAL:
+            config->min_swap_interval = val;
+            break;
+        case EGL_NATIVE_RENDERABLE:
+            config->native_renderable = val;
+            break;
+        case EGL_RENDERABLE_TYPE:
+            config->renderable_type = val;
+            break;
+        case EGL_NATIVE_VISUAL_TYPE:
+            config->native_visual_type = val;
+            break;
+        case EGL_SAMPLE_BUFFERS:
+            config->sample_buffers_num = val;
+            break;
+        case EGL_SAMPLES:
+            config->samples_per_pixel = val;
+            break;
+        case EGL_STENCIL_SIZE:
+            config->stencil_size = val;
+            break;
+        case EGL_SURFACE_TYPE:
+            config->surface_type = val;
+            break;
+        case EGL_TRANSPARENT_TYPE:
+            config->transparent_type = val;
+            break;
+        case EGL_TRANSPARENT_RED_VALUE:
+            config->trans_red_val = val;
+            break;
+        case EGL_TRANSPARENT_GREEN_VALUE:
+            config->trans_green_val = val;
+            break;
+        case EGL_TRANSPARENT_BLUE_VALUE:
+            config->trans_blue_val = val;
+            break;
+        case EGL_COLOR_BUFFER_TYPE:
+            config->color_buffer_type = val;
+            break;
+        case EGL_ALPHA_MASK_SIZE:
+            config->alpha_mask_size = val;
+            break;
+        case EGL_RECORDABLE_ANDROID:
+            config->recordable_android = val;
+            break;
+        case EGL_FRAMEBUFFER_TARGET_ANDROID:
+            config->framebuffer_target_android = val;
+            break;
+        default:
+            break;
+    }
+}
+
+void set_sample_operation(eglConfig *config) {
+    config->sample_buffers_num = config->samples_per_pixel > 0 ? 1 : 0;
 }
 
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs)

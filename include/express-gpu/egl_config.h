@@ -49,11 +49,17 @@ typedef struct
 
 #define NUM_HINTS 6
 #define HINTS_LEN 2 * NUM_HINTS + 1
+#define NUM_DEPTH_VAL 4
+#define NUM_STENCILE_VAL 2
+#define NUM_SAMPLE_VAL 17
 // 仿照EGL的attribute表，[ENUM1, VALUE1, ENUM2, VALUE2, ...]，以GLFW_DONT_CARE结尾
 typedef struct {int64_t hints[HINTS_LEN]} GLFWHints;
 
 extern const unsigned int config_attrs[NUM_ATTRS];
 extern const int64_t config_hints[NUM_HINTS];
+extern const int depth_vals[NUM_DEPTH_VAL];
+extern const int stencil_vals[NUM_STENCILE_VAL];
+extern const int sample_vals[NUM_SAMPLE_VAL];
 
 #define ATTRIB_EQ(attr) \
     (config->attr == other->attr)
@@ -62,6 +68,8 @@ EGLBoolean is_config_in_table(eglConfig *config, GHashTable *table);
 EGLBoolean is_config_equaled(eglConfig *config, eglConfig *other);
 EGLint get_hint_by_config(eglConfig *config, int64_t hint_enum);
 eglConfig *config_to_hints(EGLConfig cfg, GLFWHints *hints);
+void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum);
+void set_sample_operation(eglConfig *config);
 
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs);
 
