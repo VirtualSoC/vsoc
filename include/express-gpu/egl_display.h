@@ -31,11 +31,9 @@ typedef struct
 
 extern Egl_Display *default_egl_display;
 
-typedef void (*EXTRA_OPERATION_FUNC)(eglConfig *);
-
 void init_display(Egl_Display **display);
 void init_configs(Egl_Display *display);
 EGLBoolean add_config(Egl_Display *display, eglConfig *config);
-void add_window_independent_config(Egl_Display *display, EGLint attr_enum, EGLint *vals, EGLint val_size, EXTRA_OPERATION_FUNC func);
+void add_window_independent_config(Egl_Display *display, EGLint attr_enum, EGLint *vals, EGLint val_size);
 
 #endif

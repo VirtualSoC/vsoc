@@ -26,7 +26,15 @@ EGLBoolean add_config(Egl_Display *display, eglConfig *config)
     }
 }
 
-void add_window_independent_config(Egl_Display *display, EGLint attr_enum, EGLint *vals, EGLint val_size, EXTRA_OPERATION_FUNC func)
+/**
+ * @brief 添加与窗口无关的配置信息，可以指定某个配置属性，添加一系列值
+ * 
+ * @param display 需要添加配置的display
+ * @param attr_enum 需要添加的配置属性的Enum，比如EGL_RED_SIZE
+ * @param vals 需要添加的属性值数组
+ * @param val_size 属性值数组的长度
+ */
+void add_window_independent_config(Egl_Display *display, EGLint attr_enum, EGLint *vals, EGLint val_size)
 {
     int config_set_size = g_hash_table_size(display->egl_config_set);
     for (int i = 0; i < config_set_size; i++)
@@ -37,8 +45,6 @@ void add_window_independent_config(Egl_Display *display, EGLint attr_enum, EGLin
             eglConfig *new_config = (eglConfig *)malloc(sizeof(eglConfig));
             memcpy(new_config, config, sizeof(eglConfig));
             set_val_by_enum(new_config, vals[j], attr_enum);
-            if (func != NULL)
-                func(new_config);
             if (!add_config(display, new_config))
             {
                 free(new_config);
