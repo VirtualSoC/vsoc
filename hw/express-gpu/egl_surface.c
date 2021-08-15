@@ -25,6 +25,13 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     return;
 #endif
 
+    if (surface->config->sample_buffers_num != 0)
+    {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->sampler_fbo[surface->now_draw]);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
+        glBlitFramebuffer(0, 0, surface->width, surface->height, 0, 0, surface->width, surface->height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    }
+
     //这句很重要，没了这个画不出来，这个是保证之前的绘制操作都针对原来的draw进行的
     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     glFlush();
@@ -88,7 +95,14 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     surface->fbo_sync[next_draw_buffer] = NULL;
 
     // express_printf("client paint fbo %u\n", surface->display_fbo[surface->now_draw]);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
+    if (surface->config->sample_buffers_num != 0)
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->sampler_fbo[surface->now_draw]);
+    }
+    else
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
+    }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[surface->now_read]);
 
     // //假如帧率比真实屏幕帧率还要小的话，这个时候有垂直同步会造成帧率极不稳定
@@ -134,8 +148,10 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
     EGLint alpha_bits = d_buffer->config->alpha_size;
     EGLint stencil_bits = d_buffer->config->stencil_size;
     EGLint depth_bits = d_buffer->config->depth_size;
+    EGLint need_sampler = d_buffer->config->sample_buffers_num;
+    EGLint sampler_num = d_buffer->config->samples_per_pixel;
 
-    express_printf("rgba %d %d %d %d ds %d %d\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits);
+    express_printf("rgba %d %d %d %d ds %d %d MSAA %dX\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits,sampler_num);
 
     // 2222
     // 3320
@@ -323,7 +339,6 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
         {
             depth_internal_format = GL_DEPTH24_STENCIL8;
             express_printf("GL_DEPTH24_STENCIL8\n");
-
         }
     }
     // depth_internal_format=0;
@@ -336,24 +351,52 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+    if (need_sampler)
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->sampler_rbo[index]);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampler_num, internal_format, d_buffer->width, d_buffer->height);
+    }
+
     if (depth_internal_format != 0)
     {
         //这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
         glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->display_rbo_depth[index]);
-        glRenderbufferStorage(GL_RENDERBUFFER, depth_internal_format, d_buffer->width, d_buffer->height);
+        if (need_sampler)
+        {
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampler_num, depth_internal_format, d_buffer->width, d_buffer->height);
+        }
+        else
+        {
+            glRenderbufferStorage(GL_RENDERBUFFER, depth_internal_format, d_buffer->width, d_buffer->height);
+        }
     }
 
     //之所以当深度24模板8时要合并，是因为这样效率更高
     if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->display_rbo_stencil[index]);
-        glRenderbufferStorage(GL_RENDERBUFFER, stencil_internal_format, d_buffer->width, d_buffer->height);
+        if (need_sampler)
+        {
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampler_num, stencil_internal_format, d_buffer->width, d_buffer->height);
+        }
+        else
+        {
+            glRenderbufferStorage(GL_RENDERBUFFER, stencil_internal_format, d_buffer->width, d_buffer->height);
+        }
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->display_fbo[index]);
     //附加颜色缓冲区
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture[index], 0);
+
     //附加深度缓冲区
+    if (need_sampler)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->sampler_fbo[index]);
+        //附加颜色缓冲区
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, d_buffer->sampler_rbo[index]);
+    }
+
     if (depth_internal_format == GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->display_rbo_depth[index]);
@@ -366,7 +409,6 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
     if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->display_rbo_stencil[index]);
-
     }
 }
 
@@ -387,11 +429,21 @@ int egl_surface_init(Double_Buffer *d_buffer)
     glfwMakeContextCurrent(d_buffer->window);
     d_buffer->swap_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
+    // d_buffer->config->sample_buffers_num = 1;
+    // d_buffer->config->samples_per_pixel = 4;
+
+    if (d_buffer->config->sample_buffers_num != 0)
+    {
+        //窗口不需要开启多采样，只需要fbo开启就行
+        // glfwWindowHint(GLFW_SAMPLES, d_buffer->config->samples_per_pixel);
+        glEnable(GL_MULTISAMPLE);
+    }
+
     if (d_buffer->type == WINDOW_SURFACE)
     {
         //windows_surface是否应该使用三重缓冲?
         //@todo 三重缓冲有点奇怪闪烁来着，似乎是同步没到位，需要看咋解决
-        d_buffer->buffer_num = 3;
+        d_buffer->buffer_num = 2;
         d_buffer->now_read = 0;
         d_buffer->now_draw = 1;
     }
@@ -409,6 +461,12 @@ int egl_surface_init(Double_Buffer *d_buffer)
     glGenRenderbuffers(buffer_num, d_buffer->display_rbo_depth);
     glGenRenderbuffers(buffer_num, d_buffer->display_rbo_stencil);
 
+    if (d_buffer->config->sample_buffers_num != 0)
+    {
+        glGenFramebuffers(buffer_num, d_buffer->sampler_fbo);
+        glGenRenderbuffers(buffer_num, d_buffer->sampler_rbo);
+    }
+
     for (int i = 0; i < buffer_num; i++)
     {
         create_fbo_texture(d_buffer, i);
@@ -420,7 +478,15 @@ int egl_surface_init(Double_Buffer *d_buffer)
 
     //这里将读写的framebuffer分离，是为了readpixel时，能够从后缓冲区读取数据
     //（对于我们的程序，后缓冲区就是fbo_dispaly，而对于绑定fbo不为0时时会选择从read fbo读取，所以要这样把display-fbo设置为read）
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->display_fbo[d_buffer->now_draw]);
+
+    if (d_buffer->config->sample_buffers_num != 0)
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->sampler_fbo[d_buffer->now_draw]);
+    }
+    else
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->display_fbo[d_buffer->now_draw]);
+    }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, d_buffer->display_fbo[d_buffer->now_read]);
 
 //屏幕分离调试专用

@@ -223,6 +223,9 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
+        if(d_buffer->config->sample_buffers_num!=0){
+            glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->sampler_rbo);
+        }
         g_free(d_buffer);
     }
     break;

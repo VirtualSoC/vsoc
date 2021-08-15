@@ -26,6 +26,9 @@ typedef struct Double_Buffer
 
      //这里用数组循环是为了方便进行设置单缓冲、双缓冲，甚至是三重缓冲
      GLuint display_fbo[5];
+
+     //用于MSAA抗锯齿的fbo
+     GLuint sampler_fbo[5];
      GLuint now_draw;
      GLuint now_read;
      // GLuint draw_num;
@@ -40,6 +43,10 @@ typedef struct Double_Buffer
      GLuint display_rbo_depth[5];
      GLuint display_rbo_stencil[5];
 
+     //用于MSAA抗锯齿的rbo
+     //由于图像之后可能要被surfaceflinger使用，因此这里只能使用bilt来复制出来数据
+     GLuint sampler_rbo[5];
+     
 
      GLsync fbo_sync[5];
 
