@@ -148,11 +148,16 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, E
         GLint now_flag_cnt = 0;
         Guest_Mem *guest_mem = (Guest_Mem *)ret_flag;
 
-        guest_write(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
+        //加这个判断是为了防止guest端应用被强退，内存被释放之后，这里再进行内存的写入，导致潜在的系统崩溃
+        Thread_Context *thread_context = (Thread_Context *)context;
+        if (thread_context->init != 0)
+        {
+            guest_write(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
 
-        now_flag_cnt = (now_flag_cnt + 1) % 1024;
+            now_flag_cnt = (now_flag_cnt + 1) % 1024;
 
-        guest_read(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
+            guest_read(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
+        }
     }
     return ret;
 }

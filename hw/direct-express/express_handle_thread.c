@@ -121,6 +121,7 @@ void *handle_thread_run(void *opaque)
         context->context_init(context);
     }
     context->thread_run = 1;
+    context->init = 1;
     while (context->thread_run)
     {
         Direct_Express_Call *call = call_pop(context);
