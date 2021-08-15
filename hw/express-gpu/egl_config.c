@@ -154,30 +154,48 @@ void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum) {
         case EGL_BUFFER_SIZE:
             config->buffer_size = val;
             break;
-        case EGL_RED_SIZE:
+        case EGL_RED_SIZE: {
             config->red_size = val;
+            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
             break;
-        case EGL_GREEN_SIZE:
+        }
+        case EGL_GREEN_SIZE: {
             config->green_size = val;
+            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
             break;
-        case EGL_BLUE_SIZE:
+        }
+        case EGL_BLUE_SIZE: {
             config->blue_size = val;
+            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
             break;
+        }
         case EGL_LUMINANCE_SIZE:
             config->luminance_size = val;
             break;
-        case EGL_ALPHA_SIZE:
+        case EGL_ALPHA_SIZE: {
             config->alpha_size = val;
+            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
             break;
+        }
         case EGL_BIND_TO_TEXTURE_RGB:
             config->bind_to_tex_rgb = val;
             break;
         case EGL_BIND_TO_TEXTURE_RGBA:
             config->bind_to_tex_rgba = val;
             break;
-        case EGL_CONFIG_CAVEAT:
+        case EGL_CONFIG_CAVEAT: {
             config->caveat = val;
+            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
             break;
+        }
         case EGL_CONFORMANT:
             config->conformant = val;
             break;
@@ -205,18 +223,22 @@ void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum) {
         case EGL_SAMPLE_BUFFERS:
             config->sample_buffers_num = val;
             break;
-        case EGL_SAMPLES:
+        case EGL_SAMPLES: {
             config->samples_per_pixel = val;
+            config->sample_buffers_num = config->samples_per_pixel > 0 ? 1 : 0;
             break;
+        }
         case EGL_STENCIL_SIZE:
             config->stencil_size = val;
             break;
         case EGL_SURFACE_TYPE:
             config->surface_type = val;
             break;
-        case EGL_TRANSPARENT_TYPE:
+        case EGL_TRANSPARENT_TYPE: {
             config->transparent_type = val;
+            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
             break;
+        }
         case EGL_TRANSPARENT_RED_VALUE:
             config->trans_red_val = val;
             break;
@@ -241,10 +263,6 @@ void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum) {
         default:
             break;
     }
-}
-
-void set_sample_operation(eglConfig *config) {
-    config->sample_buffers_num = config->samples_per_pixel > 0 ? 1 : 0;
 }
 
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs)

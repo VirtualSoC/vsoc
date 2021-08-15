@@ -69,7 +69,6 @@ EGLBoolean is_config_equaled(eglConfig *config, eglConfig *other);
 EGLint get_hint_by_config(eglConfig *config, int64_t hint_enum);
 eglConfig *config_to_hints(EGLConfig cfg, GLFWHints *hints);
 void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum);
-void set_sample_operation(eglConfig *config);
 
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs);
 
