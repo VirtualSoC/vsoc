@@ -220,7 +220,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             }
             break;
         }
-        assert(surface>1000);
+        // assert(surface>1000);
 
         EGLBoolean ret = d_eglSwapBuffers_sync(egl_context, dpy, surface);
         *ret_ptr = ret;
@@ -2031,7 +2031,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "eglSwapBuffers EGLDisplay dpy, EGLSurface surface, EGLint *ret_flag#sizeof(GLint)" */
+        /* readline: "eglSwapBuffers EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, int64_t *ret_invoke_time#sizeof(int64_t), , int64_t *swap_time#sizeof(int64_t)" */
         /* func name: "eglSwapBuffers" */
         /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'surface', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'ret_flag', 'ptr': 'out', 'ptr_len': 'sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -2040,6 +2040,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* Define variables */
         EGLDisplay dpy;
         EGLSurface surface;
+        int64_t invoke_time;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglSwapBuffers)
@@ -2051,7 +2052,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (temp_len < 24 * 1)
         {
             break;
         }
@@ -2079,10 +2080,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         surface = *(EGLSurface *)(temp + temp_loc);
         temp_loc += 8;
 
-        EGLint *ret_flag = all_para[1].data;
-        assert(surface>1000);
+        invoke_time = *(EGLSurface *)(temp + temp_loc);
+        temp_loc += 8;
 
-        d_eglSwapBuffers(egl_context, dpy, surface, ret_flag);
+        int64_t *ret_invoke_time = all_para[1].data;
+        // assert(surface>1000);
+        int64_t *swap_time = all_para[2].data;
+
+        d_eglSwapBuffers(egl_context, dpy, surface, invoke_time, ret_invoke_time, swap_time);
     }
     break;
 

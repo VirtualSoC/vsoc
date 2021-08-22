@@ -29,6 +29,6 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
 EGLBoolean d_eglSwapInterval(void *context, EGLDisplay dpy, EGLint interval);
 
 
-EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, EGLint *ret_flag);
+EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, int64_t *ret_invoke_time, int64_t *swap_time);
 
 #endif

@@ -80,11 +80,15 @@ typedef struct Double_Buffer
      // int calc_hz;
      // int draw_hz;
 
-     // int frame_gen_time;
-     // gint64 last_gen_time;
+     int frame_gen_time;
+     gint64 last_gen_time;
 
      // gint64 last_swap_time;
 
+     int64_t swap_time[20];
+     int64_t swap_time_all;
+     int swap_loc;
+     int swap_time_cnt;
 
 
 } Double_Buffer;

@@ -97,7 +97,16 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glEnable(GL_POINT_SPRITE);
     }
 
-    real_opengl_context->draw_fbo0 = real_surface_draw->display_fbo[real_surface_draw->now_draw];
+
+    if (real_surface_draw->config->sample_buffers_num != 0)
+    {
+        real_opengl_context->draw_fbo0 = real_surface_draw->sampler_fbo[real_surface_draw->now_draw];
+    }
+    else
+    {
+        real_opengl_context->draw_fbo0 = real_surface_draw->display_fbo[real_surface_draw->now_draw];
+    }
+    
     real_opengl_context->read_fbo0 = real_surface_read->display_fbo[real_surface_read->now_read];
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
@@ -122,7 +131,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
-    assert(surface > 1000);
+    // assert(surface > 1000);
     Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
     // express_printf("swapbuffer %lx %lx\n", surface, real_surface);
@@ -134,29 +143,69 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     Opengl_Context *real_opengl_context = thread_context->opengl_context;
 
     egl_surface_swap_buffer(real_surface);
-
-    real_opengl_context->draw_fbo0 = real_surface->display_fbo[real_surface->now_draw];
+    if (real_surface->config->sample_buffers_num != 0)
+    {
+        real_opengl_context->draw_fbo0 = real_surface->sampler_fbo[real_surface->now_draw];
+    }
+    else
+    {
+        real_opengl_context->draw_fbo0 = real_surface->display_fbo[real_surface->now_draw];
+    }
     real_opengl_context->read_fbo0 = real_surface->display_fbo[real_surface->now_read];
     return EGL_TRUE;
 }
 
-EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, EGLint *ret_flag)
+EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, int64_t *ret_invoke_time, int64_t *swap_time)
 {
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    Process_Context *process_context = thread_context->process_context;
+    Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
+
+    gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface);
+    gint64 end_time = g_get_real_time();
+    gint64 now_swap_time = end_time - start_time;
+
+    if (real_surface->swap_time_cnt < 20)
+    {
+        real_surface->swap_time[real_surface->swap_loc] = now_swap_time;
+        real_surface->swap_loc = (real_surface->swap_loc + 1) % 20;
+        real_surface->swap_time_all += now_swap_time;
+        real_surface->swap_time_cnt++;
+    }
+    else
+    {
+        real_surface->swap_time_all -= real_surface->swap_time[real_surface->swap_loc];
+        real_surface->swap_time_all += now_swap_time;
+        real_surface->swap_time[real_surface->swap_loc] = now_swap_time;
+        real_surface->swap_loc = (real_surface->swap_loc + 1) % 20;
+    }
+    // if(real_surface->swap_loc==0){
+    //     express_printf("avg swap time %lld\n",real_surface->swap_time_all/real_surface->swap_time_cnt);
+    // }
+
+    gint64 now_avg_swap_time = real_surface->swap_time_all / real_surface->swap_time_cnt;
+
     if (ret == EGL_TRUE)
     {
-        GLint now_flag_cnt = 0;
-        Guest_Mem *guest_mem = (Guest_Mem *)ret_flag;
+
+        // GLint now_flag_cnt = 0;
+        Guest_Mem *guest_mem_invoke = (Guest_Mem *)ret_invoke_time;
+        Guest_Mem *guest_mem_swap = (Guest_Mem *)swap_time;
 
         //加这个判断是为了防止guest端应用被强退，内存被释放之后，这里再进行内存的写入，导致潜在的系统崩溃
         Thread_Context *thread_context = (Thread_Context *)context;
         if (thread_context->init != 0)
         {
-            guest_write(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
+            // guest_write(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
 
-            now_flag_cnt = (now_flag_cnt + 1) % 1024;
+            // now_flag_cnt = (now_flag_cnt + 1) % 1024;
 
-            guest_read(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
+            // EGLint swap_time = (EGLint)(real_surface->frame_gen_time);
+
+            guest_read(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
+
+            guest_read(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
         }
     }
     return ret;

@@ -105,13 +105,11 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[surface->now_read]);
 
-    // //假如帧率比真实屏幕帧率还要小的话，这个时候有垂直同步会造成帧率极不稳定
-    // //因此这个时候需要移除垂直同步
-    // gint64 now_time = g_get_real_time();
-    // if(surface->last_gen_time!=0){
-    //     surface->frame_gen_time=(int)(now_time - surface->last_gen_time);
-    // }
-    // surface->last_gen_time=now_time;
+    gint64 now_time = g_get_real_time();
+    if(surface->last_gen_time!=0){
+        surface->frame_gen_time=(int)(now_time - surface->last_gen_time);
+    }
+    surface->last_gen_time=now_time;
 
     // if (now_time - surface->last_swap_time > 1000000 && surface->last_swap_time != 0)
     // {
