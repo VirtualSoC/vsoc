@@ -39,6 +39,12 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call);
 
 void render_context_destroy(Thread_Context *context);
 
+void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call);
+
+void release_call_special(Direct_Express_Call *call, int notify);
+
+Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf);
+
 static void g_surface_map_destroy(gpointer data);
 
 static void g_context_map_destroy(gpointer data);
@@ -69,6 +75,12 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 
         egl_decode_invoke(render_context, call);
     }
+    else if (fun_id == 9999)
+    {
+        express_printf("cluster decode invoke %llu\n", fun_id);
+
+        cluster_decode_invoke(context, call);
+    }
     else
     {
 
@@ -77,6 +89,217 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     }
 
     return;
+}
+
+/**
+ * @brief 把聚合好的数据解包，分解成不同的call，用于继续调用invoke函数
+ * 
+ * @param context 
+ * @param call 
+ */
+void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
+{
+    Call_Para all_para[MAX_PARA_NUM];
+
+    unsigned char send_async_buf[512];
+    int send_async_buf_len;
+
+    unsigned char save_buf[1024];
+
+    unsigned char temp_buf[1024];
+
+    //把保存的两个参数数据取出来
+
+    int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    if (para_num != 2)
+    {
+        call->callback(call, 0);
+        return;
+    }
+
+    size_t temp_len = 0;
+    unsigned char *temp = NULL;
+
+    temp_len = all_para[0].data_len;
+    send_async_buf_len = temp_len;
+
+    if (temp_len > 512 || temp_len % 8 != 0)
+    {
+        call->callback(call, 0);
+        return;
+    }
+
+    int null_flag = 0;
+    temp = get_direct_ptr(all_para[0].data, &null_flag);
+    if (temp == NULL)
+    {
+        if (temp_len != 0 && null_flag == 0)
+        {
+            temp = temp_buf;
+            guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        }
+        else
+        {
+            call->callback(call, 0);
+            return;
+            ;
+        }
+    }
+    memcpy(send_async_buf, temp, temp_len);
+
+    temp_len = all_para[1].data_len;
+
+    if (temp_len > 1024)
+    {
+        call->callback(call, 0);
+        return;
+    }
+
+    null_flag = 0;
+    temp = get_direct_ptr(all_para[1].data, &null_flag);
+    if (temp == NULL)
+    {
+        if (temp_len != 0 && null_flag == 0)
+        {
+            temp = temp_buf;
+            guest_write(all_para[1].data, temp, 0, all_para[1].data_len);
+        }
+        else
+        {
+            call->callback(call, 0);
+            return;
+        }
+    }
+    memcpy(save_buf, temp, temp_len);
+
+    Direct_Express_Call *unpack_call;
+
+    //依次从两个数组数据中取出数据，创建call
+    int buf_loc = 0;
+    while (buf_loc < send_async_buf_len)
+    {
+        unpack_call = create_call_from_cluster((uint64_t *)(send_async_buf + buf_loc), save_buf);
+        if (unpack_call == NULL)
+        {
+            break;
+        }
+        //解包的几个id还是原来的id
+        unpack_call->thread_id = call->thread_id;
+        unpack_call->process_id = call->process_id;
+        unpack_call->unique_id = call->unique_id;
+
+        buf_loc += (unpack_call->para_num * 2 + 2) * 8;
+        if (buf_loc > send_async_buf_len)
+        {
+            //防止有的call有问题
+            unpack_call->callback(unpack_call, 0);
+            break;
+        }
+
+        decode_invoke(context, unpack_call);
+    }
+    //所有调用完成后，这个call要回收
+    call->callback(call, 1);
+    return;
+}
+
+/**
+ * @brief 从聚合的数据中取出信息，创建一个call，用于之后调用
+ * 
+ * @param send_buf 原始的发送数据
+ * @param save_buf 保存的指针数据
+ * @return Direct_Express_Call* 
+ */
+Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf)
+{
+
+    Direct_Express_Call *call = g_malloc(sizeof(Direct_Express_Call));
+
+    call->vq = NULL;
+
+    call->id = send_buf[0];
+
+
+    //用9999作为聚合调用的id
+    if (GET_FUN_ID(call->id) == 9999)
+    {
+        g_free(call);
+        return NULL;
+    }
+
+    call->para_num = send_buf[1];
+    call->elem_header = NULL;
+
+    //第一个elem是用于存储各种id的，这个解包的call用不到。但是也得申请了占位
+    Direct_Express_Queue_Elem *elem = g_malloc(sizeof(Direct_Express_Queue_Elem));
+    call->elem_header = elem;
+    Direct_Express_Queue_Elem *last_elem = elem;
+    for (int i = 0; i < call->para_num; i++)
+    {
+        //需要把这个elem中能填充的部分给填充起来
+        elem = g_malloc(sizeof(Direct_Express_Queue_Elem));
+
+        Guest_Mem *guest_mem = g_malloc(sizeof(Guest_Mem));
+        Scatter_Data *scatter_data = g_malloc(sizeof(Scatter_Data));
+
+        scatter_data->len = send_buf[i * 2 + 2];
+        scatter_data->data = save_buf + send_buf[i * 2 + 1 + 2];
+
+        guest_mem->scatter_data = scatter_data;
+        guest_mem->num = 1;
+
+        elem->para = guest_mem;
+        elem->len = send_buf[i * 2 + 2];
+        elem->next = NULL;
+
+        last_elem->next = elem;
+        last_elem = elem;
+    }
+    call->elem_tail = elem;
+
+    //因为这个call是解包的call，所以不能调用原先的callback，只能调用新的callback，这个里面会释放前面申请的各种数据
+    //所以不论是vdev还是vq都用不上，不用设置来着
+    call->vdev = NULL;
+    call->callback = release_call_special;
+    call->is_end = 0;
+
+    call->spend_time = 0;
+    call->next = NULL;
+    return call;
+}
+
+/**
+ * @brief 用于call使用完成之后的回调，释放这个独特call申请的各种空间
+ * 
+ * @param call 
+ * @param notify 
+ */
+void release_call_special(Direct_Express_Call *call, int notify)
+{
+    Direct_Express_Queue_Elem *elem = call->elem_header;
+
+    Direct_Express_Queue_Elem *delete_elem = elem;
+    elem = elem->next;
+
+    //第一个elem里面是空的啥也没有
+    g_free(delete_elem);
+
+    for (int i = 0; i < call->para_num; i++)
+    {
+        delete_elem = elem;
+        Guest_Mem *guest_mem = (Guest_Mem *)elem->para;
+        Scatter_Data *scatter_data = guest_mem->scatter_data;
+
+        g_free(scatter_data);
+        g_free(guest_mem);
+
+        elem = elem->next;
+
+        g_free(delete_elem);
+    }
+
+    //最后要自己释放掉这个call，因为这个不会推送给轮询线程来释放
+    g_free(call);
 }
 
 Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)

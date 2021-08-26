@@ -72,7 +72,7 @@ static long window_width;
 static long window_height;
 
 static Double_Buffer *compose_surface;
-static int compose_surface_lock=0;
+static int compose_surface_lock = 0;
 
 volatile int native_render_run = 0;
 
@@ -223,8 +223,16 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
-        if(d_buffer->config->sample_buffers_num!=0){
+        if (d_buffer->config->sample_buffers_num != 0)
+        {
             glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->sampler_rbo);
+        }
+        for (int i = 0; i < 5; i++)
+        {
+            if (d_buffer->delete_sync[i] != 0)
+            {
+                glDeleteSync(d_buffer->delete_sync[i]);
+            }
         }
         g_free(d_buffer);
     }
@@ -420,13 +428,14 @@ static void opengl_paint(Double_Buffer *d_buffer)
     // express_printf("main has error %x\n",glGetError());
 
     // TIMER_START(sync)
-
+    glFlush();
     if (d_buffer->fbo_sync[now_read] != NULL)
     {
         //最多等待8ms
         // glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
         glWaitSync(d_buffer->fbo_sync[now_read], 0, GL_TIMEOUT_IGNORED);
-        glDeleteSync(d_buffer->fbo_sync[now_read]);
+        // printf("main_windows gpu wait %lld\n",d_buffer->fbo_sync[now_read]);
+        // glDeleteSync(d_buffer->fbo_sync[now_read]);
     }
     // glDeleteSync(double_buffer->dispaly_sync);
 
@@ -444,15 +453,25 @@ static void opengl_paint(Double_Buffer *d_buffer)
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
-
     // express_printf("main window paint fbo %u\n", d_buffer->display_fbo[now_read]);
 
     // TIMER_START(finish)
 
     glDrawArrays(GL_TRIANGLES, 0, 6);
-
     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     glFlush();
+    // printf("main_windows gpu finish %lld\n",wait_sync);
+
+    //延迟删除glsync，以防止waitsync后立马删除这个sync引起的屏幕闪烁问题（不确定是不是这个原因引起）
+    if (d_buffer->fbo_sync[now_read] != NULL)
+    {
+        if (d_buffer->delete_sync[d_buffer->delete_loc] != 0)
+        {
+            glDeleteSync(d_buffer->delete_sync[d_buffer->delete_loc]);
+        }
+        d_buffer->delete_sync[d_buffer->delete_loc] = d_buffer->fbo_sync[now_read];
+        d_buffer->delete_loc = (d_buffer->delete_loc + 1) % 5;
+    }
     d_buffer->fbo_sync[now_read] = wait_sync;
     // glFinish();
     // TIMER_END(finish)
@@ -478,7 +497,7 @@ static void egl_surface_create(Double_Buffer *d_buffer)
     sprintf(name, "opengl-child-window%d", cnt);
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-// glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+    // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
     int idx = 0;
     while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
     {
@@ -487,7 +506,6 @@ static void egl_surface_create(Double_Buffer *d_buffer)
         glfwWindowHint(hint_enum, hint_val);
         idx += 2;
     }
-    
 
 //屏幕分离调试专用
 #ifdef DEBUG_INDEPEND_WINDOW
@@ -711,7 +729,7 @@ void *native_window_thread(void *opaque)
             now_screen_hz = calc_screen_hz;
             calc_screen_hz = 0;
             gen_frame_time_avg_1s = 1000000 / now_screen_hz;
-            // express_printf("screen draw %dHz avg %lld\n", now_screen_hz, gen_frame_time_avg_1s);
+            express_printf("screen draw %dHz avg %lldus\n", now_screen_hz, gen_frame_time_avg_1s);
 
             // if (stand_frame_time == 0)
             // {
@@ -910,5 +928,5 @@ void set_compose_surface(Double_Buffer *surface)
     ATOMIC_LOCK(compose_surface_lock);
     compose_surface = surface;
     ATOMIC_UNLOCK(compose_surface_lock);
-    express_printf("change compose surface %lx\n",compose_surface);
+    express_printf("change compose surface %lx\n", compose_surface);
 }

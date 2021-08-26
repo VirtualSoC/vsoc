@@ -24,7 +24,10 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     glfwSwapBuffers(surface->window);
     return;
 #endif
-
+    // GLenum ret=glGetError();
+    // if(ret!=GL_NO_ERROR){
+    //     express_printf("swap before get gl error %x\n",ret);
+    // }
     if (surface->config->sample_buffers_num != 0)
     {
         glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->sampler_fbo[surface->now_draw]);
@@ -37,18 +40,16 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     glFlush();
     //这句话让之前的画面都渲染出来
     // glFinish();
+    // printf("child_windows gpu finish %lld\n",wait_sync);
 
     int now_draw_buffer = surface->now_draw;
 
-    if (surface->fbo_sync[now_draw_buffer] == NULL)
+    if (surface->fbo_sync[now_draw_buffer] != NULL)
     {
         // glDeleteSync(surface->fbo_sync[now_draw_buffer]);
-        surface->fbo_sync[now_draw_buffer] = wait_sync;
+        glDeleteSync(surface->fbo_sync[now_draw_buffer]);
     }
-    else
-    {
-        express_printf("sync not null\n");
-    }
+    surface->fbo_sync[now_draw_buffer] = wait_sync;
 
     //解除对当前绘制的缓冲区的锁定，这个时候这个缓冲区能够被使用
     ATOMIC_UNLOCK(surface->display_texture_is_use[now_draw_buffer]);
@@ -66,8 +67,13 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     surface->now_draw = next_draw_buffer;
     // surface->draw_num+=1;
 
+    // printf("child_windows cpu wait %lld\n",surface->fbo_sync[next_draw_buffer]);
+
     TIMER_START(sync)
-    glClientWaitSync(surface->fbo_sync[next_draw_buffer], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    if (surface->fbo_sync[next_draw_buffer] != 0)
+    {
+        glClientWaitSync(surface->fbo_sync[next_draw_buffer], GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    }
     TIMER_END(sync)
     TIMER_OUTPUT(sync, 100)
     // if(surface->fbo_used_type[next_draw_buffer]==SELF_USE){
@@ -91,8 +97,8 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     //     glWaitSync(surface->fbo_sync[next_draw_buffer],0,GL_TIMEOUT_IGNORED);
     // }
 
-    glDeleteSync(surface->fbo_sync[next_draw_buffer]);
-    surface->fbo_sync[next_draw_buffer] = NULL;
+    // glDeleteSync(surface->fbo_sync[next_draw_buffer]);
+    // surface->fbo_sync[next_draw_buffer] = NULL;
 
     // express_printf("client paint fbo %u\n", surface->display_fbo[surface->now_draw]);
     if (surface->config->sample_buffers_num != 0)
@@ -104,12 +110,11 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
     }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[surface->now_read]);
-
-    gint64 now_time = g_get_real_time();
-    if(surface->last_gen_time!=0){
-        surface->frame_gen_time=(int)(now_time - surface->last_gen_time);
-    }
-    surface->last_gen_time=now_time;
+    // gint64 now_time = g_get_real_time();
+    // if(surface->last_gen_time!=0){
+    //     surface->frame_gen_time=(int)(now_time - surface->last_gen_time);
+    // }
+    // surface->last_gen_time=now_time;
 
     // if (now_time - surface->last_swap_time > 1000000 && surface->last_swap_time != 0)
     // {
@@ -149,7 +154,7 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
     EGLint need_sampler = d_buffer->config->sample_buffers_num;
     EGLint sampler_num = d_buffer->config->samples_per_pixel;
 
-    express_printf("rgba %d %d %d %d ds %d %d MSAA %dX\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits,sampler_num);
+    express_printf("rgba %d %d %d %d ds %d %d MSAA %dX\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, sampler_num);
 
     // 2222
     // 3320
@@ -349,6 +354,23 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+    static int max_sampler_num = -1;
+    if (max_sampler_num == -1)
+    {
+        glGetInternalformativ(GL_RENDERBUFFER, GL_RGB, GL_SAMPLES, 1, &max_sampler_num);
+    }
+    if (max_sampler_num < sampler_num)
+    {
+        express_printf("over large sampler num %d max %d\n", sampler_num, max_sampler_num);
+        sampler_num = max_sampler_num;
+        d_buffer->config->samples_per_pixel = sampler_num;
+        if (sampler_num == 0)
+        {
+            need_sampler = 0;
+            d_buffer->config->sample_buffers_num = 0;
+        }
+    }
+
     if (need_sampler)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, d_buffer->sampler_rbo[index]);
@@ -440,8 +462,7 @@ int egl_surface_init(Double_Buffer *d_buffer)
     if (d_buffer->type == WINDOW_SURFACE)
     {
         //windows_surface是否应该使用三重缓冲?
-        //@todo 三重缓冲有点奇怪闪烁来着，似乎是同步没到位，需要看咋解决
-        d_buffer->buffer_num = 2;
+        d_buffer->buffer_num = 3;
         d_buffer->now_read = 0;
         d_buffer->now_draw = 1;
     }
@@ -533,7 +554,7 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
 
     //创建真实的窗口
     render_windows_create(surface);
-    assert(surface->window != NULL);
+    // assert(surface->window != NULL);
 
     egl_surface_init(surface);
 

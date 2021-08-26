@@ -437,7 +437,7 @@ size_t gl_pname_size(GLenum pname)
     case GL_MAX_TEXTURE_STACK_DEPTH:
     case GL_IMPLEMENTATION_COLOR_READ_FORMAT_OES:
     case GL_IMPLEMENTATION_COLOR_READ_TYPE_OES:
-    case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
+    // case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
     case GL_MAX_TEXTURE_SIZE:
     // case GL_TEXTURE_GEN_MODE_OES:
     case GL_TEXTURE_ENV_MODE:
@@ -623,7 +623,7 @@ size_t gl_pname_size(GLenum pname)
     case GL_MAX_3D_TEXTURE_SIZE:
     case GL_MAX_ARRAY_TEXTURE_LAYERS:
     case GL_MAX_CUBE_MAP_TEXTURE_SIZE:
-    case GL_NUM_SHADER_BINARY_FORMATS:
+    // case GL_NUM_SHADER_BINARY_FORMATS:
     case GL_SHADER_COMPILER:
     case GL_MAX_VERTEX_ATTRIBS:
     case GL_MAX_VERTEX_UNIFORM_VECTORS:
@@ -651,8 +651,8 @@ size_t gl_pname_size(GLenum pname)
     case GL_QUERY_RESULT:
     case GL_QUERY_RESULT_AVAILABLE:
     case GL_READ_BUFFER:
-    case GL_NUM_PROGRAM_BINARY_FORMATS:
-    case GL_PROGRAM_BINARY_FORMATS:
+    // case GL_NUM_PROGRAM_BINARY_FORMATS:
+        // case GL_PROGRAM_BINARY_FORMATS:
 
     case GL_ACTIVE_ATOMIC_COUNTER_BUFFERS:
     case GL_ACTIVE_ATTRIBUTES:
@@ -720,8 +720,88 @@ size_t gl_pname_size(GLenum pname)
     case GL_TEXTURE_MATRIX:
         s = 16;
         break;
+    // case GL_COMPRESSED_TEXTURE_FORMATS:
+    //     s = 16;
+    //     break;
+    case GL_MAX_ELEMENTS_VERTICES:
+    case GL_MAX_VERTEX_UNIFORM_COMPONENTS:
+    case GL_MAX_VERTEX_UNIFORM_BLOCKS:
+    case GL_MAX_VERTEX_OUTPUT_COMPONENTS:
+    case GL_MAX_FRAGMENT_UNIFORM_COMPONENTS:
+    case GL_MAX_FRAGMENT_UNIFORM_BLOCKS:
+    case GL_MAX_FRAGMENT_INPUT_COMPONENTS:
+    case GL_MIN_PROGRAM_TEXEL_OFFSET:
+    case GL_MAX_PROGRAM_TEXEL_OFFSET:
+    case GL_MAX_COMBINED_UNIFORM_BLOCKS:
+    case GL_MAX_VARYING_COMPONENTS:
+    case GL_NUM_EXTENSIONS:
+    case GL_VERTEX_ARRAY_BINDING:
+    case GL_BLEND_SRC_RGB:
+    case GL_BLEND_SRC_ALPHA:
+    case GL_BLEND_DST_RGB:
+    case GL_BLEND_DST_ALPHA:
+    case GL_BLEND_EQUATION:
+    case GL_BLEND_EQUATION_ALPHA:
+    case GL_DRAW_BUFFER0:
+    case GL_DRAW_BUFFER1:
+    case GL_DRAW_BUFFER2:
+    case GL_DRAW_BUFFER3:
+    case GL_DRAW_BUFFER4:
+    case GL_DRAW_BUFFER5:
+    case GL_DRAW_BUFFER6:
+    case GL_DRAW_BUFFER7:
+    case GL_DRAW_BUFFER8:
+    case GL_DRAW_BUFFER9:
+    case GL_DRAW_BUFFER10:
+    case GL_DRAW_BUFFER11:
+    case GL_DRAW_BUFFER12:
+    case GL_DRAW_BUFFER13:
+    case GL_DRAW_BUFFER14:
+    case GL_DRAW_BUFFER15:
+    case GL_FRAGMENT_SHADER_DERIVATIVE_HINT:
+    case GL_TRANSFORM_FEEDBACK_BUFFER_START:
+    case GL_TRANSFORM_FEEDBACK_BUFFER_SIZE:
+    case GL_TRANSFORM_FEEDBACK_PAUSED:
+        s = 1;
+        break;
+    case GL_MAX_ELEMENT_INDEX:
+        s = 2;
+        break;
+    case GL_MAX_TEXTURE_LOD_BIAS:
+        s = 1;
+        break;
+    case GL_MAX_ELEMENTS_INDICES:
+        s = 2;
+        break;
+    case GL_MAX_SERVER_WAIT_TIMEOUT:
+        s = 2;
+        break;
+    case GL_MAX_UNIFORM_BLOCK_SIZE:
+        s = 2;
+        break;
+    case GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS:
+        s = 2;
+        break;
+    case GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS:
+        s = 2;
+        break;
+    case GL_PROGRAM_BINARY_FORMATS:
+        s = 8;
+        break;
+    case GL_NUM_PROGRAM_BINARY_FORMATS:
+        s = 1;
+        break;
+    case GL_SHADER_BINARY_FORMATS:
+        s = 8;
+        break;
+    case GL_NUM_SHADER_BINARY_FORMATS:
+        s = 1;
+        break;
     case GL_COMPRESSED_TEXTURE_FORMATS:
-        s = 16;
+        s = 128;
+        break;
+    case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
+        s = 1;
         break;
     default:
         printf("gl_pname_size: unknow pname 0x%08x\n", pname);
@@ -823,7 +903,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 
 void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
 {
-    express_printf("gl shader source:\n%s",string[0]);
+    express_printf("gl shader source:\n%s", string[0]);
     glShaderSource(shader, count, string, length);
 }
 

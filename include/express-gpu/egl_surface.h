@@ -50,6 +50,10 @@ typedef struct Double_Buffer
 
      GLsync fbo_sync[5];
 
+
+     GLsync delete_sync[5];
+     int delete_loc;
+
      // GLuint fbo_used_type[5];
      // GLuint fbo_texture_draw;
      // GLuint fbo_texture_display;
@@ -80,8 +84,8 @@ typedef struct Double_Buffer
      // int calc_hz;
      // int draw_hz;
 
-     int frame_gen_time;
-     gint64 last_gen_time;
+     // int frame_gen_time;
+     // gint64 last_gen_time;
 
      // gint64 last_swap_time;
 
