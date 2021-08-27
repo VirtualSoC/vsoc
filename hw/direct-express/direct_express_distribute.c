@@ -389,7 +389,7 @@ static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsig
     // {
     //     return 0;
     // }
-    if (id != NULL && num != NULL && thread_id != NULL && process_id != NULL)
+    if (id != NULL && num != NULL && thread_id != NULL && process_id != NULL && unique_id != NULL)
     {
         //在设置了id和num指针的情况下才传出数据
         //这种情况还要先检查是不是in_buf

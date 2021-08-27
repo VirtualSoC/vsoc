@@ -161,6 +161,20 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     Process_Context *process_context = thread_context->process_context;
     Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
+    if(real_surface==NULL){
+        express_printf(RED("real surface is null!"));
+        express_printf("surface %lx real %lx dpy %lx invoke_time %lld\n",surface,real_surface,dpy,invoke_time);
+        return EGL_FALSE;
+        // Guest_Mem *guest_mem_invoke = (Guest_Mem *)ret_invoke_time;
+        // Guest_Mem *guest_mem_swap = (Guest_Mem *)swap_time;
+        // int64_t a,b;
+        // guest_write(guest_mem_invoke, &a, 0, sizeof(EGLint));
+        // guest_write(guest_mem_swap, &b, 0, sizeof(EGLint));
+        // express_printf("invoke time %lld swap_time %lld\n",a,b);
+
+
+    }
+
     gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface);
     gint64 end_time = g_get_real_time();
