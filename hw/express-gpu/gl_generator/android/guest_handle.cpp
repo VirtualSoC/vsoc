@@ -561,25 +561,25 @@ void d_glGetUniformIndices(void *context, GLuint program, GLsizei uniformCount, 
 void d_glGetVertexAttribfv(void *context, GLuint index, GLenum pname, GLfloat *params)
 {
 
-    r_glGetVertexAttribfv_origin(context, index, pname, params);
+    r_glGetVertexAttribfv(context, index, pname, params);
 }
 
 void d_glGetVertexAttribiv(void *context, GLuint index, GLenum pname, GLint *params)
 {
 
-    r_glGetVertexAttribiv_origin(context, index, pname, params);
+    r_glGetVertexAttribiv(context, index, pname, params);
 }
 
 void d_glGetVertexAttribIiv(void *context, GLuint index, GLenum pname, GLint *params)
 {
 
-    r_glGetVertexAttribIiv_origin(context, index, pname, params);
+    r_glGetVertexAttribIiv(context, index, pname, params);
 }
 
 void d_glGetVertexAttribIuiv(void *context, GLuint index, GLenum pname, GLuint *params)
 {
 
-    r_glGetVertexAttribIuiv_origin(context, index, pname, params);
+    r_glGetVertexAttribIuiv(context, index, pname, params);
 }
 
 void d_glGetBufferParameteriv(void *context, GLenum target, GLenum pname, GLint *params)
@@ -2385,6 +2385,42 @@ void d_glBindAttribLocation(void *context, GLuint program, GLuint index, const G
 {
 
     r_glBindAttribLocation(context, program, index, name);
+}
+
+void d_glTexEnvf(void *context, GLenum target, GLenum pname, GLfloat param)
+{
+
+    r_glTexEnvf(context, target, pname, param);
+}
+
+void d_glTexEnvi(void *context, GLenum target, GLenum pname, GLint param)
+{
+
+    r_glTexEnvi(context, target, pname, param);
+}
+
+void d_glTexEnvx(void *context, GLenum target, GLenum pname, GLfixed param)
+{
+
+    r_glTexEnvx(context, target, pname, param);
+}
+
+void d_glTexParameterx(void *context, GLenum target, GLenum pname, GLint param)
+{
+
+    r_glTexParameterx(context, target, pname, param);
+}
+
+void d_glShadeModel(void *context, GLenum mode)
+{
+
+    r_glShadeModel(context, mode);
+}
+
+void d_glDrawTexiOES(void *context, GLint x, GLint y, GLint z, GLint width, GLint height)
+{
+
+    r_glDrawTexiOES(context, x, y, z, width, height);
 }
 
 /******* file '2-2' *******/

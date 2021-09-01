@@ -77,6 +77,11 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     thread_context->opengl_context = real_opengl_context;
     real_opengl_context->is_current = 1;
 
+    real_opengl_context->view_x = 0;
+    real_opengl_context->view_y = 0;
+    real_opengl_context->view_w = real_surface_draw->width;
+    real_opengl_context->view_h = real_surface_draw->height;
+
     //@todo 设置各种config、attrib
 
     glfwMakeContextCurrent(real_surface_draw->window);
@@ -97,7 +102,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glEnable(GL_POINT_SPRITE);
     }
 
-
     if (real_surface_draw->config->sample_buffers_num != 0)
     {
         real_opengl_context->draw_fbo0 = real_surface_draw->sampler_fbo[real_surface_draw->now_draw];
@@ -106,7 +110,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     {
         real_opengl_context->draw_fbo0 = real_surface_draw->display_fbo[real_surface_draw->now_draw];
     }
-    
+
     real_opengl_context->read_fbo0 = real_surface_read->display_fbo[real_surface_read->now_read];
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
@@ -161,9 +165,10 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     Process_Context *process_context = thread_context->process_context;
     Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
-    if(real_surface==NULL){
+    if (real_surface == NULL)
+    {
         express_printf(RED("real surface is null!"));
-        express_printf("surface %lx real %lx dpy %lx invoke_time %lld\n",surface,real_surface,dpy,invoke_time);
+        express_printf("surface %lx real %lx dpy %lx invoke_time %lld\n", surface, real_surface, dpy, invoke_time);
         return EGL_FALSE;
         // Guest_Mem *guest_mem_invoke = (Guest_Mem *)ret_invoke_time;
         // Guest_Mem *guest_mem_swap = (Guest_Mem *)swap_time;
@@ -171,8 +176,6 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         // guest_write(guest_mem_invoke, &a, 0, sizeof(EGLint));
         // guest_write(guest_mem_swap, &b, 0, sizeof(EGLint));
         // express_printf("invoke time %lld swap_time %lld\n",a,b);
-
-
     }
 
     gint64 start_time = g_get_real_time();
@@ -199,6 +202,12 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     // }
 
     gint64 now_avg_swap_time = real_surface->swap_time_all / real_surface->swap_time_cnt;
+
+    //保证这个swap_time不为0，方便guest判断是否有返回
+    if (real_surface->swap_time_cnt <= 10)
+    {
+        now_avg_swap_time = -1;
+    }
 
     if (ret == EGL_TRUE)
     {

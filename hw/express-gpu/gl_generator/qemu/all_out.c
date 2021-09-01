@@ -106,7 +106,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        GLenum ret = glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned long long)sync), flags, timeout);
+        GLenum ret = glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), flags, timeout);
         *ret_ptr = ret;
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
@@ -1875,7 +1875,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramInfoLog((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), bufSize, length, infoLog);
+        glGetProgramInfoLog((GLuint)get_host_program_id(opengl_context, (unsigned int)program), bufSize, length, infoLog);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -2055,7 +2055,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader), bufSize, length, infoLog);
+        glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), bufSize, length, infoLog);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -2239,7 +2239,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetShaderSource((GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader), bufSize, length, source);
+        glGetShaderSource((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), bufSize, length, source);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -2591,7 +2591,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetQueryObjectuiv((GLuint)get_host_query_id(opengl_context, (unsigned long long)id), pname, params);
+        glGetQueryObjectuiv((GLuint)get_host_query_id(opengl_context, (unsigned int)id), pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -2693,7 +2693,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetTransformFeedbackVarying((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), index, bufSize, length, size, type, name);
+        glGetTransformFeedbackVarying((GLuint)get_host_program_id(opengl_context, (unsigned int)program), index, bufSize, length, size, type, name);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -2802,7 +2802,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetActiveUniformsiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), uniformCount, uniformIndices, pname, params);
+        glGetActiveUniformsiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformCount, uniformIndices, pname, params);
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
@@ -2899,7 +2899,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetActiveUniformBlockiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), uniformBlockIndex, pname, params);
+        glGetActiveUniformBlockiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformBlockIndex, pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -2995,7 +2995,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetActiveUniformBlockName((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), uniformBlockIndex, bufSize, length, uniformBlockName);
+        glGetActiveUniformBlockName((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformBlockIndex, bufSize, length, uniformBlockName);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -3083,7 +3083,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetSamplerParameteriv((GLuint)get_host_sampler_id(opengl_context, (unsigned long long)sampler), pname, params);
+        glGetSamplerParameteriv((GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler), pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -3171,7 +3171,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetSamplerParameterfv((GLuint)get_host_sampler_id(opengl_context, (unsigned long long)sampler), pname, params);
+        glGetSamplerParameterfv((GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler), pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -3266,7 +3266,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramBinary((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), bufSize, length, binaryFormat, binary);
+        glGetProgramBinary((GLuint)get_host_program_id(opengl_context, (unsigned int)program), bufSize, length, binaryFormat, binary);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -4150,7 +4150,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramInterfaceiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), programInterface, pname, params);
+        glGetProgramInterfaceiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), programInterface, pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -4250,7 +4250,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramResourceName((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), programInterface, index, bufSize, length, name);
+        glGetProgramResourceName((GLuint)get_host_program_id(opengl_context, (unsigned int)program), programInterface, index, bufSize, length, name);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -4370,7 +4370,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramResourceiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), programInterface, index, propCount, props, bufSize, length, params);
+        glGetProgramResourceiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), programInterface, index, propCount, props, bufSize, length, params);
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
@@ -4463,7 +4463,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramPipelineiv((GLsync)get_host_pipeline_id(opengl_context, (unsigned long long)pipeline), pname, params);
+        glGetProgramPipelineiv((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline), pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -4555,7 +4555,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramPipelineInfoLog((GLsync)get_host_pipeline_id(opengl_context, (unsigned long long)pipeline), bufSize, length, infoLog);
+        glGetProgramPipelineInfoLog((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline), bufSize, length, infoLog);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -4923,7 +4923,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetSynciv((GLsync)get_host_sync_id(opengl_context, (unsigned long long)sync), pname, bufSize, length, values);
+        glGetSynciv((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), pname, bufSize, length, values);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -5023,7 +5023,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        GLint ret = glGetAttribLocation((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), name);
+        GLint ret = glGetAttribLocation((GLuint)get_host_program_id(opengl_context, (unsigned int)program), name);
         *ret_ptr = ret;
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
@@ -5129,7 +5129,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        GLint ret = glGetUniformLocation((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), name);
+        GLint ret = glGetUniformLocation((GLuint)get_host_program_id(opengl_context, (unsigned int)program), name);
         *ret_ptr = ret;
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
@@ -5235,7 +5235,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        GLint ret = glGetFragDataLocation((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), name);
+        GLint ret = glGetFragDataLocation((GLuint)get_host_program_id(opengl_context, (unsigned int)program), name);
         *ret_ptr = ret;
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
@@ -5341,7 +5341,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        GLuint ret = glGetUniformBlockIndex((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), uniformBlockName);
+        GLuint ret = glGetUniformBlockIndex((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformBlockName);
         *ret_ptr = ret;
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
@@ -5451,7 +5451,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        GLuint ret = glGetProgramResourceIndex((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), programInterface, name);
+        GLuint ret = glGetProgramResourceIndex((GLuint)get_host_program_id(opengl_context, (unsigned int)program), programInterface, name);
         *ret_ptr = ret;
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
@@ -5561,7 +5561,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        GLint ret = glGetProgramResourceLocation((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), programInterface, name);
+        GLint ret = glGetProgramResourceLocation((GLuint)get_host_program_id(opengl_context, (unsigned int)program), programInterface, name);
         *ret_ptr = ret;
 
         guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
@@ -5669,7 +5669,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetActiveAttrib((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), index, bufSize, length, size, type, name);
+        glGetActiveAttrib((GLuint)get_host_program_id(opengl_context, (unsigned int)program), index, bufSize, length, size, type, name);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -5771,7 +5771,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetActiveUniform((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), index, bufSize, length, size, type, name);
+        glGetActiveUniform((GLuint)get_host_program_id(opengl_context, (unsigned int)program), index, bufSize, length, size, type, name);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -5863,7 +5863,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetAttachedShaders((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), maxCount, count, shaders);
+        glGetAttachedShaders((GLuint)get_host_program_id(opengl_context, (unsigned int)program), maxCount, count, shaders);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -5951,7 +5951,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetProgramiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), pname, params);
+        glGetProgramiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6039,7 +6039,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader), pname, params);
+        glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6127,7 +6127,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetUniformfv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, params);
+        glGetUniformfv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6215,7 +6215,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetUniformiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, params);
+        glGetUniformiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6303,7 +6303,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetUniformuiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, params);
+        glGetUniformuiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6413,7 +6413,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetUniformIndices((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), uniformCount, uniformNames, uniformIndices);
+        glGetUniformIndices((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformCount, uniformNames, uniformIndices);
 
         guest_read(all_para[1 + uniformCount].data, ret_buf, 0, out_buf_len);
 
@@ -6435,12 +6435,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribfv_origin:
+    case FUNID_glGetVertexAttribfv:
 
     {
 
-        /* readline: "glGetVertexAttribfv_origin GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)" */
-        /* func name: "glGetVertexAttribfv_origin" */
+        /* readline: "glGetVertexAttribfv GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)" */
+        /* func name: "glGetVertexAttribfv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "112" */
@@ -6450,7 +6450,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribfv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribfv)
         {
             break;
         }
@@ -6512,7 +6512,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetVertexAttribfv_origin(index, pname, params);
+        glGetVertexAttribfv(index, pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6523,12 +6523,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribiv_origin:
+    case FUNID_glGetVertexAttribiv:
 
     {
 
-        /* readline: "glGetVertexAttribiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
-        /* func name: "glGetVertexAttribiv_origin" */
+        /* readline: "glGetVertexAttribiv GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
+        /* func name: "glGetVertexAttribiv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "112" */
@@ -6538,7 +6538,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribiv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribiv)
         {
             break;
         }
@@ -6600,7 +6600,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetVertexAttribiv_origin(index, pname, params);
+        glGetVertexAttribiv(index, pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6611,12 +6611,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribIiv_origin:
+    case FUNID_glGetVertexAttribIiv:
 
     {
 
-        /* readline: "glGetVertexAttribIiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
-        /* func name: "glGetVertexAttribIiv_origin" */
+        /* readline: "glGetVertexAttribIiv GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
+        /* func name: "glGetVertexAttribIiv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "112" */
@@ -6626,7 +6626,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIiv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribIiv)
         {
             break;
         }
@@ -6688,7 +6688,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetVertexAttribIiv_origin(index, pname, params);
+        glGetVertexAttribIiv(index, pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6699,12 +6699,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribIuiv_origin:
+    case FUNID_glGetVertexAttribIuiv:
 
     {
 
-        /* readline: "glGetVertexAttribIuiv_origin GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)" */
-        /* func name: "glGetVertexAttribIuiv_origin" */
+        /* readline: "glGetVertexAttribIuiv GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)" */
+        /* func name: "glGetVertexAttribIuiv" */
         /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLuint)', 'loc': 2, 'ptr_ptr': False}] */
         /* ret: "" */
         /* type: "112" */
@@ -6714,7 +6714,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIuiv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribIuiv)
         {
             break;
         }
@@ -6776,7 +6776,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetVertexAttribIuiv_origin(index, pname, params);
+        glGetVertexAttribIuiv(index, pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -7875,7 +7875,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBeginQuery(target, (GLuint)get_host_query_id(opengl_context, (unsigned long long)id));
+        glBeginQuery(target, (GLuint)get_host_query_id(opengl_context, (unsigned int)id));
     }
     break;
 
@@ -9568,7 +9568,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned long long)sync), flags, timeout);
+        glWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), flags, timeout);
     }
     break;
 
@@ -9708,7 +9708,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramBinary((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), binaryFormat, binary, length);
+        glProgramBinary((GLuint)get_host_program_id(opengl_context, (unsigned int)program), binaryFormat, binary, length);
     }
     break;
 
@@ -10681,7 +10681,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glCreateProgram(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        d_glCreateProgram(opengl_context, program);
     }
     break;
 
@@ -10742,7 +10742,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glCreateShader(opengl_context, type, (GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader));
+        d_glCreateShader(opengl_context, type, shader);
     }
     break;
 
@@ -10807,7 +10807,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glFenceSync(opengl_context, condition, flags, (GLsync)get_host_sync_id(opengl_context, (unsigned long long)sync));
+        d_glFenceSync(opengl_context, condition, flags, sync);
     }
     break;
 
@@ -10880,7 +10880,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glCreateShaderProgramv(opengl_context, type, count, strings, (GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        d_glCreateShaderProgramv(opengl_context, type, count, strings, program);
 
         g_free(strings);
     }
@@ -11479,7 +11479,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glDeleteProgram_origin(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        d_glDeleteProgram_origin(opengl_context, program);
     }
     break;
 
@@ -11536,7 +11536,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glDeleteShader(opengl_context, (GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader));
+        d_glDeleteShader(opengl_context, shader);
     }
     break;
 
@@ -11593,7 +11593,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glDeleteSync(opengl_context, (GLsync)get_host_sync_id(opengl_context, (unsigned long long)sync));
+        d_glDeleteSync(opengl_context, sync);
     }
     break;
 
@@ -11954,7 +11954,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glLinkProgram_origin(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        d_glLinkProgram_origin(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
     break;
 
@@ -12320,7 +12320,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glShaderSource_origin(opengl_context, (GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader), count, length, string);
+        d_glShaderSource_origin(opengl_context, (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), count, length, string);
 
         g_free(string);
     }
@@ -12529,7 +12529,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glBindVertexArray_special(opengl_context, (GLuint)get_host_array_id(opengl_context, (unsigned long long)array));
+        d_glBindVertexArray_special(opengl_context, (GLuint)get_host_array_id(opengl_context, (unsigned int)array));
     }
     break;
 
@@ -12590,7 +12590,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glBindBuffer_origin(opengl_context, target, (GLuint)get_host_buffer_id(opengl_context, (unsigned long long)buffer));
+        d_glBindBuffer_origin(opengl_context, target, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
     }
     break;
 
@@ -12786,7 +12786,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindBufferRange(target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned long long)buffer), offset, size);
+        glBindBufferRange(target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
     }
     break;
 
@@ -12851,7 +12851,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindBufferBase(target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned long long)buffer));
+        glBindBufferBase(target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
     }
     break;
 
@@ -12912,7 +12912,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindTexture(target, (GLuint)get_host_texture_id(opengl_context, (unsigned long long)texture));
+        glBindTexture(target, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture));
     }
     break;
 
@@ -12973,7 +12973,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindRenderbuffer(target, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned long long)renderbuffer));
+        glBindRenderbuffer(target, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer));
     }
     break;
 
@@ -13034,7 +13034,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindSampler(unit, (GLuint)get_host_sampler_id(opengl_context, (unsigned long long)sampler));
+        glBindSampler(unit, (GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler));
     }
     break;
 
@@ -13095,7 +13095,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindFramebuffer(target, (GLuint)get_host_framebuffer_id(opengl_context, (unsigned long long)framebuffer));
+        glBindFramebuffer(target, (GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
     }
     break;
 
@@ -13152,7 +13152,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindProgramPipeline((GLsync)get_host_pipeline_id(opengl_context, (unsigned long long)pipeline));
+        glBindProgramPipeline((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline));
     }
     break;
 
@@ -13213,7 +13213,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindTransformFeedback(target, (GLuint)get_host_feedback_id(opengl_context, (unsigned long long)feedback_id));
+        glBindTransformFeedback(target, (GLuint)get_host_feedback_id(opengl_context, (unsigned int)feedback_id));
     }
     break;
 
@@ -13331,7 +13331,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glAttachShader((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), (GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader));
+        glAttachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
     break;
 
@@ -14014,7 +14014,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glCompileShader((GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader));
+        glCompileShader((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
     break;
 
@@ -14307,7 +14307,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glDetachShader((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), (GLuint)get_host_shader_id(opengl_context, (unsigned long long)shader));
+        glDetachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
     break;
 
@@ -14490,7 +14490,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glFramebufferRenderbuffer(target, attachment, renderbuffertarget, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned long long)renderbuffer));
+        glFramebufferRenderbuffer(target, attachment, renderbuffertarget, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer));
     }
     break;
 
@@ -14563,7 +14563,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned long long)texture), level);
+        glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
     }
     break;
 
@@ -16186,7 +16186,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glUseProgram((GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        glUseProgram((GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
     break;
 
@@ -16243,7 +16243,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glValidateProgram((GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        glValidateProgram((GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
     break;
 
@@ -16750,7 +16750,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glFramebufferTextureLayer(target, attachment, (GLuint)get_host_texture_id(opengl_context, (unsigned long long)texture), level, layer);
+        glFramebufferTextureLayer(target, attachment, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level, layer);
     }
     break;
 
@@ -17371,7 +17371,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glUniformBlockBinding((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), uniformBlockIndex, uniformBlockBinding);
+        glUniformBlockBinding((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformBlockIndex, uniformBlockBinding);
     }
     break;
 
@@ -17436,7 +17436,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glSamplerParameteri((GLuint)get_host_sampler_id(opengl_context, (unsigned long long)sampler), pname, param);
+        glSamplerParameteri((GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler), pname, param);
     }
     break;
 
@@ -17501,7 +17501,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glSamplerParameterf((GLuint)get_host_sampler_id(opengl_context, (unsigned long long)sampler), pname, param);
+        glSamplerParameterf((GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler), pname, param);
     }
     break;
 
@@ -17566,7 +17566,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramParameteri((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), pname, value);
+        glProgramParameteri((GLuint)get_host_program_id(opengl_context, (unsigned int)program), pname, value);
     }
     break;
 
@@ -19463,7 +19463,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glUseProgramStages((GLsync)get_host_pipeline_id(opengl_context, (unsigned long long)pipeline), stages, (GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        glUseProgramStages((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline), stages, (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
     break;
 
@@ -19524,7 +19524,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glActiveShaderProgram((GLsync)get_host_pipeline_id(opengl_context, (unsigned long long)pipeline), (GLuint)get_host_program_id(opengl_context, (unsigned long long)program));
+        glActiveShaderProgram((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline), (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
     break;
 
@@ -19589,7 +19589,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform1i((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0);
+        glProgramUniform1i((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0);
     }
     break;
 
@@ -19658,7 +19658,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform2i((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1);
+        glProgramUniform2i((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1);
     }
     break;
 
@@ -19731,7 +19731,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform3i((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1, v2);
+        glProgramUniform3i((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1, v2);
     }
     break;
 
@@ -19808,7 +19808,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform4i((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1, v2, v3);
+        glProgramUniform4i((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1, v2, v3);
     }
     break;
 
@@ -19873,7 +19873,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform1ui((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0);
+        glProgramUniform1ui((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0);
     }
     break;
 
@@ -19942,7 +19942,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform2ui((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1);
+        glProgramUniform2ui((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1);
     }
     break;
 
@@ -20015,7 +20015,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform3ui((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1, v2);
+        glProgramUniform3ui((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1, v2);
     }
     break;
 
@@ -20092,7 +20092,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform4ui((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1, v2, v3);
+        glProgramUniform4ui((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1, v2, v3);
     }
     break;
 
@@ -20157,7 +20157,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform1f((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0);
+        glProgramUniform1f((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0);
     }
     break;
 
@@ -20226,7 +20226,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform2f((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1);
+        glProgramUniform2f((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1);
     }
     break;
 
@@ -20299,7 +20299,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform3f((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1, v2);
+        glProgramUniform3f((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1, v2);
     }
     break;
 
@@ -20376,7 +20376,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform4f((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, v0, v1, v2, v3);
+        glProgramUniform4f((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, v0, v1, v2, v3);
     }
     break;
 
@@ -20449,7 +20449,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glTransformFeedbackVaryings((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), count, varyings, bufferMode);
+        glTransformFeedbackVaryings((GLuint)get_host_program_id(opengl_context, (unsigned int)program), count, varyings, bufferMode);
 
         g_free(varyings);
     }
@@ -22575,7 +22575,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glSamplerParameteriv((GLuint)get_host_sampler_id(opengl_context, (unsigned long long)sampler), pname, param);
+        glSamplerParameteriv((GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler), pname, param);
     }
     break;
 
@@ -22639,7 +22639,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glSamplerParameterfv((GLuint)get_host_sampler_id(opengl_context, (unsigned long long)sampler), pname, param);
+        glSamplerParameterfv((GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler), pname, param);
     }
     break;
 
@@ -23519,7 +23519,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform1iv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform1iv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -23587,7 +23587,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform2iv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform2iv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -23655,7 +23655,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform3iv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform3iv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -23723,7 +23723,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform4iv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform4iv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -23791,7 +23791,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform1uiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform1uiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -23859,7 +23859,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform2uiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform2uiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -23927,7 +23927,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform3uiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform3uiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -23995,7 +23995,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform4uiv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform4uiv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -24063,7 +24063,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform1fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform1fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -24131,7 +24131,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform2fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform2fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -24199,7 +24199,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform3fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform3fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -24267,7 +24267,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniform4fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, value);
+        glProgramUniform4fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, value);
     }
     break;
 
@@ -24339,7 +24339,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix2fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix2fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24411,7 +24411,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix3fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix3fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24483,7 +24483,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix4fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix4fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24555,7 +24555,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix2x3fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix2x3fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24627,7 +24627,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix3x2fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix3x2fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24699,7 +24699,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix2x4fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix2x4fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24771,7 +24771,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix4x2fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix4x2fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24843,7 +24843,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix3x4fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix3x4fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24915,7 +24915,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glProgramUniformMatrix4x3fv((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), location, count, transpose, value);
+        glProgramUniformMatrix4x3fv((GLuint)get_host_program_id(opengl_context, (unsigned int)program), location, count, transpose, value);
     }
     break;
 
@@ -24979,11 +24979,401 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glBindAttribLocation((GLuint)get_host_program_id(opengl_context, (unsigned long long)program), index, name);
+        glBindAttribLocation((GLuint)get_host_program_id(opengl_context, (unsigned int)program), index, name);
     }
     break;
 
-        /******* end of file '2-1-2', 204/358 functions*******/
+    case FUNID_glTexEnvf:
+
+    {
+
+        /* readline: "glTexEnvf GLenum target, GLenum pname, GLfloat param" */
+        /* func name: "glTexEnvf" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLfloat param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexEnvf)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLfloat *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glTexEnvf(target, pname, param);
+    }
+    break;
+
+    case FUNID_glTexEnvi:
+
+    {
+
+        /* readline: "glTexEnvi GLenum target, GLenum pname, GLint param" */
+        /* func name: "glTexEnvi" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLint param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexEnvi)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glTexEnvi(target, pname, param);
+    }
+    break;
+
+    case FUNID_glTexEnvx:
+
+    {
+
+        /* readline: "glTexEnvx GLenum target, GLenum pname, GLfixed param" */
+        /* func name: "glTexEnvx" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLfixed param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexEnvx)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLfixed *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glTexEnvx(target, pname, param);
+    }
+    break;
+
+    case FUNID_glTexParameterx:
+
+    {
+
+        /* readline: "glTexParameterx GLenum target, GLenum pname, GLint param" */
+        /* func name: "glTexParameterx" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLint param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexParameterx)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glTexParameterx(target, pname, param);
+    }
+    break;
+
+    case FUNID_glShadeModel:
+
+    {
+
+        /* readline: "glShadeModel GLenum mode" */
+        /* func name: "glShadeModel" */
+        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum mode;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glShadeModel)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glShadeModel(mode);
+    }
+    break;
+
+    case FUNID_glDrawTexiOES:
+
+    {
+
+        /* readline: "glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height" */
+        /* func name: "glDrawTexiOES" */
+        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLint x;
+        GLint y;
+        GLint z;
+        GLint width;
+        GLint height;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawTexiOES)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 20 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        x = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        y = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        z = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glDrawTexiOES(x, y, z, width, height);
+    }
+    break;
+
+        /******* end of file '2-1-2', 210/364 functions*******/
 
         /******* file '2-2' *******/
 
@@ -26265,7 +26655,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '2-2', 18/375 functions*******/
+        /******* end of file '2-2', 18/381 functions*******/
 
     default:
         break;

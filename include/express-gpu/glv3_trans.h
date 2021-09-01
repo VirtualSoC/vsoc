@@ -320,21 +320,21 @@
 
 #define PARA_NUM_MIN_glGetUniformIndices (3)
 
-#define FUNID_glGetVertexAttribfv_origin ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 79)
+#define FUNID_glGetVertexAttribfv ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 79)
 
-#define PARA_NUM_MIN_glGetVertexAttribfv_origin (2)
+#define PARA_NUM_MIN_glGetVertexAttribfv (2)
 
-#define FUNID_glGetVertexAttribiv_origin ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 80)
+#define FUNID_glGetVertexAttribiv ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 80)
 
-#define PARA_NUM_MIN_glGetVertexAttribiv_origin (2)
+#define PARA_NUM_MIN_glGetVertexAttribiv (2)
 
-#define FUNID_glGetVertexAttribIiv_origin ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 81)
+#define FUNID_glGetVertexAttribIiv ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 81)
 
-#define PARA_NUM_MIN_glGetVertexAttribIiv_origin (2)
+#define PARA_NUM_MIN_glGetVertexAttribIiv (2)
 
-#define FUNID_glGetVertexAttribIuiv_origin ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 82)
+#define FUNID_glGetVertexAttribIuiv ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 82)
 
-#define PARA_NUM_MIN_glGetVertexAttribIuiv_origin (2)
+#define PARA_NUM_MIN_glGetVertexAttribIuiv (2)
 
 #define FUNID_glGetBufferParameteriv ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 83)
 
@@ -1440,71 +1440,95 @@
 
 #define PARA_NUM_MIN_glBindAttribLocation (1)
 
-#define FUNID_glVertexAttribIPointer_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 359)
+#define FUNID_glTexEnvf ((EXPRESS_GPU_FUN_ID << 32u) + 359)
+
+#define PARA_NUM_MIN_glTexEnvf (1)
+
+#define FUNID_glTexEnvi ((EXPRESS_GPU_FUN_ID << 32u) + 360)
+
+#define PARA_NUM_MIN_glTexEnvi (1)
+
+#define FUNID_glTexEnvx ((EXPRESS_GPU_FUN_ID << 32u) + 361)
+
+#define PARA_NUM_MIN_glTexEnvx (1)
+
+#define FUNID_glTexParameterx ((EXPRESS_GPU_FUN_ID << 32u) + 362)
+
+#define PARA_NUM_MIN_glTexParameterx (1)
+
+#define FUNID_glShadeModel ((EXPRESS_GPU_FUN_ID << 32u) + 363)
+
+#define PARA_NUM_MIN_glShadeModel (1)
+
+#define FUNID_glDrawTexiOES ((EXPRESS_GPU_FUN_ID << 32u) + 364)
+
+#define PARA_NUM_MIN_glDrawTexiOES (1)
+
+#define FUNID_glVertexAttribIPointer_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 365)
 
 #define PARA_NUM_MIN_glVertexAttribIPointer_without_bound (2)
 
-#define FUNID_glVertexAttribPointer_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 360)
+#define FUNID_glVertexAttribPointer_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 366)
 
 #define PARA_NUM_MIN_glVertexAttribPointer_without_bound (2)
 
-#define FUNID_glDrawElements_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 361)
+#define FUNID_glDrawElements_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 367)
 
 #define PARA_NUM_MIN_glDrawElements_without_bound (2)
 
-#define FUNID_glDrawElementsInstanced_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 362)
+#define FUNID_glDrawElementsInstanced_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 368)
 
 #define PARA_NUM_MIN_glDrawElementsInstanced_without_bound (2)
 
-#define FUNID_glDrawRangeElements_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 363)
+#define FUNID_glDrawRangeElements_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 369)
 
 #define PARA_NUM_MIN_glDrawRangeElements_without_bound (2)
 
-#define FUNID_glFlushMappedBufferRange_special ((EXPRESS_GPU_FUN_ID << 32u) + 364)
+#define FUNID_glFlushMappedBufferRange_special ((EXPRESS_GPU_FUN_ID << 32u) + 370)
 
 #define PARA_NUM_MIN_glFlushMappedBufferRange_special (2)
 
-#define FUNID_glBufferData_custom ((EXPRESS_GPU_FUN_ID << 32u) + 365)
+#define FUNID_glBufferData_custom ((EXPRESS_GPU_FUN_ID << 32u) + 371)
 
 #define PARA_NUM_MIN_glBufferData_custom (2)
 
-#define FUNID_glBufferSubData_custom ((EXPRESS_GPU_FUN_ID << 32u) + 366)
+#define FUNID_glBufferSubData_custom ((EXPRESS_GPU_FUN_ID << 32u) + 372)
 
 #define PARA_NUM_MIN_glBufferSubData_custom (2)
 
-#define FUNID_glCompressedTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 367)
+#define FUNID_glCompressedTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 373)
 
 #define PARA_NUM_MIN_glCompressedTexImage2D_without_bound (2)
 
-#define FUNID_glCompressedTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 368)
+#define FUNID_glCompressedTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 374)
 
 #define PARA_NUM_MIN_glCompressedTexSubImage2D_without_bound (2)
 
-#define FUNID_glCompressedTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 369)
+#define FUNID_glCompressedTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 375)
 
 #define PARA_NUM_MIN_glCompressedTexImage3D_without_bound (2)
 
-#define FUNID_glCompressedTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 370)
+#define FUNID_glCompressedTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 376)
 
 #define PARA_NUM_MIN_glCompressedTexSubImage3D_without_bound (2)
 
-#define FUNID_glTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 371)
+#define FUNID_glTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 377)
 
 #define PARA_NUM_MIN_glTexImage2D_without_bound (2)
 
-#define FUNID_glTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 372)
+#define FUNID_glTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 378)
 
 #define PARA_NUM_MIN_glTexImage3D_without_bound (2)
 
-#define FUNID_glTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 373)
+#define FUNID_glTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 379)
 
 #define PARA_NUM_MIN_glTexSubImage2D_without_bound (2)
 
-#define FUNID_glTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 374)
+#define FUNID_glTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID << 32u) + 380)
 
 #define PARA_NUM_MIN_glTexSubImage3D_without_bound (2)
 
-#define FUNID_glPrintf ((EXPRESS_GPU_FUN_ID << 32u) + 375)
+#define FUNID_glPrintf ((EXPRESS_GPU_FUN_ID << 32u) + 381)
 
 #define PARA_NUM_MIN_glPrintf (2)
 

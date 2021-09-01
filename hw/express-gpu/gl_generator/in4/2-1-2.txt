@@ -426,3 +426,18 @@ glProgramUniformMatrix4x3fv GLuint program, GLint location, GLsizei count, GLboo
 
 glBindAttribLocation GLuint program, GLuint index, const GLchar *name#strlen(name)+1
 
+
+
+
+//后加的glv1，要重新生成的话要全部重新覆盖
+glTexEnvf GLenum target, GLenum pname, GLfloat param
+
+glTexEnvi GLenum target, GLenum pname, GLint param
+
+glTexEnvx GLenum target, GLenum pname, GLfixed param
+
+glTexParameterx GLenum target, GLenum pname, GLint param
+
+glShadeModel GLenum mode
+
+glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height

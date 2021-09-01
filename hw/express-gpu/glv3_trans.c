@@ -59,7 +59,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     Opengl_Context *opengl_context = render_context->opengl_context;
-    if(opengl_context==NULL){
+    if (opengl_context == NULL)
+    {
         call->callback(call, 0);
         return;
     }
@@ -6487,7 +6488,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribfv_origin:
+    case FUNID_glGetVertexAttribfv:
 
     {
 
@@ -6502,7 +6503,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribfv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribfv)
         {
             break;
         }
@@ -6575,7 +6576,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribiv_origin:
+    case FUNID_glGetVertexAttribiv:
 
     {
 
@@ -6590,7 +6591,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribiv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribiv)
         {
             break;
         }
@@ -6663,7 +6664,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribIiv_origin:
+    case FUNID_glGetVertexAttribIiv:
 
     {
 
@@ -6678,7 +6679,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIiv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribIiv)
         {
             break;
         }
@@ -6751,7 +6752,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    case FUNID_glGetVertexAttribIuiv_origin:
+    case FUNID_glGetVertexAttribIuiv:
 
     {
 
@@ -6766,7 +6767,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIuiv_origin)
+        if (para_num < PARA_NUM_MIN_glGetVertexAttribIuiv)
         {
             break;
         }
@@ -8053,7 +8054,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glViewport(x, y, width, height);
+        d_glViewport_special(context, x, y, width, height);
     }
     break;
 
@@ -25035,7 +25036,397 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-        /******* end of file '2-1-2', 204/358 functions*******/
+    case FUNID_glTexEnvf:
+
+    {
+
+        /* readline: "glTexEnvf GLenum target, GLenum pname, GLfloat param" */
+        /* func name: "glTexEnvf" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLfloat param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexEnvf)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLfloat *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glTexEnvf_special(context, target, pname, param);
+    }
+    break;
+
+    case FUNID_glTexEnvi:
+
+    {
+
+        /* readline: "glTexEnvi GLenum target, GLenum pname, GLint param" */
+        /* func name: "glTexEnvi" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLint param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexEnvi)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glTexEnvi_special(context, target, pname, param);
+    }
+    break;
+
+    case FUNID_glTexEnvx:
+
+    {
+
+        /* readline: "glTexEnvx GLenum target, GLenum pname, GLfixed param" */
+        /* func name: "glTexEnvx" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLfixed param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexEnvx)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLfixed *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glTexEnvx_special(context, target, pname, param);
+    }
+    break;
+
+    case FUNID_glTexParameterx:
+
+    {
+
+        /* readline: "glTexParameterx GLenum target, GLenum pname, GLint param" */
+        /* func name: "glTexParameterx" */
+        /* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum target;
+        GLenum pname;
+        GLint param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexParameterx)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glTexParameterx_special(context, target, pname, param);
+    }
+    break;
+
+    case FUNID_glShadeModel:
+
+    {
+
+        /* readline: "glShadeModel GLenum mode" */
+        /* func name: "glShadeModel" */
+        /* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLenum mode;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glShadeModel)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glShadeModel_special(context, mode);
+    }
+    break;
+
+    case FUNID_glDrawTexiOES:
+
+    {
+
+        /* readline: "glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height" */
+        /* func name: "glDrawTexiOES" */
+        /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
+        /* ret: "" */
+        /* type: "212" */
+
+        /* Define variables */
+        GLint x;
+        GLint y;
+        GLint z;
+        GLint width;
+        GLint height;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawTexiOES)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 20 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        x = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        y = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        z = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glDrawTexiOES_special(context, x, y, z, width, height);
+    }
+    break;
+
+        /******* end of file '2-1-2', 210/364 functions*******/
 
         /******* file '2-2' *******/
 

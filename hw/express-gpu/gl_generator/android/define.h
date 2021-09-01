@@ -95,10 +95,10 @@
 #define FUNID_glGetUniformiv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+76)
 #define FUNID_glGetUniformuiv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+77)
 #define FUNID_glGetUniformIndices ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+78)
-#define FUNID_glGetVertexAttribfv_origin ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+79)
-#define FUNID_glGetVertexAttribiv_origin ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+80)
-#define FUNID_glGetVertexAttribIiv_origin ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+81)
-#define FUNID_glGetVertexAttribIuiv_origin ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+82)
+#define FUNID_glGetVertexAttribfv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+79)
+#define FUNID_glGetVertexAttribiv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+80)
+#define FUNID_glGetVertexAttribIiv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+81)
+#define FUNID_glGetVertexAttribIuiv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+82)
 #define FUNID_glGetBufferParameteriv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+83)
 #define FUNID_glGetBufferParameteri64v ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+84)
 #define FUNID_glGetBooleanv ((EXPRESS_GPU_FUN_ID<<32u)+(((unsigned long long)0x1)<<24u)+85)
@@ -375,23 +375,29 @@
 #define FUNID_glProgramUniformMatrix3x4fv ((EXPRESS_GPU_FUN_ID<<32u)+356)
 #define FUNID_glProgramUniformMatrix4x3fv ((EXPRESS_GPU_FUN_ID<<32u)+357)
 #define FUNID_glBindAttribLocation ((EXPRESS_GPU_FUN_ID<<32u)+358)
-#define FUNID_glVertexAttribIPointer_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+359)
-#define FUNID_glVertexAttribPointer_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+360)
-#define FUNID_glDrawElements_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+361)
-#define FUNID_glDrawElementsInstanced_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+362)
-#define FUNID_glDrawRangeElements_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+363)
-#define FUNID_glFlushMappedBufferRange_special ((EXPRESS_GPU_FUN_ID<<32u)+364)
-#define FUNID_glBufferData_custom ((EXPRESS_GPU_FUN_ID<<32u)+365)
-#define FUNID_glBufferSubData_custom ((EXPRESS_GPU_FUN_ID<<32u)+366)
-#define FUNID_glCompressedTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+367)
-#define FUNID_glCompressedTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+368)
-#define FUNID_glCompressedTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+369)
-#define FUNID_glCompressedTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+370)
-#define FUNID_glTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+371)
-#define FUNID_glTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+372)
-#define FUNID_glTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+373)
-#define FUNID_glTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+374)
-#define FUNID_glPrintf ((EXPRESS_GPU_FUN_ID<<32u)+375)
+#define FUNID_glTexEnvf ((EXPRESS_GPU_FUN_ID<<32u)+359)
+#define FUNID_glTexEnvi ((EXPRESS_GPU_FUN_ID<<32u)+360)
+#define FUNID_glTexEnvx ((EXPRESS_GPU_FUN_ID<<32u)+361)
+#define FUNID_glTexParameterx ((EXPRESS_GPU_FUN_ID<<32u)+362)
+#define FUNID_glShadeModel ((EXPRESS_GPU_FUN_ID<<32u)+363)
+#define FUNID_glDrawTexiOES ((EXPRESS_GPU_FUN_ID<<32u)+364)
+#define FUNID_glVertexAttribIPointer_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+365)
+#define FUNID_glVertexAttribPointer_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+366)
+#define FUNID_glDrawElements_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+367)
+#define FUNID_glDrawElementsInstanced_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+368)
+#define FUNID_glDrawRangeElements_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+369)
+#define FUNID_glFlushMappedBufferRange_special ((EXPRESS_GPU_FUN_ID<<32u)+370)
+#define FUNID_glBufferData_custom ((EXPRESS_GPU_FUN_ID<<32u)+371)
+#define FUNID_glBufferSubData_custom ((EXPRESS_GPU_FUN_ID<<32u)+372)
+#define FUNID_glCompressedTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+373)
+#define FUNID_glCompressedTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+374)
+#define FUNID_glCompressedTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+375)
+#define FUNID_glCompressedTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+376)
+#define FUNID_glTexImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+377)
+#define FUNID_glTexImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+378)
+#define FUNID_glTexSubImage2D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+379)
+#define FUNID_glTexSubImage3D_without_bound ((EXPRESS_GPU_FUN_ID<<32u)+380)
+#define FUNID_glPrintf ((EXPRESS_GPU_FUN_ID<<32u)+381)
 GLenum r_glClientWaitSync(void *context, GLsync sync, GLbitfield flags, GLuint64 timeout);
 GLenum d_glClientWaitSync(void *context, GLsync sync, GLbitfield flags, GLuint64 timeout);
 
@@ -626,16 +632,16 @@ void d_glGetUniformuiv(void *context, GLuint program, GLint location, GLuint* pa
 void r_glGetUniformIndices(void *context, GLuint program, GLsizei uniformCount, const GLchar*const* uniformNames, GLuint* uniformIndices);
 void d_glGetUniformIndices(void *context, GLuint program, GLsizei uniformCount, const GLchar*const* uniformNames, GLuint* uniformIndices);
 
-void r_glGetVertexAttribfv_origin(void *context, GLuint index, GLenum pname, GLfloat* params);
+void r_glGetVertexAttribfv(void *context, GLuint index, GLenum pname, GLfloat* params);
 void d_glGetVertexAttribfv(void *context, GLuint index, GLenum pname, GLfloat* params);
 
-void r_glGetVertexAttribiv_origin(void *context, GLuint index, GLenum pname, GLint* params);
+void r_glGetVertexAttribiv(void *context, GLuint index, GLenum pname, GLint* params);
 void d_glGetVertexAttribiv(void *context, GLuint index, GLenum pname, GLint* params);
 
-void r_glGetVertexAttribIiv_origin(void *context, GLuint index, GLenum pname, GLint* params);
+void r_glGetVertexAttribIiv(void *context, GLuint index, GLenum pname, GLint* params);
 void d_glGetVertexAttribIiv(void *context, GLuint index, GLenum pname, GLint* params);
 
-void r_glGetVertexAttribIuiv_origin(void *context, GLuint index, GLenum pname, GLuint* params);
+void r_glGetVertexAttribIuiv(void *context, GLuint index, GLenum pname, GLuint* params);
 void d_glGetVertexAttribIuiv(void *context, GLuint index, GLenum pname, GLuint* params);
 
 void r_glGetBufferParameteriv(void *context, GLenum target, GLenum pname, GLint* params);
@@ -1465,6 +1471,24 @@ void d_glProgramUniformMatrix4x3fv(void *context, GLuint program, GLint location
 
 void r_glBindAttribLocation(void *context, GLuint program, GLuint index, const GLchar* name);
 void d_glBindAttribLocation(void *context, GLuint program, GLuint index, const GLchar* name);
+
+void r_glTexEnvf(void *context, GLenum target, GLenum pname, GLfloat param);
+void d_glTexEnvf(void *context, GLenum target, GLenum pname, GLfloat param);
+
+void r_glTexEnvi(void *context, GLenum target, GLenum pname, GLint param);
+void d_glTexEnvi(void *context, GLenum target, GLenum pname, GLint param);
+
+void r_glTexEnvx(void *context, GLenum target, GLenum pname, GLfixed param);
+void d_glTexEnvx(void *context, GLenum target, GLenum pname, GLfixed param);
+
+void r_glTexParameterx(void *context, GLenum target, GLenum pname, GLint param);
+void d_glTexParameterx(void *context, GLenum target, GLenum pname, GLint param);
+
+void r_glShadeModel(void *context, GLenum mode);
+void d_glShadeModel(void *context, GLenum mode);
+
+void r_glDrawTexiOES(void *context, GLint x, GLint y, GLint z, GLint width, GLint height);
+void d_glDrawTexiOES(void *context, GLint x, GLint y, GLint z, GLint width, GLint height);
 
 void r_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLuint offset, GLsizei length, const void* pointer);
 void d_glVertexAttribIPointer(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLuint offset, GLsizei length, const void* pointer);

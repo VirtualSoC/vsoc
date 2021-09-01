@@ -352,6 +352,12 @@ glProgramUniformMatrix4x2fv
 glProgramUniformMatrix3x4fv
 glProgramUniformMatrix4x3fv
 glBindAttribLocation
+glTexEnvf
+glTexEnvi
+glTexEnvx
+glTexParameterx
+glShadeModel
+glDrawTexiOES
 glFlushMappedBufferRange
 glBufferData
 glBufferSubData

@@ -198,6 +198,12 @@ typedef struct Opengl_Context
     GLuint draw_fbo0;
     GLuint read_fbo0;
 
+    GLint view_x;
+    GLint view_y;
+
+    GLsizei view_w;
+    GLsizei view_h;
+
 
     // int has_init;
     int is_current;
@@ -252,6 +258,9 @@ void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer);
 
 void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer);
+
+
+void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
 
 //
 

@@ -117,7 +117,7 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
     static int64_t count = 0;
     count++;
     express_printf("log count %lld\n", count);
-    if (fun_id == 0)
+    if (fun_id == 1)
     {
         // print_cnt++;
         gint64 t_int = g_get_real_time();
@@ -156,15 +156,18 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
                 t_last = t_int;
             }
             int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#LOG_GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
+            express_printf("#LOG_GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
             loc += num;
             guest_write(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
+            express_printf("%s\n",print_buf + loc);
             loc += all_para[0].data_len;
+
         }
 
         // g_free(t_s1);
         // g_date_time_unref(t);
     }
-    else if (fun_id == 1)
+    else if (fun_id == 2)
     {
         //测试复制模式
         if (all_para[0].data_len > copy_test_buf_len)
@@ -188,7 +191,7 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
 
         express_printf("get copy test %lld spend time %lld speed %lf M/s\n", all_para[0].data_len, spend_time, all_para[0].data_len * 1.0 * 1000000 / 1024 / 1024 / spend_time);
     }
-    else if (fun_id == 2)
+    else if (fun_id == 3)
     {
         //非复制测试模式
         express_printf("get no copy test %lld\n", all_para[0].data_len);

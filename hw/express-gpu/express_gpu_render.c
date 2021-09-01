@@ -20,6 +20,7 @@
 
 #include "express-gpu/egl_context.h"
 #include "express-gpu/glv3_context.h"
+#include "express-gpu/glv1.h"
 
 #include <winsock2.h>
 #include <windows.h>
@@ -590,6 +591,8 @@ void *native_window_thread(void *opaque)
         return NULL;
     }
 
+    prepare_draw_texi();
+
     opengl_prepare(&programID, &drawVAO);
     glBindVertexArray(drawVAO);
 
@@ -792,7 +795,7 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
             g_queue_push_tail(event_queue, (gpointer)event);
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
-            DWORD ret = WaitForSingleObject(event, 17);
+            DWORD ret = WaitForSingleObject(event, 100);
 #elif
 #endif
             if (ret == WAIT_TIMEOUT)
@@ -814,7 +817,7 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
             g_queue_push_tail(event_queue, (gpointer)event);
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
-            DWORD ret = WaitForSingleObject(event, 17);
+            DWORD ret = WaitForSingleObject(event, 100);
 #elif
 #endif
             if (ret == WAIT_TIMEOUT)

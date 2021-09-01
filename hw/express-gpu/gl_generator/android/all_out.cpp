@@ -5474,12 +5474,12 @@ void r_glGetUniformIndices(void *context, GLuint program, GLsizei uniformCount, 
     }
 }
 
-/* readline: "glGetVertexAttribfv_origin GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)" */
-/* func name: "glGetVertexAttribfv_origin" */
+/* readline: "glGetVertexAttribfv GLuint index, GLenum pname, GLfloat *params#gl_pname_size(pname)*sizeof(GLfloat)" */
+/* func name: "glGetVertexAttribfv" */
 /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLfloat)', 'loc': 2, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "112" */
-void r_glGetVertexAttribfv_origin(void *context, GLuint index, GLenum pname, GLfloat *params)
+void r_glGetVertexAttribfv(void *context, GLuint index, GLenum pname, GLfloat *params)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -5501,7 +5501,7 @@ void r_glGetVertexAttribfv_origin(void *context, GLuint index, GLenum pname, GLf
     ptr += 4;
 
     ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_glGetVertexAttribfv_origin;
+    *(uint64_t *)ptr = FUNID_glGetVertexAttribfv;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = (uint64_t)para_num;
@@ -5552,12 +5552,12 @@ void r_glGetVertexAttribfv_origin(void *context, GLuint index, GLenum pname, GLf
     }
 }
 
-/* readline: "glGetVertexAttribiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
-/* func name: "glGetVertexAttribiv_origin" */
+/* readline: "glGetVertexAttribiv GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
+/* func name: "glGetVertexAttribiv" */
 /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "112" */
-void r_glGetVertexAttribiv_origin(void *context, GLuint index, GLenum pname, GLint *params)
+void r_glGetVertexAttribiv(void *context, GLuint index, GLenum pname, GLint *params)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -5579,7 +5579,7 @@ void r_glGetVertexAttribiv_origin(void *context, GLuint index, GLenum pname, GLi
     ptr += 4;
 
     ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_glGetVertexAttribiv_origin;
+    *(uint64_t *)ptr = FUNID_glGetVertexAttribiv;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = (uint64_t)para_num;
@@ -5630,12 +5630,12 @@ void r_glGetVertexAttribiv_origin(void *context, GLuint index, GLenum pname, GLi
     }
 }
 
-/* readline: "glGetVertexAttribIiv_origin GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
-/* func name: "glGetVertexAttribIiv_origin" */
+/* readline: "glGetVertexAttribIiv GLuint index, GLenum pname, GLint *params#gl_pname_size(pname)*sizeof(GLint)" */
+/* func name: "glGetVertexAttribIiv" */
 /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLint)', 'loc': 2, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "112" */
-void r_glGetVertexAttribIiv_origin(void *context, GLuint index, GLenum pname, GLint *params)
+void r_glGetVertexAttribIiv(void *context, GLuint index, GLenum pname, GLint *params)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -5657,7 +5657,7 @@ void r_glGetVertexAttribIiv_origin(void *context, GLuint index, GLenum pname, GL
     ptr += 4;
 
     ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_glGetVertexAttribIiv_origin;
+    *(uint64_t *)ptr = FUNID_glGetVertexAttribIiv;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = (uint64_t)para_num;
@@ -5708,12 +5708,12 @@ void r_glGetVertexAttribIiv_origin(void *context, GLuint index, GLenum pname, GL
     }
 }
 
-/* readline: "glGetVertexAttribIuiv_origin GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)" */
-/* func name: "glGetVertexAttribIuiv_origin" */
+/* readline: "glGetVertexAttribIuiv GLuint index, GLenum pname, GLuint *params#gl_pname_size(pname)*sizeof(GLuint)" */
+/* func name: "glGetVertexAttribIuiv" */
 /* args: [{'type': 'GLuint', 'name': 'index', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLuint*', 'name': 'params', 'ptr': 'out', 'ptr_len': 'gl_pname_size(pname)*sizeof(GLuint)', 'loc': 2, 'ptr_ptr': False}] */
 /* ret: "" */
 /* type: "112" */
-void r_glGetVertexAttribIuiv_origin(void *context, GLuint index, GLenum pname, GLuint *params)
+void r_glGetVertexAttribIuiv(void *context, GLuint index, GLenum pname, GLuint *params)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -5735,7 +5735,7 @@ void r_glGetVertexAttribIuiv_origin(void *context, GLuint index, GLenum pname, G
     ptr += 4;
 
     ptr = send_buf;
-    *(uint64_t *)ptr = FUNID_glGetVertexAttribIuiv_origin;
+    *(uint64_t *)ptr = FUNID_glGetVertexAttribIuiv;
     ptr += sizeof(uint64_t);
 
     *(uint64_t *)ptr = (uint64_t)para_num;
@@ -21675,7 +21675,337 @@ void r_glBindAttribLocation(void *context, GLuint program, GLuint index, const G
     }
 }
 
-/******* end of file '2-1-2', 204/358 functions *******/
+/* readline: "glTexEnvf GLenum target, GLenum pname, GLfloat param" */
+/* func name: "glTexEnvf" */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfloat', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+/* ret: "" */
+/* type: "212" */
+void r_glTexEnvf(void *context, GLenum target, GLenum pname, GLfloat param)
+{
+
+    unsigned char send_buf[16 + 16 * 1];
+    size_t send_buf_len = 16 + 16 * 1;
+    uint64_t save_buf_len = 12;
+    unsigned char local_save_buf[4096];
+    unsigned char *save_buf;
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        save_buf = (unsigned char *)malloc(save_buf_len);
+    }
+    else
+    {
+        save_buf = local_save_buf;
+    }
+
+    unsigned char *ptr = save_buf;
+
+    *(GLenum *)ptr = target;
+    ptr += 4;
+
+    *(GLenum *)ptr = pname;
+    ptr += 4;
+
+    *(GLfloat *)ptr = param;
+    ptr += 4;
+
+    ptr = send_buf;
+
+    *(uint64_t *)ptr = FUNID_glTexEnvf;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = 1;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = (uint64_t)save_buf_len;
+    ptr += sizeof(uint64_t);
+    *(uint64_t *)ptr = (uint64_t)save_buf;
+    ptr += sizeof(uint64_t);
+
+    send_to_host(context, send_buf, send_buf_len, 0);
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        free(save_buf);
+    }
+}
+
+/* readline: "glTexEnvi GLenum target, GLenum pname, GLint param" */
+/* func name: "glTexEnvi" */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+/* ret: "" */
+/* type: "212" */
+void r_glTexEnvi(void *context, GLenum target, GLenum pname, GLint param)
+{
+
+    unsigned char send_buf[16 + 16 * 1];
+    size_t send_buf_len = 16 + 16 * 1;
+    uint64_t save_buf_len = 12;
+    unsigned char local_save_buf[4096];
+    unsigned char *save_buf;
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        save_buf = (unsigned char *)malloc(save_buf_len);
+    }
+    else
+    {
+        save_buf = local_save_buf;
+    }
+
+    unsigned char *ptr = save_buf;
+
+    *(GLenum *)ptr = target;
+    ptr += 4;
+
+    *(GLenum *)ptr = pname;
+    ptr += 4;
+
+    *(GLint *)ptr = param;
+    ptr += 4;
+
+    ptr = send_buf;
+
+    *(uint64_t *)ptr = FUNID_glTexEnvi;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = 1;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = (uint64_t)save_buf_len;
+    ptr += sizeof(uint64_t);
+    *(uint64_t *)ptr = (uint64_t)save_buf;
+    ptr += sizeof(uint64_t);
+
+    send_to_host(context, send_buf, send_buf_len, 0);
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        free(save_buf);
+    }
+}
+
+/* readline: "glTexEnvx GLenum target, GLenum pname, GLfixed param" */
+/* func name: "glTexEnvx" */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLfixed', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+/* ret: "" */
+/* type: "212" */
+void r_glTexEnvx(void *context, GLenum target, GLenum pname, GLfixed param)
+{
+
+    unsigned char send_buf[16 + 16 * 1];
+    size_t send_buf_len = 16 + 16 * 1;
+    uint64_t save_buf_len = 12;
+    unsigned char local_save_buf[4096];
+    unsigned char *save_buf;
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        save_buf = (unsigned char *)malloc(save_buf_len);
+    }
+    else
+    {
+        save_buf = local_save_buf;
+    }
+
+    unsigned char *ptr = save_buf;
+
+    *(GLenum *)ptr = target;
+    ptr += 4;
+
+    *(GLenum *)ptr = pname;
+    ptr += 4;
+
+    *(GLfixed *)ptr = param;
+    ptr += 4;
+
+    ptr = send_buf;
+
+    *(uint64_t *)ptr = FUNID_glTexEnvx;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = 1;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = (uint64_t)save_buf_len;
+    ptr += sizeof(uint64_t);
+    *(uint64_t *)ptr = (uint64_t)save_buf;
+    ptr += sizeof(uint64_t);
+
+    send_to_host(context, send_buf, send_buf_len, 0);
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        free(save_buf);
+    }
+}
+
+/* readline: "glTexParameterx GLenum target, GLenum pname, GLint param" */
+/* func name: "glTexParameterx" */
+/* args: [{'type': 'GLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'pname', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'param', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}] */
+/* ret: "" */
+/* type: "212" */
+void r_glTexParameterx(void *context, GLenum target, GLenum pname, GLint param)
+{
+
+    unsigned char send_buf[16 + 16 * 1];
+    size_t send_buf_len = 16 + 16 * 1;
+    uint64_t save_buf_len = 12;
+    unsigned char local_save_buf[4096];
+    unsigned char *save_buf;
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        save_buf = (unsigned char *)malloc(save_buf_len);
+    }
+    else
+    {
+        save_buf = local_save_buf;
+    }
+
+    unsigned char *ptr = save_buf;
+
+    *(GLenum *)ptr = target;
+    ptr += 4;
+
+    *(GLenum *)ptr = pname;
+    ptr += 4;
+
+    *(GLint *)ptr = param;
+    ptr += 4;
+
+    ptr = send_buf;
+
+    *(uint64_t *)ptr = FUNID_glTexParameterx;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = 1;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = (uint64_t)save_buf_len;
+    ptr += sizeof(uint64_t);
+    *(uint64_t *)ptr = (uint64_t)save_buf;
+    ptr += sizeof(uint64_t);
+
+    send_to_host(context, send_buf, send_buf_len, 0);
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        free(save_buf);
+    }
+}
+
+/* readline: "glShadeModel GLenum mode" */
+/* func name: "glShadeModel" */
+/* args: [{'type': 'GLenum', 'name': 'mode', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
+/* ret: "" */
+/* type: "212" */
+void r_glShadeModel(void *context, GLenum mode)
+{
+
+    unsigned char send_buf[16 + 16 * 1];
+    size_t send_buf_len = 16 + 16 * 1;
+    uint64_t save_buf_len = 4;
+    unsigned char local_save_buf[4096];
+    unsigned char *save_buf;
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        save_buf = (unsigned char *)malloc(save_buf_len);
+    }
+    else
+    {
+        save_buf = local_save_buf;
+    }
+
+    unsigned char *ptr = save_buf;
+
+    *(GLenum *)ptr = mode;
+    ptr += 4;
+
+    ptr = send_buf;
+
+    *(uint64_t *)ptr = FUNID_glShadeModel;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = 1;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = (uint64_t)save_buf_len;
+    ptr += sizeof(uint64_t);
+    *(uint64_t *)ptr = (uint64_t)save_buf;
+    ptr += sizeof(uint64_t);
+
+    send_to_host(context, send_buf, send_buf_len, 0);
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        free(save_buf);
+    }
+}
+
+/* readline: "glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height" */
+/* func name: "glDrawTexiOES" */
+/* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
+/* ret: "" */
+/* type: "212" */
+void r_glDrawTexiOES(void *context, GLint x, GLint y, GLint z, GLint width, GLint height)
+{
+
+    unsigned char send_buf[16 + 16 * 1];
+    size_t send_buf_len = 16 + 16 * 1;
+    uint64_t save_buf_len = 20;
+    unsigned char local_save_buf[4096];
+    unsigned char *save_buf;
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        save_buf = (unsigned char *)malloc(save_buf_len);
+    }
+    else
+    {
+        save_buf = local_save_buf;
+    }
+
+    unsigned char *ptr = save_buf;
+
+    *(GLint *)ptr = x;
+    ptr += 4;
+
+    *(GLint *)ptr = y;
+    ptr += 4;
+
+    *(GLint *)ptr = z;
+    ptr += 4;
+
+    *(GLint *)ptr = width;
+    ptr += 4;
+
+    *(GLint *)ptr = height;
+    ptr += 4;
+
+    ptr = send_buf;
+
+    *(uint64_t *)ptr = FUNID_glDrawTexiOES;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = 1;
+    ptr += sizeof(uint64_t);
+
+    *(uint64_t *)ptr = (uint64_t)save_buf_len;
+    ptr += sizeof(uint64_t);
+    *(uint64_t *)ptr = (uint64_t)save_buf;
+    ptr += sizeof(uint64_t);
+
+    send_to_host(context, send_buf, send_buf_len, 1);
+
+    if (save_buf_len > MAX_OUT_BUF_LEN)
+    {
+        free(save_buf);
+    }
+}
+
+/******* end of file '2-1-2', 210/364 functions *******/
 
 /******* file '2-2' *******/
 
@@ -22680,4 +23010,4 @@ void r_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
     send_to_host(context, send_buf, send_buf_len, 1);
 }
 
-/******* end of file '2-2', 18/375 functions *******/
+/******* end of file '2-2', 18/381 functions *******/

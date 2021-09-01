@@ -651,7 +651,7 @@ size_t gl_pname_size(GLenum pname)
     case GL_QUERY_RESULT:
     case GL_QUERY_RESULT_AVAILABLE:
     case GL_READ_BUFFER:
-    // case GL_NUM_PROGRAM_BINARY_FORMATS:
+        // case GL_NUM_PROGRAM_BINARY_FORMATS:
         // case GL_PROGRAM_BINARY_FORMATS:
 
     case GL_ACTIVE_ATOMIC_COUNTER_BUFFERS:
@@ -930,6 +930,17 @@ void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *b
         printf("error, glGetStringi string too long %x %u %s", name, index, static_string);
     }
     memcpy(buffer, static_string, len);
+}
+
+void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height)
+{
+    Opengl_Context *real_opengl_context = (Opengl_Context *)context;
+    real_opengl_context->view_x = 0;
+    real_opengl_context->view_y = 0;
+    real_opengl_context->view_w = width;
+    real_opengl_context->view_h = height;
+    glViewport(x, y, width, height);
+    return;
 }
 
 void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES imageSize)

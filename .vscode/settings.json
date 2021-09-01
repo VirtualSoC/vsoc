@@ -103,6 +103,7 @@
         "egl_draw.h": "c",
         "egl_sync.h": "c",
         "glv3_context.h": "c",
-        "glfw3.h": "c"
+        "glfw3.h": "c",
+        "glv1.h": "c"
     }
 }
