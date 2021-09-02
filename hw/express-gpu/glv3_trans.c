@@ -23,6 +23,8 @@
 
 #include "express-gpu/glv3_context.h"
 
+#include "express-gpu/glv1.h"
+
 // 1. guest端需要同步的函数
 //  1.1
 //   1.1.1 需要传递给host端参数，但是参数占用空间一般比较小，所以在qemu端数据会全部复制出来，然后调用相应的函数
@@ -8054,7 +8056,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glViewport_special(context, x, y, width, height);
+        d_glViewport_special(opengl_context, x, y, width, height);
     }
     break;
 
@@ -25097,7 +25099,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glTexEnvf_special(context, target, pname, param);
+        d_glTexEnvf_special(opengl_context, target, pname, param);
     }
     break;
 
@@ -25162,7 +25164,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glTexEnvi_special(context, target, pname, param);
+        d_glTexEnvi_special(opengl_context, target, pname, param);
     }
     break;
 
@@ -25227,7 +25229,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glTexEnvx_special(context, target, pname, param);
+        d_glTexEnvx_special(opengl_context, target, pname, param);
     }
     break;
 
@@ -25292,7 +25294,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glTexParameterx_special(context, target, pname, param);
+        d_glTexParameterx_special(opengl_context, target, pname, param);
     }
     break;
 
@@ -25349,7 +25351,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glShadeModel_special(context, mode);
+        d_glShadeModel_special(opengl_context, mode);
     }
     break;
 
@@ -25357,7 +25359,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height" */
+        /* readline: "glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height, GLfloat left_x, GLfloat right_x, GLfloat bottom_y, GLfloat top_y" */
         /* func name: "glDrawTexiOES" */
         /* args: [{'type': 'GLint', 'name': 'x', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'y', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'z', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'width', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'GLint', 'name': 'height', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 4, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -25369,6 +25371,10 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLint z;
         GLint width;
         GLint height;
+        GLfloat left_x;
+        GLfloat right_x;
+        GLfloat bottom_y;
+        GLfloat top_y;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glDrawTexiOES)
@@ -25380,7 +25386,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (temp_len < 20 * 1 + 4 * sizeof(GLfloat))
         {
             break;
         }
@@ -25416,13 +25422,27 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         height = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
+
+        left_x = *(GLfloat *)(temp + temp_loc);
+        temp_loc += sizeof(GLfloat);
+
+        right_x = *(GLfloat *)(temp + temp_loc);
+        temp_loc += sizeof(GLfloat);
+
+        bottom_y = *(GLfloat *)(temp + temp_loc);
+        temp_loc += sizeof(GLfloat);
+
+        top_y = *(GLfloat *)(temp + temp_loc);
+        temp_loc += sizeof(GLfloat);
+
+
         /* Check length */
         if (temp_len < temp_loc)
         {
             break;
         }
 
-        d_glDrawTexiOES_special(context, x, y, z, width, height);
+        d_glDrawTexiOES_special(opengl_context, x, y, z, width, height, left_x, right_x, bottom_y, top_y);
     }
     break;
 

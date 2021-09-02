@@ -440,4 +440,4 @@ glTexParameterx GLenum target, GLenum pname, GLint param
 
 glShadeModel GLenum mode
 
-glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height
+glDrawTexiOES GLint x, GLint y, GLint z, GLint width, GLint height, GLfloat left_x, GLfloat right_x, GLfloat bottom_y, GLfloat top_y

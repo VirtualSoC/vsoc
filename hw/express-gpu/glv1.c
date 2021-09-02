@@ -13,6 +13,7 @@
 
 static GLuint draw_texi_vao = 0;
 static GLuint draw_texi_program = 0;
+static GLint draw_texi_texture_id_loc = 0;
 
 void d_glTexEnvf_special(void *context, GLenum target, GLenum pname, GLfloat param)
 {
@@ -26,37 +27,55 @@ void d_glTexEnvi_special(void *context, GLenum target, GLenum pname, GLint param
 
 void d_glTexEnvx_special(void *context, GLenum target, GLenum pname, GLfixed param)
 {
-    glTexEnvxOES(target, pname, param);
+    // glTexEnvxOES(target, pname, param);
 }
 
 void d_glTexParameterx_special(void *context, GLenum target, GLenum pname, GLint param)
 {
-    glTexParameterxOES(target, pname, param);
+    glTexParameteri(target, pname, param);
 }
 
 void d_glShadeModel_special(void *context, GLenum mode)
 {
-    glShadeModel(mode);
+    // glShadeModel(mode);
 }
 
-void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint width, GLint height)
+void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint width, GLint height, GLfloat left_x, GLfloat right_x, GLfloat bottom_y, GLfloat top_y)
 {
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    GLuint prev_vbo;
+    GLuint prev_ebo;
+
+    float fz = z >= 1 ? 1.0f : z;
+    fz = z <= 0 ? 0.0f : z;
+    fz = fz * 2.0f - 1.0f;
+
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&prev_vbo);
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint *)&prev_ebo);
+
     glUseProgram(draw_texi_program);
 
-    Opengl_Context *opengl_context = (Opengl_Context *)context;
+
+    GLint now_texture_target;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &now_texture_target);
+
+    GLuint now_bind_texture;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &now_bind_texture);
+
+    glUniform1i(draw_texi_texture_id_loc, now_texture_target - GL_TEXTURE0);
 
     float positions[] = {
-        1.0f, 1.0f, 0.0f,   // top right
-        1.0f, -1.0f, 0.0f,  // bottom right
-        -1.0f, -1.0f, 0.0f, // bottom left
-        -1.0f, 1.0f, 0.0f   // top left
+        1.0f, 1.0f, fz,   // top right
+        1.0f, -1.0f, fz,  // bottom right
+        -1.0f, -1.0f, fz, // bottom left
+        -1.0f, 1.0f, fz   // top left
     };
 
     float tex_coord[] = {
-        1.0f, 1.0f, // top right
-        1.0f, 0.0f, // bottom right
-        0.0f, 0.0f, // bottom left
-        0.0f, 1.0f  // top left
+        right_x, top_y,    // top right
+        right_x, bottom_y, // bottom right
+        left_x, bottom_y,  // bottom left
+        left_x, top_y,     // top left
     };
 
     unsigned int indices[] = {
@@ -67,6 +86,8 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
     glViewport(x, y, width, height);
 
     glBindBuffer(GL_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, positions);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, tex_coord);
@@ -76,7 +97,9 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
 
     glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
 
-    // glUseProgram(0);
+    glUseProgram(0);
+    glBindBuffer(GL_ARRAY_BUFFER, prev_vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prev_ebo);
 }
 
 void prepare_draw_texi()
@@ -84,33 +107,33 @@ void prepare_draw_texi()
     if (draw_texi_program == 0)
     {
         //数组取地址不是字符串指针的指针，所以这里不要用数组
-        char *vShaderCode = "#version 300 es"
-                            "layout(location = 0) in vec3 aPos;"
-                            "layout(location = 1) in vec2 aTexCoord;"
-                            "out vec2 TexCoord;"
-                            "void main()"
-                            "{"
-                            "    gl_Position = vec4(aPos, 1.0);"
-                            "    TexCoord = aTexCoord;"
-                            "}";
+        char *vShaderCode = "#version 300 es\n"
+                            "layout(location = 0) in vec3 aPos;\n"
+                            "layout(location = 1) in vec2 aTexCoord;\n"
+                            "out vec2 TexCoord;\n"
+                            "void main()\n"
+                            "{\n"
+                            "    gl_Position = vec4(aPos, 1.0);\n"
+                            "    TexCoord = aTexCoord;\n"
+                            "}\n";
 
-        char *fShaderCode = "#version 300 es"
-                            "precision mediump float;"
-                            "out vec4 FragColor;"
+        char *fShaderCode = "#version 300 es\n"
+                            "precision mediump float;\n"
+                            "out vec4 FragColor;\n"
 
-                            "in vec2 TexCoord;"
+                            "in vec2 TexCoord;\n"
 
-                            "uniform sampler2D texture0;"
-                            "uniform bool alpha_on;"
+                            "uniform sampler2D texture_id;\n"
+                            "uniform bool alpha_on;\n"
 
-                            "void main()"
-                            "{"
-                            "vec4 tex_color = texture(texture0, TexCoord);"
-                            "if(alpha_on){"
-                            "    tex_color.a = 1.0 - tex_color.r;"
-                            "}"
-                            "FragColor = tex_color;"
-                            "}";
+                            "void main()\n"
+                            "{\n"
+                            "   vec4 tex_color = texture(texture_id, TexCoord);\n"
+                            "   if(alpha_on){\n"
+                            "       tex_color.a = 1.0 - tex_color.r;\n"
+                            "   }\n"
+                            "   FragColor = tex_color;\n"
+                            "}\n";
 
         GLuint vertex, fragment, geometry;
         // vertex shader
@@ -130,9 +153,28 @@ void prepare_draw_texi()
 
         glLinkProgram(program_id);
 
+        draw_texi_texture_id_loc = glGetUniformLocation(program_id, "texture_id");
+
         glDeleteShader(vertex);
         glDeleteShader(fragment);
         draw_texi_program = program_id;
+
+        // GLint linked;
+        // glGetProgramiv(program_id, GL_LINK_STATUS, &linked);
+        // printf("linked %d program %u", linked, program_id);
+        // if (!linked)
+        // {
+        //     GLint infoLen = 0;
+        //     glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &infoLen);
+        //     printf("GL_INFO_LOG_LENGTH %d", infoLen);
+        //     if (infoLen > 1)
+        //     {
+        //         char *infoLog = (char *)malloc(sizeof(char) * infoLen);
+        //         glGetProgramInfoLog(program_id, infoLen, NULL, infoLog);
+        //         printf("Error linking program:\n%s\n", infoLog);
+        //         free(infoLog);
+        //     }
+        // }
     }
 
     // if (draw_texi_vao == 0)

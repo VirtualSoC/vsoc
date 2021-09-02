@@ -161,7 +161,11 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
             guest_write(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
             express_printf("%s\n",print_buf + loc);
             loc += all_para[0].data_len;
-
+            
+            //假如需要保证日志的完整性就要移除下面的注释（例如直接crash了日志在缓存里没保留下来的情况）
+            // call_printf_flush();
+            // loc = 0;
+            // t_last = t_int;
         }
 
         // g_free(t_s1);
