@@ -215,6 +215,10 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         {
             break;
         }
+        if (d_buffer->I_am_composer)
+        {
+            set_compose_surface(NULL);
+        }
         express_printf("main windows destroy window %lx\n", d_buffer);
         glfwDestroyWindow(d_buffer->window);
 
@@ -781,6 +785,11 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
 {
 
     //帧率太小的情况，赶不及窗口帧率，直接返回当前窗口frame_num
+
+    if (wait_frame_num == -1)
+    {
+        return main_frame_num;
+    }
 
     if (wait_frame_num - main_frame_num > 60000)
     {

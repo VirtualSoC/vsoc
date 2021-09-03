@@ -58,8 +58,16 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     // surface->read_num=surface->draw_num;
 
     //垂直同步
-    int next_frame_num = (surface->last_frame_num + surface->swap_interval) % 65536;
-    surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, next_frame_num);
+    //刚开始要初始化
+    if (surface->last_frame_num == -1)
+    {
+        surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, -1);
+    }
+    else
+    {
+        int next_frame_num = (surface->last_frame_num + surface->swap_interval) % 65536;
+        surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, next_frame_num);
+    }
 
     //尝试锁定下一个将要绘制的缓冲区
     int next_draw_buffer = (surface->now_draw + 1) % surface->buffer_num;
