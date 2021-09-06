@@ -20,11 +20,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if (thread_context->render_double_buffer_draw != NULL &&
         thread_context->render_double_buffer_draw != real_surface_draw)
     {
-        if (thread_context->render_double_buffer_draw->I_am_composer)
-        {
-            set_compose_surface(NULL);
-        }
-
+        // if (thread_context->render_double_buffer_draw->I_am_composer)
+        // {
+        //     set_compose_surface(NULL);
+        // }
         if (thread_context->render_double_buffer_draw->need_destroy)
         {
             PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)(thread_context->render_double_buffer_draw));
@@ -74,6 +73,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     real_surface_read->is_current = 1;
     thread_context->render_double_buffer_draw = real_surface_draw;
     real_surface_draw->is_current = 1;
+    real_surface_draw->last_frame_num = -1;
     thread_context->opengl_context = real_opengl_context;
     real_opengl_context->is_current = 1;
 
@@ -126,6 +126,9 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         set_compose_surface(real_surface_draw);
     }
 #endif
+    //makecurrent的时候要释放所有的锁，防止死锁，这个时候肯定没有swapbuffer，所以直接清空就行了
+    memset(real_surface_draw->display_texture_is_use, 0, sizeof(real_surface_draw->display_texture_is_use));
+
     ATOMIC_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
 
     return EGL_TRUE;
