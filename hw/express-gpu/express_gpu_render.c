@@ -155,8 +155,8 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         /******* Resizing window *******/
         //所有重画的操作需要看看窗口大小需不需要重新调整
         GetClientRect(GetParent(hwnd), &rcParent);
-        temp_height = rcParent.bottom / 2;
-        temp_width = rcParent.right / 2;
+        temp_height = rcParent.bottom;
+        temp_width = rcParent.right;
         express_printf("windows size %d %d\n", temp_height, temp_width);
         // if (rcParent.bottom * 4 > rcParent.right * 3){
         //     y = (rcParent.bottom - rcParent.right * 3.0 / 4.0) / 2;
@@ -169,11 +169,11 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         {
             window_height = temp_height;
 
-            // window_width = temp_width;
-            window_width = temp_height;
+            window_width = temp_width;
+            // window_width = temp_height;
 
-            MoveWindow(hwnd, (int)(rcParent.right - window_height), (int)(temp_height * 0.5), window_width, window_height, FALSE);
-            // MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
+            // MoveWindow(hwnd, (int)(rcParent.right - window_height), (int)(temp_height * 0.5), window_width, window_height, FALSE);
+            MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
         }
 
         break;
