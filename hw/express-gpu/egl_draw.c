@@ -5,7 +5,7 @@
 #include "express-gpu/egl_context.h"
 #include "express-gpu/glv3_context.h"
 
-EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
+EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
@@ -68,6 +68,21 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         return EGL_TRUE;
     }
 
+    // if (real_surface_draw->has_connect_opengl == 0 && real_opengl_context->draw_surface != NULL)
+    // {
+    //     Double_Buffer *temp_surface = g_malloc(sizeof(Double_Buffer));
+    //     memcpy(temp_surface, real_surface_draw, sizeof(Double_Buffer));
+    //     PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)(temp_surface));
+
+
+    //     memcpy(real_surface_draw, real_opengl_context->draw_surface, sizeof(Double_Buffer));
+    //     g_free(real_opengl_context->draw_surface);
+    //     real_opengl_context->draw_surface = real_surface_draw;
+    // }else{
+
+    // }
+
+
     //然后设置当前的surface和context
     thread_context->render_double_buffer_read = real_surface_read;
     real_surface_read->is_current = 1;
@@ -81,6 +96,9 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     real_opengl_context->view_y = 0;
     real_opengl_context->view_w = real_surface_draw->width;
     real_opengl_context->view_h = real_surface_draw->height;
+
+    //设置gbuffer_id，用于找到它
+    set_surface_gbuffer_id(real_surface_draw, gbuffer_id);
 
     //@todo 设置各种config、attrib
 
@@ -160,6 +178,28 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     }
     real_opengl_context->read_fbo0 = real_surface->display_fbo[real_surface->now_read];
     return EGL_TRUE;
+}
+
+void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
+{
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    Process_Context *process_context = thread_context->process_context;
+    Double_Buffer *real_surface = thread_context->render_double_buffer_draw;
+    real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
+
+    //queuebuffer似乎不需要垂直同步
+
+    //垂直同步
+    //刚开始要初始化
+    // if (real_surface->last_frame_num == -1)
+    // {
+    //     real_surface->last_frame_num = draw_wait_GSYNC(real_surface->swap_event, -1);
+    // }
+    // else
+    // {
+    //     int next_frame_num = (real_surface->last_frame_num + real_surface->swap_interval) % 65536;
+    //     real_surface->last_frame_num = draw_wait_GSYNC(real_surface->swap_event, next_frame_num);
+    // }
 }
 
 EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, int64_t *ret_invoke_time, int64_t *swap_time)
@@ -249,14 +289,6 @@ EGLBoolean d_eglBindTexImage(void *context, EGLDisplay dpy, EGLSurface surface, 
 }
 
 EGLBoolean d_eglReleaseTexImage(void *context, EGLDisplay dpy, EGLSurface surface, EGLint buffer)
-{
-}
-
-void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list, EGLImage guest_image)
-{
-}
-
-EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 {
 }
 

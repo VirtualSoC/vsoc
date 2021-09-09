@@ -37,3 +37,4 @@ EGLBoolean eglWaitSync EGLDisplay dpy, EGLSync sync, EGLint flags
 EGLClientBuffer eglGetNativeClientBufferANDROID AHardwareBuffer buffer
 
 
+eglQueueBuffer uint64_t gbuffer_id

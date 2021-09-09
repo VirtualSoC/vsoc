@@ -48,7 +48,7 @@ glBindProgramPipeline GLuint pipeline
 glBindTransformFeedback GLenum target, GLuint feedback_id
 
 
-
+glBindEGLImage GLenum target, GLeglImageOES image
 
 
 

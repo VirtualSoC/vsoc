@@ -12,8 +12,8 @@ typedef struct Process_Context{
     GHashTable *surface_map;
     GHashTable *context_map;
     
-    GHashTable *egl_image_map;
-    GHashTable *egl_sync_map;
+    GHashTable *native_window_surface_map;
+
 
     int thread_cnt;
 } Process_Context;

@@ -21,8 +21,6 @@
 #define WM_USER_CONTEXT_DESTROY WM_USER + 13
 
 
-
-
 // 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
 
@@ -39,6 +37,24 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num);
 void render_windows_create(Double_Buffer *context);
 
 void set_compose_surface(Double_Buffer *surface);
+
+GLuint acquire_texture_from_surface(Double_Buffer *surface);
+
+void release_texture_from_surface(Double_Buffer *surface);
+
+GLuint acquire_texture_from_image(EGL_Image *image);
+
+void release_texture_from_image(EGL_Image *image);
+
+
+Double_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id);
+
+void set_surface_gbuffer_id(Double_Buffer *surface, uint64_t gbuffer_id);
+
+EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id);
+
+void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id);
+
 
 // bool should_give_up_gpu();
 

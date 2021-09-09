@@ -11534,7 +11534,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_glDeleteProgram_origin(opengl_context, program);
+        d_glDeleteProgram(opengl_context, program);
     }
     break;
 
@@ -13269,6 +13269,63 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glBindTransformFeedback(target, (GLuint)get_host_feedback_id(opengl_context, (unsigned int)feedback_id));
+    }
+    break;
+
+    case FUNID_glBindEGLImage:
+
+    {
+
+
+
+        /* Define variables */
+        GLenum target;
+        GLeglImageOES gbuffer_id;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBindEGLImage)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < (4 +sizeof(GLeglImageOES)) * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        gbuffer_id = *(GLeglImageOES *)(temp + temp_loc);
+        temp_loc += sizeof(GLeglImageOES);
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glBindEGLImage(opengl_context, target, gbuffer_id);
     }
     break;
 

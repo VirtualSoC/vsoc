@@ -43,15 +43,15 @@ void d_glShadeModel_special(void *context, GLenum mode)
 void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint width, GLint height, GLfloat left_x, GLfloat right_x, GLfloat bottom_y, GLfloat top_y)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    GLuint prev_vbo;
-    GLuint prev_ebo;
+    GLuint pre_vbo;
+    GLuint pre_ebo;
 
     float fz = z >= 1 ? 1.0f : z;
     fz = z <= 0 ? 0.0f : z;
     fz = fz * 2.0f - 1.0f;
 
-    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&prev_vbo);
-    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint *)&prev_ebo);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&pre_vbo);
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint *)&pre_ebo);
 
     glUseProgram(draw_texi_program);
 
@@ -98,8 +98,8 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
     glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
 
     glUseProgram(0);
-    glBindBuffer(GL_ARRAY_BUFFER, prev_vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prev_ebo);
+    glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pre_ebo);
 }
 
 void prepare_draw_texi()
@@ -159,22 +159,22 @@ void prepare_draw_texi()
         glDeleteShader(fragment);
         draw_texi_program = program_id;
 
-        // GLint linked;
-        // glGetProgramiv(program_id, GL_LINK_STATUS, &linked);
-        // printf("linked %d program %u", linked, program_id);
-        // if (!linked)
-        // {
-        //     GLint infoLen = 0;
-        //     glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &infoLen);
-        //     printf("GL_INFO_LOG_LENGTH %d", infoLen);
-        //     if (infoLen > 1)
-        //     {
-        //         char *infoLog = (char *)malloc(sizeof(char) * infoLen);
-        //         glGetProgramInfoLog(program_id, infoLen, NULL, infoLog);
-        //         printf("Error linking program:\n%s\n", infoLog);
-        //         free(infoLog);
-        //     }
-        // }
+        GLint linked;
+        glGetProgramiv(program_id, GL_LINK_STATUS, &linked);
+        printf("linked %d program %u", linked, program_id);
+        if (!linked)
+        {
+            GLint infoLen = 0;
+            glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &infoLen);
+            printf("GL_INFO_LOG_LENGTH %d", infoLen);
+            if (infoLen > 1)
+            {
+                char *infoLog = (char *)malloc(sizeof(char) * infoLen);
+                glGetProgramInfoLog(program_id, infoLen, NULL, infoLog);
+                printf("Error linking program:\n%s\n", infoLog);
+                free(infoLog);
+            }
+        }
     }
 
     // if (draw_texi_vao == 0)

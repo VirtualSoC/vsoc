@@ -17,6 +17,12 @@
 #include "express-gpu/express_gpu_render.h"
 #include "express-gpu/offscreen_render_thread.h"
 
+
+
+EGL_Image *create_real_image(void *context, int width, int height);
+void destroy_real_image(EGL_Image *real_image);
+
+
 void egl_surface_swap_buffer(Double_Buffer *surface)
 {
 
@@ -118,6 +124,7 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
     }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[surface->now_read]);
+
     // gint64 now_time = g_get_real_time();
     // if(surface->last_gen_time!=0){
     //     surface->frame_gen_time=(int)(now_time - surface->last_gen_time);
@@ -539,6 +546,7 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
     surface->width = 0;
     surface->height = 0;
     surface->swap_interval = 1;
+    surface->guest_native_window = NULL;
 
     int i = 0;
     while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
@@ -635,7 +643,15 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    EGLSurface host_surface = (EGLSurface)render_surface_create(config, attrib_list, WINDOW_SURFACE);
+    Double_Buffer *host_surface = (Double_Buffer *)g_hash_table_lookup(process_context->native_window_surface_map, GINT_TO_POINTER(win));
+    if (host_surface == NULL)
+    {
+        host_surface = render_surface_create(config, attrib_list, WINDOW_SURFACE);
+        host_surface->guest_native_window = win;
+        g_hash_table_insert(process_context->native_window_surface_map, GINT_TO_POINTER(win), (gpointer)host_surface);
+    }else{
+        //新创建的时候，需要继承了原先的window
+    }
 
     // express_printf("surface create %lx %lx\n", host_surface, guest_surface);
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
@@ -646,19 +662,153 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    // Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
-    // if (real_surface == NULL)
-    // {
-    //     return EGL_FALSE;
-    // }
-    //g_map设定了destroy函数
-    // render_surface_destroy(real_surface);
+    Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
+    if (real_surface == NULL)
+    {
+        return EGL_FALSE;
+    }
+    if (real_surface->guest_native_window == NULL)
+    {
+        render_surface_destroy(real_surface);
+        g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
+    }
+    else
+    {
+        //有窗口连接的状态下，不删除surface，而是留下来，只把当前的映射取消，这样的话图像还能继续绘制到窗口上
+        g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
+    }
     express_printf("destroy surface %lx\n", surface);
-    g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
     return EGL_TRUE;
 }
 
 EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint value)
 {
     return EGL_TRUE;
+}
+
+void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list, EGLImage guest_image)
+{
+    //这里buffer和guest_image是一样的，都是gbuffer_id
+    if (buffer != guest_image)
+    {
+        return;
+    }
+
+    if (attrib_list == NULL)
+    {
+        return;
+    }
+
+    uint64_t gbuffer_id = (uint64_t)buffer;
+    Double_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
+    if (surface != NULL)
+    {
+        return;
+    }
+
+    EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
+    if (real_image != NULL)
+    {
+        return;
+    }
+
+    //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，很可能是来着于合成器surface
+    //所以手动给它创建一个image
+    int width = 0;
+    int height = 0;
+    int i = 0;
+    while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
+    {
+        switch (attrib_list[i])
+        {
+        case EGL_WIDTH:
+            width = attrib_list[i + 1];
+            break;
+        case EGL_HEIGHT:
+            height = attrib_list[i + 1];
+            break;
+        default:
+            //todo 其他attrib属性的设置
+            break;
+        }
+        i += 2;
+    }
+
+    real_image = create_real_image(context, width, height);
+
+    set_image_gbuffer_id(real_image, gbuffer_id);
+    return;
+}
+
+EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
+{
+    uint64_t gbuffer_id = (uint64_t)image;
+    Double_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
+    //这里都只是简单从map中移除，因为surface来自于ANativeWindow，它是仍然存在的，所以surface依然需要存在
+    if (surface != NULL)
+    {
+        set_surface_gbuffer_id(NULL, gbuffer_id);
+        return EGL_TRUE;
+    }
+
+    EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
+    //但是假如是这个image被销毁了，因为这个image来着于ANativeWindowBuffer，它销毁意味着buffer可能没了，所以也删除掉
+    if (real_image != NULL)
+    {
+        destroy_real_image(real_image);
+        set_image_gbuffer_id(NULL, gbuffer_id);
+        return EGL_TRUE;
+    }
+    return EGL_FALSE;
+}
+
+EGL_Image *create_real_image(void *context, int width, int height)
+{
+    EGL_Image *real_image = g_malloc(sizeof(EGL_Image));
+
+    GLuint pre_vbo;
+    GLuint pre_texture;
+    GLuint pre_fbo;
+
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLuint *)&pre_vbo);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
+
+    real_image->fbo_sync = NULL;
+    real_image->fbo_sync_need_delete = NULL;
+    real_image->display_texture_is_use = 0;
+
+    glGenTextures(1, &(real_image->fbo_texture));
+    glGenFramebuffers(1, &(real_image->display_fbo));
+    //egl_image不需要深度缓冲和模板缓冲
+
+    glBindTexture(GL_TEXTURE_2D, real_image->fbo_texture);
+    glBindTexture(GL_ARRAY_BUFFER, 0);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_BYTE, NULL);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, real_image->display_fbo);
+    //附加颜色缓冲区
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, real_image->fbo_texture, 0);
+
+    //t需要还原原来绑定的texture和fbo
+    glBindTexture(GL_TEXTURE_2D, pre_texture);
+    glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
+
+    return real_image;
+}
+
+void destroy_real_image(EGL_Image *real_image)
+{
+    glDeleteTextures(1, &(real_image->fbo_texture));
+    glDeleteFramebuffers(1, &(real_image->display_fbo));
+    if (real_image->fbo_sync != NULL)
+    {
+        glDeleteSync(real_image->fbo_sync);
+    }
+    return;
 }

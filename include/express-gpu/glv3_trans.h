@@ -1532,6 +1532,12 @@
 
 #define PARA_NUM_MIN_glPrintf (2)
 
+
+#define FUNID_glBindEGLImage ((EXPRESS_GPU_FUN_ID << 32u) + 382)
+
+#define PARA_NUM_MIN_glBindEGLImage (1)
+
+
 void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call);
 
 #endif

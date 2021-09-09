@@ -328,9 +328,9 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
             express_printf("create new process context\n");
             process = g_malloc(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
-            process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
-            process->egl_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-            process->egl_sync_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+            //注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
+            process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+            process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
             process->thread_cnt = 0;
 
             g_hash_table_insert(render_process_contexts, GINT_TO_POINTER(process_id), (gpointer)process);
@@ -418,10 +418,6 @@ void render_context_destroy(Thread_Context *context)
         thread_context->opengl_context->is_current = 0;
     }
 
-    g_hash_table_remove_all(process_context->context_map);
-    g_hash_table_remove_all(process_context->surface_map);
-    g_hash_table_remove_all(process_context->egl_image_map);
-    g_hash_table_remove_all(process_context->egl_sync_map);
 
     process_context->thread_cnt -= 1;
 
@@ -429,8 +425,7 @@ void render_context_destroy(Thread_Context *context)
     {
         g_hash_table_destroy(process_context->context_map);
         g_hash_table_destroy(process_context->surface_map);
-        g_hash_table_destroy(process_context->egl_image_map);
-        g_hash_table_destroy(process_context->egl_sync_map);
+        g_hash_table_destroy(process_context->native_window_surface_map);
         g_free(process_context);
     }
 }

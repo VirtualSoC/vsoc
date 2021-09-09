@@ -891,11 +891,6 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     glBindBuffer(target, buffer);
 }
 
-void d_glDeleteProgram_origin(void *context, GLuint program)
-{
-    glDeleteProgram(program);
-}
-
 void d_glLinkProgram_origin(void *context, GLuint program)
 {
     glLinkProgram(program);
@@ -943,12 +938,68 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
     return;
 }
 
-void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES imageSize)
+void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image)
 {
+    //不会调用到host端来
+}
+
+void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
+{
+    uint64_t gbuffer_id = (uint64_t)image;
+    Double_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
+    if (real_surface != NULL)
+    {
+        // gbuffer_id能映射到surface的情况，说明这个image用于输出，所以直接绑定texture
+        if (target == GL_IMAGE_BINDING_ACCESS)
+        {
+            acquire_texture_from_surface(real_surface);
+        }
+        else if (target == GL_READ_ONLY)
+        {
+            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_read]);
+        }
+        else if (target == GL_WRITE_ONLY)
+        {
+            //不可能出现，因为是surface的情况下，不会被用来进行写入操作
+            glBindFramebuffer(GL_FRAMEBUFFER, real_surface->display_fbo[real_surface->now_draw]);
+            printf("error! Surface is write by image!");
+        }
+        else if (target == GL_NONE)
+        {
+            //GL_NONE的情况需要解除锁定
+            release_texture_from_surface(real_surface);
+        }
+        return;
+    }
+    EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
+    if (egl_image != NULL)
+    {
+        //gbuffer_id能映射到image的情况，说明这个image用于输出，需要在这个image上写点啥
+        //guest端可能会调用glFramebufferTexture2D，在调用了这个函数后，还需要绑定fbo
+        if (target == GL_IMAGE_BINDING_ACCESS)
+        {
+            acquire_texture_from_image(egl_image);
+        }
+        else if (target == GL_READ_ONLY)
+        {
+            glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
+        }
+        else if (target == GL_WRITE_ONLY)
+        {
+            //这个write_only一定出现在read_only之后，所以不需要加锁
+            glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
+        }
+        else if (target == GL_NONE)
+        {
+            //GL_NONE的情况需要解除锁定
+            release_texture_from_image(egl_image);
+        }
+    }
 }
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image)
 {
+    //当前google没实现，所以暂时先不管
 }
 
 void resource_context_init(Resource_Context *resources, Share_Resources *share_resources)

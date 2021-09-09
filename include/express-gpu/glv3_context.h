@@ -204,6 +204,7 @@ typedef struct Opengl_Context
     GLsizei view_w;
     GLsizei view_h;
 
+    Double_Buffer *draw_surface;
 
     // int has_init;
     int is_current;
@@ -249,8 +250,6 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
 
-void d_glDeleteProgram_origin(void *context, GLuint program);
-
 void d_glLinkProgram_origin(void *context, GLuint program);
 
 void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string);
@@ -264,7 +263,9 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
 
 //
 
-void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES imageSize);
+void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
+
+void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image);
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
 

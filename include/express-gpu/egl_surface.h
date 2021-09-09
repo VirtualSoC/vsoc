@@ -12,6 +12,16 @@
 #define P_SURFACE 1
 #define WINDOW_SURFACE 2
 
+
+typedef struct EGL_Image{
+     int display_texture_is_use;
+     GLuint display_fbo;
+     GLuint fbo_texture;
+     GLsync fbo_sync;
+     GLsync fbo_sync_need_delete;
+} EGL_Image;
+
+
 typedef struct Double_Buffer
 {
 
@@ -20,6 +30,13 @@ typedef struct Double_Buffer
      GLFWHints window_hints;
 
      eglConfig *config;
+
+     uint64_t guest_native_window;
+
+     uint64_t guest_gbuffer_id;
+
+     // struct Double_Buffer *now_acquired_surface;
+     // struct Double_Buffer *last_acquired_surface;
 
      //可以交换的事件
      HANDLE swap_event;
@@ -31,6 +48,7 @@ typedef struct Double_Buffer
      GLuint sampler_fbo[5];
      GLuint now_draw;
      GLuint now_read;
+     GLuint now_acquired;
      // GLuint draw_num;
      // GLuint read_num;
 
@@ -54,15 +72,11 @@ typedef struct Double_Buffer
      GLsync delete_sync[5];
      int delete_loc;
 
-     // GLuint fbo_used_type[5];
-     // GLuint fbo_texture_draw;
-     // GLuint fbo_texture_display;
-
-     // GLuint rbo_draw;
-     // GLuint rbo_display;
-
      //表示这个纹理当前是不是被用来绘制，是的话这个时候这个纹理不能被用来绘制，只能读取
      int display_texture_is_use[5];
+
+
+
 
      //表示窗口的宽和高
      int width;
@@ -94,6 +108,9 @@ typedef struct Double_Buffer
      int swap_loc;
      int swap_time_cnt;
 
+     int ref_count;
+
+     int has_connect_opengl;
 
 } Double_Buffer;
 
@@ -123,5 +140,11 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
 EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface);
 
 EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface, EGLint attribute,EGLint value);
+
+
+void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                                  EGLClientBuffer buffer, const EGLAttrib *attrib_list,EGLImage guest_image);
+
+EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
 
 #endif

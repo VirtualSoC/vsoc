@@ -1,7 +1,7 @@
 //同步小数据，guest可能需要自定义，也需要发送到host端
 
 
-EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx
+EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id
 
 
 EGLBoolean eglSwapBuffers_sync EGLDisplay dpy, EGLSurface surface

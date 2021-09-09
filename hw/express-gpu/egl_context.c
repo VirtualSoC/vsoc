@@ -12,8 +12,8 @@ EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
 
     g_hash_table_remove_all(process_context->context_map);
     g_hash_table_remove_all(process_context->surface_map);
-    g_hash_table_remove_all(process_context->egl_image_map);
-    g_hash_table_remove_all(process_context->egl_sync_map);
+    //不需要remove native windows的的东西，因为可能线程还能继续创建
+    // g_hash_table_remove_all(process_context->native_window_surface_map);
 
     thread_context->opengl_context = NULL;
     thread_context->render_double_buffer_read = NULL;

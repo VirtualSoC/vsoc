@@ -556,7 +556,7 @@ glPrintfAsyn GLint a, GLuint size, GLdouble c, const GLchar *out_string#strlen(o
 
 // OES 版本函数有些找不到文档（因为大部分是 gl1 的扩展函数），就按照最新的非扩展版本写了。比如 glClipPlanexOES vs glClipPlane
 
-//glEGLImageTargetTexture2DOES GLenum target, GLeglImageOES imageSize
+//glEGLImageTargetTexture2DOES GLenum target, GLeglImageOES image
 //--------------------
 //GLeglImageOES是void*类型，定义当前绑定的外部纹理对象为image的同级目标
 // TODO: image 是由 EGLImage 转换而来的，是 opaque handle ，虽然是 void* 但没有指针的意义
