@@ -946,7 +946,7 @@ void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES 
 void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
 {
     uint64_t gbuffer_id = (uint64_t)image;
-    Double_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
+    Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
     if (real_surface != NULL)
     {
         // gbuffer_id能映射到surface的情况，说明这个image用于输出，所以直接绑定texture
@@ -956,6 +956,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         }
         else if (target == GL_READ_ONLY)
         {
+            //这里读取之所以进行绑定texture，是因为image在读取的时候就是连接到texture来读取的
             glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_read]);
         }
         else if (target == GL_WRITE_ONLY)
@@ -1065,11 +1066,11 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
 
 void resource_context_destroy(Resource_Context *resources)
 {
-    GLuint delete_buffers[1000];
-    GLuint now_delete_len = 0;
     resources->share_resources->counter -= 1;
     if (resources->share_resources->counter == 0)
     {
+        GLuint delete_buffers[1000];
+        GLuint now_delete_len = 0;
         DESTROY_RESOURCES(texture_resource, glDeleteTextures);
         DESTROY_RESOURCES(buffer_resource, glDeleteBuffers);
         DESTROY_RESOURCES(render_buffer_resource, glDeleteRenderbuffers);
@@ -1114,10 +1115,7 @@ void resource_context_destroy(Resource_Context *resources)
         g_free(resources->share_resources);
     }
 
-    //下面这些资源不是共享资源，在surface释放后就会释放，所以不去管它
-    //但是需要注意的是，假如程序在不同线程间切换context，而且makecurrent的时候这同一个context是和不同的surface组合的
-    //那将导致下面保存的这些资源失效，实际生活中会不会利用这种奇怪的方式进行数据的共享存疑，即到底context是和EGLContext绑定
-    //还是同时和EGLSurface、EGLContext绑定? @todo
+    //下面这些资源不是共享资源，在windows删除后就会释放，所以不去管它
     // DESTROY_RESOURCES(frame_buffer_resource, glDeleteFramebuffers);
     // DESTROY_RESOURCES(program_pipeline_resource, glDeleteProgramPipelines);
     // DESTROY_RESOURCES(transform_feedback_resource, glDeleteTransformFeedbacks);
@@ -1132,33 +1130,6 @@ void resource_context_destroy(Resource_Context *resources)
     g_free(resources->query_resource->resource_id_map);
 
     g_free(resources->exclusive_resources);
-
-    // if (resources->texture_resource->resource_id_map != NULL)
-    // {
-    //     for (int i = 1; i <= resources->texture_resource->max_id; i++)
-    //     {
-    //         if (resources->texture_resource->resource_id_map[i] == 0)
-    //         {
-    //             continue;
-    //         }
-    //         if (now_delete_len < 1000)
-    //         {
-    //             delete_buffers[now_delete_len] = (GLuint)resources->texture_resource->resource_id_map[i];
-    //             now_delete_len += 1;
-    //         }
-    //         else
-    //         {
-    //             glDeleteTextures(now_delete_len, delete_buffers);
-    //             now_delete_len = 0;
-    //         }
-    //     }
-    //     if (now_delete_len != 0)
-    //     {
-    //         glDeleteTextures(now_delete_len, delete_buffers);
-    //         now_delete_len = 0;
-    //     }
-    //     g_free(resources->texture_resource->resource_id_map);
-    // }
 }
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context)
@@ -1166,6 +1137,10 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     Opengl_Context *opengl_context = g_malloc(sizeof(Opengl_Context));
     opengl_context->is_current = 0;
     opengl_context->need_destroy = 0;
+
+    //要在opengl_context里创建window，因为opengl环境保存在window里
+    //send是同步的，发送完消息需要等待消息处理完
+    SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)(&(opengl_context->window)));
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)
@@ -1199,17 +1174,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
 
     resource_context_init(&(opengl_context->resource_status), share_resources);
 
-    //下面这些调用需要makecurrent之后，但是我们不知道此时窗口是否已经创建起来了，所以没法设置这些
-    //这些留到了makecurrent的时候才初始化
-    // glGenBuffers(1, &(temp_point->indices_buffer_object));
-    // glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, temp_point->buffer_object);
-
-    // glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
-    // glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
-
-    // //这两个选项在gles中是默认开启，这样能够在着色器中获取到一些内建变量，所以在gl中要手动开启
-    // glEnable(GL_PROGRAM_POINT_SIZE);
-    // glEnable(GL_POINT_SPRITE);
     bound_buffer->asyn_unpack_texture_buffer = 0;
     bound_buffer->asyn_pack_texture_buffer = 0;
 
@@ -1221,6 +1185,30 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     return opengl_context;
 }
 
+void opengl_context_init(Opengl_Context *context)
+{
+    //初始化opengl_context的一些资源，因为这个时候已经makecurrent了
+    Bound_Buffer *bound_buffer = &(context->bound_buffer_status);
+    if (bound_buffer->has_init == 0)
+    {
+        //这个has_init也指opengl_context是否已经初始化
+        bound_buffer->has_init = 1;
+        glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
+        glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+
+        glGenBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
+        glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
+
+        //这两个选项在gles中是默认开启，这样能够在着色器中获取到一些内建变量，所以在gl中要手动开启
+        glEnable(GL_PROGRAM_POINT_SIZE);
+        glEnable(GL_POINT_SPRITE);
+
+        //原窗口大小是1*1，所以默认的viewport也是1*1，所以在初始化的时候要手动设置下viewport
+        glViewport(context->view_x, context->view_y, context->view_w, context->view_h);
+
+    }
+}
+
 /**
  * @brief 销毁opengl_context函数，只能由主窗口线程调用，通过发送WM_USER_CONTEXT_DESTROY消息实现调用
  * 因为销毁的时候肯定没有makecurrent了，就不能调用opengl函数了
@@ -1229,7 +1217,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
  */
 void opengl_context_destroy(Opengl_Context *context)
 {
-    express_printf("opengl context destroy\n");
+    express_printf("opengl context destroy %lx\n", context);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);

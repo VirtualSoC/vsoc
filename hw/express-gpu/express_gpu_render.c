@@ -75,13 +75,13 @@ static GLint drawVAO = 0;
 static long window_width;
 static long window_height;
 
-static Double_Buffer *compose_surface;
+static Window_Buffer *compose_surface;
 static int compose_surface_lock = 0;
 
 volatile int native_render_run = 0;
 
-static void opengl_paint(Double_Buffer *d_buffer);
-static void egl_surface_create(Double_Buffer *d_buffer);
+static void opengl_paint(Window_Buffer *d_buffer);
+static GLFWwindow *native_window_create();
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 /**
@@ -187,9 +187,9 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
         // glClearColor(wParam, 1, 0, 0);
 
         // glfwSwapBuffers(glfw_window);
-        opengl_paint((Double_Buffer *)lParam);
+        opengl_paint((Window_Buffer *)lParam);
         break;
-    case WM_USER_CREATE:
+    case WM_USER_WINDOW_CREATE:
         /**
          * @todo 修改窗口拉伸的逻辑，保证拉伸满足相应的比例关系
          * 
@@ -201,33 +201,36 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
         // window_width = rcParent.right / 2;
         {
 
-            Double_Buffer *d_buffer = (Double_Buffer *)lParam;
-            if (d_buffer == NULL)
+            GLFWwindow **window_ptr = (Window_Buffer *)lParam;
+            if (window_ptr == NULL)
             {
                 break;
             }
-            express_printf("create window %lx\n", d_buffer);
-            egl_surface_create(d_buffer);
+            // express_printf("create window %lx\n", d_buffer);
+            *window_ptr = native_window_create();
         }
 
         break;
     case WM_USER_SURFACE_DESTROY:
     {
-        Double_Buffer *d_buffer = (Double_Buffer *)lParam;
+        //这个destroy调用来自于客户端进程关闭后的销毁函数
+        Window_Buffer *d_buffer = (Window_Buffer *)lParam;
         if (d_buffer == NULL)
         {
             break;
         }
-        if (d_buffer->I_am_composer)
+        if (d_buffer->type == WINDOW_SURFACE && d_buffer->I_am_composer)
         {
             set_compose_surface(NULL);
         }
-        express_printf("main windows destroy window %lx\n", d_buffer);
-        glfwDestroyWindow(d_buffer->window);
 
-        //destroywindows后，fbo会自动被删除，因为它不共享
-        // glDeleteFramebuffers(surface->buffer_num, surface->display_fbo);
+        if (d_buffer->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(d_buffer->guest_gbuffer_id) == d_buffer)
+        {
+            //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+            set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
+        }
 
+        //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
         glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
@@ -252,6 +255,10 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
         {
             break;
         }
+
+        //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
+        glfwDestroyWindow(opengl_context->window);
+
         opengl_context_destroy(opengl_context);
         g_free(opengl_context);
     }
@@ -412,7 +419,7 @@ static int opengl_prepare(GLint *program, GLint *VAO)
  * 
  * @param d_buffer 
  */
-static void opengl_paint(Double_Buffer *d_buffer)
+static void opengl_paint(Window_Buffer *d_buffer)
 {
     // glClear(GL_COLOR_BUFFER_BIT);
     // glClearColor(1, 1, 1, 0);
@@ -456,7 +463,7 @@ static void opengl_paint(Double_Buffer *d_buffer)
  * @param width 界面的宽
  * @param height 界面的高
  */
-static void egl_surface_create(Double_Buffer *d_buffer)
+static GLFWwindow *native_window_create()
 {
 
     GLFWwindow *child_window;
@@ -466,22 +473,25 @@ static void egl_surface_create(Double_Buffer *d_buffer)
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    int idx = 0;
-    while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
-    {
-        int64_t hint_enum = d_buffer->window_hints.hints[idx];
-        int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
-        glfwWindowHint(hint_enum, hint_val);
-        idx += 2;
-    }
 
-//屏幕分离调试专用
-#ifdef DEBUG_INDEPEND_WINDOW
-    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, NULL);
+    // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
+    // int idx = 0;
+    // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
+    // {
+    //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
+    //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
+    //     glfwWindowHint(hint_enum, hint_val);
+    //     idx += 2;
+    // }
 
-#else
-    child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, glfw_window);
+    // //屏幕分离调试专用
+    // #ifdef DEBUG_INDEPEND_WINDOW
+    //     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+    //     child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, NULL);
+
+    // #else
+    //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+    child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
     if (child_window == NULL)
     {
         char *s;
@@ -490,11 +500,11 @@ static void egl_surface_create(Double_Buffer *d_buffer)
     }
 
     assert(child_window != NULL);
-#endif
-    d_buffer->window = child_window;
+    // #endif
 
-    express_printf("create windows surface %lx\n", d_buffer);
+    // express_printf("create windows surface %lx\n", d_buffer);
     //todo 根据配置设置窗口属性
+    return child_window;
 }
 
 /**
@@ -861,39 +871,44 @@ static void g_queue_event_notify(gpointer data, gpointer user_data)
     return;
 }
 
-void render_windows_create(Double_Buffer *context)
+// void render_windows_create(Window_Buffer *context)
+// {
+
+//     // Render_Thread_Context *render_context = (Render_Thread_Context *)context;
+//     // Window_Buffer *buffer_context = (render_context->render_double_buffer);
+//     // Opengl_Context *opengl_context = (render_context->opengl_context);
+
+//     if (context != NULL)
+//     {
+//         //send是同步的，发送完消息需要等待消息处理完
+//         //调用egl_context_create
+//         SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)context);
+//     }
+
+//     return;
+// }
+
+void set_compose_surface(Window_Buffer *surface)
 {
-
-    // Render_Thread_Context *render_context = (Render_Thread_Context *)context;
-    // Double_Buffer *buffer_context = (render_context->render_double_buffer);
-    // Opengl_Context *opengl_context = (render_context->opengl_context);
-
-    if (context != NULL)
+    if (compose_surface == surface)
     {
-        //send是同步的，发送完消息需要等待消息处理完
-        //调用egl_context_create
-        SendMessage(draw_native_window, WM_USER_CREATE, 0, (LPARAM)context);
+        return;
     }
-
-    return;
-}
-
-void set_compose_surface(Double_Buffer *surface)
-{
     ATOMIC_LOCK(compose_surface_lock);
     compose_surface = surface;
     ATOMIC_UNLOCK(compose_surface_lock);
     express_printf("change compose surface %lx\n", compose_surface);
 }
 
-GLuint acquire_texture_from_surface(Double_Buffer *surface)
+GLuint acquire_texture_from_surface(Window_Buffer *surface)
 {
 
     int now_read = surface->now_read;
     // TIMER_START(texture_loc)
 
     //PBuffer不允许获取texture
-    if(surface->type==P_SURFACE){
+    if (surface->type == P_SURFACE)
+    {
         return 0;
     }
     ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
@@ -921,12 +936,13 @@ GLuint acquire_texture_from_surface(Double_Buffer *surface)
     return texture;
 }
 
-void release_texture_from_surface(Double_Buffer *surface)
+void release_texture_from_surface(Window_Buffer *surface)
 {
     int now_read = surface->now_acquired;
 
     //PBuffer不允许获取texture
-    if(surface->type==P_SURFACE){
+    if (surface->type == P_SURFACE)
+    {
         return;
     }
     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -987,24 +1003,30 @@ void release_texture_from_image(EGL_Image *image)
     ATOMIC_UNLOCK(image->display_texture_is_use);
 }
 
-Double_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)
+Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)
 {
     if (gbuffer_id_surface_map == NULL)
     {
         return NULL;
     }
-    Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+    Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
     return real_surface;
 }
 
-void set_surface_gbuffer_id(Double_Buffer *surface, uint64_t gbuffer_id)
+void set_surface_gbuffer_id(Window_Buffer *surface, uint64_t gbuffer_id)
 {
     if (gbuffer_id_surface_map == NULL)
     {
         return;
     }
-    Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
-    g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)surface);
+    if (surface == NULL)
+    {
+        g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+    }
+    else
+    {
+        g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)surface);
+    }
     return;
 }
 
@@ -1024,7 +1046,13 @@ void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id)
     {
         return;
     }
-    Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
-    g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)image);
+    if (image == NULL)
+    {
+        g_hash_table_remove(gbuffer_id_image_map, (gpointer)(gbuffer_id));
+    }
+    else
+    {
+        g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)image);
+    }
     return;
 }

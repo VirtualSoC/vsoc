@@ -45,9 +45,13 @@ void release_call_special(Direct_Express_Call *call, int notify);
 
 Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf);
 
-static void g_surface_map_destroy(gpointer data);
+static void g_window_surface_map_destroy(gpointer data);
+
+static void g_p_surface_map_destroy(gpointer data);
 
 static void g_context_map_destroy(gpointer data);
+
+static void g_image_map_destroy(gpointer data);
 
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
@@ -219,7 +223,6 @@ Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char 
 
     call->id = send_buf[0];
 
-
     //用9999作为聚合调用的id
     if (GET_FUN_ID(call->id) == 9999)
     {
@@ -329,8 +332,9 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
             process = g_malloc(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             //注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
-            process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-            process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
+            process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_p_surface_map_destroy);
+            process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
+            process->gbuffer_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_image_map_destroy);
             process->thread_cnt = 0;
 
             g_hash_table_insert(render_process_contexts, GINT_TO_POINTER(process_id), (gpointer)process);
@@ -377,10 +381,22 @@ void render_context_init(Thread_Context *context)
     }
 }
 
-static void g_surface_map_destroy(gpointer data)
+static void g_window_surface_map_destroy(gpointer data)
 {
-    Double_Buffer *real_surface = (Double_Buffer *)data;
-    render_surface_destroy(real_surface);
+    Window_Buffer *real_surface = (Window_Buffer *)data;
+    if (real_surface->type == WINDOW_SURFACE)
+    {
+        render_surface_destroy(real_surface);
+    }
+}
+
+static void g_p_surface_map_destroy(gpointer data)
+{
+    Window_Buffer *real_surface = (Window_Buffer *)data;
+    if (real_surface->type == P_SURFACE)
+    {
+        render_surface_destroy(real_surface);
+    }
 }
 
 static void g_context_map_destroy(gpointer data)
@@ -388,14 +404,21 @@ static void g_context_map_destroy(gpointer data)
     Opengl_Context *real_context = (Opengl_Context *)data;
     if (real_context->is_current)
     {
+        //假如当前的context正在被使用，则需要等到context没有被使用了才能删除
         real_context->need_destroy = 1;
     }
     else
     {
         //实际上是到主窗口调用opengl_context_destroy了
-        //注意，有部分数据在不同线程间是不共享的
         PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
     }
+}
+
+static void g_image_map_destroy(gpointer data)
+{
+    EGL_Image *real_image = (EGL_Image *)data;
+    set_image_gbuffer_id(NULL, real_image->gbuffer_id);
+    destroy_real_image(real_image);
 }
 
 void render_context_destroy(Thread_Context *context)
@@ -405,6 +428,7 @@ void render_context_destroy(Thread_Context *context)
 
     glfwMakeContextCurrent(NULL);
 
+    //保证都不是current状态，确保能够删除成功
     if (thread_context->render_double_buffer_read != NULL)
     {
         thread_context->render_double_buffer_read->is_current = 0;
@@ -418,14 +442,19 @@ void render_context_destroy(Thread_Context *context)
         thread_context->opengl_context->is_current = 0;
     }
 
-
     process_context->thread_cnt -= 1;
 
     if (process_context->thread_cnt == 0)
     {
         g_hash_table_destroy(process_context->context_map);
+        //surface_map这个是删除p_surface
         g_hash_table_destroy(process_context->surface_map);
+        //native的这个map是删除Window_Surface
         g_hash_table_destroy(process_context->native_window_surface_map);
+
+        //image删除，这里主要是为了释放gbuffer映射
+        g_hash_table_destroy(process_context->gbuffer_image_map);
+
         g_free(process_context);
     }
 }

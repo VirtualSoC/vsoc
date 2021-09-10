@@ -17,19 +17,16 @@
 #include "express-gpu/express_gpu_render.h"
 #include "express-gpu/offscreen_render_thread.h"
 
-
-
 EGL_Image *create_real_image(void *context, int width, int height);
-void destroy_real_image(EGL_Image *real_image);
+void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new);
 
-
-void egl_surface_swap_buffer(Double_Buffer *surface)
+void egl_surface_swap_buffer(Window_Buffer *surface)
 {
 
-#ifdef DEBUG_INDEPEND_WINDOW
-    glfwSwapBuffers(surface->window);
-    return;
-#endif
+    // #ifdef DEBUG_INDEPEND_WINDOW
+    //     glfwSwapBuffers(surface->window);
+    //     return;
+    // #endif
     // GLenum ret=glGetError();
     // if(ret!=GL_NO_ERROR){
     //     express_printf("swap before get gl error %x\n",ret);
@@ -150,7 +147,7 @@ void egl_surface_swap_buffer(Double_Buffer *surface)
     // }
 }
 
-void create_fbo_texture(Double_Buffer *d_buffer, int index)
+void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
 {
 
     EGLint internal_format = GL_RGB;
@@ -364,10 +361,13 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
 
     glBindTexture(GL_TEXTURE_2D, d_buffer->fbo_texture[index]);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, internal_format, d_buffer->width, d_buffer->height, 0, format, type, NULL);
+    if (new == 1)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, d_buffer->width, d_buffer->height, 0, format, type, NULL);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    }
 
     static int max_sampler_num = -1;
     if (max_sampler_num == -1)
@@ -448,105 +448,182 @@ void create_fbo_texture(Double_Buffer *d_buffer, int index)
 }
 
 /**
- * @brief 利用windows初始化surface，注意：这个操作只能在draw子线程中进行，并且在创建了context之后
+ * @brief 利用windows初始化surface
  * 
  * @param d_buffer 需要初始化的surface
  * @return int 返回1则创建成功，返回0则创建失败 
  */
-int egl_surface_init(Double_Buffer *d_buffer)
+int egl_surface_init(Window_Buffer *d_buffer, GLFWwindow *now_window, int need_draw)
 {
-    if (d_buffer == NULL || d_buffer->window == NULL)
+    if (d_buffer == NULL || now_window == NULL)
     {
         return 0;
     }
-    //必须要先makecurrent，不然下面的资源没法申请
-    //这个也不能放到主窗口线程中去，因为fbo是不共享的，只能子窗口自己生成
-    glfwMakeContextCurrent(d_buffer->window);
-    d_buffer->swap_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-    // d_buffer->config->sample_buffers_num = 1;
-    // d_buffer->config->samples_per_pixel = 4;
-
-    if (d_buffer->config->sample_buffers_num != 0)
-    {
-        //窗口不需要开启多采样，只需要fbo开启就行
-        // glfwWindowHint(GLFW_SAMPLES, d_buffer->config->samples_per_pixel);
-        glEnable(GL_MULTISAMPLE);
-    }
-
-    if (d_buffer->type == WINDOW_SURFACE)
-    {
-        //windows_surface是否应该使用三重缓冲?
-        d_buffer->buffer_num = 3;
-        d_buffer->now_read = 0;
-        d_buffer->now_draw = 1;
-    }
-    else if (d_buffer->type == P_SURFACE)
-    {
-        //pbuffer只有单缓冲区
-        d_buffer->buffer_num = 1;
-        d_buffer->now_draw = 0;
-        d_buffer->now_read = 0;
-    }
     int buffer_num = d_buffer->buffer_num;
 
-    glGenTextures(buffer_num, d_buffer->fbo_texture);
-    glGenFramebuffers(buffer_num, d_buffer->display_fbo);
-    glGenRenderbuffers(buffer_num, d_buffer->display_rbo_depth);
-    glGenRenderbuffers(buffer_num, d_buffer->display_rbo_stencil);
-
-    if (d_buffer->config->sample_buffers_num != 0)
+    if (d_buffer->creater_window == NULL)
     {
-        glGenFramebuffers(buffer_num, d_buffer->sampler_fbo);
-        glGenRenderbuffers(buffer_num, d_buffer->sampler_rbo);
+        //creater_window等于空意味着底下各种资源之前都没申请过，因此需要申请
+
+        d_buffer->creater_window = now_window;
+
+        d_buffer->swap_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+        if (d_buffer->config->sample_buffers_num != 0)
+        {
+            //窗口不需要开启多采样，只需要fbo开启就行
+            // glfwWindowHint(GLFW_SAMPLES, d_buffer->config->samples_per_pixel);
+            glEnable(GL_MULTISAMPLE);
+        }
+        else
+        {
+            glDisable(GL_MULTISAMPLE);
+        }
+
+        glGenFramebuffers(buffer_num, d_buffer->display_fbo);
+
+        //默认情况下read_fbo直接是dispaly_fbo
+        d_buffer->reader_window = now_window;
+        memcpy(d_buffer->read_fbo, d_buffer->display_fbo, sizeof(d_buffer->read_fbo));
+
+        glGenTextures(buffer_num, d_buffer->fbo_texture);
+        glGenRenderbuffers(buffer_num, d_buffer->display_rbo_depth);
+        glGenRenderbuffers(buffer_num, d_buffer->display_rbo_stencil);
+
+        if (d_buffer->config->sample_buffers_num != 0)
+        {
+            glGenFramebuffers(buffer_num, d_buffer->sampler_fbo);
+            glGenRenderbuffers(buffer_num, d_buffer->sampler_rbo);
+        }
+
+        for (int i = 0; i < buffer_num; i++)
+        {
+            connect_fbo_texture(d_buffer, i, 1);
+        }
+
+        //新创建的surface默认绑定到framebuffer 0上，而且其他绑定状态要取消
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+        //底下相当于绑定到framebuffer 0上
+        //这里将读写的framebuffer分离，是为了readpixel时，能够从后缓冲区读取数据
+        //（对于我们的程序，后缓冲区就是fbo_dispaly，而对于绑定fbo不为0时时会选择从read fbo读取，所以要这样把display-fbo设置为read）
+        if (d_buffer->config->sample_buffers_num != 0)
+        {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->sampler_fbo[d_buffer->now_draw]);
+        }
+        else
+        {
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->display_fbo[d_buffer->now_draw]);
+        }
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, d_buffer->display_fbo[d_buffer->now_read]);
     }
-
-    for (int i = 0; i < buffer_num; i++)
+    else if (d_buffer->creater_window == now_window)
     {
-        create_fbo_texture(d_buffer, i);
-    }
+        //和之前的一样，说明之前已经申请好了，这个时候只是makecurrent一下，资源都不用生成
+        if (need_draw == 0)
+        {
+            //但是假如这个被用来读取，则必须要保证用来读取的fbo是当前context生成的
+            if (d_buffer->reader_window != now_window)
+            {
+                //不等于的情况下，必须生成新的fbo，并且连接到texture上
+                d_buffer->reader_window = now_window;
+                glGenFramebuffers(buffer_num, d_buffer->read_fbo);
 
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-    //这里将读写的framebuffer分离，是为了readpixel时，能够从后缓冲区读取数据
-    //（对于我们的程序，后缓冲区就是fbo_dispaly，而对于绑定fbo不为0时时会选择从read fbo读取，所以要这样把display-fbo设置为read）
-
-    if (d_buffer->config->sample_buffers_num != 0)
-    {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->sampler_fbo[d_buffer->now_draw]);
+                for (int i = 0; i < buffer_num; i++)
+                {
+                    //读取只需要读取颜色缓冲区
+                    glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->read_fbo[i]);
+                    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture[i], 0);
+                }
+            }
+        }
+        return 1;
     }
     else
     {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, d_buffer->display_fbo[d_buffer->now_draw]);
+        //else的情况相当与有creater_window，但是这个create_window是其他的，不是当前这个
+        //假如这个surface用来draw，则重新生成fbo，否则不重新生成fbo
+        if (need_draw)
+        {
+            //原先的老的fbo咱们也没法操作它，不过要是原先的窗口释放了，它就自动释放了，因此暂时不管它，直接覆盖
+            //而且这种时候surface肯定不会被画，所以重新生成不会产生冲突
+            //不用担心creater_window内存泄露的问题，因为它是由opengl_context来释放的
+
+            d_buffer->creater_window = now_window;
+
+            glGenFramebuffers(buffer_num, d_buffer->display_fbo);
+            if (d_buffer->config->sample_buffers_num != 0)
+            {
+                glGenFramebuffers(buffer_num, d_buffer->sampler_fbo);
+            }
+
+            for (int i = 0; i < buffer_num; i++)
+            {
+                connect_fbo_texture(d_buffer, i, 0);
+            }
+        }
+        else
+        {
+            //为read的情况
+            if (d_buffer->reader_window != now_window)
+            {
+                //不等于的情况下，必须生成新的fbo，并且连接到texture上
+                d_buffer->reader_window = now_window;
+                glGenFramebuffers(buffer_num, d_buffer->read_fbo);
+
+                for (int i = 0; i < buffer_num; i++)
+                {
+                    //读取只需要读取颜色缓冲区
+                    glBindFramebuffer(GL_FRAMEBUFFER, d_buffer->read_fbo[i]);
+                    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, d_buffer->fbo_texture[i], 0);
+                }
+            }
+            else
+            {
+                //现在的read_fbo就是当前窗口生成的，则不需要额外操作，read_fbo已经是绑定好了的
+            }
+        }
     }
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, d_buffer->display_fbo[d_buffer->now_read]);
 
-//屏幕分离调试专用
-#ifdef DEBUG_INDEPEND_WINDOW
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-#endif
-
-    //最后detach当前的context，以防止这个surface被其他线程用了
-    glfwMakeContextCurrent(NULL);
+    // //屏幕分离调试专用
+    // #ifdef DEBUG_INDEPEND_WINDOW
+    //     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // #endif
 
     return 1;
 }
 
-Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list, int type)
+Window_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list, int type)
 {
     //@todo 处理config、处理attrib_list
 
     //这里先根据attrb_list获取窗口的宽和高
 
-    Double_Buffer *surface = g_malloc(sizeof(Double_Buffer));
-    memset(surface, 0, sizeof(Double_Buffer));
+    Window_Buffer *surface = g_malloc(sizeof(Window_Buffer));
+    memset(surface, 0, sizeof(Window_Buffer));
     surface->type = type;
     surface->width = 0;
     surface->height = 0;
     surface->swap_interval = 1;
     surface->guest_native_window = NULL;
+
+    if (surface->type == WINDOW_SURFACE)
+    {
+        //windows_surface是否应该使用三重缓冲?
+        surface->buffer_num = 3;
+        surface->now_read = 0;
+        surface->now_draw = 1;
+    }
+    else if (surface->type == P_SURFACE)
+    {
+        //pbuffer只有单缓冲区
+        surface->buffer_num = 1;
+        surface->now_draw = 0;
+        surface->now_read = 0;
+    }
 
     int i = 0;
     while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
@@ -568,30 +645,16 @@ Double_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
 
     surface->config = config_to_hints(config, &surface->window_hints);
 
-    //创建真实的窗口
-    render_windows_create(surface);
-    // assert(surface->window != NULL);
-
-    egl_surface_init(surface);
-
     return surface;
 }
 
-int render_surface_destroy(Double_Buffer *surface)
+int render_surface_destroy(Window_Buffer *surface)
 {
 
     if (surface == NULL)
     {
         return 0;
     }
-    // express_printf("delete fbo_display\n");
-
-    express_printf("windows destroy\n");
-
-    // if (surface->I_am_composer)
-    // {
-    //     set_compose_surface(NULL);
-    // }
 
     if (surface->is_current)
     {
@@ -600,7 +663,7 @@ int render_surface_destroy(Double_Buffer *surface)
     else
     {
 
-        //没有makecurrent的时候这些资源肯定没有被使用，但是这个时候也不能调用glDelete等函数，因为真的context已经不在了
+        //没有makecurrent的时候这些资源肯定没有被使用，但是这个时候也不能调用glDelete等函数，因为可能当前没有makecurrent，也就是没有opengl的环境
         //所以这里让主线程来清空数据
         //为什么不直接调用glfwDestroyWindow自动清空资源？因为部分共享资源不会被清空，需要手动清空
         PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)surface);
@@ -621,7 +684,7 @@ void d_eglIamComposer(void *context, EGLSurface surface)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
+    Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
     express_printf("surface is composer %lx %lx\n", real_surface, surface);
 
@@ -643,17 +706,37 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    Double_Buffer *host_surface = (Double_Buffer *)g_hash_table_lookup(process_context->native_window_surface_map, GINT_TO_POINTER(win));
-    if (host_surface == NULL)
+    Window_Buffer *host_surface = (Window_Buffer *)g_hash_table_lookup(process_context->native_window_surface_map, GINT_TO_POINTER(win));
+
+    eglConfig *now_eglconfig = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GINT_TO_POINTER(config));
+
+    if (host_surface == NULL || now_eglconfig != host_surface->config)
     {
+        if (host_surface != NULL)
+        {
+            //长宽高只与ANativeWindow相关，但是其他配置可能会不一样，假如配置不一样，就需要重新生成
+            //这里不需要从native_window_surface_map中remove，因为下面会insert更新相关的值
+
+            //这个surface肯定没有被makecurrent，所以这里应该直接删除，但是也判断下防止意外发生
+            if (host_surface->is_current == 1)
+            {
+                //这个调试时使用，防止有意外发生
+                printf("errro! Same ANativeWindow create different surface and origin surface is current!!!");
+            }
+
+            //不需要手动destroy，因为native_window_surface_map带有默认销毁函数，所以在覆盖时会先调用销毁函数再覆盖
+            // render_surface_destroy(host_surface);
+        }
         host_surface = render_surface_create(config, attrib_list, WINDOW_SURFACE);
         host_surface->guest_native_window = win;
         g_hash_table_insert(process_context->native_window_surface_map, GINT_TO_POINTER(win), (gpointer)host_surface);
-    }else{
-        //新创建的时候，需要继承了原先的window
+    }
+    else
+    {
+        //假如surface之前已经有了，而且配置一样，也就是这个surface是使用的先用的ANativeWindow，则不进行创建操作，直接返回这个surface就行
     }
 
-    // express_printf("surface create %lx %lx\n", host_surface, guest_surface);
+    express_printf("surface create host %lx guest %lx\n", host_surface, guest_surface);
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
 
@@ -662,22 +745,24 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    Double_Buffer *real_surface = (Double_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
+    Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
     if (real_surface == NULL)
     {
         return EGL_FALSE;
     }
-    if (real_surface->guest_native_window == NULL)
+    if (real_surface->type == P_SURFACE)
     {
-        render_surface_destroy(real_surface);
+        //PBuffer就直接删除了，反正也没有连接屏幕缓冲区
+        //会调用到pbuffer的删除函数g_p_surface_map_destroy
         g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
     }
     else
     {
         //有窗口连接的状态下，不删除surface，而是留下来，只把当前的映射取消，这样的话图像还能继续绘制到窗口上
+        //会调用到pbuffer的删除函数g_p_surface_map_destroy
         g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
     }
-    express_printf("destroy surface %lx\n", surface);
+    express_printf("destroy surface host %lx guest %lx\n", real_surface, surface);
     return EGL_TRUE;
 }
 
@@ -688,6 +773,9 @@ EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface,
 
 void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list, EGLImage guest_image)
 {
+    //创建image，要么是使用别的应用绘制使用的缓冲区，要么是新创建的缓冲区
+    //前者之前肯定有surface连接，所以肯定找得到，后者不会找得到，必须得给手动建立一个
+
     //这里buffer和guest_image是一样的，都是gbuffer_id
     if (buffer != guest_image)
     {
@@ -700,7 +788,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     }
 
     uint64_t gbuffer_id = (uint64_t)buffer;
-    Double_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
+    Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
     if (surface != NULL)
     {
         return;
@@ -712,7 +800,9 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
         return;
     }
 
-    //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，很可能是来着于合成器surface
+    express_printf("create image, gbuffer_id %lx\n", gbuffer_id);
+
+    //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface
     //所以手动给它创建一个image
     int width = 0;
     int height = 0;
@@ -735,6 +825,12 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     }
 
     real_image = create_real_image(context, width, height);
+    real_image->gbuffer_id = gbuffer_id;
+
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    Process_Context *process_context = thread_context->process_context;
+
+    g_hash_table_insert(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id), (gpointer)real_image);
 
     set_image_gbuffer_id(real_image, gbuffer_id);
     return;
@@ -743,20 +839,25 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 {
     uint64_t gbuffer_id = (uint64_t)image;
-    Double_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
-    //这里都只是简单从map中移除，因为surface来自于ANativeWindow，它是仍然存在的，所以surface依然需要存在
+    Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
+    //这里只是简单从map中移除，因为surface来自于ANativeWindow，它是仍然存在的，所以surface依然需要存在
     if (surface != NULL)
     {
         set_surface_gbuffer_id(NULL, gbuffer_id);
         return EGL_TRUE;
     }
 
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    Process_Context *process_context = thread_context->process_context;
+
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
     //但是假如是这个image被销毁了，因为这个image来着于ANativeWindowBuffer，它销毁意味着buffer可能没了，所以也删除掉
     if (real_image != NULL)
     {
-        destroy_real_image(real_image);
-        set_image_gbuffer_id(NULL, gbuffer_id);
+        g_hash_table_remove(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id));
+        // 上面的remove函数的销毁函数会回收内存，调用下面两个函数，所以下面就注释了
+        // destroy_real_image(real_image);
+        // set_image_gbuffer_id(NULL, gbuffer_id);
         return EGL_TRUE;
     }
     return EGL_FALSE;
@@ -764,6 +865,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 
 EGL_Image *create_real_image(void *context, int width, int height)
 {
+    // @todo createimage的时候，是否有openglcontext状态？假如没有的话是否应该延迟到使用的时候？
     EGL_Image *real_image = g_malloc(sizeof(EGL_Image));
 
     GLuint pre_vbo;
@@ -794,7 +896,7 @@ EGL_Image *create_real_image(void *context, int width, int height)
     //附加颜色缓冲区
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, real_image->fbo_texture, 0);
 
-    //t需要还原原来绑定的texture和fbo
+    //需要还原原来绑定的texture和fbo
     glBindTexture(GL_TEXTURE_2D, pre_texture);
     glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
     glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
@@ -810,5 +912,6 @@ void destroy_real_image(EGL_Image *real_image)
     {
         glDeleteSync(real_image->fbo_sync);
     }
+    g_free(real_image);
     return;
 }

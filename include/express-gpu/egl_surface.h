@@ -19,14 +19,15 @@ typedef struct EGL_Image{
      GLuint fbo_texture;
      GLsync fbo_sync;
      GLsync fbo_sync_need_delete;
+     uint64_t gbuffer_id;
 } EGL_Image;
 
 
-typedef struct Double_Buffer
+typedef struct Window_Buffer
 {
 
-     //原始的native窗口
-     GLFWwindow *window;
+     //创建这个fbo的窗口，不一定是当前的环境
+     GLFWwindow *creater_window;
      GLFWHints window_hints;
 
      eglConfig *config;
@@ -35,14 +36,19 @@ typedef struct Double_Buffer
 
      uint64_t guest_gbuffer_id;
 
-     // struct Double_Buffer *now_acquired_surface;
-     // struct Double_Buffer *last_acquired_surface;
+     // struct Window_Buffer *now_acquired_surface;
+     // struct Window_Buffer *last_acquired_surface;
 
      //可以交换的事件
      HANDLE swap_event;
 
      //这里用数组循环是为了方便进行设置单缓冲、双缓冲，甚至是三重缓冲
      GLuint display_fbo[5];
+
+     //创建读取fbo的窗口
+     GLFWwindow *reader_window;
+     //专门用于读取的fbo，一般read_surface与draw_surface不同时需要设置，因为不可能被多个同时读取，所以只设定一个是合理的
+     GLuint read_fbo[5];
 
      //用于MSAA抗锯齿的fbo
      GLuint sampler_fbo[5];
@@ -108,21 +114,16 @@ typedef struct Double_Buffer
      int swap_loc;
      int swap_time_cnt;
 
-     int ref_count;
 
-     int has_connect_opengl;
+} Window_Buffer;
 
-} Double_Buffer;
 
-#define ATOMIC_LOCK(s)                      \
-     while (atomic_cmpxchg(&(s), 0, 1) == 1) \
-          ;
-#define ATOMIC_UNLOCK(s) atomic_cmpxchg(&(s), 1, 0)
 
-void egl_surface_swap_buffer(Double_Buffer *surface);
+void egl_surface_swap_buffer(Window_Buffer *surface);
 
-int render_surface_destroy(Double_Buffer *surface);
+int render_surface_destroy(Window_Buffer *surface);
 
+void destroy_real_image(EGL_Image *real_image);
 
 void d_eglIamComposer(void *context, EGLSurface surface);
 
@@ -146,5 +147,9 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
                                   EGLClientBuffer buffer, const EGLAttrib *attrib_list,EGLImage guest_image);
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
+
+
+int egl_surface_init(Window_Buffer *d_buffer, GLFWwindow *now_window, int need_draw);
+
 
 #endif
