@@ -979,20 +979,24 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         //guest端可能会调用glFramebufferTexture2D，在调用了这个函数后，还需要绑定fbo
         if (target == GL_IMAGE_BINDING_ACCESS)
         {
+            // printf("acquire image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             acquire_texture_from_image(egl_image);
         }
         else if (target == GL_READ_ONLY)
         {
+            // printf("read frome image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
         }
         else if (target == GL_WRITE_ONLY)
         {
+            // printf("draw to image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             //这个write_only一定出现在read_only之后，所以不需要加锁
             glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
         }
         else if (target == GL_NONE)
         {
             //GL_NONE的情况需要解除锁定
+            // printf("release image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             release_texture_from_image(egl_image);
 
             gint64 now_time = g_get_real_time();

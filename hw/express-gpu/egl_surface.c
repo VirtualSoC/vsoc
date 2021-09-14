@@ -618,7 +618,7 @@ Window_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
 
     if (surface->type == WINDOW_SURFACE)
     {
-        //windows_surface是否应该使用三重缓冲?
+        //windows_surface使用三重缓冲，这样当其中一个缓冲区被合成器锁定使用时，应用还能使用另外两个缓冲区进行交换绘制，不会卡住等待缓冲区释放
         surface->buffer_num = 3;
         surface->now_read = 0;
         surface->now_draw = 1;
@@ -724,7 +724,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
     Window_Buffer *host_surface = (Window_Buffer *)g_hash_table_lookup(process_context->native_window_surface_map, GINT_TO_POINTER(win));
 
     eglConfig *now_eglconfig = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GINT_TO_POINTER(config));
-
+    // printf("host config %lx guest config %lx surface config %lx\n",now_eglconfig,config,host_surface==NULL?0:host_surface->config);
     if (host_surface == NULL || now_eglconfig != host_surface->config)
     {
         if (host_surface != NULL)
@@ -741,6 +741,10 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
 
             //不需要手动destroy，因为native_window_surface_map带有默认销毁函数，所以在覆盖时会先调用销毁函数再覆盖
             // render_surface_destroy(host_surface);
+        }
+        if(host_surface != NULL && now_eglconfig != host_surface->config){
+            express_printf("config change %lx host surface%lx\n",now_eglconfig, host_surface->config);
+            // assert(0);
         }
         host_surface = render_surface_create(config, attrib_list, WINDOW_SURFACE);
         host_surface->guest_native_window = win;
@@ -858,17 +862,20 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 {
     uint64_t gbuffer_id = (uint64_t)image;
     Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
-    //这里只是简单从map中移除，因为surface来自于ANativeWindow，它是仍然存在的，所以surface依然需要存在
-    if (surface != NULL)
-    {
-        set_surface_gbuffer_id(NULL, gbuffer_id);
-        return EGL_TRUE;
-    }
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
+    
+    //这里只是简单从map中移除，因为surface来自于ANativeWindow，它是仍然存在的，所以surface依然需要存在
+    if (surface != NULL && real_image == NULL)
+    {
+        //后面也要确保real_image为null，是因为测试时gbuffer_id为1可能同时存在surface和image，当id为1的surface加入时，真正正在锁定的image可能无法释放
+        set_surface_gbuffer_id(NULL, gbuffer_id);
+        return EGL_TRUE;
+    }
+    
     //根据framework代码来看，每次queuebuffer后都会创建一次image，删除一次image，但是gbuffer都会存在，所以只有进程终止了之后才能删除它
     // printf("destroy image %lx\n",real_image);
     if (real_image != NULL)

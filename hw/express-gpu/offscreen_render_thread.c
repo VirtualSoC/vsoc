@@ -383,6 +383,7 @@ void render_context_init(Thread_Context *context)
 
 static void g_window_surface_map_destroy(gpointer data)
 {
+    printf("remove window_surface %lx\n",data);
     Window_Buffer *real_surface = (Window_Buffer *)data;
     if (real_surface->type == WINDOW_SURFACE)
     {
@@ -392,6 +393,7 @@ static void g_window_surface_map_destroy(gpointer data)
 
 static void g_p_surface_map_destroy(gpointer data)
 {
+    printf("remove p_surface %lx\n",data);
     Window_Buffer *real_surface = (Window_Buffer *)data;
     if (real_surface->type == P_SURFACE)
     {
@@ -417,6 +419,7 @@ static void g_context_map_destroy(gpointer data)
 static void g_image_map_destroy(gpointer data)
 {
     EGL_Image *real_image = (EGL_Image *)data;
+    printf("destroy image invoke\n");
     PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
 }
 

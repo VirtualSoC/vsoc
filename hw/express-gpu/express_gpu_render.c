@@ -274,7 +274,7 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
             break;
         }
         set_image_gbuffer_id(NULL, real_image->gbuffer_id);
-        // printf("real destroy image %lx\n",real_image);
+        express_printf("real destroy image %lx\n",real_image);
 
         destroy_real_image(real_image);
     }
@@ -462,6 +462,8 @@ static void opengl_paint(Window_Buffer *d_buffer)
         }
         //注意，下面这种情况是为了照顾surfaceflinger的合成逻辑
         EGL_Image *real_image = get_image_from_gbuffer_id(d_buffer->guest_gbuffer_id);
+        // printf("main acquire image %lx to read\n",real_image);
+
         GLuint texture = acquire_texture_from_image(real_image);
 
         glBindTexture(GL_TEXTURE_2D, texture);
@@ -469,6 +471,7 @@ static void opengl_paint(Window_Buffer *d_buffer)
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
         release_texture_from_image(real_image);
+        // printf("main release image %lx to read\n",real_image);
     }
 }
 
@@ -515,7 +518,7 @@ static GLFWwindow *native_window_create()
         express_printf("error code %d detail %s", ret, s);
     }
 
-    assert(child_window != NULL);
+    // assert(child_window != NULL);
     // #endif
 
     // express_printf("create windows surface %lx\n", d_buffer);
