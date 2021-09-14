@@ -59,8 +59,8 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
     GLint now_texture_target;
     glGetIntegerv(GL_ACTIVE_TEXTURE, &now_texture_target);
 
-    GLuint now_bind_texture;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &now_bind_texture);
+    // GLuint now_bind_texture;
+    // glGetIntegerv(GL_TEXTURE_BINDING_2D, &now_bind_texture);
 
     glUniform1i(draw_texi_texture_id_loc, now_texture_target - GL_TEXTURE0);
 
@@ -108,34 +108,26 @@ void prepare_draw_texi()
     {
         //数组取地址不是字符串指针的指针，所以这里不要用数组
         char *vShaderCode = "#version 300 es\n"
-                            "layout(location = 0) in vec3 aPos;\n"
-                            "layout(location = 1) in vec2 aTexCoord;\n"
-                            "out vec2 TexCoord;\n"
+                            "layout(location = 0) in vec3 a_pos;\n"
+                            "layout(location = 1) in vec2 atex_coord;\n"
+                            "out vec2 tex_coord;\n"
                             "void main()\n"
                             "{\n"
-                            "    gl_Position = vec4(aPos, 1.0);\n"
-                            "    TexCoord = aTexCoord;\n"
+                            "    gl_Position = vec4(a_pos, 1.0);\n"
+                            "    tex_coord = atex_coord;\n"
                             "}\n";
 
         char *fShaderCode = "#version 300 es\n"
                             "precision mediump float;\n"
-                            "out vec4 FragColor;\n"
-
-                            "in vec2 TexCoord;\n"
-
+                            "out vec4 frag_color;\n"
+                            "in vec2 tex_coord;\n"
                             "uniform sampler2D texture_id;\n"
-                            "uniform bool alpha_on;\n"
-
                             "void main()\n"
                             "{\n"
-                            "   vec4 tex_color = texture(texture_id, TexCoord);\n"
-                            "   if(alpha_on){\n"
-                            "       tex_color.a = 1.0 - tex_color.r;\n"
-                            "   }\n"
-                            "   FragColor = tex_color;\n"
+                            "   frag_color = texture(texture_id, tex_coord);\n"
                             "}\n";
 
-        GLuint vertex, fragment, geometry;
+        GLuint vertex, fragment;
         // vertex shader
         vertex = glCreateShader(GL_VERTEX_SHADER);
 
@@ -179,6 +171,7 @@ void prepare_draw_texi()
 
     // if (draw_texi_vao == 0)
     // {
+    //     vao不是线程间共享的，所以要么每个线程单独一个vao，要么就不用vao
     //     GLuint vbo;
     //     GLuint ebo;
     //     float vbo_data[] = {

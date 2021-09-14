@@ -74,6 +74,12 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
 
     //尝试锁定下一个将要绘制的缓冲区
     int next_draw_buffer = (surface->now_draw + 1) % surface->buffer_num;
+    //假如下一个是被锁定的状态的话，就给下下个缓冲区，被锁定一定是在被读取中，只会有一个，所以下下个肯定没有锁定
+    //这样能够减少自旋空转时间，增加绘制效率
+    if(surface->display_texture_is_use[next_draw_buffer] == 1){
+        next_draw_buffer = (next_draw_buffer + 1) % surface->buffer_num;
+    }
+    assert(surface->display_texture_is_use[next_draw_buffer]==0);
     ATOMIC_LOCK(surface->display_texture_is_use[next_draw_buffer]);
     surface->now_draw = next_draw_buffer;
     // surface->draw_num+=1;
@@ -687,7 +693,16 @@ void d_eglIamComposer(void *context, EGLSurface surface)
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
     express_printf("surface is composer %lx %lx\n", real_surface, surface);
+    static int has_pbuffer_composer = 0;
+    if (real_surface->type == P_SURFACE)
+    {
+        has_pbuffer_composer = 1;
+        real_surface->I_am_composer = 1;
+    }
 
+    if(has_pbuffer_composer == 1){
+        return;
+    }
     real_surface->I_am_composer = 1;
 }
 
@@ -745,7 +760,9 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
+
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
+    printf("destroy surface %lx\n",real_surface);
     if (real_surface == NULL)
     {
         return EGL_FALSE;
@@ -771,7 +788,7 @@ EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface,
     return EGL_TRUE;
 }
 
-void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list, EGLImage guest_image)
+void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list, EGLImage guest_image)
 {
     //创建image，要么是使用别的应用绘制使用的缓冲区，要么是新创建的缓冲区
     //前者之前肯定有surface连接，所以肯定找得到，后者不会找得到，必须得给手动建立一个
@@ -797,6 +814,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
     if (real_image != NULL)
     {
+        real_image->display_texture_is_use = 0;
         return;
     }
 
@@ -851,10 +869,14 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     Process_Context *process_context = thread_context->process_context;
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
-    //但是假如是这个image被销毁了，因为这个image来着于ANativeWindowBuffer，它销毁意味着buffer可能没了，所以也删除掉
+    //根据framework代码来看，每次queuebuffer后都会创建一次image，删除一次image，但是gbuffer都会存在，所以只有进程终止了之后才能删除它
+    // printf("destroy image %lx\n",real_image);
     if (real_image != NULL)
     {
-        g_hash_table_remove(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id));
+        if(real_image->is_lock){
+            release_texture_from_image(real_image);
+        }
+        // g_hash_table_remove(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id));
         // 上面的remove函数的销毁函数会回收内存，调用下面两个函数，所以下面就注释了
         // destroy_real_image(real_image);
         // set_image_gbuffer_id(NULL, gbuffer_id);

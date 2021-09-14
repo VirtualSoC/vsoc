@@ -163,6 +163,12 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
     Window_Buffer *real_surface = thread_context->render_double_buffer_draw;
+
+    EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
+    //防止卡死，queue之后要主动解锁
+    egl_image->is_lock = 0;
+    egl_image->display_texture_is_use = 0;
+
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 
     //queuebuffer似乎不需要垂直同步
@@ -252,6 +258,30 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
             guest_read(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
         }
     }
+
+
+    gint64 now_time = g_get_real_time();
+    static gint64 last_calc_time = 0;
+    static int now_screen_hz = 0;
+
+    //计算合成器的帧率
+    if (now_time - last_calc_time > 1000000 && last_calc_time != 0)
+    {
+        express_printf("surface %lx draw %dHz\n", real_surface, now_screen_hz);
+        now_screen_hz = 0;
+    
+        last_calc_time = now_time;
+    }
+    else if (last_calc_time == 0)
+    {
+        last_calc_time = now_time;
+        now_screen_hz = 0;
+    }
+    else
+    {
+        now_screen_hz += 1;
+    }
+
     return ret;
 }
 

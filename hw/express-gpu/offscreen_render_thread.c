@@ -417,8 +417,7 @@ static void g_context_map_destroy(gpointer data)
 static void g_image_map_destroy(gpointer data)
 {
     EGL_Image *real_image = (EGL_Image *)data;
-    set_image_gbuffer_id(NULL, real_image->gbuffer_id);
-    destroy_real_image(real_image);
+    PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
 }
 
 void render_context_destroy(Thread_Context *context)

@@ -15,7 +15,7 @@ EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
     g_hash_table_remove_all(process_context->surface_map);
     //不需要remove native windows的的东西，因为surface对应的gbuffer可能还存在，还能被合成
     // g_hash_table_remove_all(process_context->native_window_surface_map);
-    g_hash_table_remove_all(process_context->gbuffer_image_map);
+    // g_hash_table_remove_all(process_context->gbuffer_image_map);
 
     // 此时不能设为空，不然makecurrent NULL的时候就无法销毁相关资源了
     // thread_context->opengl_context = NULL;

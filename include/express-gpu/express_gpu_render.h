@@ -14,17 +14,20 @@
 #include "express-gpu/egl_surface.h"
 
 
+#define SPECIAL_SCREEN_SYNC_HZ 60
+
 
 #define WM_USER_PAINT WM_USER + 10
 #define WM_USER_WINDOW_CREATE WM_USER + 11
 #define WM_USER_SURFACE_DESTROY WM_USER + 12
 #define WM_USER_CONTEXT_DESTROY WM_USER + 13
+#define WM_USER_IMAGE_DESTROY WM_USER + 14
 
 
 
 #define ATOMIC_LOCK(s)                      \
      while (atomic_cmpxchg(&(s), 0, 1) == 1) \
-          ;
+          printf("lock on %s ",#s);
 #define ATOMIC_UNLOCK(s) atomic_cmpxchg(&(s), 1, 0)
 
 

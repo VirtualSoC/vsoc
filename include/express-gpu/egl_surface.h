@@ -15,6 +15,7 @@
 
 typedef struct EGL_Image{
      int display_texture_is_use;
+     int is_lock;
      GLuint display_fbo;
      GLuint fbo_texture;
      GLsync fbo_sync;
@@ -114,6 +115,7 @@ typedef struct Window_Buffer
      int swap_loc;
      int swap_time_cnt;
 
+     int64_t temp_time;
 
 } Window_Buffer;
 
@@ -144,7 +146,7 @@ EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface,
 
 
 void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target,
-                                  EGLClientBuffer buffer, const EGLAttrib *attrib_list,EGLImage guest_image);
+                                  EGLClientBuffer buffer, const EGLint *attrib_list,EGLImage guest_image);
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
 

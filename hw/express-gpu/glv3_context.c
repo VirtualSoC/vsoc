@@ -1,5 +1,5 @@
 // #define STD_DEBUG_LOG
-
+// #define TIMER_LOG
 #include "express-gpu/glv3_context.h"
 
 // #include "gl.h"
@@ -957,12 +957,12 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         else if (target == GL_READ_ONLY)
         {
             //这里读取之所以进行绑定texture，是因为image在读取的时候就是连接到texture来读取的
-            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_read]);
+            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
         }
         else if (target == GL_WRITE_ONLY)
         {
             //不可能出现，因为是surface的情况下，不会被用来进行写入操作
-            glBindFramebuffer(GL_FRAMEBUFFER, real_surface->display_fbo[real_surface->now_draw]);
+            glBindFramebuffer(GL_FRAMEBUFFER, real_surface->display_fbo[real_surface->now_acquired]);
             printf("error! Surface is write by image!");
         }
         else if (target == GL_NONE)
@@ -994,6 +994,30 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         {
             //GL_NONE的情况需要解除锁定
             release_texture_from_image(egl_image);
+
+            gint64 now_time = g_get_real_time();
+            static gint64 last_calc_time = 0;
+            static int now_screen_hz = 0;
+
+            //计算合成器的帧率
+            if (now_time - last_calc_time > 1000000 && last_calc_time != 0)
+            {
+                express_printf("composer draw %dHz\n", now_screen_hz);
+                now_screen_hz = 0;
+            
+                last_calc_time = now_time;
+            }
+            else if (last_calc_time == 0)
+            {
+                last_calc_time = now_time;
+                now_screen_hz = 0;
+            }
+            else
+            {
+                now_screen_hz += 1;
+            }
+
+
         }
     }
 }
