@@ -51,7 +51,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx" */
+        /* readline: "EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id" */
         /* func name: "eglMakeCurrent" */
         /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'draw', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'read', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLContext', 'name': 'ctx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "EGLBoolean" */
@@ -62,6 +62,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSurface draw;
         EGLSurface read;
         EGLContext ctx;
+        uint64_t gbuffer_id;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglMakeCurrent)
@@ -106,6 +107,10 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         ctx = *(EGLContext *)(temp + temp_loc);
         temp_loc += 8;
+
+        gbuffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
         int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
@@ -132,7 +137,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx);
+        EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id);
         *ret_ptr = ret;
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
@@ -532,9 +537,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "EGLBoolean eglGetSyncAttrib EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib *value#sizeof(EGLAttrib)" */
+        /* readline: "EGLBoolean eglGetSyncAttrib EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLint *value#sizeof(EGLint)" */
         /* func name: "eglGetSyncAttrib" */
-        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLint', 'name': 'attribute', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLAttrib*', 'name': 'value', 'ptr': 'out', 'ptr_len': 'sizeof(EGLAttrib)', 'loc': 3, 'ptr_ptr': False}] */
+        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLint', 'name': 'attribute', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLint*', 'name': 'value', 'ptr': 'out', 'ptr_len': 'sizeof(EGLint)', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "EGLBoolean" */
         /* type: "120" */
 
@@ -597,8 +602,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
         int out_buf_loc = 0;
 
-        EGLAttrib *value = (EGLAttrib *)(ret_buf + out_buf_loc);
-        out_buf_loc += sizeof(EGLAttrib);
+        EGLint *value = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
 
         EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLBoolean);
@@ -1639,9 +1644,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "EGLSync eglCreateSync EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list#sizeof(EGLAttrib), EGLSync sync" */
+        /* readline: "EGLSync eglCreateSync EGLDisplay dpy, EGLenum type, const EGLint *attrib_list#sizeof(EGLint), EGLSync sync" */
         /* func name: "eglCreateSync" */
-        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const EGLAttrib*', 'name': 'attrib_list', 'ptr': 'in', 'ptr_len': 'sizeof(EGLAttrib)', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLSync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
+        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLenum', 'name': 'type', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const EGLint*', 'name': 'attrib_list', 'ptr': 'in', 'ptr_len': 'sizeof(EGLint)', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLSync', 'name': 'sync', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "EGLSync" */
         /* type: "210" */
 
@@ -1691,8 +1696,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         sync = *(EGLSync *)(temp + temp_loc);
         temp_loc += 8;
 
-        const EGLAttrib *attrib_list = (const EGLAttrib *)(temp + temp_loc);
-        temp_loc += sizeof(EGLAttrib);
+        const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
+        temp_loc += sizeof(EGLint);
         /* Check length */
         if (temp_len < temp_loc)
         {
@@ -1768,9 +1773,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "EGLImage eglCreateImage EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list#sizeof(EGLAttrib), EGLImage image" */
+        /* readline: "EGLImage eglCreateImage EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list#sizeof(EGLint), EGLImage image" */
         /* func name: "eglCreateImage" */
-        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLContext', 'name': 'ctx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLClientBuffer', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const EGLAttrib*', 'name': 'attrib_list', 'ptr': 'in', 'ptr_len': 'sizeof(EGLAttrib)', 'loc': 4, 'ptr_ptr': False}, {'type': 'EGLImage', 'name': 'image', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
+        /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLContext', 'name': 'ctx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLenum', 'name': 'target', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLClientBuffer', 'name': 'buffer', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}, {'type': 'const EGLint*', 'name': 'attrib_list', 'ptr': 'in', 'ptr_len': 'sizeof(EGLint)', 'loc': 4, 'ptr_ptr': False}, {'type': 'EGLImage', 'name': 'image', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 5, 'ptr_ptr': False}] */
         /* ret: "EGLImage" */
         /* type: "210" */
 
@@ -1828,8 +1833,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         image = *(EGLImage *)(temp + temp_loc);
         temp_loc += 8;
 
-        const EGLAttrib *attrib_list = (const EGLAttrib *)(temp + temp_loc);
-        temp_loc += sizeof(EGLAttrib);
+        const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
+        temp_loc += get_attrib_list_len(attrib_list);
         /* Check length */
         if (temp_len < temp_loc)
         {
@@ -1963,6 +1968,58 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         d_eglWaitSync(egl_context, dpy, sync, flags);
+    }
+    break;
+
+    case FUNID_eglQueueBuffer:
+
+    {
+
+        /* Define variables */
+        EGLImage gbuffer_id;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_eglQueueBuffer)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < sizeof(EGLImage) * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        gbuffer_id = *(EGLImage *)(temp + temp_loc);
+        temp_loc += sizeof(EGLImage);
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_eglQueueBuffer(egl_context, gbuffer_id);
     }
     break;
 

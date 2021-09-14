@@ -68,7 +68,7 @@ EGLenum d_eglQueryAPI(void *context);
 
 EGLContext d_eglGetCurrentContext(void *context);
 
-EGLBoolean r_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);
+EGLBoolean r_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id);
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);
 
 EGLBoolean r_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surface);

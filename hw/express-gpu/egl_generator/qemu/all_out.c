@@ -30,7 +30,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx" */
+        /* readline: "EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id" */
         /* func name: "eglMakeCurrent" */
         /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'draw', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'read', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLContext', 'name': 'ctx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "EGLBoolean" */
@@ -41,6 +41,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSurface draw;
         EGLSurface read;
         EGLContext ctx;
+        uint64_t gbuffer_id;
+
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglMakeCurrent)
@@ -85,6 +87,10 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         ctx = *(EGLContext *)(temp + temp_loc);
         temp_loc += 8;
+
+        gbuffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
         int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
@@ -111,7 +117,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx);
+        EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id);
         *ret_ptr = ret;
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);

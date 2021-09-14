@@ -11,7 +11,7 @@
 
 
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read,
-                                    EGLContext ctx);
+                                    EGLContext ctx, uint64_t gbuffer_id);
 
 EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surface);
 
@@ -19,14 +19,13 @@ EGLBoolean d_eglBindTexImage(void *context, EGLDisplay dpy, EGLSurface surface, 
 
 EGLBoolean d_eglReleaseTexImage(void *context, EGLDisplay dpy, EGLSurface surface, EGLint buffer);
 
-void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target,
-                                  EGLClientBuffer buffer, const EGLAttrib *attrib_list,EGLImage guest_image);
-
-EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
 
 //EGLClientBuffer d_eglGetNativeClientBufferANDROID(void *context, AHardwareBuffer *buffer);
 
 EGLBoolean d_eglSwapInterval(void *context, EGLDisplay dpy, EGLint interval);
+
+
+void d_eglQueueBuffer(void *context, EGLImage gbuffer_id);
 
 
 EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, int64_t *ret_invoke_time, int64_t *swap_time);

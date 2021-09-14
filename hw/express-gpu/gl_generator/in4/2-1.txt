@@ -65,7 +65,7 @@ glPrintfAsyn GLint a, GLuint size, GLdouble c, const GLchar *out_string#strlen(o
 
 
 
-glEGLImageTargetTexture2DOES GLenum target, GLeglImageOES imageSize
+glEGLImageTargetTexture2DOES GLenum target, GLeglImageOES image
 glEGLImageTargetRenderbufferStorageOES GLenum target, GLeglImageOES image
 
 

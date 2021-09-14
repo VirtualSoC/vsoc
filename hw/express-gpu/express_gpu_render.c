@@ -40,11 +40,16 @@ static unsigned int main_frame_num = 0;
 static int event_queue_lock;
 static GQueue *event_queue;
 
+static GHashTable *gbuffer_id_surface_map = NULL;
+static GHashTable *gbuffer_id_image_map = NULL;
+
 static int calc_screen_hz = 0;
 
 static int now_screen_hz = 0;
 
-static gint64 last_swap_time = 0;
+static gint64 last_calc_time = 0;
+static gint64 frame_start_time = 0;
+static gint64 remain_sleep_time = 0;
 
 // static gint64 stand_frame_time = 0;
 static volatile gint64 last_gen_frame_time = 0;
@@ -72,13 +77,13 @@ static GLint drawVAO = 0;
 static long window_width;
 static long window_height;
 
-static Double_Buffer *compose_surface;
+static Window_Buffer *compose_surface;
 static int compose_surface_lock = 0;
 
 volatile int native_render_run = 0;
 
-static void opengl_paint(Double_Buffer *d_buffer);
-static void egl_surface_create(Double_Buffer *d_buffer);
+static void opengl_paint(Window_Buffer *d_buffer);
+static GLFWwindow *native_window_create();
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 /**
@@ -90,7 +95,7 @@ static void g_queue_event_notify(gpointer data, gpointer user_data);
  * @param lParam 
  * @return LRESULT 
  */
-static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     RECT rcParent;
     long temp_width, temp_height;
@@ -184,9 +189,9 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         // glClearColor(wParam, 1, 0, 0);
 
         // glfwSwapBuffers(glfw_window);
-        opengl_paint((Double_Buffer *)lParam);
+        opengl_paint((Window_Buffer *)lParam);
         break;
-    case WM_USER_CREATE:
+    case WM_USER_WINDOW_CREATE:
         /**
          * @todo 修改窗口拉伸的逻辑，保证拉伸满足相应的比例关系
          * 
@@ -198,19 +203,20 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         // window_width = rcParent.right / 2;
         {
 
-            Double_Buffer *d_buffer = (Double_Buffer *)lParam;
-            if (d_buffer == NULL)
+            GLFWwindow **window_ptr = (Window_Buffer *)lParam;
+            if (window_ptr == NULL)
             {
                 break;
             }
-            express_printf("create window %lx\n", d_buffer);
-            egl_surface_create(d_buffer);
+            // express_printf("create window %lx\n", d_buffer);
+            *window_ptr = native_window_create();
         }
 
         break;
     case WM_USER_SURFACE_DESTROY:
     {
-        Double_Buffer *d_buffer = (Double_Buffer *)lParam;
+        //这个destroy调用来自于客户端进程关闭后的销毁函数
+        Window_Buffer *d_buffer = (Window_Buffer *)lParam;
         if (d_buffer == NULL)
         {
             break;
@@ -219,12 +225,15 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         {
             set_compose_surface(NULL);
         }
-        express_printf("main windows destroy window %lx\n", d_buffer);
-        glfwDestroyWindow(d_buffer->window);
 
-        //destroywindows后，fbo会自动被删除，因为它不共享
-        // glDeleteFramebuffers(surface->buffer_num, surface->display_fbo);
+        if (d_buffer->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(d_buffer->guest_gbuffer_id) == d_buffer)
+        {
+            //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+            set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
+        }
+        printf("real destroy surface %lx\n", d_buffer);
 
+        //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
         glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
@@ -249,8 +258,25 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
         {
             break;
         }
+
+        //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
+        glfwDestroyWindow(opengl_context->window);
+
         opengl_context_destroy(opengl_context);
         g_free(opengl_context);
+    }
+    break;
+    case WM_USER_IMAGE_DESTROY:
+    {
+        EGL_Image *real_image = (EGL_Image *)lParam;
+        if (real_image == NULL)
+        {
+            break;
+        }
+        set_image_gbuffer_id(NULL, real_image->gbuffer_id);
+        express_printf("real destroy image %lx\n",real_image);
+
+        destroy_real_image(real_image);
     }
     break;
     default:
@@ -267,7 +293,7 @@ static LRESULT CALLBACK subWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
  * @param shaderSrc 着色器源码
  * @return GLuint 返回着色器编号，若为0则生成失败
  */
-static GLuint LoadShader1(GLenum type, const char *shaderSrc)
+static GLuint load_shader(GLenum type, const char *shaderSrc)
 {
     GLuint shader;
     GLint compiled;
@@ -350,8 +376,8 @@ static int opengl_prepare(GLint *program, GLint *VAO)
         return 0;
     }
 
-    GLuint vertexShader = LoadShader1(GL_VERTEX_SHADER, vShaderStr);
-    GLuint fragmentShader = LoadShader1(GL_FRAGMENT_SHADER, fShaderStr);
+    GLuint vertexShader = load_shader(GL_VERTEX_SHADER, vShaderStr);
+    GLuint fragmentShader = load_shader(GL_FRAGMENT_SHADER, fShaderStr);
     //express_printf("shader %d %d\n", vertexShader, fragmentShader);
 
     glAttachShader(programObject, vertexShader);
@@ -409,7 +435,7 @@ static int opengl_prepare(GLint *program, GLint *VAO)
  * 
  * @param d_buffer 
  */
-static void opengl_paint(Double_Buffer *d_buffer)
+static void opengl_paint(Window_Buffer *d_buffer)
 {
     // glClear(GL_COLOR_BUFFER_BIT);
     // glClearColor(1, 1, 1, 0);
@@ -417,73 +443,36 @@ static void opengl_paint(Double_Buffer *d_buffer)
     // glClear(GL_COLOR_BUFFER_BIT);
     //glClearColor(0, 0, 1, 0);
     // glDisable(GL_DEPTH_TEST);
-    int now_read = d_buffer->now_read;
-    // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
-    // TIMER_START(texture_loc)
 
-    ATOMIC_LOCK(d_buffer->display_texture_is_use[now_read]);
-
-    // TIMER_END(texture_loc)
-
-    // TIMER_OUTPUT(texture_loc, 100)
-    // gint64 t_loc=g_get_real_time();
-    // lock_time += t_loc-t_start;
-
-    // glWaitSync(double_buffer->dispaly_sync, 0, GL_TIMEOUT_IGNORED);
-    // express_printf("main has error %x\n",glGetError());
-
-    // TIMER_START(sync)
-    glFlush();
-    if (d_buffer->fbo_sync[now_read] != NULL)
+    if (d_buffer->type == WINDOW_SURFACE)
     {
-        //最多等待8ms
-        // glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
-        glWaitSync(d_buffer->fbo_sync[now_read], 0, GL_TIMEOUT_IGNORED);
-        // printf("main_windows gpu wait %lld\n",d_buffer->fbo_sync[now_read]);
-        // glDeleteSync(d_buffer->fbo_sync[now_read]);
+        GLuint texture = acquire_texture_from_surface(d_buffer);
+
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        release_texture_from_surface(d_buffer);
     }
-    // glDeleteSync(double_buffer->dispaly_sync);
-
-    // TIMER_END(sync)
-
-    // TIMER_OUTPUT(sync, 100)
-
-    // static gint64 sync_time=0;
-    // gint64 t_sync=g_get_real_time();
-    // sync_time += t_sync-t_loc;
-
-    GLuint texture = d_buffer->fbo_texture[now_read];
-
-    // glBindVertexArray(drawVAO);
-
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    // express_printf("main window paint fbo %u\n", d_buffer->display_fbo[now_read]);
-
-    // TIMER_START(finish)
-
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-    glFlush();
-    // printf("main_windows gpu finish %lld\n",wait_sync);
-
-    //延迟删除glsync，以防止waitsync后立马删除这个sync引起的屏幕闪烁问题（不确定是不是这个原因引起）
-    if (d_buffer->fbo_sync[now_read] != NULL)
+    else if (d_buffer->type == P_SURFACE)
     {
-        if (d_buffer->delete_sync[d_buffer->delete_loc] != 0)
+        if (d_buffer->guest_gbuffer_id == 0)
         {
-            glDeleteSync(d_buffer->delete_sync[d_buffer->delete_loc]);
+            return;
         }
-        d_buffer->delete_sync[d_buffer->delete_loc] = d_buffer->fbo_sync[now_read];
-        d_buffer->delete_loc = (d_buffer->delete_loc + 1) % 5;
+        //注意，下面这种情况是为了照顾surfaceflinger的合成逻辑
+        EGL_Image *real_image = get_image_from_gbuffer_id(d_buffer->guest_gbuffer_id);
+        // printf("main acquire image %lx to read\n",real_image);
+
+        GLuint texture = acquire_texture_from_image(real_image);
+
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        release_texture_from_image(real_image);
+        // printf("main release image %lx to read\n",real_image);
     }
-    d_buffer->fbo_sync[now_read] = wait_sync;
-    // glFinish();
-    // TIMER_END(finish)
-
-    // TIMER_OUTPUT(finish,100)
-
-    ATOMIC_UNLOCK(d_buffer->display_texture_is_use[now_read]);
 }
 
 /**
@@ -493,7 +482,7 @@ static void opengl_paint(Double_Buffer *d_buffer)
  * @param width 界面的宽
  * @param height 界面的高
  */
-static void egl_surface_create(Double_Buffer *d_buffer)
+static GLFWwindow *native_window_create()
 {
 
     GLFWwindow *child_window;
@@ -503,22 +492,25 @@ static void egl_surface_create(Double_Buffer *d_buffer)
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    int idx = 0;
-    while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
-    {
-        int64_t hint_enum = d_buffer->window_hints.hints[idx];
-        int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
-        glfwWindowHint(hint_enum, hint_val);
-        idx += 2;
-    }
 
-//屏幕分离调试专用
-#ifdef DEBUG_INDEPEND_WINDOW
-    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, NULL);
+    // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
+    // int idx = 0;
+    // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
+    // {
+    //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
+    //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
+    //     glfwWindowHint(hint_enum, hint_val);
+    //     idx += 2;
+    // }
 
-#else
-    child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, glfw_window);
+    // //屏幕分离调试专用
+    // #ifdef DEBUG_INDEPEND_WINDOW
+    //     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+    //     child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, NULL);
+
+    // #else
+    //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+    child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
     if (child_window == NULL)
     {
         char *s;
@@ -526,12 +518,12 @@ static void egl_surface_create(Double_Buffer *d_buffer)
         express_printf("error code %d detail %s", ret, s);
     }
 
-    assert(child_window != NULL);
-#endif
-    d_buffer->window = child_window;
+    // assert(child_window != NULL);
+    // #endif
 
-    express_printf("create windows surface %lx\n", d_buffer);
+    // express_printf("create windows surface %lx\n", d_buffer);
     //todo 根据配置设置窗口属性
+    return child_window;
 }
 
 /**
@@ -584,7 +576,7 @@ void *native_window_thread(void *opaque)
 
     SetParent(draw_native_window, render_hwnd);
     SetWindowLong(draw_native_window, GWL_STYLE, WS_CHILD);
-    SetWindowLongPtr(draw_native_window, GWLP_WNDPROC, (LONG_PTR)&subWindowProc);
+    SetWindowLongPtr(draw_native_window, GWLP_WNDPROC, (LONG_PTR)&sub_window_proc);
     ShowWindow(draw_native_window, TRUE);
 
     glfwMakeContextCurrent(glfw_window);
@@ -595,6 +587,9 @@ void *native_window_thread(void *opaque)
         return NULL;
     }
 
+    gbuffer_id_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+    gbuffer_id_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+
     prepare_draw_texi();
 
     opengl_prepare(&programID, &drawVAO);
@@ -603,7 +598,11 @@ void *native_window_thread(void *opaque)
     express_printf("native windows create!\n");
     native_render_run = 2;
 
+#ifdef SPECIAL_SCREEN_SYNC_HZ
+    glfwSwapInterval(0);
+#else
     glfwSwapInterval(1);
+#endif
     // RECT rcParent;
     // long height, width;
 
@@ -617,7 +616,7 @@ void *native_window_thread(void *opaque)
     // if (!GetClassInfo(GetModuleHandle(NULL), className, &wc))
     // {
     //     wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW; // redraw if size changes
-    //     wc.lpfnWndProc = &subWindowProc;               // points to window procedure
+    //     wc.lpfnWndProc = &sub_window_proc;               // points to window procedure
     //     wc.cbWndExtra = sizeof(void *);                // save extra window memory
     //     wc.lpszClassName = className;                  // name of window class
     //     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
@@ -668,7 +667,7 @@ void *native_window_thread(void *opaque)
     {
 
         // glfwWaitEvents();
-        gint64 frame_start_time = g_get_real_time();
+        frame_start_time = g_get_real_time();
 
         main_frame_num = (main_frame_num + 1) % 65536;
 
@@ -718,51 +717,45 @@ void *native_window_thread(void *opaque)
         }
         gint64 now_time = g_get_real_time();
 
-        //计算帧生成时间
-        // gen_frame_cnt++;
-        // gen_frame_time_all += now_time - frame_start_time;
-        // if (gen_frame_cnt == 100)
-        // {
-        //     last_gen_frame_time = gen_frame_time_all / 100;
-        //     gen_frame_cnt = 0;
-        //     gen_frame_time_all = 0;
-        //     express_printf("avg_gen_frame_time %lld\n", last_gen_frame_time);
-        // }
+        //注意：帧生成时间波动挺大的
 
         //计算真实窗口帧率
-        if (now_time - last_swap_time > 1000000 && last_swap_time != 0)
+        if (now_time - last_calc_time > 1000000 && last_calc_time != 0)
         {
             calc_screen_hz += 1;
             now_screen_hz = calc_screen_hz;
             calc_screen_hz = 0;
             gen_frame_time_avg_1s = 1000000 / now_screen_hz;
-            express_printf("screen draw %dHz avg %lldus\n", now_screen_hz, gen_frame_time_avg_1s);
+            express_printf("screen draw avg %lldus %dHz\n", gen_frame_time_avg_1s, now_screen_hz);
 
-            // if (stand_frame_time == 0)
-            // {
-            //     stand_frame_time = gen_frame_time_avg_1s;
-            //     express_printf("now stand frame time %lld\n",stand_frame_time);
-            // }
-
-            // //假如帧产生时间小于标准帧产生时间的90%或者大于标准帧产生时间的110%
-            // //则说明此时系统帧数发生了变化，需要更新标准帧产生时间，此时需要保证主窗口GPU资源足够
-            // if (gen_frame_time_avg_1s * 10 < stand_frame_time * 9 || gen_frame_time_avg_1s * 10 > stand_frame_time * 11)
-            // {
-            //     express_printf("regenenate stand frame time %lld %lld\n",gen_frame_time_avg_1s,stand_frame_time);
-            //     stand_frame_time = 0;
-            // }
-
-            last_swap_time = now_time;
+            last_calc_time = now_time;
         }
-        else if (last_swap_time == 0)
+        else if (last_calc_time == 0)
         {
-            last_swap_time = now_time;
+            last_calc_time = now_time;
             calc_screen_hz = 0;
         }
         else
         {
             calc_screen_hz += 1;
         }
+
+#ifdef SPECIAL_SCREEN_SYNC_HZ
+
+        gint64 spend_time = now_time - frame_start_time;
+        long need_sleep = 1000000/SPECIAL_SCREEN_SYNC_HZ - spend_time + remain_sleep_time;
+
+        if(need_sleep<=0) {
+            need_sleep = 0;
+        }
+
+        gint64 sleep_start_time = g_get_real_time();
+        g_usleep(need_sleep);
+        gint64 sleep_end_time = g_get_real_time();
+        remain_sleep_time = need_sleep - (sleep_end_time - sleep_start_time);
+#endif
+
+
     }
 
     express_printf("native windows close!\n");
@@ -918,27 +911,203 @@ static void g_queue_event_notify(gpointer data, gpointer user_data)
     return;
 }
 
-void render_windows_create(Double_Buffer *context)
+// void render_windows_create(Window_Buffer *context)
+// {
+
+//     // Render_Thread_Context *render_context = (Render_Thread_Context *)context;
+//     // Window_Buffer *buffer_context = (render_context->render_double_buffer);
+//     // Opengl_Context *opengl_context = (render_context->opengl_context);
+
+//     if (context != NULL)
+//     {
+//         //send是同步的，发送完消息需要等待消息处理完
+//         //调用egl_context_create
+//         SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)context);
+//     }
+
+//     return;
+// }
+
+void set_compose_surface(Window_Buffer *surface)
 {
-
-    // Render_Thread_Context *render_context = (Render_Thread_Context *)context;
-    // Double_Buffer *buffer_context = (render_context->render_double_buffer);
-    // Opengl_Context *opengl_context = (render_context->opengl_context);
-
-    if (context != NULL)
+    if (compose_surface == surface)
     {
-        //send是同步的，发送完消息需要等待消息处理完
-        //调用egl_context_create
-        SendMessage(draw_native_window, WM_USER_CREATE, 0, (LPARAM)context);
+        return;
     }
-
-    return;
-}
-
-void set_compose_surface(Double_Buffer *surface)
-{
     ATOMIC_LOCK(compose_surface_lock);
     compose_surface = surface;
     ATOMIC_UNLOCK(compose_surface_lock);
     express_printf("change compose surface %lx\n", compose_surface);
+}
+
+GLuint acquire_texture_from_surface(Window_Buffer *surface)
+{
+
+    int now_read = surface->now_read;
+    // TIMER_START(texture_loc)
+
+    surface->temp_time = g_get_real_time();
+
+    //PBuffer不允许获取texture
+    if (surface->type == P_SURFACE)
+    {
+        return 0;
+    }
+    ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
+
+    // TIMER_END(texture_loc)
+
+    // TIMER_OUTPUT(texture_loc, 100)
+    // TIMER_START(sync)
+    glFlush();
+    if (surface->fbo_sync[now_read] != NULL)
+    {
+        //最多等待80ms
+        // glClientWaitSync(surface->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
+        glWaitSync(surface->fbo_sync[now_read], 0, GL_TIMEOUT_IGNORED);
+    }
+
+    // TIMER_END(sync)
+
+    // TIMER_OUTPUT(sync, 100)
+
+    GLuint texture = surface->fbo_texture[now_read];
+
+    surface->now_acquired = now_read;
+
+    return texture;
+}
+
+void release_texture_from_surface(Window_Buffer *surface)
+{
+    int now_read = surface->now_acquired;
+
+    //PBuffer不允许获取texture
+    if (surface->type == P_SURFACE)
+    {
+        return;
+    }
+    GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+
+    //延迟删除glsync，以防止waitsync后立马删除这个sync引起的屏幕闪烁问题（不确定是不是这个原因引起）
+    if (surface->fbo_sync[now_read] != NULL)
+    {
+        if (surface->delete_sync[surface->delete_loc] != 0)
+        {
+            glDeleteSync(surface->delete_sync[surface->delete_loc]);
+        }
+        surface->delete_sync[surface->delete_loc] = surface->fbo_sync[now_read];
+        surface->delete_loc = (surface->delete_loc + 1) % 5;
+    }
+    surface->fbo_sync[now_read] = wait_sync;
+    // TIMER_END(finish)
+
+    // TIMER_OUTPUT(finish,100)
+
+    // uint64_t spend_time = g_get_real_time() - surface->temp_time;
+    // static int cal_cnt = 0;
+    // static long all_spend_time = 0;
+    // if(cal_cnt<100){
+    //     all_spend_time += spend_time;
+    //     cal_cnt += 1;
+    // }else{
+    //     printf("lock avg time %lluus(%llu/%d)\n",spend_time/cal_cnt,spend_time,cal_cnt);
+    //     all_spend_time = 0;
+    //     cal_cnt = 0;
+    // }
+
+    ATOMIC_UNLOCK(surface->display_texture_is_use[now_read]);
+}
+
+GLuint acquire_texture_from_image(EGL_Image *image)
+{
+
+    ATOMIC_LOCK(image->display_texture_is_use);
+    glFlush();
+    image->is_lock = 1;
+    if (image->fbo_sync != NULL)
+    {
+        //最多等待8ms
+        // glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
+        glWaitSync(image->fbo_sync, 0, GL_TIMEOUT_IGNORED);
+    }
+
+    GLuint texture = image->fbo_texture;
+
+    return texture;
+}
+
+void release_texture_from_image(EGL_Image *image)
+{
+
+    GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+    image->is_lock = 0;
+    //延迟删除glsync，以防止waitsync后立马删除这个sync引起的屏幕闪烁问题（不确定是不是这个原因引起）
+    if (image->fbo_sync != NULL)
+    {
+        if (image->fbo_sync_need_delete != NULL)
+        {
+            glDeleteSync(image->fbo_sync_need_delete);
+        }
+        image->fbo_sync_need_delete = image->fbo_sync;
+    }
+    image->fbo_sync = wait_sync;
+
+    ATOMIC_UNLOCK(image->display_texture_is_use);
+}
+
+Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)
+{
+    if (gbuffer_id_surface_map == NULL)
+    {
+        return NULL;
+    }
+    Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+    return real_surface;
+}
+
+void set_surface_gbuffer_id(Window_Buffer *surface, uint64_t gbuffer_id)
+{
+    if (gbuffer_id_surface_map == NULL)
+    {
+        return;
+    }
+    if (surface == NULL)
+    {
+        g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+    }
+    else
+    {
+        g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)surface);
+    }
+    return;
+}
+
+EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id)
+{
+    if (gbuffer_id_image_map == NULL)
+    {
+        return NULL;
+    }
+    EGL_Image *real_image = (EGL_Image *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
+    return real_image;
+}
+
+void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id)
+{
+    if (gbuffer_id_image_map == NULL)
+    {
+        return;
+    }
+    if (image == NULL)
+    {
+        g_hash_table_remove(gbuffer_id_image_map, (gpointer)(gbuffer_id));
+    }
+    else
+    {
+        g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)image);
+    }
+    return;
 }

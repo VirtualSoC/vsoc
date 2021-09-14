@@ -189,6 +189,9 @@ typedef struct Resource_Context
 
 typedef struct Opengl_Context
 {
+    //注意，这个window必须得放到opengl_context这边，因为opengl的环境保存在这边了
+    GLFWwindow *window;
+
     // Pixel_Store_Status pixel_store_status;
     Bound_Buffer bound_buffer_status;
 
@@ -204,6 +207,7 @@ typedef struct Opengl_Context
     GLsizei view_w;
     GLsizei view_h;
 
+    Window_Buffer *draw_surface;
 
     // int has_init;
     int is_current;
@@ -249,8 +253,6 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
 
-void d_glDeleteProgram_origin(void *context, GLuint program);
-
 void d_glLinkProgram_origin(void *context, GLuint program);
 
 void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string);
@@ -264,7 +266,9 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
 
 //
 
-void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES imageSize);
+void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
+
+void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image);
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
 
@@ -276,6 +280,7 @@ void resource_context_destroy(Resource_Context *resources);
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context);
 
+void opengl_context_init(Opengl_Context *context);
 
 void opengl_context_destroy(Opengl_Context *context);
 

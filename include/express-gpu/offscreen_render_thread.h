@@ -12,8 +12,10 @@ typedef struct Process_Context{
     GHashTable *surface_map;
     GHashTable *context_map;
     
-    GHashTable *egl_image_map;
-    GHashTable *egl_sync_map;
+    GHashTable *native_window_surface_map;
+
+    GHashTable *gbuffer_image_map;
+
 
     int thread_cnt;
 } Process_Context;
@@ -24,8 +26,8 @@ typedef struct
     Process_Context *process_context;
 
     //好像没见到过read和draw不一样的情况
-    Double_Buffer *render_double_buffer_read;
-    Double_Buffer *render_double_buffer_draw;
+    Window_Buffer *render_double_buffer_read;
+    Window_Buffer *render_double_buffer_draw;
 
     Opengl_Context *opengl_context;
     Egl_Display *egl_display;

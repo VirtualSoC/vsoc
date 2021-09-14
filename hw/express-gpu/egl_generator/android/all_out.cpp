@@ -9,12 +9,12 @@
 
 /******* file '1-2' *******/
 
-/* readline: "EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx" */
+/* readline: "EGLBoolean eglMakeCurrent EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id" */
 /* func name: "eglMakeCurrent" */
 /* args: [{'type': 'EGLDisplay', 'name': 'dpy', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'draw', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'EGLSurface', 'name': 'read', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 2, 'ptr_ptr': False}, {'type': 'EGLContext', 'name': 'ctx', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
 /* ret: "EGLBoolean" */
 /* type: "120" */
-EGLBoolean r_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
+EGLBoolean r_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id)
 {
 
     unsigned char send_buf[16 + 2 * 16];
@@ -25,7 +25,7 @@ EGLBoolean r_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     uint64_t save_buf_len = 32;
     unsigned char *save_buf;
 
-    unsigned char local_save_buf[32];
+    unsigned char local_save_buf[40];
     save_buf = local_save_buf;
     ptr = save_buf;
 
@@ -39,6 +39,9 @@ EGLBoolean r_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     ptr += 8;
 
     *(EGLContext *)ptr = ctx;
+    ptr += 8;
+
+    *(uint64_t *)ptr = gbuffer_id;
     ptr += 8;
 
     ptr = send_buf;
