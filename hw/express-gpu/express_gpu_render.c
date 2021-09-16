@@ -274,7 +274,7 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
             break;
         }
         set_image_gbuffer_id(NULL, real_image->gbuffer_id);
-        express_printf("real destroy image %lx\n",real_image);
+        express_printf("real destroy image %lx\n", real_image);
 
         destroy_real_image(real_image);
     }
@@ -425,7 +425,7 @@ static int opengl_prepare(GLint *program, GLint *VAO)
 
     glUseProgram(programObject);
 
-    glClearColor(1, 1, 1, 1);
+    glClearColor(1, 0, 0, 1);
 
     return 1;
 }
@@ -518,7 +518,8 @@ static GLFWwindow *native_window_create()
         express_printf("error code %d detail %s", ret, s);
     }
 
-    // assert(child_window != NULL);
+    //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
+    assert(child_window != NULL);
     // #endif
 
     // express_printf("create windows surface %lx\n", d_buffer);
@@ -743,9 +744,10 @@ void *native_window_thread(void *opaque)
 #ifdef SPECIAL_SCREEN_SYNC_HZ
 
         gint64 spend_time = now_time - frame_start_time;
-        long need_sleep = 1000000/SPECIAL_SCREEN_SYNC_HZ - spend_time + remain_sleep_time;
+        long need_sleep = 1000000 / SPECIAL_SCREEN_SYNC_HZ - spend_time + remain_sleep_time;
 
-        if(need_sleep<=0) {
+        if (need_sleep <= 0)
+        {
             need_sleep = 0;
         }
 
@@ -754,8 +756,6 @@ void *native_window_thread(void *opaque)
         gint64 sleep_end_time = g_get_real_time();
         remain_sleep_time = need_sleep - (sleep_end_time - sleep_start_time);
 #endif
-
-
     }
 
     express_printf("native windows close!\n");
@@ -1022,7 +1022,10 @@ void release_texture_from_surface(Window_Buffer *surface)
 
 GLuint acquire_texture_from_image(EGL_Image *image)
 {
-
+    if (image->is_lock == 1)
+    {
+        return;
+    }
     ATOMIC_LOCK(image->display_texture_is_use);
     glFlush();
     image->is_lock = 1;
@@ -1040,7 +1043,10 @@ GLuint acquire_texture_from_image(EGL_Image *image)
 
 void release_texture_from_image(EGL_Image *image)
 {
-
+    if (image->is_lock == 0)
+    {
+        return;
+    }
     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     glFlush();
     image->is_lock = 0;
