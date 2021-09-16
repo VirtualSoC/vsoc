@@ -76,10 +76,11 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
     int next_draw_buffer = (surface->now_draw + 1) % surface->buffer_num;
     //假如下一个是被锁定的状态的话，就给下下个缓冲区，被锁定一定是在被读取中，只会有一个，所以下下个肯定没有锁定
     //这样能够减少自旋空转时间，增加绘制效率
-    if(surface->display_texture_is_use[next_draw_buffer] == 1){
+    if (surface->display_texture_is_use[next_draw_buffer] == 1)
+    {
         next_draw_buffer = (next_draw_buffer + 1) % surface->buffer_num;
     }
-    assert(surface->display_texture_is_use[next_draw_buffer]==0);
+    assert(surface->display_texture_is_use[next_draw_buffer] == 0);
     ATOMIC_LOCK(surface->display_texture_is_use[next_draw_buffer]);
     surface->now_draw = next_draw_buffer;
     // surface->draw_num+=1;
@@ -700,7 +701,8 @@ void d_eglIamComposer(void *context, EGLSurface surface)
         real_surface->I_am_composer = 1;
     }
 
-    if(has_pbuffer_composer == 1){
+    if (has_pbuffer_composer == 1)
+    {
         return;
     }
     real_surface->I_am_composer = 1;
@@ -742,8 +744,9 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
             //不需要手动destroy，因为native_window_surface_map带有默认销毁函数，所以在覆盖时会先调用销毁函数再覆盖
             // render_surface_destroy(host_surface);
         }
-        if(host_surface != NULL && now_eglconfig != host_surface->config){
-            express_printf("config change %lx host surface%lx\n",now_eglconfig, host_surface->config);
+        if (host_surface != NULL && now_eglconfig != host_surface->config)
+        {
+            express_printf("config change %lx host surface%lx\n", now_eglconfig, host_surface->config);
             // assert(0);
         }
         host_surface = render_surface_create(config, attrib_list, WINDOW_SURFACE);
@@ -764,9 +767,8 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
-    printf("destroy surface %lx\n",real_surface);
+    printf("destroy surface %lx\n", real_surface);
     if (real_surface == NULL)
     {
         return EGL_FALSE;
@@ -867,7 +869,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     Process_Context *process_context = thread_context->process_context;
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
-    
+
     //这里只是简单从map中移除，因为surface来自于ANativeWindow，它是仍然存在的，所以surface依然需要存在
     if (surface != NULL && real_image == NULL)
     {
@@ -875,12 +877,13 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
         set_surface_gbuffer_id(NULL, gbuffer_id);
         return EGL_TRUE;
     }
-    
+
     //根据framework代码来看，每次queuebuffer后都会创建一次image，删除一次image，但是gbuffer都会存在，所以只有进程终止了之后才能删除它
     // printf("destroy image %lx\n",real_image);
     if (real_image != NULL)
     {
-        if(real_image->is_lock){
+        if (real_image->is_lock)
+        {
             release_texture_from_image(real_image);
         }
         // g_hash_table_remove(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id));
@@ -896,6 +899,7 @@ EGL_Image *create_real_image(void *context, int width, int height)
 {
     // @todo createimage的时候，是否有openglcontext状态？假如没有的话是否应该延迟到使用的时候？
     EGL_Image *real_image = g_malloc(sizeof(EGL_Image));
+    memset(real_image, 0, sizeof(EGL_Image));
 
     GLuint pre_vbo;
     GLuint pre_texture;
@@ -908,6 +912,7 @@ EGL_Image *create_real_image(void *context, int width, int height)
     real_image->fbo_sync = NULL;
     real_image->fbo_sync_need_delete = NULL;
     real_image->display_texture_is_use = 0;
+    real_image->is_lock = 0;
 
     glGenTextures(1, &(real_image->fbo_texture));
     glGenFramebuffers(1, &(real_image->display_fbo));

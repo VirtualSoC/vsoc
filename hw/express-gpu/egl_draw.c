@@ -173,6 +173,29 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
 
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 
+    gint64 now_time = g_get_real_time();
+    static gint64 last_calc_time = 0;
+    static int now_screen_hz = 0;
+
+    //计算合成器的帧率
+    if (now_time - last_calc_time > 1000000 && last_calc_time != 0)
+    {
+        printf("composer draw %dHz\n", now_screen_hz);
+        now_screen_hz = 0;
+    
+        last_calc_time = now_time;
+    }
+    else if (last_calc_time == 0)
+    {
+        last_calc_time = now_time;
+        now_screen_hz = 0;
+    }
+    else
+    {
+        now_screen_hz += 1;
+    }
+
+
     //queuebuffer似乎不需要垂直同步
 
     //垂直同步
