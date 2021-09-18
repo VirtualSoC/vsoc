@@ -91,7 +91,10 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
         express_printf("gl decode invoke %llu\n", fun_id);
         gl3_decode_invoke(render_context, call);
     }
-
+    GLenum error_code = glGetError();
+    if(error_code!=GL_NO_ERROR){
+        printf("#fun_id %llu get error %lx\n",fun_id,error_code);
+    }
     return;
 }
 

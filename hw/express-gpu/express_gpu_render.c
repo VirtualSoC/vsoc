@@ -1022,6 +1022,7 @@ void release_texture_from_surface(Window_Buffer *surface)
 
 GLuint acquire_texture_from_image(EGL_Image *image)
 {
+    printf("lock on image %lx gbuffer_id %lx\n",image,image->gbuffer_id);
     if (image->is_lock == 1)
     {
         return;
@@ -1043,6 +1044,8 @@ GLuint acquire_texture_from_image(EGL_Image *image)
 
 void release_texture_from_image(EGL_Image *image)
 {
+    printf("release on image %lx gbuffer_id %lx\n",image,image->gbuffer_id);
+
     if (image->is_lock == 0)
     {
         return;

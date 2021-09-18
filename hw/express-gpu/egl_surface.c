@@ -824,7 +824,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
         return;
     }
 
-    express_printf("create image, gbuffer_id %lx\n", gbuffer_id);
+    express_printf("create image, gbuffer_id %lx, image %lx\n", gbuffer_id, guest_image);
 
     //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface
     //所以手动给它创建一个image
@@ -945,6 +945,10 @@ void destroy_real_image(EGL_Image *real_image)
     if (real_image->fbo_sync != NULL)
     {
         glDeleteSync(real_image->fbo_sync);
+    }
+    if (real_image->fbo_sync_need_delete != NULL)
+    {
+        glDeleteSync(real_image->fbo_sync_need_delete);
     }
     g_free(real_image);
     return;
