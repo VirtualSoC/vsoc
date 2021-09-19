@@ -169,7 +169,6 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     egl_image->is_lock = 0;
     egl_image->display_texture_is_use = 0;
 
-    // printf("queue buffer image %lx\n",egl_image);
 
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 

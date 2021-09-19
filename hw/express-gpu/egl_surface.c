@@ -824,7 +824,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
         return;
     }
 
-    express_printf("create image, gbuffer_id %lx, image %lx\n", gbuffer_id, guest_image);
+    express_printf("create image, gbuffer_id %llx, image %llx\n", gbuffer_id, guest_image);
 
     //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface
     //所以手动给它创建一个image
