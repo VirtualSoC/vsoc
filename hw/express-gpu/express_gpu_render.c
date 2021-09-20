@@ -475,6 +475,84 @@ static void opengl_paint(Window_Buffer *d_buffer)
     }
 }
 
+static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
+                            GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+{
+    // 忽略一些不是错误的id
+    if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
+        return;
+
+    printf("main debug message(%u):%s\n", id, message);
+    switch (source)
+    {
+    case GL_DEBUG_SOURCE_API:
+        printf("Source: API ");
+        break;
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+        printf("Source: Window System ");
+        break;
+    case GL_DEBUG_SOURCE_SHADER_COMPILER:
+        printf("Source: Shader Compiler ");
+        break;
+    case GL_DEBUG_SOURCE_THIRD_PARTY:
+        printf("Source: Third Party ");
+        break;
+    case GL_DEBUG_SOURCE_APPLICATION:
+        printf("Source: APPLICATION ");
+        break;
+    case GL_DEBUG_SOURCE_OTHER:
+        break;
+    }
+
+    switch (type)
+    {
+    case GL_DEBUG_TYPE_ERROR:
+        printf("Type: Error ");
+        break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        printf("Type: Deprecated Behaviour ");
+        break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        printf("Type: Undefined Behaviour ");
+        break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+        printf("Type: Portability ");
+        break;
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        printf("Type: Performance ");
+        break;
+    case GL_DEBUG_TYPE_MARKER:
+        printf("Type: Marker ");
+        break;
+    case GL_DEBUG_TYPE_PUSH_GROUP:
+        printf("Type: Push Group ");
+        break;
+    case GL_DEBUG_TYPE_POP_GROUP:
+        printf("Type: Pop Group ");
+        break;
+    case GL_DEBUG_TYPE_OTHER:
+        printf("Type: Other ");
+        break;
+    }
+
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_HIGH:
+        printf("Severity: high");
+        break;
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        printf("Severity: medium");
+        break;
+    case GL_DEBUG_SEVERITY_LOW:
+        printf("Severity: low");
+        break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        printf("Severity: notification");
+        break;
+    }
+    printf("\n");
+}
+
 /**
  * @brief 创建opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
  * 
@@ -510,7 +588,10 @@ static GLFWwindow *native_window_create()
 
     // #else
     //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
+
+   
     if (child_window == NULL)
     {
         char *s;
@@ -560,6 +641,7 @@ void *native_window_thread(void *opaque)
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 
     express_printf("window width %ld, height %ld\n", rcParent.right, rcParent.bottom);
 
@@ -663,6 +745,20 @@ void *native_window_thread(void *opaque)
     glDisable(GL_BLEND);
     // glEnable(GL_BLEND);
     // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+//     GLint flags;
+//     glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+//     if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+//     {
+//         printf("debug on\n");
+//     }else{
+//         printf("debuf off\n");
+//     }
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback(gl_debug_output, NULL);
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+
 
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
@@ -980,6 +1076,7 @@ GLuint acquire_texture_from_surface(Window_Buffer *surface)
 
 void release_texture_from_surface(Window_Buffer *surface)
 {
+
     int now_read = surface->now_acquired;
 
     //PBuffer不允许获取texture
@@ -1022,7 +1119,7 @@ void release_texture_from_surface(Window_Buffer *surface)
 
 GLuint acquire_texture_from_image(EGL_Image *image)
 {
-    printf("lock on image %lx gbuffer_id %lx\n",image,image->gbuffer_id);
+
     if (image->is_lock == 1)
     {
         return;
@@ -1033,7 +1130,7 @@ GLuint acquire_texture_from_image(EGL_Image *image)
     if (image->fbo_sync != NULL)
     {
         //最多等待8ms
-        // glClientWaitSync(d_buffer->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
+        // glClientWaitSync(image->fbo_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
         glWaitSync(image->fbo_sync, 0, GL_TIMEOUT_IGNORED);
     }
 
@@ -1044,7 +1141,6 @@ GLuint acquire_texture_from_image(EGL_Image *image)
 
 void release_texture_from_image(EGL_Image *image)
 {
-    printf("release on image %lx gbuffer_id %lx\n",image,image->gbuffer_id);
 
     if (image->is_lock == 0)
     {

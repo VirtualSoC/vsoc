@@ -14127,6 +14127,28 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCompileShader((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
+        GLenum error = glGetError();
+        
+        if(error!=GL_NO_ERROR){
+            printf("glCompileShader %x guest %u host %u\n",error,shader,(GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
+        }
+        GLint compiled;
+        glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_COMPILE_STATUS, &compiled);
+
+        // GLenum error = glGetError();
+        //     printf("glGetShaderiv %x\n",error);
+        if (!compiled) {
+            GLint infoLen = 0;
+            glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_INFO_LOG_LENGTH, &infoLen);
+            printf("shader not compile");
+            if (infoLen > 1) {
+                char *infoLog = (char *) g_malloc(sizeof(char) * infoLen);
+                glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), infoLen, NULL, infoLog);
+                printf("#Error compiling shader:\n%s\n", infoLog);
+                g_free(infoLog);
+            }
+        }
+
     }
     break;
 
@@ -14675,6 +14697,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
+        printf("FramebufferTexture2D target %x attachment %x textarget %x guest %u texture %u level %d\n",target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
         glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
     }
     break;

@@ -5,6 +5,91 @@
 #include "express-gpu/egl_context.h"
 #include "express-gpu/glv3_context.h"
 
+static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
+                                     GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+{
+    // 忽略一些不是错误的id
+    if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
+        return;
+    if (severity == GL_DEBUG_SEVERITY_LOW || severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+    {
+        return;
+    }
+    if(id == 1282){
+        printf("debug\n");
+    }
+
+    printf("\ndebug message(%u):%s\n", id, message);
+    switch (source)
+    {
+    case GL_DEBUG_SOURCE_API:
+        printf("Source: API ");
+        break;
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+        printf("Source: Window System ");
+        break;
+    case GL_DEBUG_SOURCE_SHADER_COMPILER:
+        printf("Source: Shader Compiler ");
+        break;
+    case GL_DEBUG_SOURCE_THIRD_PARTY:
+        printf("Source: Third Party ");
+        break;
+    case GL_DEBUG_SOURCE_APPLICATION:
+        printf("Source: APPLICATION ");
+        break;
+    case GL_DEBUG_SOURCE_OTHER:
+        break;
+    }
+
+    switch (type)
+    {
+    case GL_DEBUG_TYPE_ERROR:
+        printf("Type: Error ");
+        break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        printf("Type: Deprecated Behaviour ");
+        break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        printf("Type: Undefined Behaviour ");
+        break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+        printf("Type: Portability ");
+        break;
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        printf("Type: Performance ");
+        break;
+    case GL_DEBUG_TYPE_MARKER:
+        printf("Type: Marker ");
+        break;
+    case GL_DEBUG_TYPE_PUSH_GROUP:
+        printf("Type: Push Group ");
+        break;
+    case GL_DEBUG_TYPE_POP_GROUP:
+        printf("Type: Pop Group ");
+        break;
+    case GL_DEBUG_TYPE_OTHER:
+        printf("Type: Other ");
+        break;
+    }
+
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_HIGH:
+        printf("Severity: high");
+        break;
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        printf("Severity: medium");
+        break;
+    case GL_DEBUG_SEVERITY_LOW:
+        printf("Severity: low");
+        break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        printf("Severity: notification");
+        break;
+    }
+    printf("\n");
+}
+
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
@@ -59,6 +144,19 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     glfwMakeContextCurrent(real_opengl_context->window);
 
+    GLint flags;
+    // glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+    // if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+    // {
+    //     printf("debug on\n");
+    // }else{
+    //     printf("debuf off\n");
+    // }
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback(gl_debug_output, NULL);
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+
     //然后设置当前的surface和context
     thread_context->render_double_buffer_read = real_surface_read;
     real_surface_read->is_current = 1;
@@ -73,7 +171,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     real_opengl_context->view_y = 0;
     real_opengl_context->view_w = real_surface_draw->width;
     real_opengl_context->view_h = real_surface_draw->height;
-    
+
     //初始化surface
     //必须先初始化read再初始化draw，因为涉及到抗锯齿操作的glEnable操作，会影响当前状态，所以draw应该放到后面保证状态就是draw时候的
     egl_surface_init(real_surface_read, real_opengl_context->window, 0);
@@ -83,7 +181,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     //makecurrent的时候要释放所有的锁，防止死锁（可能surface之前也用过），这个时候肯定没有swapbuffer，所以直接清空就行了
     memset(real_surface_draw->display_texture_is_use, 0, sizeof(real_surface_draw->display_texture_is_use));
-
 
     //设置gbuffer_id，gbuffer_id与surface一一对应，用于找到它
     if (gbuffer_id != 0 && real_surface_draw->type == WINDOW_SURFACE)
@@ -169,8 +266,6 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     egl_image->is_lock = 0;
     egl_image->display_texture_is_use = 0;
 
-    // printf("queue buffer image %lx\n",egl_image);
-
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 
     gint64 now_time = g_get_real_time();
@@ -182,7 +277,7 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     {
         printf("composer draw %dHz\n", now_screen_hz);
         now_screen_hz = 0;
-    
+
         last_calc_time = now_time;
     }
     else if (last_calc_time == 0)
@@ -194,7 +289,6 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     {
         now_screen_hz += 1;
     }
-
 
     //queuebuffer似乎不需要垂直同步
 
@@ -284,7 +378,6 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         }
     }
 
-
     gint64 now_time = g_get_real_time();
     static gint64 last_calc_time = 0;
     static int now_screen_hz = 0;
@@ -294,7 +387,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     {
         express_printf("surface %lx draw %dHz\n", real_surface, now_screen_hz);
         now_screen_hz = 0;
-    
+
         last_calc_time = now_time;
     }
     else if (last_calc_time == 0)

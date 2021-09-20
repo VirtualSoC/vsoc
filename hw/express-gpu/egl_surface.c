@@ -173,7 +173,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     EGLint need_sampler = d_buffer->config->sample_buffers_num;
     EGLint sampler_num = d_buffer->config->samples_per_pixel;
 
-    express_printf("rgba %d %d %d %d ds %d %d MSAA %dX\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, sampler_num);
+    // express_printf("rgba %d %d %d %d ds %d %d MSAA %dX\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, sampler_num);
 
     // 2222
     // 3320
@@ -198,7 +198,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGBA2;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 2222 ");
+        // express_printf("choose rgba 2222 ");
     }
     else if (red_bits == 3 && green_bits == 3 && blue_bits == 2 && alpha_bits == 0)
     {
@@ -206,7 +206,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_R3_G3_B2;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 3320 ");
+        // express_printf("choose rgba 3320 ");
     }
     else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 0)
     {
@@ -214,7 +214,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB4;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 4440 ");
+        // express_printf("choose rgba 4440 ");
     }
     else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 4)
     {
@@ -222,7 +222,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGBA4;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 4444 ");
+        // express_printf("choose rgba 4444 ");
     }
     else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 0)
     {
@@ -230,7 +230,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB5;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 5550 ");
+        // express_printf("choose rgba 5550 ");
     }
     else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 1)
     {
@@ -238,7 +238,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB5_A1;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 5551 ");
+        // express_printf("choose rgba 5551 ");
     }
     else if (red_bits == 5 && green_bits == 6 && blue_bits == 5 && alpha_bits == 0)
     {
@@ -246,7 +246,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB565;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 5650 ");
+        // express_printf("choose rgba 5650 ");
     }
     else if (red_bits == 8 && green_bits == 0 && blue_bits == 0 && alpha_bits == 0)
     {
@@ -254,7 +254,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_R8;
         format = GL_RED;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 8000 ");
+        // express_printf("choose rgba 8000 ");
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 0 && alpha_bits == 0)
     {
@@ -262,7 +262,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RG8;
         format = GL_RG;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 8800 ");
+        // express_printf("choose rgba 8800 ");
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 0)
     {
@@ -270,7 +270,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB8;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 8880 ");
+        // express_printf("choose rgba 8880 ");
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 8)
     {
@@ -278,7 +278,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        express_printf("choose rgba 8888 ");
+        // express_printf("choose rgba 8888 ");
     }
     else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 0)
     {
@@ -286,7 +286,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB10;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
-        express_printf("choose rgba 1010100 ");
+        // express_printf("choose rgba 1010100 ");
     }
     else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 2)
     {
@@ -294,7 +294,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB10_A2;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT_2_10_10_10_REV;
-        express_printf("choose rgba 1010102 ");
+        // express_printf("choose rgba 1010102 ");
     }
     else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 0)
     {
@@ -302,7 +302,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB12;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
-        express_printf("choose rgba 1212120 ");
+        // express_printf("choose rgba 1212120 ");
     }
     else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 12)
     {
@@ -310,7 +310,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGBA12;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT;
-        express_printf("choose rgba 12121212 ");
+        // express_printf("choose rgba 12121212 ");
     }
     else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 0)
     {
@@ -318,7 +318,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGB16;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
-        express_printf("choose rgba 1616160 ");
+        // express_printf("choose rgba 1616160 ");
     }
     else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 16)
     {
@@ -326,11 +326,11 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         internal_format = GL_RGBA16;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT;
-        express_printf("choose rgba 16161616 ");
+        // express_printf("choose rgba 16161616 ");
     }
     else
     {
-        express_printf("choose rgba default ");
+        // express_printf("choose rgba default ");
     }
 
     // internal_format = GL_RG8;
@@ -340,27 +340,27 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     if (depth_bits == 16)
     {
         depth_internal_format = GL_DEPTH_COMPONENT16;
-        express_printf("GL_DEPTH_COMPONENT16\n");
+        // express_printf("GL_DEPTH_COMPONENT16\n");
     }
     else if (depth_bits == 24)
     {
         depth_internal_format = GL_DEPTH_COMPONENT24;
-        express_printf("GL_DEPTH_COMPONENT24\n");
+        // express_printf("GL_DEPTH_COMPONENT24\n");
     }
     else if (depth_bits == 32)
     {
         depth_internal_format = GL_DEPTH_COMPONENT32F;
-        express_printf("GL_DEPTH_COMPONENT32F\n");
+        // express_printf("GL_DEPTH_COMPONENT32F\n");
     }
 
     if (stencil_bits == 8)
     {
         stencil_internal_format = GL_STENCIL_INDEX8;
-        express_printf("GL_STENCIL_INDEX8\n");
+        // express_printf("GL_STENCIL_INDEX8\n");
         if (depth_internal_format == GL_DEPTH_COMPONENT24)
         {
             depth_internal_format = GL_DEPTH24_STENCIL8;
-            express_printf("GL_DEPTH24_STENCIL8\n");
+            // express_printf("GL_DEPTH24_STENCIL8\n");
         }
     }
     // depth_internal_format=0;
@@ -824,7 +824,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
         return;
     }
 
-    express_printf("create image, gbuffer_id %lx, image %lx\n", gbuffer_id, guest_image);
+    express_printf("create image, gbuffer_id %llx, image %llx\n", gbuffer_id, guest_image);
 
     //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface
     //所以手动给它创建一个image
@@ -919,7 +919,7 @@ EGL_Image *create_real_image(void *context, int width, int height)
     //egl_image不需要深度缓冲和模板缓冲
 
     glBindTexture(GL_TEXTURE_2D, real_image->fbo_texture);
-    glBindTexture(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_BYTE, NULL);
 
