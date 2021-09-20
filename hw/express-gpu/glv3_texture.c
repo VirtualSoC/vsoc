@@ -149,6 +149,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
         glTexImage2D(target, level, internalformat, width, height, border, format, type, NULL);
         return;
     }
+    // printf("teximage without size %d %d %lld\n",width,height,pixels);
 
     // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
@@ -174,6 +175,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
 void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
+    // printf("teximage withbound size %d %d %lld\n",width,height,pixels);
     glTexImage2D(target, level, internalformat, width, height, border, format, type, (void *)pixels);
 }
 
@@ -199,8 +201,17 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
+static int cnt=1;
+
+    printf("glTexSubImage2D_without target %x level %d xoffset %d yoffset %d width %d height %d format %x type %x start %d end %d cnt%d\n",target,level,xoffset,yoffset,width,height,format,type,start_loc,end_loc,cnt);
+    cnt+=1;
     //这时候是立即返回的，后续会进行dma传输
     glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, 0);
+
+    // GLenum error = glGetError();
+    // if(error!=GL_NO_ERROR){
+    //     printf("gltexsubimage2d error %x\n",error);
+    // }
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }

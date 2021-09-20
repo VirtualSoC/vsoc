@@ -55,6 +55,7 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
         {
             continue;
         }
+        // printf("create texture id %d %d\n",(int)guest_ids[i],(int)host_ids[i]);
         status->resource_id_map[guest_ids[i]] = host_ids[i];
     }
     status->max_id = max_id;

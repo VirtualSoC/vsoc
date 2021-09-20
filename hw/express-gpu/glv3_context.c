@@ -898,7 +898,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 
 void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
 {
-    express_printf("gl shader source:\n%s", string[0]);
+    express_printf("gl shader source:\n%s\n", string[0]);
     glShaderSource(shader, count, string, length);
 }
 
