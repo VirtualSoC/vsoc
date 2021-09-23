@@ -179,15 +179,10 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
         return;
     }
 
-    int window = 0, window_attrib = WGL_DRAW_TO_WINDOW_ARB;
-    RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &window_attrib, &window));
-
     int pbuffer = 0, pbuffer_attrib = WGL_DRAW_TO_PBUFFER_ARB;
     RETURN_IF_FALSE(wgl_display->wgl_ext->wglGetPixelFormatAttribivARB(dummy_ctx, id, 0, 1, &pbuffer_attrib, &pbuffer));
 
-    config->surface_type = 0;
-    if (window)
-        config->surface_type |= EGL_WINDOW_BIT;
+    config->surface_type = EGL_WINDOW_BIT;
     if (pbuffer)
         config->surface_type |= EGL_PBUFFER_BIT;
 
