@@ -108,7 +108,7 @@
 
 #define PARA_NUM_MIN_eglDestroySync (1)
 
-#define FUNID_eglCreateImage ((EXPRESS_GPU_FUN_ID << 32u) + 10038)
+#define FUNID_eglCreateImage ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10038)
 
 #define PARA_NUM_MIN_eglCreateImage (1)
 

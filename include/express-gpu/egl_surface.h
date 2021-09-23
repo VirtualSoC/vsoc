@@ -21,6 +21,8 @@ typedef struct EGL_Image{
      GLsync fbo_sync;
      GLsync fbo_sync_need_delete;
      uint64_t gbuffer_id;
+     int width;
+     int height;
 } EGL_Image;
 
 

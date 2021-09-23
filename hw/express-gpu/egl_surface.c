@@ -824,8 +824,6 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
         return;
     }
 
-    express_printf("create image, gbuffer_id %llx, image %llx\n", gbuffer_id, guest_image);
-
     //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface
     //所以手动给它创建一个image
     int width = 0;
@@ -853,6 +851,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
+    // express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u\n", thread_context->opengl_context,gbuffer_id, guest_image, width, height, real_image->fbo_texture);
 
     g_hash_table_insert(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id), (gpointer)real_image);
 
@@ -897,44 +896,65 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 
 EGL_Image *create_real_image(void *context, int width, int height)
 {
-    // @todo createimage的时候，是否有openglcontext状态？假如没有的话是否应该延迟到使用的时候？
+    // createimage的时候，是否有openglcontext状态？假如没有的话是否应该延迟到使用的时候？
+    // 实际上systemui就会在没有context的情况下调用createimage
     EGL_Image *real_image = g_malloc(sizeof(EGL_Image));
     memset(real_image, 0, sizeof(EGL_Image));
 
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+
+    int should_init = 0;
+    if (thread_context->opengl_context != NULL)
+    {
+        should_init = 1;
+    }else{
+        printf("shoud not init\n");
+    }
+
     GLuint pre_vbo;
     GLuint pre_texture;
-    GLuint pre_fbo;
+    // GLuint pre_fbo;
 
-    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLuint *)&pre_vbo);
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
+    if (should_init == 1)
+    {
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLuint *)&pre_vbo);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
+        // glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
+    }
 
     real_image->fbo_sync = NULL;
     real_image->fbo_sync_need_delete = NULL;
     real_image->display_texture_is_use = 0;
+    
     real_image->is_lock = 0;
+    real_image->width = width;
+    real_image->height = height;
 
-    glGenTextures(1, &(real_image->fbo_texture));
-    glGenFramebuffers(1, &(real_image->display_fbo));
-    //egl_image不需要深度缓冲和模板缓冲
+    real_image->fbo_texture = 0;
+    real_image->display_fbo = 0;
+    if (should_init == 1)
+    {
+        glGenTextures(1, &(real_image->fbo_texture));
+        //egl_image不需要深度缓冲和模板缓冲
 
-    glBindTexture(GL_TEXTURE_2D, real_image->fbo_texture);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindTexture(GL_TEXTURE_2D, real_image->fbo_texture);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_BYTE, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_BYTE, NULL);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, real_image->display_fbo);
-    //附加颜色缓冲区
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, real_image->fbo_texture, 0);
+        // glGenFramebuffers(1, &(real_image->display_fbo));
+        // glBindFramebuffer(GL_FRAMEBUFFER, real_image->display_fbo);
+        // //附加颜色缓冲区
+        // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, real_image->fbo_texture, 0);
 
-    //需要还原原来绑定的texture和fbo
-    glBindTexture(GL_TEXTURE_2D, pre_texture);
-    glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
-
+        //需要还原原来绑定的texture和fbo
+        glBindTexture(GL_TEXTURE_2D, pre_texture);
+        glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
+        // glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
+    }
     return real_image;
 }
 

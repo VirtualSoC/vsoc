@@ -15,9 +15,6 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
     {
         return;
     }
-    if(id == 1282){
-        printf("debug\n");
-    }
 
     printf("\ndebug message(%u):%s\n", id, message);
     switch (source)
@@ -138,13 +135,17 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (real_surface_read == NULL || real_surface_draw == NULL || real_opengl_context == NULL)
     {
+        // printf("#%llx makecurrent\n",real_opengl_context);
+        thread_context->opengl_context = NULL;
+        thread_context->render_double_buffer_draw = NULL;
+        thread_context->render_double_buffer_read = NULL;
         glfwMakeContextCurrent(NULL);
         return EGL_TRUE;
     }
 
     glfwMakeContextCurrent(real_opengl_context->window);
 
-    GLint flags;
+    // GLint flags;
     // glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
     // if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
     // {
@@ -166,6 +167,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     thread_context->opengl_context = real_opengl_context;
     real_opengl_context->is_current = 1;
 
+    // printf("#%llx makecurrent\n",real_opengl_context);
     //窗口大小设置一定要在init之前
     real_opengl_context->view_x = 0;
     real_opengl_context->view_y = 0;
@@ -323,6 +325,8 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         // guest_write(guest_mem_swap, &b, 0, sizeof(EGLint));
         // express_printf("invoke time %lld swap_time %lld\n",a,b);
     }
+
+    // printf("#%llx swapbuffer\n",thread_context->opengl_context);
 
     gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface);

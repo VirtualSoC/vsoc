@@ -142,14 +142,21 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     //没有绑定时，正好可以使用异步纹理传输
     Guest_Mem *guest_mem = (Guest_Mem *)pixels;
     // Scatter_Data *s_data=guest_mem->scatter_data;
+    // GLuint t;
+    // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
+    // if(width==64 &&height ==64 && buf_len ==16384){
+    //     printf("debug");
+    // }
 
+    // printf(#"%llx teximage2d %u without size %d %d len %d %lld\n",context,t,width,height,buf_len,pixels);
     if (guest_mem->all_len == 0)
     {
         //pixels=NULL
         glTexImage2D(target, level, internalformat, width, height, border, format, type, NULL);
         return;
     }
-    // printf("teximage without size %d %d %lld\n",width,height,pixels);
+
+
 
     // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
@@ -175,7 +182,9 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
 void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
-    // printf("teximage withbound size %d %d %lld\n",width,height,pixels);
+    GLuint t;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
+    printf("teximage %u size %d %d %lld\n",t,width,height,pixels);
     glTexImage2D(target, level, internalformat, width, height, border, format, type, (void *)pixels);
 }
 
@@ -200,11 +209,11 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
+    GLuint t;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
 
-static int cnt=1;
+    // printf("#%llx glTexSubImage2D_without %u target %x level %d xoffset %d yoffset %d width %d height %d format %x type %x start %d end %d\n",context,t,target,level,xoffset,yoffset,width,height,format,type,start_loc,end_loc);
 
-    printf("glTexSubImage2D_without target %x level %d xoffset %d yoffset %d width %d height %d format %x type %x start %d end %d cnt%d\n",target,level,xoffset,yoffset,width,height,format,type,start_loc,end_loc,cnt);
-    cnt+=1;
     //这时候是立即返回的，后续会进行dma传输
     glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, 0);
 

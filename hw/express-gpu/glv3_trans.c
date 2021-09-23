@@ -12966,7 +12966,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
+        // printf("#%llx bind texture host %u guest %u\n",opengl_context,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),texture);
         glBindTexture(target, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture));
     }
     break;
@@ -14696,8 +14696,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
-        printf("FramebufferTexture2D target %x attachment %x textarget %x guest %u texture %u level %d\n",target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
+        GLuint t;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
+        // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
         glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
     }
     break;

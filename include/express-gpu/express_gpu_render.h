@@ -55,6 +55,10 @@ void release_texture_from_surface(Window_Buffer *surface);
 
 GLuint acquire_texture_from_image(EGL_Image *image);
 
+void init_image_texture(EGL_Image *image);
+
+void init_image_fbo(EGL_Image *image);
+
 void release_texture_from_image(EGL_Image *image);
 
 

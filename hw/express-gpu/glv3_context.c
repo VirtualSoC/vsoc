@@ -945,6 +945,7 @@ void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES 
 
 void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
 {
+    printf("#%llx glBindEGLImage %x image %llx\n",context,target,image);
     uint64_t gbuffer_id = (uint64_t)image;
     Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
     if (real_surface != NULL)
@@ -952,10 +953,13 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         // gbuffer_id能映射到surface的情况，说明这个image用于输出，所以直接绑定texture
         if (target == GL_IMAGE_BINDING_ACCESS)
         {
+            // printf("#%llx acquire surface %lx %lx(bind eglimage)\n",context,real_surface,gbuffer_id);
             acquire_texture_from_surface(real_surface);
         }
         else if (target == GL_READ_ONLY)
         {
+            // printf("#%llx bind surface %lx %lx(bind eglimage)\n",context,real_surface,gbuffer_id);
+
             //这里读取之所以进行绑定texture，是因为image在读取的时候就是连接到texture来读取的
             glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
         }
@@ -979,18 +983,24 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         //guest端可能会调用glFramebufferTexture2D，在调用了这个函数后，还需要绑定fbo
         if (target == GL_IMAGE_BINDING_ACCESS)
         {
-            // printf("acquire image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
+            // printf("#%llx acquire image %lx %lx(bind eglimage)\n",context,egl_image,gbuffer_id);
             acquire_texture_from_image(egl_image);
         }
         else if (target == GL_READ_ONLY)
         {
-            // printf("read frome image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
+            // printf("#%llx read frome image %llx(bind eglimage) texture %u\n",context,gbuffer_id,egl_image->fbo_texture);
+            // if(real_surface->I_am_composer){
+                init_image_texture(egl_image);
+            // }
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
         }
         else if (target == GL_WRITE_ONLY)
         {
             // printf("draw to image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             //这个write_only一定出现在read_only之后，所以不需要加锁
+            // if(real_surface->I_am_composer){
+                init_image_fbo(egl_image);
+            // }
             glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
         }
         else if (target == GL_NONE)
@@ -999,6 +1009,8 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             // printf("release image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             release_texture_from_image(egl_image);
         }
+    }else{
+        printf("gbuffer_id %llx is null\n",gbuffer_id);
     }
 }
 
@@ -1141,6 +1153,8 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     Opengl_Context *opengl_context = g_malloc(sizeof(Opengl_Context));
     opengl_context->is_current = 0;
     opengl_context->need_destroy = 0;
+    opengl_context->window = NULL;
+    
 
     //要在opengl_context里创建window，因为opengl环境保存在window里
     //send是同步的，发送完消息需要等待消息处理完

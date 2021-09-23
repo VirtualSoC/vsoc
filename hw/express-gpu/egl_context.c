@@ -45,7 +45,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
     Opengl_Context *opengl_context = opengl_context_create(real_share_context);
 
     //todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
-
+    // printf("#%llx context create share %llx\n",opengl_context,real_share_context);
     express_printf("context create %lx %lx\n", guest_context, opengl_context);
 
     g_hash_table_insert(process_context->context_map, GINT_TO_POINTER(guest_context), (gpointer)opengl_context);

@@ -476,7 +476,7 @@ static void opengl_paint(Window_Buffer *d_buffer)
 }
 
 static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
-                            GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+                                     GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
     // 忽略一些不是错误的id
     if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
@@ -591,7 +591,6 @@ static GLFWwindow *native_window_create()
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
 
-   
     if (child_window == NULL)
     {
         char *s;
@@ -746,19 +745,18 @@ void *native_window_thread(void *opaque)
     // glEnable(GL_BLEND);
     // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-//     GLint flags;
-//     glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
-//     if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
-//     {
-//         printf("debug on\n");
-//     }else{
-//         printf("debuf off\n");
-//     }
+    //     GLint flags;
+    //     glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+    //     if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+    //     {
+    //         printf("debug on\n");
+    //     }else{
+    //         printf("debuf off\n");
+    //     }
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(gl_debug_output, NULL);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-
 
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
@@ -1137,6 +1135,54 @@ GLuint acquire_texture_from_image(EGL_Image *image)
     GLuint texture = image->fbo_texture;
 
     return texture;
+}
+
+void init_image_texture(EGL_Image *image)
+{
+    if (image->fbo_texture == 0)
+    {
+        //image需要初始化，这个时候肯定有context了
+        GLuint pre_vbo;
+        GLuint pre_texture;
+        GLuint pre_fbo;
+
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLuint *)&pre_vbo);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
+
+        glGenTextures(1, &(image->fbo_texture));
+        glGenFramebuffers(1, &(image->display_fbo));
+        //egl_image不需要深度缓冲和模板缓冲
+
+        glBindTexture(GL_TEXTURE_2D, image->fbo_texture);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->width, image->height, 0, GL_RGBA, GL_BYTE, NULL);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
+        //附加颜色缓冲区
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
+
+        // 其中的texture其实可以不还原，因为紧接着就会读取
+        glBindTexture(GL_TEXTURE_2D, pre_texture);
+        glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
+        printf("image %llx need init texture %u\n", image->gbuffer_id, image->fbo_texture);
+    }
+}
+
+void init_image_fbo(EGL_Image *image)
+{
+    if (image->display_fbo == 0)
+    {
+        glGenFramebuffers(1, &(image->display_fbo));
+        glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
+        //附加颜色缓冲区
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
+    }
 }
 
 void release_texture_from_image(EGL_Image *image)
