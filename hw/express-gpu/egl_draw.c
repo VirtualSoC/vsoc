@@ -106,6 +106,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         thread_context->render_double_buffer_draw->is_current = 0;
         if (thread_context->render_double_buffer_draw->need_destroy && thread_context->render_double_buffer_draw->type == P_SURFACE)
         {
+            printf("#%llx remove draw surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_draw);
             PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_draw);
         }
     }
@@ -115,6 +116,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         thread_context->render_double_buffer_read->is_current = 0;
         if (thread_context->render_double_buffer_read->need_destroy && thread_context->render_double_buffer_read->type == P_SURFACE)
         {
+            printf("#%llx remove read surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_read);
             PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_read);
         }
     }
@@ -142,6 +144,9 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glfwMakeContextCurrent(NULL);
         return EGL_TRUE;
     }
+#ifdef DEBUG_INDEPEND_WINDOW
+    glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
+#endif
 
     glfwMakeContextCurrent(real_opengl_context->window);
 
@@ -187,9 +192,17 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     //设置gbuffer_id，gbuffer_id与surface一一对应，用于找到它
     if (gbuffer_id != 0 && real_surface_draw->type == WINDOW_SURFACE)
     {
+        printf("#%llx surface %llx makecurrent gbuffer_id %llx\n", real_opengl_context, real_surface_draw, gbuffer_id);
         //必须是设置了gbuffer_id和类型是window_surface才能设置连接，p_surface无法作为image输出
-        set_surface_gbuffer_id(real_surface_draw, gbuffer_id);
-        real_surface_draw->guest_gbuffer_id = gbuffer_id;
+        if (real_surface_draw->guest_gbuffer_id != gbuffer_id)
+        {
+            set_surface_gbuffer_id(real_surface_draw, gbuffer_id);
+            if (real_surface_draw->guest_gbuffer_id != 0)
+            {
+                set_surface_gbuffer_id(NULL, real_surface_draw->guest_gbuffer_id);
+            }
+            real_surface_draw->guest_gbuffer_id = gbuffer_id;
+        }
     }
 
     //@todo 设置各种config、attrib

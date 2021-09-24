@@ -225,13 +225,16 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
         {
             set_compose_surface(NULL);
         }
+        if(d_buffer->guest_gbuffer_id != 0){
+            set_surface_gbuffer_id(NULL,d_buffer->guest_gbuffer_id);
+        }
 
         if (d_buffer->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(d_buffer->guest_gbuffer_id) == d_buffer)
         {
             //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
             set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
         }
-        printf("real destroy surface %lx\n", d_buffer);
+        printf("real destroy surface %llx\n", d_buffer);
 
         //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
         glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
@@ -569,24 +572,26 @@ static GLFWwindow *native_window_create()
     sprintf(name, "opengl-child-window%d", cnt);
     cnt++;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+// glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-    // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
-    // int idx = 0;
-    // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
-    // {
-    //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
-    //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
-    //     glfwWindowHint(hint_enum, hint_val);
-    //     idx += 2;
-    // }
+// @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
+// int idx = 0;
+// while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
+// {
+//     int64_t hint_enum = d_buffer->window_hints.hints[idx];
+//     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
+//     glfwWindowHint(hint_enum, hint_val);
+//     idx += 2;
+// }
 
-    // //屏幕分离调试专用
-    // #ifdef DEBUG_INDEPEND_WINDOW
-    //     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    //     child_window = glfwCreateWindow(d_buffer->width, d_buffer->height, name, NULL, NULL);
+// //屏幕分离调试专用
+#ifdef DEBUG_INDEPEND_WINDOW
+    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+    child_window = glfwCreateWindow(100, 100, name, NULL, glfw_window);
 
-    // #else
+#else
     //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
@@ -600,7 +605,7 @@ static GLFWwindow *native_window_create()
 
     //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
     assert(child_window != NULL);
-    // #endif
+#endif
 
     // express_printf("create windows surface %lx\n", d_buffer);
     //todo 根据配置设置窗口属性

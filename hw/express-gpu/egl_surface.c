@@ -23,10 +23,6 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new);
 void egl_surface_swap_buffer(Window_Buffer *surface)
 {
 
-    // #ifdef DEBUG_INDEPEND_WINDOW
-    //     glfwSwapBuffers(surface->window);
-    //     return;
-    // #endif
     // GLenum ret=glGetError();
     // if(ret!=GL_NO_ERROR){
     //     express_printf("swap before get gl error %x\n",ret);
@@ -56,6 +52,13 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
 
     //解除对当前绘制的缓冲区的锁定，这个时候这个缓冲区能够被使用
     ATOMIC_UNLOCK(surface->display_texture_is_use[now_draw_buffer]);
+
+#ifdef DEBUG_INDEPEND_WINDOW
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[now_draw_buffer]);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, surface->width, surface->height, 0, 0, surface->width, surface->height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glfwSwapBuffers(surface->creater_window);
+#endif
 
     surface->now_read = surface->now_draw;
     // surface->read_num=surface->draw_num;
@@ -616,6 +619,7 @@ Window_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
     surface->height = 0;
     surface->swap_interval = 1;
     surface->guest_native_window = NULL;
+    surface->guest_gbuffer_id = 0;
 
     if (surface->type == WINDOW_SURFACE)
     {
@@ -749,6 +753,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
             express_printf("config change %lx host surface%lx\n", now_eglconfig, host_surface->config);
             // assert(0);
         }
+        printf("create sureface %llx again win %llx\n", host_surface, win);
         host_surface = render_surface_create(config, attrib_list, WINDOW_SURFACE);
         host_surface->guest_native_window = win;
         g_hash_table_insert(process_context->native_window_surface_map, GINT_TO_POINTER(win), (gpointer)host_surface);
@@ -768,7 +773,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Process_Context *process_context = thread_context->process_context;
 
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
-    printf("destroy surface %lx\n", real_surface);
+    printf("destroy surface %llx\n", real_surface);
     if (real_surface == NULL)
     {
         return EGL_FALSE;
@@ -851,7 +856,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
-    // express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u\n", thread_context->opengl_context,gbuffer_id, guest_image, width, height, real_image->fbo_texture);
+    express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u\n", thread_context->opengl_context, gbuffer_id, guest_image, width, height, real_image->fbo_texture);
 
     g_hash_table_insert(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id), (gpointer)real_image);
 
@@ -868,12 +873,18 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     Process_Context *process_context = thread_context->process_context;
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
-
-    //这里只是简单从map中移除，因为surface来自于ANativeWindow，它是仍然存在的，所以surface依然需要存在
+    printf("%llx destroy image gbuffer_id %llx surface %llx image %llx\n",thread_context->opengl_context,image,surface,real_image);
+    //这里不从map中移除，因为surface来自于ANativeWindow，只要应用没挂，它是仍然存在的，所以surface依然需要保持着映射
     if (surface != NULL && real_image == NULL)
     {
-        //后面也要确保real_image为null，是因为测试时gbuffer_id为1可能同时存在surface和image，当id为1的surface加入时，真正正在锁定的image可能无法释放
-        set_surface_gbuffer_id(NULL, gbuffer_id);
+        // //后面也要确保real_image为null，是因为测试时gbuffer_id为1可能同时存在surface和image，当id为1的surface加入时，真正正在锁定的image可能无法释放
+        // surface->ref_cnt -= 1;
+        // if(surface->ref_cnt == 0){
+        //     set_surface_gbuffer_id(NULL, gbuffer_id);
+        //     // if(surface->need_destroy == 1){
+        //     //     g_hash_table_remove(process_context->surface_map, GINT_TO_POINTER(surface));
+        //     // }
+        // }
         return EGL_TRUE;
     }
 
@@ -907,7 +918,9 @@ EGL_Image *create_real_image(void *context, int width, int height)
     if (thread_context->opengl_context != NULL)
     {
         should_init = 1;
-    }else{
+    }
+    else
+    {
         printf("shoud not init\n");
     }
 
@@ -925,7 +938,7 @@ EGL_Image *create_real_image(void *context, int width, int height)
     real_image->fbo_sync = NULL;
     real_image->fbo_sync_need_delete = NULL;
     real_image->display_texture_is_use = 0;
-    
+
     real_image->is_lock = 0;
     real_image->width = width;
     real_image->height = height;

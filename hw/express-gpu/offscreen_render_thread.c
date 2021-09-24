@@ -389,7 +389,7 @@ void render_context_init(Thread_Context *context)
 
 static void g_window_surface_map_destroy(gpointer data)
 {
-    printf("remove window_surface %lx\n",data);
+    printf("remove window_surface %llx\n",data);
     Window_Buffer *real_surface = (Window_Buffer *)data;
     if (real_surface->type == WINDOW_SURFACE)
     {
@@ -399,10 +399,10 @@ static void g_window_surface_map_destroy(gpointer data)
 
 static void g_p_surface_map_destroy(gpointer data)
 {
-    printf("remove p_surface %lx\n",data);
     Window_Buffer *real_surface = (Window_Buffer *)data;
     if (real_surface->type == P_SURFACE)
     {
+        printf("remove p_surface %llx\n",data);
         render_surface_destroy(real_surface);
     }
 }
@@ -454,6 +454,7 @@ void render_context_destroy(Thread_Context *context)
 
     if (process_context->thread_cnt == 0)
     {
+        printf("process destroy everything\n");
         g_hash_table_destroy(process_context->context_map);
         //surface_map这个是删除p_surface
         g_hash_table_destroy(process_context->surface_map);
