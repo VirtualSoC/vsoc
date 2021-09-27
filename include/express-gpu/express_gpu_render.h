@@ -33,7 +33,7 @@
 
 
 // 是否启用独立窗口进行调试的宏定义
-// #define DEBUG_INDEPEND_WINDOW
+#define DEBUG_INDEPEND_WINDOW
 
 extern HWND draw_native_window;
 

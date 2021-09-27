@@ -2137,7 +2137,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         surface = *(EGLSurface *)(temp + temp_loc);
         temp_loc += 8;
 
-        invoke_time = *(EGLSurface *)(temp + temp_loc);
+        invoke_time = *(int64_t *)(temp + temp_loc);
         temp_loc += 8;
 
         int64_t *ret_invoke_time = all_para[1].data;

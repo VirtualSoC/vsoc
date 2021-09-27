@@ -763,7 +763,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
         //假如surface之前已经有了，而且配置一样，也就是这个surface是使用的先用的ANativeWindow，则不进行创建操作，直接返回这个surface就行
     }
 
-    express_printf("surface create host %lx guest %lx\n", host_surface, guest_surface);
+    express_printf("surface create host %lx guest %lx width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height);
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
 
@@ -814,17 +814,20 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     {
         return;
     }
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
 
     uint64_t gbuffer_id = (uint64_t)buffer;
     Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
     if (surface != NULL)
     {
+        printf("#%llx create image from surface %llx",thread_context==NULL?NULL:thread_context->opengl_context,surface);
         return;
     }
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
     if (real_image != NULL)
     {
+        printf("#%llx create image from image %llx",thread_context==NULL?NULL:thread_context->opengl_context,real_image);
         real_image->display_texture_is_use = 0;
         return;
     }
@@ -854,9 +857,8 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     real_image = create_real_image(context, width, height);
     real_image->gbuffer_id = gbuffer_id;
 
-    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
-    express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u\n", thread_context->opengl_context, gbuffer_id, guest_image, width, height, real_image->fbo_texture);
+    express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u time %lld\n", thread_context->opengl_context, gbuffer_id, guest_image, width, height, real_image->fbo_texture,g_get_real_time());
 
     g_hash_table_insert(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id), (gpointer)real_image);
 
@@ -873,7 +875,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     Process_Context *process_context = thread_context->process_context;
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
-    printf("%llx destroy image gbuffer_id %llx surface %llx image %llx\n",thread_context->opengl_context,image,surface,real_image);
+    printf("%llx destroy image gbuffer_id %llx surface %llx image %llx\n", thread_context->opengl_context, image, surface, real_image);
     //这里不从map中移除，因为surface来自于ANativeWindow，只要应用没挂，它是仍然存在的，所以surface依然需要保持着映射
     if (surface != NULL && real_image == NULL)
     {

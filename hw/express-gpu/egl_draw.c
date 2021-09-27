@@ -192,14 +192,15 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     //设置gbuffer_id，gbuffer_id与surface一一对应，用于找到它
     if (gbuffer_id != 0 && real_surface_draw->type == WINDOW_SURFACE)
     {
-        printf("#%llx surface %llx makecurrent gbuffer_id %llx\n", real_opengl_context, real_surface_draw, gbuffer_id);
+        printf("#%llx surface %llx makecurrent gbuffer_id %llx width %d height %d time %lld\n", real_opengl_context, real_surface_draw, gbuffer_id, real_surface_draw->width, real_surface_draw->height,g_get_real_time());
         //必须是设置了gbuffer_id和类型是window_surface才能设置连接，p_surface无法作为image输出
         if (real_surface_draw->guest_gbuffer_id != gbuffer_id)
         {
             set_surface_gbuffer_id(real_surface_draw, gbuffer_id);
             if (real_surface_draw->guest_gbuffer_id != 0)
             {
-                set_surface_gbuffer_id(NULL, real_surface_draw->guest_gbuffer_id);
+                //这个还可能被继续用来合成，所以不能set
+                // set_surface_gbuffer_id(NULL, real_surface_draw->guest_gbuffer_id);
             }
             real_surface_draw->guest_gbuffer_id = gbuffer_id;
         }
@@ -233,6 +234,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         set_compose_surface(real_surface_draw);
     }
     // #endif
+
+    memset(real_surface_draw->display_texture_is_use, 0, sizeof(real_surface_draw->display_texture_is_use));
+    memset(real_surface_read->display_texture_is_use, 0, sizeof(real_surface_read->display_texture_is_use));
+
 
     //锁定当前画的缓冲区，表示后续要开始画了
     ATOMIC_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
