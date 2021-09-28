@@ -606,7 +606,7 @@ int egl_surface_init(Window_Buffer *d_buffer, GLFWwindow *now_window, int need_d
     return 1;
 }
 
-Window_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list, int type)
+Window_Buffer *render_surface_create(EGLConfig config, int width, int height, int type)
 {
     //@todo 处理config、处理attrib_list
 
@@ -615,8 +615,8 @@ Window_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
     Window_Buffer *surface = g_malloc(sizeof(Window_Buffer));
     memset(surface, 0, sizeof(Window_Buffer));
     surface->type = type;
-    surface->width = 0;
-    surface->height = 0;
+    surface->width = width;
+    surface->height = height;
     surface->swap_interval = 1;
     surface->guest_native_window = NULL;
     surface->guest_gbuffer_id = 0;
@@ -636,23 +636,23 @@ Window_Buffer *render_surface_create(EGLConfig config, const EGLint *attrib_list
         surface->now_read = 0;
     }
 
-    int i = 0;
-    while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
-    {
-        switch (attrib_list[i])
-        {
-        case EGL_WIDTH:
-            surface->width = attrib_list[i + 1];
-            break;
-        case EGL_HEIGHT:
-            surface->height = attrib_list[i + 1];
-            break;
-        default:
-            //todo 其他attrib属性的设置
-            break;
-        }
-        i += 2;
-    }
+    // int i = 0;
+    // while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
+    // {
+    //     switch (attrib_list[i])
+    //     {
+    //     case EGL_WIDTH:
+    //         surface->width = attrib_list[i + 1];
+    //         break;
+    //     case EGL_HEIGHT:
+    //         surface->height = attrib_list[i + 1];
+    //         break;
+    //     default:
+    //         //todo 其他attrib属性的设置
+    //         break;
+    //     }
+    //     i += 2;
+    // }
 
     surface->config = config_to_hints(config, &surface->window_hints);
 
@@ -717,7 +717,27 @@ void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    EGLSurface host_surface = (EGLSurface)render_surface_create(config, attrib_list, P_SURFACE);
+    int i = 0;
+    int width = 0;
+    int height = 0;
+    while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
+    {
+        switch (attrib_list[i])
+        {
+        case EGL_WIDTH:
+            width = attrib_list[i + 1];
+            break;
+        case EGL_HEIGHT:
+            height = attrib_list[i + 1];
+            break;
+        default:
+            //todo 其他attrib属性的设置
+            break;
+        }
+        i += 2;
+    }
+
+    EGLSurface host_surface = (EGLSurface)render_surface_create(config, width, height, P_SURFACE);
 
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
@@ -730,8 +750,31 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
     Window_Buffer *host_surface = (Window_Buffer *)g_hash_table_lookup(process_context->native_window_surface_map, GINT_TO_POINTER(win));
 
     eglConfig *now_eglconfig = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GINT_TO_POINTER(config));
+
+    int i = 0;
+    int width = 0;
+    int height = 0;
+    while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
+    {
+        switch (attrib_list[i])
+        {
+        case EGL_WIDTH:
+            width = attrib_list[i + 1];
+            break;
+        case EGL_HEIGHT:
+            height = attrib_list[i + 1];
+            break;
+        default:
+            //todo 其他attrib属性的设置
+            break;
+        }
+        i += 2;
+    }
+
     // printf("host config %lx guest config %lx surface config %lx\n",now_eglconfig,config,host_surface==NULL?0:host_surface->config);
-    if (host_surface == NULL || now_eglconfig != host_surface->config)
+
+    //现实中发现，同一个win，也可能出现surface的长和宽不一样的情况，所以这里也进行比较
+    if (host_surface == NULL || now_eglconfig != host_surface->config || width != host_surface->width || height != host_surface->height)
     {
         if (host_surface != NULL)
         {
@@ -748,13 +791,13 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
             //不需要手动destroy，因为native_window_surface_map带有默认销毁函数，所以在覆盖时会先调用销毁函数再覆盖
             // render_surface_destroy(host_surface);
         }
-        if (host_surface != NULL && now_eglconfig != host_surface->config)
+        if (host_surface != NULL && (now_eglconfig != host_surface->config || width != host_surface->width || height != host_surface->height))
         {
-            express_printf("config change %lx host surface%lx\n", now_eglconfig, host_surface->config);
+            express_printf("config change %lx host surface%lx width %d height %d => width %d height %d\n", now_eglconfig, host_surface->config, host_surface->width, host_surface->height, width, height);
             // assert(0);
         }
         printf("create sureface %llx again win %llx\n", host_surface, win);
-        host_surface = render_surface_create(config, attrib_list, WINDOW_SURFACE);
+        host_surface = render_surface_create(config, width, height, WINDOW_SURFACE);
         host_surface->guest_native_window = win;
         g_hash_table_insert(process_context->native_window_surface_map, GINT_TO_POINTER(win), (gpointer)host_surface);
     }
@@ -763,7 +806,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
         //假如surface之前已经有了，而且配置一样，也就是这个surface是使用的先用的ANativeWindow，则不进行创建操作，直接返回这个surface就行
     }
 
-    express_printf("surface create host %lx guest %lx width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height);
+    express_printf("surface create host %llx guest %llx width %d height %d guest width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
     g_hash_table_insert(process_context->surface_map, GINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
 
@@ -820,14 +863,14 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
     if (surface != NULL)
     {
-        printf("#%llx create image from surface %llx",thread_context==NULL?NULL:thread_context->opengl_context,surface);
+        printf("#%llx create image from surface %llx", thread_context == NULL ? NULL : thread_context->opengl_context, surface);
         return;
     }
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
     if (real_image != NULL)
     {
-        printf("#%llx create image from image %llx",thread_context==NULL?NULL:thread_context->opengl_context,real_image);
+        printf("#%llx create image from image %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, real_image);
         real_image->display_texture_is_use = 0;
         return;
     }
@@ -858,7 +901,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     real_image->gbuffer_id = gbuffer_id;
 
     Process_Context *process_context = thread_context->process_context;
-    express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u time %lld\n", thread_context->opengl_context, gbuffer_id, guest_image, width, height, real_image->fbo_texture,g_get_real_time());
+    express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u time %lld\n", thread_context->opengl_context, gbuffer_id, guest_image, width, height, real_image->fbo_texture, g_get_real_time());
 
     g_hash_table_insert(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id), (gpointer)real_image);
 
