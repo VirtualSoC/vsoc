@@ -26,6 +26,7 @@
 #include <windows.h>
 
 #include "ui/console.h"
+#include "express-gpu/sdl_control.h"
 
 HWND draw_native_window;
 
@@ -774,6 +775,7 @@ void *native_window_thread(void *opaque)
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
 #endif
     main_has_context = 1;
+    sdl2_no_need = 1;
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
         // glfwWaitEvents();
