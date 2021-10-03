@@ -111,12 +111,12 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 {
     Call_Para all_para[MAX_PARA_NUM];
 
-    unsigned char send_async_buf[512];
+    unsigned char *send_async_buf;
     int send_async_buf_len;
 
-    unsigned char save_buf[1024];
+    unsigned char *save_buf;
 
-    unsigned char temp_buf[1024];
+    // unsigned char temp_buf[1024];
 
     //把保存的两个参数数据取出来
 
@@ -133,54 +133,62 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     temp_len = all_para[0].data_len;
     send_async_buf_len = temp_len;
 
-    if (temp_len > 512 || temp_len % 8 != 0)
+    if ( temp_len % 8 != 0)
     {
         call->callback(call, 0);
         return;
     }
+
+    send_async_buf = g_malloc(temp_len);
 
     int null_flag = 0;
     temp = get_direct_ptr(all_para[0].data, &null_flag);
+
     if (temp == NULL)
     {
         if (temp_len != 0 && null_flag == 0)
         {
-            temp = temp_buf;
-            guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            // temp = temp_buf;
+            guest_write(all_para[0].data, send_async_buf, 0, all_para[0].data_len);
         }
         else
         {
             call->callback(call, 0);
+            g_free(send_async_buf);
             return;
-            ;
         }
     }
-    memcpy(send_async_buf, temp, temp_len);
+    else
+    {
+        memcpy(send_async_buf, temp, temp_len);
+    }
 
     temp_len = all_para[1].data_len;
 
-    if (temp_len > 1024)
-    {
-        call->callback(call, 0);
-        return;
-    }
+    save_buf = g_malloc(temp_len);
 
     null_flag = 0;
     temp = get_direct_ptr(all_para[1].data, &null_flag);
+    // printf("get direct ptr %llx\n",temp);
     if (temp == NULL)
     {
         if (temp_len != 0 && null_flag == 0)
         {
-            temp = temp_buf;
-            guest_write(all_para[1].data, temp, 0, all_para[1].data_len);
+            // temp = temp_buf;
+            guest_write(all_para[1].data, save_buf, 0, all_para[1].data_len);
         }
         else
         {
             call->callback(call, 0);
+            g_free(send_async_buf);
+            g_free(save_buf);
             return;
         }
     }
-    memcpy(save_buf, temp, temp_len);
+    else
+    {
+        memcpy(save_buf, temp, temp_len);
+    }
 
     Direct_Express_Call *unpack_call;
 
@@ -210,6 +218,9 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     }
     //所有调用完成后，这个call要回收
     call->callback(call, 1);
+    
+    g_free(send_async_buf);
+    g_free(save_buf);
     return;
 }
 
@@ -256,6 +267,7 @@ Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char 
 
         guest_mem->scatter_data = scatter_data;
         guest_mem->num = 1;
+        guest_mem->all_len = scatter_data->len;
 
         elem->para = guest_mem;
         elem->len = send_buf[i * 2 + 2];

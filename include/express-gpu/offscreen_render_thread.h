@@ -8,6 +8,10 @@
 // #include "express-gpu/express_gpu_render.h"
 
 
+// #define SEND_ASYNC_BUF_SIZE 4096
+// #define SAVE_BUF_SIZE 8192
+
+
 typedef struct Process_Context{
     GHashTable *surface_map;
     GHashTable *context_map;

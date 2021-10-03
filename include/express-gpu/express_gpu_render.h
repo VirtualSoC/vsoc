@@ -31,6 +31,9 @@
 #define ATOMIC_UNLOCK(s) atomic_cmpxchg(&(s), 1, 0)
 
 
+//是否启用opengl调试模式的宏定义
+#define ENABLE_OPENGL_DEBUG
+
 
 // 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW

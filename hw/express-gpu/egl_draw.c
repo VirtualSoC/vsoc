@@ -4,6 +4,7 @@
 #include "express-gpu/egl_surface.h"
 #include "express-gpu/egl_context.h"
 #include "express-gpu/glv3_context.h"
+#include "express-gpu/express_gpu_render.h"
 
 static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
                                      GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
@@ -150,19 +151,20 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     glfwMakeContextCurrent(real_opengl_context->window);
 
-    // GLint flags;
-    // glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
-    // if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
-    // {
-    //     printf("debug on\n");
-    // }else{
-    //     printf("debuf off\n");
-    // }
+// GLint flags;
+// glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+// if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+// {
+//     printf("debug on\n");
+// }else{
+//     printf("debuf off\n");
+// }
+#ifdef ENABLE_OPENGL_DEBUG
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(gl_debug_output, NULL);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-
+#endif
     //然后设置当前的surface和context
     thread_context->render_double_buffer_read = real_surface_read;
     real_surface_read->is_current = 1;
@@ -192,7 +194,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     //设置gbuffer_id，gbuffer_id与surface一一对应，用于找到它
     if (gbuffer_id != 0 && real_surface_draw->type == WINDOW_SURFACE)
     {
-        printf("#%llx surface %llx makecurrent gbuffer_id %llx width %d height %d time %lld\n", real_opengl_context, real_surface_draw, gbuffer_id, real_surface_draw->width, real_surface_draw->height,g_get_real_time());
+        printf("#%llx surface %llx makecurrent gbuffer_id %llx width %d height %d time %lld\n", real_opengl_context, real_surface_draw, gbuffer_id, real_surface_draw->width, real_surface_draw->height, g_get_real_time());
         //必须是设置了gbuffer_id和类型是window_surface才能设置连接，p_surface无法作为image输出
         if (real_surface_draw->guest_gbuffer_id != gbuffer_id)
         {
@@ -237,7 +239,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     memset(real_surface_draw->display_texture_is_use, 0, sizeof(real_surface_draw->display_texture_is_use));
     memset(real_surface_read->display_texture_is_use, 0, sizeof(real_surface_read->display_texture_is_use));
-
 
     //锁定当前画的缓冲区，表示后续要开始画了
     ATOMIC_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);

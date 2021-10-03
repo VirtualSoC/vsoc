@@ -82,6 +82,8 @@ static int compose_surface_lock = 0;
 
 volatile int native_render_run = 0;
 
+static int main_has_context = 0;
+
 static void opengl_paint(Window_Buffer *d_buffer);
 static GLFWwindow *native_window_create();
 
@@ -179,6 +181,11 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
 
             // MoveWindow(hwnd, (int)(rcParent.right - window_height), (int)(temp_height * 0.5), window_width, window_height, FALSE);
             MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
+
+            if (main_has_context == 1)
+            {
+                glViewport(0, 0, window_width, window_height);
+            }
         }
 
         break;
@@ -225,8 +232,9 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
         {
             set_compose_surface(NULL);
         }
-        if(d_buffer->guest_gbuffer_id != 0){
-            set_surface_gbuffer_id(NULL,d_buffer->guest_gbuffer_id);
+        if (d_buffer->guest_gbuffer_id != 0)
+        {
+            set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
         }
 
         if (d_buffer->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(d_buffer->guest_gbuffer_id) == d_buffer)
@@ -758,14 +766,16 @@ void *native_window_thread(void *opaque)
     //     }else{
     //         printf("debuf off\n");
     //     }
+
+#ifdef ENABLE_OPENGL_DEBUG
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(gl_debug_output, NULL);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-
+#endif
+    main_has_context = 1;
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
-
         // glfwWaitEvents();
         frame_start_time = g_get_real_time();
 
