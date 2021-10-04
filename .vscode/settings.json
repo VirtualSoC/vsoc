@@ -104,6 +104,10 @@
         "egl_sync.h": "c",
         "glv3_context.h": "c",
         "glfw3.h": "c",
-        "glv1.h": "c"
+        "glv1.h": "c",
+        "console.h": "c",
+        "input.h": "c",
+        "sysemu.h": "c",
+        "module.h": "c"
     }
 }

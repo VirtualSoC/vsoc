@@ -148,10 +148,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glfwMakeContextCurrent(NULL);
         return EGL_TRUE;
     }
-#ifdef DEBUG_INDEPEND_WINDOW
-    glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
-#endif
-
+    
     //等待window真正的建立起来
     int sleep_cnt = 0;
     while(real_opengl_context->window == NULL)
@@ -162,8 +159,11 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         {
             printf("wait for window creating too long!");
         }
-    }    
+    }   
 
+#ifdef DEBUG_INDEPEND_WINDOW
+    glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
+#endif 
     glfwMakeContextCurrent(real_opengl_context->window);
 
 // GLint flags;

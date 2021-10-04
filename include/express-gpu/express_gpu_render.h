@@ -38,7 +38,7 @@
 
 
 //是否启用opengl调试模式的宏定义
-#define ENABLE_OPENGL_DEBUG
+// #define ENABLE_OPENGL_DEBUG
 
 
 // 是否启用独立窗口进行调试的宏定义

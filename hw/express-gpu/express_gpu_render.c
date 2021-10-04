@@ -22,15 +22,18 @@
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/glv1.h"
 
-#include <winsock2.h>
 #include <windows.h>
 
 #include "ui/console.h"
+#include "sysemu/runstate.h"
+
 #include "express-gpu/sdl_control.h"
 
 HWND draw_native_window;
 
 GAsyncQueue *main_window_event_queue = NULL;
+
+int sdl2_no_need = 0;
 
 // #ifdef _WIN32
 // static HANDLE swap_event;
@@ -55,9 +58,9 @@ static gint64 frame_start_time = 0;
 static gint64 remain_sleep_time = 0;
 
 // static gint64 stand_frame_time = 0;
-static volatile gint64 last_gen_frame_time = 0;
-static gint64 gen_frame_time_all = 0;
-static gen_frame_cnt = 0;
+// static volatile gint64 last_gen_frame_time = 0;
+// static gint64 gen_frame_time_all = 0;
+// static gen_frame_cnt = 0;
 // static gint64 now_gen_frame_time = 0;
 
 static gint64 gen_frame_time_avg_1s = 0;
@@ -77,15 +80,13 @@ static GLFWwindow *glfw_window = NULL;
 static GLint programID = 0;
 static GLint drawVAO = 0;
 
-static long window_width;
-static long window_height;
+static long window_width = 0;
+static long window_height = 0;
 
 static Window_Buffer *compose_surface;
 static int compose_surface_lock = 0;
 
 volatile int native_render_run = 0;
-
-static int main_has_context = 0;
 
 static QemuConsole *input_receive_con = NULL;
 
@@ -93,213 +94,75 @@ static void opengl_paint(Window_Buffer *d_buffer);
 static GLFWwindow *native_window_create();
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
-/**
- * @brief 子窗口的消息处理函数，会将鼠标点击等操作直接传递给底层的窗口，并且接受来自draw线程的界面重新绘制消息以及生成context消息，并进行一定的反应
- * 
- * @param hwnd 窗口的hwnd
- * @param uMsg 消息编号
- * @param wParam 
- * @param lParam 
- * @return LRESULT 
- */
-static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+
+static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
 {
-    RECT rcParent;
-    long temp_width, temp_height;
-    switch (uMsg)
+    printf("key:%d, code:%d, action:%d, mods:%d,scancode %d\n", key, code, action, mods, glfwGetKeyScancode(key));
+}
+
+static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
+{
+    qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)xpos, 0, window_width);
+    qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)ypos, 0, window_height);
+    qemu_input_event_sync();
+}
+
+static void mouse_click_handle_callback(GLFWwindow *window, int button, int action, int mods)
+{
+    InputButton btn;
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
-    /******* Relay message to parent window *******/
-    /* mouse moving */
-    case WM_NCHITTEST:  /* 132 */
-    case WM_SETCURSOR:  /* 32 */
-    case WM_MOUSEFIRST: /* 512 */
-    /* mouse clicking */
-    case WM_MOUSEACTIVATE:              /* 33 */
-    case WM_LBUTTONDOWN: /* 513 down */ //左键按下
-    case WM_LBUTTONUP: /* 514 up */     //左键释放
-    case WM_CAPTURECHANGED:
-    case WM_APPCOMMAND:
-    case WM_NCXBUTTONDBLCLK:
-    case WM_NCXBUTTONDOWN:
-    case WM_NCXBUTTONUP:
-    case WM_LBUTTONDBLCLK: //左键双击
-    case WM_MBUTTONDBLCLK: //中键双击
-    case WM_MBUTTONDOWN:   //中键按下
-    case WM_MBUTTONUP:     //中键释放
-    case WM_RBUTTONDBLCLK: //右键双击
-    case WM_RBUTTONDOWN:   //右键按下
-    case WM_RBUTTONUP:     //右键释放
-    case WM_XBUTTONDBLCLK: //X 键双击
-    case WM_XBUTTONDOWN:   //X 键按下
-    case WM_XBUTTONUP:     //X 键释放
-    case WM_MOUSEWHEEL:    //滚滚轮
-        //鼠标事件都要传输给父窗口
-        PostMessage(GetParent(hwnd), uMsg, wParam, lParam);
-        break;
-
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-
-    case WM_SETFOCUS:
-        //焦点也需要给父窗口
-        SetFocus(GetParent(hwnd));
-        break;
-
-    /******* Creating child window *******/
-    case WM_NCCREATE:         /* 129 */
-    case WM_NCCALCSIZE:       /* 131 */
-    case WM_CREATE:           /* 1 */
-    case WM_SIZE:             /* 5 */
-    case WM_MOVE:             /* 3 */
-    case WM_SHOWWINDOW:       /* 24 */
-    case WM_NCPAINT:          /* 133 */
-    case WM_ERASEBKGND:       /* 20 */
-    case WM_WINDOWPOSCHANGED: /* 71 */
-    case WM_PAINT:            /* 15 */
-        /******* Resizing window *******/
-        /* WM_NCCALCSIZE: 131 */
-        /* WM_WINDOWPOSCHANGED: 71 */
-        /* WM_MOVE: 3 */
-        /* WM_SIZE: 5 */
-
-    case WM_WINDOWPOSCHANGING: /* 70 */
-        /******* Resizing window *******/
-        //所有重画的操作需要看看窗口大小需不需要重新调整
-        GetClientRect(GetParent(hwnd), &rcParent);
-        temp_height = rcParent.bottom;
-        temp_width = rcParent.right;
-        express_printf("windows size %d %d\n", temp_height, temp_width);
-        // if (rcParent.bottom * 4 > rcParent.right * 3){
-        //     y = (rcParent.bottom - rcParent.right * 3.0 / 4.0) / 2;
-        //     height = width * 3.0 / 4.0;
-        // } else {
-        //     x = (rcParent.right - rcParent.bottom * 4.0 / 3.0) / 2;
-        //     width = height * 4.0 / 3.0;
-        // }
-        if (temp_height != window_height)
-        {
-            window_height = temp_height;
-
-            window_width = temp_width;
-            // window_width = temp_height;
-
-            // MoveWindow(hwnd, (int)(rcParent.right - window_height), (int)(temp_height * 0.5), window_width, window_height, FALSE);
-            MoveWindow(hwnd, 0, 0, window_width, window_height, FALSE);
-
-            if (main_has_context == 1)
-            {
-                glViewport(0, 0, window_width, window_height);
-            }
-        }
-
-        break;
-    case WM_USER_PAINT:
-        //图层合成线程发来的需要渲染到界面的消息
-        //express_printf("start render\n");
-        // glClear(GL_COLOR_BUFFER_BIT);
-        // glClearColor(wParam, 1, 0, 0);
-
-        // glfwSwapBuffers(glfw_window);
-        opengl_paint((Window_Buffer *)lParam);
-        break;
-    // case WM_USER_WINDOW_CREATE:
-    //     /**
-    //      * @todo 修改窗口拉伸的逻辑，保证拉伸满足相应的比例关系
-    //      * 
-    //      */
-
-    //     //context只能是由父线程创建，以进行资源共享
-    //     // GetClientRect(GetParent(hwnd), &rcParent);
-    //     // window_height = rcParent.bottom / 2;
-    //     // window_width = rcParent.right / 2;
-    //     {
-
-    //         GLFWwindow **window_ptr = (Window_Buffer *)lParam;
-    //         if (window_ptr == NULL)
-    //         {
-    //             break;
-    //         }
-    //         // express_printf("create window %lx\n", d_buffer);
-    //         *window_ptr = native_window_create();
-    //     }
-
-    //     break;
-    // case WM_USER_SURFACE_DESTROY:
-    // {
-    //     //这个destroy调用来自于客户端进程关闭后的销毁函数
-    //     Window_Buffer *d_buffer = (Window_Buffer *)lParam;
-    //     if (d_buffer == NULL)
-    //     {
-    //         break;
-    //     }
-    //     if (d_buffer->I_am_composer)
-    //     {
-    //         set_compose_surface(NULL);
-    //     }
-    //     if (d_buffer->guest_gbuffer_id != 0)
-    //     {
-    //         set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
-    //     }
-
-    //     if (d_buffer->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(d_buffer->guest_gbuffer_id) == d_buffer)
-    //     {
-    //         //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-    //         set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
-    //     }
-    //     printf("real destroy surface %llx\n", d_buffer);
-
-    //     //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
-    //     glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
-    //     glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
-    //     glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
-    //     if (d_buffer->config->sample_buffers_num != 0)
-    //     {
-    //         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->sampler_rbo);
-    //     }
-    //     for (int i = 0; i < 5; i++)
-    //     {
-    //         if (d_buffer->delete_sync[i] != 0)
-    //         {
-    //             glDeleteSync(d_buffer->delete_sync[i]);
-    //         }
-    //     }
-    //     g_free(d_buffer);
-    // }
-    // break;
-    // case WM_USER_CONTEXT_DESTROY:
-    // {
-    //     Opengl_Context *opengl_context = (Opengl_Context *)lParam;
-    //     if (opengl_context == NULL)
-    //     {
-    //         break;
-    //     }
-
-    //     //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
-    //     glfwDestroyWindow(opengl_context->window);
-
-    //     opengl_context_destroy(opengl_context);
-    //     g_free(opengl_context);
-    // }
-    // break;
-    // case WM_USER_IMAGE_DESTROY:
-    // {
-    //     EGL_Image *real_image = (EGL_Image *)lParam;
-    //     if (real_image == NULL)
-    //     {
-    //         break;
-    //     }
-    //     set_image_gbuffer_id(NULL, real_image->gbuffer_id);
-    //     express_printf("real destroy image %lx\n", real_image);
-
-    //     destroy_real_image(real_image);
-    // }
-    // break;
-    default:
-        //express_printf("child win msg: %d\n", uMsg);
-        break;
+        btn = INPUT_BUTTON_LEFT;
     }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT)
+    {
+        btn = INPUT_BUTTON_RIGHT;
+    }
+    else if (button == GLFW_MOUSE_BUTTON_MIDDLE)
+    {
+        btn = INPUT_BUTTON_MIDDLE;
+    }
+    else
+    {
+        return;
+    }
+
+    bool press = false;
+    if (action == GLFW_PRESS)
+    {
+        press = true;
+    }
+    qemu_input_queue_btn(input_receive_con, btn, press);
+    qemu_input_event_sync();
+}
+
+static void mouse_scroll_handle_callback(GLFWwindow *window, double xoffset, double yoffset)
+{
+    InputButton btn;
+    if (yoffset > 0)
+    {
+        btn = INPUT_BUTTON_WHEEL_UP;
+    }
+    else if (yoffset < 0)
+    {
+        btn = INPUT_BUTTON_WHEEL_DOWN;
+    }
+    else
+    {
+        return;
+    }
+
+    qemu_input_queue_btn(input_receive_con, btn, true);
+    qemu_input_event_sync();
+    qemu_input_queue_btn(input_receive_con, btn, false);
+    qemu_input_event_sync();
+}
+
+void window_size_change_callback(GLFWwindow *window, int width, int height)
+{
+    window_width = width;
+    window_height = height;
+    glViewport(0, 0, width, height);
 }
 
 static void handle_child_window_event()
@@ -314,9 +177,6 @@ static void handle_child_window_event()
         case MAIN_CREATE_CHILD_WINDOW:
 
             //context只能是由父线程创建，以进行资源共享
-            // GetClientRect(GetParent(hwnd), &rcParent);
-            // window_height = rcParent.bottom / 2;
-            // window_width = rcParent.right / 2;
             {
                 GLFWwindow **window_ptr = (Window_Buffer *)child_event->data;
                 if (window_ptr == NULL)
@@ -570,6 +430,13 @@ static void opengl_paint(Window_Buffer *d_buffer)
 
     if (d_buffer->type == WINDOW_SURFACE)
     {
+        if (window_width == 0 || window_height == 0)
+        {
+            window_width = d_buffer->width;
+            window_height = d_buffer->height;
+            glViewport(0, 0, window_width, window_height);
+        }
+
         GLuint texture = acquire_texture_from_surface(d_buffer);
 
         glBindTexture(GL_TEXTURE_2D, texture);
@@ -588,6 +455,13 @@ static void opengl_paint(Window_Buffer *d_buffer)
         EGL_Image *real_image = get_image_from_gbuffer_id(d_buffer->guest_gbuffer_id);
         // printf("main acquire image %lx to read\n",real_image);
 
+        if (window_width == 0 || window_height == 0)
+        {
+            window_width = real_image->width;
+            window_height = real_image->height;
+            glViewport(0, 0, window_width, window_height);
+        }
+
         GLuint texture = acquire_texture_from_image(real_image);
 
         glBindTexture(GL_TEXTURE_2D, texture);
@@ -599,6 +473,7 @@ static void opengl_paint(Window_Buffer *d_buffer)
     }
 }
 
+#ifdef ENABLE_OPENGL_DEBUG
 static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
                                      GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
@@ -676,6 +551,8 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
     }
     printf("\n");
 }
+#endif
+
 
 /**
  * @brief 创建opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
@@ -755,28 +632,31 @@ void *native_window_thread(void *opaque)
 
     input_receive_con = con;
 
-    HWND render_hwnd = (HWND)qemu_console_get_window_id(con);
-
     sync_event_queue = g_queue_new();
 
     main_window_event_queue = g_async_queue_new();
 
-    RECT rcParent;
+    native_render_run = 2;
 
-    GetClientRect(render_hwnd, &rcParent);
+    // HWND render_hwnd = (HWND)qemu_console_get_window_id(con);
+    // RECT rcParent;
+
+    // GetClientRect(render_hwnd, &rcParent);
 
     //初始化glfw
     if (!glfwInit())
         return NULL;
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-    express_printf("window width %ld, height %ld\n", rcParent.right, rcParent.bottom);
+#ifdef ENABLE_OPENGL_DEBUG
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+#endif
 
     //创建一个窗口，这个window也是context
-    glfw_window = glfwCreateWindow(rcParent.right / 4, rcParent.bottom / 4, "opengl window", NULL, NULL);
+    //这个窗口的大小不用在意，因为之后会重新设置窗口大小
+    glfw_window = glfwCreateWindow(1024, 768, "三位一体模拟器", NULL, NULL);
     if (!glfw_window)
     {
         express_printf("create window error %x\n", glfwGetError(NULL));
@@ -785,12 +665,24 @@ void *native_window_thread(void *opaque)
         return NULL;
     }
 
-    draw_native_window = glfwGetWin32Window(glfw_window);
+    //键盘事件
+    glfwSetKeyCallback(glfw_window, keyboard_handle_callback);
+    glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
-    SetParent(draw_native_window, render_hwnd);
-    SetWindowLong(draw_native_window, GWL_STYLE, WS_CHILD);
-    SetWindowLongPtr(draw_native_window, GWLP_WNDPROC, (LONG_PTR)&sub_window_proc);
-    ShowWindow(draw_native_window, TRUE);
+    //鼠标事件
+    glfwSetCursorPosCallback(glfw_window, mouse_move_handle_callback);
+    glfwSetMouseButtonCallback(glfw_window, mouse_click_handle_callback);
+    glfwSetScrollCallback(glfw_window, mouse_scroll_handle_callback);
+
+    //设置窗口大小可以自由调整
+    glfwSetFramebufferSizeCallback(glfw_window, window_size_change_callback);
+
+    // draw_native_window = glfwGetWin32Window(glfw_window);
+
+    // SetParent(draw_native_window, render_hwnd);
+    // SetWindowLong(draw_native_window, GWL_STYLE, WS_CHILD);
+    // SetWindowLongPtr(draw_native_window, GWLP_WNDPROC, (LONG_PTR)&sub_window_proc);
+    // ShowWindow(draw_native_window, TRUE);
 
     glfwMakeContextCurrent(glfw_window);
 
@@ -809,64 +701,15 @@ void *native_window_thread(void *opaque)
     glBindVertexArray(drawVAO);
 
     express_printf("native windows create!\n");
-    native_render_run = 2;
 
 #ifdef SPECIAL_SCREEN_SYNC_HZ
     glfwSwapInterval(0);
 #else
     glfwSwapInterval(1);
 #endif
-    // RECT rcParent;
-    // long height, width;
-
-    // GetClientRect(render_hwnd, &rcParent);
-    // height = rcParent.bottom / 10;
-    // width = rcParent.right / 10;
-
-    // static const char className[] = "openglWin";
-
-    // WNDCLASS wc = {};
-    // if (!GetClassInfo(GetModuleHandle(NULL), className, &wc))
-    // {
-    //     wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW; // redraw if size changes
-    //     wc.lpfnWndProc = &sub_window_proc;               // points to window procedure
-    //     wc.cbWndExtra = sizeof(void *);                // save extra window memory
-    //     wc.lpszClassName = className;                  // name of window class
-    //     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    //     RegisterClass(&wc);
-    // }
-
-    //express_printf("create child window\n");
-
-    // opengl_render_hwnd = CreateWindowEx(
-    //     WS_EX_NOPARENTNOTIFY, // do not bother our parent window
-    //     className,
-    //     "opengl",
-    //     WS_CHILD,
-    //     0, 0, width, height,
-    //     render_hwnd,
-    //     NULL,
-    //     NULL,
-    //     NULL);
-
-    // ShowWindow(opengl_render_hwnd, TRUE);
-
-    // SetBkMode()
-    // QemuThread t;
-    //此时创建用于解码的线程
-    // qemu_thread_create(&t, "render", opengl_render_thread,
-    //                    vdev, QEMU_THREAD_JOINABLE);
-
-    // MSG msg;
-    // while (GetMessage(&msg, NULL, 0, 0) > 0)
-    // {
-    //     //创建窗口的线程需要循环处理消息
-    //     TranslateMessage(&msg);
-    //     DispatchMessage(&msg);
-    // }
 
     // int a = 1;
-    glViewport(0, 0, window_width, window_height);
+    // glViewport(0, 0, window_width, window_height);
     //因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
@@ -876,23 +719,12 @@ void *native_window_thread(void *opaque)
     // glEnable(GL_BLEND);
     // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    //     GLint flags;
-    //     glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
-    //     if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
-    //     {
-    //         printf("debug on\n");
-    //     }else{
-    //         printf("debuf off\n");
-    //     }
-
 #ifdef ENABLE_OPENGL_DEBUG
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
     glDebugMessageCallback(gl_debug_output, NULL);
     glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
 #endif
-    main_has_context = 1;
-    sdl2_no_need = 1;
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
         // glfwWaitEvents();
@@ -916,11 +748,16 @@ void *native_window_thread(void *opaque)
         ATOMIC_LOCK(compose_surface_lock);
         if (compose_surface != NULL)
         {
-            // if(main_frame_num%100==0){
-            // express_printf("main draw surface %lx\n",compose_surface);
-            // }
-            // TIMER_START(paint)
             opengl_paint(compose_surface);
+
+            if (sdl2_no_need == 0 && window_width != 0 && window_height != 0)
+            {
+                sdl2_no_need = 1;
+                glfwSetWindowSize(glfw_window, window_width, window_height);
+                glfwShowWindow(glfw_window);
+            }
+
+            // TIMER_START(paint)
             // TIMER_END(paint)
 
             // TIMER_START(event)
@@ -940,6 +777,14 @@ void *native_window_thread(void *opaque)
         }
         else
         {
+            if (sdl2_no_need == 1)
+            {
+                sdl2_no_need = 0;
+                window_height = 0;
+                window_width = 0;
+                glfwHideWindow(glfw_window);
+            }
+
             // TIMER_START(event)
             ATOMIC_UNLOCK(compose_surface_lock);
             glfwPollEvents();
@@ -988,6 +833,8 @@ void *native_window_thread(void *opaque)
         remain_sleep_time = need_sleep - (sleep_end_time - sleep_start_time);
 #endif
     }
+
+    qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
 
     express_printf("native windows close!\n");
 
@@ -1399,7 +1246,6 @@ void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id)
     }
     return;
 }
-
 
 void send_message_to_main_window(int message_code, void *data)
 {

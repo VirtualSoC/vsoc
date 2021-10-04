@@ -128,16 +128,29 @@ void sdl2_2d_switch(DisplayChangeListener *dcl,
     sdl2_2d_redraw(scon);
 }
 
-int sdl2_no_need = 0;
-
 void sdl2_2d_refresh(DisplayChangeListener *dcl)
 {
     struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
 
     assert(!scon->opengl);
+    static int sdl2_all_hidden = 0;
     if(!sdl2_no_need)
     {
+        if(sdl2_all_hidden)
+        {
+            if(scon->hidden == false)
+            {
+                SDL_ShowWindow(scon->real_window);
+                sdl2_all_hidden = 0;
+            }
+        }
         graphic_hw_update(dcl->con);
+    }else{
+        sdl2_all_hidden = 1;
+        if(scon->hidden == false)
+        {
+            SDL_HideWindow(scon->real_window);
+        }
     }
     sdl2_poll_events(scon);
 }
