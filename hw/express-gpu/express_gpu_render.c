@@ -30,6 +30,8 @@
 
 HWND draw_native_window;
 
+GAsyncQueue *main_window_event_queue = NULL;
+
 // #ifdef _WIN32
 // static HANDLE swap_event;
 // #else
@@ -39,7 +41,7 @@ HWND draw_native_window;
 static unsigned int main_frame_num = 0;
 
 static int event_queue_lock;
-static GQueue *event_queue;
+static GQueue *sync_event_queue;
 
 static GHashTable *gbuffer_id_surface_map = NULL;
 static GHashTable *gbuffer_id_image_map = NULL;
@@ -84,6 +86,8 @@ static int compose_surface_lock = 0;
 volatile int native_render_run = 0;
 
 static int main_has_context = 0;
+
+static QemuConsole *input_receive_con = NULL;
 
 static void opengl_paint(Window_Buffer *d_buffer);
 static GLFWwindow *native_window_create();
@@ -199,103 +203,211 @@ static LRESULT CALLBACK sub_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
         // glfwSwapBuffers(glfw_window);
         opengl_paint((Window_Buffer *)lParam);
         break;
-    case WM_USER_WINDOW_CREATE:
-        /**
-         * @todo 修改窗口拉伸的逻辑，保证拉伸满足相应的比例关系
-         * 
-         */
+    // case WM_USER_WINDOW_CREATE:
+    //     /**
+    //      * @todo 修改窗口拉伸的逻辑，保证拉伸满足相应的比例关系
+    //      * 
+    //      */
 
-        //context只能是由父线程创建，以进行资源共享
-        // GetClientRect(GetParent(hwnd), &rcParent);
-        // window_height = rcParent.bottom / 2;
-        // window_width = rcParent.right / 2;
-        {
+    //     //context只能是由父线程创建，以进行资源共享
+    //     // GetClientRect(GetParent(hwnd), &rcParent);
+    //     // window_height = rcParent.bottom / 2;
+    //     // window_width = rcParent.right / 2;
+    //     {
 
-            GLFWwindow **window_ptr = (Window_Buffer *)lParam;
-            if (window_ptr == NULL)
-            {
-                break;
-            }
-            // express_printf("create window %lx\n", d_buffer);
-            *window_ptr = native_window_create();
-        }
+    //         GLFWwindow **window_ptr = (Window_Buffer *)lParam;
+    //         if (window_ptr == NULL)
+    //         {
+    //             break;
+    //         }
+    //         // express_printf("create window %lx\n", d_buffer);
+    //         *window_ptr = native_window_create();
+    //     }
 
-        break;
-    case WM_USER_SURFACE_DESTROY:
-    {
-        //这个destroy调用来自于客户端进程关闭后的销毁函数
-        Window_Buffer *d_buffer = (Window_Buffer *)lParam;
-        if (d_buffer == NULL)
-        {
-            break;
-        }
-        if (d_buffer->I_am_composer)
-        {
-            set_compose_surface(NULL);
-        }
-        if (d_buffer->guest_gbuffer_id != 0)
-        {
-            set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
-        }
+    //     break;
+    // case WM_USER_SURFACE_DESTROY:
+    // {
+    //     //这个destroy调用来自于客户端进程关闭后的销毁函数
+    //     Window_Buffer *d_buffer = (Window_Buffer *)lParam;
+    //     if (d_buffer == NULL)
+    //     {
+    //         break;
+    //     }
+    //     if (d_buffer->I_am_composer)
+    //     {
+    //         set_compose_surface(NULL);
+    //     }
+    //     if (d_buffer->guest_gbuffer_id != 0)
+    //     {
+    //         set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
+    //     }
 
-        if (d_buffer->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(d_buffer->guest_gbuffer_id) == d_buffer)
-        {
-            //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-            set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
-        }
-        printf("real destroy surface %llx\n", d_buffer);
+    //     if (d_buffer->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(d_buffer->guest_gbuffer_id) == d_buffer)
+    //     {
+    //         //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+    //         set_surface_gbuffer_id(NULL, d_buffer->guest_gbuffer_id);
+    //     }
+    //     printf("real destroy surface %llx\n", d_buffer);
 
-        //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
-        glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
-        glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
-        glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
-        if (d_buffer->config->sample_buffers_num != 0)
-        {
-            glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->sampler_rbo);
-        }
-        for (int i = 0; i < 5; i++)
-        {
-            if (d_buffer->delete_sync[i] != 0)
-            {
-                glDeleteSync(d_buffer->delete_sync[i]);
-            }
-        }
-        g_free(d_buffer);
-    }
-    break;
-    case WM_USER_CONTEXT_DESTROY:
-    {
-        Opengl_Context *opengl_context = (Opengl_Context *)lParam;
-        if (opengl_context == NULL)
-        {
-            break;
-        }
+    //     //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
+    //     glDeleteTextures(d_buffer->buffer_num, d_buffer->fbo_texture);
+    //     glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_depth);
+    //     glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->display_rbo_stencil);
+    //     if (d_buffer->config->sample_buffers_num != 0)
+    //     {
+    //         glDeleteRenderbuffers(d_buffer->buffer_num, d_buffer->sampler_rbo);
+    //     }
+    //     for (int i = 0; i < 5; i++)
+    //     {
+    //         if (d_buffer->delete_sync[i] != 0)
+    //         {
+    //             glDeleteSync(d_buffer->delete_sync[i]);
+    //         }
+    //     }
+    //     g_free(d_buffer);
+    // }
+    // break;
+    // case WM_USER_CONTEXT_DESTROY:
+    // {
+    //     Opengl_Context *opengl_context = (Opengl_Context *)lParam;
+    //     if (opengl_context == NULL)
+    //     {
+    //         break;
+    //     }
 
-        //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
-        glfwDestroyWindow(opengl_context->window);
+    //     //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
+    //     glfwDestroyWindow(opengl_context->window);
 
-        opengl_context_destroy(opengl_context);
-        g_free(opengl_context);
-    }
-    break;
-    case WM_USER_IMAGE_DESTROY:
-    {
-        EGL_Image *real_image = (EGL_Image *)lParam;
-        if (real_image == NULL)
-        {
-            break;
-        }
-        set_image_gbuffer_id(NULL, real_image->gbuffer_id);
-        express_printf("real destroy image %lx\n", real_image);
+    //     opengl_context_destroy(opengl_context);
+    //     g_free(opengl_context);
+    // }
+    // break;
+    // case WM_USER_IMAGE_DESTROY:
+    // {
+    //     EGL_Image *real_image = (EGL_Image *)lParam;
+    //     if (real_image == NULL)
+    //     {
+    //         break;
+    //     }
+    //     set_image_gbuffer_id(NULL, real_image->gbuffer_id);
+    //     express_printf("real destroy image %lx\n", real_image);
 
-        destroy_real_image(real_image);
-    }
-    break;
+    //     destroy_real_image(real_image);
+    // }
+    // break;
     default:
         //express_printf("child win msg: %d\n", uMsg);
         break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+static void handle_child_window_event()
+{
+    Main_window_Event *child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
+    while (child_event != NULL)
+    {
+        switch (child_event->event_code)
+        {
+        case MAIN_PAINT:
+            break;
+        case MAIN_CREATE_CHILD_WINDOW:
+
+            //context只能是由父线程创建，以进行资源共享
+            // GetClientRect(GetParent(hwnd), &rcParent);
+            // window_height = rcParent.bottom / 2;
+            // window_width = rcParent.right / 2;
+            {
+                GLFWwindow **window_ptr = (Window_Buffer *)child_event->data;
+                if (window_ptr == NULL)
+                {
+                    break;
+                }
+                // express_printf("create window %lx\n", d_buffer);
+                *window_ptr = native_window_create();
+            }
+
+            break;
+        case MAIN_DESTROY_SURFACE:
+        {
+            //这个destroy调用来自于客户端进程关闭后的销毁函数
+            Window_Buffer *surface = (Window_Buffer *)child_event->data;
+            if (surface == NULL)
+            {
+                break;
+            }
+            if (surface->I_am_composer)
+            {
+                set_compose_surface(NULL);
+            }
+            if (surface->guest_gbuffer_id != 0)
+            {
+                set_surface_gbuffer_id(NULL, surface->guest_gbuffer_id);
+            }
+
+            if (surface->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(surface->guest_gbuffer_id) == surface)
+            {
+                //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+                set_surface_gbuffer_id(NULL, surface->guest_gbuffer_id);
+            }
+            printf("real destroy surface %llx\n", surface);
+
+            //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
+            glDeleteTextures(surface->buffer_num, surface->fbo_texture);
+            glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_depth);
+            glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_stencil);
+            if (surface->config->sample_buffers_num != 0)
+            {
+                glDeleteRenderbuffers(surface->buffer_num, surface->sampler_rbo);
+            }
+            for (int i = 0; i < 5; i++)
+            {
+                if (surface->delete_sync[i] != 0)
+                {
+                    glDeleteSync(surface->delete_sync[i]);
+                }
+            }
+            g_free(surface);
+        }
+        break;
+        case MAIN_DESTROY_CONTEXT:
+        {
+            Opengl_Context *opengl_context = (Opengl_Context *)child_event->data;
+            if (opengl_context == NULL)
+            {
+                break;
+            }
+
+            //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
+            glfwDestroyWindow(opengl_context->window);
+
+            opengl_context_destroy(opengl_context);
+            g_free(opengl_context);
+        }
+        break;
+        case MAIN_DESTROY_IMAGE:
+        {
+            EGL_Image *real_image = (EGL_Image *)child_event->data;
+            if (real_image == NULL)
+            {
+                break;
+            }
+            set_image_gbuffer_id(NULL, real_image->gbuffer_id);
+            express_printf("real destroy image %lx\n", real_image);
+
+            destroy_real_image(real_image);
+        }
+        break;
+        default:
+            //express_printf("child win msg: %d\n", uMsg);
+            break;
+        }
+        g_free(child_event);
+
+        child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
+    }
+
+    return;
 }
 
 /**
@@ -640,9 +752,14 @@ void *native_window_thread(void *opaque)
         g_usleep(10000);
         express_printf("con is NULL\n");
     }
+
+    input_receive_con = con;
+
     HWND render_hwnd = (HWND)qemu_console_get_window_id(con);
 
-    event_queue = g_queue_new();
+    sync_event_queue = g_queue_new();
+
+    main_window_event_queue = g_async_queue_new();
 
     RECT rcParent;
 
@@ -787,12 +904,14 @@ void *native_window_thread(void *opaque)
         EVENT_QUEUE_LOCK;
         // if (compose_surface != NULL)
         //     SetEvent((HANDLE)compose_surface->swap_event);
-        g_queue_foreach(event_queue, g_queue_event_notify, NULL);
-        g_queue_clear(event_queue);
+        g_queue_foreach(sync_event_queue, g_queue_event_notify, NULL);
+        g_queue_clear(sync_event_queue);
         EVENT_QUEUE_UNLOCK;
         // TIMER_END(queue)
         // TIMER_OUTPUT(queue, 100)
         glClear(GL_COLOR_BUFFER_BIT);
+
+        handle_child_window_event();
 
         ATOMIC_LOCK(compose_surface_lock);
         if (compose_surface != NULL)
@@ -806,6 +925,7 @@ void *native_window_thread(void *opaque)
 
             // TIMER_START(event)
             ATOMIC_UNLOCK(compose_surface_lock);
+
             glfwPollEvents();
             // TIMER_END(event)
             // TIMER_OUTPUT(event, 100)
@@ -905,7 +1025,7 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
         while (wait_frame_num != main_frame_num)
         {
             EVENT_QUEUE_LOCK;
-            g_queue_push_tail(event_queue, (gpointer)event);
+            g_queue_push_tail(sync_event_queue, (gpointer)event);
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
             DWORD ret = WaitForSingleObject(event, 100);
@@ -927,7 +1047,7 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
         while (wait_frame_num != main_frame_num)
         {
             EVENT_QUEUE_LOCK;
-            g_queue_push_tail(event_queue, (gpointer)event);
+            g_queue_push_tail(sync_event_queue, (gpointer)event);
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
             DWORD ret = WaitForSingleObject(event, 100);
@@ -1278,4 +1398,13 @@ void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id)
         g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)image);
     }
     return;
+}
+
+
+void send_message_to_main_window(int message_code, void *data)
+{
+    Main_window_Event *event = g_malloc(sizeof(Main_window_Event));
+    event->event_code = message_code;
+    event->data = data;
+    g_async_queue_push(main_window_event_queue, (gpointer)event);
 }

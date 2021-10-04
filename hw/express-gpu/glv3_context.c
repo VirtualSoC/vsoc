@@ -1174,7 +1174,9 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
 
     //要在opengl_context里创建window，因为opengl环境保存在window里
     //send是同步的，发送完消息需要等待消息处理完
-    SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)(&(opengl_context->window)));
+    // SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)(&(opengl_context->window)));
+
+    send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(opengl_context->window));
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)

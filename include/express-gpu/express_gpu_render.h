@@ -23,6 +23,12 @@
 #define WM_USER_CONTEXT_DESTROY WM_USER + 13
 #define WM_USER_IMAGE_DESTROY WM_USER + 14
 
+#define MAIN_PAINT 1
+#define MAIN_CREATE_CHILD_WINDOW 2
+#define MAIN_DESTROY_SURFACE 3
+#define MAIN_DESTROY_CONTEXT 4
+#define MAIN_DESTROY_IMAGE 5
+
 
 
 #define ATOMIC_LOCK(s)                      \
@@ -38,7 +44,16 @@
 // 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
 
+
+typedef struct Main_window_Event{
+     int event_code;
+     void *data;
+} Main_window_Event;
+
+
 extern HWND draw_native_window;
+
+extern GAsyncQueue *main_window_event_queue;
 
 extern volatile int native_render_run;
 
@@ -73,6 +88,7 @@ EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id);
 
 void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id);
 
+void send_message_to_main_window(int message_code, void *data);
 
 // bool should_give_up_gpu();
 

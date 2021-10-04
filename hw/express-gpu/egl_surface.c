@@ -677,7 +677,8 @@ int render_surface_destroy(Window_Buffer *surface)
         //没有makecurrent的时候这些资源肯定没有被使用，但是这个时候也不能调用glDelete等函数，因为可能当前没有makecurrent，也就是没有opengl的环境
         //所以这里让主线程来清空数据
         //为什么不直接调用glfwDestroyWindow自动清空资源？因为部分共享资源不会被清空，需要手动清空
-        PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)surface);
+        // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)surface);
+        send_message_to_main_window(MAIN_DESTROY_SURFACE, surface);
         // glDeleteFramebuffers(surface->buffer_num, surface->display_fbo);
         // glDeleteTextures(surface->buffer_num, surface->fbo_texture);
         // glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo);

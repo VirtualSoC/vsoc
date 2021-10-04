@@ -430,7 +430,8 @@ static void g_context_map_destroy(gpointer data)
     else
     {
         //实际上是到主窗口调用opengl_context_destroy了
-        PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
+        // PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
+        send_message_to_main_window(MAIN_DESTROY_CONTEXT, real_context);
     }
 }
 
@@ -438,7 +439,8 @@ static void g_image_map_destroy(gpointer data)
 {
     EGL_Image *real_image = (EGL_Image *)data;
     printf("destroy image invoke\n");
-    PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
+    // PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
+    send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
 }
 
 void render_context_destroy(Thread_Context *context)

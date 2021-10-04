@@ -108,7 +108,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         if (thread_context->render_double_buffer_draw->need_destroy && thread_context->render_double_buffer_draw->type == P_SURFACE)
         {
             printf("#%llx remove draw surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_draw);
-            PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_draw);
+            // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_draw);
+            send_message_to_main_window(MAIN_DESTROY_SURFACE, thread_context->render_double_buffer_draw);
         }
     }
 
@@ -118,7 +119,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         if (thread_context->render_double_buffer_read->need_destroy && thread_context->render_double_buffer_read->type == P_SURFACE)
         {
             printf("#%llx remove read surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_read);
-            PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_read);
+            // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_read);
+            send_message_to_main_window(MAIN_DESTROY_SURFACE, thread_context->render_double_buffer_read);
         }
     }
 
@@ -128,7 +130,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     {
         if (thread_context->opengl_context->need_destroy)
         {
-            PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)(thread_context->opengl_context));
+            // PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)(thread_context->opengl_context));
+            send_message_to_main_window(MAIN_DESTROY_CONTEXT, thread_context->opengl_context);
         }
         else
         {
@@ -148,6 +151,18 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
 #endif
+
+    //等待window真正的建立起来
+    int sleep_cnt = 0;
+    while(real_opengl_context->window == NULL)
+    {
+        g_usleep(1000);
+        sleep_cnt += 1;
+        if(sleep_cnt >= 1000 && sleep_cnt % 500 == 0)
+        {
+            printf("wait for window creating too long!");
+        }
+    }    
 
     glfwMakeContextCurrent(real_opengl_context->window);
 
