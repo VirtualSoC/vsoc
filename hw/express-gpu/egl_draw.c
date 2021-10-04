@@ -6,8 +6,8 @@
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/express_gpu_render.h"
 
-static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
-                                     GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+#ifdef ENABLE_OPENGL_DEBUG
+static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
     // 忽略一些不是错误的id
     if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
@@ -87,6 +87,7 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
     }
     printf("\n");
 }
+#endif
 
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id)
 {
@@ -148,22 +149,22 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glfwMakeContextCurrent(NULL);
         return EGL_TRUE;
     }
-    
+
     //等待window真正的建立起来
     int sleep_cnt = 0;
-    while(real_opengl_context->window == NULL)
+    while (real_opengl_context->window == NULL)
     {
         g_usleep(1000);
         sleep_cnt += 1;
-        if(sleep_cnt >= 1000 && sleep_cnt % 500 == 0)
+        if (sleep_cnt >= 1000 && sleep_cnt % 500 == 0)
         {
             printf("wait for window creating too long!");
         }
-    }   
+    }
 
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
-#endif 
+#endif
     glfwMakeContextCurrent(real_opengl_context->window);
 
 // GLint flags;

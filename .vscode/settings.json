@@ -108,6 +108,8 @@
         "console.h": "c",
         "input.h": "c",
         "sysemu.h": "c",
-        "module.h": "c"
+        "module.h": "c",
+        "notify.h": "c",
+        "qapi-types-ui.h": "c"
     }
 }

@@ -83,6 +83,9 @@ static GLint drawVAO = 0;
 static long window_width = 0;
 static long window_height = 0;
 
+static long real_window_width = 0;
+static long real_window_height = 0;
+
 static Window_Buffer *compose_surface;
 static int compose_surface_lock = 0;
 
@@ -97,11 +100,42 @@ static void g_queue_event_notify(gpointer data, gpointer user_data);
 
 static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
 {
+    QKeyCode qcode;
+    bool down = false;
+
+    //@todo
+
+    if (action == GLFW_PRESS)
+    {
+        down = true;
+    }
+    else
+    {
+        down = false;
+    }
+
+    // qemu_input_event_send_key_qcode(input_receive_con, qcode, down);
+    // qemu_input_event_sync();
+
     printf("key:%d, code:%d, action:%d, mods:%d,scancode %d\n", key, code, action, mods, glfwGetKeyScancode(key));
 }
 
 static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
 {
+    if (real_window_height > window_height)
+    {
+        ypos -= (real_window_height - window_height) / 2;
+    }
+
+    if (real_window_width > window_width)
+    {
+        xpos -= (real_window_width - window_width) / 2;
+    }
+    if ((int)ypos > window_height || (int)xpos > window_width || (int)ypos < 0 || (int)xpos < 0)
+    {
+        return;
+    }
+
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)xpos, 0, window_width);
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)ypos, 0, window_height);
     qemu_input_event_sync();
@@ -160,9 +194,35 @@ static void mouse_scroll_handle_callback(GLFWwindow *window, double xoffset, dou
 
 void window_size_change_callback(GLFWwindow *window, int width, int height)
 {
-    window_width = width;
-    window_height = height;
-    glViewport(0, 0, width, height);
+    //需要保证画面比例不变
+    int x = 0, y = 0;
+    if (window_width != 0 && window_height != 0 && width != 0 && height != 0)
+    {
+        int calc_width = height * window_width / window_height;
+        int calc_height = width * window_height / window_width;
+        if (calc_width < width && calc_height > height)
+        {
+            window_width = calc_width;
+            window_height = height;
+            x = (width - calc_width) / 2;
+        }
+        else if (calc_width > width && calc_height < height)
+        {
+            window_width = width;
+            window_height = calc_height;
+            y = (height - calc_height) / 2;
+        }
+        else
+        {
+            //其他情况认为是精度计算问题，直接用新的值
+            window_width = width;
+            window_height = height;
+        }
+        real_window_width = width;
+        real_window_height = height;
+
+        glViewport(x, y, window_width, window_height);
+    }
 }
 
 static void handle_child_window_event()
@@ -434,6 +494,8 @@ static void opengl_paint(Window_Buffer *d_buffer)
         {
             window_width = d_buffer->width;
             window_height = d_buffer->height;
+            real_window_width = window_width;
+            real_window_height = window_height;
             glViewport(0, 0, window_width, window_height);
         }
 
@@ -459,6 +521,8 @@ static void opengl_paint(Window_Buffer *d_buffer)
         {
             window_width = real_image->width;
             window_height = real_image->height;
+            real_window_width = window_width;
+            real_window_height = window_height;
             glViewport(0, 0, window_width, window_height);
         }
 
@@ -552,7 +616,6 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
     printf("\n");
 }
 #endif
-
 
 /**
  * @brief 创建opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
@@ -782,6 +845,8 @@ void *native_window_thread(void *opaque)
                 sdl2_no_need = 0;
                 window_height = 0;
                 window_width = 0;
+                real_window_width = window_width;
+                real_window_height = window_height;
                 glfwHideWindow(glfw_window);
             }
 
