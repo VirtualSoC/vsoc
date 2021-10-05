@@ -122,7 +122,8 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
     qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
     qemu_input_event_sync();
 
-    printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
+
+    // printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
 }
 
 static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
