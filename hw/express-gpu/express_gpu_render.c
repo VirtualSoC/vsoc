@@ -25,6 +25,7 @@
 #include <windows.h>
 
 #include "ui/console.h"
+#include "ui/input.h"
 #include "sysemu/runstate.h"
 
 #include "express-gpu/sdl_control.h"
@@ -100,24 +101,28 @@ static void g_queue_event_notify(gpointer data, gpointer user_data);
 
 static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
 {
-    QKeyCode qcode;
+    int qcode;
     bool down = false;
 
-    //@todo
-
-    if (action == GLFW_PRESS)
+    if(code > qemu_input_map_glfw_to_qcode_len)
     {
-        down = true;
+        return;
     }
-    else
+    qcode = qemu_input_map_glfw_to_qcode[key];
+
+    if (action == GLFW_RELEASE)
     {
         down = false;
     }
+    else
+    {
+        down = true;
+    }
 
-    // qemu_input_event_send_key_qcode(input_receive_con, qcode, down);
-    // qemu_input_event_sync();
+    qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
+    qemu_input_event_sync();
 
-    printf("key:%d, code:%d, action:%d, mods:%d,scancode %d\n", key, code, action, mods, glfwGetKeyScancode(key));
+    printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
 }
 
 static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
@@ -161,10 +166,10 @@ static void mouse_click_handle_callback(GLFWwindow *window, int button, int acti
         return;
     }
 
-    bool press = false;
-    if (action == GLFW_PRESS)
+    bool press = true;
+    if (action == GLFW_RELEASE)
     {
-        press = true;
+        press = false;
     }
     qemu_input_queue_btn(input_receive_con, btn, press);
     qemu_input_event_sync();
@@ -1208,8 +1213,8 @@ void init_image_texture(EGL_Image *image)
 
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->width, image->height, 0, GL_RGBA, GL_BYTE, NULL);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
         glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
         //附加颜色缓冲区

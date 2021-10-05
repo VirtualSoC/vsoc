@@ -110,6 +110,7 @@
         "sysemu.h": "c",
         "module.h": "c",
         "notify.h": "c",
-        "qapi-types-ui.h": "c"
+        "qapi-types-ui.h": "c",
+        "sdl_control.h": "c"
     }
 }

@@ -163,3 +163,4 @@ trace-ust-all.c
 config-host.mak
 config.status
 roms/vgabios/config.mak
+.log.txt

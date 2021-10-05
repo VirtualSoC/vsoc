@@ -28,9 +28,6 @@
 [submodule "roms/QemuMacDrivers"]
 	path = roms/QemuMacDrivers
 	url = https://git.qemu.org/git/QemuMacDrivers.git
-[submodule "ui/keycodemapdb"]
-	path = ui/keycodemapdb
-	url = https://git.qemu.org/git/keycodemapdb.git
 [submodule "capstone"]
 	path = capstone
 	url = https://git.qemu.org/git/capstone.git
