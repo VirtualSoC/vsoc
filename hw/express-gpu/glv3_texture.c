@@ -419,7 +419,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     GLint asyn_texture = bound_buffer->asyn_pack_texture_buffer;
     glBindBuffer(GL_PIXEL_PACK_BUFFER, asyn_texture);
     //因为曾经bind过texture，所以这里直接bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-    glBufferData(GL_PIXEL_PACK_BUFFER, end_loc, NULL, GL_STREAM_DRAW);
+    glBufferData(GL_PIXEL_PACK_BUFFER, end_loc, NULL, GL_STREAM_READ);
     glReadPixels(x, y, width, height, format, type, 0);
 
     //注意，此句会阻塞，直到pixels全部下载下来
@@ -428,6 +428,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
 
     guest_read(guest_mem, map_pointer, 0, end_loc - start_loc);
 
+    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 }
 

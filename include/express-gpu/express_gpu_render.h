@@ -51,7 +51,7 @@ typedef struct Main_window_Event{
 } Main_window_Event;
 
 
-extern HWND draw_native_window;
+// extern HWND draw_native_window;
 
 extern GAsyncQueue *main_window_event_queue;
 
@@ -61,7 +61,7 @@ extern volatile int native_render_run;
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);
 
-int draw_wait_GSYNC(HANDLE event, int wait_frame_num);
+int draw_wait_GSYNC(void *event, int wait_frame_num);
 
 // void render_windows_create(Window_Buffer *context);
 

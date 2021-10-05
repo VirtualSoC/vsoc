@@ -22,7 +22,6 @@
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/glv1.h"
 
-#include <windows.h>
 
 #include "ui/console.h"
 #include "ui/input.h"
@@ -30,7 +29,7 @@
 
 #include "express-gpu/sdl_control.h"
 
-HWND draw_native_window;
+// HWND draw_native_window;
 
 GAsyncQueue *main_window_event_queue = NULL;
 
@@ -923,7 +922,7 @@ void *native_window_thread(void *opaque)
  * @param now_hz 
  * @return int
  */
-int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
+int draw_wait_GSYNC(void *event, int wait_frame_num)
 {
 
     //帧率太小的情况，赶不及窗口帧率，直接返回当前窗口frame_num
@@ -946,13 +945,12 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
             g_queue_push_tail(sync_event_queue, (gpointer)event);
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
-            DWORD ret = WaitForSingleObject(event, 100);
-#elif
-#endif
+            DWORD ret = WaitForSingleObject((HANDLE)event, 100);
             if (ret == WAIT_TIMEOUT)
             {
                 express_printf("gsync wait timeout\n");
-            }
+            }    
+#endif
         }
         return main_frame_num;
     }
@@ -969,12 +967,11 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
             DWORD ret = WaitForSingleObject(event, 100);
-#elif
-#endif
             if (ret == WAIT_TIMEOUT)
             {
                 express_printf("gsync wait timeout\n");
             }
+#endif
         }
         return main_frame_num;
     }
@@ -1056,7 +1053,9 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
 
 static void g_queue_event_notify(gpointer data, gpointer user_data)
 {
+#ifdef _WIN32
     SetEvent((HANDLE)data);
+#endif
     return;
 }
 
@@ -1175,7 +1174,7 @@ GLuint acquire_texture_from_image(EGL_Image *image)
 
     if (image->is_lock == 1)
     {
-        return;
+        return 0;
     }
     ATOMIC_LOCK(image->display_texture_is_use);
     glFlush();
