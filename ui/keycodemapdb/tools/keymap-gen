@@ -95,6 +95,8 @@ class Database:
     # Reference: http://www.archive.org/stream/apple-guide-macintosh-family-hardware/Apple_Guide_to_the_Macintosh_Family_Hardware_2e#page/n345/mode/2up
     MAP_ADB = "adb"
 
+    MAP_GLFW = "glfw"
+
     MAP_LIST = (
         MAP_LINUX,
         MAP_OSX,
@@ -111,6 +113,7 @@ class Database:
         MAP_QCODE,
         MAP_SUN,
         MAP_ADB,
+        MAP_GLFW,
 
         # These are derived from maps above
         MAP_XTKBD,
@@ -136,10 +139,11 @@ class Database:
         MAP_XKB: 15,
         MAP_SUN: 17,
         MAP_ADB: 18,
+        MAP_GLFW: 20,
     }
 
     ENUM_COLUMNS = {
-        MAP_QCODE: 14,
+        MAP_QCODE: 15,
     }
 
     NAME_COLUMNS = {
@@ -150,6 +154,7 @@ class Database:
         MAP_HTML: 14,
         MAP_XKB: 15,
         MAP_QCODE: 16,
+        MAP_GLFW: 19,
     }
 
     ENUM_BOUND = {
