@@ -22,14 +22,14 @@
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/glv1.h"
 
-#include <windows.h>
 
 #include "ui/console.h"
+#include "ui/input.h"
 #include "sysemu/runstate.h"
 
 #include "express-gpu/sdl_control.h"
 
-HWND draw_native_window;
+// HWND draw_native_window;
 
 GAsyncQueue *main_window_event_queue = NULL;
 
@@ -100,24 +100,29 @@ static void g_queue_event_notify(gpointer data, gpointer user_data);
 
 static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
 {
-    QKeyCode qcode;
+    int qcode;
     bool down = false;
 
-    //@todo
-
-    if (action == GLFW_PRESS)
+    if(code > qemu_input_map_glfw_to_qcode_len)
     {
-        down = true;
+        return;
     }
-    else
+    qcode = qemu_input_map_glfw_to_qcode[key];
+
+    if (action == GLFW_RELEASE)
     {
         down = false;
     }
+    else
+    {
+        down = true;
+    }
 
-    // qemu_input_event_send_key_qcode(input_receive_con, qcode, down);
-    // qemu_input_event_sync();
+    qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
+    qemu_input_event_sync();
 
-    printf("key:%d, code:%d, action:%d, mods:%d,scancode %d\n", key, code, action, mods, glfwGetKeyScancode(key));
+
+    // printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
 }
 
 static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
@@ -161,10 +166,10 @@ static void mouse_click_handle_callback(GLFWwindow *window, int button, int acti
         return;
     }
 
-    bool press = false;
-    if (action == GLFW_PRESS)
+    bool press = true;
+    if (action == GLFW_RELEASE)
     {
-        press = true;
+        press = false;
     }
     qemu_input_queue_btn(input_receive_con, btn, press);
     qemu_input_event_sync();
@@ -917,7 +922,7 @@ void *native_window_thread(void *opaque)
  * @param now_hz 
  * @return int
  */
-int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
+int draw_wait_GSYNC(void *event, int wait_frame_num)
 {
 
     //帧率太小的情况，赶不及窗口帧率，直接返回当前窗口frame_num
@@ -940,13 +945,12 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
             g_queue_push_tail(sync_event_queue, (gpointer)event);
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
-            DWORD ret = WaitForSingleObject(event, 100);
-#elif
-#endif
+            DWORD ret = WaitForSingleObject((HANDLE)event, 100);
             if (ret == WAIT_TIMEOUT)
             {
                 express_printf("gsync wait timeout\n");
-            }
+            }    
+#endif
         }
         return main_frame_num;
     }
@@ -963,12 +967,11 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
             EVENT_QUEUE_UNLOCK;
 #ifdef _WIN32
             DWORD ret = WaitForSingleObject(event, 100);
-#elif
-#endif
             if (ret == WAIT_TIMEOUT)
             {
                 express_printf("gsync wait timeout\n");
             }
+#endif
         }
         return main_frame_num;
     }
@@ -1050,7 +1053,9 @@ int draw_wait_GSYNC(HANDLE event, int wait_frame_num)
 
 static void g_queue_event_notify(gpointer data, gpointer user_data)
 {
+#ifdef _WIN32
     SetEvent((HANDLE)data);
+#endif
     return;
 }
 
@@ -1169,7 +1174,7 @@ GLuint acquire_texture_from_image(EGL_Image *image)
 
     if (image->is_lock == 1)
     {
-        return;
+        return 0;
     }
     ATOMIC_LOCK(image->display_texture_is_use);
     glFlush();
@@ -1208,8 +1213,8 @@ void init_image_texture(EGL_Image *image)
 
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->width, image->height, 0, GL_RGBA, GL_BYTE, NULL);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
         glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
         //附加颜色缓冲区

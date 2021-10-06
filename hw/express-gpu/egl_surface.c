@@ -797,8 +797,8 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
             express_printf("config change %lx host surface%lx width %d height %d => width %d height %d\n", now_eglconfig, host_surface->config, host_surface->width, host_surface->height, width, height);
             // assert(0);
         }
-        printf("create sureface %llx again win %llx\n", host_surface, win);
         host_surface = render_surface_create(config, width, height, WINDOW_SURFACE);
+        printf("create surface %llx ( use win %llx )\n", host_surface, win);
         host_surface->guest_native_window = win;
         g_hash_table_insert(process_context->native_window_surface_map, GINT_TO_POINTER(win), (gpointer)host_surface);
     }

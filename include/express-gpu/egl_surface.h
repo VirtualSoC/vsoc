@@ -43,7 +43,7 @@ typedef struct Window_Buffer
      // struct Window_Buffer *last_acquired_surface;
 
      //可以交换的事件
-     HANDLE swap_event;
+     void *swap_event;
 
      //这里用数组循环是为了方便进行设置单缓冲、双缓冲，甚至是三重缓冲
      GLuint display_fbo[5];

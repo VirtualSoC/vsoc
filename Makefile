@@ -302,6 +302,7 @@ KEYCODEMAP_FILES = \
 		 ui/input-keymap-xorgxquartz-to-qcode.c \
 		 ui/input-keymap-xorgxwin-to-qcode.c \
 		 ui/input-keymap-osx-to-qcode.c \
+		 ui/input-keymap-glfw-to-qcode.c \
 		 $(NULL)
 
 generated-files-$(CONFIG_SOFTMMU) += $(KEYCODEMAP_FILES)

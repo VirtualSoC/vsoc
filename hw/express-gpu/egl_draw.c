@@ -99,6 +99,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GINT_TO_POINTER(ctx));
 
+    printf("make current guest draw %llx read %llx context %llx\n",draw, read, ctx);
+
     //原来current的surface可能要destroy
     //但是由于surface连接到窗口，在应用一直存在，窗口一直存在时，合成时还会继续进行下去的，所以surface不能删除，只能是在应用关掉时删除
 
@@ -142,7 +144,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (real_surface_read == NULL || real_surface_draw == NULL || real_opengl_context == NULL)
     {
-        // printf("#%llx makecurrent\n",real_opengl_context);
+        printf("#%llx makecurrent null\n",real_opengl_context);
         thread_context->opengl_context = NULL;
         thread_context->render_double_buffer_draw = NULL;
         thread_context->render_double_buffer_read = NULL;
@@ -190,7 +192,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     thread_context->opengl_context = real_opengl_context;
     real_opengl_context->is_current = 1;
 
-    // printf("#%llx makecurrent\n",real_opengl_context);
+    printf("#%llx makecurrent draw surface %llx\n",real_opengl_context, real_surface_draw);
     //窗口大小设置一定要在init之前
     real_opengl_context->view_x = 0;
     real_opengl_context->view_y = 0;
@@ -361,7 +363,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         // express_printf("invoke time %lld swap_time %lld\n",a,b);
     }
 
-    // printf("#%llx swapbuffer\n",thread_context->opengl_context);
+    printf("#%llx swapbuffer real_surface %llx\n",thread_context->opengl_context, real_surface);
 
     gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface);
