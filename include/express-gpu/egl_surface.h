@@ -13,6 +13,12 @@
 #define WINDOW_SURFACE 2
 
 
+#define HAL_PIXEL_FORMAT_RGBA_8888 1
+#define HAL_PIXEL_FORMAT_RGBX_8888 2
+#define HAL_PIXEL_FORMAT_RGB_888 3
+#define HAL_PIXEL_FORMAT_RGB_565 4
+#define HAL_PIXEL_FORMAT_BGRA_8888 5
+
 typedef struct EGL_Image{
      int display_texture_is_use;
      int is_lock;
@@ -21,6 +27,12 @@ typedef struct EGL_Image{
      GLsync fbo_sync;
      GLsync fbo_sync_need_delete;
      uint64_t gbuffer_id;
+
+     int format;
+     int pixel_type;
+     int internal_format;
+     int row_byte_len;
+
      int width;
      int height;
 } EGL_Image;
@@ -147,7 +159,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
 EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface, EGLint attribute,EGLint value);
 
 
-void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target,
+EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target,
                                   EGLClientBuffer buffer, const EGLint *attrib_list,EGLImage guest_image);
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);

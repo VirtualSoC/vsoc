@@ -111,7 +111,7 @@
 //image create的地方喝使用的地方很可能不在一个线程上，所以这个要进行同步操作，同时也需要flush
 #define FUNID_eglCreateImage ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10038)
 
-#define PARA_NUM_MIN_eglCreateImage (1)
+#define PARA_NUM_MIN_eglCreateImage (2)
 
 #define FUNID_eglDestroyImage ((EXPRESS_GPU_FUN_ID << 32u) + 10039)
 

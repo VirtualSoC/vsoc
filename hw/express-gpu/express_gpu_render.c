@@ -474,7 +474,7 @@ static int opengl_prepare(GLint *program, GLint *VAO)
 
     glUseProgram(programObject);
 
-    glClearColor(1, 0, 0, 1);
+    glClearColor(0, 1, 0, 1);
 
     return 1;
 }
@@ -1211,7 +1211,7 @@ void init_image_texture(EGL_Image *image)
         glBindTexture(GL_TEXTURE_2D, image->fbo_texture);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->width, image->height, 0, GL_RGBA, GL_BYTE, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, image->internal_format, image->width, image->height, 0, image->format, image->pixel_type, NULL);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

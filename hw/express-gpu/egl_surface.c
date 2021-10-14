@@ -17,7 +17,7 @@
 #include "express-gpu/express_gpu_render.h"
 #include "express-gpu/offscreen_render_thread.h"
 
-EGL_Image *create_real_image(void *context, int width, int height);
+EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, int width, int height);
 void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new);
 
 void egl_surface_swap_buffer(Window_Buffer *surface)
@@ -336,6 +336,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         // express_printf("choose rgba default ");
     }
 
+    printf("%llx surface choose red %d green %d blue %d alpha %d depth %d\n",d_buffer, red_bits,green_bits,blue_bits,alpha_bits,depth_bits);
     // internal_format = GL_RG8;
     // format = GL_RG;
     // type = GL_UNSIGNED_BYTE;
@@ -843,7 +844,7 @@ EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface,
     return EGL_TRUE;
 }
 
-void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list, EGLImage guest_image)
+EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list, EGLImage guest_image)
 {
     //创建image，要么是使用别的应用绘制使用的缓冲区，要么是新创建的缓冲区
     //前者之前肯定有surface连接，所以肯定找得到，后者不会找得到，必须得给手动建立一个
@@ -851,12 +852,12 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     //这里buffer和guest_image是一样的，都是gbuffer_id
     if (buffer != guest_image)
     {
-        return;
+        return -1;
     }
 
     if (attrib_list == NULL)
     {
-        return;
+        return -1;
     }
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
 
@@ -864,8 +865,8 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
     if (surface != NULL)
     {
-        printf("#%llx create image from surface %llx", thread_context == NULL ? NULL : thread_context->opengl_context, surface);
-        return;
+        printf("#%llx create image from surface %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, surface);
+        return 1;
     }
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
@@ -873,13 +874,14 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     {
         printf("#%llx create image from image %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, real_image);
         real_image->display_texture_is_use = 0;
-        return;
+        return 0;
     }
 
     //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface
     //所以手动给它创建一个image
     int width = 0;
     int height = 0;
+    int format = 0;
     int i = 0;
     while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
     {
@@ -891,6 +893,8 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
         case EGL_HEIGHT:
             height = attrib_list[i + 1];
             break;
+        case EGL_TEXTURE_FORMAT:
+            format = attrib_list[i + 1];
         default:
             //todo 其他attrib属性的设置
             break;
@@ -898,8 +902,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
         i += 2;
     }
 
-    real_image = create_real_image(context, width, height);
-    real_image->gbuffer_id = gbuffer_id;
+    real_image = create_real_image(context, gbuffer_id, format, width, height);
 
     Process_Context *process_context = thread_context->process_context;
     express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u time %lld\n", thread_context->opengl_context, gbuffer_id, guest_image, width, height, real_image->fbo_texture, g_get_real_time());
@@ -907,7 +910,7 @@ void d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum tar
     g_hash_table_insert(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id), (gpointer)real_image);
 
     set_image_gbuffer_id(real_image, gbuffer_id);
-    return;
+    return 0;
 }
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
@@ -951,7 +954,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     return EGL_FALSE;
 }
 
-EGL_Image *create_real_image(void *context, int width, int height)
+EGL_Image *create_real_image(void *context,uint64_t g_buffer_id, int format, int width, int height)
 {
     // createimage的时候，是否有openglcontext状态？假如没有的话是否应该延迟到使用的时候？
     // 实际上systemui就会在没有context的情况下调用createimage
@@ -988,9 +991,52 @@ EGL_Image *create_real_image(void *context, int width, int height)
     real_image->is_lock = 0;
     real_image->width = width;
     real_image->height = height;
+    real_image->gbuffer_id = g_buffer_id;
 
     real_image->fbo_texture = 0;
     real_image->display_fbo = 0;
+
+    if(format == HAL_PIXEL_FORMAT_RGBA_8888 || format == HAL_PIXEL_FORMAT_RGBX_8888)
+    {
+        //根据鼠标显示来看，8888的情况下内存布局有反向
+        real_image->internal_format = GL_RGBA8;
+        real_image->format = GL_RGBA;
+        real_image->pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
+        real_image->row_byte_len = width * 4;
+    }
+    else if(format == HAL_PIXEL_FORMAT_BGRA_8888)
+    {
+        printf("EGLImage with g_buffer_id %llx need format BGRA_8888!!!\n", (uint64_t)g_buffer_id);
+        real_image->internal_format = GL_RGBA8;
+        real_image->format = GL_BGRA;
+        real_image->pixel_type = GL_UNSIGNED_INT_8_8_8_8;
+        real_image->row_byte_len = width * 4;
+    }
+    else if(format == HAL_PIXEL_FORMAT_RGB_888)
+    {
+        real_image->internal_format = GL_RGB8;
+        real_image->format = GL_RGB;
+        real_image->pixel_type = GL_UNSIGNED_INT;
+        real_image->row_byte_len = width * 3;
+    }
+    else if(format == HAL_PIXEL_FORMAT_RGB_565)
+    {
+        //根据视频播放来看，565的情况下内存没有反向
+        real_image->internal_format = GL_RGB565;
+        real_image->format = GL_RGB;
+        real_image->pixel_type = GL_UNSIGNED_SHORT_5_6_5;
+        real_image->row_byte_len = width * 2;
+    }
+    else
+    {
+        real_image->internal_format = GL_RGBA8;
+        real_image->format = GL_RGBA;
+        real_image->pixel_type = GL_UNSIGNED_INT;
+        real_image->row_byte_len = width * 4;
+        printf("error! unknown EGLImage format %d!!!\n",format);
+    }
+
+
     if (should_init == 1)
     {
         glGenTextures(1, &(real_image->fbo_texture));
@@ -999,7 +1045,7 @@ EGL_Image *create_real_image(void *context, int width, int height)
         glBindTexture(GL_TEXTURE_2D, real_image->fbo_texture);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_BYTE, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, real_image->internal_format, width, height, 0, real_image->format, real_image->pixel_type, NULL);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

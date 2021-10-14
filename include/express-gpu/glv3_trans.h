@@ -1538,6 +1538,17 @@
 #define PARA_NUM_MIN_glBindEGLImage (1)
 
 
+#define FUNID_glGraphicBufferData ((EXPRESS_GPU_FUN_ID << 32u) + 383)
+
+#define PARA_NUM_MIN_glGraphicBufferData (2)
+
+
+#define FUNID_glReadGraphicBuffer ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 384)
+
+#define PARA_NUM_MIN_glReadGraphicBuffer (2)
+
+
+
 void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call);
 
 #endif

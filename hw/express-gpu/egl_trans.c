@@ -1841,7 +1841,44 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_eglCreateImage(egl_context, dpy, ctx, target, buffer, attrib_list, image);
+
+        int out_buf_len = all_para[1].data_len;
+
+        unsigned char *ret_buf = NULL;
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            ret_buf = g_malloc(out_buf_len);
+        }
+        else
+        {
+            ret_buf = ret_local_buf;
+        }
+        int out_buf_loc = 0;
+
+        EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
+        out_buf_loc += sizeof(EGLint);
+
+        if (out_buf_loc > out_buf_len)
+        {
+            if (out_buf_len > MAX_OUT_BUF_LEN)
+            {
+                g_free(ret_buf);
+            }
+            break;
+        }
+        
+        EGLint ret = d_eglCreateImage(egl_context, dpy, ctx, target, buffer, attrib_list, image);
+
+        *ret_ptr = ret;
+
+        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+
+        if (out_buf_len > MAX_OUT_BUF_LEN)
+        {
+            g_free(ret_buf);
+        }
+
     }
     break;
 

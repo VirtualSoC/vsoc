@@ -26811,6 +26811,111 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         /******* end of file '2-2', 18/375 functions*******/
 
+    case FUNID_glGraphicBufferData:
+
+    {
+        uint64_t g_buffer_id;
+        int buf_len;
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGraphicBufferData)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        g_buffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
+        buf_len = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+
+        void *real_buffer = all_para[1].data;
+
+        d_glGraphicBufferData(opengl_context, g_buffer_id, buf_len, real_buffer);
+    }
+    break;
+
+
+
+    case FUNID_glReadGraphicBuffer:
+
+    {
+        uint64_t g_buffer_id;
+        int buf_len;
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glReadGraphicBuffer)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = no_ptr_buf;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        g_buffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
+        buf_len = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+
+        void *real_buffer = all_para[1].data;
+
+        d_glReadGraphicBuffer(opengl_context, g_buffer_id, buf_len, real_buffer);
+    }
+    break;
+
+
     default:
         break;
     }

@@ -39,4 +39,10 @@ void d_glReadPixels_with_bound(void *context, GLint x, GLint y, GLsizei width, G
 
 void d_glReadBuffer_special(void *context, GLenum src);
 
+
+void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, const void *real_buffer);
+
+void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, void *real_buffer);
+
+
 #endif

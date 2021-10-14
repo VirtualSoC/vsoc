@@ -156,8 +156,6 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
         return;
     }
 
-
-
     // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
 
     int start_loc = 0, end_loc = buf_len;
@@ -183,8 +181,8 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
     GLuint t;
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
-    printf("teximage %u size %d %d %lld\n",t,width,height,pixels);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
+    printf("teximage %u size %d %d %lld\n", t, width, height, pixels);
     glTexImage2D(target, level, internalformat, width, height, border, format, type, (void *)pixels);
 }
 
@@ -440,4 +438,91 @@ void d_glReadPixels_with_bound(void *context, GLint x, GLint y, GLsizei width, G
 void d_glReadBuffer_special(void *context, GLenum src)
 {
     glReadBuffer(src);
+}
+
+void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, const void *real_buffer)
+{
+    //没有绑定时，正好可以使用异步纹理传输
+    Guest_Mem *guest_mem = (Guest_Mem *)real_buffer;
+
+    EGL_Image *egl_image = get_image_from_gbuffer_id(g_buffer_id);
+
+    int row_byte_len = egl_image->row_byte_len;
+
+    if (row_byte_len * egl_image->height > buf_len)
+    {
+        printf("error! GraphicBuffer Data len error! row %d height %d get len %d", row_byte_len, egl_image->height, buf_len);
+        return;
+    }
+
+    GLuint pre_texture;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
+
+    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    GLint asyn_texture = bound_buffer->asyn_unpack_texture_buffer;
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
+
+    //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, buf_len, NULL, GL_STREAM_DRAW);
+
+    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, buf_len, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+
+    for (int i = 0; i < egl_image->height; i++)
+    {
+        guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+    }
+
+    glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+
+
+    glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
+    //这时候是立即返回的，后续会进行dma传输
+
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, egl_image->width, egl_image->height, egl_image->format, egl_image->pixel_type, NULL);
+
+    glBindTexture(GL_TEXTURE_2D, pre_texture);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    printf("get graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
+}
+
+
+void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, void *real_buffer)
+{
+    //没有绑定时，正好可以使用异步纹理传输
+    Guest_Mem *guest_mem = (Guest_Mem *)real_buffer;
+
+    EGL_Image *egl_image = get_image_from_gbuffer_id(g_buffer_id);
+
+    int row_byte_len = egl_image->row_byte_len;
+
+    if (row_byte_len * egl_image->height > buf_len)
+    {
+        printf("error! GraphicBuffer Data len error! row %d height %d get len %d", row_byte_len, egl_image->height, buf_len);
+        return;
+    }
+
+    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    GLint asyn_texture = bound_buffer->asyn_unpack_texture_buffer;
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
+
+    //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, buf_len, NULL, GL_STREAM_DRAW);
+
+    glReadPixels(0, 0, egl_image->width, egl_image->height, egl_image->format, egl_image->pixel_type, 0);
+
+
+    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, buf_len, GL_MAP_READ_BIT);
+
+    for (int i = 0; i < egl_image->height; i++)
+    {
+        guest_read(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+    }
+
+    glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    printf("send graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
 }
