@@ -129,7 +129,7 @@
 
 #define PARA_NUM_MIN_eglSwapBuffers (3)
 
-#define FUNID_eglQueueBuffer ((EXPRESS_GPU_FUN_ID << 32u) + 10043)
+#define FUNID_eglQueueBuffer ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10043)
 
 #define PARA_NUM_MIN_eglQueueBuffer (1)
 

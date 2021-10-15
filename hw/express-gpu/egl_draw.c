@@ -300,10 +300,13 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     Process_Context *process_context = thread_context->process_context;
     Window_Buffer *real_surface = thread_context->render_double_buffer_draw;
 
+    // glFlush();
+    // glFinish();
+
     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
     //防止卡死，queue之后要主动解锁
     egl_image->is_lock = 0;
-    egl_image->display_texture_is_use = 0;
+    ATOMIC_UNLOCK(egl_image->display_texture_is_use);
 
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 

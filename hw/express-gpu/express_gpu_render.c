@@ -119,7 +119,7 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
     }
 
     qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
-    qemu_input_event_sync();
+    // qemu_input_event_sync();
 
 
     // printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
@@ -143,7 +143,7 @@ static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double y
 
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)xpos, 0, window_width);
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)ypos, 0, window_height);
-    qemu_input_event_sync();
+    // qemu_input_event_sync();
 }
 
 static void mouse_click_handle_callback(GLFWwindow *window, int button, int action, int mods)
@@ -172,7 +172,7 @@ static void mouse_click_handle_callback(GLFWwindow *window, int button, int acti
         press = false;
     }
     qemu_input_queue_btn(input_receive_con, btn, press);
-    qemu_input_event_sync();
+    // qemu_input_event_sync();
 }
 
 static void mouse_scroll_handle_callback(GLFWwindow *window, double xoffset, double yoffset)
@@ -834,6 +834,7 @@ void *native_window_thread(void *opaque)
             glfwPollEvents();
             // TIMER_END(event)
             // TIMER_OUTPUT(event, 100)
+            qemu_input_event_sync();
 
             // TIMER_START(swap)
             glfwSwapBuffers(glfw_window);
@@ -858,6 +859,7 @@ void *native_window_thread(void *opaque)
             // TIMER_START(event)
             ATOMIC_UNLOCK(compose_surface_lock);
             glfwPollEvents();
+            qemu_input_event_sync();
             // TIMER_END(event)
             // TIMER_OUTPUT(event, 100)
             glfwSwapBuffers(glfw_window);
@@ -1184,7 +1186,14 @@ GLuint acquire_texture_from_image(EGL_Image *image)
         //最多等待8ms
         // glClientWaitSync(image->fbo_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
         glWaitSync(image->fbo_sync, 0, GL_TIMEOUT_IGNORED);
+        if (image->fbo_sync_need_delete != NULL)
+        {
+            glDeleteSync(image->fbo_sync_need_delete);
+        }
+        image->fbo_sync_need_delete = image->fbo_sync;
     }
+    image->fbo_sync = NULL;
+
 
     GLuint texture = image->fbo_texture;
 
