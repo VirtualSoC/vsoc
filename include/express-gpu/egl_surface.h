@@ -33,6 +33,9 @@ typedef struct EGL_Image{
      int internal_format;
      int row_byte_len;
 
+     int origin_format;
+
+     int stride;
      int width;
      int height;
 } EGL_Image;

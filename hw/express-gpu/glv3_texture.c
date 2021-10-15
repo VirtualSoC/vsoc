@@ -2,6 +2,8 @@
 
 #include "express-gpu/glv3_texture.h"
 
+void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, int end_loc);
+
 void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 {
 
@@ -449,6 +451,16 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
 
     int row_byte_len = egl_image->row_byte_len;
 
+    int real_width = egl_image->width;
+    if(real_width % (egl_image->stride) != 0)
+    {
+        real_width = (real_width / egl_image->stride + 1) * egl_image->stride;
+    }
+
+    int guest_row_byte_len = row_byte_len/egl_image->width * real_width;
+
+    printf("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d",egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
+
     if (row_byte_len * egl_image->height > buf_len)
     {
         printf("error! GraphicBuffer Data len error! row %d height %d get len %d", row_byte_len, egl_image->height, buf_len);
@@ -463,15 +475,16 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
 
     //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, buf_len, NULL, GL_STREAM_DRAW);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, row_byte_len * egl_image->height, NULL, GL_STREAM_DRAW);
 
-    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, buf_len, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, row_byte_len * egl_image->height, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
+    // GraphicBuffer里的图片是正的，放到纹理里要倒个个
     for (int i = 0; i < egl_image->height; i++)
     {
-        guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+        guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
     }
-
+    // guest_write(guest_mem, map_pointer, 0, buf_len);
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 
 

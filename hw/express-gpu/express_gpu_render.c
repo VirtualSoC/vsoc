@@ -317,7 +317,7 @@ static void handle_child_window_event()
             {
                 break;
             }
-            set_image_gbuffer_id(NULL, real_image->gbuffer_id);
+            set_image_gbuffer_id(real_image, NULL, real_image->gbuffer_id);
             express_printf("real destroy image %lx\n", real_image);
 
             destroy_real_image(real_image);
@@ -1300,19 +1300,23 @@ EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id)
     return real_image;
 }
 
-void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id)
+void set_image_gbuffer_id(EGL_Image *origin_image,EGL_Image *now_image, uint64_t gbuffer_id)
 {
     if (gbuffer_id_image_map == NULL)
     {
         return;
     }
-    if (image == NULL)
+    if(now_image == NULL)
     {
-        g_hash_table_remove(gbuffer_id_image_map, (gpointer)(gbuffer_id));
+        EGL_Image *real_image = (EGL_Image *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
+        if (real_image == origin_image)
+        {
+            g_hash_table_remove(gbuffer_id_image_map, (gpointer)(gbuffer_id));
+        }
     }
     else
     {
-        g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)image);
+        g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)now_image);
     }
     return;
 }

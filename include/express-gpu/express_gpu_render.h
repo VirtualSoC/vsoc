@@ -86,7 +86,7 @@ void set_surface_gbuffer_id(Window_Buffer *surface, uint64_t gbuffer_id);
 
 EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id);
 
-void set_image_gbuffer_id(EGL_Image *image, uint64_t gbuffer_id);
+void set_image_gbuffer_id(EGL_Image *origin_image,EGL_Image *now_image, uint64_t gbuffer_id);
 
 void send_message_to_main_window(int message_code, void *data);
 
