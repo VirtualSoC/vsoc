@@ -813,6 +813,9 @@ void *native_window_thread(void *opaque)
 
         handle_child_window_event();
 
+        glfwPollEvents();
+        qemu_input_event_sync();
+
         ATOMIC_LOCK(compose_surface_lock);
         if (compose_surface != NULL)
         {
@@ -831,10 +834,8 @@ void *native_window_thread(void *opaque)
             // TIMER_START(event)
             ATOMIC_UNLOCK(compose_surface_lock);
 
-            glfwPollEvents();
             // TIMER_END(event)
             // TIMER_OUTPUT(event, 100)
-            qemu_input_event_sync();
 
             // TIMER_START(swap)
             glfwSwapBuffers(glfw_window);
@@ -858,8 +859,7 @@ void *native_window_thread(void *opaque)
 
             // TIMER_START(event)
             ATOMIC_UNLOCK(compose_surface_lock);
-            glfwPollEvents();
-            qemu_input_event_sync();
+
             // TIMER_END(event)
             // TIMER_OUTPUT(event, 100)
             glfwSwapBuffers(glfw_window);

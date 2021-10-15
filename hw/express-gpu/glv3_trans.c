@@ -22831,12 +22831,28 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         numAttachments = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        const GLenum *attachments = (const GLenum *)(temp + temp_loc);
+        GLenum *attachments = (const GLenum *)(temp + temp_loc);
         temp_loc += numAttachments * sizeof(GLenum);
         /* Check length */
         if (temp_len < temp_loc)
         {
             break;
+        }
+
+        for(int i=0; i < numAttachments; i++)
+        {
+            if(attachments[i] == GL_COLOR)
+            {
+                attachments[i]= GL_COLOR_ATTACHMENT0;
+            }
+            if(attachments[i] == GL_DEPTH)
+            {
+                attachments[i]= GL_DEPTH_ATTACHMENT;
+            }
+            if(attachments[i] == GL_STENCIL)
+            {
+                attachments[i]= GL_DEPTH_STENCIL_ATTACHMENT;
+            }
         }
 
         glInvalidateFramebuffer(target, numAttachments, attachments);
