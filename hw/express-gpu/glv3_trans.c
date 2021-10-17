@@ -14127,11 +14127,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCompileShader((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
-        GLenum error = glGetError();
+        // GLenum error = glGetError();
         
-        if(error!=GL_NO_ERROR){
-            printf("glCompileShader %x guest %u host %u\n",error,shader,(GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
-        }
+        // if(error!=GL_NO_ERROR){
+        //     printf("glCompileShader %x guest %u host %u\n",error,shader,(GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
+        // }
         GLint compiled;
         glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_COMPILE_STATUS, &compiled);
 

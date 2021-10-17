@@ -762,6 +762,8 @@ size_t gl_pname_size(GLenum pname)
     case GL_TRANSFORM_FEEDBACK_BUFFER_START:
     case GL_TRANSFORM_FEEDBACK_BUFFER_SIZE:
     case GL_TRANSFORM_FEEDBACK_PAUSED:
+    case GL_ACTIVE_RESOURCES:
+    case GL_MAX_IMAGE_UNITS:
         s = 1;
         break;
     case GL_MAX_ELEMENT_INDEX:

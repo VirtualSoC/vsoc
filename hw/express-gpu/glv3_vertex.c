@@ -374,7 +374,12 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
     // {
     //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
     // }
+    GLuint ebo;
+    GLuint vbo;
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
 
+    printf("drawElements %x %d %x %lx vbo %u ebo %u\n",mode,(int)count,type,indices, vbo, ebo);
     glDrawElements(mode, count, type, (void *)indices);
 }
 
@@ -453,6 +458,8 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
 {
 
     int len = count * gl_sizeof(type);
+
+    printf("drawElements without %x %d %x %lx len %d\n",mode,(int)count,type,indices,len);
 
     GLint buffer_loc = set_indices_data(context, indices, len);
     glDrawElements(mode, count, type, buffer_loc);
