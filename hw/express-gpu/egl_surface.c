@@ -51,7 +51,9 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
     surface->fbo_sync[now_draw_buffer] = wait_sync;
 
     //解除对当前绘制的缓冲区的锁定，这个时候这个缓冲区能够被使用
-    ATOMIC_UNLOCK(surface->display_texture_is_use[now_draw_buffer]);
+    // printf("unlock on read %llx swap %d ",surface,now_draw_buffer);
+    // ATOMIC_UNLOCK(surface->display_texture_is_use[now_draw_buffer]);
+    ATOMIC_SET_UNUSED(surface->display_texture_is_use[now_draw_buffer]);
 
 #ifdef DEBUG_INDEPEND_WINDOW
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[now_draw_buffer]);
@@ -84,7 +86,11 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
         next_draw_buffer = (next_draw_buffer + 1) % surface->buffer_num;
     }
     assert(surface->display_texture_is_use[next_draw_buffer] == 0);
-    ATOMIC_LOCK(surface->display_texture_is_use[next_draw_buffer]);
+    // printf("lock on read %llx swap %d ",surface,next_draw_buffer);
+
+    // ATOMIC_LOCK(surface->display_texture_is_use[next_draw_buffer]);
+    ATOMIC_SET_UNUSED(surface->display_texture_is_use[next_draw_buffer]);
+
     surface->now_draw = next_draw_buffer;
     // surface->draw_num+=1;
 
@@ -336,7 +342,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         // express_printf("choose rgba default ");
     }
 
-    printf("%llx surface choose red %d green %d blue %d alpha %d depth %d\n", d_buffer, red_bits, green_bits, blue_bits, alpha_bits, depth_bits);
+    printf("%llx surface choose red %d green %d blue %d alpha %d depth %d stencil %d\n", d_buffer, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits);
     // internal_format = GL_RG8;
     // format = GL_RG;
     // type = GL_UNSIGNED_BYTE;

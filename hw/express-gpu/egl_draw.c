@@ -259,7 +259,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     memset(real_surface_read->display_texture_is_use, 0, sizeof(real_surface_read->display_texture_is_use));
 
     //锁定当前画的缓冲区，表示后续要开始画了
-    ATOMIC_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
+    // ATOMIC_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
+    ATOMIC_SET_USED(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
 
     return EGL_TRUE;
 }
@@ -306,7 +307,8 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
     //防止卡死，queue之后要主动解锁
     egl_image->is_lock = 0;
-    ATOMIC_UNLOCK(egl_image->display_texture_is_use);
+    // ATOMIC_UNLOCK(egl_image->display_texture_is_use);
+    ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
 
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 

@@ -182,9 +182,9 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
 void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
-    GLuint t;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
-    printf("teximage %u size %d %d %lld\n", t, width, height, pixels);
+    // GLuint t;
+    // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
+    // printf("teximage %u size %d %d %lld\n", t, width, height, pixels);
     glTexImage2D(target, level, internalformat, width, height, border, format, type, (void *)pixels);
 }
 
@@ -209,8 +209,8 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
-    GLuint t;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
+    // GLuint t;
+    // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
 
     // printf("#%llx glTexSubImage2D_without %u target %x level %d xoffset %d yoffset %d width %d height %d format %x type %x start %d end %d\n",context,t,target,level,xoffset,yoffset,width,height,format,type,start_loc,end_loc);
 

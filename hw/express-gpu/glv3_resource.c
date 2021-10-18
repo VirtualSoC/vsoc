@@ -58,7 +58,8 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
         // printf("create texture id %d %d\n",(int)guest_ids[i],(int)host_ids[i]);
         status->resource_id_map[guest_ids[i]] = host_ids[i];
     }
-    if(status->max_id < max_id){
+    if (status->max_id < max_id)
+    {
         status->max_id = max_id;
     }
 }
@@ -81,7 +82,10 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
     {
         if (guest_ids[i] > status->max_id || status->max_id == 0 || guest_ids[i] == 0)
         {
-            printf("error remove! %u %u origin %llu\n",guest_ids[i] , status->max_id, status->max_id!=0?status->resource_id_map[guest_ids[i]]:0);
+            if (guest_ids[i] != 0)
+            {
+                printf("error remove! %u %u origin %llu\n", guest_ids[i], status->max_id, status->max_id != 0 ? status->resource_id_map[guest_ids[i]] : 0);
+            }
             continue;
         }
         status->resource_id_map[guest_ids[i]] = 0;
@@ -570,7 +574,6 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     //     loc+=sprintf(temp+loc,"host %u guest %u ",host_buffers[i],textures[i]);
     // }
     // printf("%s\n",temp);
-
 
     remove_host_map_ids(map_status, n, textures);
 }

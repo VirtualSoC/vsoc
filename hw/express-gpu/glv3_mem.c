@@ -167,7 +167,7 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     //     printf("map buffer ebo %u\n",ebo);
     // }
 
-    printf("mapbufferrange target %x offset %d length %d access %x\n",(int)target,(int)offset,(int)length,(int)access);
+    // printf("mapbufferrange target %x offset %d length %d access %x\n",(int)target,(int)offset,(int)length,(int)access);
     GLubyte *map_pointer = glMapBufferRange(target, offset, length, access);
 
     //然后保存下这个map结果
@@ -245,19 +245,19 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
 
 GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
 {
-    if(target == GL_ARRAY_BUFFER)
-    {
-        GLuint vbo;
-        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-        printf("unmap buffer vbo %u\n",vbo);
-    }
-    if(target == GL_ELEMENT_ARRAY_BUFFER)
-    {
-        GLuint ebo;
-        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
-        printf("unmap buffer ebo %u\n",ebo);
-    }
-    printf("unmap buffer %x\n",(int)target);
+    // if(target == GL_ARRAY_BUFFER)
+    // {
+    //     GLuint vbo;
+    //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+    //     printf("unmap buffer vbo %u\n",vbo);
+    // }
+    // if(target == GL_ELEMENT_ARRAY_BUFFER)
+    // {
+    //     GLuint ebo;
+    //     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+    //     printf("unmap buffer ebo %u\n",ebo);
+    // }
+    // printf("unmap buffer %x\n",(int)target);
     GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
     Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target)<<32) + get_buffer_binding_id(context, target)));
     if (map_res == NULL)

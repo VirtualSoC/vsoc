@@ -1103,7 +1103,10 @@ GLuint acquire_texture_from_surface(Window_Buffer *surface)
     {
         return 0;
     }
-    ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
+    //printf("lock on read %llx texture %d ",surface,now_read);
+    // ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
+    ATOMIC_SET_USED(surface->display_texture_is_use[now_read]);
+
 
     // TIMER_END(texture_loc)
 
@@ -1167,8 +1170,9 @@ void release_texture_from_surface(Window_Buffer *surface)
     //     all_spend_time = 0;
     //     cal_cnt = 0;
     // }
-
-    ATOMIC_UNLOCK(surface->display_texture_is_use[now_read]);
+    // printf("unlock on read %llx texture %d ",surface,now_read);
+    // ATOMIC_UNLOCK(surface->display_texture_is_use[now_read]);
+    ATOMIC_SET_UNUSED(surface->display_texture_is_use[now_read]);
 }
 
 GLuint acquire_texture_from_image(EGL_Image *image)
@@ -1178,7 +1182,9 @@ GLuint acquire_texture_from_image(EGL_Image *image)
     {
         return 0;
     }
-    ATOMIC_LOCK(image->display_texture_is_use);
+    // ATOMIC_LOCK(image->display_texture_is_use);
+    ATOMIC_SET_USED(image->display_texture_is_use);
+
     glFlush();
     image->is_lock = 1;
     if (image->fbo_sync != NULL)
@@ -1269,7 +1275,9 @@ void release_texture_from_image(EGL_Image *image)
     }
     image->fbo_sync = wait_sync;
 
-    ATOMIC_UNLOCK(image->display_texture_is_use);
+    // ATOMIC_UNLOCK(image->display_texture_is_use);
+    ATOMIC_SET_UNUSED(image->display_texture_is_use);
+
 }
 
 Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)

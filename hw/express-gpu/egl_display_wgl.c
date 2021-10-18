@@ -230,6 +230,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     config->alpha_size = pfd->cAlphaBits;
     config->depth_size = pfd->cDepthBits;
     config->stencil_size = pfd->cStencilBits;
+    // printf("rgba %d%d%d%d depth %d stencil %d\n",pfd->cRedBits,pfd->cGreenBits,pfd->cBlueBits,pfd->cAlphaBits,pfd->cDepthBits,pfd->cStencilBits);
     config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
     config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
     config->pixel_format = pfd;

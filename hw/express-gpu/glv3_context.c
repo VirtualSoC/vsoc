@@ -950,7 +950,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
     uint64_t gbuffer_id = (uint64_t)image;
     Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
-    printf("#%llx glBindEGLImage %x image %llx real_surface %llx egl_image %llx now acquire %d\n", context, target, image, real_surface,egl_image,real_surface == NULL?-1:real_surface->now_acquired);
+    // printf("#%llx glBindEGLImage %x image %llx real_surface %llx egl_image %llx now acquire %d\n", context, target, image, real_surface,egl_image,real_surface == NULL?-1:real_surface->now_acquired);
     if (real_surface != NULL)
     {
         // gbuffer_id能映射到surface的情况，说明这个image用于输出，所以直接绑定texture
