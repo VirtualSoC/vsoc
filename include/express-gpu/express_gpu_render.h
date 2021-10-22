@@ -82,7 +82,7 @@ GLuint acquire_texture_from_image(EGL_Image *image);
 
 void init_image_texture(EGL_Image *image);
 
-void init_image_fbo(EGL_Image *image);
+void init_image_fbo(EGL_Image *image, int need_reverse);
 
 void release_texture_from_image(EGL_Image *image);
 

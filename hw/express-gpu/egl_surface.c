@@ -1095,8 +1095,19 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, in
 
 void destroy_real_image(EGL_Image *real_image)
 {
-    glDeleteTextures(1, &(real_image->fbo_texture));
-    glDeleteFramebuffers(1, &(real_image->display_fbo));
+    if(real_image->fbo_texture != 0)
+    {
+        glDeleteTextures(1, &(real_image->fbo_texture));
+    }
+
+    if(real_image->display_fbo != 0)
+    {
+        glDeleteFramebuffers(1, &(real_image->display_fbo));
+        glDeleteFramebuffers(1, &(real_image->display_fbo_reverse));
+        
+        glDeleteTextures(1, &(real_image->fbo_texture_reverse));
+    }
+
     if (real_image->fbo_sync != NULL)
     {
         glDeleteSync(real_image->fbo_sync);

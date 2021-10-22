@@ -900,7 +900,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 
 void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
 {
-    printf("gl shader source count%d:\n%s\n", count,string[0]);
+    express_printf("gl shader source count%d:\n%s\n", count,string[0]);
     glShaderSource(shader, count, string, length);
 }
 
@@ -920,7 +920,7 @@ void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer)
 {
     const GLubyte *static_string = glGetStringi(name, index);
-    printf("getStringi index %u:%s\n",index,static_string);
+    express_printf("getStringi index %u:%s\n",index,static_string);
     int len = strlen((const char *)static_string);
     if (len >= 1024)
     {
@@ -994,19 +994,24 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         else if (target == GL_READ_ONLY)
         {
             // printf("#%llx read frome image %llx(bind eglimage) texture %u\n",context,gbuffer_id,egl_image->fbo_texture);
-            // if(real_surface->I_am_composer){
+            
             init_image_texture(egl_image);
-            // }
+            
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
         }
         else if (target == GL_WRITE_ONLY)
         {
             // printf("draw to image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             //这个write_only一定出现在read_only之后，所以不需要加锁
-            // if(real_surface->I_am_composer){
-            init_image_fbo(egl_image);
+
+            if(opengl_context->draw_surface != NULL && opengl_context->draw_surface->I_am_composer == 0)
+            {
+                egl_image->need_reverse = 1;
+            }
+
             egl_image->host_has_data = 1;
-            // }
+            init_image_fbo(egl_image, egl_image->need_reverse);
+            
             glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
         }
         else if (target == GL_NONE)

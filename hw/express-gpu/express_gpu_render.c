@@ -22,7 +22,6 @@
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/glv1.h"
 
-
 #include "ui/console.h"
 #include "ui/input.h"
 #include "sysemu/runstate.h"
@@ -77,8 +76,11 @@ static gint64 gen_frame_time_avg_1s = 0;
 
 static GLFWwindow *glfw_window = NULL;
 
-static GLint programID = 0;
-static GLint drawVAO = 0;
+static GLuint programID = 0;
+static GLuint drawVAO = 0;
+
+static GLint reverse_loc = 0;
+static GLuint is_reverse = 0;
 
 static long window_width = 0;
 static long window_height = 0;
@@ -103,7 +105,7 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
     int qcode;
     bool down = false;
 
-    if(code > qemu_input_map_glfw_to_qcode_len)
+    if (code > qemu_input_map_glfw_to_qcode_len)
     {
         return;
     }
@@ -120,7 +122,6 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
 
     qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
     // qemu_input_event_sync();
-
 
     // printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
 }
@@ -400,11 +401,18 @@ static int opengl_prepare(GLint *program, GLint *VAO)
         "#version 300 es\n"
         "layout (location = 0) in vec2 position;\n"
         "layout (location = 1) in vec2 texCoords;\n"
-
+        "uniform int need_reverse;\n"
         "out vec2 TexCoords;\n"
         "void main()\n"
         "{\n"
-        "    gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
+        "    if(need_reverse == 0)\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
+        "    }\n"
+        "    else\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "    }\n"
         "    TexCoords = texCoords;\n"
         "}\n";
 
@@ -433,6 +441,9 @@ static int opengl_prepare(GLint *program, GLint *VAO)
     glAttachShader(programObject, fragmentShader);
 
     glLinkProgram(programObject);
+
+    reverse_loc = glGetUniformLocation(programObject, "need_reverse");
+    is_reverse = 0;
 
     GLint linked;
     glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
@@ -495,6 +506,11 @@ static void opengl_paint(Window_Buffer *d_buffer)
 
     if (d_buffer->type == WINDOW_SURFACE)
     {
+        if(is_reverse == 1)
+        {
+            is_reverse = 0;
+            glUniform1i(reverse_loc, 0);
+        }
         if (window_width == 0 || window_height == 0)
         {
             window_width = d_buffer->width;
@@ -518,6 +534,12 @@ static void opengl_paint(Window_Buffer *d_buffer)
         {
             return;
         }
+        if(is_reverse == 0)
+        {
+            is_reverse = 1;
+            glUniform1i(reverse_loc, 1);
+        }
+        
         //注意，下面这种情况是为了照顾surfaceflinger的合成逻辑
         EGL_Image *real_image = get_image_from_gbuffer_id(d_buffer->guest_gbuffer_id);
         // printf("main acquire image %lx to read\n",real_image);
@@ -951,7 +973,7 @@ int draw_wait_GSYNC(void *event, int wait_frame_num)
             if (ret == WAIT_TIMEOUT)
             {
                 express_printf("gsync wait timeout\n");
-            }    
+            }
 #endif
         }
         return main_frame_num;
@@ -1107,7 +1129,6 @@ GLuint acquire_texture_from_surface(Window_Buffer *surface)
     // ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
     ATOMIC_SET_USED(surface->display_texture_is_use[now_read]);
 
-
     // TIMER_END(texture_loc)
 
     // TIMER_OUTPUT(texture_loc, 100)
@@ -1200,7 +1221,6 @@ GLuint acquire_texture_from_image(EGL_Image *image)
     }
     image->fbo_sync = NULL;
 
-
     GLuint texture = image->fbo_texture;
 
     return texture;
@@ -1212,12 +1232,12 @@ void init_image_texture(EGL_Image *image)
     {
         //image需要初始化，这个时候肯定有context了
         GLuint pre_vbo;
-        GLuint pre_texture;
-        GLuint pre_fbo;
+        // GLuint pre_texture;
+        // GLuint pre_fbo;
 
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLuint *)&pre_vbo);
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
-        glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
+        // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
+        // glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
 
         glGenTextures(1, &(image->fbo_texture));
         glGenFramebuffers(1, &(image->display_fbo));
@@ -1231,19 +1251,19 @@ void init_image_texture(EGL_Image *image)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
-        //附加颜色缓冲区
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
+        // glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
+        // //附加颜色缓冲区
+        // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
 
         // 其中的texture其实可以不还原，因为紧接着就会读取
-        glBindTexture(GL_TEXTURE_2D, pre_texture);
+        // glBindTexture(GL_TEXTURE_2D, pre_texture);
         glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
-        glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
+        // glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
         printf("image %llx need init texture %u\n", image->gbuffer_id, image->fbo_texture);
     }
 }
 
-void init_image_fbo(EGL_Image *image)
+void init_image_fbo(EGL_Image *image, int need_reverse)
 {
     if (image->display_fbo == 0)
     {
@@ -1251,6 +1271,19 @@ void init_image_fbo(EGL_Image *image)
         glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
         //附加颜色缓冲区
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
+
+        if (need_reverse)
+        {
+            image->fbo_texture_reverse = image->fbo_texture;
+            image->display_fbo_reverse = image->display_fbo;
+            image->fbo_texture = 0;
+            init_image_texture(image);
+
+            glGenFramebuffers(1, &(image->display_fbo));
+            glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
+            //附加颜色缓冲区
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
+        }
     }
 }
 
@@ -1261,6 +1294,28 @@ void release_texture_from_image(EGL_Image *image)
     {
         return;
     }
+
+    if (image->need_reverse == 1)
+    {
+        image->need_reverse = 0;
+
+        printf("reverse eglimage gbuffer_id %llx\n", image->gbuffer_id);
+
+        glBlitNamedFramebuffer(image->display_fbo, image->display_fbo_reverse, 0, 0, image->width, image->height, 0, image->height, image->width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        GLuint temp_id;
+
+        temp_id = image->display_fbo;
+        image->display_fbo = image->display_fbo_reverse;
+        image->display_fbo_reverse = temp_id;
+
+        temp_id = image->fbo_texture;
+        image->fbo_texture = image->fbo_texture_reverse;
+        image->fbo_texture_reverse = temp_id;
+
+        glBindTexture(GL_TEXTURE_2D, image->fbo_texture);
+        glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
+    }
+
     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     glFlush();
     image->is_lock = 0;
@@ -1277,7 +1332,6 @@ void release_texture_from_image(EGL_Image *image)
 
     // ATOMIC_UNLOCK(image->display_texture_is_use);
     ATOMIC_SET_UNUSED(image->display_texture_is_use);
-
 }
 
 Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)
@@ -1317,13 +1371,13 @@ EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id)
     return real_image;
 }
 
-void set_image_gbuffer_id(EGL_Image *origin_image,EGL_Image *now_image, uint64_t gbuffer_id)
+void set_image_gbuffer_id(EGL_Image *origin_image, EGL_Image *now_image, uint64_t gbuffer_id)
 {
     if (gbuffer_id_image_map == NULL)
     {
         return;
     }
-    if(now_image == NULL)
+    if (now_image == NULL)
     {
         EGL_Image *real_image = (EGL_Image *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
         if (real_image == origin_image)

@@ -24,6 +24,11 @@ typedef struct EGL_Image{
      int is_lock;
      GLuint display_fbo;
      GLuint fbo_texture;
+
+     GLuint display_fbo_reverse;
+     GLuint fbo_texture_reverse;
+
+
      GLsync fbo_sync;
      GLsync fbo_sync_need_delete;
      uint64_t gbuffer_id;
@@ -39,6 +44,7 @@ typedef struct EGL_Image{
      int width;
      int height;
      int host_has_data;
+     int need_reverse;
 } EGL_Image;
 
 

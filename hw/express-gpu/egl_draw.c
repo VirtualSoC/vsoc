@@ -131,6 +131,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     //原来current的context要destroy
     if (thread_context->opengl_context != NULL && thread_context->opengl_context != real_opengl_context)
     {
+        thread_context->opengl_context->draw_surface = NULL;
         if (thread_context->opengl_context->need_destroy)
         {
             // PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)(thread_context->opengl_context));
@@ -191,6 +192,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     real_surface_draw->last_frame_num = -1;
     thread_context->opengl_context = real_opengl_context;
     real_opengl_context->is_current = 1;
+    real_opengl_context->draw_surface = real_surface_read;
 
     printf("#%llx makecurrent draw surface %llx\n",real_opengl_context, real_surface_draw);
     //窗口大小设置一定要在init之前
