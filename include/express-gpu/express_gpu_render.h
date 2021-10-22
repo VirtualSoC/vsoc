@@ -72,7 +72,7 @@ int draw_wait_GSYNC(void *event, int wait_frame_num);
 
 // void render_windows_create(Window_Buffer *context);
 
-void set_compose_surface(Window_Buffer *surface);
+void set_compose_surface(Window_Buffer *origin_surface,Window_Buffer *new_surface);
 
 GLuint acquire_texture_from_surface(Window_Buffer *surface);
 
