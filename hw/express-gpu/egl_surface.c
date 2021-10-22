@@ -706,17 +706,17 @@ void d_eglIamComposer(void *context, EGLSurface surface)
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
 
     express_printf("surface is composer %lx %lx\n", real_surface, surface);
-    static int has_pbuffer_composer = 0;
-    if (real_surface->type == P_SURFACE)
-    {
-        has_pbuffer_composer = 1;
-        real_surface->I_am_composer = 1;
-    }
+    // static int has_pbuffer_composer = 0;
+    // if (real_surface->type == P_SURFACE)
+    // {
+    //     has_pbuffer_composer = 1;
+        // real_surface->I_am_composer = 1;
+    // }
 
-    if (has_pbuffer_composer == 1)
-    {
-        return;
-    }
+    // if (has_pbuffer_composer == 1)
+    // {
+    //     return;
+    // }
     real_surface->I_am_composer = 1;
 }
 
