@@ -307,6 +307,7 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
     //防止卡死，queue之后要主动解锁
     egl_image->is_lock = 0;
+    egl_image->host_has_data = 1;
     // ATOMIC_UNLOCK(egl_image->display_texture_is_use);
     ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
 

@@ -74,6 +74,7 @@ EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
     // }
 
     //这个context_map的销毁函数g_context_map_destroy里已经包含对context的处理了
+    express_printf("context remove guest %lx\n", ctx);
     g_hash_table_remove(process_context->context_map, GINT_TO_POINTER(ctx));
     return EGL_TRUE;
 }

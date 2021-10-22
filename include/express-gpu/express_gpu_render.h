@@ -36,16 +36,16 @@
           printf("lock on %s ",#s);
 #define ATOMIC_UNLOCK(s) atomic_cmpxchg(&(s), 1, 0)
 
-#define ATOMIC_LOCK(s)                      \
-     while (atomic_cmpxchg(&(s), 0, 1) == 1) \
-          printf("lock on %s ",#s);
+
+// #define ATOMIC_SET_USED(s) ATOMIC_LOCK(s)
+// #define ATOMIC_SET_UNUSED(s) ATOMIC_UNLOCK(s)
 
 #define ATOMIC_SET_USED(s) (atomic_cmpxchg(&(s), 0, 1))
 #define ATOMIC_SET_UNUSED(s) (atomic_cmpxchg(&(s), 1, 0))
 
 
 //是否启用opengl调试模式的宏定义
-#define ENABLE_OPENGL_DEBUG
+// #define ENABLE_OPENGL_DEBUG
 
 
 // 是否启用独立窗口进行调试的宏定义

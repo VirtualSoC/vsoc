@@ -4,6 +4,8 @@
 
 void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, int end_loc);
 
+void prepare_unpack_texture_to_egl_image(void *context, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, Guest_Mem *guest_mem);
+
 void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 {
 
@@ -208,19 +210,37 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     int start_loc = 0, end_loc = buf_len;
     // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
-    prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    if (opengl_context->bind_image == NULL || target != GL_TEXTURE_2D)
+    {
+        prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
+        //这时候是立即返回的，后续会进行dma传输
+        glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, 0);
+    }
+    else
+    {
+        opengl_context->bind_image->host_has_data = 1;
+        //因为egl_image存放的是倒立的图像，所以这里要倒过来
+        prepare_unpack_texture_to_egl_image(context, width, height, format, type, buf_len, guest_mem);
+        int real_height = height;
+        int real_yoffset = yoffset;
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, level, GL_TEXTURE_HEIGHT, &real_height);
+
+        if ( real_height >= height)
+        {
+            real_yoffset = real_height - yoffset - height;
+        }
+        else if( real_height > height)
+        {
+            printf("error! get texture size real_height %d widht %d height %d", real_height, width, height);
+        }
+        glTexSubImage2D(target, level, xoffset, real_yoffset, width, height, format, type, 0);
+
+    }
     // GLuint t;
     // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
 
     // printf("#%llx glTexSubImage2D_without %u target %x level %d xoffset %d yoffset %d width %d height %d format %x type %x start %d end %d\n",context,t,target,level,xoffset,yoffset,width,height,format,type,start_loc,end_loc);
-
-    //这时候是立即返回的，后续会进行dma传输
-    glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, 0);
-
-    // GLenum error = glGetError();
-    // if(error!=GL_NO_ERROR){
-    //     printf("gltexsubimage2d error %x\n",error);
-    // }
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
@@ -442,6 +462,32 @@ void d_glReadBuffer_special(void *context, GLenum src)
     glReadBuffer(src);
 }
 
+void prepare_unpack_texture_to_egl_image(void *context, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, Guest_Mem *guest_mem)
+{
+    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    GLint asyn_texture = bound_buffer->asyn_unpack_texture_buffer;
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
+
+    //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, buf_len, NULL, GL_STREAM_DRAW);
+    // express_printf("gl get error %x\n",glGetError());
+
+    //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
+    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, buf_len, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+
+    int row_byte_len = buf_len / height;
+    if (buf_len % height != 0)
+    {
+        printf("error！ prepare_unpack_texture_to_egl_image buf_len %d %% height %d (width %d, format %x type %x) = %d!", buf_len, height, width, format, type, buf_len % height);
+    }
+    for (int i = 0; i < height; i++)
+    {
+        guest_write(guest_mem, map_pointer + (height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+    }
+
+    glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+}
+
 void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, const void *real_buffer)
 {
     //没有绑定时，正好可以使用异步纹理传输
@@ -452,14 +498,14 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
     int row_byte_len = egl_image->row_byte_len;
 
     int real_width = egl_image->width;
-    if(real_width % (egl_image->stride) != 0)
+    if (real_width % (egl_image->stride) != 0)
     {
         real_width = (real_width / egl_image->stride + 1) * egl_image->stride;
     }
 
-    int guest_row_byte_len = row_byte_len/egl_image->width * real_width;
+    int guest_row_byte_len = row_byte_len / egl_image->width * real_width;
 
-    printf("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d\n",egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
+    printf("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d\n", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
 
     if (row_byte_len * egl_image->height > buf_len)
     {
@@ -487,7 +533,6 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
     // guest_write(guest_mem, map_pointer, 0, buf_len);
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 
-
     glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
     //这时候是立即返回的，后续会进行dma传输
 
@@ -499,7 +544,6 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
 
     printf("get graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
 }
-
 
 void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, void *real_buffer)
 {
@@ -524,7 +568,6 @@ void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, voi
     glBufferData(GL_PIXEL_UNPACK_BUFFER, buf_len, NULL, GL_STREAM_DRAW);
 
     glReadPixels(0, 0, egl_image->width, egl_image->height, egl_image->format, egl_image->pixel_type, 0);
-
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, buf_len, GL_MAP_READ_BIT);
 

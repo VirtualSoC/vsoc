@@ -248,7 +248,7 @@ static void handle_child_window_event()
                 {
                     break;
                 }
-                // express_printf("create window %lx\n", d_buffer);
+                printf("create window\n");
                 *window_ptr = native_window_create();
             }
 

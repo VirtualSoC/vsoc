@@ -900,7 +900,7 @@ void d_glLinkProgram_origin(void *context, GLuint program)
 
 void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
 {
-    express_printf("gl shader source:\n%s\n", string[0]);
+    printf("gl shader source count%d:\n%s\n", count,string[0]);
     glShaderSource(shader, count, string, length);
 }
 
@@ -920,6 +920,7 @@ void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer)
 {
     const GLubyte *static_string = glGetStringi(name, index);
+    printf("getStringi index %u:%s\n",index,static_string);
     int len = strlen((const char *)static_string);
     if (len >= 1024)
     {
@@ -947,6 +948,7 @@ void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES 
 
 void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
 {
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
     uint64_t gbuffer_id = (uint64_t)image;
     Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
@@ -987,6 +989,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         {
             // printf("#%llx acquire image %lx %lx(bind eglimage)\n",context,egl_image,gbuffer_id);
             acquire_texture_from_image(egl_image);
+            opengl_context->bind_image = egl_image;
         }
         else if (target == GL_READ_ONLY)
         {
@@ -1002,6 +1005,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             //这个write_only一定出现在read_only之后，所以不需要加锁
             // if(real_surface->I_am_composer){
             init_image_fbo(egl_image);
+            egl_image->host_has_data = 1;
             // }
             glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
         }
@@ -1010,6 +1014,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             //GL_NONE的情况需要解除锁定
             // printf("release image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
             release_texture_from_image(egl_image);
+            opengl_context->bind_image = NULL;
         }
     }
     else
@@ -1173,6 +1178,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     opengl_context->is_current = 0;
     opengl_context->need_destroy = 0;
     opengl_context->window = NULL;
+    opengl_context->bind_image = NULL;
 
     //要在opengl_context里创建window，因为opengl环境保存在window里
     //send是同步的，发送完消息需要等待消息处理完
@@ -1265,8 +1271,11 @@ void opengl_context_destroy(Opengl_Context *context)
     // g_hash_table_destroy(bound_buffer->vao_status);
     g_hash_table_destroy(bound_buffer->vao_point_data);
 
-    glDeleteBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
-    glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+    if(bound_buffer->has_init == 1)
+    {
+        glDeleteBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
+        glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+    }
 
     resource_context_destroy(&(opengl_context->resource_status));
 }
@@ -1290,9 +1299,11 @@ static void g_buffer_map_destroy(gpointer data)
 static void g_vao_point_data_destroy(gpointer data)
 {
     Attrib_Point *vao_point = (Attrib_Point *)data;
-
-    glDeleteBuffers(1, &(vao_point->indices_buffer_object));
-    glDeleteBuffers(MAX_VERTEX_ATTRIBS_NUM, vao_point->buffer_object);
+    if(vao_point->indices_buffer_object != 0)
+    {
+        glDeleteBuffers(1, &(vao_point->indices_buffer_object));
+        glDeleteBuffers(MAX_VERTEX_ATTRIBS_NUM, vao_point->buffer_object);
+    }
 
     express_printf("vao_point destroy\n");
 

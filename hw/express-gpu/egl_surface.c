@@ -909,12 +909,20 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     {
         printf("#%llx create image from image %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, real_image);
         real_image->display_texture_is_use = 0;
-        return 0;
+        if (real_image->host_has_data == 1)
+        {
+            return 1;
+        }
+        else
+        {
+            //只有当host这边没有保存数据的时候才能返回0，这样会从guest端的GraphicBuffer里进行读取
+            return 0;
+        }
     }
 
-    if(real_image != NULL)
+    if (real_image != NULL)
     {
-        printf("image change %d %d => %d %d\n",real_image->width,real_image->height,width,height);
+        printf("image change %d %d => %d %d\n", real_image->width, real_image->height, width, height);
     }
 
     //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface

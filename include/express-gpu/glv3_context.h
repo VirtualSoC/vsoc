@@ -213,6 +213,7 @@ typedef struct Opengl_Context
     int is_current;
     int need_destroy;
 
+    EGL_Image *bind_image;
 } Opengl_Context;
 
 typedef struct Guest_Host_Map
