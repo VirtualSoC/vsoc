@@ -264,7 +264,7 @@ static void handle_child_window_event()
             }
             if (surface->I_am_composer)
             {
-                set_compose_surface(NULL);
+                set_compose_surface(surface, NULL);
             }
             if (surface->guest_gbuffer_id != 0)
             {
@@ -1100,14 +1100,21 @@ static void g_queue_event_notify(gpointer data, gpointer user_data)
 //     return;
 // }
 
-void set_compose_surface(Window_Buffer *surface)
+void set_compose_surface(Window_Buffer *old_surface, Window_Buffer *new_surface)
 {
-    if (compose_surface == surface)
+    if(old_surface != NULL)
+    {
+        if(compose_surface != old_surface)
+        {
+            return;
+        }
+    }
+    if (compose_surface == new_surface)
     {
         return;
     }
     ATOMIC_LOCK(compose_surface_lock);
-    compose_surface = surface;
+    compose_surface = new_surface;
     ATOMIC_UNLOCK(compose_surface_lock);
     express_printf("change compose surface %lx\n", compose_surface);
 }

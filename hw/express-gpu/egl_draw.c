@@ -253,7 +253,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     //注意，后续正常环境下，这个set_compose_surface只应该运行一次，即只存在一个composer
     if (real_surface_draw->I_am_composer)
     {
-        set_compose_surface(real_surface_draw);
+        set_compose_surface(NULL, real_surface_draw);
     }
     // #endif
 
