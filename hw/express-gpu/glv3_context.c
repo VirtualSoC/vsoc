@@ -17,6 +17,10 @@ static void g_buffer_map_destroy(gpointer data);
 
 static void g_vao_point_data_destroy(gpointer data);
 
+GHashTable *program_is_external_map = NULL;
+
+GHashTable *to_external_texture_id_map = NULL;
+
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
  * 
@@ -893,15 +897,167 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     glBindBuffer(target, buffer);
 }
 
-void d_glLinkProgram_origin(void *context, GLuint program)
+void get_program_data(GLuint program, int buf_len, GLchar *program_data)
 {
-    glLinkProgram(program);
+    GLint link_status = 0;
+
+    glGetProgramiv(program, GL_LINK_STATUS, &link_status);
+
+    GString *buffer_string = g_string_new(NULL);
+
+    if (link_status == 0)
+    {
+        g_string_append(buffer_string, "0#");
+    }
+    else
+    {
+        g_string_append(buffer_string, "1|");
+
+        //当前着色器定义的uniform常量和attrib变量的数目
+
+        GLint uniform_num = 0;
+        GLint attrib_num = 0;
+
+        glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_num);
+        glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &attrib_num);
+
+        //获得这些变量或者常量的名字的最大长度
+
+        GLint max_uniform_name_len = 0;
+        GLint max_attrib_name_len = 0;
+        glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_uniform_name_len);
+        glGetProgramiv(program, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &max_attrib_name_len);
+
+        int buf_len = max_uniform_name_len > max_attrib_name_len ? max_uniform_name_len : max_attrib_name_len;
+
+        buf_len += 1;
+
+        GLchar *name_buf = g_malloc(buf_len);
+        GLint size;
+        GLenum type;
+        GLint location;
+        //获得每一个uniform的相关信息
+
+        g_string_append_printf(buffer_string, "%d|", uniform_num - 1);
+        for (GLint i = 0; i < uniform_num; i++)
+        {
+            glGetActiveUniform(program, i, buf_len, NULL, &size, &type, name_buf);
+
+            location = glGetUniformLocation(program, name_buf);
+
+            if (strstr(name_buf, "has_EGL_image_external") != NULL)
+            {
+                if (program_is_external_map == NULL)
+                {
+                    program_is_external_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+                }
+                g_hash_table_insert(program_is_external_map, program, (gpointer)1);
+                continue;
+            }
+            g_string_append_printf(buffer_string, "%d %d %s ", location, type, name_buf);
+        }
+
+        g_string_append_printf(buffer_string, "|%d|", attrib_num);
+
+        for (GLint i = 0; i < attrib_num; i++)
+        {
+            glGetActiveAttrib(program, i, buf_len, NULL, &size, &type, name_buf);
+
+            location = glGetAttribLocation(program, name_buf);
+            g_string_append_printf(buffer_string, "%d %d %s ", location, type, name_buf);
+        }
+
+        //获取transform_feedback_varyings和active_uniform_blocks，有另外两个函数的指针要根据这个确定大小
+        GLint active_uniform_blocks;
+        glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCKS, &active_uniform_blocks);
+
+        GLint transform_feedback_varyings;
+        glGetProgramiv(program, GL_TRANSFORM_FEEDBACK_VARYINGS, &transform_feedback_varyings);
+
+        g_string_append_printf(buffer_string, "|%d|%d#", active_uniform_blocks, transform_feedback_varyings);
+
+        g_free(name_buf);
+    }
+
+    strncpy(program_data, buffer_string->str, buf_len - 1);
+    program_data[buf_len - 1] = 0;
+
+    printf("get program info %s\n", buffer_string->str);
+
+    g_string_free(buffer_string, true);
+    return;
 }
 
-void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string)
+void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int buf_len, GLchar *program_data)
 {
-    express_printf("gl shader source count%d:\n%s\n", count,string[0]);
+
+    glProgramBinary(program, binaryFormat, binary, length);
+
+    get_program_data(program, buf_len, program_data);
+    return;
+}
+
+void d_glLinkProgram_special(void *context, GLuint program, int buf_len, GLchar *program_data)
+{
+
+    glLinkProgram(program);
+
+    get_program_data(program, buf_len, program_data);
+    return;
+}
+
+void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
+{
+    express_printf("gl shader source count%d:\n%s\n", count, string[0]);
+    const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)gl_FragColor=vec4(0,0,0,0);";
+
+    int has_find_external = 0;
+    char *new_string = NULL;
+    for (int i = 0; i < count; i++)
+    {
+        char *string_loc = strstr(string[i], "has_EGL_image_external");
+        if (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            has_find_external = 1;
+        }
+        if (has_find_external == 1)
+        {
+            string_loc = NULL;
+            string_loc = strstr(string[i], "main(void)");
+            if (string_loc == NULL)
+            {
+                string_loc = strstr(string[i], "main()");
+            }
+
+            if (string_loc != NULL && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
+            {
+                while (string_loc[0] != '{' && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
+                {
+                    string_loc++;
+                }
+                string_loc++;
+                if (string_loc - string[i] > length[i])
+                {
+                    break;
+                }
+                has_find_external = 1;
+                new_string = g_malloc(length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1);
+                memcpy(new_string, string[i], string_loc - string[i]);
+                memcpy(new_string + (string_loc - string[i]), USE_EXTERNAL_UNIFORM, sizeof(USE_EXTERNAL_UNIFORM) - 1);
+                memcpy(new_string + (string_loc - string[i]) + sizeof(USE_EXTERNAL_UNIFORM) - 1, string_loc, length[i] - (string_loc - string[i]));
+                length[i] = length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1;
+                string[i] = new_string;
+                printf("shadersource:\n%s\n", string[i]);
+            }
+        }
+    }
+
     glShaderSource(shader, count, string, length);
+
+    if (new_string != NULL)
+    {
+        g_free(new_string);
+    }
 }
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
@@ -920,7 +1076,7 @@ void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer)
 {
     const GLubyte *static_string = glGetStringi(name, index);
-    express_printf("getStringi index %u:%s\n",index,static_string);
+    express_printf("getStringi index %u:%s\n", index, static_string);
     int len = strlen((const char *)static_string);
     if (len >= 1024)
     {
@@ -944,6 +1100,36 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
 void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image)
 {
     //不会调用到host端来
+    return;
+}
+
+void d_glUseProgram_special(void *context, GLuint program)
+{
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+
+    int ret = 0;
+    if (program_is_external_map != NULL)
+    {
+        ret = g_hash_table_lookup(program_is_external_map, GINT_TO_POINTER(program));
+    }
+
+    if (ret == 1 && opengl_context->current_texture_external != 0 && opengl_context->current_target == GL_TEXTURE_2D)
+    {
+        //当前需要使用external纹理
+        GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external));
+        if (texture != 0)
+        {
+            glBindTexture(GL_TEXTURE_2D, texture);
+            opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES;
+        }
+    }
+    if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
+    {
+        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D);
+        opengl_context->current_target == GL_TEXTURE_2D;
+    }
+
+    glUseProgram(program);
 }
 
 void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
@@ -952,94 +1138,99 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
     uint64_t gbuffer_id = (uint64_t)image;
     Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
-    // printf("#%llx glBindEGLImage %x image %llx real_surface %llx egl_image %llx now acquire %d\n", context, target, image, real_surface,egl_image,real_surface == NULL?-1:real_surface->now_acquired);
-    if (real_surface != NULL)
-    {
-        // gbuffer_id能映射到surface的情况，说明这个image用于输出，所以直接绑定texture
-        if (target == GL_IMAGE_BINDING_ACCESS)
-        {
-            // printf("#%llx acquire surface %lx %lx(bind eglimage)\n",context,real_surface,gbuffer_id);
-            acquire_texture_from_surface(real_surface);
-        }
-        else if (target == GL_READ_ONLY)
-        {
-            // printf("#%llx bind surface %lx %lx(bind eglimage)\n",context,real_surface,gbuffer_id);
+    // printf("#%llx glBindEGLImage %x image %llx real_surface %llx egl_image %llx now acquire %d\n", context, target, image, real_surface, egl_image, real_surface == NULL ? -1 : real_surface->now_acquired);
 
-            //这里读取之所以进行绑定texture，是因为image在读取的时候就是连接到texture来读取的
-            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
-        }
-        else if (target == GL_WRITE_ONLY)
-        {
-            //不可能出现，因为是surface的情况下，不会被用来进行写入操作
-            glBindFramebuffer(GL_FRAMEBUFFER, real_surface->display_fbo[real_surface->now_acquired]);
-            printf("error! Surface is write by image!");
-        }
-        else if (target == GL_NONE)
-        {
-            //GL_NONE的情况需要解除锁定
-            release_texture_from_surface(real_surface);
-        }
-        return;
-    }
-    if (egl_image != NULL)
+    if (real_surface != NULL && egl_image != NULL)
     {
-        //gbuffer_id能映射到image的情况，说明这个image用于输出，需要在这个image上写点啥
-        //guest端可能会调用glFramebufferTexture2D，在调用了这个函数后，还需要绑定fbo
-        if (target == GL_IMAGE_BINDING_ACCESS)
+        printf("error! real_surface and egl_image are not NULL!");
+    }
+
+    switch (target)
+    {
+    case GL_READ_ONLY:
+    {
+        if (real_surface != NULL)
         {
-            // printf("#%llx acquire image %lx %lx(bind eglimage)\n",context,egl_image,gbuffer_id);
+            acquire_texture_from_surface(real_surface);
+            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
+
+            if (opengl_context->current_texture_external != 0)
+            {
+                if (to_external_texture_id_map == NULL)
+                {
+                    to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+                }
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
+            }
+        }
+        if (egl_image != NULL)
+        {
+            init_image_texture(egl_image);
+
             acquire_texture_from_image(egl_image);
             opengl_context->bind_image = egl_image;
-        }
-        else if (target == GL_READ_ONLY)
-        {
-            // printf("#%llx read frome image %llx(bind eglimage) texture %u\n",context,gbuffer_id,egl_image->fbo_texture);
-            
-            init_image_texture(egl_image);
-            
+
+            if (opengl_context->current_texture_external != 0)
+            {
+                if (to_external_texture_id_map == NULL)
+                {
+                    to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+                }
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(egl_image->fbo_texture));
+            }
+
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
         }
-        else if (target == GL_WRITE_ONLY)
+        break;
+    }
+    case GL_WRITE_ONLY:
+    {
+        if (real_surface != NULL)
         {
-            // printf("draw to image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
-            //这个write_only一定出现在read_only之后，所以不需要加锁
+            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
+            printf("error! Surface is writen by image!");
+        }
 
-            if(opengl_context->draw_surface != NULL && opengl_context->draw_surface->I_am_composer == 0)
+        if (egl_image != NULL)
+        {
+            if (opengl_context->draw_surface != NULL && opengl_context->draw_surface->I_am_composer == 0)
             {
                 egl_image->need_reverse = 1;
             }
 
             egl_image->host_has_data = 1;
             init_image_fbo(egl_image, egl_image->need_reverse);
-            
+
             glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
         }
-        else if (target == GL_NONE)
+        break;
+    }
+    case GL_SYNC_FLUSH_COMMANDS_BIT:
+    {
+        if (real_surface != NULL)
         {
-            //GL_NONE的情况需要解除锁定
-            // printf("release image %lx %lx(bind eglimage)\n",egl_image,gbuffer_id);
+            release_texture_from_surface(real_surface);
+        }
+        if (egl_image != NULL)
+        {
             release_texture_from_image(egl_image);
             opengl_context->bind_image = NULL;
         }
+        break;
     }
-    else
+    case GL_NONE:
     {
-        printf("gbuffer_id %llx is null! Maybe gbuffer is delete\n", gbuffer_id);
-        if (target == GL_IMAGE_BINDING_ACCESS)
+        if (egl_image != NULL)
         {
+            opengl_context->bind_image = NULL;
+            ATOMIC_SET_USED(egl_image->display_texture_is_use);
         }
-        else if (target == GL_READ_ONLY)
-        {
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
-        else if (target == GL_WRITE_ONLY)
-        {
-            //不可能出现，因为是surface的情况下，不会被用来进行写入操作
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        }
-        else if (target == GL_NONE)
-        {
-        }
+    }
+    default:
+    {
+
+        break;
+    }
     }
 }
 
@@ -1185,6 +1376,15 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     opengl_context->window = NULL;
     opengl_context->bind_image = NULL;
 
+    opengl_context->current_texture_2D = 0;
+    opengl_context->current_texture_external = 0;
+    opengl_context->current_target = GL_TEXTURE_2D;
+
+    opengl_context->view_x = 0;
+    opengl_context->view_y = 0;
+    opengl_context->view_w = 0;
+    opengl_context->view_h = 0;
+
     //要在opengl_context里创建window，因为opengl环境保存在window里
     //send是同步的，发送完消息需要等待消息处理完
     // SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)(&(opengl_context->window)));
@@ -1276,7 +1476,7 @@ void opengl_context_destroy(Opengl_Context *context)
     // g_hash_table_destroy(bound_buffer->vao_status);
     g_hash_table_destroy(bound_buffer->vao_point_data);
 
-    if(bound_buffer->has_init == 1)
+    if (bound_buffer->has_init == 1)
     {
         glDeleteBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
         glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
@@ -1304,7 +1504,7 @@ static void g_buffer_map_destroy(gpointer data)
 static void g_vao_point_data_destroy(gpointer data)
 {
     Attrib_Point *vao_point = (Attrib_Point *)data;
-    if(vao_point->indices_buffer_object != 0)
+    if (vao_point->indices_buffer_object != 0)
     {
         glDeleteBuffers(1, &(vao_point->indices_buffer_object));
         glDeleteBuffers(MAX_VERTEX_ATTRIBS_NUM, vao_point->buffer_object);

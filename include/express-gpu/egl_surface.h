@@ -79,7 +79,7 @@ typedef struct Window_Buffer
      GLuint sampler_fbo[5];
      GLuint now_draw;
      GLuint now_read;
-     GLuint now_acquired;
+     GLint now_acquired;
      // GLuint draw_num;
      // GLuint read_num;
 

@@ -397,9 +397,20 @@ void d_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync syn
     create_host_map_ids(map_status, 1, &sync_int, &host_sync_long);
 }
 
-void d_glCreateShaderProgramv(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program)
+void d_glCreateShaderProgramv_special(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program, int buf_len, GLchar *program_data)
 {
     GLuint host_program = glCreateShaderProgramv(type, count, strings);
+
+    if(host_program == 0)
+    {
+        program_data[0]='0';
+        program_data[1]='#';
+        program_data[2]=0;
+        return 0;
+    }
+
+    get_program_data(host_program, buf_len, program_data);
+
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->program_resource;
@@ -564,6 +575,12 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
 
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, textures, host_buffers);
+
+    for(int i = 0;i<n;i++)
+    {
+        g_hash_table_remove(to_external_texture_id_map,GINT_TO_POINTER(host_buffers[i]));
+    }
+
     glDeleteTextures(n, host_buffers);
     g_free(host_buffers);
 
@@ -597,6 +614,9 @@ void d_glDeleteProgram(void *context, GLuint program)
     Resource_Map_Status *map_status = resource_status->program_resource;
 
     GLuint host_program = (GLuint)get_host_resource_id(map_status, program);
+
+    g_hash_table_remove(program_is_external_map,GINT_TO_POINTER(host_program));
+
     glDeleteProgram(host_program);
 
     remove_host_map_ids(map_status, 1, &program);

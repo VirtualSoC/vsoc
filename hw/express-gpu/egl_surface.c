@@ -627,6 +627,7 @@ Window_Buffer *render_surface_create(EGLConfig config, int width, int height, in
     surface->swap_interval = 1;
     surface->guest_native_window = NULL;
     surface->guest_gbuffer_id = 0;
+    surface->now_acquired = -1;
 
     if (surface->type == WINDOW_SURFACE)
     {

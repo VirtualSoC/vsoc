@@ -628,9 +628,9 @@
 
 #define PARA_NUM_MIN_glDeleteQueries (1)
 
-#define FUNID_glLinkProgram_origin ((EXPRESS_GPU_FUN_ID << 32u) + 156)
+#define FUNID_glLinkProgram_special ((EXPRESS_GPU_FUN_ID << 32u) + 156)
 
-#define PARA_NUM_MIN_glLinkProgram_origin (1)
+#define PARA_NUM_MIN_glLinkProgram_special (1)
 
 #define FUNID_glPixelStorei_origin ((EXPRESS_GPU_FUN_ID << 32u) + 157)
 

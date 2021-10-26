@@ -446,6 +446,15 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_READ_BIT);
     // host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,0);
 
+    // char print_chars[1000];
+    // int print_loc = 0;
+    // for(int i=0;i<end_loc-start_loc && i<100;i++)
+    // {
+    //     print_loc += sprintf(print_chars+print_loc, "%.2x",(int)map_pointer[i]);
+    // }
+    // printf("glreadpixels %s\n",print_chars);
+
+
     guest_read(guest_mem, map_pointer, 0, end_loc - start_loc);
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
@@ -581,4 +590,23 @@ void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, voi
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
     printf("send graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
+}
+
+
+void d_glBindTexture_special(void *context, GLenum target, GLuint texture)
+{
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    if (target == GL_TEXTURE_EXTERNAL_OES)
+    {
+        target = GL_TEXTURE_2D;
+        opengl_context->current_texture_external = texture;
+    }
+    else if(target == GL_TEXTURE_2D)
+    {
+        opengl_context->current_texture_2D = texture;
+    }
+
+    opengl_context->bind_image = NULL;
+    glBindTexture(target, texture);
+
 }

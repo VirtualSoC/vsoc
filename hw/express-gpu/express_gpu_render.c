@@ -1134,6 +1134,11 @@ GLuint acquire_texture_from_surface(Window_Buffer *surface)
     }
     //printf("lock on read %llx texture %d ",surface,now_read);
     // ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
+    if(surface->now_acquired != -1)
+    {
+        ATOMIC_SET_UNUSED(surface->display_texture_is_use[surface->now_acquired]);
+    }
+
     ATOMIC_SET_USED(surface->display_texture_is_use[now_read]);
 
     // TIMER_END(texture_loc)
@@ -1247,7 +1252,7 @@ void init_image_texture(EGL_Image *image)
         // glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
 
         glGenTextures(1, &(image->fbo_texture));
-        glGenFramebuffers(1, &(image->display_fbo));
+        // glGenFramebuffers(1, &(image->display_fbo));
         //egl_image不需要深度缓冲和模板缓冲
 
         glBindTexture(GL_TEXTURE_2D, image->fbo_texture);

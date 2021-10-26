@@ -214,6 +214,9 @@ typedef struct Opengl_Context
     int need_destroy;
 
     EGL_Image *bind_image;
+    GLuint current_texture_2D;
+    GLuint current_texture_external;
+    GLenum current_target;
 } Opengl_Context;
 
 typedef struct Guest_Host_Map
@@ -224,6 +227,11 @@ typedef struct Guest_Host_Map
     GLbitfield access;
 
 } Guest_Host_Map;
+
+
+extern GHashTable *program_is_external_map;
+extern GHashTable *to_external_texture_id_map;
+
 
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
@@ -244,6 +252,9 @@ size_t gl_sizeof(GLenum type);
 
 size_t gl_pname_size(GLenum pname);
 
+void get_program_data(GLuint program, int buf_len, GLchar *program_data);
+
+
 // void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc);
 
 // void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
@@ -254,9 +265,11 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
 
-void d_glLinkProgram_origin(void *context, GLuint program);
+void d_glLinkProgram_special(void *context, GLuint program, int buf_len, GLchar *program_data);
 
-void d_glShaderSource_origin(void *context, GLuint shader, GLsizei count, const GLint *length, const GLchar *const *string);
+void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int buf_len, GLchar *program_data);
+
+void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string);
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer);
 
@@ -266,6 +279,8 @@ void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *b
 void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
 
 //
+
+void d_glUseProgram_special(void *context, GLuint program);
 
 void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
 

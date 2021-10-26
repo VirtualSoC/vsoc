@@ -484,9 +484,9 @@
 
 #define PARA_NUM_MIN_glShaderBinary (1)
 
-#define FUNID_glProgramBinary ((EXPRESS_GPU_FUN_ID << 32u) + 120)
+#define FUNID_glProgramBinary_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 120)
 
-#define PARA_NUM_MIN_glProgramBinary (1)
+#define PARA_NUM_MIN_glProgramBinary_special (2)
 
 #define FUNID_glDrawBuffers ((EXPRESS_GPU_FUN_ID << 32u) + 121)
 
@@ -556,9 +556,9 @@
 
 #define PARA_NUM_MIN_glFenceSync (1)
 
-#define FUNID_glCreateShaderProgramv ((EXPRESS_GPU_FUN_ID << 32u) + 138)
+#define FUNID_glCreateShaderProgramv_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 138)
 
-#define PARA_NUM_MIN_glCreateShaderProgramv (1)
+#define PARA_NUM_MIN_glCreateShaderProgramv_special (2)
 
 #define FUNID_glGenFramebuffers ((EXPRESS_GPU_FUN_ID << 32u) + 139)
 
@@ -628,9 +628,9 @@
 
 #define PARA_NUM_MIN_glDeleteQueries (1)
 
-#define FUNID_glLinkProgram_origin ((EXPRESS_GPU_FUN_ID << 32u) + 156)
+#define FUNID_glLinkProgram_special ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 156)
 
-#define PARA_NUM_MIN_glLinkProgram_origin (1)
+#define PARA_NUM_MIN_glLinkProgram_special (2)
 
 #define FUNID_glPixelStorei_origin ((EXPRESS_GPU_FUN_ID << 32u) + 157)
 
@@ -652,9 +652,9 @@
 
 #define PARA_NUM_MIN_glVertexAttribDivisor_origin (1)
 
-#define FUNID_glShaderSource_origin ((EXPRESS_GPU_FUN_ID << 32u) + 162)
+#define FUNID_glShaderSource_special ((EXPRESS_GPU_FUN_ID << 32u) + 162)
 
-#define PARA_NUM_MIN_glShaderSource_origin (1)
+#define PARA_NUM_MIN_glShaderSource_special (1)
 
 #define FUNID_glVertexAttribIPointer_with_bound ((EXPRESS_GPU_FUN_ID << 32u) + 163)
 

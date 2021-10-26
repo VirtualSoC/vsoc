@@ -43,7 +43,7 @@ void d_glCreateShader(void *context, GLenum type, GLuint shader);
 
 void d_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync sync);
 
-void d_glCreateShaderProgramv(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program);
+void d_glCreateShaderProgramv_special(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program, int buf_len, GLchar *program_data);
 
 void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers);
 
