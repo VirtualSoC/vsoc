@@ -954,6 +954,7 @@ void get_program_data(GLuint program, int buf_len, GLchar *program_data)
                 g_hash_table_insert(program_is_external_map, program, (gpointer)1);
                 continue;
             }
+            printf("uniform |%d %d| |%s|\n", location, type, name_buf);
             g_string_append_printf(buffer_string, "%d %d %s ", location, type, name_buf);
         }
 
@@ -1008,7 +1009,7 @@ void d_glLinkProgram_special(void *context, GLuint program, int buf_len, GLchar 
 
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
 {
-    express_printf("gl shader source count%d:\n%s\n", count, string[0]);
+    printf("gl shader source count%d:\n%s\n", count, string[0]);
     const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)gl_FragColor=vec4(0,0,0,0);";
 
     int has_find_external = 0;

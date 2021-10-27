@@ -97,6 +97,49 @@ volatile int native_render_run = 0;
 
 static QemuConsole *input_receive_con = NULL;
 
+static const GLubyte GPU_VENDOR[] = "Express_GPU (";
+static const GLubyte GPU_VERSION[] = "OpenGL ES 3.1 (";
+static const GLubyte GPU_RENDERER[] = "OpenGL ES Translator (";
+static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
+
+static const GLubyte *SPECIAL_EXTENSIONS[] =
+    {
+        /*1*/ "GL_OES_EGL_image",
+        /*2*/ "GL_OES_EGL_image_external",
+        /*3*/ "GL_OES_EGL_sync"};
+static const int SPECIAL_EXTENSIONS_SIZE = 3;
+
+//支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
+static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
+    {
+        //gl
+        /* 1*/ "GL_NV_texture_barrier",          // and gles
+        /* 2*/ "GL_KHR_blend_equation_advanced", // and gles
+        /* 3*/ "GL_NV_blend_equation_advanced",  // and gles
+        /* 4*/ "GL_ARB_clear_texture",
+        /* 5*/ "GL_ARB_draw_indirect",
+        /* 6*/ "GL_ARB_timer_query",
+        /* 7*/ "GL_EXT_timer_query",
+        /* 8*/ "GL_ARB_multi_draw_indirect",
+        /* 9*/ "GL_NV_path_rendering",            // and gles
+        /*10*/ "GL_NV_framebuffer_mixed_samples", // and gles
+        /*11*/ "GL_EXT_debug_marker",             //and gles
+        /*12*/ "GL_ARB_invalidate_subdata",
+        /*13*/ "GL_KHR_debug",             // and gles
+        /*14*/ "GL_EXT_window_rectangles", // and gles
+
+        //gles
+        /*15*/ "GL_EXT_blend_func_extended",
+        /*16*/ "GL_EXT_clear_texture",
+        /*17*/ "GL_EXT_multi_draw_indirect",
+        /*18*/ "GL_OES_texture_buffer",
+        /*19*/ "GL_EXT_texture_buffer",
+        /*20*/ "GL_CHROMIUM_map_sub",
+        /*21*/ "GL_CHROMIUM_path_rendering",
+        /*22*/ "GL_CHROMIUM_framebuffer_mixed_samples",
+        /*23*/ "GL_CHROMIUM_bind_uniform_location"};
+static const int NOT_SUPPORT_EXTENSION_SIZE = 23;
+
 static void opengl_paint(Window_Buffer *d_buffer);
 static GLFWwindow *native_window_create();
 
@@ -500,7 +543,7 @@ static void static_value_prepare()
 
     // initialize static status
     preload_static_context_value->major_version = 3;
-    preload_static_context_value->minor_version = 0;
+    preload_static_context_value->minor_version = 1;
 
     preload_static_context_value->implementation_color_read_type = 5121;
     preload_static_context_value->implementation_color_read_format = 6408;
@@ -592,28 +635,50 @@ static void static_value_prepare()
         preload_static_context_value->num_compressed_texture_formats = 128;
     }
 
-    static const GLubyte GPU_VENDOR[] = "Express_GPU (";
-    static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
-    static const GLubyte GPU_RENDERER[] = "OpenGL ES Translator (";
-    static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
-    static const GLubyte *SPECIAL_EXTENSION[] =
-        {
-            "GL_OES_EGL_image",
-            "GL_OES_EGL_image_external",
-            "GL_OES_EGL_sync"};
-    static const int SPECIAL_EXTENSIONS_SIZE = 3;
-
     char *string_loc = ((char *)preload_static_context_value) + sizeof(Static_Context_Values);
 
     glGetIntegerv(GL_NUM_EXTENSIONS, &(preload_static_context_value->num_extensions));
-    if (preload_static_context_value->num_extensions > 510)
-    {
-        preload_static_context_value->num_extensions = 510;
-    }
 
     char *temp_loc = string_loc;
 
-    const GLubyte *gl_string = glGetString(GL_VENDOR);
+
+
+    // //这三行是临时的，因为Madagascar应用中这个的长度过长会启动不起来
+    // preload_static_context_value->vendor = temp_loc - string_loc;
+
+    // memcpy(temp_loc, GPU_VENDOR, sizeof(GPU_VENDOR) - 1);
+    // temp_loc += sizeof(GPU_VENDOR) - 1;
+    // temp_loc--;
+    // *temp_loc = 0;
+    // temp_loc++;
+    // printf("\ngl vendor:%s\n", string_loc + (unsigned long)(preload_static_context_value->vendor));
+
+    // preload_static_context_value->version = temp_loc - string_loc;
+
+    // memcpy(temp_loc, GPU_VERSION, sizeof(GPU_VERSION) - 1);
+    // temp_loc += sizeof(GPU_VERSION) - 1;
+    // temp_loc--;
+    // *temp_loc = 0;
+    // temp_loc++;
+    // printf("gl version:%s\n", string_loc + (unsigned long)(preload_static_context_value->version));
+
+    // preload_static_context_value->renderer = temp_loc - string_loc;
+
+    // memcpy(temp_loc, GPU_RENDERER, sizeof(GPU_RENDERER) - 1);
+    // temp_loc += sizeof(GPU_RENDERER) - 1;
+    // temp_loc--;
+    // *temp_loc = 0;
+    // temp_loc++;
+    // printf("gl renderer:%s\n", string_loc + (unsigned long)(preload_static_context_value->renderer));
+
+    // preload_static_context_value->shading_language_version = temp_loc - string_loc;
+    // memcpy(temp_loc, GPU_SHADER_LANGUAGE_VERSION, sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1);
+    // *temp_loc = 0;
+    // temp_loc++;
+    // printf("gl shading_language_version:%s\n", string_loc + (unsigned long)(preload_static_context_value->shading_language_version));
+
+    const GLubyte *gl_string;
+    gl_string = glGetString(GL_VENDOR);
     preload_static_context_value->vendor = temp_loc - string_loc;
 
     memcpy(temp_loc, GPU_VENDOR, sizeof(GPU_VENDOR) - 1);
@@ -664,18 +729,24 @@ static void static_value_prepare()
     int no_need_extensions_cnt = 0;
     int num_extensions = preload_static_context_value->num_extensions;
 
-    // num_extensions = 50;
+    num_extensions = 0;
+
     int start_loc = 0;
-    for (int i = start_loc; i < start_loc + num_extensions && i < 512 - SPECIAL_EXTENSIONS_SIZE; i++)
+    for (int i = start_loc; i < start_loc + num_extensions && i < 512 - SPECIAL_EXTENSIONS_SIZE + no_need_extensions_cnt; i++)
     {
-        //60 GL_ARB_invalidate_subdata
-        //61 GL_ARB_map_buffer_alignment
-        //62 GL_ARB_map_buffer_range
 
         gl_string = glGetStringi(GL_EXTENSIONS, i);
 
-        //支持这个扩展需要添加一些函数，所以暂时先不支持
-        if (strstr(gl_string, "GL_ARB_invalidate_subdata") != NULL)
+        int no_need_flag = 0;
+        for (int j = 0; j < NOT_SUPPORT_EXTENSION_SIZE; j++)
+        {
+            if (strstr(gl_string, NOT_SUPPORT_EXTENSIONS[j]) != NULL)
+            {
+                no_need_flag = 1;
+                break;
+            }
+        }
+        if (no_need_flag == 1)
         {
             no_need_extensions_cnt += 1;
             continue;
@@ -696,8 +767,8 @@ static void static_value_prepare()
     {
         preload_static_context_value->extensions[num_extensions + i] = temp_loc - string_loc;
 
-        memcpy(temp_loc, SPECIAL_EXTENSION[i], strlen(SPECIAL_EXTENSION[i]));
-        temp_loc += strlen(SPECIAL_EXTENSION[i]);
+        memcpy(temp_loc, SPECIAL_EXTENSIONS[i], strlen(SPECIAL_EXTENSIONS[i]));
+        temp_loc += strlen(SPECIAL_EXTENSIONS[i]);
         *temp_loc = 0;
         temp_loc++;
     }
