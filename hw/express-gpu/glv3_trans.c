@@ -61,7 +61,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
     Opengl_Context *opengl_context = render_context->opengl_context;
-    if (opengl_context == NULL)
+    if (opengl_context == NULL && call->id != FUNID_glGetStaticValues)
     {
         call->callback(call, 0);
         return;
@@ -27039,6 +27039,35 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         void *real_buffer = all_para[1].data;
 
         d_glReadGraphicBuffer(opengl_context, g_buffer_id, buf_len, real_buffer);
+    }
+    break;
+
+    case FUNID_glGetStaticValues:
+
+    {
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetStaticValues)
+        {
+            break;
+        }
+        
+        int read_len = all_para[0].data_len;
+
+        if(read_len > sizeof(Static_Context_Values) + 512 * 100 + 400)
+        {
+            read_len = sizeof(Static_Context_Values) + 512 * 100 + 400;
+        }
+
+
+        if (all_para[0].data_len != sizeof(Static_Context_Values) + 512 * 100 + 400)
+        {
+            printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal！");
+        }
+        printf("write static value to guest %d\n",preload_static_context_value->major_version);
+        guest_read(all_para[0].data, preload_static_context_value, 0, all_para[0].data_len);
+
+
     }
     break;
 

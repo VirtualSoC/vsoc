@@ -32,6 +32,8 @@
 
 GAsyncQueue *main_window_event_queue = NULL;
 
+Static_Context_Values *preload_static_context_value = NULL;
+
 int sdl2_no_need = 0;
 
 // #ifdef _WIN32
@@ -490,6 +492,242 @@ static int opengl_prepare(GLint *program, GLint *VAO)
     return 1;
 }
 
+static void static_value_prepare()
+{
+
+    preload_static_context_value = g_malloc(sizeof(Static_Context_Values) + 512 * 100 + 400);
+    memset(preload_static_context_value, 0, sizeof(Static_Context_Values) + 512 * 100 + 400);
+
+    // initialize static status
+    preload_static_context_value->major_version = 3;
+    preload_static_context_value->minor_version = 0;
+
+    preload_static_context_value->implementation_color_read_type = 5121;
+    preload_static_context_value->implementation_color_read_format = 6408;
+    preload_static_context_value->max_array_texture_layers = 2048;
+    preload_static_context_value->max_color_attachments = 8;
+    preload_static_context_value->max_combined_uniform_blocks = 84;
+    preload_static_context_value->max_draw_buffers = 16;
+    preload_static_context_value->max_fragment_input_components = 128;
+    preload_static_context_value->max_fragment_uniform_blocks = 14;
+    preload_static_context_value->max_program_texel_offset = 7;
+    preload_static_context_value->max_transform_feedback_interleaved_components = 128;
+    preload_static_context_value->max_transform_feedback_separate_attribs = 4;
+    preload_static_context_value->max_transform_feedback_separate_components = 4;
+    preload_static_context_value->max_uniform_buffer_bindings = 84;
+    preload_static_context_value->max_varying_components = 124;
+    preload_static_context_value->max_varying_vectors = 31;
+    preload_static_context_value->max_vertex_output_components = 128;
+    preload_static_context_value->max_vertex_uniform_blocks = 14;
+    preload_static_context_value->min_program_texel_offset = -8;
+    preload_static_context_value->max_uniform_block_size = 65536;
+    preload_static_context_value->aliased_point_size_range[0] = 1.0f;
+    preload_static_context_value->aliased_point_size_range[1] = 2047.0f;
+
+    glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, &(preload_static_context_value->compressed_texture_formats));
+    glGetIntegerv(GL_PROGRAM_BINARY_FORMATS, &(preload_static_context_value->program_binary_formats));
+    glGetIntegerv(GL_SHADER_BINARY_FORMATS, &(preload_static_context_value->shader_binary_formats));
+    glGetIntegerv(GL_SUBPIXEL_BITS, &(preload_static_context_value->subpixel_bits));
+    glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &(preload_static_context_value->max_3d_texture_size));
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &(preload_static_context_value->max_combined_texture_image_units));
+    glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &(preload_static_context_value->max_cube_map_texture_size));
+    glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &(preload_static_context_value->max_elements_vertices));
+    glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &(preload_static_context_value->max_elements_indices));
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &(preload_static_context_value->max_fragment_uniform_components));
+    glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &(preload_static_context_value->max_renderbuffer_size));
+    glGetIntegerv(GL_MAX_SAMPLES, &(preload_static_context_value->max_samples));
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &(preload_static_context_value->max_texture_size));
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &(preload_static_context_value->max_vertex_attribs));
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &(preload_static_context_value->max_vertex_uniform_components));
+    glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &(preload_static_context_value->max_vertex_texture_image_units));
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &(preload_static_context_value->max_vertex_uniform_vectors));
+    glGetIntegerv(GL_MAX_VIEWPORT_DIMS, &(preload_static_context_value->max_viewport_dims));
+    glGetIntegerv(GL_NUM_SHADER_BINARY_FORMATS, &(preload_static_context_value->num_shader_binary_formats));
+    glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &(preload_static_context_value->num_compressed_texture_formats));
+    // glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &(preload_static_context_value->uniform_buffer_offset_alignment));
+    glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &(preload_static_context_value->max_array_texture_layers));
+    glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, &(preload_static_context_value->max_color_attachments));
+    glGetIntegerv(GL_MAX_COMBINED_UNIFORM_BLOCKS, &(preload_static_context_value->max_combined_uniform_blocks));
+    glGetIntegerv(GL_MAX_DRAW_BUFFERS, &(preload_static_context_value->max_draw_buffers));
+    glGetIntegerv(GL_MAX_FRAGMENT_INPUT_COMPONENTS, &(preload_static_context_value->max_fragment_input_components));
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &(preload_static_context_value->max_fragment_uniform_blocks));
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &(preload_static_context_value->max_fragment_uniform_vectors));
+    glGetIntegerv(GL_MAX_PROGRAM_TEXEL_OFFSET, &(preload_static_context_value->max_program_texel_offset));
+    glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS, &(preload_static_context_value->max_transform_feedback_separate_attribs));
+    glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS, &(preload_static_context_value->max_transform_feedback_separate_components));
+    glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS, &(preload_static_context_value->max_transform_feedback_interleaved_components));
+    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &(preload_static_context_value->max_uniform_buffer_bindings));
+    glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, &(preload_static_context_value->max_atomic_counter_buffer_bindings));
+    glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &(preload_static_context_value->max_shader_storage_buffer_bindings));
+    glGetIntegerv(GL_MAX_VARYING_VECTORS, &(preload_static_context_value->max_varying_vectors));
+    glGetIntegerv(GL_MAX_VARYING_COMPONENTS, &(preload_static_context_value->max_varying_components));
+    glGetIntegerv(GL_MAX_VERTEX_OUTPUT_COMPONENTS, &(preload_static_context_value->max_vertex_output_components));
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, &(preload_static_context_value->max_vertex_uniform_blocks));
+    glGetIntegerv(GL_MIN_PROGRAM_TEXEL_OFFSET, &(preload_static_context_value->min_program_texel_offset));
+    glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, &(preload_static_context_value->num_program_binary_formats));
+    // glGetIntegerv(GL_SAMPLES, &(preload_static_context_value->samples));
+    // glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &(preload_static_context_value->shader_storage_buffer_offset_alignment));
+    glGetIntegerv(GL_SUBPIXEL_BITS, &(preload_static_context_value->subpixel_bits));
+
+    glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, preload_static_context_value->aliased_line_width_range);
+    glGetFloatv(GL_ALIASED_POINT_SIZE_RANGE, preload_static_context_value->aliased_point_size_range);
+    glGetFloatv(GL_MAX_TEXTURE_LOD_BIAS, &(preload_static_context_value->max_texture_log_bias));
+
+    glGetInteger64v(GL_MAX_ELEMENT_INDEX, &(preload_static_context_value->max_element_index));
+    glGetInteger64v(GL_MAX_SERVER_WAIT_TIMEOUT, &(preload_static_context_value->max_server_wait_timeout));
+    glGetInteger64v(GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS, &(preload_static_context_value->max_combined_vertex_uniform_components));
+    glGetInteger64v(GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS, &(preload_static_context_value->max_combined_fragment_uniform_components));
+    glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &(preload_static_context_value->max_uniform_block_size));
+
+    if (preload_static_context_value->num_program_binary_formats > 8)
+    {
+        preload_static_context_value->num_program_binary_formats = 8;
+    }
+    if (preload_static_context_value->num_shader_binary_formats > 8)
+    {
+        preload_static_context_value->num_shader_binary_formats = 8;
+    }
+    if (preload_static_context_value->num_compressed_texture_formats > 128)
+    {
+        preload_static_context_value->num_compressed_texture_formats = 128;
+    }
+
+    static const GLubyte GPU_VENDOR[] = "Express_GPU (";
+    static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
+    static const GLubyte GPU_RENDERER[] = "OpenGL ES Translator (";
+    static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
+    static const GLubyte *SPECIAL_EXTENSION[] =
+        {
+            "GL_OES_EGL_image",
+            "GL_OES_EGL_image_external",
+            "GL_OES_EGL_sync"};
+    static const int SPECIAL_EXTENSIONS_SIZE = 3;
+
+    char *string_loc = ((char *)preload_static_context_value) + sizeof(Static_Context_Values);
+
+    glGetIntegerv(GL_NUM_EXTENSIONS, &(preload_static_context_value->num_extensions));
+    if (preload_static_context_value->num_extensions > 510)
+    {
+        preload_static_context_value->num_extensions = 510;
+    }
+
+    char *temp_loc = string_loc;
+
+    const GLubyte *gl_string = glGetString(GL_VENDOR);
+    preload_static_context_value->vendor = temp_loc - string_loc;
+
+    memcpy(temp_loc, GPU_VENDOR, sizeof(GPU_VENDOR) - 1);
+    temp_loc += sizeof(GPU_VENDOR) - 1;
+    memcpy(temp_loc, gl_string, strlen(gl_string));
+    temp_loc += strlen(gl_string);
+    *temp_loc = ')';
+    temp_loc++;
+    *temp_loc = 0;
+    temp_loc++;
+    printf("\ngl vendor:%s\n", string_loc + (unsigned long)(preload_static_context_value->vendor));
+
+    gl_string = glGetString(GL_VERSION);
+    preload_static_context_value->version = temp_loc - string_loc;
+
+    memcpy(temp_loc, GPU_VERSION, sizeof(GPU_VERSION) - 1);
+    temp_loc += sizeof(GPU_VERSION) - 1;
+    memcpy(temp_loc, gl_string, strlen(gl_string));
+    temp_loc += strlen(gl_string);
+    *temp_loc = ')';
+    temp_loc++;
+    *temp_loc = 0;
+    temp_loc++;
+    printf("gl version:%s\n", string_loc + (unsigned long)(preload_static_context_value->version));
+
+    gl_string = glGetString(GL_RENDERER);
+    preload_static_context_value->renderer = temp_loc - string_loc;
+
+    memcpy(temp_loc, GPU_RENDERER, sizeof(GPU_RENDERER) - 1);
+    temp_loc += sizeof(GPU_RENDERER) - 1;
+    memcpy(temp_loc, gl_string, strlen(gl_string));
+    temp_loc += strlen(gl_string);
+    *temp_loc = ')';
+    temp_loc++;
+    *temp_loc = 0;
+    temp_loc++;
+    printf("gl renderer:%s\n", string_loc + (unsigned long)(preload_static_context_value->renderer));
+
+    preload_static_context_value->shading_language_version = temp_loc - string_loc;
+    memcpy(temp_loc, GPU_SHADER_LANGUAGE_VERSION, sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1);
+    temp_loc += sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1;
+    *temp_loc = 0;
+    temp_loc++;
+    printf("gl shading_language_version:%s\n", string_loc + (unsigned long)(preload_static_context_value->shading_language_version));
+
+    char *extensions_start = temp_loc;
+
+    int no_need_extensions_cnt = 0;
+    int num_extensions = preload_static_context_value->num_extensions;
+
+    // num_extensions = 50;
+    int start_loc = 0;
+    for (int i = start_loc; i < start_loc + num_extensions && i < 512 - SPECIAL_EXTENSIONS_SIZE; i++)
+    {
+        //60 GL_ARB_invalidate_subdata
+        //61 GL_ARB_map_buffer_alignment
+        //62 GL_ARB_map_buffer_range
+
+        gl_string = glGetStringi(GL_EXTENSIONS, i);
+
+        //支持这个扩展需要添加一些函数，所以暂时先不支持
+        if (strstr(gl_string, "GL_ARB_invalidate_subdata") != NULL)
+        {
+            no_need_extensions_cnt += 1;
+            continue;
+        }
+
+        preload_static_context_value->extensions[i - start_loc - no_need_extensions_cnt] = temp_loc - string_loc;
+
+        memcpy(temp_loc, gl_string, strlen(gl_string));
+        temp_loc += strlen(gl_string);
+        *temp_loc = 0;
+        printf("%d %s\n", i, temp_loc - strlen(gl_string));
+        temp_loc++;
+    }
+
+    num_extensions -= no_need_extensions_cnt;
+
+    for (int i = 0; i < SPECIAL_EXTENSIONS_SIZE; i++)
+    {
+        preload_static_context_value->extensions[num_extensions + i] = temp_loc - string_loc;
+
+        memcpy(temp_loc, SPECIAL_EXTENSION[i], strlen(SPECIAL_EXTENSION[i]));
+        temp_loc += strlen(SPECIAL_EXTENSION[i]);
+        *temp_loc = 0;
+        temp_loc++;
+    }
+
+    num_extensions += SPECIAL_EXTENSIONS_SIZE;
+
+    preload_static_context_value->num_extensions = num_extensions;
+
+    int extensions_len = temp_loc - extensions_start;
+
+    memcpy(temp_loc, extensions_start, extensions_len);
+    for (int i = 0; i < extensions_len; i++)
+    {
+        if (*temp_loc == 0)
+        {
+            *temp_loc = ' ';
+        }
+        temp_loc++;
+    }
+    temp_loc--;
+    if (*temp_loc == ' ')
+    {
+        *temp_loc = 0;
+    }
+
+    preload_static_context_value->extensions_gles2 = extensions_start - string_loc + extensions_len;
+    printf("extensions len %d num %d: %s|\n", extensions_len, num_extensions, string_loc + (unsigned long)(preload_static_context_value->extensions_gles2));
+    assert(temp_loc < ((char *)preload_static_context_value) + sizeof(Static_Context_Values) + 512 * 100 + 400);
+}
+
 /**
  * @brief 界面上用于画出图像的函数，实际逻辑为取出d_buffer中的display_texture，然后画出来
  * 
@@ -506,7 +744,7 @@ static void opengl_paint(Window_Buffer *d_buffer)
 
     if (d_buffer->type == WINDOW_SURFACE)
     {
-        if(is_reverse == 1)
+        if (is_reverse == 1)
         {
             is_reverse = 0;
             glUniform1i(reverse_loc, 0);
@@ -534,12 +772,12 @@ static void opengl_paint(Window_Buffer *d_buffer)
         {
             return;
         }
-        if(is_reverse == 0)
+        if (is_reverse == 0)
         {
             is_reverse = 1;
             glUniform1i(reverse_loc, 1);
         }
-        
+
         //注意，下面这种情况是为了照顾surfaceflinger的合成逻辑
         EGL_Image *real_image = get_image_from_gbuffer_id(d_buffer->guest_gbuffer_id);
         // printf("main acquire image %lx to read\n",real_image);
@@ -726,8 +964,6 @@ void *native_window_thread(void *opaque)
 
     main_window_event_queue = g_async_queue_new();
 
-    native_render_run = 2;
-
     // HWND render_hwnd = (HWND)qemu_console_get_window_id(con);
     // RECT rcParent;
 
@@ -786,6 +1022,9 @@ void *native_window_thread(void *opaque)
     gbuffer_id_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
 
     prepare_draw_texi();
+    static_value_prepare();
+
+    native_render_run = 2;
 
     opengl_prepare(&programID, &drawVAO);
     glBindVertexArray(drawVAO);
@@ -1102,9 +1341,9 @@ static void g_queue_event_notify(gpointer data, gpointer user_data)
 
 void set_compose_surface(Window_Buffer *old_surface, Window_Buffer *new_surface)
 {
-    if(old_surface != NULL)
+    if (old_surface != NULL)
     {
-        if(compose_surface != old_surface)
+        if (compose_surface != old_surface)
         {
             return;
         }
@@ -1134,7 +1373,7 @@ GLuint acquire_texture_from_surface(Window_Buffer *surface)
     }
     //printf("lock on read %llx texture %d ",surface,now_read);
     // ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
-    if(surface->now_acquired != -1)
+    if (surface->now_acquired != -1)
     {
         ATOMIC_SET_UNUSED(surface->display_texture_is_use[surface->now_acquired]);
     }

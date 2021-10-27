@@ -312,7 +312,7 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     egl_image->host_has_data = 1;
     // ATOMIC_UNLOCK(egl_image->display_texture_is_use);
     ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
-    printf("queue buffer %llx\n",gbuffer_id);
+    express_printf("queue buffer %llx\n",gbuffer_id);
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 
     gint64 now_time = g_get_real_time();
@@ -371,7 +371,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         // express_printf("invoke time %lld swap_time %lld\n",a,b);
     }
 
-    printf("#%llx swapbuffer real_surface %llx\n",thread_context->opengl_context, real_surface);
+    express_printf("#%llx swapbuffer real_surface %llx\n",thread_context->opengl_context, real_surface);
 
     gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface);

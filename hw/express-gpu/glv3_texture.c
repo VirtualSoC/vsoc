@@ -514,7 +514,7 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
 
     int guest_row_byte_len = row_byte_len / egl_image->width * real_width;
 
-    printf("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d\n", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
+    // printf("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d\n", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
 
     if (row_byte_len * egl_image->height > buf_len)
     {

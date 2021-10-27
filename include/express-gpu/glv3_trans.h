@@ -1548,6 +1548,10 @@
 #define PARA_NUM_MIN_glReadGraphicBuffer (2)
 
 
+#define FUNID_glGetStaticValues ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 385)
+
+#define PARA_NUM_MIN_glGetStaticValues (1)
+
 
 void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call);
 

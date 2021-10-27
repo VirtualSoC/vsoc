@@ -576,9 +576,12 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, textures, host_buffers);
 
-    for(int i = 0;i<n;i++)
+    if(to_external_texture_id_map != NULL)
     {
-        g_hash_table_remove(to_external_texture_id_map,GINT_TO_POINTER(host_buffers[i]));
+        for(int i = 0;i<n;i++)
+        {
+            g_hash_table_remove(to_external_texture_id_map,GINT_TO_POINTER(host_buffers[i]));
+        }
     }
 
     glDeleteTextures(n, host_buffers);
@@ -615,7 +618,10 @@ void d_glDeleteProgram(void *context, GLuint program)
 
     GLuint host_program = (GLuint)get_host_resource_id(map_status, program);
 
-    g_hash_table_remove(program_is_external_map,GINT_TO_POINTER(host_program));
+    if(program_is_external_map != NULL)
+    {
+        g_hash_table_remove(program_is_external_map,GINT_TO_POINTER(host_program));
+    }
 
     glDeleteProgram(host_program);
 
