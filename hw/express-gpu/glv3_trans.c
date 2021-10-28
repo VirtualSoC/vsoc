@@ -9703,7 +9703,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glProgramBinary GLuint program, GLenum binaryFormat, const void *binary#length, GLsizei length, int buf_len, GLchar *program_data" */
+        /* readline: "glProgramBinary GLuint program, GLenum binaryFormat, const void *binary#length, GLsizei length, int *program_data_len" */
         /* func name: "glProgramBinary" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}, {'type': 'GLenum', 'name': 'binaryFormat', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 1, 'ptr_ptr': False}, {'type': 'const void*', 'name': 'binary', 'ptr': 'in', 'ptr_len': 'length', 'loc': 2, 'ptr_ptr': False}, {'type': 'GLsizei', 'name': 'length', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 3, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -9713,7 +9713,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLuint program;
         GLenum binaryFormat;
         GLsizei length;
-        int buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glProgramBinary_special)
@@ -9725,7 +9724,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (temp_len < 12 * 1)
         {
             break;
         }
@@ -9756,9 +9755,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         length = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        buf_len = *(GLsizei *)(temp + temp_loc);
-        temp_loc += 4;
-
         const void *binary = (const void *)(temp + temp_loc);
         temp_loc += length;
 
@@ -9771,39 +9767,20 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         int out_buf_len = all_para[1].data_len;
 
-        unsigned char *ret_buf = NULL;
+        int ret_int = 0;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
+        int *program_data_len = (int *)(&ret_int);
 
-        GLchar *program_data = (GLchar *)(ret_buf);
-
-        if (out_buf_len != buf_len)
+        if (out_buf_len != 4)
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
-            {
-                g_free(ret_buf);
-            }
-            printf("error! out_but_len!=buf_len glProgramBinary %d %d\n", out_buf_len, buf_len);
+
+            printf("error! glProgramBinary program_data_len != 4 %d\n", out_buf_len);
             break;
         }
 
-        d_glProgramBinary_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), binaryFormat, binary, length, buf_len, program_data);
+        d_glProgramBinary_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), binaryFormat, binary, length, program_data_len);
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
-
-
+        guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
 
 
     }
@@ -10922,7 +10899,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         GLenum type;
         GLsizei count;
         GLuint program;
-        int buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glCreateShaderProgramv_special)
@@ -10934,7 +10910,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (temp_len < 12 * 1)
         {
             break;
         }
@@ -10965,9 +10941,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
 
-        buf_len = *(GLuint *)(temp + temp_loc);
-        temp_loc += 4;
-
         GLchar **strings = g_malloc(count * sizeof(const GLchar *));
 
         for (int i = 0; i < count; i++)
@@ -10981,41 +10954,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
+        
         int out_buf_len = all_para[1].data_len;
 
-        unsigned char *ret_buf = NULL;
+        int ret_int = 0;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
+        int *program_data_len = (int *)(&ret_int);
 
-        GLchar *program_data = (GLchar *)(ret_buf);
-
-        if (out_buf_len != buf_len)
+        if (out_buf_len != 4)
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
-            {
-                g_free(ret_buf);
-            }
-            printf("error! out_but_len!=buf_len gLinkProgram %d %d\n", out_buf_len, buf_len);
+
+            printf("error! glLinkProgram program_data_len != 4 %d\n", out_buf_len);
             break;
         }
 
-        d_glCreateShaderProgramv_special(opengl_context, type, count, strings, program, buf_len, program_data);
+        d_glCreateShaderProgramv_special(opengl_context, type, count, strings, program, program_data_len);
+
+        guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
 
         g_free(strings);
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
 
     }
     break;
@@ -12039,7 +11997,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     {
 
-        /* readline: "glLinkProgram_origin GLuint program int buf_len GLchar *program_data" */
+        /* readline: "glLinkProgram_origin GLuint program int *program_data_len" */
         /* func name: "glLinkProgram_origin" */
         /* args: [{'type': 'GLuint', 'name': 'program', 'ptr': 'NA', 'ptr_len': 'NA', 'loc': 0, 'ptr_ptr': False}] */
         /* ret: "" */
@@ -12047,7 +12005,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         /* Define variables */
         GLuint program;
-        int buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glLinkProgram_special)
@@ -12059,7 +12016,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (temp_len < 4 * 1)
         {
             break;
         }
@@ -12084,8 +12041,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
 
-        buf_len = *(int *)(temp + temp_loc);
-        temp_loc += 4;
 
         /* Check length */
         if (temp_len < temp_loc)
@@ -12093,39 +12048,24 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
+
         int out_buf_len = all_para[1].data_len;
 
-        unsigned char *ret_buf = NULL;
+        int ret_int = 0;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
+        int *program_data_len = (int *)(&ret_int);
 
-        GLchar *program_data = (GLchar *)(ret_buf);
-
-        if (out_buf_len != buf_len)
+        if (out_buf_len != 4)
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
-            {
-                g_free(ret_buf);
-            }
-            printf("error! out_but_len!=buf_len gLinkProgram %d %d\n", out_buf_len, buf_len);
+
+            printf("error! glLinkProgram program_data_len != 4 %d\n", out_buf_len);
             break;
         }
 
-        d_glLinkProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), buf_len, program_data);
+        d_glLinkProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), program_data_len);
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
     }
     break;
 
@@ -27059,13 +26999,76 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             read_len = sizeof(Static_Context_Values) + 512 * 100 + 400;
         }
 
+        printf("glGetStaticValues host %d guest %d\n",sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
 
         if (all_para[0].data_len != sizeof(Static_Context_Values) + 512 * 100 + 400)
         {
-            printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal！");
+            printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal！%d %d\n",sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
         }
-        printf("write static value to guest %d\n",preload_static_context_value->major_version);
         guest_read(all_para[0].data, preload_static_context_value, 0, all_para[0].data_len);
+
+
+    }
+
+
+    case FUNID_glGetProgramData:
+
+    {
+
+        GLuint program;
+        int buf_len;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glGetProgramData)
+        {
+            break;
+        }
+        
+
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        program = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        buf_len = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        int read_len = all_para[1].data_len;
+
+        if(buf_len != read_len)
+        {
+            printf("error! buf_len != read_len %d %d\n",buf_len,read_len);
+            break;
+        }
+
+        void *real_buffer = all_para[1].data;
+
+        d_glGetProgramData(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), buf_len, real_buffer);
 
 
     }

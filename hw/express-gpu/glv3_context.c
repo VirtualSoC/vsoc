@@ -19,7 +19,17 @@ static void g_vao_point_data_destroy(gpointer data);
 
 GHashTable *program_is_external_map = NULL;
 
+GHashTable *program_data_map = NULL;
+
 GHashTable *to_external_texture_id_map = NULL;
+
+int init_program_data(GLuint program);
+
+static void g_program_data_destroy(gpointer data)
+{
+    GLchar *program_data = (GLchar *)data;
+    g_free(program_data);
+}
 
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
@@ -897,27 +907,25 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     glBindBuffer(target, buffer);
 }
 
-void get_program_data(GLuint program, int buf_len, GLchar *program_data)
+int init_program_data(GLuint program)
 {
     GLint link_status = 0;
 
     glGetProgramiv(program, GL_LINK_STATUS, &link_status);
 
-    GString *buffer_string = g_string_new(NULL);
+    int buf_len;
+    GLchar *program_data;
 
     if (link_status == 0)
     {
-        g_string_append(buffer_string, "0#");
+        return 0;
     }
     else
     {
-        g_string_append(buffer_string, "1|");
-
         //当前着色器定义的uniform常量和attrib变量的数目
 
         GLint uniform_num = 0;
         GLint attrib_num = 0;
-
         glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_num);
         glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &attrib_num);
 
@@ -925,23 +933,49 @@ void get_program_data(GLuint program, int buf_len, GLchar *program_data)
 
         GLint max_uniform_name_len = 0;
         GLint max_attrib_name_len = 0;
+        GLint max_uniform_block_name_len = 0;
+
         glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_uniform_name_len);
         glGetProgramiv(program, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &max_attrib_name_len);
+        glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH, &max_uniform_block_name_len);
 
-        int buf_len = max_uniform_name_len > max_attrib_name_len ? max_uniform_name_len : max_attrib_name_len;
+        //获取transform_feedback_varyings和active_uniform_blocks，有另外两个函数的指针要根据这个确定大小
+        GLint uniform_blocks_num = 0;
+        GLint transform_feedback_varyings = 0;
+        glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCKS, &uniform_blocks_num);
+        glGetProgramiv(program, GL_TRANSFORM_FEEDBACK_VARYINGS, &transform_feedback_varyings);
 
-        buf_len += 1;
+        int name_len = max_uniform_name_len > max_attrib_name_len ? max_uniform_name_len : max_attrib_name_len;
+        name_len = name_len > max_uniform_block_name_len ? name_len : max_uniform_block_name_len;
 
-        GLchar *name_buf = g_malloc(buf_len);
+        name_len += 1;
+
+        GLchar *name_buf = g_malloc(name_len);
+
+        buf_len = (name_len + 3 * 4) * (uniform_num + attrib_num + uniform_blocks_num) + 4 * 7 + name_len;
+        program_data = g_malloc(buf_len);
+
+        GLchar *temp_ptr = program_data;
+        int *int_ptr = (int *)temp_ptr;
+
+        *int_ptr = uniform_num;
+        *(int_ptr + 1) = attrib_num;
+        *(int_ptr + 2) = uniform_blocks_num;
+        *(int_ptr + 3) = max_uniform_name_len;
+        *(int_ptr + 4) = max_attrib_name_len;
+        *(int_ptr + 5) = max_uniform_block_name_len;
+        *(int_ptr + 6) = transform_feedback_varyings;
+
+        temp_ptr += 7 * sizeof(int);
+
         GLint size;
         GLenum type;
         GLint location;
+        int has_image = 0;
         //获得每一个uniform的相关信息
-
-        g_string_append_printf(buffer_string, "%d|", uniform_num - 1);
-        for (GLint i = 0; i < uniform_num; i++)
+        for (int i = 0; i < uniform_num; i++)
         {
-            glGetActiveUniform(program, i, buf_len, NULL, &size, &type, name_buf);
+            glGetActiveUniform(program, i, name_len, NULL, &size, &type, name_buf);
 
             location = glGetUniformLocation(program, name_buf);
 
@@ -952,58 +986,128 @@ void get_program_data(GLuint program, int buf_len, GLchar *program_data)
                     program_is_external_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
                 g_hash_table_insert(program_is_external_map, program, (gpointer)1);
+                has_image = 1;
                 continue;
             }
+
+            int_ptr = temp_ptr;
+
+            *int_ptr = i - has_image;
+            *(int_ptr + 1) = size;
+            *(int_ptr + 2) = type;
+            *(int_ptr + 3) = location;
+
+            temp_ptr += 4 * sizeof(int);
+            strncpy(temp_ptr, name_buf, name_len);
+            temp_ptr += strlen(name_buf) + 1;
+
             printf("uniform |%d %d| |%s|\n", location, type, name_buf);
-            g_string_append_printf(buffer_string, "%d %d %s ", location, type, name_buf);
         }
 
-        g_string_append_printf(buffer_string, "|%d|", attrib_num);
-
-        for (GLint i = 0; i < attrib_num; i++)
+        for (int i = 0; i < attrib_num; i++)
         {
-            glGetActiveAttrib(program, i, buf_len, NULL, &size, &type, name_buf);
+            glGetActiveAttrib(program, i, name_len, NULL, &size, &type, name_buf);
 
             location = glGetAttribLocation(program, name_buf);
-            g_string_append_printf(buffer_string, "%d %d %s ", location, type, name_buf);
+
+            int_ptr = temp_ptr;
+
+            *int_ptr = i;
+            *(int_ptr + 1) = size;
+            *(int_ptr + 2) = type;
+            *(int_ptr + 3) = location;
+
+            temp_ptr += 4 * sizeof(int);
+            strncpy(temp_ptr, name_buf, name_len);
+            temp_ptr += strlen(name_buf) + 1;
+
+            printf("attrib |%d %d| |%s|\n", location, type, name_buf);
         }
 
-        //获取transform_feedback_varyings和active_uniform_blocks，有另外两个函数的指针要根据这个确定大小
-        GLint active_uniform_blocks;
-        glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCKS, &active_uniform_blocks);
+        int uniform_block_active_uniforms;
+        for (int i = 0; i < uniform_blocks_num; i++)
+        {
+            int_ptr = temp_ptr;
+            glGetActiveUniformBlockiv(program, i, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &uniform_block_active_uniforms);
+            glGetActiveUniformBlockiv(program, i, GL_UNIFORM_BLOCK_DATA_SIZE, &size);
+            glGetActiveUniformBlockName(program, i, name_len, NULL, name_buf);
 
-        GLint transform_feedback_varyings;
-        glGetProgramiv(program, GL_TRANSFORM_FEEDBACK_VARYINGS, &transform_feedback_varyings);
+            *int_ptr = i;
+            *(int_ptr + 1) = size;
+            *(int_ptr + 2) = uniform_block_active_uniforms;
 
-        g_string_append_printf(buffer_string, "|%d|%d#", active_uniform_blocks, transform_feedback_varyings);
+            temp_ptr += 3 * sizeof(int);
+            strncpy(temp_ptr, name_buf, name_len);
+            temp_ptr += strlen(name_buf) + 1;
+            printf("uniform block |%d %d| |%s|\n", uniform_block_active_uniforms, size, name_buf);
+        }
+
+        if (has_image)
+        {
+            *((int *)program_data) = uniform_num - 1;
+        }
+
+        if (program_data_map == NULL)
+        {
+            program_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_program_data_destroy);
+        }
+
+        g_hash_table_insert(program_data_map, GINT_TO_POINTER(program), program_data);
+
+        if (buf_len > temp_ptr - program_data + 10)
+        {
+            buf_len = temp_ptr - program_data + 10;
+        }
+
+        return buf_len;
 
         g_free(name_buf);
     }
-
-    strncpy(program_data, buffer_string->str, buf_len - 1);
-    program_data[buf_len - 1] = 0;
-
-    printf("get program info %s\n", buffer_string->str);
-
-    g_string_free(buffer_string, true);
     return;
 }
 
-void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int buf_len, GLchar *program_data)
+void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
 {
 
     glProgramBinary(program, binaryFormat, binary, length);
 
-    get_program_data(program, buf_len, program_data);
+    *program_data_len = init_program_data(program);
     return;
 }
 
-void d_glLinkProgram_special(void *context, GLuint program, int buf_len, GLchar *program_data)
+void d_glLinkProgram_special(void *context, GLuint program, int *program_data_len)
 {
 
     glLinkProgram(program);
 
-    get_program_data(program, buf_len, program_data);
+    *program_data_len = init_program_data(program);
+    return;
+}
+
+void d_glGetProgramData(void *context, GLuint program, int buf_len, void *program_data)
+{
+    Guest_Mem *guest_mem = (Guest_Mem *)program_data;
+
+    if (program_data_map == NULL || program == 0)
+    {
+
+        printf("error! program_data_map %llx program %d", program_data_map, program);
+        return;
+    }
+
+    GLchar *save_program_data = g_hash_table_lookup(program_data_map, GINT_TO_POINTER(program));
+
+    if (save_program_data == NULL)
+    {
+        printf("error! save_program_data NULL program %u", program);
+        return;
+    }
+
+    guest_read(guest_mem, save_program_data, 0, buf_len);
+
+    //读取完成后直接删除就行了
+    g_hash_table_remove(program_data_map, GINT_TO_POINTER(program));
+
     return;
 }
 
@@ -1013,6 +1117,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)gl_FragColor=vec4(0,0,0,0);";
 
     int has_find_external = 0;
+    int has_find_gl_FragColor = 0;
     char *new_string = NULL;
     for (int i = 0; i < count; i++)
     {
@@ -1021,10 +1126,18 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         {
             has_find_external = 1;
         }
-        if (has_find_external == 1)
+        string_loc = strstr(string[i], "gl_FragColor");
+        if (string_loc != NULL && string_loc - string[i] <= length[i])
         {
-            string_loc = NULL;
-            string_loc = strstr(string[i], "main(void)");
+            has_find_gl_FragColor = 1;
+        }
+    }
+
+    if (has_find_external == 1 && has_find_gl_FragColor == 1)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            char *string_loc = strstr(string[i], "main(void)");
             if (string_loc == NULL)
             {
                 string_loc = strstr(string[i], "main()");
@@ -1331,6 +1444,14 @@ void resource_context_destroy(Resource_Context *resources)
             {
                 if (resources->program_resource->resource_id_map[i] != 0)
                 {
+                    if (program_is_external_map != NULL)
+                    {
+                        g_hash_table_remove(program_is_external_map, GINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
+                    }
+                    if (program_data_map != NULL)
+                    {
+                        g_hash_table_remove(program_data_map, GINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
+                    }
                     glDeleteProgram((GLuint)resources->program_resource->resource_id_map[i]);
                 }
             }

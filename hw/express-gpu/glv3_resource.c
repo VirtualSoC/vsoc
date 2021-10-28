@@ -397,19 +397,17 @@ void d_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync syn
     create_host_map_ids(map_status, 1, &sync_int, &host_sync_long);
 }
 
-void d_glCreateShaderProgramv_special(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program, int buf_len, GLchar *program_data)
+void d_glCreateShaderProgramv_special(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program, int *program_data_len)
 {
     GLuint host_program = glCreateShaderProgramv(type, count, strings);
 
     if(host_program == 0)
     {
-        program_data[0]='0';
-        program_data[1]='#';
-        program_data[2]=0;
-        return 0;
+        *program_data_len = 0;
+        return;
     }
-
-    get_program_data(host_program, buf_len, program_data);
+    
+    *program_data_len = init_program_data(host_program);
 
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
@@ -621,6 +619,10 @@ void d_glDeleteProgram(void *context, GLuint program)
     if(program_is_external_map != NULL)
     {
         g_hash_table_remove(program_is_external_map,GINT_TO_POINTER(host_program));
+    }
+    if(program_data_map != NULL)
+    {
+        g_hash_table_remove(program_data_map, GINT_TO_POINTER(host_program));
     }
 
     glDeleteProgram(host_program);

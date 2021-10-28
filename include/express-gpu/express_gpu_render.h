@@ -53,12 +53,7 @@ typedef struct Main_window_Event
 //注意顺序，保证不影响结构体对齐
 typedef struct Static_Context_Values
 {
-     GLubyte *vendor;
-     GLubyte *version;
-     GLubyte *renderer;
-     GLubyte *shading_language_version;
-     GLubyte *extensions_gles2;
-     GLubyte *extensions[512];
+
      GLint num_extensions;
      //____________ FIXED VALUE ____________
      GLint major_version;
@@ -118,7 +113,13 @@ typedef struct Static_Context_Values
      GLint64 max_combined_fragment_uniform_components;
      GLint64 max_combined_vertex_uniform_components;
      GLint64 max_uniform_block_size;
-
+     //下面实际要作为指针使用，保证与32位应用的兼容性，所以要这样弄
+     GLuint64 vendor;
+     GLuint64 version;
+     GLuint64 renderer;
+     GLuint64 shading_language_version;
+     GLuint64 extensions_gles2;
+     GLuint64 extensions[512];
      //大概需要512*100+400左右的空间存放字符串，这么大的空间应该是够了
 
 } Static_Context_Values;
@@ -130,7 +131,6 @@ extern GAsyncQueue *main_window_event_queue;
 extern volatile int native_render_run;
 
 extern Static_Context_Values *preload_static_context_value;
-
 
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);

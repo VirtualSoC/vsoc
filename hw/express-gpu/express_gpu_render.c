@@ -106,8 +106,18 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
     {
         /*1*/ "GL_OES_EGL_image",
         /*2*/ "GL_OES_EGL_image_external",
-        /*3*/ "GL_OES_EGL_sync"};
-static const int SPECIAL_EXTENSIONS_SIZE = 3;
+        /*3*/ "GL_OES_EGL_sync",
+        /*4*/ "GL_OES_depth24",
+        /*5*/ "GL_OES_depth32",
+        /*6*/ "GL_OES_depth_texture",
+        /*7*/ "GL_OES_texture_half_float",
+        /*8*/ "GL_OES_texture_half_float_linear",
+        /*9*/ "GL_OES_rgb8_rgba8",
+        /*10*/ "GL_OES_depth_texture",
+        /*11*/ "GL_OES_EGL_image_external_essl3",
+        /*12*/ "GL_KHR_texture_compression_astc_ldr",
+        /*13*/ "GL_OES_vertex_array_object"};
+static const int SPECIAL_EXTENSIONS_SIZE = 13;
 
 //支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
@@ -641,8 +651,6 @@ static void static_value_prepare()
 
     char *temp_loc = string_loc;
 
-
-
     // //这三行是临时的，因为Madagascar应用中这个的长度过长会启动不起来
     // preload_static_context_value->vendor = temp_loc - string_loc;
 
@@ -679,7 +687,7 @@ static void static_value_prepare()
 
     const GLubyte *gl_string;
     gl_string = glGetString(GL_VENDOR);
-    preload_static_context_value->vendor = temp_loc - string_loc;
+    preload_static_context_value->vendor = (unsigned long long)(temp_loc - string_loc);
 
     memcpy(temp_loc, GPU_VENDOR, sizeof(GPU_VENDOR) - 1);
     temp_loc += sizeof(GPU_VENDOR) - 1;
@@ -692,7 +700,7 @@ static void static_value_prepare()
     printf("\ngl vendor:%s\n", string_loc + (unsigned long)(preload_static_context_value->vendor));
 
     gl_string = glGetString(GL_VERSION);
-    preload_static_context_value->version = temp_loc - string_loc;
+    preload_static_context_value->version = (unsigned long long)(temp_loc - string_loc);
 
     memcpy(temp_loc, GPU_VERSION, sizeof(GPU_VERSION) - 1);
     temp_loc += sizeof(GPU_VERSION) - 1;
@@ -705,7 +713,7 @@ static void static_value_prepare()
     printf("gl version:%s\n", string_loc + (unsigned long)(preload_static_context_value->version));
 
     gl_string = glGetString(GL_RENDERER);
-    preload_static_context_value->renderer = temp_loc - string_loc;
+    preload_static_context_value->renderer = (unsigned long long)(temp_loc - string_loc);
 
     memcpy(temp_loc, GPU_RENDERER, sizeof(GPU_RENDERER) - 1);
     temp_loc += sizeof(GPU_RENDERER) - 1;
@@ -717,7 +725,7 @@ static void static_value_prepare()
     temp_loc++;
     printf("gl renderer:%s\n", string_loc + (unsigned long)(preload_static_context_value->renderer));
 
-    preload_static_context_value->shading_language_version = temp_loc - string_loc;
+    preload_static_context_value->shading_language_version = (unsigned long long)(temp_loc - string_loc);
     memcpy(temp_loc, GPU_SHADER_LANGUAGE_VERSION, sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1);
     temp_loc += sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1;
     *temp_loc = 0;
@@ -752,7 +760,7 @@ static void static_value_prepare()
             continue;
         }
 
-        preload_static_context_value->extensions[i - start_loc - no_need_extensions_cnt] = temp_loc - string_loc;
+        preload_static_context_value->extensions[i - start_loc - no_need_extensions_cnt] = (unsigned long long)(temp_loc - string_loc);
 
         memcpy(temp_loc, gl_string, strlen(gl_string));
         temp_loc += strlen(gl_string);
@@ -794,7 +802,7 @@ static void static_value_prepare()
         *temp_loc = 0;
     }
 
-    preload_static_context_value->extensions_gles2 = extensions_start - string_loc + extensions_len;
+    preload_static_context_value->extensions_gles2 = (unsigned long long)(extensions_start - string_loc + extensions_len);
     printf("extensions len %d num %d: %s|\n", extensions_len, num_extensions, string_loc + (unsigned long)(preload_static_context_value->extensions_gles2));
     assert(temp_loc < ((char *)preload_static_context_value) + sizeof(Static_Context_Values) + 512 * 100 + 400);
 }

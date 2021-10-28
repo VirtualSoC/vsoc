@@ -231,6 +231,7 @@ typedef struct Guest_Host_Map
 
 extern GHashTable *program_is_external_map;
 extern GHashTable *to_external_texture_id_map;
+extern GHashTable *program_data_map;
 
 
 /**
@@ -265,9 +266,12 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
 
-void d_glLinkProgram_special(void *context, GLuint program, int buf_len, GLchar *program_data);
+void d_glLinkProgram_special(void *context, GLuint program, int *program_data_len);
 
-void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int buf_len, GLchar *program_data);
+void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len);
+
+void d_glGetProgramData(void *context, GLuint program, int buf_len, void *program_data);
+
 
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string);
 
