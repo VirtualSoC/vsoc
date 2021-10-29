@@ -98,9 +98,20 @@ volatile int native_render_run = 0;
 static QemuConsole *input_receive_con = NULL;
 
 static const GLubyte GPU_VENDOR[] = "Express_GPU (";
-static const GLubyte GPU_VERSION[] = "OpenGL ES 3.1 (";
+static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
 static const GLubyte GPU_RENDERER[] = "OpenGL ES Translator (";
 static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
+
+//google devide info
+// static const GLubyte GPU_VENDOR[] = "Google (";
+// static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
+// static const GLubyte GPU_RENDERER[] = "Android Emulator OpenGL ES Translator (";
+// static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
+
+static const int OPENGL_MAJOR_VERSION = 3;
+static const int OPENGL_MINOR_VERSION = 0;
+
+
 
 static const GLubyte *SPECIAL_EXTENSIONS[] =
     {
@@ -552,8 +563,8 @@ static void static_value_prepare()
     memset(preload_static_context_value, 0, sizeof(Static_Context_Values) + 512 * 100 + 400);
 
     // initialize static status
-    preload_static_context_value->major_version = 3;
-    preload_static_context_value->minor_version = 1;
+    preload_static_context_value->major_version = OPENGL_MAJOR_VERSION;
+    preload_static_context_value->minor_version = OPENGL_MINOR_VERSION;
 
     preload_static_context_value->implementation_color_read_type = 5121;
     preload_static_context_value->implementation_color_read_format = 6408;

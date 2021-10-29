@@ -1001,7 +1001,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            printf("uniform |%d %d| |%s|\n", location, type, name_buf);
+            //printf("uniform |%d %d| |%s|\n", location, type, name_buf);
         }
 
         for (int i = 0; i < attrib_num; i++)
@@ -1021,7 +1021,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            printf("attrib |%d %d| |%s|\n", location, type, name_buf);
+            //printf("attrib |%d %d| |%s|\n", location, type, name_buf);
         }
 
         int uniform_block_active_uniforms;
@@ -1039,7 +1039,7 @@ int init_program_data(GLuint program)
             temp_ptr += 3 * sizeof(int);
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
-            printf("uniform block |%d %d| |%s|\n", uniform_block_active_uniforms, size, name_buf);
+            //printf("uniform block |%d %d| |%s|\n", uniform_block_active_uniforms, size, name_buf);
         }
 
         if (has_image)
@@ -1113,12 +1113,18 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
 
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
 {
-    printf("gl shader source count%d:\n%s\n", count, string[0]);
-    const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)gl_FragColor=vec4(0,0,0,0);";
+    static const char DEFAULT_VERSION[] = "#version 330\n";
+    static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
+    static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)gl_FragColor=vec4(0,0,0,0);";
+    // printf("gl shader source before count%d:\n%s\n", count, string[0]);
 
     int has_find_external = 0;
     int has_find_gl_FragColor = 0;
-    char *new_string = NULL;
+    int has_version = 0;
+    int has_texturecube = 0;
+    char *new_string1 = NULL;
+    char *new_string2 = NULL;
+
     for (int i = 0; i < count; i++)
     {
         char *string_loc = strstr(string[i], "has_EGL_image_external");
@@ -1131,10 +1137,49 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         {
             has_find_gl_FragColor = 1;
         }
+        string_loc = strstr(string[i], "#version");
+        if (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            has_version = 1;
+        }
+        string_loc = strstr(string[i], "textureCube");
+        if (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            has_texturecube = 1;
+        }
+        string_loc = strstr(string[i], "gl_FragDepthEXT");
+        if (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            string_loc[12]=' ';
+            string_loc[13]=' ';
+            string_loc[14]=' ';
+
+        }
+
+
+    }
+
+    if (!has_version)
+    {
+        new_string1 = g_malloc(length[0] + sizeof(DEFAULT_VERSION) + sizeof(SHADOW_SAMPLER_EXTENSION));
+        int loc = 0;
+        memcpy(new_string1, DEFAULT_VERSION, sizeof(DEFAULT_VERSION) - 1);
+        loc += sizeof(DEFAULT_VERSION) - 1;
+        if (has_texturecube)
+        {
+            memcpy(new_string1 + loc, SHADOW_SAMPLER_EXTENSION, sizeof(SHADOW_SAMPLER_EXTENSION) - 1);
+            loc += sizeof(SHADOW_SAMPLER_EXTENSION) - 1;
+        }
+        memcpy(new_string1 + loc, string[0], length[0]);
+        loc += length[0];
+        new_string1[loc] = 0;
+        length[0] = loc;
+        string[0] = new_string1;
     }
 
     if (has_find_external == 1 && has_find_gl_FragColor == 1)
     {
+
         for (int i = 0; i < count; i++)
         {
             char *string_loc = strstr(string[i], "main(void)");
@@ -1155,23 +1200,29 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
                     break;
                 }
                 has_find_external = 1;
-                new_string = g_malloc(length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1);
-                memcpy(new_string, string[i], string_loc - string[i]);
-                memcpy(new_string + (string_loc - string[i]), USE_EXTERNAL_UNIFORM, sizeof(USE_EXTERNAL_UNIFORM) - 1);
-                memcpy(new_string + (string_loc - string[i]) + sizeof(USE_EXTERNAL_UNIFORM) - 1, string_loc, length[i] - (string_loc - string[i]));
+                new_string2 = g_malloc(length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1);
+                memcpy(new_string2, string[i], string_loc - string[i]);
+                memcpy(new_string2 + (string_loc - string[i]), USE_EXTERNAL_UNIFORM, sizeof(USE_EXTERNAL_UNIFORM) - 1);
+                memcpy(new_string2 + (string_loc - string[i]) + sizeof(USE_EXTERNAL_UNIFORM) - 1, string_loc, length[i] - (string_loc - string[i]));
                 length[i] = length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1;
-                string[i] = new_string;
-                printf("shadersource:\n%s\n", string[i]);
+                string[i] = new_string2;
+                express_printf("shadersource:\n%s\n", string[i]);
             }
         }
     }
 
     glShaderSource(shader, count, string, length);
 
-    if (new_string != NULL)
+    if (new_string1 != NULL)
     {
-        g_free(new_string);
+        g_free(new_string1);
     }
+    if (new_string2 != NULL)
+    {
+        g_free(new_string2);
+    }
+
+    printf("gl shader source after count%d:\n%s\n", count, string[0]);
 }
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)

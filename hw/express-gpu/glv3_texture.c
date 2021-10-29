@@ -551,7 +551,7 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-    printf("get graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
+    express_printf("get graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
 }
 
 void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, void *real_buffer)
