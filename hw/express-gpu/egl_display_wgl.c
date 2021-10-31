@@ -80,9 +80,11 @@ void init_configs(Egl_Display *display)
     }
 
     // 添加一些与窗口无关的配置
+    add_simple_config(display);
     add_window_independent_config(display, EGL_DEPTH_SIZE, depth_vals, NUM_DEPTH_VAL);
     add_window_independent_config(display, EGL_STENCIL_SIZE, stencil_vals, NUM_STENCILE_VAL);
     add_window_independent_config(display, EGL_SAMPLES, sample_vals, NUM_SAMPLE_VAL);
+
 
     ReleaseDC(dummy_window, dummy_ctx);
     DestroyWindow(dummy_window);

@@ -12639,7 +12639,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
+        //printf("context %llx bind vertexArray\n",opengl_context);
         d_glBindVertexArray_special(opengl_context, (GLuint)get_host_array_id(opengl_context, (unsigned int)array));
     }
     break;
@@ -13022,7 +13022,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-        
+        GLint pre_texture;
+
+        glGetIntegerv(GL_TEXTURE_BINDING_2D,&pre_texture);
+        static int cnt = 0;
+        cnt ++;
+        //printf("context %llx cnt %d bindtexture target %x guest %u host %u pre %u\n",opengl_context,cnt,target,texture,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),pre_texture);
         d_glBindTexture_special(opengl_context, target, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture));
     }
     break;
@@ -13435,8 +13440,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
-        glActiveTexture(texture);
+        //printf("context %llx ActiveTexture %d\n",opengl_context, texture-GL_TEXTURE0);
+        d_glActiveTexture_special(opengl_context, texture);
     }
     break;
 
@@ -26998,8 +27003,6 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             read_len = sizeof(Static_Context_Values) + 512 * 100 + 400;
         }
-
-        printf("glGetStaticValues host %d guest %d\n",sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
 
         if (all_para[0].data_len != sizeof(Static_Context_Values) + 512 * 100 + 400)
         {

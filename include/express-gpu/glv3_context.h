@@ -213,9 +213,10 @@ typedef struct Opengl_Context
     int is_current;
     int need_destroy;
 
-    EGL_Image *bind_image;
-    GLuint current_texture_2D;
-    GLuint current_texture_external;
+    EGL_Image **bind_image;
+    GLuint current_active_texture;
+    GLuint *current_texture_2D;
+    GLuint *current_texture_external;
     GLenum current_target;
 } Opengl_Context;
 
@@ -255,6 +256,7 @@ size_t gl_pname_size(GLenum pname);
 
 void get_program_data(GLuint program, int buf_len, GLchar *program_data);
 
+int init_program_data(GLuint program);
 
 // void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc);
 

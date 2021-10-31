@@ -211,7 +211,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    if (opengl_context->bind_image == NULL || target != GL_TEXTURE_2D)
+    if (opengl_context->bind_image[opengl_context->current_active_texture] == NULL || target != GL_TEXTURE_2D)
     {
         prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
         //这时候是立即返回的，后续会进行dma传输
@@ -219,23 +219,22 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     }
     else
     {
-        opengl_context->bind_image->host_has_data = 1;
+        opengl_context->bind_image[opengl_context->current_active_texture]->host_has_data = 1;
         //因为egl_image存放的是倒立的图像，所以这里要倒过来
         prepare_unpack_texture_to_egl_image(context, width, height, format, type, buf_len, guest_mem);
         int real_height = height;
         int real_yoffset = yoffset;
         glGetTexLevelParameteriv(GL_TEXTURE_2D, level, GL_TEXTURE_HEIGHT, &real_height);
 
-        if ( real_height >= height)
+        if (real_height >= height)
         {
             real_yoffset = real_height - yoffset - height;
         }
-        else if( real_height > height)
+        else if (real_height > height)
         {
             printf("error! get texture size real_height %d widht %d height %d", real_height, width, height);
         }
         glTexSubImage2D(target, level, xoffset, real_yoffset, width, height, format, type, 0);
-
     }
     // GLuint t;
     // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
@@ -454,7 +453,6 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     // }
     // printf("glreadpixels %s\n",print_chars);
 
-
     guest_read(guest_mem, map_pointer, 0, end_loc - start_loc);
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
@@ -592,21 +590,30 @@ void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, voi
     printf("send graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
 }
 
-
 void d_glBindTexture_special(void *context, GLenum target, GLuint texture)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     if (target == GL_TEXTURE_EXTERNAL_OES)
     {
         target = GL_TEXTURE_2D;
-        opengl_context->current_texture_external = texture;
+        opengl_context->current_texture_external[opengl_context->current_active_texture] = texture;
     }
-    else if(target == GL_TEXTURE_2D)
+    else if (target == GL_TEXTURE_2D)
     {
-        opengl_context->current_texture_2D = texture;
+        opengl_context->current_texture_2D[opengl_context->current_active_texture] = texture;
     }
 
-    opengl_context->bind_image = NULL;
+    opengl_context->bind_image[opengl_context->current_active_texture] = NULL;
     glBindTexture(target, texture);
+}
 
+void d_glActiveTexture_special(void *context, GLenum texture)
+{
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    if (texture - GL_TEXTURE0 >= 0 && texture - GL_TEXTURE0 < preload_static_context_value->max_combined_texture_image_units)
+    {
+        opengl_context->current_active_texture = texture - GL_TEXTURE0;
+    }
+
+    glActiveTexture(texture);
 }

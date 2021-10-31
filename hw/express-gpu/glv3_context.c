@@ -23,8 +23,6 @@ GHashTable *program_data_map = NULL;
 
 GHashTable *to_external_texture_id_map = NULL;
 
-int init_program_data(GLuint program);
-
 static void g_program_data_destroy(gpointer data)
 {
     GLchar *program_data = (GLchar *)data;
@@ -1058,12 +1056,10 @@ int init_program_data(GLuint program)
         {
             buf_len = temp_ptr - program_data + 10;
         }
+        g_free(name_buf);
 
         return buf_len;
-
-        g_free(name_buf);
     }
-    return;
 }
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
@@ -1111,15 +1107,59 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     return;
 }
 
+void get_default_out(char *string, char *out)
+{
+    out[0] = 0;
+    int out_loc = 0;
+    char *out_name = NULL;
+    char *out_type = NULL;
+    while (*string != ';')
+        string++;
+    string--;
+    while (isspace(*string))
+        string--;
+    while (!isspace(*string))
+        string--;
+
+    out_name = string + 1;
+    for (int i = 0; out_name[i] != ';' && !isspace(out_name[i]) && out_name[i] != 0; i++)
+    {
+        out[out_loc] = out_name[i];
+        out_loc++;
+    }
+    out[out_loc] = '=';
+    out_loc++;
+
+    while (isspace(*string))
+        string--;
+
+    while (!isspace(*string))
+        string--;
+    out_type = string + 1;
+
+    if (out_type[3] == '4')
+    {
+        strcpy(out + out_loc, "vec4(0,0,0,0);");
+    }
+    else if (out_type[3] == '3')
+    {
+        strcpy(out + out_loc, "vec3(0,0,0);");
+    }
+    else
+    {
+        strcpy(out + out_loc, "0;");
+    }
+}
+
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
 {
     static const char DEFAULT_VERSION[] = "#version 330\n";
     static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
-    static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)gl_FragColor=vec4(0,0,0,0);";
-    // printf("gl shader source before count%d:\n%s\n", count, string[0]);
+    static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)";
+
+    printf("gl shader source before count%d:\n%s\n", count, string[0]);
 
     int has_find_external = 0;
-    int has_find_gl_FragColor = 0;
     int has_version = 0;
     int has_texturecube = 0;
     char *new_string1 = NULL;
@@ -1131,11 +1171,6 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         if (string_loc != NULL && string_loc - string[i] <= length[i])
         {
             has_find_external = 1;
-        }
-        string_loc = strstr(string[i], "gl_FragColor");
-        if (string_loc != NULL && string_loc - string[i] <= length[i])
-        {
-            has_find_gl_FragColor = 1;
         }
         string_loc = strstr(string[i], "#version");
         if (string_loc != NULL && string_loc - string[i] <= length[i])
@@ -1150,13 +1185,10 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         string_loc = strstr(string[i], "gl_FragDepthEXT");
         if (string_loc != NULL && string_loc - string[i] <= length[i])
         {
-            string_loc[12]=' ';
-            string_loc[13]=' ';
-            string_loc[14]=' ';
-
+            string_loc[12] = ' ';
+            string_loc[13] = ' ';
+            string_loc[14] = ' ';
         }
-
-
     }
 
     if (!has_version)
@@ -1177,8 +1209,30 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         string[0] = new_string1;
     }
 
-    if (has_find_external == 1 && has_find_gl_FragColor == 1)
+    GLint shader_type;
+    glGetShaderiv(shader, GL_SHADER_TYPE, &shader_type);
+
+    if (has_find_external == 1 && shader_type == GL_FRAGMENT_SHADER)
     {
+        char *out_loc = NULL;
+        for (int i = 0; i < count; i++)
+        {
+            out_loc = strstr(string[i], "out ");
+            if (out_loc != NULL && (unsigned long long)(out_loc - string[i]) <= (unsigned long long)length[i])
+            {
+                if (isspace(*(out_loc - 1)))
+                {
+                    break;
+                }
+            }
+        }
+        if (out_loc == NULL)
+        {
+            out_loc = "out vec4 gl_FragColor;";
+        }
+        char default_out_string[100];
+
+        get_default_out(out_loc, default_out_string);
 
         for (int i = 0; i < count; i++)
         {
@@ -1190,6 +1244,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
             if (string_loc != NULL && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
             {
+                printf("find main\n");
                 while (string_loc[0] != '{' && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
                 {
                     string_loc++;
@@ -1200,18 +1255,26 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
                     break;
                 }
                 has_find_external = 1;
-                new_string2 = g_malloc(length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1);
-                memcpy(new_string2, string[i], string_loc - string[i]);
-                memcpy(new_string2 + (string_loc - string[i]), USE_EXTERNAL_UNIFORM, sizeof(USE_EXTERNAL_UNIFORM) - 1);
-                memcpy(new_string2 + (string_loc - string[i]) + sizeof(USE_EXTERNAL_UNIFORM) - 1, string_loc, length[i] - (string_loc - string[i]));
-                length[i] = length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1;
+                new_string2 = g_malloc(length[i] + sizeof(USE_EXTERNAL_UNIFORM) - 1 + strlen(default_out_string));
+                int offset = 0;
+                memcpy(new_string2 + offset, string[i], string_loc - string[i]);
+                offset += (string_loc - string[i]);
+                memcpy(new_string2 + offset, USE_EXTERNAL_UNIFORM, sizeof(USE_EXTERNAL_UNIFORM) - 1);
+                offset += sizeof(USE_EXTERNAL_UNIFORM) - 1;
+                memcpy(new_string2 + offset, default_out_string, strlen(default_out_string));
+                offset += strlen(default_out_string);
+                memcpy(new_string2 + offset, string_loc, length[i] - (string_loc - string[i]));
+                offset += length[i] - (string_loc - string[i]);
+
+                length[i] = offset;
                 string[i] = new_string2;
-                express_printf("shadersource:\n%s\n", string[i]);
+                printf("shadersource:\n%s\n", string[i]);
             }
         }
     }
 
     glShaderSource(shader, count, string, length);
+    printf("gl shader source after count%d:\n%s\n", count, string[0]);
 
     if (new_string1 != NULL)
     {
@@ -1221,8 +1284,6 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     {
         g_free(new_string2);
     }
-
-    printf("gl shader source after count%d:\n%s\n", count, string[0]);
 }
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
@@ -1278,10 +1339,10 @@ void d_glUseProgram_special(void *context, GLuint program)
         ret = g_hash_table_lookup(program_is_external_map, GINT_TO_POINTER(program));
     }
 
-    if (ret == 1 && opengl_context->current_texture_external != 0 && opengl_context->current_target == GL_TEXTURE_2D)
+    if (ret == 1 && opengl_context->current_texture_external[opengl_context->current_active_texture] != 0 && opengl_context->current_target == GL_TEXTURE_2D)
     {
         //当前需要使用external纹理
-        GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external));
+        GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external[opengl_context->current_active_texture]));
         if (texture != 0)
         {
             glBindTexture(GL_TEXTURE_2D, texture);
@@ -1290,7 +1351,7 @@ void d_glUseProgram_special(void *context, GLuint program)
     }
     if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D);
+        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
         opengl_context->current_target == GL_TEXTURE_2D;
     }
 
@@ -1319,13 +1380,13 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             acquire_texture_from_surface(real_surface);
             glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
 
-            if (opengl_context->current_texture_external != 0)
+            if (opengl_context->current_texture_external[opengl_context->current_active_texture] != 0)
             {
                 if (to_external_texture_id_map == NULL)
                 {
                     to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external[opengl_context->current_active_texture], GINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
             }
         }
         if (egl_image != NULL)
@@ -1333,15 +1394,15 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             init_image_texture(egl_image);
 
             acquire_texture_from_image(egl_image);
-            opengl_context->bind_image = egl_image;
+            opengl_context->bind_image[opengl_context->current_active_texture] = egl_image;
 
-            if (opengl_context->current_texture_external != 0)
+            if (opengl_context->current_texture_external[opengl_context->current_active_texture] != 0)
             {
                 if (to_external_texture_id_map == NULL)
                 {
                     to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(egl_image->fbo_texture));
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external[opengl_context->current_active_texture], GINT_TO_POINTER(egl_image->fbo_texture));
             }
 
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
@@ -1379,7 +1440,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         if (egl_image != NULL)
         {
             release_texture_from_image(egl_image);
-            opengl_context->bind_image = NULL;
+            opengl_context->bind_image[opengl_context->current_active_texture] = NULL;
         }
         break;
     }
@@ -1387,7 +1448,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
     {
         if (egl_image != NULL)
         {
-            opengl_context->bind_image = NULL;
+            opengl_context->bind_image[opengl_context->current_active_texture] = NULL;
             ATOMIC_SET_USED(egl_image->display_texture_is_use);
         }
     }
@@ -1547,11 +1608,18 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     opengl_context->is_current = 0;
     opengl_context->need_destroy = 0;
     opengl_context->window = NULL;
-    opengl_context->bind_image = NULL;
 
-    opengl_context->current_texture_2D = 0;
-    opengl_context->current_texture_external = 0;
+    opengl_context->bind_image = g_malloc(sizeof(EGL_Image *) * preload_static_context_value->max_combined_texture_image_units);
+    memset(opengl_context->bind_image, 0, sizeof(EGL_Image *) * preload_static_context_value->max_combined_texture_image_units);
+
+    opengl_context->current_texture_2D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    memset(opengl_context->current_texture_2D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    
+    opengl_context->current_texture_external = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    memset(opengl_context->current_texture_external, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    
     opengl_context->current_target = GL_TEXTURE_2D;
+    opengl_context->current_active_texture = 0;
 
     opengl_context->view_x = 0;
     opengl_context->view_y = 0;

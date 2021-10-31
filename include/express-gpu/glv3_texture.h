@@ -46,4 +46,6 @@ void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, voi
 
 void d_glBindTexture_special(void *context, GLenum target, GLuint texture);
 
+void d_glActiveTexture_special(void *context, GLenum texture);
+
 #endif

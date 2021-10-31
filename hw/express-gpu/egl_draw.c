@@ -281,7 +281,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
         return EGL_FALSE;
     }
     Opengl_Context *real_opengl_context = thread_context->opengl_context;
-
+    printf("context %llx swapbuffer\n",real_opengl_context);
     egl_surface_swap_buffer(real_surface);
     if (real_surface->config->sample_buffers_num != 0)
     {
