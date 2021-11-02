@@ -828,15 +828,20 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 {
     GLuint draw_fbo0 = ((Opengl_Context *)context)->draw_fbo0;
     GLuint read_fbo0 = ((Opengl_Context *)context)->read_fbo0;
-
+    
+    // glFlush();
+    // glFinish();
     if (framebuffer == 0)
     {
         if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
+            // printf("conetxt %llx bind 0 framebuffer draw %u\n",context, draw_fbo0);
+
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_fbo0);
         }
         if (target == GL_READ_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
+            // printf("conetxt %llx bind 0 framebuffer read %u\n",context, read_fbo0);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, read_fbo0);
         }
     }
@@ -901,7 +906,17 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     //     status->shader_storage_buffer = id;
     // }
     // express_printf("bind buffer %u\n", buffer);
+    GLint pre_buffer = 0;
+    if(target == GL_ARRAY_BUFFER)
+    {
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &pre_buffer);
+    }
+    else if(target == GL_ELEMENT_ARRAY_BUFFER)
+    {
+        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_buffer);
+    }
 
+    // printf("context %llx glBindBuffer target %x buffer %d pre_buffer %d\n",context, target, buffer, pre_buffer);
     glBindBuffer(target, buffer);
 }
 
@@ -999,7 +1014,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            //printf("uniform |%d %d| |%s|\n", location, type, name_buf);
+            // printf("uniform |%d %d| |%s|\n", location, type, name_buf);
         }
 
         for (int i = 0; i < attrib_num; i++)
@@ -1019,7 +1034,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            //printf("attrib |%d %d| |%s|\n", location, type, name_buf);
+            // printf("attrib |%d %d| |%s|\n", location, type, name_buf);
         }
 
         int uniform_block_active_uniforms;
@@ -1037,7 +1052,7 @@ int init_program_data(GLuint program)
             temp_ptr += 3 * sizeof(int);
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
-            //printf("uniform block |%d %d| |%s|\n", uniform_block_active_uniforms, size, name_buf);
+            // printf("uniform block |%d %d| |%s|\n", uniform_block_active_uniforms, size, name_buf);
         }
 
         if (has_image)
@@ -1157,7 +1172,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
     static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)";
 
-    printf("gl shader source before count%d:\n%s\n", count, string[0]);
+    // printf("gl shader source before count%d:\n%s\n", count, string[0]);
 
     int has_find_external = 0;
     int has_version = 0;
@@ -1244,7 +1259,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
             if (string_loc != NULL && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
             {
-                printf("find main\n");
+                // printf("find main\n");
                 while (string_loc[0] != '{' && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
                 {
                     string_loc++;
@@ -1268,7 +1283,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
                 length[i] = offset;
                 string[i] = new_string2;
-                printf("shadersource:\n%s\n", string[i]);
+                // printf("shadersource:\n%s\n", string[i]);
             }
         }
     }

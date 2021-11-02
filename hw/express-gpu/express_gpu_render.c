@@ -643,6 +643,11 @@ static void static_value_prepare()
     glGetInteger64v(GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS, &(preload_static_context_value->max_combined_fragment_uniform_components));
     glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &(preload_static_context_value->max_uniform_block_size));
 
+    if(preload_static_context_value->max_vertex_attribs > 16)
+    {
+        preload_static_context_value->max_vertex_attribs = 16;
+    }
+
     if (preload_static_context_value->num_program_binary_formats > 8)
     {
         preload_static_context_value->num_program_binary_formats = 8;

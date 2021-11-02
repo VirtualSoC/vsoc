@@ -582,10 +582,10 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
         }
     }
 
-    for(int i = 0;i<n;i++)
-    {
-        printf("context %llx delete texture guest %u host %u\n",context,textures[i],host_buffers[i]);
-    }
+    // for(int i = 0;i<n;i++)
+    // {
+    //     printf("context %llx delete texture guest %u host %u\n",context,textures[i],host_buffers[i]);
+    // }
 
     glDeleteTextures(n, host_buffers);
     g_free(host_buffers);

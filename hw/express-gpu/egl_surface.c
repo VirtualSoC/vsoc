@@ -29,6 +29,7 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
     // }
     if (surface->config->sample_buffers_num != 0)
     {
+        printf("use sample blit\n");
         glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->sampler_fbo[surface->now_draw]);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
         glBlitFramebuffer(0, 0, surface->width, surface->height, 0, 0, surface->width, surface->height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
@@ -179,6 +180,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     EGLint alpha_bits = d_buffer->config->alpha_size;
     EGLint stencil_bits = d_buffer->config->stencil_size;
     EGLint depth_bits = d_buffer->config->depth_size;
+    // d_buffer->config->sample_buffers_num = 0;
     EGLint need_sampler = d_buffer->config->sample_buffers_num;
     EGLint sampler_num = d_buffer->config->samples_per_pixel;
 
@@ -347,6 +349,15 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     // format = GL_RG;
     // type = GL_UNSIGNED_BYTE;
 
+       
+    if( internal_format == GL_RGB565)
+    {
+        internal_format = GL_RGB8;
+        format = GL_RGB;
+        type = GL_UNSIGNED_BYTE;
+    }
+
+
     if (depth_bits == 16)
     {
         depth_internal_format = GL_DEPTH_COMPONENT16;
@@ -367,8 +378,10 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     {
         stencil_internal_format = GL_STENCIL_INDEX8;
         // express_printf("GL_STENCIL_INDEX8\n");
-        if (depth_internal_format == GL_DEPTH_COMPONENT24)
+        if (depth_internal_format == GL_DEPTH_COMPONENT24 || depth_internal_format == GL_DEPTH_COMPONENT16)
         {
+            depth_internal_format = GL_DEPTH_COMPONENT24;
+
             depth_internal_format = GL_DEPTH24_STENCIL8;
             // express_printf("GL_DEPTH24_STENCIL8\n");
         }

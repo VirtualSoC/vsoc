@@ -281,7 +281,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
         return EGL_FALSE;
     }
     Opengl_Context *real_opengl_context = thread_context->opengl_context;
-    printf("context %llx swapbuffer\n",real_opengl_context);
+    // printf("context %llx swapbuffer\n",real_opengl_context);
     egl_surface_swap_buffer(real_surface);
     if (real_surface->config->sample_buffers_num != 0)
     {
@@ -291,6 +291,8 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     {
         real_opengl_context->draw_fbo0 = real_surface->display_fbo[real_surface->now_draw];
     }
+
+    // printf("context swapbuffer %llx draw_fbo0 %d\n",real_opengl_context,real_opengl_context->draw_fbo0);
 
     //要注意read_fbo0来自于read surface
     real_opengl_context->read_fbo0 = thread_context->render_double_buffer_read->read_fbo[thread_context->render_double_buffer_read->now_read];

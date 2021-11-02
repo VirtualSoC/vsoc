@@ -12639,7 +12639,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-        //printf("context %llx bind vertexArray\n",opengl_context);
+        // printf("context %llx bind vertexArray guest %u host %u\n",opengl_context,array,(GLuint)get_host_array_id(opengl_context, (unsigned int)array));
         d_glBindVertexArray_special(opengl_context, (GLuint)get_host_array_id(opengl_context, (unsigned int)array));
     }
     break;
@@ -13210,7 +13210,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
+        // printf("context %llx glBindFramebuffer %x guest %d host %d\n",opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
         d_glBindFramebuffer_special(opengl_context, target, (GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
     }
     break;
@@ -16800,7 +16800,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
+        // printf("context %llx glBlitFramebuffer\n");
         glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
     }
     break;
