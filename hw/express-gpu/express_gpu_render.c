@@ -1574,7 +1574,7 @@ GLuint acquire_texture_from_image(EGL_Image *image)
 
 void init_image_texture(EGL_Image *image)
 {
-    if (image->fbo_texture == 0)
+    if (image->fbo_texture == 0 && image->target != EGL_GL_TEXTURE_2D)
     {
         //image需要初始化，这个时候肯定有context了
         GLuint pre_vbo;

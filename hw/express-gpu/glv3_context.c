@@ -1419,7 +1419,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
                 }
                 g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external[opengl_context->current_active_texture], GINT_TO_POINTER(egl_image->fbo_texture));
             }
-
+            // printf("eglimage bind texture %u\n",egl_image->fbo_texture);
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
         }
         break;
@@ -1432,7 +1432,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             printf("error! Surface is writen by image!");
         }
 
-        if (egl_image != NULL)
+        if (egl_image != NULL && egl_image->target != EGL_GL_TEXTURE_2D)
         {
             if (opengl_context->draw_surface != NULL && opengl_context->draw_surface->I_am_composer == 0)
             {

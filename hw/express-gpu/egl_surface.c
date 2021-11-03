@@ -17,7 +17,7 @@
 #include "express-gpu/express_gpu_render.h"
 #include "express-gpu/offscreen_render_thread.h"
 
-EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, int stride, int width, int height);
+EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, EGLenum target, int format, int stride, int width, int height, GLuint share_texture);
 void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new);
 
 void egl_surface_swap_buffer(Window_Buffer *surface)
@@ -180,7 +180,14 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     EGLint alpha_bits = d_buffer->config->alpha_size;
     EGLint stencil_bits = d_buffer->config->stencil_size;
     EGLint depth_bits = d_buffer->config->depth_size;
-    // d_buffer->config->sample_buffers_num = 0;
+    if(d_buffer->config->sample_buffers_num != 0)
+    {
+        printf("surface enable sample %d\n",d_buffer->config->sample_buffers_num);
+        if(d_buffer->config->sample_buffers_num == -1)
+        {
+            d_buffer->config->sample_buffers_num = 0;
+        }
+    }
     EGLint need_sampler = d_buffer->config->sample_buffers_num;
     EGLint sampler_num = d_buffer->config->samples_per_pixel;
 
@@ -345,6 +352,8 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     }
 
     printf("%llx surface choose red %d green %d blue %d alpha %d depth %d stencil %d\n", d_buffer, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits);
+    printf("surface size width %d height %d \n",d_buffer->width, d_buffer->height);
+    
     // internal_format = GL_RG8;
     // format = GL_RG;
     // type = GL_UNSIGNED_BYTE;
@@ -474,6 +483,11 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
     if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, d_buffer->display_rbo_stencil[index]);
+    }
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER) ;
+    if(status!= GL_FRAMEBUFFER_COMPLETE)
+    {
+        printf("Framebuffer is not complete! status is %x error is %x\n",status,glGetError());
     }
 }
 
@@ -617,6 +631,8 @@ int egl_surface_init(Window_Buffer *d_buffer, GLFWwindow *now_window, int need_d
             }
         }
     }
+
+    
 
     // //屏幕分离调试专用
     // #ifdef DEBUG_INDEPEND_WINDOW
@@ -884,6 +900,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     int height = 0;
     int format = 0;
     int stride = 0;
+    GLuint share_texture = 0;
     int i = 0;
     while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
     {
@@ -900,6 +917,8 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         case EGL_BUFFER_SIZE:
             //用buffer_size作为对齐选项
             stride = attrib_list[i + 1];
+        case EGL_GL_TEXTURE_2D:
+            share_texture = attrib_list[i + 1];
         default:
             //todo 其他attrib属性的设置
             break;
@@ -942,7 +961,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     //没有找到这个gbuffer_id说明这个gbuffer没有被用于创建surface，而且之前也没有出现过，很可能是来着于合成器surface
     //所以手动给它创建一个image
 
-    real_image = create_real_image(context, gbuffer_id, format, stride, width, height);
+    real_image = create_real_image(context, gbuffer_id, target, format, stride, width, height, share_texture);
 
     Process_Context *process_context = thread_context->process_context;
     express_printf("#%llx create image, gbuffer_id %llx, image %llx, width %d height %d texture %u time %lld\n", thread_context->opengl_context, gbuffer_id, guest_image, width, height, real_image->fbo_texture, g_get_real_time());
@@ -950,7 +969,16 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     g_hash_table_insert(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id), (gpointer)real_image);
 
     set_image_gbuffer_id(NULL, real_image, gbuffer_id);
-    return 0;
+
+    if(target == EGL_GL_TEXTURE_2D)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+
 }
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
@@ -994,7 +1022,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     return EGL_FALSE;
 }
 
-EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, int stride, int width, int height)
+EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, EGLenum target, int format, int stride, int width, int height, GLuint share_texture)
 {
     // createimage的时候，是否有openglcontext状态？假如没有的话是否应该延迟到使用的时候？
     // 实际上systemui就会在没有context的情况下调用createimage
@@ -1004,7 +1032,7 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, in
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
 
     int should_init = 0;
-    if (thread_context->opengl_context != NULL)
+    if (thread_context->opengl_context != NULL && target == EGL_NATIVE_BUFFER_ANDROID)
     {
         should_init = 1;
     }
@@ -1024,6 +1052,8 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, in
         // glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
     }
 
+    real_image->target = target;
+
     real_image->fbo_sync = NULL;
     real_image->fbo_sync_need_delete = NULL;
     real_image->display_texture_is_use = 0;
@@ -1039,6 +1069,16 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, in
     real_image->display_fbo = 0;
 
     real_image->origin_format = format;
+
+    if(target == EGL_GL_TEXTURE_2D)
+    {
+        Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+        Opengl_Context *opengl_context = thread_context->opengl_context;
+        real_image->fbo_texture = (GLuint)get_host_texture_id(opengl_context, share_texture);
+        real_image->host_has_data = 1;
+        printf("context %llx create imaget type texture host %u guest %u\n",opengl_context,real_image->fbo_texture,share_texture);
+        return real_image; 
+    }
 
     if (format == HAL_PIXEL_FORMAT_RGBA_8888 || format == HAL_PIXEL_FORMAT_RGBX_8888)
     {
@@ -1109,6 +1149,11 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, in
 
 void destroy_real_image(EGL_Image *real_image)
 {
+    if(real_image->target == EGL_GL_TEXTURE_2D)
+    {
+        return;
+    }
+
     if(real_image->fbo_texture != 0)
     {
         glDeleteTextures(1, &(real_image->fbo_texture));

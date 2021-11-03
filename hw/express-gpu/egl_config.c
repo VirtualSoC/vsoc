@@ -46,9 +46,9 @@ const int64_t config_hints[NUM_HINTS] = {
     GLFW_STENCIL_BITS,
     GLFW_DEPTH_BITS};
 
-const int depth_vals[NUM_DEPTH_VAL] = {0, 16, 24, 32};
+const int depth_vals[NUM_DEPTH_VAL] = {0, 24};
 const int stencil_vals[NUM_STENCILE_VAL] = {0, 8};
-const int sample_vals[NUM_SAMPLE_VAL] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+const int sample_vals[NUM_SAMPLE_VAL] = {0, 2, 4, 8};
 
 EGLBoolean is_config_in_table(eglConfig *config, GHashTable *table)
 {
@@ -222,6 +222,10 @@ void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum) {
             break;
         case EGL_SAMPLE_BUFFERS:
             config->sample_buffers_num = val;
+            if(config->sample_buffers_num == EGL_DONT_CARE)
+            {
+                config->sample_buffers_num = 0;
+            }
             break;
         case EGL_SAMPLES: {
             config->samples_per_pixel = val;

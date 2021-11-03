@@ -20,6 +20,8 @@
 #define HAL_PIXEL_FORMAT_BGRA_8888 5
 
 typedef struct EGL_Image{
+     GLenum target;
+
      int display_texture_is_use;
      int is_lock;
      GLuint display_fbo;
