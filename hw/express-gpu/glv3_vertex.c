@@ -459,7 +459,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
 
     int len = count * gl_sizeof(type);
 
-    printf("drawElements without %x %d %x %lx len %d\n",mode,(int)count,type,indices,len);
+    // printf("drawElements without %x %d %x %lx len %d\n",mode,(int)count,type,indices,len);
 
     GLint buffer_loc = set_indices_data(context, indices, len);
     glDrawElements(mode, count, type, buffer_loc);

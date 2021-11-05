@@ -13022,11 +13022,11 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-        GLint pre_texture;
+        // GLint pre_texture;
 
-        glGetIntegerv(GL_TEXTURE_BINDING_2D,&pre_texture);
-        static int cnt = 0;
-        cnt ++;
+        // glGetIntegerv(GL_TEXTURE_BINDING_2D,&pre_texture);
+        // static int cnt = 0;
+        // cnt ++;
         //printf("context %llx cnt %d bindtexture target %x guest %u host %u pre %u\n",opengl_context,cnt,target,texture,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),pre_texture);
         d_glBindTexture_special(opengl_context, target, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture));
     }
@@ -14192,24 +14192,24 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         //     printf("glCompileShader %x guest %u host %u\n",error,shader,(GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
         // }
         // @todo 下面的需要注释掉
-        GLint compiled;
-        glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_COMPILE_STATUS, &compiled);
+        // GLint compiled;
+        // glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_COMPILE_STATUS, &compiled);
 
-        // GLenum error = glGetError();
-        //     printf("glGetShaderiv %x\n",error);
-        if (!compiled)
-        {
-            GLint infoLen = 0;
-            glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_INFO_LOG_LENGTH, &infoLen);
-            printf("shader not compile");
-            if (infoLen > 1)
-            {
-                char *infoLog = (char *)g_malloc(sizeof(char) * infoLen);
-                glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), infoLen, NULL, infoLog);
-                printf("#Error compiling shader:\n%s\n", infoLog);
-                g_free(infoLog);
-            }
-        }
+        // // GLenum error = glGetError();
+        // //     printf("glGetShaderiv %x\n",error);
+        // if (!compiled)
+        // {
+        //     GLint infoLen = 0;
+        //     glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_INFO_LOG_LENGTH, &infoLen);
+        //     printf("shader not compile");
+        //     if (infoLen > 1)
+        //     {
+        //         char *infoLog = (char *)g_malloc(sizeof(char) * infoLen);
+        //         glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), infoLen, NULL, infoLog);
+        //         printf("#Error compiling shader:\n%s\n", infoLog);
+        //         g_free(infoLog);
+        //     }
+        // }
     }
     break;
 
@@ -14757,8 +14757,8 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-        GLuint t;
-        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
+        // GLuint t;
+        // glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
         // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
         glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
     }

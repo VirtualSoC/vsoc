@@ -262,8 +262,16 @@ Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char 
         Guest_Mem *guest_mem = g_malloc(sizeof(Guest_Mem));
         Scatter_Data *scatter_data = g_malloc(sizeof(Scatter_Data));
 
-        scatter_data->len = send_buf[i * 2 + 2];
-        scatter_data->data = save_buf + send_buf[i * 2 + 1 + 2];
+        if(send_buf[i * 2 + 2 + 1] != 0)
+        {
+            scatter_data->len = send_buf[i * 2 + 2];
+            scatter_data->data = save_buf + send_buf[i * 2 + 2 + 1];
+        }
+        else
+        {
+            scatter_data->len = 0;
+            scatter_data->data = NULL;
+        }
 
         guest_mem->scatter_data = scatter_data;
         guest_mem->num = 1;

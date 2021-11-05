@@ -213,10 +213,11 @@ typedef struct Opengl_Context
     int is_current;
     int need_destroy;
 
-    EGL_Image **bind_image;
+    // external_texture不受到当前激活的纹理影响，只要绑定了就能用
+    EGL_Image *bind_image;
     GLuint current_active_texture;
     GLuint *current_texture_2D;
-    GLuint *current_texture_external;
+    GLuint current_texture_external;
     GLenum current_target;
 } Opengl_Context;
 

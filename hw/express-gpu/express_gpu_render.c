@@ -119,16 +119,15 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*2*/ "GL_OES_EGL_image_external",
         /*3*/ "GL_OES_EGL_sync",
         /*4*/ "GL_OES_depth24",
-        /*5*/ "GL_OES_depth32",
-        /*6*/ "GL_OES_depth_texture",
-        /*7*/ "GL_OES_texture_half_float",
-        /*8*/ "GL_OES_texture_half_float_linear",
-        /*9*/ "GL_OES_rgb8_rgba8",
-        /*10*/ "GL_OES_depth_texture",
-        /*11*/ "GL_OES_EGL_image_external_essl3",
-        /*12*/ "GL_KHR_texture_compression_astc_ldr",
-        /*13*/ "GL_OES_vertex_array_object"};
-static const int SPECIAL_EXTENSIONS_SIZE = 13;
+        // /*5*/ "GL_OES_depth32",
+        /*5*/ "GL_OES_texture_half_float",
+        /*6*/ "GL_OES_texture_half_float_linear",
+        /*7*/ "GL_OES_compressed_ETC1_RGB8_texture",
+        /*8*/ "GL_OES_depth_texture",
+        /*9*/ "GL_OES_EGL_image_external_essl3",
+        /*10*/ "GL_KHR_texture_compression_astc_ldr",
+        /*11*/ "GL_OES_vertex_array_object"};
+static const int SPECIAL_EXTENSIONS_SIZE = 11;
 
 //支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =

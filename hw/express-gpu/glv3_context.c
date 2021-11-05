@@ -828,7 +828,7 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 {
     GLuint draw_fbo0 = ((Opengl_Context *)context)->draw_fbo0;
     GLuint read_fbo0 = ((Opengl_Context *)context)->read_fbo0;
-    
+
     // glFlush();
     // glFinish();
     if (framebuffer == 0)
@@ -906,15 +906,15 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
     //     status->shader_storage_buffer = id;
     // }
     // express_printf("bind buffer %u\n", buffer);
-    GLint pre_buffer = 0;
-    if(target == GL_ARRAY_BUFFER)
-    {
-        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &pre_buffer);
-    }
-    else if(target == GL_ELEMENT_ARRAY_BUFFER)
-    {
-        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_buffer);
-    }
+    // GLint pre_buffer = 0;
+    // if(target == GL_ARRAY_BUFFER)
+    // {
+    //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &pre_buffer);
+    // }
+    // else if(target == GL_ELEMENT_ARRAY_BUFFER)
+    // {
+    //     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_buffer);
+    // }
 
     // printf("context %llx glBindBuffer target %x buffer %d pre_buffer %d\n",context, target, buffer, pre_buffer);
     glBindBuffer(target, buffer);
@@ -1289,7 +1289,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     }
 
     glShaderSource(shader, count, string, length);
-    printf("gl shader source after count%d:\n%s\n", count, string[0]);
+    printf("gl shader source after count %d context %llx:\n%s\n", count, context, string[0]);
 
     if (new_string1 != NULL)
     {
@@ -1354,23 +1354,36 @@ void d_glUseProgram_special(void *context, GLuint program)
         ret = g_hash_table_lookup(program_is_external_map, GINT_TO_POINTER(program));
     }
 
-    if (ret == 1 && opengl_context->current_texture_external[opengl_context->current_active_texture] != 0 && opengl_context->current_target == GL_TEXTURE_2D)
+    if (ret == 1 && opengl_context->current_target == GL_TEXTURE_2D)
     {
         //当前需要使用external纹理
-        GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external[opengl_context->current_active_texture]));
-        if (texture != 0)
+
+        for (int i = 0; i < preload_static_context_value->max_combined_texture_image_units; i++)
         {
-            glBindTexture(GL_TEXTURE_2D, texture);
-            opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES;
+            if (opengl_context->current_texture_external != 0)
+            {
+                GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external));
+                if (texture != 0)
+                {
+                    glBindTexture(GL_TEXTURE_2D, texture);
+                    opengl_context->current_target = GL_TEXTURE_EXTERNAL_OES;
+                    // printf("context %llx program %u change to external texture %u i %d current %u real current %d\n", opengl_context, program, texture, i,opengl_context->current_texture_external,now_active-GL_TEXTURE0);
+                    break;
+                }
+            }
         }
     }
     if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
     {
+        // printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
         glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
-        opengl_context->current_target == GL_TEXTURE_2D;
+        opengl_context->current_target = GL_TEXTURE_2D;
     }
+    // printf("context %llx use program %u external active %d target %x\n", opengl_context, program,opengl_context->current_active_texture, opengl_context->current_target);
 
     glUseProgram(program);
+
+    
 }
 
 void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
@@ -1395,13 +1408,13 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             acquire_texture_from_surface(real_surface);
             glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
 
-            if (opengl_context->current_texture_external[opengl_context->current_active_texture] != 0)
+            if (opengl_context->current_texture_external != 0)
             {
                 if (to_external_texture_id_map == NULL)
                 {
                     to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external[opengl_context->current_active_texture], GINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
             }
         }
         if (egl_image != NULL)
@@ -1409,15 +1422,15 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
             init_image_texture(egl_image);
 
             acquire_texture_from_image(egl_image);
-            opengl_context->bind_image[opengl_context->current_active_texture] = egl_image;
+            opengl_context->bind_image = egl_image;
 
-            if (opengl_context->current_texture_external[opengl_context->current_active_texture] != 0)
+            if (opengl_context->current_texture_external != 0)
             {
                 if (to_external_texture_id_map == NULL)
                 {
                     to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external[opengl_context->current_active_texture], GINT_TO_POINTER(egl_image->fbo_texture));
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(egl_image->fbo_texture));
             }
             // printf("eglimage bind texture %u\n",egl_image->fbo_texture);
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
@@ -1455,7 +1468,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         if (egl_image != NULL)
         {
             release_texture_from_image(egl_image);
-            opengl_context->bind_image[opengl_context->current_active_texture] = NULL;
+            opengl_context->bind_image = NULL;
         }
         break;
     }
@@ -1463,7 +1476,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
     {
         if (egl_image != NULL)
         {
-            opengl_context->bind_image[opengl_context->current_active_texture] = NULL;
+            opengl_context->bind_image = NULL;
             ATOMIC_SET_USED(egl_image->display_texture_is_use);
         }
     }
@@ -1624,15 +1637,13 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     opengl_context->need_destroy = 0;
     opengl_context->window = NULL;
 
-    opengl_context->bind_image = g_malloc(sizeof(EGL_Image *) * preload_static_context_value->max_combined_texture_image_units);
-    memset(opengl_context->bind_image, 0, sizeof(EGL_Image *) * preload_static_context_value->max_combined_texture_image_units);
+    opengl_context->bind_image = NULL;
 
     opengl_context->current_texture_2D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
     memset(opengl_context->current_texture_2D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    
-    opengl_context->current_texture_external = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(opengl_context->current_texture_external, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    
+
+    opengl_context->current_texture_external = 0;
+
     opengl_context->current_target = GL_TEXTURE_2D;
     opengl_context->current_active_texture = 0;
 
