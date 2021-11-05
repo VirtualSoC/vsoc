@@ -620,6 +620,7 @@ void d_glActiveTexture_special(void *context, GLenum texture)
         opengl_context->current_active_texture = texture - GL_TEXTURE0;
         
     }
+    // printf("active texuture %d\n",opengl_context->current_active_texture);
 
     glActiveTexture(texture);
 }

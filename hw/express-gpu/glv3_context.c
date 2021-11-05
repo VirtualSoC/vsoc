@@ -1154,15 +1154,15 @@ void get_default_out(char *string, char *out)
 
     if (out_type[3] == '4')
     {
-        strcpy(out + out_loc, "vec4(0,0,0,0);");
+        strcpy(out + out_loc, "vec4(0,0,0,0);return;}");
     }
     else if (out_type[3] == '3')
     {
-        strcpy(out + out_loc, "vec3(0,0,0);");
+        strcpy(out + out_loc, "vec3(0,0,0);return;}");
     }
     else
     {
-        strcpy(out + out_loc, "0;");
+        strcpy(out + out_loc, "0;return;}");
     }
 }
 
@@ -1170,7 +1170,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 {
     static const char DEFAULT_VERSION[] = "#version 330\n";
     static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
-    static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==0)";
+    static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==1){";
 
     // printf("gl shader source before count%d:\n%s\n", count, string[0]);
 
@@ -1245,7 +1245,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         {
             out_loc = "out vec4 gl_FragColor;";
         }
-        char default_out_string[100];
+        char default_out_string[200];
 
         get_default_out(out_loc, default_out_string);
 
@@ -1365,8 +1365,21 @@ void d_glUseProgram_special(void *context, GLuint program)
                 GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external));
                 if (texture != 0)
                 {
+                    if(opengl_context->current_active_texture != 0)
+                    {
+                        glActiveTexture(GL_TEXTURE0);
+                    }
                     glBindTexture(GL_TEXTURE_2D, texture);
                     opengl_context->current_target = GL_TEXTURE_EXTERNAL_OES;
+                    
+                    if(opengl_context->current_active_texture != 0)
+                    {
+                        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                    }
+
+                    // int now_active;
+                    // glGetIntegerv(GL_ACTIVE_TEXTURE,&now_active);
+
                     // printf("context %llx program %u change to external texture %u i %d current %u real current %d\n", opengl_context, program, texture, i,opengl_context->current_texture_external,now_active-GL_TEXTURE0);
                     break;
                 }
@@ -1375,11 +1388,11 @@ void d_glUseProgram_special(void *context, GLuint program)
     }
     if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
     {
-        // printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
+        printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
         glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
         opengl_context->current_target = GL_TEXTURE_2D;
     }
-    // printf("context %llx use program %u external active %d target %x\n", opengl_context, program,opengl_context->current_active_texture, opengl_context->current_target);
+    printf("context %llx use program %u external active %d target %x\n", opengl_context, program,opengl_context->current_active_texture, opengl_context->current_target);
 
     glUseProgram(program);
 
