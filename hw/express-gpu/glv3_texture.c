@@ -502,6 +502,8 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
 {
     //没有绑定时，正好可以使用异步纹理传输
     Guest_Mem *guest_mem = (Guest_Mem *)real_buffer;
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+
 
     EGL_Image *egl_image = get_image_from_gbuffer_id(g_buffer_id);
 
@@ -526,7 +528,7 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
     GLuint pre_texture;
     glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
 
-    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     GLint asyn_texture = bound_buffer->asyn_unpack_texture_buffer;
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
 
@@ -548,6 +550,7 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
 
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, egl_image->width, egl_image->height, egl_image->format, egl_image->pixel_type, NULL);
 
+    //注意，graphicdata调用前会调用bindEGLImage来绑定EGLImage对应的那个特殊纹理，所以这里不能使用缓存值
     glBindTexture(GL_TEXTURE_2D, pre_texture);
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);

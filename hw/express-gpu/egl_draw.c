@@ -436,7 +436,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     //计算合成器的帧率
     if (now_time - last_calc_time > 1000000 && last_calc_time != 0)
     {
-        express_printf("%llx surface draw %dHz\n", real_surface, now_screen_hz);
+        printf("%llx surface draw %dHz\n", real_surface, now_screen_hz);
         now_screen_hz = 0;
 
         last_calc_time = now_time;

@@ -289,6 +289,8 @@ void d_glBindVertexArray_special(void *context, GLuint array)
 
     bound_buffer->attrib_point = temp_point;
 
+    bound_buffer->buffer_status.element_array_buffer = temp_point->element_array_buffer;
+    
     glBindVertexArray(array);
 }
 

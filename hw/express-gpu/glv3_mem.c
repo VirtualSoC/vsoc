@@ -6,58 +6,103 @@ GLuint get_buffer_binding_id(void *context, GLenum target);
 
 GLuint get_buffer_binding_id(void *context, GLenum target)
 {
-    GLuint buffer_id;
-    switch(target)
-    {
-        case GL_ARRAY_BUFFER:
-            glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_ATOMIC_COUNTER_BUFFER:
-            glGetIntegerv(GL_ATOMIC_COUNTER_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_COPY_READ_BUFFER:
-            glGetIntegerv(GL_COPY_READ_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_COPY_WRITE_BUFFER:
-            glGetIntegerv(GL_COPY_WRITE_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_DISPATCH_INDIRECT_BUFFER:
-            glGetIntegerv(GL_DISPATCH_INDIRECT_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_DRAW_INDIRECT_BUFFER:
-            glGetIntegerv(GL_DRAW_INDIRECT_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_ELEMENT_ARRAY_BUFFER:
-            glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_PIXEL_PACK_BUFFER:
-            glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_PIXEL_UNPACK_BUFFER:
-            glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_QUERY_BUFFER:
-            glGetIntegerv(GL_QUERY_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_SHADER_STORAGE_BUFFER:
-            glGetIntegerv(GL_SHADER_STORAGE_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_TEXTURE_BUFFER:
-            glGetIntegerv(GL_TEXTURE_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_TRANSFORM_FEEDBACK_BUFFER:
-            glGetIntegerv(GL_TRANSFORM_FEEDBACK_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        case GL_UNIFORM_BUFFER:
-            glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, (GLint *)&buffer_id);
-            break;
-        default:
-            printf("error! get_buffer_binding_id target %x not found! ",(int)target);
-            break;
-    }
-    return buffer_id;
-}
+    // GLuint buffer_id;
 
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
+
+    switch (target)
+    {
+    case GL_ARRAY_BUFFER:
+        return status->array_buffer;
+        break;
+    case GL_ELEMENT_ARRAY_BUFFER:
+        return status->element_array_buffer;
+        break;
+    case GL_COPY_READ_BUFFER:
+        return status->copy_read_buffer;
+        break;
+    case GL_COPY_WRITE_BUFFER:
+        return status->copy_write_buffer;
+        break;
+    case GL_PIXEL_PACK_BUFFER:
+        return status->pixel_pack_buffer;
+        break;
+    case GL_PIXEL_UNPACK_BUFFER:
+        return status->pixel_unpack_buffer;
+        break;
+    case GL_TRANSFORM_FEEDBACK_BUFFER:
+        return status->transform_feedback_buffer;
+        break;
+    case GL_UNIFORM_BUFFER:
+        return status->uniform_buffer;
+        break;
+    case GL_ATOMIC_COUNTER_BUFFER:
+        status->atomic_counter_buffer;
+        break;
+    case GL_DISPATCH_INDIRECT_BUFFER:
+        return status->dispatch_indirect_buffer;
+        break;
+    case GL_DRAW_INDIRECT_BUFFER:
+        return status->draw_indirect_buffer;
+        break;
+    case GL_SHADER_STORAGE_BUFFER:
+        return status->shader_storage_buffer;
+    default:
+        return 0;
+    }
+    return 0;
+
+    // switch(target)
+    // {
+    //     case GL_ARRAY_BUFFER:
+    //         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_ATOMIC_COUNTER_BUFFER:
+    //         glGetIntegerv(GL_ATOMIC_COUNTER_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_COPY_READ_BUFFER:
+    //         glGetIntegerv(GL_COPY_READ_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_COPY_WRITE_BUFFER:
+    //         glGetIntegerv(GL_COPY_WRITE_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_DISPATCH_INDIRECT_BUFFER:
+    //         glGetIntegerv(GL_DISPATCH_INDIRECT_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_DRAW_INDIRECT_BUFFER:
+    //         glGetIntegerv(GL_DRAW_INDIRECT_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_ELEMENT_ARRAY_BUFFER:
+    //         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_PIXEL_PACK_BUFFER:
+    //         glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_PIXEL_UNPACK_BUFFER:
+    //         glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_QUERY_BUFFER:
+    //         glGetIntegerv(GL_QUERY_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_SHADER_STORAGE_BUFFER:
+    //         glGetIntegerv(GL_SHADER_STORAGE_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_TEXTURE_BUFFER:
+    //         glGetIntegerv(GL_TEXTURE_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_TRANSFORM_FEEDBACK_BUFFER:
+    //         glGetIntegerv(GL_TRANSFORM_FEEDBACK_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     case GL_UNIFORM_BUFFER:
+    //         glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, (GLint *)&buffer_id);
+    //         break;
+    //     default:
+    //         printf("error! get_buffer_binding_id target %x not found! ",(int)target);
+    //         break;
+    // }
+    // return buffer_id;
+}
 
 void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const void *data, GLenum usage)
 {
@@ -146,7 +191,7 @@ void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsi
     if (access & GL_MAP_READ_BIT)
     {
         GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
-        Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target)<<32) + get_buffer_binding_id(context, target)));
+        Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_buffer_binding_id(context, target)));
         guest_read((Guest_Mem *)mem_buf, (void *)map_res->host_data, 0, length);
         //host_guest_buffer_exchange(map_res->guest_data, map_res->host_data, 0, length, 0);
     }
@@ -177,7 +222,7 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     {
         map_res = g_malloc(sizeof(Guest_Host_Map));
         memset(map_res, 0, sizeof(Guest_Host_Map));
-        g_hash_table_insert(buffer_map, (gpointer)((((guint64)target)<<32) + get_buffer_binding_id(context, target)), (gpointer)map_res);
+        g_hash_table_insert(buffer_map, (gpointer)((((guint64)target) << 32) + get_buffer_binding_id(context, target)), (gpointer)map_res);
     }
     else
     {
@@ -259,7 +304,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
     // }
     // printf("unmap buffer %x\n",(int)target);
     GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
-    Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target)<<32) + get_buffer_binding_id(context, target)));
+    Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_buffer_binding_id(context, target)));
     if (map_res == NULL)
     {
         // map_res = g_malloc(sizeof(Guest_Host_Map));
@@ -270,7 +315,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
 
     //这里不需要更新映射的这个缓冲区
     GLboolean ret = glUnmapBuffer(target);
-    g_hash_table_remove(buffer_map, (gpointer)((((guint64)target)<<32) + get_buffer_binding_id(context, target)));
+    g_hash_table_remove(buffer_map, (gpointer)((((guint64)target) << 32) + get_buffer_binding_id(context, target)));
     // memset(map_res, 0, sizeof(Guest_Host_Map));
     //注意：unmap后不删除hash表中保存的map_res是因为这个还会被复用，因为其键是target
     return ret;
@@ -279,13 +324,13 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
 void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr offset, GLsizeiptr length, const void *data)
 {
     GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
-    Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target)<<32) + get_buffer_binding_id(context, target)));
+    Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_buffer_binding_id(context, target)));
     if (map_res == NULL)
     {
         map_res = g_malloc(sizeof(Guest_Host_Map));
         memset(map_res, 0, sizeof(Guest_Host_Map));
-        g_hash_table_insert(buffer_map, (gpointer)((((guint64)target)<<32) + get_buffer_binding_id(context, target)), (gpointer)map_res);
-        
+        g_hash_table_insert(buffer_map, (gpointer)((((guint64)target) << 32) + get_buffer_binding_id(context, target)), (gpointer)map_res);
+
         return;
     }
     if (map_res->host_data == NULL)

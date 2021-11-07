@@ -857,64 +857,49 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 
 void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
 {
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
+    
+    switch (target)
+    {
+    case GL_ARRAY_BUFFER:
+        status->array_buffer = buffer;
+        break;
+    case GL_ELEMENT_ARRAY_BUFFER:
+        status->element_array_buffer = buffer;
+        opengl_context->bound_buffer_status.attrib_point->element_array_buffer = buffer;
+        break;
+    case GL_COPY_READ_BUFFER:
+        status->copy_read_buffer = buffer;
+        break;
+    case GL_COPY_WRITE_BUFFER:
+        status->copy_write_buffer = buffer;
+        break;
+    case GL_PIXEL_PACK_BUFFER:
+        status->pixel_pack_buffer = buffer;
+        break;
+    case GL_PIXEL_UNPACK_BUFFER:
+        status->pixel_unpack_buffer = buffer;
+        break;
+    case GL_TRANSFORM_FEEDBACK_BUFFER:
+        status->transform_feedback_buffer = buffer;
+        break;
+    case GL_UNIFORM_BUFFER:
+        status->uniform_buffer = buffer;
+        break;
+    case GL_ATOMIC_COUNTER_BUFFER:
+        status->atomic_counter_buffer = buffer;
+        break;
+    case GL_DISPATCH_INDIRECT_BUFFER:
+        status->dispatch_indirect_buffer = buffer;
+        break;
+    case GL_DRAW_INDIRECT_BUFFER:
+        status->draw_indirect_buffer = buffer;
+        break;
+    case GL_SHADER_STORAGE_BUFFER:
+        status->shader_storage_buffer = buffer;
 
-    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    // // Buffer_Status *status = bound_buffer->buffer_status;
-    // GLint id = buffer;
-    // //由于这里status是指针，所以对这个status的更新也会直接反映到vao相应的status上去
-    // switch (target)
-    // {
-    // case GL_ARRAY_BUFFER:
-    //     status->array_buffer = id;
-    //     express_printf("bind GL_ARRAY_BUFFER %u\n",buffer);
-    //     //bound_buffer->vao_vbo[bound_buffer->vertex_array_buffer] = id;
-    //     break;
-    // case GL_ELEMENT_ARRAY_BUFFER:
-    //     express_printf("bind GL_ELEMENT_ARRAY_BUFFER %u\n",buffer);
-
-    //     status->element_array_buffer = id;
-    //     //bound_buffer->vao_ebo[bound_buffer->vertex_array_buffer] = id;
-    //     break;
-    // case GL_COPY_READ_BUFFER:
-    //     status->copy_read_buffer = id;
-    //     break;
-    // case GL_COPY_WRITE_BUFFER:
-    //     status->copy_write_buffer = id;
-    //     break;
-    // case GL_PIXEL_PACK_BUFFER:
-    //     status->pixel_pack_buffer = id;
-    //     break;
-    // case GL_PIXEL_UNPACK_BUFFER:
-    //     status->pixel_unpack_buffer = id;
-    //     break;
-    // case GL_TRANSFORM_FEEDBACK_BUFFER:
-    //     status->transform_feedback_buffer = id;
-    //     break;
-    // case GL_UNIFORM_BUFFER:
-    //     status->uniform_buffer = id;
-    //     break;
-    // case GL_ATOMIC_COUNTER_BUFFER:
-    //     status->atomic_counter_buffer = id;
-    //     break;
-    // case GL_DISPATCH_INDIRECT_BUFFER:
-    //     status->dispatch_indirect_buffer = id;
-    //     break;
-    // case GL_DRAW_INDIRECT_BUFFER:
-    //     status->draw_indirect_buffer = id;
-    //     break;
-    // case GL_SHADER_STORAGE_BUFFER:
-    //     status->shader_storage_buffer = id;
-    // }
-    // express_printf("bind buffer %u\n", buffer);
-    // GLint pre_buffer = 0;
-    // if(target == GL_ARRAY_BUFFER)
-    // {
-    //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &pre_buffer);
-    // }
-    // else if(target == GL_ELEMENT_ARRAY_BUFFER)
-    // {
-    //     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_buffer);
-    // }
+    }
 
     // printf("context %llx glBindBuffer target %x buffer %d pre_buffer %d\n",context, target, buffer, pre_buffer);
     glBindBuffer(target, buffer);
@@ -1289,7 +1274,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     }
 
     glShaderSource(shader, count, string, length);
-    printf("gl shader source after count %d context %llx:\n%s\n", count, context, string[0]);
+    // printf("gl shader source after count %d context %llx:\n%s\n", count, context, string[0]);
 
     if (new_string1 != NULL)
     {
@@ -1388,11 +1373,11 @@ void d_glUseProgram_special(void *context, GLuint program)
     }
     if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
     {
-        printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
+        // printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
         glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
         opengl_context->current_target = GL_TEXTURE_2D;
     }
-    printf("context %llx use program %u external active %d target %x\n", opengl_context, program,opengl_context->current_active_texture, opengl_context->current_target);
+    // printf("context %llx use program %u external active %d target %x\n", opengl_context, program,opengl_context->current_active_texture, opengl_context->current_target);
 
     glUseProgram(program);
 

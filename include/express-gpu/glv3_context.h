@@ -34,21 +34,22 @@ typedef struct Pixel_Store_Status
 
 typedef struct Buffer_Status
 {
-    GLint array_buffer;         //vbo
-    GLint element_array_buffer; //ebo
-    GLint copy_read_buffer;
-    GLint copy_write_buffer;
-    GLint pixel_pack_buffer;
-    GLint pixel_unpack_buffer;
-    GLint transform_feedback_buffer;
-    GLint uniform_buffer;
-    GLint atomic_counter_buffer;
-    GLint dispatch_indirect_buffer;
-    GLint draw_indirect_buffer;
-    GLint shader_storage_buffer;
-    GLint vertex_array_buffer; //vao
+    GLuint array_buffer; //vbo
+    GLuint element_array_buffer; //ebo
+    GLuint copy_read_buffer;
+    GLuint copy_write_buffer;
+    GLuint pixel_pack_buffer;
+    GLuint pixel_unpack_buffer;
+    GLuint transform_feedback_buffer;
+    GLuint uniform_buffer;
+    GLuint atomic_counter_buffer;
+    GLuint dispatch_indirect_buffer;
+    GLuint draw_indirect_buffer;
+    GLuint shader_storage_buffer;
+    GLuint vertex_array_buffer; //vao
 
 } Buffer_Status;
+
 
 typedef struct Attrib_Point
 {
@@ -79,6 +80,8 @@ typedef struct Attrib_Point
     GLint remain_indices_buffer_len;
 
     // GLint buffer_num;
+    GLint element_array_buffer; //ebo
+
 
     // GLboolean in_buffer[MAX_VERTEX_ATTRIBS_NUM];
 
@@ -90,8 +93,6 @@ typedef struct Attrib_Point
 typedef struct Bound_Buffer
 {
 
-    //这个buffer_status指针是指向实际vao_status里的值
-    // Buffer_Status *buffer_status;
     Attrib_Point *attrib_point;
 
     // // std::map<GLint, GLenum> buffer_type;
@@ -105,6 +106,8 @@ typedef struct Bound_Buffer
 
     GLuint asyn_unpack_texture_buffer;
     GLuint asyn_pack_texture_buffer;
+
+    Buffer_Status buffer_status;
 
     int has_init;
     //std::map<GLint, Element_Array_Buffer *> ebo_buffer;
@@ -230,11 +233,9 @@ typedef struct Guest_Host_Map
 
 } Guest_Host_Map;
 
-
 extern GHashTable *program_is_external_map;
 extern GHashTable *to_external_texture_id_map;
 extern GHashTable *program_data_map;
-
 
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
@@ -275,13 +276,11 @@ void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryForma
 
 void d_glGetProgramData(void *context, GLuint program, int buf_len, void *program_data);
 
-
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string);
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer);
 
 void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer);
-
 
 void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
 
