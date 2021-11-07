@@ -409,7 +409,7 @@ void render_context_init(Thread_Context *context)
 
 static void g_window_surface_map_destroy(gpointer data)
 {
-    printf("remove window_surface %llx\n",data);
+    // printf("remove window_surface %llx\n",data);
     Window_Buffer *real_surface = (Window_Buffer *)data;
     if (real_surface->type == WINDOW_SURFACE)
     {
@@ -422,7 +422,7 @@ static void g_p_surface_map_destroy(gpointer data)
     Window_Buffer *real_surface = (Window_Buffer *)data;
     if (real_surface->type == P_SURFACE)
     {
-        printf("remove p_surface %llx\n",data);
+        // printf("remove p_surface %llx\n",data);
         render_surface_destroy(real_surface);
     }
 }
@@ -446,7 +446,7 @@ static void g_context_map_destroy(gpointer data)
 static void g_image_map_destroy(gpointer data)
 {
     EGL_Image *real_image = (EGL_Image *)data;
-    printf("destroy image invoke\n");
+    // printf("destroy image invoke\n");
     // PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
     send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
 }
@@ -476,7 +476,7 @@ void render_context_destroy(Thread_Context *context)
 
     if (process_context->thread_cnt == 0)
     {
-        printf("process destroy everything\n");
+        // printf("process destroy everything\n");
         g_hash_table_destroy(process_context->context_map);
         //surface_map这个是删除p_surface
         g_hash_table_destroy(process_context->surface_map);

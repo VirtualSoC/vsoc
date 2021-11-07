@@ -219,7 +219,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     }
     else
     {
-        printf("glTexSubImage2D to egl image gbuffer_id %llx \n",opengl_context->bind_image->gbuffer_id);
+        // printf("glTexSubImage2D to egl image gbuffer_id %llx \n",opengl_context->bind_image->gbuffer_id);
         opengl_context->bind_image->host_has_data = 1;
 
         prepare_unpack_texture_to_egl_image(context, width, height, format, type, buf_len, guest_mem);
@@ -593,7 +593,7 @@ void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, voi
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-    printf("send graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
+    // printf("send graphic buffer from image %llx guest width %d height %d format %x len %d\n", g_buffer_id, egl_image->width, egl_image->height, egl_image->format, buf_len);
 }
 
 void d_glBindTexture_special(void *context, GLenum target, GLuint texture)

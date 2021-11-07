@@ -31,6 +31,7 @@
 // HWND draw_native_window;
 
 GAsyncQueue *main_window_event_queue = NULL;
+int main_window_event_queue_lock=0;
 
 Static_Context_Values *preload_static_context_value = NULL;
 
@@ -298,7 +299,10 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 
 static void handle_child_window_event()
 {
+    ATOMIC_LOCK(main_window_event_queue_lock);
     Main_window_Event *child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
+    ATOMIC_UNLOCK(main_window_event_queue_lock);
+
     while (child_event != NULL)
     {
         switch (child_event->event_code)
@@ -314,7 +318,7 @@ static void handle_child_window_event()
                 {
                     break;
                 }
-                printf("create window\n");
+                // printf("create window\n");
                 *window_ptr = native_window_create();
             }
 
@@ -341,7 +345,7 @@ static void handle_child_window_event()
                 //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
                 set_surface_gbuffer_id(NULL, surface->guest_gbuffer_id);
             }
-            printf("real destroy surface %llx\n", surface);
+            // printf("real destroy surface %llx\n", surface);
 
             //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
             glDeleteTextures(surface->buffer_num, surface->fbo_texture);
@@ -395,7 +399,9 @@ static void handle_child_window_event()
         }
         g_free(child_event);
 
+        ATOMIC_LOCK(main_window_event_queue_lock);
         child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
+        ATOMIC_UNLOCK(main_window_event_queue_lock);
     }
 
     return;
@@ -1604,7 +1610,7 @@ void init_image_texture(EGL_Image *image)
         // glBindTexture(GL_TEXTURE_2D, pre_texture);
         glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
         // glBindFramebuffer(GL_FRAMEBUFFER, pre_fbo);
-        printf("image %llx need init texture %u\n", image->gbuffer_id, image->fbo_texture);
+        // printf("image %llx need init texture %u\n", image->gbuffer_id, image->fbo_texture);
     }
 }
 
@@ -1644,7 +1650,7 @@ void release_texture_from_image(EGL_Image *image)
     {
         image->need_reverse = 0;
 
-        printf("reverse eglimage gbuffer_id %llx\n", image->gbuffer_id);
+        // printf("reverse eglimage gbuffer_id %llx\n", image->gbuffer_id);
 
         glBlitNamedFramebuffer(image->display_fbo, image->display_fbo_reverse, 0, 0, image->width, image->height, 0, image->height, image->width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
         GLuint temp_id;
@@ -1742,5 +1748,7 @@ void send_message_to_main_window(int message_code, void *data)
     Main_window_Event *event = g_malloc(sizeof(Main_window_Event));
     event->event_code = message_code;
     event->data = data;
+    ATOMIC_LOCK(main_window_event_queue_lock);
     g_async_queue_push(main_window_event_queue, (gpointer)event);
+    ATOMIC_UNLOCK(main_window_event_queue_lock);
 }

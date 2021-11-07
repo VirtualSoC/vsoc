@@ -9,7 +9,7 @@
  * 
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "express-gpu/egl_surface.h"
 #include "express-gpu/egl_display.h"
@@ -139,29 +139,6 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
     }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->display_fbo[surface->now_read]);
 
-    // gint64 now_time = g_get_real_time();
-    // if(surface->last_gen_time!=0){
-    //     surface->frame_gen_time=(int)(now_time - surface->last_gen_time);
-    // }
-    // surface->last_gen_time=now_time;
-
-    // if (now_time - surface->last_swap_time > 1000000 && surface->last_swap_time != 0)
-    // {
-    //     surface->calc_hz += 1;
-    //     surface->draw_hz = surface->calc_hz;
-    //     express_printf("surface draw %dHz\n", surface->draw_hz);
-    //     surface->calc_hz = 0;
-    //     surface->last_swap_time = now_time;
-    // }
-    // else if (surface->last_swap_time == 0)
-    // {
-    //     surface->last_swap_time = now_time;
-    //     surface->calc_hz = 0;
-    // }
-    // else
-    // {
-    //     surface->calc_hz += 1;
-    // }
 }
 
 void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
@@ -351,8 +328,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
         // express_printf("choose rgba default ");
     }
 
-    printf("%llx surface choose red %d green %d blue %d alpha %d depth %d stencil %d\n", d_buffer, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits);
-    printf("surface size width %d height %d \n",d_buffer->width, d_buffer->height);
+    printf("%llx surface choose red %d green %d blue %d alpha %d depth %d stencil %d width %d height %d\n", d_buffer, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, d_buffer->width, d_buffer->height);
     
     // internal_format = GL_RG8;
     // format = GL_RG;
@@ -835,7 +811,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
             // assert(0);
         }
         host_surface = render_surface_create(config, width, height, WINDOW_SURFACE);
-        printf("create surface %llx ( use win %llx )\n", host_surface, win);
+        // printf("create surface %llx ( use win %llx )\n", host_surface, win);
         host_surface->guest_native_window = win;
         g_hash_table_insert(process_context->native_window_surface_map, GINT_TO_POINTER(win), (gpointer)host_surface);
     }
@@ -854,7 +830,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Process_Context *process_context = thread_context->process_context;
 
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GINT_TO_POINTER(surface));
-    printf("destroy surface %llx\n", real_surface);
+    // printf("destroy surface %llx\n", real_surface);
     if (real_surface == NULL)
     {
         return EGL_FALSE;
@@ -932,7 +908,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
     if (surface != NULL)
     {
-        printf("#%llx create image from surface %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, surface);
+        // printf("#%llx create image from surface %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, surface);
         return 1;
     }
 
@@ -940,7 +916,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
     if (real_image != NULL && real_image->height == height && real_image->width == width && real_image->origin_format == format)
     {
-        printf("#%llx create image from image %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, real_image);
+        // printf("#%llx create image from image %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, real_image);
         real_image->display_texture_is_use = 0;
         if (real_image->host_has_data == 1)
         {
@@ -990,7 +966,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     Process_Context *process_context = thread_context->process_context;
 
     EGL_Image *real_image = get_image_from_gbuffer_id(gbuffer_id);
-    printf("%llx destroy image gbuffer_id %llx surface %llx image %llx\n", thread_context->opengl_context, image, surface, real_image);
+    // printf("%llx destroy image gbuffer_id %llx surface %llx image %llx\n", thread_context->opengl_context, image, surface, real_image);
     //这里不从map中移除，因为surface来自于ANativeWindow，只要应用没挂，它是仍然存在的，所以surface依然需要保持着映射
     if (surface != NULL && real_image == NULL)
     {
@@ -1038,7 +1014,7 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, EGLenum target
     }
     else
     {
-        printf("shoud not init\n");
+        // printf("shoud not init\n");
     }
 
     GLuint pre_vbo;
@@ -1076,7 +1052,7 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, EGLenum target
         Opengl_Context *opengl_context = thread_context->opengl_context;
         real_image->fbo_texture = (GLuint)get_host_texture_id(opengl_context, share_texture);
         real_image->host_has_data = 1;
-        printf("context %llx create imaget type texture host %u guest %u\n",opengl_context,real_image->fbo_texture,share_texture);
+        // printf("context %llx create imaget type texture host %u guest %u\n",opengl_context,real_image->fbo_texture,share_texture);
         return real_image; 
     }
 
@@ -1091,7 +1067,7 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, EGLenum target
     }
     else if (format == HAL_PIXEL_FORMAT_BGRA_8888)
     {
-        printf("EGLImage with g_buffer_id %llx need format BGRA_8888!!!\n", (uint64_t)g_buffer_id);
+        // printf("EGLImage with g_buffer_id %llx need format BGRA_8888!!!\n", (uint64_t)g_buffer_id);
         real_image->internal_format = GL_RGBA8;
         real_image->format = GL_BGRA;
         real_image->pixel_type = GL_UNSIGNED_INT_8_8_8_8;
