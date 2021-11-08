@@ -141,6 +141,10 @@ typedef struct Window_Buffer
      int swap_loc;
      int swap_time_cnt;
 
+
+     gint64 last_calc_time;
+     int now_screen_hz;
+
      int64_t temp_time;
 
 } Window_Buffer;

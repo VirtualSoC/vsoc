@@ -31,7 +31,7 @@
 // HWND draw_native_window;
 
 GAsyncQueue *main_window_event_queue = NULL;
-int main_window_event_queue_lock=0;
+int main_window_event_queue_lock = 0;
 
 Static_Context_Values *preload_static_context_value = NULL;
 
@@ -112,23 +112,33 @@ static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
 static const int OPENGL_MAJOR_VERSION = 3;
 static const int OPENGL_MINOR_VERSION = 0;
 
-
-
 static const GLubyte *SPECIAL_EXTENSIONS[] =
     {
         /*1*/ "GL_OES_EGL_image",
         /*2*/ "GL_OES_EGL_image_external",
         /*3*/ "GL_OES_EGL_sync",
         /*4*/ "GL_OES_depth24",
-        // /*5*/ "GL_OES_depth32",
-        /*5*/ "GL_OES_texture_half_float",
-        /*6*/ "GL_OES_texture_half_float_linear",
-        /*7*/ "GL_OES_compressed_ETC1_RGB8_texture",
-        /*8*/ "GL_OES_depth_texture",
-        /*9*/ "GL_OES_EGL_image_external_essl3",
-        /*10*/ "GL_KHR_texture_compression_astc_ldr",
-        /*11*/ "GL_OES_vertex_array_object"};
-static const int SPECIAL_EXTENSIONS_SIZE = 11;
+        /*5*/ "GL_OES_depth32",
+        /*6*/ "GL_OES_texture_float",
+        /*7*/ "GL_OES_texture_half_float",
+        /*8*/ "GL_OES_texture_half_float_linear",
+        /*9*/ "GL_OES_compressed_ETC1_RGB8_texture",
+        /*10*/ "GL_OES_depth_texture",
+        /*11*/ "GL_OES_EGL_image_external_essl3",
+        /*12*/ "GL_KHR_texture_compression_astc_ldr",
+        /*13*/ "GL_OES_vertex_array_object",
+        /*14*/ "GL_EXT_shader_framebuffer_fetch",
+        /*15*/ "GL_EXT_multisampled_render_to_texture",
+        /*16*/ "GL_EXT_color_buffer_float",
+        /*17*/ "GL_EXT_color_buffer_half_float",
+        /*18*/ "GL_OES_element_index_uint",
+        /*19*/ "GL_OES_texture_float_linear",
+        /*20*/ "GL_OES_compressed_paletted_texture",
+        /*21*/ "GL_OES_packed_depth_stencil",
+        /*22*/ "GL_OES_texture_npot",
+        /*23*/ "GL_OES_rgb8_rgba8",
+};
+static const int SPECIAL_EXTENSIONS_SIZE = 23;
 
 //支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
@@ -648,7 +658,7 @@ static void static_value_prepare()
     glGetInteger64v(GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS, &(preload_static_context_value->max_combined_fragment_uniform_components));
     glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &(preload_static_context_value->max_uniform_block_size));
 
-    if(preload_static_context_value->max_vertex_attribs > 16)
+    if (preload_static_context_value->max_vertex_attribs > 16)
     {
         preload_static_context_value->max_vertex_attribs = 16;
     }
@@ -671,40 +681,6 @@ static void static_value_prepare()
     glGetIntegerv(GL_NUM_EXTENSIONS, &(preload_static_context_value->num_extensions));
 
     char *temp_loc = string_loc;
-
-    // //这三行是临时的，因为Madagascar应用中这个的长度过长会启动不起来
-    // preload_static_context_value->vendor = temp_loc - string_loc;
-
-    // memcpy(temp_loc, GPU_VENDOR, sizeof(GPU_VENDOR) - 1);
-    // temp_loc += sizeof(GPU_VENDOR) - 1;
-    // temp_loc--;
-    // *temp_loc = 0;
-    // temp_loc++;
-    // printf("\ngl vendor:%s\n", string_loc + (unsigned long)(preload_static_context_value->vendor));
-
-    // preload_static_context_value->version = temp_loc - string_loc;
-
-    // memcpy(temp_loc, GPU_VERSION, sizeof(GPU_VERSION) - 1);
-    // temp_loc += sizeof(GPU_VERSION) - 1;
-    // temp_loc--;
-    // *temp_loc = 0;
-    // temp_loc++;
-    // printf("gl version:%s\n", string_loc + (unsigned long)(preload_static_context_value->version));
-
-    // preload_static_context_value->renderer = temp_loc - string_loc;
-
-    // memcpy(temp_loc, GPU_RENDERER, sizeof(GPU_RENDERER) - 1);
-    // temp_loc += sizeof(GPU_RENDERER) - 1;
-    // temp_loc--;
-    // *temp_loc = 0;
-    // temp_loc++;
-    // printf("gl renderer:%s\n", string_loc + (unsigned long)(preload_static_context_value->renderer));
-
-    // preload_static_context_value->shading_language_version = temp_loc - string_loc;
-    // memcpy(temp_loc, GPU_SHADER_LANGUAGE_VERSION, sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1);
-    // *temp_loc = 0;
-    // temp_loc++;
-    // printf("gl shading_language_version:%s\n", string_loc + (unsigned long)(preload_static_context_value->shading_language_version));
 
     const GLubyte *gl_string;
     gl_string = glGetString(GL_VENDOR);
