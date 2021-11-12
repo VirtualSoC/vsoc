@@ -561,9 +561,9 @@ static void handle_windowevent(SDL_Event *ev)
         break;
     case SDL_WINDOWEVENT_FOCUS_GAINED:
         win32_kbd_set_grab(gui_grab);
-        if (qemu_console_is_graphic(scon->dcl.con)) {
-            win32_kbd_set_window(sdl2_win32_get_hwnd(scon));
-        }
+        // if (qemu_console_is_graphic(scon->dcl.con)) {
+        //     win32_kbd_set_window(sdl2_win32_get_hwnd(scon));
+        // }
         /* fall through */
     case SDL_WINDOWEVENT_ENTER:
         if (!gui_grab && (qemu_input_is_absolute() || absolute_enabled)) {
@@ -579,9 +579,9 @@ static void handle_windowevent(SDL_Event *ev)
         scon->ignore_hotkeys = get_mod_state();
         break;
     case SDL_WINDOWEVENT_FOCUS_LOST:
-        if (qemu_console_is_graphic(scon->dcl.con)) {
-            win32_kbd_set_window(NULL);
-        }
+        // if (qemu_console_is_graphic(scon->dcl.con)) {
+        //     win32_kbd_set_window(NULL);
+        // }
         if (gui_grab && !gui_fullscreen) {
             sdl_grab_end(scon);
         }

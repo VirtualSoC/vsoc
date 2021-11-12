@@ -180,6 +180,12 @@ static GLFWwindow *native_window_create();
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 
+static void shutdown_callback(GLFWwindow *window)
+{
+    qemu_system_powerdown_request();
+    glfwSetWindowShouldClose(window, GLFW_FALSE);
+}
+
 static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
 {
     int qcode;
@@ -1114,6 +1120,8 @@ void *native_window_thread(void *opaque)
 
     //设置窗口大小可以自由调整
     glfwSetFramebufferSizeCallback(glfw_window, window_size_change_callback);
+
+    glfwSetWindowCloseCallback(glfw_window, shutdown_callback);
 
     // draw_native_window = glfwGetWin32Window(glfw_window);
 

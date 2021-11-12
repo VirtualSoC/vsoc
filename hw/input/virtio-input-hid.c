@@ -459,7 +459,7 @@ static struct virtio_input_config virtio_tablet_config_v2[] = {
         .size      = 2,
         .u.bitmap  = {
             0,
-            0
+            (1 << (REL_WHEEL - 8))
         },
     },{
         .select    = VIRTIO_INPUT_CFG_ABS_INFO,
