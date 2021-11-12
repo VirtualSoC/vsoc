@@ -981,13 +981,21 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
         return EGL_TRUE;
     }
 
-    //根据framework代码来看，每次queuebuffer后都会创建一次image，删除一次image，但是gbuffer都会存在，所以只有进程终止了之后才能删除它
+    //根据framework代码来看，对于native类型的image而言每次queuebuffer后都会创建一次image，删除一次image，但是gbuffer都会存在，所以只有进程终止了之后才能删除它
+    //但是对于TEXTURE_2D类型的image而言，就应该现在删除
     // printf("destroy image %lx\n",real_image);
     if (real_image != NULL)
     {
-        if (real_image->is_lock)
+        if(real_image->target == EGL_GL_TEXTURE_2D)
         {
-            release_texture_from_image(real_image);
+            g_hash_table_remove(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id));
+        }
+        else
+        {
+            if (real_image->is_lock)
+            {
+                release_texture_from_image(real_image);
+            }
         }
         // g_hash_table_remove(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id));
         // 上面的remove函数的销毁函数会回收内存，调用下面两个函数，所以下面就注释了
@@ -1125,23 +1133,22 @@ EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, EGLenum target
 
 void destroy_real_image(EGL_Image *real_image)
 {
-    if(real_image->target == EGL_GL_TEXTURE_2D)
+    if(real_image->target != EGL_GL_TEXTURE_2D)
     {
-        return;
+        if(real_image->fbo_texture != 0)
+        {
+            glDeleteTextures(1, &(real_image->fbo_texture));
+        }
+
+        if(real_image->display_fbo != 0)
+        {
+            glDeleteFramebuffers(1, &(real_image->display_fbo));
+            glDeleteFramebuffers(1, &(real_image->display_fbo_reverse));
+            
+            glDeleteTextures(1, &(real_image->fbo_texture_reverse));
+        }
     }
 
-    if(real_image->fbo_texture != 0)
-    {
-        glDeleteTextures(1, &(real_image->fbo_texture));
-    }
-
-    if(real_image->display_fbo != 0)
-    {
-        glDeleteFramebuffers(1, &(real_image->display_fbo));
-        glDeleteFramebuffers(1, &(real_image->display_fbo_reverse));
-        
-        glDeleteTextures(1, &(real_image->fbo_texture_reverse));
-    }
 
     if (real_image->fbo_sync != NULL)
     {

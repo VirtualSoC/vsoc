@@ -1557,6 +1557,9 @@
 
 #define PARA_NUM_MIN_glGetProgramData (2)
 
+#define FUNID_glSync ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 387)
+
+#define PARA_NUM_MIN_glSync (0)
 
 
 

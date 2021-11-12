@@ -20,6 +20,7 @@ typedef struct Process_Context{
 
     GHashTable *gbuffer_image_map;
 
+    Resource_Map_Status *egl_sync_resource;
 
     int thread_cnt;
 } Process_Context;

@@ -26,6 +26,9 @@
 #define MAIN_DESTROY_SURFACE 3
 #define MAIN_DESTROY_CONTEXT 4
 #define MAIN_DESTROY_IMAGE 5
+#define MAIN_DESTROY_ALL_EGLSYNC 6
+#define MAIN_DESTROY_ONE_EGLSYNC 7
+
 
 #define ATOMIC_LOCK(s)                       \
      while (atomic_cmpxchg(&(s), 0, 1) == 1) \
@@ -39,7 +42,7 @@
 #define ATOMIC_SET_UNUSED(s) (atomic_cmpxchg(&(s), 1, 0))
 
 //是否启用opengl调试模式的宏定义
-// #define ENABLE_OPENGL_DEBUG
+#define ENABLE_OPENGL_DEBUG
 
 // 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
@@ -131,6 +134,8 @@ extern GAsyncQueue *main_window_event_queue;
 extern volatile int native_render_run;
 
 extern Static_Context_Values *preload_static_context_value;
+
+extern GLFWwindow *glfw_dummy_window_for_sync;
 
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);

@@ -62,6 +62,7 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
     {
         status->max_id = max_id;
     }
+    return 0;
 }
 
 /**
@@ -156,6 +157,7 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
     {
         unsigned int host_id;
         glGenBuffers(1, &host_id);
+        printf("create buffer not in host %u guest %u\n",host_id,id);
         unsigned long long host_id_long = host_id;
         int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
         if (ret == 0)
@@ -427,6 +429,8 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
     for (int i = 0; i < n; i++)
     {
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
+
+        // printf("context %llx create framebuffer guest %u host %u\n",context,framebuffers[i],host_buffers[i]);
     }
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
@@ -668,6 +672,10 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
 
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, framebuffers, host_buffers);
+    // for(int i = 0;i<n;i++)
+    // {
+    //     printf("context %llx delete framebuffer guest %u host %u\n",context,framebuffers[i],host_buffers[i]);
+    // }
     glDeleteFramebuffers(n, host_buffers);
     g_free(host_buffers);
 

@@ -361,6 +361,10 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
             process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_p_surface_map_destroy);
             process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
             process->gbuffer_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_image_map_destroy);
+            process->egl_sync_resource = g_malloc(sizeof(Resource_Map_Status));
+            process->egl_sync_resource->map_size = 0;
+            process->egl_sync_resource->max_id = 0;
+            process->egl_sync_resource->resource_id_map = NULL;
             process->thread_cnt = 0;
 
             g_hash_table_insert(render_process_contexts, GINT_TO_POINTER(process_id), (gpointer)process);
@@ -485,6 +489,9 @@ void render_context_destroy(Thread_Context *context)
 
         //image删除，这里主要是为了释放gbuffer映射
         g_hash_table_destroy(process_context->gbuffer_image_map);
+
+        send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);
+
 
         g_free(process_context);
     }

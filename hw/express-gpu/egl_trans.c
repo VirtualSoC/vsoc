@@ -1697,7 +1697,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         temp_loc += 8;
 
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
-        temp_loc += sizeof(EGLint);
+        temp_loc += get_attrib_list_len(attrib_list);;
         /* Check length */
         if (temp_len < temp_loc)
         {

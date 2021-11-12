@@ -100,7 +100,7 @@
 
 #define PARA_NUM_MIN_eglReleaseThread (0)
 
-#define FUNID_eglCreateSync ((EXPRESS_GPU_FUN_ID << 32u) + 10036)
+#define FUNID_eglCreateSync ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10036)
 
 #define PARA_NUM_MIN_eglCreateSync (1)
 

@@ -599,7 +599,7 @@ void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, voi
 void d_glBindTexture_special(void *context, GLenum target, GLuint texture)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // printf("context %llx target %x texture %u current %d\n", opengl_context,target, texture,opengl_context->current_active_texture);
+    // printf("context %llx target %x texture %u current %d   ", opengl_context,target, texture,opengl_context->current_active_texture);
     if (target == GL_TEXTURE_EXTERNAL_OES)
     {
         target = GL_TEXTURE_2D;

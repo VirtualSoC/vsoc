@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  * 
  */
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
@@ -79,6 +79,9 @@ static gint64 gen_frame_time_avg_1s = 0;
 
 static GLFWwindow *glfw_window = NULL;
 
+GLFWwindow *glfw_dummy_window_for_sync = NULL;
+
+
 static GLuint programID = 0;
 static GLuint drawVAO = 0;
 
@@ -127,8 +130,8 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*11*/ "GL_OES_EGL_image_external_essl3",
         /*12*/ "GL_KHR_texture_compression_astc_ldr",
         /*13*/ "GL_OES_vertex_array_object",
-        /*14*/ "GL_EXT_shader_framebuffer_fetch",
-        /*15*/ "GL_EXT_multisampled_render_to_texture",
+        // /*14*/ "GL_EXT_shader_framebuffer_fetch",   //这个暂时看情况支持，webview用它来混合，会着色器中使用变量gl_LastFragData
+        // /*15*/ "GL_EXT_multisampled_render_to_texture",  //这个暂时不能有，因为它需要支持相关函数
         /*16*/ "GL_EXT_color_buffer_float",
         /*17*/ "GL_EXT_color_buffer_half_float",
         /*18*/ "GL_OES_element_index_uint",
@@ -137,8 +140,9 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*21*/ "GL_OES_packed_depth_stencil",
         /*22*/ "GL_OES_texture_npot",
         /*23*/ "GL_OES_rgb8_rgba8",
+        /*24*/ "GL_OES_framebuffer_object",
 };
-static const int SPECIAL_EXTENSIONS_SIZE = 23;
+static const int SPECIAL_EXTENSIONS_SIZE = 22;
 
 //支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
@@ -401,6 +405,38 @@ static void handle_child_window_event()
             express_printf("real destroy image %lx\n", real_image);
 
             destroy_real_image(real_image);
+        }
+        break;
+        case MAIN_DESTROY_ALL_EGLSYNC:
+        {
+            Resource_Map_Status *status = (Resource_Map_Status *)child_event->data;
+            if (status == NULL || status->max_id == 0)
+            {
+                break;
+            }
+            for (int i = 1; i <= status->max_id; i++)
+            {
+                if (status->resource_id_map[i] != 0)
+                {
+                    glDeleteSync((GLsync)status->resource_id_map[i]);
+                }
+            }
+            if(status->resource_id_map != NULL)
+            {
+                g_free(status->resource_id_map);
+            }
+            g_free(status);
+        }
+        break;
+        case MAIN_DESTROY_ONE_EGLSYNC:
+        {
+            GLsync sync = (GLsync)child_event->data;
+            if (sync == NULL)
+            {
+                break;
+            }
+           
+            glDeleteSync(sync);
         }
         break;
         default:
@@ -991,7 +1027,7 @@ static GLFWwindow *native_window_create()
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    child_window = glfwCreateWindow(100, 100, name, NULL, glfw_window);
+    child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
 
 #else
     //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
@@ -1087,6 +1123,8 @@ void *native_window_thread(void *opaque)
     // ShowWindow(draw_native_window, TRUE);
 
     glfwMakeContextCurrent(glfw_window);
+
+    glfw_dummy_window_for_sync = glfwCreateWindow(1, 1, "sync", NULL, glfw_window);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {

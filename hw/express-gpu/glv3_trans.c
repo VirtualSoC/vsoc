@@ -13023,11 +13023,10 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
         // GLint pre_texture;
-
         // glGetIntegerv(GL_TEXTURE_BINDING_2D,&pre_texture);
         // static int cnt = 0;
         // cnt ++;
-        //printf("context %llx cnt %d bindtexture target %x guest %u host %u pre %u\n",opengl_context,cnt,target,texture,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),pre_texture);
+        // printf("context %llx cnt %d bindtexture target %x guest %u host %u pre %u\n",opengl_context,cnt,target,texture,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),pre_texture);
         d_glBindTexture_special(opengl_context, target, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture));
     }
     break;
@@ -27074,6 +27073,12 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         d_glGetProgramData(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), buf_len, real_buffer);
 
 
+    }
+    break;
+
+    case FUNID_glSync:
+    {
+        //用于同步，不需要做任何事情
     }
     break;
 
