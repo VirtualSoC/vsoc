@@ -1432,10 +1432,10 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
                 g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(egl_image->fbo_texture));
             }
             // printf("eglimage bind texture %u\n",egl_image->fbo_texture);
-            if(!glIsTexture(egl_image->fbo_texture))
-            {
-                printf("eglimage gbuffer_id %llx fbo_texture %u is delete!\n",egl_image->gbuffer_id, egl_image->fbo_texture);
-            }
+            // if(!glIsTexture(egl_image->fbo_texture))
+            // {
+            //     printf("eglimage gbuffer_id %llx fbo_texture %u is delete!\n",egl_image->gbuffer_id, egl_image->fbo_texture);
+            // }
             glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
         }
         break;

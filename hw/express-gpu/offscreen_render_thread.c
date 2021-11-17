@@ -43,7 +43,7 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call);
 
 void release_call_special(Direct_Express_Call *call, int notify);
 
-Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf);
+int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct_Express_Call *pre_call, Direct_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
 
 static void g_window_surface_map_destroy(gpointer data);
 
@@ -91,12 +91,12 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
         express_printf("gl decode invoke %llu\n", fun_id);
         gl3_decode_invoke(render_context, call);
     }
-    if(render_context->opengl_context!=NULL){
+    if (render_context->opengl_context != NULL)
+    {
         // GLenum error_code = glGetError();
         // if(error_code!=GL_NO_ERROR){
         //     printf("#fun_id %llu get error %lx\n",fun_id,error_code);
         // }
-
     }
     return;
 }
@@ -133,7 +133,7 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     temp_len = all_para[0].data_len;
     send_async_buf_len = temp_len;
 
-    if ( temp_len % 8 != 0)
+    if (temp_len % 8 != 0)
     {
         call->callback(call, 0);
         return;
@@ -190,35 +190,46 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
         memcpy(save_buf, temp, temp_len);
     }
 
-    Direct_Express_Call *unpack_call;
+    Direct_Express_Call unpack_call;
+    unpack_call.vq = NULL;
+    unpack_call.vdev = NULL;
+    unpack_call.callback = release_call_special;
+    unpack_call.is_end = 0;
+
+    unpack_call.spend_time = 0;
+    unpack_call.next = NULL;
+
+    Direct_Express_Queue_Elem pre_elem[MAX_PARA_NUM + 1];
+    Guest_Mem pre_mem[MAX_PARA_NUM + 1];
+    Scatter_Data pre_s_data[MAX_PARA_NUM + 1];
 
     //依次从两个数组数据中取出数据，创建call
     int buf_loc = 0;
+    int create_ret;
     while (buf_loc < send_async_buf_len)
     {
-        unpack_call = create_call_from_cluster((uint64_t *)(send_async_buf + buf_loc), save_buf);
-        if (unpack_call == NULL)
+        create_ret = create_call_from_cluster((uint64_t *)(send_async_buf + buf_loc), save_buf, &unpack_call, pre_elem, pre_mem, pre_s_data);
+        if (create_ret == 0)
         {
             break;
         }
         //解包的几个id还是原来的id
-        unpack_call->thread_id = call->thread_id;
-        unpack_call->process_id = call->process_id;
-        unpack_call->unique_id = call->unique_id;
+        unpack_call.thread_id = call->thread_id;
+        unpack_call.process_id = call->process_id;
+        unpack_call.unique_id = call->unique_id;
 
-        buf_loc += (unpack_call->para_num * 2 + 2) * 8;
+        buf_loc += (unpack_call.para_num * 2 + 2) * 8;
         if (buf_loc > send_async_buf_len)
         {
             //防止有的call有问题
-            unpack_call->callback(unpack_call, 0);
             break;
         }
 
-        decode_invoke(context, unpack_call);
+        decode_invoke(context, &unpack_call);
     }
     //所有调用完成后，这个call要回收
     call->callback(call, 1);
-    
+
     g_free(send_async_buf);
     g_free(save_buf);
     return;
@@ -229,106 +240,96 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
  * 
  * @param send_buf 原始的发送数据
  * @param save_buf 保存的指针数据
- * @return Direct_Express_Call* 
+ * @return  
  */
-Direct_Express_Call *create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf)
+int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct_Express_Call *pre_call, Direct_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data)
 {
 
-    Direct_Express_Call *call = g_malloc(sizeof(Direct_Express_Call));
-
-    call->vq = NULL;
-
-    call->id = send_buf[0];
+    pre_call->id = send_buf[0];
 
     //用9999作为聚合调用的id
-    if (GET_FUN_ID(call->id) == 9999)
+    if (GET_FUN_ID(pre_call->id) == 9999)
     {
-        g_free(call);
-        return NULL;
+        return 0;
     }
 
-    call->para_num = send_buf[1];
-    call->elem_header = NULL;
+    pre_call->para_num = send_buf[1];
+    pre_call->elem_header = NULL;
 
-    //第一个elem是用于存储各种id的，这个解包的call用不到。但是也得申请了占位
-    Direct_Express_Queue_Elem *elem = g_malloc(sizeof(Direct_Express_Queue_Elem));
-    call->elem_header = elem;
-    Direct_Express_Queue_Elem *last_elem = elem;
-    for (int i = 0; i < call->para_num; i++)
+    //第一个elem是用于存储各种id的，这个解包的call用不到。但是也得占位
+    // Direct_Express_Queue_Elem *elem = g_malloc(sizeof(Direct_Express_Queue_Elem));
+    pre_call->elem_header = &(pre_elem[0]);
+    Direct_Express_Queue_Elem *last_elem = &(pre_elem[0]);
+    for (int i = 0; i < pre_call->para_num; i++)
     {
-        //需要把这个elem中能填充的部分给填充起来
-        elem = g_malloc(sizeof(Direct_Express_Queue_Elem));
+        //需要把这个pre_elem[i+1]中能填充的部分给填充起来
 
-        Guest_Mem *guest_mem = g_malloc(sizeof(Guest_Mem));
-        Scatter_Data *scatter_data = g_malloc(sizeof(Scatter_Data));
+        // Guest_Mem *guest_mem = g_malloc(sizeof(Guest_Mem));
+        // Scatter_Data *scatter_data = g_malloc(sizeof(Scatter_Data));
 
-        if(send_buf[i * 2 + 2 + 1] != 0)
+        if (send_buf[i * 2 + 2 + 1] != 0)
         {
-            scatter_data->len = send_buf[i * 2 + 2];
-            scatter_data->data = save_buf + send_buf[i * 2 + 2 + 1];
+            pre_scatter_data[i].len = send_buf[i * 2 + 2];
+            pre_scatter_data[i].data = save_buf + send_buf[i * 2 + 2 + 1];
         }
         else
         {
-            scatter_data->len = 0;
-            scatter_data->data = NULL;
+            pre_scatter_data[i].len = 0;
+            pre_scatter_data[i].data = NULL;
         }
 
-        guest_mem->scatter_data = scatter_data;
-        guest_mem->num = 1;
-        guest_mem->all_len = scatter_data->len;
+        pre_guest_mem[i].scatter_data = &(pre_scatter_data[i]);
+        pre_guest_mem[i].num = 1;
+        pre_guest_mem[i].all_len = pre_scatter_data[i].len;
 
-        elem->para = guest_mem;
-        elem->len = send_buf[i * 2 + 2];
-        elem->next = NULL;
+        pre_elem[i + 1].para = &(pre_guest_mem[i]);
+        pre_elem[i + 1].len = send_buf[i * 2 + 2];
+        pre_elem[i + 1].next = NULL;
 
-        last_elem->next = elem;
-        last_elem = elem;
+        last_elem->next = &(pre_elem[i + 1]);
+        last_elem = &(pre_elem[i + 1]);
     }
-    call->elem_tail = elem;
+    pre_call->elem_tail = &(pre_elem[pre_call->para_num]);
 
     //因为这个call是解包的call，所以不能调用原先的callback，只能调用新的callback，这个里面会释放前面申请的各种数据
     //所以不论是vdev还是vq都用不上，不用设置来着
-    call->vdev = NULL;
-    call->callback = release_call_special;
-    call->is_end = 0;
 
-    call->spend_time = 0;
-    call->next = NULL;
-    return call;
+    return 1;
 }
 
 /**
- * @brief 用于call使用完成之后的回调，释放这个独特call申请的各种空间
- * 
- * @param call 
- * @param notify 
+ * @brief 用于call使用完成之后的回调
+ *
+ * @param call
+ * @param notify
  */
 void release_call_special(Direct_Express_Call *call, int notify)
 {
-    Direct_Express_Queue_Elem *elem = call->elem_header;
+    // Direct_Express_Queue_Elem *elem = call->elem_header;
 
-    Direct_Express_Queue_Elem *delete_elem = elem;
-    elem = elem->next;
+    // Direct_Express_Queue_Elem *delete_elem = elem;
+    // elem = elem->next;
 
-    //第一个elem里面是空的啥也没有
-    g_free(delete_elem);
+    // //第一个elem里面是空的啥也没有
+    // g_free(delete_elem);
 
-    for (int i = 0; i < call->para_num; i++)
-    {
-        delete_elem = elem;
-        Guest_Mem *guest_mem = (Guest_Mem *)elem->para;
-        Scatter_Data *scatter_data = guest_mem->scatter_data;
+    // for (int i = 0; i < call->para_num; i++)
+    // {
+    //     delete_elem = elem;
+    //     Guest_Mem *guest_mem = (Guest_Mem *)elem->para;
+    //     Scatter_Data *scatter_data = guest_mem->scatter_data;
 
-        g_free(scatter_data);
-        g_free(guest_mem);
+    //     g_free(scatter_data);
+    //     g_free(guest_mem);
 
-        elem = elem->next;
+    //     elem = elem->next;
 
-        g_free(delete_elem);
-    }
+    //     g_free(delete_elem);
+    // }
 
-    //最后要自己释放掉这个call，因为这个不会推送给轮询线程来释放
-    g_free(call);
+    // //最后要自己释放掉这个call，因为这个不会推送给轮询线程来释放
+    // g_free(call);
+    return;
 }
 
 Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
@@ -491,7 +492,6 @@ void render_context_destroy(Thread_Context *context)
         g_hash_table_destroy(process_context->gbuffer_image_map);
 
         send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);
-
 
         g_free(process_context);
     }

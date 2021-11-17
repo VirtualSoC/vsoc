@@ -180,10 +180,22 @@ static GLFWwindow *native_window_create();
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 
+static gint64 last_click_time=0;
 static void shutdown_callback(GLFWwindow *window)
 {
+    gint64 now_time = g_get_real_time();
+
     qemu_system_powerdown_request();
-    glfwSetWindowShouldClose(window, GLFW_FALSE);
+    // printf("shutdown time %lld\n",now_time);
+    if(now_time-last_click_time > 1000000)
+    {
+        glfwSetWindowShouldClose(window, GLFW_FALSE);
+    }
+    else
+    {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+    last_click_time = now_time;
 }
 
 static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
