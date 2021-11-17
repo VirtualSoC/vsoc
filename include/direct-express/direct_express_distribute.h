@@ -26,7 +26,7 @@
         a = a->next;                                              \
         if (b->para != NULL)                                      \
         {                                                         \
-            g_free(b->para);                                      \
+            release_one_guest_mem(b->para);                       \
         }                                                         \
         g_free(b);                                                \
     }
@@ -252,6 +252,5 @@ void guest_read(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 
 void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_data, size_t start_loc, size_t length, int is_guest_to_host);
 
-void guest_mem_copy(Guest_Mem *dst_guest_mem, Guest_Mem *src_guest_mem);
 
 #endif

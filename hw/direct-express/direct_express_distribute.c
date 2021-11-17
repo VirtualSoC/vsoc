@@ -60,6 +60,12 @@ void init_distribute_event(void);
 void distribute_wait(void);
 void *alloc_buf_from_iov(struct iovec *sg, unsigned int num, size_t *all_cnt);
 
+
+Direct_Express_Call *alloc_one_call();
+void release_one_call(Direct_Express_Call *call);
+Guest_Mem *alloc_one_guest_mem();
+void release_one_guest_mem(Guest_Mem *mem);
+
 //用于通知回收的事件，这里对于平台兼容性的部分尚未完成
 typedef struct
 {
@@ -72,19 +78,81 @@ typedef struct
 
 RECYCLE_EVENT recycle_event;
 
-void guest_mem_copy(Guest_Mem *dst_guest_mem, Guest_Mem *src_guest_mem)
+static Direct_Express_Call pre_alloc_call[CALL_BUF_SIZE * 2];
+static bool pre_alloc_call_flag[CALL_BUF_SIZE * 2];
+
+static int pre_alloc_call_loc = 0;
+
+static Guest_Mem pre_guest_mem[CALL_BUF_SIZE * 2 * MAX_PARA_NUM];
+static bool pre_guest_mem_flag[CALL_BUF_SIZE * 2 * MAX_PARA_NUM];
+
+static int pre_guest_mem_loc = 0;
+
+Direct_Express_Call *alloc_one_call()
 {
-    dst_guest_mem->all_len = src_guest_mem->all_len;
-    dst_guest_mem->num = src_guest_mem->num;
-    if (dst_guest_mem->scatter_data != NULL)
+    int cnt = 0;
+    while (pre_alloc_call_flag[pre_alloc_call_loc] == true)
     {
-        g_free(dst_guest_mem->scatter_data);
-        dst_guest_mem->scatter_data = NULL;
+        pre_alloc_call_loc = (pre_alloc_call_loc + 1) % (CALL_BUF_SIZE * 2);
+        cnt++;
+        if (cnt > CALL_BUF_SIZE * 2)
+        {
+            return NULL;
+        }
     }
-    dst_guest_mem->scatter_data = g_malloc(src_guest_mem->num * sizeof(Scatter_Data));
-    memcpy(dst_guest_mem->scatter_data, src_guest_mem->scatter_data, src_guest_mem->num * sizeof(Scatter_Data));
-    return;
+    pre_alloc_call_flag[pre_alloc_call_loc] = true;
+    return pre_alloc_call + pre_alloc_call_loc;
 }
+
+void release_one_call(Direct_Express_Call *call)
+{
+    int loc = (int)(call - pre_alloc_call);
+    if (loc < 0 || loc >= CALL_BUF_SIZE * 2)
+    {
+        return;
+    }
+    pre_alloc_call_flag[loc] = false;
+}
+
+Guest_Mem *alloc_one_guest_mem()
+{
+    int cnt = 0;
+    while (pre_guest_mem_flag[pre_guest_mem_loc] == true)
+    {
+        pre_guest_mem_loc = (pre_guest_mem_loc + 1) % (CALL_BUF_SIZE * 2 * MAX_PARA_NUM);
+        cnt++;
+        if (cnt > CALL_BUF_SIZE * 2 * MAX_PARA_NUM)
+        {
+            return NULL;
+        }
+    }
+    pre_guest_mem_flag[pre_guest_mem_loc] = true;
+    return pre_guest_mem + pre_guest_mem_loc;
+}
+
+void release_one_guest_mem(Guest_Mem *mem)
+{
+    int loc = (int)(mem - pre_guest_mem);
+    if (loc < 0 || loc >= CALL_BUF_SIZE * 2 * MAX_PARA_NUM)
+    {
+        return;
+    }
+    pre_guest_mem_flag[loc] = false;
+}
+
+// void guest_mem_copy(Guest_Mem *dst_guest_mem, Guest_Mem *src_guest_mem)
+// {
+//     dst_guest_mem->all_len = src_guest_mem->all_len;
+//     dst_guest_mem->num = src_guest_mem->num;
+//     if (dst_guest_mem->scatter_data != NULL)
+//     {
+//         g_free(dst_guest_mem->scatter_data);
+//         dst_guest_mem->scatter_data = NULL;
+//     }
+//     dst_guest_mem->scatter_data = g_malloc(src_guest_mem->num * sizeof(Scatter_Data));
+//     memcpy(dst_guest_mem->scatter_data, src_guest_mem->scatter_data, src_guest_mem->num * sizeof(Scatter_Data));
+//     return;
+// }
 
 /**
  * @brief 获取直接的guest端指针，flag表示是否获取到了，返回guest端的指针，可能为NULL，因为当初传入的指针可能真的为NULL
@@ -328,7 +396,12 @@ static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsig
     elem->next = NULL;
     elem->type = 0;
 
-    Guest_Mem *guest_mem = g_malloc(sizeof(Guest_Mem));
+    Guest_Mem *guest_mem = alloc_one_guest_mem();
+
+    if(guest_mem == NULL)
+    {
+        printf("error! guest_mem alloc return NULL!\n");
+    }
 
     if (v_elem->out_num != 0)
     {
@@ -465,7 +538,11 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
             return NULL;
         }
 
-        call = g_malloc(sizeof(Direct_Express_Call));
+        call = alloc_one_call();
+        if(call == NULL)
+        {
+            printf("error! alloc call return NULL!\n");
+        }
         call->elem_header = elem;
         call->elem_tail = elem;
         call->vq = vq;
@@ -505,7 +582,7 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
                 //因此将已经保存的数据抛弃，将这个elem作为第一个elem重新尝试fill，所以是break后continue
                 VIRTIO_ELEM_PUSH_ALL(vq, Direct_Express_Queue_Elem, call->elem_header, 1, next);
                 DIRECT_EXPRESS_QUEUE_ELEMS_FREE(call->elem_header);
-                g_free(call);
+                release_one_call(call);
                 call = NULL;
                 if (elem == NULL)
                 {
@@ -554,7 +631,7 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
             continue;
         }
 
-        //返回call，elem的空间释放由call里面的回调函数实现，call结构体由渲染线程释放
+        //返回call，elem的空间释放由call里面的回调函数实现
         return call;
     }
 
@@ -959,7 +1036,7 @@ static void release_call(Direct_Express_Call *out_call)
     VIRTIO_ELEM_PUSH_ALL(vq, Direct_Express_Queue_Elem, out_call->elem_header, 1, next);
     DIRECT_EXPRESS_QUEUE_ELEMS_FREE(out_call->elem_header);
 
-    g_free(out_call);
+    release_one_call(out_call);
     return;
 }
 
