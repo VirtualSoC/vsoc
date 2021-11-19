@@ -399,7 +399,7 @@ void render_context_init(Thread_Context *context)
     if (atomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
         express_printf("create native window\n");
-        qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->direct_express_device, QEMU_THREAD_JOINABLE);
+        qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->direct_express_device, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
 
@@ -444,6 +444,10 @@ static void g_context_map_destroy(gpointer data)
     {
         //实际上是到主窗口调用opengl_context_destroy了
         // PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
+        if(real_context->window != NULL)
+        {
+            glfwDestroyWindow(real_context->window);
+        }
         send_message_to_main_window(MAIN_DESTROY_CONTEXT, real_context);
     }
 }
@@ -474,6 +478,13 @@ void render_context_destroy(Thread_Context *context)
     }
     if (thread_context->opengl_context != NULL)
     {
+        express_printf("render context destroy %llx\n",thread_context->opengl_context);
+        if(thread_context->opengl_context->window != NULL)
+        {
+            glfwDestroyWindow(thread_context->opengl_context->window);
+        }
+        thread_context->opengl_context->window = NULL;
+
         thread_context->opengl_context->is_current = 0;
     }
 

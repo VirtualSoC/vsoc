@@ -1,5 +1,0 @@
-//异步函数，但是会有返回值返回
-
-
-//这个实现格外不同，因为dpy和surface要长时间保存，不能是栈上的数据
-eglSwapBuffers EGLDisplay dpy, EGLSurface surface,int64_t invoke_time, int64_t *ret_invoke_time#sizeof(int64_t), int64_t *swap_time#sizeof(int64_t)

@@ -1,2 +1,0 @@
-GLbitfield glQueryMatrixxOES GLfixed *mantissa#sizeof(GLint)*16, GLint *exponent#sizeof(GLint)*16
-//  这两个数组的大小都是16

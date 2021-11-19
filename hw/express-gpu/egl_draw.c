@@ -132,9 +132,15 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if (thread_context->opengl_context != NULL && thread_context->opengl_context != real_opengl_context)
     {
         thread_context->opengl_context->draw_surface = NULL;
+        express_printf("makecurrent context change %llx window %llx\n",thread_context->opengl_context, thread_context->opengl_context->window);
         if (thread_context->opengl_context->need_destroy)
         {
-            // PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)(thread_context->opengl_context));
+            thread_context->opengl_context->is_current = 0;
+            if(thread_context->opengl_context->window != NULL)
+            {
+                glfwMakeContextCurrent(NULL);
+                glfwDestroyWindow(thread_context->opengl_context->window);
+            }
             send_message_to_main_window(MAIN_DESTROY_CONTEXT, thread_context->opengl_context);
         }
         else
@@ -168,6 +174,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
 #endif
+    // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
     glfwMakeContextCurrent(real_opengl_context->window);
 
 // GLint flags;
@@ -457,6 +464,7 @@ EGLBoolean d_eglSwapInterval(void *context, EGLDisplay dpy, EGLint interval)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Window_Buffer *real_surface = thread_context->render_double_buffer_draw;
     real_surface->swap_interval = interval;
+    return EGL_TRUE;
 }
 
 EGLBoolean d_eglBindTexImage(void *context, EGLDisplay dpy, EGLSurface surface, EGLint buffer)

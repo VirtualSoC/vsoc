@@ -53,6 +53,9 @@ static volatile int call_recycle_queue_tail;
 
 static void *guest_null_ptr = NULL;
 
+bool direct_express_should_stop = 0;
+
+
 static void release_call(Direct_Express_Call *out_call);
 static void push_free_callback(Direct_Express_Call *call, int notify);
 void push_to_thread(Direct_Express_Call *call);
@@ -574,6 +577,10 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
 
                 elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
                 cnt_timeout++;
+                if(direct_express_should_stop)
+                {
+                    return NULL;
+                }
             }
 
             if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_direct_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
@@ -864,7 +871,7 @@ void *call_distribute_thread(void *opaque)
 
     int64_t spend_time_all = 0;
     int64_t call_num = 0;
-    while (e->thread_run)
+    while (e->thread_run && !direct_express_should_stop)
     {
 
         int has_handle_flag = 0;
@@ -938,6 +945,10 @@ void *call_distribute_thread(void *opaque)
 
             //休眠采用可以被其他线程打断的休眠，主要是被处理线程打断，打断的目的也是为了减小延迟
             distribute_wait();
+            if(direct_express_should_stop)
+            {
+                return NULL;
+            }
 
             // gint64 s2=g_get_real_time();
             // if(in_handle_num!=0){

@@ -1,6 +1,0 @@
-EGLBoolean eglSwapBuffers_special EGLDisplay dpy, EGLSurface surface
-
-EGLBoolean eglMakeCurrent_special EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx
-
-
-EGLBoolean eglTerminate_special EGLDisplay dpy

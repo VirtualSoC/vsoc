@@ -180,22 +180,49 @@ static GLFWwindow *native_window_create();
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 
+
+Notifier shutdown_notifier;
+
 static gint64 last_click_time=0;
-static void shutdown_callback(GLFWwindow *window)
+static void close_window_callback(GLFWwindow *window)
 {
     gint64 now_time = g_get_real_time();
 
-    qemu_system_powerdown_request();
     // printf("shutdown time %lld\n",now_time);
-    if(now_time-last_click_time > 1000000)
+    glfwSetWindowShouldClose(window, GLFW_FALSE);
+    if(now_time-last_click_time < 500000)
     {
-        glfwSetWindowShouldClose(window, GLFW_FALSE);
+        qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
     }
     else
     {
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        qemu_system_powerdown_request();
     }
     last_click_time = now_time;
+}
+
+static void shutdown_notify_callback(Notifier *notifier, void *data)
+{
+    printf("notify shutdown!\n");
+
+    ATOMIC_UNLOCK(main_window_event_queue_lock);
+    ATOMIC_UNLOCK(compose_surface_lock);
+    set_compose_surface(NULL, NULL);
+    direct_express_should_stop = true;
+
+    if (native_render_run == 2)
+    {
+        native_render_run = -1;
+        int wait_cnt = 0;
+        while (native_render_run == -1 && wait_cnt < 20){
+            // printf("wait thread close \n");
+            g_usleep(5000);
+            wait_cnt++;
+        }
+        // printf("wait thread close done %d\n",native_render_run);
+
+    }
+
 }
 
 static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
@@ -404,9 +431,6 @@ static void handle_child_window_event()
             {
                 break;
             }
-
-            //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
-            glfwDestroyWindow(opengl_context->window);
 
             opengl_context_destroy(opengl_context);
             g_free(opengl_context);
@@ -1133,7 +1157,11 @@ void *native_window_thread(void *opaque)
     //设置窗口大小可以自由调整
     glfwSetFramebufferSizeCallback(glfw_window, window_size_change_callback);
 
-    glfwSetWindowCloseCallback(glfw_window, shutdown_callback);
+    glfwSetWindowCloseCallback(glfw_window, close_window_callback);
+
+
+    shutdown_notifier.notify = shutdown_notify_callback;
+    qemu_register_shutdown_notifier(&shutdown_notifier);
 
     // draw_native_window = glfwGetWin32Window(glfw_window);
 
@@ -1301,9 +1329,11 @@ void *native_window_thread(void *opaque)
 #endif
     }
 
-    qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+    // qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+    glfwMakeContextCurrent(NULL);
+    glfwDestroyWindow(glfw_window);
 
-    express_printf("native windows close!\n");
+    printf("native windows close!\n");
 
     //当他返回0时表示窗口被关掉了
     native_render_run = 0;

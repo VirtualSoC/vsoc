@@ -228,6 +228,8 @@ typedef struct Express_Device_Info
 
 } Express_Device_Info;
 
+extern bool direct_express_should_stop;
+
 void *call_distribute_thread(void *opaque);
 
 Thread_Context *thread_context_create(uint64_t thread_id, uint64_t type_id, uint64_t len, Express_Device_Info *info);

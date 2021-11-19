@@ -40,6 +40,11 @@ Direct_Express_Call *call_pop(Thread_Context *context)
 #else
 
 #endif
+
+        if(direct_express_should_stop)
+        {
+            return NULL;
+        }
     }
     Direct_Express_Call *ret = context->call_buf[context->read_loc];
 
@@ -83,6 +88,11 @@ void call_push(Thread_Context *context, Direct_Express_Call *call)
 #else
 
 #endif
+
+        if(direct_express_should_stop)
+        {
+            return;
+        }
     }
     context->call_buf[context->write_loc] = call;
 
@@ -126,6 +136,11 @@ void *handle_thread_run(void *opaque)
     {
         Direct_Express_Call *call = call_pop(context);
 
+        if(direct_express_should_stop)
+        {
+            return NULL;
+        }
+
         if (call->is_end)
         {
             call->callback(call, 0);
@@ -164,7 +179,7 @@ void *handle_thread_run(void *opaque)
         context->context_destroy(context);
     }
 
+    express_printf("handle thread exit %llu\n", context->thread_id);
     g_free(context);
-    express_printf("handle thread exit %d\n", context->thread_run);
     return NULL;
 }

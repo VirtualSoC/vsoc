@@ -31,8 +31,8 @@
 
 
 #define ATOMIC_LOCK(s)                       \
-     while (atomic_cmpxchg(&(s), 0, 1) == 1) \
-          printf("lock on %s ", #s);
+     int atomic_cnt=0;while (atomic_cmpxchg(&(s), 0, 1) == 1&&atomic_cnt<10000) \
+          printf("lock on %s %d ", #s,atomic_cnt++);
 #define ATOMIC_UNLOCK(s) atomic_cmpxchg(&(s), 1, 0)
 
 // #define ATOMIC_SET_USED(s) ATOMIC_LOCK(s)
