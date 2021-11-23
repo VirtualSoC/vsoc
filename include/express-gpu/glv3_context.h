@@ -193,7 +193,7 @@ typedef struct Resource_Context
 typedef struct Opengl_Context
 {
     //注意，这个window必须得放到opengl_context这边，因为opengl的环境保存在这边了
-    GLFWwindow *window;
+    void *window;
 
     // Pixel_Store_Status pixel_store_status;
     Bound_Buffer bound_buffer_status;

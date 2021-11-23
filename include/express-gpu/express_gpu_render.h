@@ -5,11 +5,9 @@
 
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
-#ifdef _WIN32
-#define GLFW_EXPOSE_NATIVE_WIN32
-#define GLFW_EXPOSE_NATIVE_WGL
-#endif
 #include <GLFW/glfw3native.h>
+
+#include "express-gpu/egl_window.h"
 
 #include "express-gpu/egl_surface.h"
 
@@ -46,6 +44,9 @@
 
 // 是否启用独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
+
+//是否使用glfw代替原生wgl创建pbuffer的过程，使用这个才能启用DEBUG_INDEPEND_WINDOW
+// #define USE_GLFW_AS_WGL
 
 typedef struct Main_window_Event
 {
@@ -135,7 +136,7 @@ extern volatile int native_render_run;
 
 extern Static_Context_Values *preload_static_context_value;
 
-extern GLFWwindow *glfw_dummy_window_for_sync;
+extern void *dummy_window_for_sync;
 
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);

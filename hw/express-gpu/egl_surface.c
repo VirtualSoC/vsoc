@@ -473,7 +473,7 @@ void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new)
  * @param d_buffer 需要初始化的surface
  * @return int 返回1则创建成功，返回0则创建失败 
  */
-int egl_surface_init(Window_Buffer *d_buffer, GLFWwindow *now_window, int need_draw)
+int egl_surface_init(Window_Buffer *d_buffer, void *now_window, int need_draw)
 {
     if (d_buffer == NULL || now_window == NULL)
     {

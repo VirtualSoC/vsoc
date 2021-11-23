@@ -16,6 +16,7 @@
 
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/offscreen_render_thread.h"
+#include "express-gpu/express_gpu_render.h"
 
 #include "express-gpu/glv3_trans.h"
 #include "express-gpu/egl_trans.h"
@@ -444,10 +445,17 @@ static void g_context_map_destroy(gpointer data)
     {
         //实际上是到主窗口调用opengl_context_destroy了
         // PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
-        if(real_context->window != NULL)
-        {
-            glfwDestroyWindow(real_context->window);
-        }
+#ifdef USE_GLFW_AS_WGL
+        // if(real_context->window != NULL)
+        // {
+        //     printf("destroy windows when remove\n");
+        //     glfwSetWindowShouldClose(real_context->window, 1);
+        //     glfwPollEvents();
+        //     glfwDestroyWindow(real_context->window);
+        // }
+#else
+        egl_destroyContext(real_context->window);
+#endif
         send_message_to_main_window(MAIN_DESTROY_CONTEXT, real_context);
     }
 }
@@ -465,7 +473,11 @@ void render_context_destroy(Thread_Context *context)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
+#ifdef USE_GLFW_AS_WGL
     glfwMakeContextCurrent(NULL);
+#else
+    egl_makeCurrent(NULL);
+#endif
 
     //保证都不是current状态，确保能够删除成功
     if (thread_context->render_double_buffer_read != NULL)
@@ -478,12 +490,15 @@ void render_context_destroy(Thread_Context *context)
     }
     if (thread_context->opengl_context != NULL)
     {
-        express_printf("render context destroy %llx\n",thread_context->opengl_context);
-        if(thread_context->opengl_context->window != NULL)
-        {
-            glfwDestroyWindow(thread_context->opengl_context->window);
-        }
-        thread_context->opengl_context->window = NULL;
+        express_printf("render context destroy %llx\n", thread_context->opengl_context);
+        // if(thread_context->opengl_context->window != NULL)
+        // {
+        //     printf("destroy windows when destroy all\n");
+        //     glfwSetWindowShouldClose(thread_context->opengl_context->window, 1);
+        //     glfwPollEvents();
+        //     glfwDestroyWindow(thread_context->opengl_context->window);
+        // }
+        // thread_context->opengl_context->window = NULL;
 
         thread_context->opengl_context->is_current = 0;
     }

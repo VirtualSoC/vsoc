@@ -132,15 +132,19 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if (thread_context->opengl_context != NULL && thread_context->opengl_context != real_opengl_context)
     {
         thread_context->opengl_context->draw_surface = NULL;
-        express_printf("makecurrent context change %llx window %llx\n",thread_context->opengl_context, thread_context->opengl_context->window);
+        express_printf("makecurrent context change %llx window %llx\n", thread_context->opengl_context, thread_context->opengl_context->window);
         if (thread_context->opengl_context->need_destroy)
         {
             thread_context->opengl_context->is_current = 0;
-            if(thread_context->opengl_context->window != NULL)
-            {
-                glfwMakeContextCurrent(NULL);
-                glfwDestroyWindow(thread_context->opengl_context->window);
-            }
+// if(thread_context->opengl_context->window != NULL)
+// {
+#ifdef USE_GLFW_AS_WGL
+            // glfwMakeContextCurrent(NULL);
+            //glfwDestroyWindow((GLFWwindow *)thread_context->opengl_context->window);
+#else
+            // egl_makeCurrent(NULL);
+            egl_destroyContext(thread_context->opengl_context->window);
+#endif
             send_message_to_main_window(MAIN_DESTROY_CONTEXT, thread_context->opengl_context);
         }
         else
@@ -155,7 +159,11 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         thread_context->opengl_context = NULL;
         thread_context->render_double_buffer_draw = NULL;
         thread_context->render_double_buffer_read = NULL;
+#ifdef USE_GLFW_AS_WGL
         glfwMakeContextCurrent(NULL);
+#else
+        egl_makeCurrent(NULL);
+#endif
         return EGL_TRUE;
     }
 
@@ -165,17 +173,21 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     {
         g_usleep(1000);
         sleep_cnt += 1;
-        if (sleep_cnt >= 1000 && sleep_cnt % 500 == 0)
+        if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
         {
-            printf("wait for window creating too long!");
+            printf("wait for window creating too long!\n");
         }
     }
 
+#ifdef USE_GLFW_AS_WGL
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
 #endif
     // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
-    glfwMakeContextCurrent(real_opengl_context->window);
+    glfwMakeContextCurrent((GLFWwindow *)real_opengl_context->window);
+#else
+    egl_makeCurrent(real_opengl_context->window);
+#endif
 
 // GLint flags;
 // glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
@@ -321,7 +333,7 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id)
     egl_image->host_has_data = 1;
     // ATOMIC_UNLOCK(egl_image->display_texture_is_use);
     ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
-    express_printf("queue buffer %llx\n",gbuffer_id);
+    express_printf("queue buffer %llx\n", gbuffer_id);
     real_surface->guest_gbuffer_id = (uint64_t)gbuffer_id;
 
     gint64 now_time = g_get_real_time();
@@ -380,7 +392,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         // express_printf("invoke time %lld swap_time %lld\n",a,b);
     }
 
-    express_printf("#%llx swapbuffer real_surface %llx\n",thread_context->opengl_context, real_surface);
+    express_printf("#%llx swapbuffer real_surface %llx\n", thread_context->opengl_context, real_surface);
 
     gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface);
@@ -441,7 +453,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     //计算帧率
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
-        printf("%llx surface draw %.2lfHz\n", real_surface, real_surface->now_screen_hz*1000000.0/(now_time - real_surface->last_calc_time));
+        printf("%llx surface draw %.2lfHz\n", real_surface, real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time));
         real_surface->now_screen_hz = 0;
 
         real_surface->last_calc_time = now_time;

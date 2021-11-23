@@ -63,6 +63,12 @@ source tricore/Kconfig
 source unicore32/Kconfig
 source xtensa/Kconfig
 
+
+source express-gpu/Kconfig
+source direct-express/Kconfig
+
+
+
 # Symbols used by multiple targets
 config TEST_DEVICES
     bool

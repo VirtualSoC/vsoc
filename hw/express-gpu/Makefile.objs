@@ -26,6 +26,8 @@ common-obj-$(CONFIG_EXPRESS_GPU) += egl_sync.o
 common-obj-$(CONFIG_EXPRESS_GPU) += glv1.o
 
 
+common-obj-$(CONFIG_EXPRESS_GPU) += egl_window_wgl.o
+
 
 
 common-obj-$(CONFIG_EXPRESS_GPU) += test_trans.o

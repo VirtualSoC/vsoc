@@ -37,11 +37,6 @@ Static_Context_Values *preload_static_context_value = NULL;
 
 int sdl2_no_need = 0;
 
-// #ifdef _WIN32
-// static HANDLE swap_event;
-// #else
-// static void *swap_event;
-// #endif
 
 static unsigned int main_frame_num = 0;
 
@@ -79,8 +74,7 @@ static gint64 gen_frame_time_avg_1s = 0;
 
 static GLFWwindow *glfw_window = NULL;
 
-GLFWwindow *glfw_dummy_window_for_sync = NULL;
-
+void *dummy_window_for_sync = NULL;
 
 static GLuint programID = 0;
 static GLuint drawVAO = 0;
@@ -123,13 +117,15 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*4*/ "GL_OES_depth24",
         /*5*/ "GL_OES_depth32",
         /*6*/ "GL_OES_texture_float",
+        /*25*/ "GL_OES_texture_float_linear",
         /*7*/ "GL_OES_texture_half_float",
         /*8*/ "GL_OES_texture_half_float_linear",
         /*9*/ "GL_OES_compressed_ETC1_RGB8_texture",
         /*10*/ "GL_OES_depth_texture",
         /*11*/ "GL_OES_EGL_image_external_essl3",
         /*12*/ "GL_KHR_texture_compression_astc_ldr",
-        /*13*/ "GL_OES_vertex_array_object",
+        /*13*/ "GL_KHR_texture_compression_astc_hdr",
+        /*14*/ "GL_OES_vertex_array_object",
         // /*14*/ "GL_EXT_shader_framebuffer_fetch",   //这个暂时看情况支持，webview用它来混合，会着色器中使用变量gl_LastFragData
         // /*15*/ "GL_EXT_multisampled_render_to_texture",  //这个暂时不能有，因为它需要支持相关函数
         /*16*/ "GL_EXT_color_buffer_float",
@@ -142,7 +138,7 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*23*/ "GL_OES_rgb8_rgba8",
         /*24*/ "GL_OES_framebuffer_object",
 };
-static const int SPECIAL_EXTENSIONS_SIZE = 22;
+static const int SPECIAL_EXTENSIONS_SIZE = 24;
 
 //支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
@@ -176,21 +172,20 @@ static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
 static const int NOT_SUPPORT_EXTENSION_SIZE = 23;
 
 static void opengl_paint(Window_Buffer *d_buffer);
-static GLFWwindow *native_window_create();
+static void *native_window_create();
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 
-
 Notifier shutdown_notifier;
 
-static gint64 last_click_time=0;
+static gint64 last_click_time = 0;
 static void close_window_callback(GLFWwindow *window)
 {
     gint64 now_time = g_get_real_time();
 
     // printf("shutdown time %lld\n",now_time);
     glfwSetWindowShouldClose(window, GLFW_FALSE);
-    if(now_time-last_click_time < 500000)
+    if (now_time - last_click_time < 500000)
     {
         qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
     }
@@ -203,26 +198,31 @@ static void close_window_callback(GLFWwindow *window)
 
 static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
-    printf("notify shutdown!\n");
+    printf("notify shutdown! %lld\n", g_get_real_time());
 
     ATOMIC_UNLOCK(main_window_event_queue_lock);
     ATOMIC_UNLOCK(compose_surface_lock);
     set_compose_surface(NULL, NULL);
     direct_express_should_stop = true;
 
+    // glfwTerminate();
     if (native_render_run == 2)
     {
         native_render_run = -1;
         int wait_cnt = 0;
-        while (native_render_run == -1 && wait_cnt < 20){
+        while (native_render_run == -1 && wait_cnt < 200)
+        {
             // printf("wait thread close \n");
             g_usleep(5000);
             wait_cnt++;
         }
+        if(native_render_run == -1)
+        {
+            printf("wait time too long!\n");
+        }
+
         // printf("wait thread close done %d\n",native_render_run);
-
     }
-
 }
 
 static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
@@ -372,13 +372,16 @@ static void handle_child_window_event()
 
             //context只能是由父线程创建，以进行资源共享
             {
-                GLFWwindow **window_ptr = (Window_Buffer *)child_event->data;
+                void **window_ptr = (Window_Buffer *)child_event->data;
                 if (window_ptr == NULL)
                 {
                     break;
                 }
                 // printf("create window\n");
-                *window_ptr = native_window_create();
+                // gint64 t = g_get_real_time();
+                // printf("start create window %lld\n", t);
+                *window_ptr = (void *)native_window_create();
+                // printf("create window %lld\n", g_get_real_time() - t);
             }
 
             break;
@@ -432,6 +435,20 @@ static void handle_child_window_event()
                 break;
             }
 
+            //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
+            if (opengl_context->window != NULL)
+            {
+                // gint64 t = g_get_real_time();
+                // printf("start destroy window %lld\n", t);
+#ifdef USE_GLFW_AS_WGL
+                glfwSetWindowShouldClose(opengl_context->window, 1);
+                glfwDestroyWindow((GLFWwindow *)opengl_context->window);
+#else
+                // egl_destroyContext(opengl_context->window);
+#endif
+                // printf("end destroy window %lld\n", g_get_real_time() - t);
+            }
+
             opengl_context_destroy(opengl_context);
             g_free(opengl_context);
         }
@@ -463,7 +480,7 @@ static void handle_child_window_event()
                     glDeleteSync((GLsync)status->resource_id_map[i]);
                 }
             }
-            if(status->resource_id_map != NULL)
+            if (status->resource_id_map != NULL)
             {
                 g_free(status->resource_id_map);
             }
@@ -477,7 +494,7 @@ static void handle_child_window_event()
             {
                 break;
             }
-           
+
             glDeleteSync(sync);
         }
         break;
@@ -681,6 +698,7 @@ static void static_value_prepare()
     preload_static_context_value->aliased_point_size_range[0] = 1.0f;
     preload_static_context_value->aliased_point_size_range[1] = 2047.0f;
 
+    //这个地方就算溢出了也不怕，后面还有那么多位置撑着
     glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, &(preload_static_context_value->compressed_texture_formats));
     glGetIntegerv(GL_PROGRAM_BINARY_FORMATS, &(preload_static_context_value->program_binary_formats));
     glGetIntegerv(GL_SHADER_BINARY_FORMATS, &(preload_static_context_value->shader_binary_formats));
@@ -739,6 +757,17 @@ static void static_value_prepare()
     if (preload_static_context_value->max_vertex_attribs > 16)
     {
         preload_static_context_value->max_vertex_attribs = 16;
+    }
+
+    preload_static_context_value->num_compressed_texture_formats += 1;
+    if (preload_static_context_value->num_compressed_texture_formats > 128)
+    {
+        preload_static_context_value->compressed_texture_formats[127] = GL_ETC1_RGB8_OES;
+        preload_static_context_value->num_compressed_texture_formats = 128;
+    }
+    else
+    {
+        preload_static_context_value->compressed_texture_formats[preload_static_context_value->num_compressed_texture_formats - 1] = GL_ETC1_RGB8_OES;
     }
 
     if (preload_static_context_value->num_program_binary_formats > 8)
@@ -1043,38 +1072,42 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
  * @param width 界面的宽
  * @param height 界面的高
  */
-static GLFWwindow *native_window_create()
+static void *native_window_create()
 {
 
-    GLFWwindow *child_window;
+    void *child_window = NULL;
+
+#ifdef USE_GLFW_AS_WGL
     static int cnt = 0;
     char name[100];
     sprintf(name, "opengl-child-window%d", cnt);
     cnt++;
+
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-// glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+    // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-// @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
-// int idx = 0;
-// while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
-// {
-//     int64_t hint_enum = d_buffer->window_hints.hints[idx];
-//     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
-//     glfwWindowHint(hint_enum, hint_val);
-//     idx += 2;
-// }
+    // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
+    // int idx = 0;
+    // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
+    // {
+    //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
+    //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
+    //     glfwWindowHint(hint_enum, hint_val);
+    //     idx += 2;
+    // }
 
-// //屏幕分离调试专用
+    // //屏幕分离调试专用
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
-
+    child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
 #else
-    //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+//因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+#ifdef ENABLE_OPENGL_DEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-    child_window = glfwCreateWindow(1, 1, name, NULL, glfw_window);
+#endif
+    child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
 
     if (child_window == NULL)
     {
@@ -1083,10 +1116,15 @@ static GLFWwindow *native_window_create()
         express_printf("error code %d detail %s", ret, s);
     }
 
-    //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
-    assert(child_window != NULL);
 #endif
 
+#else
+    child_window = egl_createContext();
+#endif
+
+    //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
+    assert(child_window != NULL);
+    
     // express_printf("create windows surface %lx\n", d_buffer);
     //todo 根据配置设置窗口属性
     return child_window;
@@ -1159,7 +1197,6 @@ void *native_window_thread(void *opaque)
 
     glfwSetWindowCloseCallback(glfw_window, close_window_callback);
 
-
     shutdown_notifier.notify = shutdown_notify_callback;
     qemu_register_shutdown_notifier(&shutdown_notifier);
 
@@ -1172,7 +1209,15 @@ void *native_window_thread(void *opaque)
 
     glfwMakeContextCurrent(glfw_window);
 
-    glfw_dummy_window_for_sync = glfwCreateWindow(1, 1, "sync", NULL, glfw_window);
+    HDC dpy_dc = GetDC(glfwGetWin32Window(glfw_window));
+    HGLRC gl_context = glfwGetWGLContext(glfw_window);
+    egl_init(dpy_dc, gl_context);
+
+#ifdef USE_GLFW_AS_WGL
+    dummy_window_for_sync = glfwCreateWindow(1, 1, "sync", NULL, glfw_window);
+#else
+    dummy_window_for_sync = egl_createContext();
+#endif
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -1235,7 +1280,6 @@ void *native_window_thread(void *opaque)
         glClear(GL_COLOR_BUFFER_BIT);
 
         handle_child_window_event();
-
         glfwPollEvents();
         qemu_input_event_sync();
 
@@ -1287,6 +1331,7 @@ void *native_window_thread(void *opaque)
             // TIMER_OUTPUT(event, 100)
             glfwSwapBuffers(glfw_window);
         }
+
         gint64 now_time = g_get_real_time();
 
         //注意：帧生成时间波动挺大的

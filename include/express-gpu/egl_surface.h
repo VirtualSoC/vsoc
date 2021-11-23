@@ -54,7 +54,7 @@ typedef struct Window_Buffer
 {
 
      //创建这个fbo的窗口，不一定是当前的环境
-     GLFWwindow *creater_window;
+     void *creater_window;
      GLFWHints window_hints;
 
      eglConfig *config;
@@ -73,7 +73,7 @@ typedef struct Window_Buffer
      GLuint display_fbo[5];
 
      //创建读取fbo的窗口
-     GLFWwindow *reader_window;
+     void *reader_window;
      //专门用于读取的fbo，一般read_surface与draw_surface不同时需要设置，因为不可能被多个同时读取，所以只设定一个是合理的
      GLuint read_fbo[5];
 
@@ -181,7 +181,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
 
 
-int egl_surface_init(Window_Buffer *d_buffer, GLFWwindow *now_window, int need_draw);
+int egl_surface_init(Window_Buffer *d_buffer, void *now_window, int need_draw);
 
 
 #endif

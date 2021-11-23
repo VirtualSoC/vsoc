@@ -2,13 +2,10 @@
 // #define TIMER_LOG
 #include "express-gpu/glv3_context.h"
 
-// #include "gl.h"
 
-// #include "express-gpu/gl.h"
 #include "glad/glad.h"
+#include "express-gpu/egl_window.h"
 
-// #include "express-gpu/glext.h"
-// #include "express-gpu/gl2ext.h"
 
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
 static void g_buffer_map_destroy(gpointer data);
@@ -1656,10 +1653,13 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     opengl_context->view_h = 0;
 
     //要在opengl_context里创建window，因为opengl环境保存在window里
-    //send是同步的，发送完消息需要等待消息处理完
-    // SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)(&(opengl_context->window)));
-
+// #ifdef USE_GLFW_AS_WGL
     send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(opengl_context->window));
+// #else
+// 不能在子线程中创建context，不然会为空
+//     opengl_context->window = egl_createContext();
+// #endif
+
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)
