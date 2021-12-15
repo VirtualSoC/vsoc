@@ -12,4 +12,9 @@
 
 void test_decode_invoke(void *context, Direct_Express_Call *call);
 
+
+void test_no_copy(void *data, size_t len);
+
+void test_copy(void *data, size_t len);
+
 #endif
