@@ -37,7 +37,6 @@ Static_Context_Values *preload_static_context_value = NULL;
 
 int sdl2_no_need = 0;
 
-
 static unsigned int main_frame_num = 0;
 
 static int event_queue_lock;
@@ -216,7 +215,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
             g_usleep(5000);
             wait_cnt++;
         }
-        if(native_render_run == -1)
+        if (native_render_run == -1)
         {
             printf("wait time too long!\n");
         }
@@ -253,6 +252,10 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
 
 static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
 {
+#ifdef ENSURE_SAME_WIDTH_HEIGHT_RATIO
+    qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(xpos / real_window_width * window_width), 0, window_width);
+    qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(ypos / real_window_height * window_height), 0, window_height);
+#else
     if (real_window_height > window_height)
     {
         ypos -= (real_window_height - window_height) / 2;
@@ -269,7 +272,8 @@ static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double y
 
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)xpos, 0, window_width);
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)ypos, 0, window_height);
-    // qemu_input_event_sync();
+// qemu_input_event_sync();
+#endif
 }
 
 static void mouse_click_handle_callback(GLFWwindow *window, int button, int action, int mods)
@@ -327,10 +331,38 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 {
     //需要保证画面比例不变
     int x = 0, y = 0;
-    if (window_width != 0 && window_height != 0 && width != 0 && height != 0)
+    if (real_window_width != width || real_window_height != height)
     {
         int calc_width = height * window_width / window_height;
         int calc_height = width * window_height / window_width;
+
+#ifdef ENSURE_SAME_WIDTH_HEIGHT_RATIO
+        if (calc_width < width && calc_height > height)
+        {
+            real_window_width = calc_width;
+            real_window_height = height;
+            x = (width - calc_width) / 2;
+        }
+        else if (calc_width > width && calc_height < height)
+        {
+            real_window_width = width;
+            real_window_height = calc_height;
+            y = (height - calc_height) / 2;
+        }
+        else
+        {
+            //其他情况认为是精度计算问题，直接用新的值
+            real_window_width = width;
+            real_window_height = height;
+        }
+        glViewport(0, 0, real_window_width, real_window_height);
+
+        glfwSetWindowSize(window, real_window_width, real_window_height);
+
+        return;
+
+#else
+
         if (calc_width < width && calc_height > height)
         {
             window_width = calc_width;
@@ -353,6 +385,8 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
         real_window_height = height;
 
         glViewport(x, y, window_width, window_height);
+
+#endif
     }
 }
 
@@ -1124,7 +1158,7 @@ static void *native_window_create()
 
     //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
     assert(child_window != NULL);
-    
+
     // express_printf("create windows surface %lx\n", d_buffer);
     //todo 根据配置设置窗口属性
     return child_window;
@@ -1174,7 +1208,7 @@ void *native_window_thread(void *opaque)
 
     //创建一个窗口，这个window也是context
     //这个窗口的大小不用在意，因为之后会重新设置窗口大小
-    glfw_window = glfwCreateWindow(1024, 768, "三位一体模拟器", NULL, NULL);
+    glfw_window = glfwCreateWindow(1024, 768, "Z模拟器", NULL, NULL);
     if (!glfw_window)
     {
         express_printf("create window error %x\n", glfwGetError(NULL));

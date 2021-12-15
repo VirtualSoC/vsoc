@@ -4,14 +4,33 @@
 #include "express-gpu/test_trans.h"
 #include "direct-express/express_log.h"
 
+char *copy_large_buf = NULL;
+size_t buf_len = 0;
+
 void test_no_copy(void *data, size_t len)
 {
     express_printf("no copy size %lld\n", len);
+
+    if (len > buf_len)
+    {
+        if (copy_large_buf != NULL)
+        {
+            g_free(copy_large_buf);
+        }
+        buf_len = len;
+        copy_large_buf = g_malloc(buf_len);
+    }
+
+    if(((Guest_Mem *)data)->num == 1)
+    {
+        return;
+    }
+    guest_write(data, copy_large_buf, 0, len);
+
     return;
 }
 
-char *copy_large_buf = NULL;
-size_t buf_len = 0;
+
 void test_copy(void *data, size_t len)
 {
     if (len > buf_len)
@@ -23,19 +42,19 @@ void test_copy(void *data, size_t len)
         buf_len = len;
         copy_large_buf = g_malloc(buf_len);
     }
-    gint64 start_time = g_get_real_time();
+    // gint64 start_time = g_get_real_time();
 
-    express_printf("copy %lld %lx\n", buf_len, copy_large_buf);
+    // express_printf("copy %lld %lx\n", buf_len, copy_large_buf);
 
     guest_write(data, copy_large_buf, 0, len);
 
-    gint64 spend_time = g_get_real_time() - start_time;
-    if (spend_time == 0)
-    {
-        spend_time = 1;
-    }
+    // gint64 spend_time = g_get_real_time() - start_time;
+    // if (spend_time == 0)
+    // {
+    //     spend_time = 1;
+    // }
 
-    express_printf("copy size %lld spend time %lld speed %lf M/s\n", len, spend_time, len * 1.0 * 1000000 / 1024 / 1024 / spend_time);
+    // express_printf("copy size %lld spend time %lld speed %lf M/s\n", len, spend_time, len * 1.0 * 1000000 / 1024 / 1024 / spend_time);
 
     return;
 }

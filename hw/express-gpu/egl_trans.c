@@ -16,6 +16,7 @@
 #include "express-gpu/egl_draw.h"
 #include "express-gpu/egl_surface.h"
 #include "express-gpu/egl_sync.h"
+#include "express-gpu/test_trans.h"
 
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
 {
@@ -2190,6 +2191,20 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /******* file '3' *******/
 
         /******* end of file '3', 7/48 functions*******/
+    case FUNID_eglTP:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+        if (para_num != 1)
+        {
+            break;
+        }
+        // printf("enter egltp \n");
+        void *data = all_para[0].data;
+        size_t len = all_para[0].data_len;
+        test_no_copy(data, len);
+        break;
+    }
 
     default:
         break;

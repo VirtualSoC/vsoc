@@ -133,6 +133,11 @@
 
 #define PARA_NUM_MIN_eglQueueBuffer (1)
 
+#define FUNID_eglTP ((EXPRESS_GPU_FUN_ID << 32u) + 10044)
+
+#define PARA_NUM_MIN_eglTP (1)
+
+
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call);
 
 #endif

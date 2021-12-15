@@ -1,0 +1,234 @@
+HAX is working and emulator runs in fast virt mode.
+init display
+linked 1 program 3
+gl vendor:Express_GPU (Intel)
+gl version:OpenGL ES 3.0 (4.6.0 - Build 27.20.100.8783)
+gl renderer:OpenGL ES Translator (Intel(R) UHD Graphics)
+gl shading_language_version:OpenGL ES GLSL ES 3.10
+extensions len 623 num 24: GL_OES_EGL_image GL_OES_EGL_image_external GL_OES_EGL_sync GL_OES_depth24 GL_OES_depth32 GL_OES_texture_float GL_OES_texture_float_linear GL_OES_texture_half_float GL_OES_texture_half_float_linear GL_OES_compressed_ETC1_RGB8_texture GL_OES_depth_texture GL_OES_EGL_image_external_essl3 GL_KHR_texture_compression_astc_ldr GL_KHR_texture_compression_astc_hdr GL_OES_vertex_array_object GL_EXT_color_buffer_float GL_EXT_color_buffer_half_float GL_OES_element_index_uint GL_OES_texture_float_linear GL_OES_compressed_paletted_texture GL_OES_packed_depth_stencil GL_OES_texture_npot GL_OES_rgb8_rgba8 GL_OES_framebuffer_object|
+22673984c10 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 0 width 1 height 1
+22673985b70 surface choose red 8 green 8 blue 8 alpha 0 depth 0 stencil 0 width 1024 height 768
+22673985b70 surface choose red 8 green 8 blue 8 alpha 0 depth 0 stencil 0 width 1024 height 768
+22673985b70 surface choose red 8 green 8 blue 8 alpha 0 depth 0 stencil 0 width 1024 height 768
+22673985b70 surface draw 11.84Hz
+composer draw 60Hz
+22673985b70 surface draw 10.87Hz
+composer draw 59Hz
+22673985b70 surface draw 10.83Hz
+composer draw 60Hz
+22673985b70 surface draw 10.90Hz
+composer draw 60Hz
+22673985b70 surface draw 10.86Hz
+composer draw 59Hz
+composer draw 58Hz
+22673985b70 surface draw 10.86Hz
+composer draw 59Hz
+22673985b70 surface draw 10.87Hz
+composer draw 60Hz
+22673985b70 surface draw 10.88Hz
+composer draw 59Hz
+22673985b70 surface draw 10.89Hz
+22673984ea0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+226739858e0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+22673984980 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 48
+22673984980 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 48
+22673984980 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 48
+22673986320 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673986320 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673986320 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673985130 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+22673985130 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+22673985130 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+22673986090 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 0 width 2880 height 2560
+22673986090 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 0 width 2880 height 2560
+22673986090 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 0 width 2880 height 2560
+composer draw 59Hz
+22673985b70 surface draw 10.88Hz
+226739853c0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+22673986320 surface draw 1.86Hz
+22673985130 surface draw 5.41Hz
+composer draw 60Hz
+226739858e0 surface choose red 8 green 8 blue 8 alpha 0 depth 0 stencil 0 width 1 height 1
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+eglClientWaitSync with null opengl context
+22673985650 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+22673984980 surface draw 1.35Hz
+22673985b70 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673985b70 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673985b70 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226739858e0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+22673985e00 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673985e00 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673985e00 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673985130 surface draw 19.75Hz
+composer draw 59Hz
+22673985e00 surface draw 59.44Hz
+22673985130 surface draw 14.86Hz
+composer draw 59Hz
+22673985e00 surface draw 57.95Hz
+22673985b70 surface draw 7.73Hz
+22673985130 surface draw 33.85Hz
+composer draw 59Hz
+22673985b70 surface draw 1.72Hz
+composer draw 60Hz
+composer draw 60Hz
+22673985130 surface draw 5.11Hz
+composer draw 59Hz
+22673985b70 surface draw 20.77Hz
+composer draw 58Hz
+22673985b70 surface draw 28.40Hz
+composer draw 60Hz
+22673985b70 surface draw 26.58Hz
+composer draw 59Hz
+22673984980 surface draw 0.00Hz
+composer draw 58Hz
+22673985b70 surface draw 13.33Hz
+composer draw 47Hz
+22673985b70 surface draw 39.79Hz
+composer draw 60Hz
+22673984980 surface draw 17.95Hz
+22673985b70 surface draw 4.92Hz
+composer draw 60Hz
+22673984980 surface draw 58.78Hz
+22673985b70 surface draw 9.26Hz
+22673985130 surface draw 1.10Hz
+composer draw 59Hz
+22673986320 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673986320 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673986320 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673984980 surface draw 45.58Hz
+22673985b70 surface draw 16.19Hz
+composer draw 59Hz
+22673984980 surface draw 40.70Hz
+22673986320 surface draw 18.02Hz
+composer draw 60Hz
+22673986320 surface draw 50.61Hz
+composer draw 60Hz
+22673985b70 surface draw 0.00Hz
+22673986320 surface draw 25.82Hz
+226739853c0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+226739853c0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+226739853c0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+composer draw 59Hz
+226739846f0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226739846f0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226739846f0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+composer draw 60Hz
+226739846f0 surface draw 49.92Hz
+composer draw 59Hz
+226739846f0 surface draw 48.90Hz
+226746899b0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+226746899b0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+226746899b0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+composer draw 60Hz
+22673985b70 surface draw 0.27Hz
+22674689c40 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674689c40 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674689c40 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+composer draw 59Hz
+22674689c40 surface draw 18.48Hz
+composer draw 60Hz
+22674689c40 surface draw 57.68Hz
+composer draw 60Hz
+22674689c40 surface draw 25.65Hz
+22674688a50 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674688a50 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674688a50 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673984980 surface draw 1.30Hz
+composer draw 59Hz
+2267468a160 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+2267468a160 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+2267468a160 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+composer draw 59Hz
+22673984980 surface draw 59.17Hz
+22674688a50 surface draw 1.35Hz
+22673985b70 surface draw 0.00Hz
+22674688010 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+2267468a160 surface draw 22.68Hz
+composer draw 60Hz
+226746875d0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226746875d0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226746875d0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673985b70 surface draw 40.83Hz
+2267468a3f0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+2267468a3f0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+2267468a3f0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 24
+composer draw 59Hz
+2267468a3f0 surface draw 23.83Hz
+composer draw 59Hz
+22673985b70 surface draw 8.59Hz
+2267468a3f0 surface draw 14.30Hz
+composer draw 60Hz
+composer draw 60Hz
+22673985b70 surface draw 11.76Hz
+22674687860 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+2267468a680 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+eglClientWaitSync with null opengl context
+22674686b90 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674686b90 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674686b90 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+composer draw 59Hz
+22673984980 surface draw 5.80Hz
+composer draw 60Hz
+22674686b90 surface draw 1.69Hz
+22674686e20 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+22673985b70 surface draw 22.35Hz
+22673984980 surface draw 58.85Hz
+composer draw 60Hz
+22673984980 surface draw 24.67Hz
+22673985b70 surface draw 23.66Hz
+2267468a3f0 surface draw 1.78Hz
+composer draw 59Hz
+composer draw 60Hz
+composer draw 59Hz
+composer draw 59Hz
+composer draw 60Hz
+composer draw 60Hz
+composer draw 59Hz
+composer draw 60Hz
+composer draw 60Hz
+composer draw 60Hz
+22674689ed0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674689ed0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674689ed0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+composer draw 59Hz
+composer draw 59Hz
+composer draw 60Hz
+22674689ed0 surface draw 5.09Hz
+composer draw 59Hz
+22673985b70 surface draw 1.44Hz
+composer draw 59Hz
+2267468a3f0 surface draw 0.54Hz
+composer draw 59Hz
+22673985b70 surface draw 20.22Hz
+2267468a680 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+eglClientWaitSync with null opengl context
+22674687340 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674687340 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22674687340 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+22673984980 surface draw 2.08Hz
+composer draw 60Hz
+22674688ce0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1 height 1
+22674687340 surface draw 3.38Hz
+22673985b70 surface draw 21.04Hz
+22673984980 surface draw 59.02Hz
+composer draw 59Hz
+composer draw 59Hz
+226746875d0 surface draw 1.72Hz
+composer draw 60Hz
+226746887c0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226746887c0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226746887c0 surface choose red 8 green 8 blue 8 alpha 8 depth 0 stencil 8 width 1024 height 768
+226746875d0 surface draw 19.93Hz
+notify shutdown! 1639579970181510
+native windows close!

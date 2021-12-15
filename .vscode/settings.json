@@ -111,7 +111,12 @@
         "module.h": "c",
         "notify.h": "c",
         "qapi-types-ui.h": "c",
-        "sdl_control.h": "c"
+        "sdl_control.h": "c",
+        "egl_window.h": "c",
+        "wingdi.h": "c",
+        "wglext.h": "c",
+        "windows.h": "c",
+        "winuser.h": "c"
     },
     "cmake.configureOnOpen": false
 }

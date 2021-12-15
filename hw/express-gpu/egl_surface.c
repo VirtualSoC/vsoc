@@ -16,6 +16,7 @@
 
 #include "express-gpu/express_gpu_render.h"
 #include "express-gpu/offscreen_render_thread.h"
+#include "express-gpu/glv3_resource.h"
 
 EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, EGLenum target, int format, int stride, int width, int height, GLuint share_texture);
 void connect_fbo_texture(Window_Buffer *d_buffer, int index, int new);
@@ -994,7 +995,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
         {
             if (real_image->is_lock)
             {
-                release_texture_from_image(real_image);
+               // release_texture_from_image(real_image);
             }
         }
         // g_hash_table_remove(process_context->gbuffer_image_map, GINT_TO_POINTER(gbuffer_id));

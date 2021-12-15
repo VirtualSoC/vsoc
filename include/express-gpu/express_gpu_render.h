@@ -48,6 +48,8 @@
 //是否使用glfw代替原生wgl创建pbuffer的过程，使用这个才能启用DEBUG_INDEPEND_WINDOW
 // #define USE_GLFW_AS_WGL
 
+#define ENSURE_SAME_WIDTH_HEIGHT_RATIO
+
 typedef struct Main_window_Event
 {
      int event_code;
