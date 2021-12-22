@@ -129,7 +129,7 @@ EGLBoolean d_eglDestroySync(void *context, EGLDisplay dpy, EGLSync sync)
     remove_host_map_ids(status, 1, &guest_sync_int);
     if(thread_context->opengl_context == NULL)
     {
-        send_message_to_main_window(MAIN_DESTROY_ONE_EGLSYNC, host_sync);
+        send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, host_sync);
     }
     else
     {

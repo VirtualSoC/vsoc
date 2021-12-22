@@ -521,7 +521,7 @@ static void handle_child_window_event()
             g_free(status);
         }
         break;
-        case MAIN_DESTROY_ONE_EGLSYNC:
+        case MAIN_DESTROY_ONE_SYNC:
         {
             GLsync sync = (GLsync)child_event->data;
             if (sync == NULL)
@@ -530,6 +530,17 @@ static void handle_child_window_event()
             }
 
             glDeleteSync(sync);
+        }
+        break;
+        case MAIN_DESTROY_ONE_TEXTURE:
+        {
+            GLuint texture = (GLsync)child_event->data;
+            if (texture == 0)
+            {
+                break;
+            }
+
+            glDeleteTextures(1, &texture);
         }
         break;
         default:

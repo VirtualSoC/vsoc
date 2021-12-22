@@ -465,7 +465,36 @@ static void g_image_map_destroy(gpointer data)
     EGL_Image *real_image = (EGL_Image *)data;
     // printf("destroy image invoke\n");
     // PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
-    send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
+    // send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
+
+
+    if(real_image->target != EGL_GL_TEXTURE_2D)
+    {
+        if(real_image->fbo_texture != 0)
+        {
+            send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture);
+        }
+        if(real_image->fbo_texture_reverse != 0)
+        {
+            send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture_reverse);
+        }
+    }
+
+
+    if (real_image->fbo_sync != NULL)
+    {
+        send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync);
+    }
+    if (real_image->fbo_sync_need_delete != NULL)
+    {
+        send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync_need_delete);
+    }
+
+    set_image_gbuffer_id(real_image, NULL, real_image->gbuffer_id);
+
+    g_free(real_image);
+    return;
+
 }
 
 void render_context_destroy(Thread_Context *context)
