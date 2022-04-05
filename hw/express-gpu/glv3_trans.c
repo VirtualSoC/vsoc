@@ -27082,6 +27082,1079 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
+    case FUNID_glBindImageTexture:
+
+    {
+
+
+        /* Define variables */
+        GLuint unit;
+        GLuint texture;
+        GLint level;
+        GLboolean layered;
+        GLint layer;
+        GLenum access;
+        GLenum format;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBindImageTexture)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 25 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+        
+        unit = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        texture = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        level = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        layered = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 1;
+
+        layer = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        access = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        format = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glBindImageTexture(unit, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level, layered, layer, access, format);
+    }
+    break;
+
+    case FUNID_glBindVertexBuffer:
+
+    {
+
+        GLuint bindingindex;
+        GLuint buffer;
+        GLintptr offset;
+        GLsizei stride;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBindVertexBuffer)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 20 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;   
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        bindingindex = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        buffer = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        offset = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        stride = *(GLsizei  *)(temp + temp_loc);
+        temp_loc += 4;
+        
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glBindVertexBuffer(bindingindex, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, stride);
+    }
+    break;
+
+    case FUNID_glVertexAttribFormat:
+
+    {
+
+        GLuint attribindex;
+ 	    GLint size;
+        GLenum type;
+        GLboolean normalized;
+        GLuint relativeoffset;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glVertexAttribFormat)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 17 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        attribindex = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        size = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        normalized = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 1;
+
+        relativeoffset = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glVertexAttribFormat(attribindex, size, type, normalized, relativeoffset);
+        
+    }
+    break;
+
+
+    case FUNID_glVertexAttribIFormat:
+
+    {
+
+        GLuint attribindex;
+        GLint size;
+        GLenum type;
+        GLuint relativeoffset;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glVertexAttribIFormat)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 16 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        attribindex = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        size = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        relativeoffset = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glVertexAttribIFormat(attribindex, size, type, relativeoffset);
+    }
+    break;
+
+
+    case FUNID_glVertexAttribBinding:
+
+    {
+
+        GLuint attribindex;
+ 	    GLuint bindingindex;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glVertexAttribBinding)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        attribindex = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        bindingindex = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+        
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glVertexAttribBinding(attribindex, bindingindex);
+    }
+    break;
+
+
+    case FUNID_glDispatchCompute:
+
+    {
+
+        GLuint num_groups_x;
+        GLuint num_groups_y;
+        GLuint num_groups_z;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDispatchCompute)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        num_groups_x = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        num_groups_y = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        num_groups_z = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glDispatchCompute(num_groups_x, num_groups_y, num_groups_z);
+    }
+    break;
+
+
+    case FUNID_glDispatchComputeIndirect:
+
+    {
+
+        GLintptr indirect;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDispatchComputeIndirect)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        indirect = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glDispatchComputeIndirect(indirect);
+    }
+    break;
+
+
+    case FUNID_glMemoryBarrier:
+
+    {
+
+        GLbitfield barriers;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glMemoryBarrier)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        barriers = *(GLbitfield *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glMemoryBarrier(barriers);
+        
+    }
+    break;
+
+
+    case FUNID_glMemoryBarrierByRegion:
+
+    {
+
+        GLbitfield barriers;
+
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glMemoryBarrierByRegion)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        barriers = *(GLbitfield *)(temp + temp_loc);
+        temp_loc += 4;
+
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glMemoryBarrierByRegion(barriers);
+
+    }
+    break;
+
+    case FUNID_glFramebufferParameteri:
+
+    {
+
+        GLenum target;
+ 	    GLenum pname;
+ 	    GLint param;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glFramebufferParameteri)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        pname = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        param = *(GLint *)(temp + temp_loc);
+        temp_loc += 4;
+
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        
+        glFramebufferParameteri(target, pname, param);
+    }
+    break;
+
+
+    case FUNID_glSampleMaski:
+
+    {
+
+        GLuint maskNumber;
+ 	    GLbitfield mask;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glSampleMaski)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        maskNumber = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        mask = *(GLbitfield *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glSampleMaski(maskNumber, mask);
+    }
+    break;
+
+
+
+    case FUNID_glTexStorage2DMultisample:
+
+    {
+
+        GLenum target;
+        GLsizei samples;
+        GLenum internalformat;
+        GLsizei width;
+        GLsizei height;
+        GLboolean fixedsamplelocations;
+
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glTexStorage2DMultisample)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 21 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        samples = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        internalformat = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        width = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        fixedsamplelocations = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 1;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        glTexStorage2DMultisample(target, samples, internalformat, width, height, fixedsamplelocations);
+    }
+    break;
+
+
+    case FUNID_glValidateProgramPipeline:
+
+    {
+
+        GLuint pipeline;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glValidateProgramPipeline)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        pipeline = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        
+        glValidateProgramPipeline((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline));
+
+    }
+    break;
+
+
+    case FUNID_glVertexBindingDivisor:
+
+    {
+
+        GLuint bindingindex;
+ 	    GLuint divisor;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glVertexBindingDivisor)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        bindingindex = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        divisor = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        d_glVertexBindingDivisor_special(opengl_context, bindingindex, divisor);
+        
+    }
+    break;
+
+
+    case FUNID_glDrawArraysIndirect_with_bound:
+
+    {
+
+        GLenum mode;
+ 	    GLintptr indirect;
+
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawArraysIndirect_with_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        indirect = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        
+        d_glDrawArraysIndirect_with_bound(opengl_context, mode, indirect);
+
+    }
+    break;
+
+
+    case FUNID_glDrawArraysIndirect_without_bound:
+
+    {
+
+        GLenum mode;
+ 	    void *indirect;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawArraysIndirect_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 4 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        //注意，这里由于结构体数据不大，所以是直接放到前两个参数后面的
+        indirect = (void *)(temp + temp_loc);
+
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        d_glDrawArraysIndirect_without_bound(opengl_context, mode, indirect);
+
+    }
+    break;
+
+    case FUNID_glDrawElementsIndirect_with_bound:
+
+    {
+
+        GLenum mode;
+        GLenum type;
+        GLintptr indirect;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBindFramebuffer)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 16 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        indirect = *(GLintptr *)(temp + temp_loc);
+        temp_loc += 8;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        d_glDrawElementsIndirect_with_bound(opengl_context, mode, type, indirect);
+    }
+    break;
+
+
+    case FUNID_glDrawElementsIndirect_without_bound:
+
+    {
+
+        GLenum mode;
+        GLenum type;
+        void *indirect;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDrawElementsIndirect_without_bound)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        mode = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        type = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        //注意，这里由于结构体数据不大，所以是直接放到前两个参数后面的
+        indirect = (void *)(temp + temp_loc);
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+        // printf("context %llx glBindFramebuffer %x guest %d host %d\n",opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
+        d_glDrawElementsIndirect_without_bound(opengl_context, mode, type, indirect);
+    }
+
+    break;
+
     default:
         break;
     }

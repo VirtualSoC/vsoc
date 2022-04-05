@@ -12,7 +12,7 @@
 
 typedef HDC EGLNativeDisplayType;
 typedef HBITMAP EGLNativePixmapType;
-typedef HWND EGLNativeWindowType;
+typedef void* EGLNativeWindowType;
 
 #elif defined(__ANDROID__) || defined(ANDROID)
 

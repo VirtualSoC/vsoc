@@ -510,14 +510,14 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
         // memset(status,0,sizeof(Buffer_Status));
         // status->vertex_array_buffer=arrays[i];
 
-        // g_hash_table_insert(bound_buffer->vao_status, GINT_TO_POINTER(arrays[i]), (gpointer)status);
+        // g_hash_table_insert(bound_buffer->vao_status, GUINT_TO_POINTER(arrays[i]), (gpointer)status);
 
         Attrib_Point *point_data = g_malloc(sizeof(Attrib_Point));
         memset(point_data, 0, sizeof(Attrib_Point));
         glGenBuffers(1, &(point_data->indices_buffer_object));
         glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object);
 
-        g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(host_buffers[i]), (gpointer)point_data);
+        g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(host_buffers[i]), (gpointer)point_data);
     }
 
     g_free(host_buffers);
@@ -582,7 +582,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     {
         for(int i = 0;i<n;i++)
         {
-            g_hash_table_remove(to_external_texture_id_map,GINT_TO_POINTER(host_buffers[i]));
+            g_hash_table_remove(to_external_texture_id_map,GUINT_TO_POINTER(host_buffers[i]));
         }
     }
 
@@ -627,11 +627,11 @@ void d_glDeleteProgram(void *context, GLuint program)
 
     if(program_is_external_map != NULL)
     {
-        g_hash_table_remove(program_is_external_map,GINT_TO_POINTER(host_program));
+        g_hash_table_remove(program_is_external_map,GUINT_TO_POINTER(host_program));
     }
     if(program_data_map != NULL)
     {
-        g_hash_table_remove(program_data_map, GINT_TO_POINTER(host_program));
+        g_hash_table_remove(program_data_map, GUINT_TO_POINTER(host_program));
     }
 
     glDeleteProgram(host_program);
@@ -730,15 +730,15 @@ void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
             continue;
         }
         //下面这个是为了当删除当前绑定的vao时，能够自动绑定vao为0
-        Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(vao_index));
+        Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
 
         // if(vao_status==bound_buffer->buffer_status){
         if (bound_buffer->attrib_point == vao_point)
         {
-            // bound_buffer->buffer_status=g_hash_table_lookup(bound_buffer->vao_status, GINT_TO_POINTER(0));
-            bound_buffer->attrib_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(0));
+            // bound_buffer->buffer_status=g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(0));
+            bound_buffer->attrib_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
         }
-        g_hash_table_remove(bound_buffer->vao_point_data, GINT_TO_POINTER(vao_index));
+        g_hash_table_remove(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
     }
 }
 

@@ -61,7 +61,11 @@ typedef struct Window_Buffer
 
      uint64_t guest_native_window;
 
-     uint64_t guest_gbuffer_id;
+     uint64_t display_guest_gbuffer_id;
+
+     //这里之所以是64，是因为安卓一个window最多可以有64个gbuffer
+     uint64_t guest_gbuffer_id[64];
+     int guest_gbuffer_num;
 
      // struct Window_Buffer *now_acquired_surface;
      // struct Window_Buffer *last_acquired_surface;

@@ -46,7 +46,9 @@ void release_call_special(Direct_Express_Call *call, int notify);
 
 int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct_Express_Call *pre_call, Direct_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
 
-static void g_window_surface_map_destroy(gpointer data);
+// static void g_window_surface_map_destroy(gpointer data);
+
+static gboolean g_window_Surface_destroy(gpointer key, gpointer data, gpointer user_data);
 
 static void g_p_surface_map_destroy(gpointer data);
 
@@ -342,7 +344,7 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
         render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 
-    Thread_Context *context = g_hash_table_lookup(render_thread_contexts, GINT_TO_POINTER(unique_id));
+    Thread_Context *context = g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(unique_id));
     // express_printf("g_hash table lookup\n");
     //没有context就新建线程
     if (context == NULL)
@@ -353,7 +355,7 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
         Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
         //处理好process_context与thread_context的关系
         //新建进程上下文
-        Process_Context *process = g_hash_table_lookup(render_process_contexts, GINT_TO_POINTER(process_id));
+        Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
         if (process == NULL)
         {
             express_printf("create new process context\n");
@@ -361,7 +363,8 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             //注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
             process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_p_surface_map_destroy);
-            process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
+            // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
+            process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
             process->gbuffer_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_image_map_destroy);
             process->egl_sync_resource = g_malloc(sizeof(Resource_Map_Status));
             process->egl_sync_resource->map_size = 0;
@@ -369,27 +372,27 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
             process->egl_sync_resource->resource_id_map = NULL;
             process->thread_cnt = 0;
 
-            g_hash_table_insert(render_process_contexts, GINT_TO_POINTER(process_id), (gpointer)process);
+            g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
         }
         process->thread_cnt += 1;
         thread_context->process_context = process;
-        g_hash_table_insert(render_thread_contexts, GINT_TO_POINTER(unique_id), (gpointer)context);
+        g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(unique_id), (gpointer)context);
     }
     return context;
 }
 
 void remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
-    Process_Context *process = g_hash_table_lookup(render_process_contexts, GINT_TO_POINTER(process_id));
+    Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
     if (process != NULL)
     {
         if (process->thread_cnt == 1)
         {
-            g_hash_table_remove(render_process_contexts, GINT_TO_POINTER(process_id));
+            g_hash_table_remove(render_process_contexts, GUINT_TO_POINTER(process_id));
         }
     }
 
-    g_hash_table_remove(render_thread_contexts, GINT_TO_POINTER(unique_id));
+    g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(unique_id));
 }
 
 void render_context_init(Thread_Context *context)
@@ -413,14 +416,25 @@ void render_context_init(Thread_Context *context)
     }
 }
 
-static void g_window_surface_map_destroy(gpointer data)
+// static void g_window_surface_map_destroy(gpointer data)
+// {
+//     printf("remove window_surface %llx\n",data);
+//     Window_Buffer *real_surface = (Window_Buffer *)data;
+//     if (real_surface->type == WINDOW_SURFACE)
+//     {
+//         render_surface_destroy(real_surface);
+//     }
+// }
+
+static gboolean g_window_Surface_destroy(gpointer key, gpointer data, gpointer user_data)
 {
-    // printf("remove window_surface %llx\n",data);
+    printf("remove window_surface %llx\n",data);
     Window_Buffer *real_surface = (Window_Buffer *)data;
     if (real_surface->type == WINDOW_SURFACE)
     {
         render_surface_destroy(real_surface);
     }
+    return true;
 }
 
 static void g_p_surface_map_destroy(gpointer data)
@@ -490,7 +504,7 @@ static void g_image_map_destroy(gpointer data)
         send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync_need_delete);
     }
 
-    set_image_gbuffer_id(real_image, NULL, real_image->gbuffer_id);
+    set_gbuffer_id_image(real_image->gbuffer_id, real_image, NULL);
 
     g_free(real_image);
     return;
@@ -541,6 +555,7 @@ void render_context_destroy(Thread_Context *context)
         //surface_map这个是删除p_surface
         g_hash_table_destroy(process_context->surface_map);
         //native的这个map是删除Window_Surface
+        g_hash_table_foreach_remove(process_context->native_window_surface_map, g_window_Surface_destroy, NULL);
         g_hash_table_destroy(process_context->native_window_surface_map);
 
         //image删除，这里主要是为了释放gbuffer映射

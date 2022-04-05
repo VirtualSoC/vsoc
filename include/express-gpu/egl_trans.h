@@ -137,6 +137,9 @@
 
 #define PARA_NUM_MIN_eglTP (1)
 
+#define FUNID_eglSetGraphicBufferID ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10045)
+
+#define PARA_NUM_MIN_eglSetGraphicBufferID (1)
 
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call);
 

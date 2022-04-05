@@ -100,13 +100,57 @@ typedef struct Static_Context_Values
      GLint max_fragment_uniform_vectors;
      GLint max_renderbuffer_size;
      GLint max_vertex_attribs;
+     GLint max_image_units;
+     GLint max_vertex_attrib_bindings;
+     GLint max_computer_uniform_blocks;
+     GLint max_computer_texture_image_units;
+     GLint max_computer_image_uniforms;
+     GLint max_computer_sharde_memory_size;
+     GLint max_computer_uniform_components;
+     GLint max_computer_atomic_counter_buffers;
+     GLint max_computer_atomic_counters;
+     GLint max_combined_compute_uniform_components;
+     GLint max_computer_work_group_invocations;
+     GLint max_computer_work_group_count[3];
+     GLint max_computer_work_group_size[3];
+     GLint max_uniform_locations;
+     GLint max_framebuffer_width;
+     GLint max_framebuffer_height;
+     GLint max_framebuffer_samples;
+     GLint max_vertex_atomic_counter_buffers;
+     GLint max_fragment_atomic_counter_buffers;
+     GLint max_combined_atomic_counter_buffers;
+     GLint max_vertex_atomic_counters;
+     GLint max_fragment_atomic_counters;
+     GLint max_combined_atomic_counters;
+     GLint max_atomic_counter_buffer_size;
+     GLint max_atomic_counter_buffer_bindings;
+     GLint max_vertex_image_uniforms;
+     GLint max_fragment_image_uniforms;
+     GLint max_combined_image_uniforms;
+     GLint max_vertex_shader_storage_blocks;
+     GLint max_fragment_shader_storage_blocks;
+     GLint max_compute_shader_storage_blocks;
+     GLint max_combined_shader_storage_blocks;
+     GLint max_shader_storage_buffer_bindings;
+     GLint max_shader_storage_block_size;
+     GLint max_combined_shader_output_resources;
+     GLint min_program_texture_gather_offset;
+     GLint max_program_texture_gather_offset;
+     GLint max_sample_mask_words;
+     GLint max_color_texture_samples;
+     GLint max_depth_texture_samples;
+     GLint max_integer_samples;
+     GLint max_vertex_attrib_relative_offset;
+     // GLint max_vertex_attrib_bindings;
+     GLint max_vertex_attrib_stride;
      GLint max_vertex_texture_image_units;
      GLint max_vertex_uniform_components;
      GLint max_vertex_uniform_vectors;
      GLint max_viewport_dims[2];
      GLint max_samples;
-     GLint max_atomic_counter_buffer_bindings;
-     GLint max_shader_storage_buffer_bindings;
+     // GLint max_atomic_counter_buffer_bindings;
+     // GLint max_shader_storage_buffer_bindings;
      GLint num_shader_binary_formats;
      GLint program_binary_formats[8];
      GLint shader_binary_formats[8];
@@ -164,11 +208,11 @@ void release_texture_from_image(EGL_Image *image);
 
 Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id);
 
-void set_surface_gbuffer_id(Window_Buffer *surface, uint64_t gbuffer_id);
+void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, Window_Buffer *now_surface);
 
 EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id);
 
-void set_image_gbuffer_id(EGL_Image *origin_image, EGL_Image *now_image, uint64_t gbuffer_id);
+void set_gbuffer_id_image(uint64_t gbuffer_id, EGL_Image *origin_image, EGL_Image *now_image);
 
 void send_message_to_main_window(int message_code, void *data);
 
