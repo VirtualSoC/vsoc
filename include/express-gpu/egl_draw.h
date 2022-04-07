@@ -30,4 +30,6 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id);
 
 EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, int64_t *ret_invoke_time, int64_t *swap_time);
 
+void d_eglSetGraphicBufferID(void *context, EGLSurface draw, uint64_t gbuffer_id);
+
 #endif

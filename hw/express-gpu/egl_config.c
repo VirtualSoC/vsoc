@@ -101,7 +101,7 @@ EGLBoolean is_config_equaled(eglConfig *config, eglConfig *other)
 
 eglConfig *config_to_hints(EGLConfig cfg, GLFWHints *hints)
 {
-    eglConfig *config = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GINT_TO_POINTER(cfg));
+    eglConfig *config = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GUINT_TO_POINTER(cfg));
     
     for (int i = 0; i < NUM_HINTS; i++)
     {

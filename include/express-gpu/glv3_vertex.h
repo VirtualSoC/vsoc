@@ -61,4 +61,13 @@ void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei co
 void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, GLsizeiptr indices);
 void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices);
 
+void d_glVertexBindingDivisor_special(void *context, GLuint bindingindex, GLuint divisor);
+
+void d_glDrawArraysIndirect_with_bound(void *context, GLenum mode, GLintptr indirect);
+void d_glDrawArraysIndirect_without_bound(void *context, GLenum mode, const void *indirect);
+
+void d_glDrawElementsIndirect_with_bound(void *context, GLenum mode, GLenum type, GLintptr indirect);
+void d_glDrawElementsIndirect_without_bound(void *context, GLenum mode, GLenum type, const void *indirect);
+
+
 #endif

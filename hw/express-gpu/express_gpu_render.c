@@ -44,6 +44,9 @@ static GQueue *sync_event_queue;
 
 static GHashTable *gbuffer_id_surface_map = NULL;
 static GHashTable *gbuffer_id_image_map = NULL;
+static int gbuffer_id_surface_map_lock = 0;
+static int gbuffer_id_image_map_lock = 0;
+
 
 static int calc_screen_hz = 0;
 
@@ -95,7 +98,7 @@ volatile int native_render_run = 0;
 static QemuConsole *input_receive_con = NULL;
 
 static const GLubyte GPU_VENDOR[] = "Express_GPU (";
-static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
+static const GLubyte GPU_VERSION[] = "OpenGL ES 3.1 (";
 static const GLubyte GPU_RENDERER[] = "OpenGL ES Translator (";
 static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
 
@@ -106,7 +109,7 @@ static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
 // static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
 
 static const int OPENGL_MAJOR_VERSION = 3;
-static const int OPENGL_MINOR_VERSION = 0;
+static const int OPENGL_MINOR_VERSION = 1;
 
 static const GLubyte *SPECIAL_EXTENSIONS[] =
     {
@@ -431,16 +434,19 @@ static void handle_child_window_event()
             {
                 set_compose_surface(surface, NULL);
             }
-            if (surface->guest_gbuffer_id != 0)
-            {
-                set_surface_gbuffer_id(NULL, surface->guest_gbuffer_id);
-            }
+            // if (surface->guest_gbuffer_id != 0)
+            // {
+            //     set_gbuffer_id_surface(NULL, surface->guest_gbuffer_id);
+            // }
 
-            if (surface->type == WINDOW_SURFACE && get_surface_from_gbuffer_id(surface->guest_gbuffer_id) == surface)
-            {
-                //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-                set_surface_gbuffer_id(NULL, surface->guest_gbuffer_id);
-            }
+            // if (surface->type == WINDOW_SURFACE)
+            // {
+            //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+            //     for(int i = 0;i<surface->guest_gbuffer_num;i++)
+            //     {
+            //         set_gbuffer_id_surface(surface->guest_gbuffer_id[i], surface, NULL);
+            //     }
+            // }
             // printf("real destroy surface %llx\n", surface);
 
             //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
@@ -494,7 +500,7 @@ static void handle_child_window_event()
             {
                 break;
             }
-            set_image_gbuffer_id(real_image, NULL, real_image->gbuffer_id);
+            set_gbuffer_id_image(real_image->gbuffer_id, real_image, NULL);
             express_printf("real destroy image %lx\n", real_image);
 
             destroy_real_image(real_image);
@@ -759,6 +765,62 @@ static void static_value_prepare()
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &(preload_static_context_value->max_texture_size));
     glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &(preload_static_context_value->max_vertex_attribs));
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &(preload_static_context_value->max_vertex_uniform_components));
+
+
+    glGetIntegerv(GL_MAX_IMAGE_UNITS, &(preload_static_context_value->max_image_units));
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, &(preload_static_context_value->max_vertex_attrib_bindings));
+    glGetIntegerv(GL_MAX_COMPUTE_UNIFORM_BLOCKS, &(preload_static_context_value->max_computer_uniform_blocks));
+    glGetIntegerv(GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS, &(preload_static_context_value->max_computer_texture_image_units));
+    glGetIntegerv(GL_MAX_COMPUTE_IMAGE_UNIFORMS, &(preload_static_context_value->max_computer_image_uniforms));
+    glGetIntegerv(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE, &(preload_static_context_value->max_computer_sharde_memory_size));
+    glGetIntegerv(GL_MAX_COMPUTE_UNIFORM_COMPONENTS, &(preload_static_context_value->max_computer_uniform_components));
+    glGetIntegerv(GL_MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS, &(preload_static_context_value->max_computer_atomic_counter_buffers));
+    glGetIntegerv(GL_MAX_COMPUTE_ATOMIC_COUNTERS, &(preload_static_context_value->max_computer_atomic_counters));
+    glGetIntegerv(GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS, &(preload_static_context_value->max_combined_compute_uniform_components));
+    glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &(preload_static_context_value->max_computer_work_group_invocations));
+    
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &(preload_static_context_value->max_computer_work_group_count[0]));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &(preload_static_context_value->max_computer_work_group_count[1]));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &(preload_static_context_value->max_computer_work_group_count[2]));
+    
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &(preload_static_context_value->max_computer_work_group_size[0]));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, &(preload_static_context_value->max_computer_work_group_size[1]));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &(preload_static_context_value->max_computer_work_group_size[2]));
+
+
+    glGetIntegerv(GL_MAX_UNIFORM_LOCATIONS, &(preload_static_context_value->max_uniform_locations));
+    glGetIntegerv(GL_MAX_FRAMEBUFFER_WIDTH, &(preload_static_context_value->max_framebuffer_width));
+    glGetIntegerv(GL_MAX_FRAMEBUFFER_HEIGHT, &(preload_static_context_value->max_framebuffer_height));
+    glGetIntegerv(GL_MAX_FRAMEBUFFER_SAMPLES, &(preload_static_context_value->max_framebuffer_samples));
+    glGetIntegerv(GL_MAX_VERTEX_ATOMIC_COUNTER_BUFFERS, &(preload_static_context_value->max_vertex_atomic_counter_buffers));
+    glGetIntegerv(GL_MAX_FRAGMENT_ATOMIC_COUNTER_BUFFERS, &(preload_static_context_value->max_fragment_atomic_counter_buffers));
+    glGetIntegerv(GL_MAX_COMBINED_ATOMIC_COUNTER_BUFFERS, &(preload_static_context_value->max_combined_atomic_counter_buffers));
+    glGetIntegerv(GL_MAX_FRAGMENT_ATOMIC_COUNTERS, &(preload_static_context_value->max_fragment_atomic_counters));
+    glGetIntegerv(GL_MAX_COMBINED_ATOMIC_COUNTERS, &(preload_static_context_value->max_combined_atomic_counters));
+    glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_SIZE, &(preload_static_context_value->max_atomic_counter_buffer_size));
+    glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, &(preload_static_context_value->max_atomic_counter_buffer_bindings));
+    glGetIntegerv(GL_MAX_VERTEX_IMAGE_UNIFORMS, &(preload_static_context_value->max_vertex_image_uniforms));
+    glGetIntegerv(GL_MAX_FRAGMENT_IMAGE_UNIFORMS, &(preload_static_context_value->max_fragment_image_uniforms));
+    glGetIntegerv(GL_MAX_COMBINED_IMAGE_UNIFORMS, &(preload_static_context_value->max_combined_image_uniforms));
+    glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, &(preload_static_context_value->max_vertex_shader_storage_blocks));
+    glGetIntegerv(GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS, &(preload_static_context_value->max_fragment_shader_storage_blocks));
+    glGetIntegerv(GL_MAX_COMPUTE_SHADER_STORAGE_BLOCKS, &(preload_static_context_value->max_compute_shader_storage_blocks));
+    glGetIntegerv(GL_MAX_COMBINED_SHADER_STORAGE_BLOCKS, &(preload_static_context_value->max_combined_shader_storage_blocks));
+    glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &(preload_static_context_value->max_shader_storage_buffer_bindings));
+    glGetIntegerv(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &(preload_static_context_value->max_shader_storage_block_size));
+    glGetIntegerv(GL_MAX_COMBINED_SHADER_OUTPUT_RESOURCES, &(preload_static_context_value->max_combined_shader_output_resources));
+    glGetIntegerv(GL_MIN_PROGRAM_TEXTURE_GATHER_OFFSET, &(preload_static_context_value->min_program_texture_gather_offset));
+    glGetIntegerv(GL_MAX_PROGRAM_TEXTURE_GATHER_OFFSET, &(preload_static_context_value->max_program_texture_gather_offset));
+    glGetIntegerv(GL_MAX_SAMPLE_MASK_WORDS, &(preload_static_context_value->max_sample_mask_words));
+    glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &(preload_static_context_value->max_color_texture_samples));
+    glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &(preload_static_context_value->max_depth_texture_samples));
+    glGetIntegerv(GL_MAX_INTEGER_SAMPLES, &(preload_static_context_value->max_integer_samples));
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIB_RELATIVE_OFFSET, &(preload_static_context_value->max_vertex_attrib_relative_offset));
+    // glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, &(preload_static_context_value->max_vertex_attrib_bindings));
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIB_STRIDE, &(preload_static_context_value->max_vertex_attrib_stride));
+
+
+
     glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &(preload_static_context_value->max_vertex_texture_image_units));
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &(preload_static_context_value->max_vertex_uniform_vectors));
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, &(preload_static_context_value->max_viewport_dims));
@@ -777,8 +839,8 @@ static void static_value_prepare()
     glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS, &(preload_static_context_value->max_transform_feedback_separate_components));
     glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS, &(preload_static_context_value->max_transform_feedback_interleaved_components));
     glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &(preload_static_context_value->max_uniform_buffer_bindings));
-    glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, &(preload_static_context_value->max_atomic_counter_buffer_bindings));
-    glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &(preload_static_context_value->max_shader_storage_buffer_bindings));
+    // glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, &(preload_static_context_value->max_atomic_counter_buffer_bindings));
+    // glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &(preload_static_context_value->max_shader_storage_buffer_bindings));
     glGetIntegerv(GL_MAX_VARYING_VECTORS, &(preload_static_context_value->max_varying_vectors));
     glGetIntegerv(GL_MAX_VARYING_COMPONENTS, &(preload_static_context_value->max_varying_components));
     glGetIntegerv(GL_MAX_VERTEX_OUTPUT_COMPONENTS, &(preload_static_context_value->max_vertex_output_components));
@@ -799,9 +861,26 @@ static void static_value_prepare()
     glGetInteger64v(GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS, &(preload_static_context_value->max_combined_fragment_uniform_components));
     glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &(preload_static_context_value->max_uniform_block_size));
 
-    if (preload_static_context_value->max_vertex_attribs > 16)
+
+    GLenum error =glGetError();
+    if(error!=GL_NO_ERROR)
     {
-        preload_static_context_value->max_vertex_attribs = 16;
+        printf("error when creating static vaules %x\n",error);
+    }
+    //下面三个值之所以要限定范围，是因为guest端有个固定大小的数组，这个最大值是数组的最大大小
+    if (preload_static_context_value->max_vertex_attribs > 32)
+    {
+        preload_static_context_value->max_vertex_attribs = 32;
+    }
+
+    if(preload_static_context_value->max_image_units > 16)
+    {
+        preload_static_context_value->max_image_units = 16;
+    }
+
+    if(preload_static_context_value->max_vertex_attrib_bindings > 32)
+    {
+        preload_static_context_value->max_vertex_attrib_bindings = 32;
     }
 
     preload_static_context_value->num_compressed_texture_formats += 1;
@@ -996,7 +1075,7 @@ static void opengl_paint(Window_Buffer *d_buffer)
     }
     else if (d_buffer->type == P_SURFACE)
     {
-        if (d_buffer->guest_gbuffer_id == 0)
+        if (d_buffer->display_guest_gbuffer_id == 0)
         {
             return;
         }
@@ -1007,7 +1086,7 @@ static void opengl_paint(Window_Buffer *d_buffer)
         }
 
         //注意，下面这种情况是为了照顾surfaceflinger的合成逻辑
-        EGL_Image *real_image = get_image_from_gbuffer_id(d_buffer->guest_gbuffer_id);
+        EGL_Image *real_image = get_image_from_gbuffer_id(d_buffer->display_guest_gbuffer_id);
         // printf("main acquire image %lx to read\n",real_image);
 
         if (window_width == 0 || window_height == 0)
@@ -1845,24 +1924,34 @@ Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)
     {
         return NULL;
     }
+    ATOMIC_LOCK(gbuffer_id_surface_map_lock);
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+    ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
     return real_surface;
 }
 
-void set_surface_gbuffer_id(Window_Buffer *surface, uint64_t gbuffer_id)
+void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, Window_Buffer *now_surface)
 {
     if (gbuffer_id_surface_map == NULL)
     {
         return;
     }
-    if (surface == NULL)
+
+    ATOMIC_LOCK(gbuffer_id_surface_map_lock);
+    if (now_surface == NULL)
     {
-        g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+        Window_Buffer *real_surface = (EGL_Image *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+        if (real_surface == origin_surface)
+        {
+            g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+        }
     }
     else
     {
-        g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)surface);
+        g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)now_surface);
     }
+    ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
+    
     return;
 }
 
@@ -1872,16 +1961,19 @@ EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id)
     {
         return NULL;
     }
+    ATOMIC_LOCK(gbuffer_id_image_map_lock);
     EGL_Image *real_image = (EGL_Image *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
+    ATOMIC_UNLOCK(gbuffer_id_image_map_lock);
     return real_image;
 }
 
-void set_image_gbuffer_id(EGL_Image *origin_image, EGL_Image *now_image, uint64_t gbuffer_id)
+void set_gbuffer_id_image(uint64_t gbuffer_id, EGL_Image *origin_image, EGL_Image *now_image)
 {
     if (gbuffer_id_image_map == NULL)
     {
         return;
     }
+    ATOMIC_LOCK(gbuffer_id_image_map_lock);
     if (now_image == NULL)
     {
         EGL_Image *real_image = (EGL_Image *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
@@ -1894,6 +1986,7 @@ void set_image_gbuffer_id(EGL_Image *origin_image, EGL_Image *now_image, uint64_
     {
         g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)now_image);
     }
+    ATOMIC_UNLOCK(gbuffer_id_image_map_lock);
     return;
 }
 

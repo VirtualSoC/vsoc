@@ -16,7 +16,7 @@
 //     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
 //     Buffer_Status *status = bound_buffer->buffer_status;
 
-//     Attrib_Point *point_data = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(status->vertex_array_buffer));
+//     Attrib_Point *point_data = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(status->vertex_array_buffer));
 //     if (point_data == NULL)
 //     {
 //         point_data = g_malloc(sizeof(Attrib_Point));
@@ -24,7 +24,7 @@
 //         glGenBuffers(1,&(point_data->indices_buffer_object));
 //         glGenBuffers(1,&(point_data->buffer_object));
 
-//         g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(status->vertex_array_buffer), (gpointer)point_data);
+//         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(status->vertex_array_buffer), (gpointer)point_data);
 //     }
 
 //     if(len>point_data->indices_buffer_len){
@@ -60,7 +60,7 @@
 //     // if (status->array_buffer == 0)
 //     // {
 //         //绑定为0的情况，这个时候需要把数据复制到临时的array_buffer中
-//         Attrib_Point *point_data = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(status->vertex_array_buffer));
+//         Attrib_Point *point_data = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(status->vertex_array_buffer));
 //         if (point_data == NULL)
 //         {
 //             return;
@@ -226,14 +226,14 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
 //         // memset(status,0,sizeof(Buffer_Status));
 //         // status->vertex_array_buffer=arrays[i];
 
-//         // g_hash_table_insert(bound_buffer->vao_status, GINT_TO_POINTER(arrays[i]), (gpointer)status);
+//         // g_hash_table_insert(bound_buffer->vao_status, GUINT_TO_POINTER(arrays[i]), (gpointer)status);
 
 //         Attrib_Point *point_data = g_malloc(sizeof(Attrib_Point));
 //         memset(point_data, 0, sizeof(Attrib_Point));
 //         glGenBuffers(1, &(point_data->indices_buffer_object));
 //         glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object);
 
-//         g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(arrays[i]), (gpointer)point_data);
+//         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(arrays[i]), (gpointer)point_data);
 //     }
 
 //     return;
@@ -249,14 +249,14 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
 //         if(vao_index==0){
 //             continue;
 //         }
-//         // Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GINT_TO_POINTER(vao_index));
-//         Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(vao_index));
+//         // Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(vao_index));
+//         Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
 
 //         // if(vao_status==bound_buffer->buffer_status){
 //         if (bound_buffer->attrib_point == vao_point)
 //         {
-//             // bound_buffer->buffer_status=g_hash_table_lookup(bound_buffer->vao_status, GINT_TO_POINTER(0));
-//             bound_buffer->attrib_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(0));
+//             // bound_buffer->buffer_status=g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(0));
+//             bound_buffer->attrib_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
 //         }
 
 //         // // GLuint buffer_index[2];
@@ -266,8 +266,8 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
 //         // // glDeleteBuffers(2,buffer_index);
 //         // // g_free(vao_point);
 //         // // g_free(vao_status);
-//         // g_hash_table_remove(bound_buffer->vao_status, GINT_TO_POINTER(vao_index));
-//         g_hash_table_remove(bound_buffer->vao_point_data, GINT_TO_POINTER(vao_index));
+//         // g_hash_table_remove(bound_buffer->vao_status, GUINT_TO_POINTER(vao_index));
+//         g_hash_table_remove(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
 //     }
 
 //     glDeleteVertexArrays(n, arrays);
@@ -277,14 +277,14 @@ void d_glBindVertexArray_special(void *context, GLuint array)
 {
     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
 
-    // Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GINT_TO_POINTER(array));
+    // Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(array));
 
     // bound_buffer->buffer_status=vao_status;
 
-    Attrib_Point *temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(array));
+    Attrib_Point *temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(array));
     if (temp_point == NULL)
     {
-        temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GINT_TO_POINTER(0));
+        temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
     }
 
     bound_buffer->attrib_point = temp_point;
@@ -635,4 +635,35 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
     //     glDrawRangeElements(mode, start, end, count, type, 0);
     //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
     // }
+}
+
+void d_glVertexBindingDivisor_special(void *context, GLuint bindingindex, GLuint divisor)
+{
+    glVertexBindingDivisor(bindingindex, divisor);
+}
+
+
+void d_glDrawArraysIndirect_with_bound(void *context, GLenum mode, GLintptr indirect)
+{
+    glDrawArraysIndirect(mode, (void *)indirect);
+}
+
+void d_glDrawArraysIndirect_without_bound(void *context, GLenum mode, const void *indirect)
+{
+    //由于indirect指向的数据只是一个结构体，里面的数据量很少，所以是直接接在前面两个参数后面的，不用单独来一个para
+    //由于数据量很少，所以就不用专门再搞个buffer来存储了
+    glDrawArraysIndirect(mode, indirect);
+}
+
+void d_glDrawElementsIndirect_with_bound(void *context, GLenum mode, GLenum type, GLintptr indirect)
+{
+    glDrawElementsIndirect(mode, type, (void *)indirect);
+}
+
+
+void d_glDrawElementsIndirect_without_bound(void *context, GLenum mode, GLenum type, const void *indirect)
+{
+    //由于indirect指向的数据只是一个结构体，里面的数据量很少，所以是直接接在前面两个参数后面的，不用单独来一个para
+    //由于数据量很少，所以就不用专门再搞个buffer来存储了
+    glDrawElementsIndirect(mode, type, indirect);
 }

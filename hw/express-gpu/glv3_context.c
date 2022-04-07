@@ -1048,7 +1048,7 @@ int init_program_data(GLuint program)
             program_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_program_data_destroy);
         }
 
-        g_hash_table_insert(program_data_map, GINT_TO_POINTER(program), program_data);
+        g_hash_table_insert(program_data_map, GUINT_TO_POINTER(program), program_data);
 
         if (buf_len > temp_ptr - program_data + 10)
         {
@@ -1089,7 +1089,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
         return;
     }
 
-    GLchar *save_program_data = g_hash_table_lookup(program_data_map, GINT_TO_POINTER(program));
+    GLchar *save_program_data = g_hash_table_lookup(program_data_map, GUINT_TO_POINTER(program));
 
     if (save_program_data == NULL)
     {
@@ -1100,7 +1100,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     guest_read(guest_mem, save_program_data, 0, buf_len);
 
     //读取完成后直接删除就行了
-    g_hash_table_remove(program_data_map, GINT_TO_POINTER(program));
+    g_hash_table_remove(program_data_map, GUINT_TO_POINTER(program));
 
     return;
 }
@@ -1151,7 +1151,7 @@ void get_default_out(char *string, char *out)
 
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
 {
-    static const char DEFAULT_VERSION[] = "#version 330\n";
+    static const char DEFAULT_VERSION[] = "#version 430\n";
     static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
     static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==1){";
 
@@ -1334,7 +1334,7 @@ void d_glUseProgram_special(void *context, GLuint program)
     int ret = 0;
     if (program_is_external_map != NULL)
     {
-        ret = g_hash_table_lookup(program_is_external_map, GINT_TO_POINTER(program));
+        ret = g_hash_table_lookup(program_is_external_map, GUINT_TO_POINTER(program));
     }
 
     if (ret == 1 && opengl_context->current_target == GL_TEXTURE_2D)
@@ -1410,7 +1410,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
                 {
                     to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GUINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
             }
         }
         if (egl_image != NULL)
@@ -1426,7 +1426,7 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
                 {
                     to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GINT_TO_POINTER(egl_image->fbo_texture));
+                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GUINT_TO_POINTER(egl_image->fbo_texture));
             }
             // printf("eglimage bind texture %u\n",egl_image->fbo_texture);
             // if(!glIsTexture(egl_image->fbo_texture))
@@ -1586,11 +1586,11 @@ void resource_context_destroy(Resource_Context *resources)
                 {
                     if (program_is_external_map != NULL)
                     {
-                        g_hash_table_remove(program_is_external_map, GINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
+                        g_hash_table_remove(program_is_external_map, GUINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
                     }
                     if (program_data_map != NULL)
                     {
-                        g_hash_table_remove(program_data_map, GINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
+                        g_hash_table_remove(program_data_map, GUINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
                     }
                     glDeleteProgram((GLuint)resources->program_resource->resource_id_map[i]);
                 }
@@ -1681,12 +1681,12 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
 
     // Buffer_Status *status=g_malloc(sizeof(Buffer_Status));
     // memset(status,0,sizeof(Buffer_Status));
-    // g_hash_table_insert(bound_buffer->vao_status, GINT_TO_POINTER(0), (gpointer)status);
+    // g_hash_table_insert(bound_buffer->vao_status, GUINT_TO_POINTER(0), (gpointer)status);
 
     Attrib_Point *temp_point = g_malloc(sizeof(Attrib_Point));
     memset(temp_point, 0, sizeof(Attrib_Point));
 
-    g_hash_table_insert(bound_buffer->vao_point_data, GINT_TO_POINTER(0), (gpointer)temp_point);
+    g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(0), (gpointer)temp_point);
 
     // bound_buffer->buffer_status=status;
     bound_buffer->attrib_point = temp_point;

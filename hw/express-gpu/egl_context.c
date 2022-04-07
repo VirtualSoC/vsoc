@@ -39,16 +39,22 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
     Opengl_Context *real_share_context = NULL;
     if (share_context != NULL && share_context != EGL_NO_CONTEXT)
     {
-        real_share_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GINT_TO_POINTER(share_context));
+        real_share_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(share_context));
     }
 
     Opengl_Context *opengl_context = opengl_context_create(real_share_context);
+
+    for(int i =0; attrib_list[i]!=EGL_NONE;i+=2)
+    {
+        printf("eglcontext %llx attrib_list %x %x\n",opengl_context,attrib_list[i],attrib_list[i+1]);
+    }
+
 
     //todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
     // printf("#%llx context create share %llx\n",opengl_context,real_share_context);
     express_printf("context create guest %lx host %lx\n", guest_context, opengl_context);
 
-    g_hash_table_insert(process_context->context_map, GINT_TO_POINTER(guest_context), (gpointer)opengl_context);
+    g_hash_table_insert(process_context->context_map, GUINT_TO_POINTER(guest_context), (gpointer)opengl_context);
 }
 
 EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
@@ -58,7 +64,7 @@ EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    // Opengl_Context *real_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GINT_TO_POINTER(ctx));
+    // Opengl_Context *real_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
     // if(real_context==NULL){
     //     return EGL_FALSE;
     // }
@@ -75,6 +81,6 @@ EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
 
     //这个context_map的销毁函数g_context_map_destroy里已经包含对context的处理了
     express_printf("context remove guest %lx\n", ctx);
-    g_hash_table_remove(process_context->context_map, GINT_TO_POINTER(ctx));
+    g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(ctx));
     return EGL_TRUE;
 }
