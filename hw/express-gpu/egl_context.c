@@ -1,4 +1,4 @@
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 
 #include "express-gpu/egl_context.h"
 #include "express-gpu/glv3_context.h"

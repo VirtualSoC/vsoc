@@ -30,7 +30,7 @@ void egl_surface_swap_buffer(Window_Buffer *surface)
     // }
     if (surface->config->sample_buffers_num != 0)
     {
-        printf("use sample blit\n");
+        // printf("use sample blit\n");
         glBindFramebuffer(GL_READ_FRAMEBUFFER, surface->sampler_fbo[surface->now_draw]);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->display_fbo[surface->now_draw]);
         glBlitFramebuffer(0, 0, surface->width, surface->height, 0, 0, surface->width, surface->height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
@@ -629,6 +629,7 @@ Window_Buffer *render_surface_create(EGLConfig config, int width, int height, in
     surface->guest_native_window = NULL;
     surface->display_guest_gbuffer_id = 0;
     surface->guest_gbuffer_num = 0;
+    surface->remain_life_time = 60;
     memset(surface->guest_gbuffer_id, 0, sizeof(surface->guest_gbuffer_id));
 
     surface->now_acquired = -1;
@@ -681,25 +682,25 @@ int render_surface_destroy(Window_Buffer *surface)
 
     if (surface->is_current)
     {
+        printf("remove window_surface %llx is current\n",surface);
         surface->need_destroy = 1;
     }
     else
     {
 
-        if (surface->type == WINDOW_SURFACE)
-        {
-            //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-            for(int i = 0;i<surface->guest_gbuffer_num;i++)
-            {
-                set_gbuffer_id_surface(surface->guest_gbuffer_id[i], surface, NULL);
-            }
-        }
+        // if (surface->type == WINDOW_SURFACE)
+        // {
+        //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+        //     set_gbuffer_id_surface(NULL, surface, NULL);
+        //     printf("remove surface %llx all gbuffer_id\n",surface);
+        // }
 
         //没有makecurrent的时候这些资源肯定没有被使用，但是这个时候也不能调用glDelete等函数，因为可能当前没有makecurrent，也就是没有opengl的环境
         //所以这里让主线程来清空数据
         //为什么不直接调用glfwDestroyWindow自动清空资源？因为部分共享资源不会被清空，需要手动清空
         // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)surface);
         send_message_to_main_window(MAIN_DESTROY_SURFACE, surface);
+        printf("send surface desroy %llx\n",surface);
         // glDeleteFramebuffers(surface->buffer_num, surface->display_fbo);
         // glDeleteTextures(surface->buffer_num, surface->fbo_texture);
         // glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo);
@@ -922,6 +923,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
     uint64_t gbuffer_id = (uint64_t)buffer;
     Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
+    release_surface(surface);
     if (surface != NULL)
     {
         // printf("#%llx create image from surface %llx\n", thread_context == NULL ? NULL : thread_context->opengl_context, surface);
@@ -976,6 +978,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 {
     uint64_t gbuffer_id = (uint64_t)image;
     Window_Buffer *surface = get_surface_from_gbuffer_id(gbuffer_id);
+    release_surface(surface);
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;

@@ -119,7 +119,7 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*4*/ "GL_OES_depth24",
         /*5*/ "GL_OES_depth32",
         /*6*/ "GL_OES_texture_float",
-        /*25*/ "GL_OES_texture_float_linear",
+        /*15*/ "GL_OES_texture_float_linear",
         /*7*/ "GL_OES_texture_half_float",
         /*8*/ "GL_OES_texture_half_float_linear",
         /*9*/ "GL_OES_compressed_ETC1_RGB8_texture",
@@ -179,6 +179,9 @@ static void *native_window_create();
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 
 Notifier shutdown_notifier;
+
+static GList *dying_surfaces;
+
 
 static gint64 last_click_time = 0;
 static void close_window_callback(GLFWwindow *window)
@@ -393,11 +396,84 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
     }
 }
 
+static void destroy_surface(gpointer data, gpointer user_data)
+{
+    Window_Buffer *surface = (Window_Buffer *)data;
+    if (surface == NULL)
+    {
+        return;
+    }
+    if (surface->I_am_composer)
+    {
+        set_compose_surface(surface, NULL);
+    }
+
+    if(surface->remain_life_time>0){
+        surface->remain_life_time--;
+        return;
+    }
+
+    if (surface->type == WINDOW_SURFACE)
+    {
+        //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+        set_gbuffer_id_surface(NULL, surface, NULL);
+        printf("remove surface %llx all gbuffer_id\n",surface);
+    }
+
+    // if (surface->guest_gbuffer_id != 0)
+    // {
+    //     set_gbuffer_id_surface(NULL, surface->guest_gbuffer_id);
+    // }
+
+    // if (surface->type == WINDOW_SURFACE)
+    // {
+    //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+    //     for(int i = 0;i<surface->guest_gbuffer_num;i++)
+    //     {
+    //         set_gbuffer_id_surface(surface->guest_gbuffer_id[i], surface, NULL);
+    //     }
+    // }
+    printf("real destroy surface %llx\n", surface);
+
+    //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
+    glDeleteTextures(surface->buffer_num, surface->fbo_texture);
+    glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_depth);
+    glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_stencil);
+    if (surface->config->sample_buffers_num != 0)
+    {
+        glDeleteRenderbuffers(surface->buffer_num, surface->sampler_rbo);
+    }
+    for (int i = 0; i < 5; i++)
+    {
+        if (surface->delete_sync[i] != 0)
+        {
+            glDeleteSync(surface->delete_sync[i]);
+        }
+    }
+    g_free(surface);
+}
+
+
 static void handle_child_window_event()
 {
     ATOMIC_LOCK(main_window_event_queue_lock);
     Main_window_Event *child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
     ATOMIC_UNLOCK(main_window_event_queue_lock);
+
+    if(dying_surfaces!=NULL)
+    {
+        //销毁surface，需要延期60帧销毁
+        g_list_foreach(dying_surfaces, destroy_surface, NULL);
+        GList *first=g_list_first(dying_surfaces);
+        while(first!=NULL && ((Window_Buffer *)(first->data))->remain_life_time<=0)
+        {
+            printf("remove first %llx %d\n", ((Window_Buffer *)(first->data)), ((Window_Buffer *)(first->data))->remain_life_time);
+            dying_surfaces = g_list_remove(dying_surfaces, first->data);
+            first=g_list_first(dying_surfaces);
+        }
+    }
+
+    
 
     while (child_event != NULL)
     {
@@ -415,10 +491,10 @@ static void handle_child_window_event()
                     break;
                 }
                 // printf("create window\n");
-                // gint64 t = g_get_real_time();
-                // printf("start create window %lld\n", t);
+                gint64 t = g_get_real_time();
+                printf("start create window ptr %llx\n", window_ptr);
                 *window_ptr = (void *)native_window_create();
-                // printf("create window %lld\n", g_get_real_time() - t);
+                printf("create window time %lld window %llx\n", g_get_real_time() - t, *window_ptr);
             }
 
             break;
@@ -426,45 +502,57 @@ static void handle_child_window_event()
         {
             //这个destroy调用来自于客户端进程关闭后的销毁函数
             Window_Buffer *surface = (Window_Buffer *)child_event->data;
-            if (surface == NULL)
-            {
-                break;
-            }
-            if (surface->I_am_composer)
-            {
-                set_compose_surface(surface, NULL);
-            }
-            // if (surface->guest_gbuffer_id != 0)
-            // {
-            //     set_gbuffer_id_surface(NULL, surface->guest_gbuffer_id);
-            // }
 
-            // if (surface->type == WINDOW_SURFACE)
+            if(surface->guest_gbuffer_num == 0)
+            {
+                destroy_surface(surface, NULL);
+            }
+            else
+            {
+                dying_surfaces = g_list_append(dying_surfaces, surface);
+            }
+
+
+
+            // if (surface == NULL)
             // {
-            //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-            //     for(int i = 0;i<surface->guest_gbuffer_num;i++)
-            //     {
-            //         set_gbuffer_id_surface(surface->guest_gbuffer_id[i], surface, NULL);
-            //     }
+            //     break;
             // }
+            // if (surface->I_am_composer)
+            // {
+            //     set_compose_surface(surface, NULL);
+            // }
+            // // if (surface->guest_gbuffer_id != 0)
+            // // {
+            // //     set_gbuffer_id_surface(NULL, surface->guest_gbuffer_id);
+            // // }
+
+            // // if (surface->type == WINDOW_SURFACE)
+            // // {
+            // //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+            // //     for(int i = 0;i<surface->guest_gbuffer_num;i++)
+            // //     {
+            // //         set_gbuffer_id_surface(surface->guest_gbuffer_id[i], surface, NULL);
+            // //     }
+            // // }
             // printf("real destroy surface %llx\n", surface);
 
-            //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
-            glDeleteTextures(surface->buffer_num, surface->fbo_texture);
-            glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_depth);
-            glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_stencil);
-            if (surface->config->sample_buffers_num != 0)
-            {
-                glDeleteRenderbuffers(surface->buffer_num, surface->sampler_rbo);
-            }
-            for (int i = 0; i < 5; i++)
-            {
-                if (surface->delete_sync[i] != 0)
-                {
-                    glDeleteSync(surface->delete_sync[i]);
-                }
-            }
-            g_free(surface);
+            // //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
+            // glDeleteTextures(surface->buffer_num, surface->fbo_texture);
+            // glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_depth);
+            // glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_stencil);
+            // if (surface->config->sample_buffers_num != 0)
+            // {
+            //     glDeleteRenderbuffers(surface->buffer_num, surface->sampler_rbo);
+            // }
+            // for (int i = 0; i < 5; i++)
+            // {
+            //     if (surface->delete_sync[i] != 0)
+            //     {
+            //         glDeleteSync(surface->delete_sync[i]);
+            //     }
+            // }
+            // g_free(surface);
         }
         break;
         case MAIN_DESTROY_CONTEXT:
@@ -1926,8 +2014,20 @@ Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)
     }
     ATOMIC_LOCK(gbuffer_id_surface_map_lock);
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+    if(real_surface != NULL)
+    {
+        atomic_add(&(real_surface->hold_surface_cnt), 1);
+    }
     ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
     return real_surface;
+}
+
+void release_surface(Window_Buffer *real_surface)
+{
+    if(real_surface != NULL)
+    {
+        atomic_sub(&(real_surface->hold_surface_cnt), 1);
+    }
 }
 
 void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, Window_Buffer *now_surface)
@@ -1937,20 +2037,58 @@ void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, 
         return;
     }
 
-    ATOMIC_LOCK(gbuffer_id_surface_map_lock);
     if (now_surface == NULL)
     {
-        Window_Buffer *real_surface = (EGL_Image *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
-        if (real_surface == origin_surface)
+        ATOMIC_LOCK(gbuffer_id_surface_map_lock);
+        while(origin_surface->hold_surface_cnt > 0)
         {
-            g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+            ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
+            printf("wait! surface %lx don't finish using\n",origin_surface);
+            g_usleep(1000);
+            ATOMIC_LOCK(gbuffer_id_surface_map_lock);
         }
+        for(int i = 0;i < origin_surface->guest_gbuffer_num;i++)
+        {
+            printf("remove surface %llx gbuffer_id %llx\n",origin_surface, origin_surface->guest_gbuffer_id[i]);
+            g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(origin_surface->guest_gbuffer_id[i]));
+        }
+        ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
     }
     else
     {
-        g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)now_surface);
+        int find_flag = 0;
+
+        for(int i = 0; i < now_surface->guest_gbuffer_num;i++)
+        {
+            if(now_surface->guest_gbuffer_id[i] == gbuffer_id)
+            {
+                find_flag = 1;
+                break;
+            }
+        }
+
+        if(find_flag == 0 && now_surface->guest_gbuffer_num < 64)
+        {
+            now_surface->guest_gbuffer_id[now_surface->guest_gbuffer_num] = gbuffer_id;
+            now_surface->guest_gbuffer_num += 1;
+            printf("add gbuffer_id %llx surface %llx\n",gbuffer_id,now_surface);
+            
+            ATOMIC_LOCK(gbuffer_id_surface_map_lock);  
+            Window_Buffer *test_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+            if(test_surface!=NULL)
+            {
+                printf("error! add gbuffer_id %llx now_surface %llx origin_surface %llx",gbuffer_id, now_surface, test_surface);
+            }
+            g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)now_surface);
+            ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
+        }
+
+        if(now_surface->guest_gbuffer_num >= 64)
+        {
+            printf("error! guest surface %llx gbuffer >=64",now_surface);
+        }
+
     }
-    ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
     
     return;
 }

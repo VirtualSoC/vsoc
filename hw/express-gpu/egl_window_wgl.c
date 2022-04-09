@@ -181,6 +181,7 @@ void egl_destroyContext(void *context)
     {
         // gint64 t = g_get_real_time();
         // printf("destroy ");
+        printf("destroy window %llx\n",context);
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);
         HPBUFFERARB pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
 

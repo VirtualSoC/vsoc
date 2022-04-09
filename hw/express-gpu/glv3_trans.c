@@ -14185,30 +14185,34 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
 
         glCompileShader((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
-        // GLenum error = glGetError();
+        GLenum error = glGetError();
 
-        // if(error!=GL_NO_ERROR){
-        //     printf("glCompileShader %x guest %u host %u\n",error,shader,(GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
-        // }
+        if(error!=GL_NO_ERROR){
+            printf("glCompileShader %x guest %u host %u\n",error,shader,(GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
+        }
         // @todo 下面的需要注释掉
-        // GLint compiled;
-        // glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_COMPILE_STATUS, &compiled);
+        GLint compiled;
+        GLuint real_shader = (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader);
+        glGetShaderiv(real_shader, GL_COMPILE_STATUS, &compiled);
 
-        // // GLenum error = glGetError();
-        // //     printf("glGetShaderiv %x\n",error);
-        // if (!compiled)
-        // {
-        //     GLint infoLen = 0;
-        //     glGetShaderiv((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), GL_INFO_LOG_LENGTH, &infoLen);
-        //     printf("shader not compile");
-        //     if (infoLen > 1)
-        //     {
-        //         char *infoLog = (char *)g_malloc(sizeof(char) * infoLen);
-        //         glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), infoLen, NULL, infoLog);
-        //         printf("#Error compiling shader:\n%s\n", infoLog);
-        //         g_free(infoLog);
-        //     }
-        // }
+        // GLenum error = glGetError();
+        //     printf("glGetShaderiv %x\n",error);
+        if (!compiled)
+        {
+            GLint infoLen = 0;
+            glGetShaderiv(real_shader, GL_INFO_LOG_LENGTH, &infoLen);
+            char source[1024];
+            int source_len;
+            glGetShaderSource(real_shader, 1000, &source_len, source);
+            printf("shader %d:\n%s\n",real_shader,source);
+            if (infoLen > 1)
+            {
+                char *infoLog = (char *)g_malloc(sizeof(char) * infoLen);
+                glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), infoLen, NULL, infoLog);
+                printf("#Error compiling shader:\n%s\n", infoLog);
+                g_free(infoLog);
+            }
+        }
     }
     break;
 
@@ -27005,9 +27009,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         if (all_para[0].data_len != sizeof(Static_Context_Values) + 512 * 100 + 400)
         {
-            printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal！%d %d\n",sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
+            printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal! host %lld guest %lld\n",sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
         }
-        guest_read(all_para[0].data, preload_static_context_value, 0, all_para[0].data_len);
+        guest_read(all_para[0].data, preload_static_context_value, 0, min(all_para[0].data_len,sizeof(Static_Context_Values) + 512 * 100 + 400));
 
 
     }
@@ -28156,7 +28160,10 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     break;
 
     default:
+    {
+        printf("error! invoke call id %llx not exist!\n",call->id);
         break;
+    }
     }
 
     if(no_ptr_buf!=NULL)

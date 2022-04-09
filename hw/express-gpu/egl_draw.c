@@ -112,14 +112,12 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         {
             // printf("#%llx remove draw surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_draw);
             // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_draw);
-            if (thread_context->render_double_buffer_draw->type == WINDOW_SURFACE)
-            {
-                //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-                for(int i = 0;i<thread_context->render_double_buffer_draw->guest_gbuffer_num;i++)
-                {
-                    set_gbuffer_id_surface(thread_context->render_double_buffer_draw->guest_gbuffer_id[i], thread_context->render_double_buffer_draw, NULL);
-                }
-            }
+            // printf("makecurrent null destroy surface %llx\n",thread_context->render_double_buffer_draw);
+            // if (thread_context->render_double_buffer_draw->type == WINDOW_SURFACE)
+            // {
+            //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+            //     set_gbuffer_id_surface(NULL, thread_context->render_double_buffer_draw, NULL);
+            // }
             send_message_to_main_window(MAIN_DESTROY_SURFACE, thread_context->render_double_buffer_draw);
         }
     }
@@ -131,14 +129,11 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         {
             // printf("#%llx remove read surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_read);
             // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_read);
-            if (thread_context->render_double_buffer_read->type == WINDOW_SURFACE)
-            {
-                //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-                for(int i = 0;i<thread_context->render_double_buffer_read->guest_gbuffer_num;i++)
-                {
-                    set_gbuffer_id_surface(thread_context->render_double_buffer_read->guest_gbuffer_id[i], thread_context->render_double_buffer_read, NULL);
-                }
-            }
+            // if (thread_context->render_double_buffer_read->type == WINDOW_SURFACE)
+            // {
+            //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
+            //     set_gbuffer_id_surface(NULL, thread_context->render_double_buffer_read, NULL);
+            // }
             send_message_to_main_window(MAIN_DESTROY_SURFACE, thread_context->render_double_buffer_read);
         }
     }
@@ -191,7 +186,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         sleep_cnt += 1;
         if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
         {
-            printf("wait for window creating too long!\n");
+            printf("wait for window creating too long! opengl context %llx\n", real_opengl_context);
         }
     }
 
@@ -252,23 +247,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         // printf("#%llx surface %llx makecurrent gbuffer_id %llx width %d height %d time %lld\n", real_opengl_context, real_surface_draw, gbuffer_id, real_surface_draw->width, real_surface_draw->height, g_get_real_time());
         //必须是设置了gbuffer_id和类型是window_surface才能设置连接，p_surface无法作为image输出
         
-        int find_flag = 0;
-
-        for(int i = 0; i < real_surface_draw->guest_gbuffer_num;i++)
-        {
-            if(real_surface_draw->guest_gbuffer_id[i] == gbuffer_id)
-            {
-                find_flag = 1;
-                break;
-            }
-        }
-
-        if(find_flag == 0 && real_surface_draw->guest_gbuffer_num < 64)
-        {
-            real_surface_draw->guest_gbuffer_id[real_surface_draw->guest_gbuffer_num] = gbuffer_id;
-            real_surface_draw->guest_gbuffer_num += 1;
-            set_gbuffer_id_surface(gbuffer_id, NULL, real_surface_draw);
-        }
+        set_gbuffer_id_surface(gbuffer_id, NULL, real_surface_draw);
 
         printf("%llx surface makecurrent context %llx gbuffer_id %llx\n",real_surface_draw, real_opengl_context, gbuffer_id);
         

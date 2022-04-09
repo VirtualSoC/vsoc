@@ -208,6 +208,8 @@ void release_texture_from_image(EGL_Image *image);
 
 Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id);
 
+void release_surface(Window_Buffer *real_surface);
+
 void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, Window_Buffer *now_surface);
 
 EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id);

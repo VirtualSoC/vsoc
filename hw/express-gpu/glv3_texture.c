@@ -538,11 +538,12 @@ void d_glGraphicBufferData(void *context, uint64_t g_buffer_id, int buf_len, con
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, row_byte_len * egl_image->height, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
     // GraphicBuffer里的图片是正的，放到纹理里要倒个个
-    for (int i = 0; i < egl_image->height; i++)
-    {
-        guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
-    }
-    // guest_write(guest_mem, map_pointer, 0, buf_len);
+    // -- 不用倒个了，因为系统内整体进行了倒个
+    // for (int i = 0; i < egl_image->height; i++)
+    // {
+    //     guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
+    // }
+    guest_write(guest_mem, map_pointer, 0, buf_len);
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 
     glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
@@ -584,6 +585,7 @@ void d_glReadGraphicBuffer(void *context, uint64_t g_buffer_id, int buf_len, voi
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, buf_len, GL_MAP_READ_BIT);
 
+    //read不确定是否需要颠倒，遇到再说@todo
     for (int i = 0; i < egl_image->height; i++)
     {
         guest_read(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);

@@ -1151,11 +1151,11 @@ void get_default_out(char *string, char *out)
 
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
 {
-    static const char DEFAULT_VERSION[] = "#version 430\n";
+    static const char DEFAULT_VERSION[] = "#version 330\n";
     static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
     static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==1){";
 
-    // printf("gl shader source before count%d:\n%s\n", count, string[0]);
+    // printf("gl shader source %d before count%d:\n%s\n",shader, count, string[0]);
 
     int has_find_external = 0;
     int has_version = 0;
@@ -1181,27 +1181,111 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
             has_texturecube = 1;
         }
         string_loc = strstr(string[i], "gl_FragDepthEXT");
-        if (string_loc != NULL && string_loc - string[i] <= length[i])
+        while (string_loc != NULL && string_loc - string[i] <= length[i])
         {
             string_loc[12] = ' ';
             string_loc[13] = ' ';
             string_loc[14] = ' ';
+            string_loc = strstr(string[i], "gl_FragDepthEXT");
+        }
+
+        string_loc = strstr(string[i], "textureCubeLodEXT(");
+        while (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            string_loc[7] = '(';
+            string_loc[8] = ' ';
+            string_loc[9] = ' ';
+            string_loc[10] = ' ';
+            string_loc[11] = ' ';
+            string_loc[12] = ' ';
+            string_loc[13] = ' ';
+            string_loc[14] = ' ';
+            string_loc[15] = ' ';
+            string_loc[16] = ' ';
+            string_loc[17] = ' ';
+            string_loc = strstr(string[i], "textureCubeLodEXT(");
+        }
+
+        string_loc = strstr(string[i], "texture1DLodEXT(");
+        while (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            string_loc[9] = '(';
+            string_loc[10] = ' ';
+            string_loc[11] = ' ';
+            string_loc[12] = ' ';
+            string_loc[13] = ' ';
+            string_loc[14] = ' ';
+            string_loc[15] = ' ';
+            string_loc = strstr(string[i], "texture1DLodEXT(");
+        }
+        string_loc = strstr(string[i], "texture2DLodEXT(");
+        while (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            string_loc[9] = '(';
+            string_loc[10] = ' ';
+            string_loc[11] = ' ';
+            string_loc[12] = ' ';
+            string_loc[13] = ' ';
+            string_loc[14] = ' ';
+            string_loc[15] = ' ';
+            string_loc = strstr(string[i], "texture2DLodEXT(");
+        }
+        string_loc = strstr(string[i], "texture2DProjLodEXT(");
+        while (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            string_loc[13] = '(';
+            string_loc[14] = ' ';
+            string_loc[15] = ' ';
+            string_loc[16] = ' ';
+            string_loc[17] = ' ';
+            string_loc[18] = ' ';
+            string_loc[19] = ' ';
+            string_loc = strstr(string[i], "texture2DProjLodEXT(");
+        }
+        string_loc = strstr(string[i], "texture3DLodEXT(");
+        while (string_loc != NULL && string_loc - string[i] <= length[i])
+        {
+            string_loc[9] = '(';
+            string_loc[10] = ' ';
+            string_loc[11] = ' ';
+            string_loc[12] = ' ';
+            string_loc[13] = ' ';
+            string_loc[14] = ' ';
+            string_loc[15] = ' ';
+            string_loc = strstr(string[i], "texture3DLodEXT(");
         }
     }
 
-    if (!has_version)
+    if (!has_version || has_texturecube)
     {
         new_string1 = g_malloc(length[0] + sizeof(DEFAULT_VERSION) + sizeof(SHADOW_SAMPLER_EXTENSION));
         int loc = 0;
-        memcpy(new_string1, DEFAULT_VERSION, sizeof(DEFAULT_VERSION) - 1);
-        loc += sizeof(DEFAULT_VERSION) - 1;
+        int origin_loc = 0;
+        if(!has_version)
+        {
+            memcpy(new_string1, DEFAULT_VERSION, sizeof(DEFAULT_VERSION) - 1);
+            loc += sizeof(DEFAULT_VERSION) - 1;
+        }
+        else
+        {
+            for(int i = 0;i < length[0]; i++)
+            {
+                new_string1[i]=string[0][i];
+                loc+=1;
+                if(new_string1[i]=='\n')
+                {
+                    break;
+                }
+            }
+            origin_loc = loc;
+        }
         if (has_texturecube)
         {
             memcpy(new_string1 + loc, SHADOW_SAMPLER_EXTENSION, sizeof(SHADOW_SAMPLER_EXTENSION) - 1);
             loc += sizeof(SHADOW_SAMPLER_EXTENSION) - 1;
         }
-        memcpy(new_string1 + loc, string[0], length[0]);
-        loc += length[0];
+        memcpy(new_string1 + loc, string[0] + origin_loc, length[0] - origin_loc);
+        loc += length[0] - origin_loc;
         new_string1[loc] = 0;
         length[0] = loc;
         string[0] = new_string1;
@@ -1389,10 +1473,19 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
     Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
     // printf("#%llx glBindEGLImage %x image %llx real_surface %llx egl_image %llx now acquire %d\n", context, target, image, real_surface, egl_image, real_surface == NULL ? -1 : real_surface->now_acquired);
+    // if(real_surface != NULL)
+    // {
+    //     printf("get gbuffer_id %llx surface %llx\n",gbuffer_id, real_surface);
+    // }
 
     if (real_surface != NULL && egl_image != NULL)
     {
-        printf("error! real_surface and egl_image are not NULL!");
+        printf("error! real_surface %llx and egl_image %llx are not NULL!",real_surface, egl_image);
+    }
+
+    if (real_surface == NULL && egl_image == NULL)
+    {
+        printf("error! real_surface and egl_image are all NULL! gbuffer_id %llx\n",gbuffer_id);
     }
 
     switch (target)
@@ -1486,6 +1579,12 @@ void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
         break;
     }
     }
+    if(gbuffer_id == NULL)
+    {
+        printf("error\n");
+    }
+    release_surface(real_surface);
+    return;
 }
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image)
@@ -1659,7 +1758,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
 // 不能在子线程中创建context，不然会为空
 //     opengl_context->window = egl_createContext();
 // #endif
-
+    printf("send message create window opengl context %llx window_ptr %llx\n", opengl_context, &(opengl_context->window));
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)

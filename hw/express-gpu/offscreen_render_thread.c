@@ -258,7 +258,7 @@ int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct
 
     pre_call->para_num = send_buf[1];
     pre_call->elem_header = NULL;
-
+    // assert(pre_call->para_num < 10);
     //第一个elem是用于存储各种id的，这个解包的call用不到。但是也得占位
     // Direct_Express_Queue_Elem *elem = g_malloc(sizeof(Direct_Express_Queue_Elem));
     pre_call->elem_header = &(pre_elem[0]);
@@ -428,8 +428,8 @@ void render_context_init(Thread_Context *context)
 
 static gboolean g_window_Surface_destroy(gpointer key, gpointer data, gpointer user_data)
 {
-    printf("remove window_surface %llx\n",data);
     Window_Buffer *real_surface = (Window_Buffer *)data;
+    printf("remove window_surface %llx hold cnt %d guest_gbuffer_num %d surface type %d\n",data,real_surface->hold_surface_cnt, real_surface->guest_gbuffer_num, real_surface->type);
     if (real_surface->type == WINDOW_SURFACE)
     {
         render_surface_destroy(real_surface);
@@ -468,6 +468,7 @@ static void g_context_map_destroy(gpointer data)
         //     glfwDestroyWindow(real_context->window);
         // }
 #else
+        printf("destroy context %llx\n",real_context);
         egl_destroyContext(real_context->window);
 #endif
         send_message_to_main_window(MAIN_DESTROY_CONTEXT, real_context);
