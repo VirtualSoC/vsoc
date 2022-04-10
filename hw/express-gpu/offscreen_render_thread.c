@@ -426,7 +426,7 @@ void render_context_init(Thread_Context *context)
 //     }
 // }
 
-static gboolean g_window_Surface_destroy(gpointer key, gpointer data, gpointer user_data)
+static gboolean g_window_surface_destroy(gpointer key, gpointer data, gpointer user_data)
 {
     Window_Buffer *real_surface = (Window_Buffer *)data;
     printf("remove window_surface %llx hold cnt %d guest_gbuffer_num %d surface type %d\n",data,real_surface->hold_surface_cnt, real_surface->guest_gbuffer_num, real_surface->type);
@@ -457,8 +457,6 @@ static void g_context_map_destroy(gpointer data)
     }
     else
     {
-        //实际上是到主窗口调用opengl_context_destroy了
-        // PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
 #ifdef USE_GLFW_AS_WGL
         // if(real_context->window != NULL)
         // {
@@ -469,9 +467,9 @@ static void g_context_map_destroy(gpointer data)
         // }
 #else
         printf("destroy context %llx\n",real_context);
-        egl_destroyContext(real_context->window);
+        opengl_context_destroy(real_context);
+        g_free(real_context);
 #endif
-        send_message_to_main_window(MAIN_DESTROY_CONTEXT, real_context);
     }
 }
 
@@ -556,7 +554,7 @@ void render_context_destroy(Thread_Context *context)
         //surface_map这个是删除p_surface
         g_hash_table_destroy(process_context->surface_map);
         //native的这个map是删除Window_Surface
-        g_hash_table_foreach_remove(process_context->native_window_surface_map, g_window_Surface_destroy, NULL);
+        g_hash_table_foreach_remove(process_context->native_window_surface_map, g_window_surface_destroy, NULL);
         g_hash_table_destroy(process_context->native_window_surface_map);
 
         //image删除，这里主要是为了释放gbuffer映射

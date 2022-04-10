@@ -22,6 +22,7 @@
 #include "express-gpu/glv3_resource.h"
 
 #include "express-gpu/glv3_context.h"
+#include "express-gpu/gl_helper.h"
 
 #include "express-gpu/glv1.h"
 

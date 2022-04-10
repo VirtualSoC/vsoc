@@ -5,6 +5,8 @@
 #include "direct-express/express_device_common.h"
 
 #include "express-gpu/glv3_context.h"
+#include "express-gpu/gl_helper.h"
+
 
 // #define SYNC_TIMEOUT 10000000
 

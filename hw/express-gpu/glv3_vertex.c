@@ -2,72 +2,7 @@
 
 #include "express-gpu/glv3_vertex.h"
 
-// /**
-//  * @brief 利用之前发送来的顶点数据，将这些顶点数据复制到GPU显存中，假如当前是即时顶点模式，则是draw之前的必备操作
-//  *
-//  * @param context 实际是Opengl_Context
-//  * @param data host端的内存
-//  * @param len 内存数据的长度
-//  */
-// void set_attrib_point_index(void *context,void *data,int len){
 
-//     express_printf("set_attrib_point_index %d\n",len);
-
-//     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-//     Buffer_Status *status = bound_buffer->buffer_status;
-
-//     Attrib_Point *point_data = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(status->vertex_array_buffer));
-//     if (point_data == NULL)
-//     {
-//         point_data = g_malloc(sizeof(Attrib_Point));
-//         memset(point_data, 0, sizeof(Attrib_Point));
-//         glGenBuffers(1,&(point_data->indices_buffer_object));
-//         glGenBuffers(1,&(point_data->buffer_object));
-
-//         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(status->vertex_array_buffer), (gpointer)point_data);
-//     }
-
-//     if(len>point_data->indices_buffer_len){
-//         // glDeleteBuffers(1,&(point_data->indices_buffer_object));
-//         // glGenBuffers(1,&(point_data->indices_buffer_object));
-//         //todo stream_draw需要测试验证
-//         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, point_data->indices_buffer_object);
-//         glBufferData(GL_ELEMENT_ARRAY_BUFFER,len*2,NULL,GL_STREAM_DRAW);
-//         point_data->indices_buffer_len=len*2;
-//     }
-//     else
-//     {
-//         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, point_data->indices_buffer_object);
-//         glBufferData(GL_ELEMENT_ARRAY_BUFFER, point_data->indices_buffer_len, NULL, GL_STREAM_DRAW);
-
-//     }
-//     //确定了缓冲区大小后，映射取得其指针，尽可能只修改一小部分
-//     //GL_MAP_INVALIDATE_RANGE_BIT 用于缓冲区孤立，防止隐式同步
-//     GLubyte *map_pointer = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, len,
-//             GL_MAP_WRITE_BIT |GL_MAP_INVALIDATE_RANGE_BIT);
-
-//     // host_guest_buffer_exchange(data,map_pointer,0,len,1);
-//     memcpy(data,map_pointer,len);
-//     glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
-
-// }
-
-// void set_attrib_point(void *context,GLsizei instancecount){
-//     express_printf("set_attrib_point %d\n",instancecount);
-
-//     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-//     Buffer_Status *status = bound_buffer->buffer_status;
-//     // if (status->array_buffer == 0)
-//     // {
-//         //绑定为0的情况，这个时候需要把数据复制到临时的array_buffer中
-//         Attrib_Point *point_data = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(status->vertex_array_buffer));
-//         if (point_data == NULL)
-//         {
-//             return;
-//         }
-//         flush_array_buffer(point_data,instancecount);
-//     // }
-// }
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer)
 {
@@ -212,66 +147,7 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
     return;
 }
 
-// void d_glGenVertexArrays_origin(void *context, GLsizei n, GLuint *arrays)
-// {
-//     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
 
-//     // glGenVertexArrays(n, arrays);
-
-//     for (int i = 0; i < n; i++)
-//     {
-
-//         // Buffer_Status *status=g_malloc(sizeof(Buffer_Status));
-
-//         // memset(status,0,sizeof(Buffer_Status));
-//         // status->vertex_array_buffer=arrays[i];
-
-//         // g_hash_table_insert(bound_buffer->vao_status, GUINT_TO_POINTER(arrays[i]), (gpointer)status);
-
-//         Attrib_Point *point_data = g_malloc(sizeof(Attrib_Point));
-//         memset(point_data, 0, sizeof(Attrib_Point));
-//         glGenBuffers(1, &(point_data->indices_buffer_object));
-//         glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object);
-
-//         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(arrays[i]), (gpointer)point_data);
-//     }
-
-//     return;
-// }
-
-// void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *arrays)
-// {
-//     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-
-//     for (int i = 0; i < n; i++)
-//     {
-//         GLuint vao_index = arrays[i];
-//         if(vao_index==0){
-//             continue;
-//         }
-//         // Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(vao_index));
-//         Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
-
-//         // if(vao_status==bound_buffer->buffer_status){
-//         if (bound_buffer->attrib_point == vao_point)
-//         {
-//             // bound_buffer->buffer_status=g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(0));
-//             bound_buffer->attrib_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
-//         }
-
-//         // // GLuint buffer_index[2];
-//         // // buffer_index[0]=vao_point->indices_buffer_object;
-//         // // buffer_index[1]=vao_point->buffer_object;
-
-//         // // glDeleteBuffers(2,buffer_index);
-//         // // g_free(vao_point);
-//         // // g_free(vao_status);
-//         // g_hash_table_remove(bound_buffer->vao_status, GUINT_TO_POINTER(vao_index));
-//         g_hash_table_remove(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
-//     }
-
-//     glDeleteVertexArrays(n, arrays);
-// }
 
 void d_glBindVertexArray_special(void *context, GLuint array)
 {
@@ -467,35 +343,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
     glDrawElements(mode, count, type, buffer_loc);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    // set_attrib_point(context,1);
-    // if (status->array_buffer != 0)
-    // {
-    //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
-    // }
-    // //然后处理indices为数组的情况
-    // int len=count*gl_sizeof(type);
-    // // Guest_Mem *guest_mem=(Guest_Mem *)indices;
-    // // Scatter_Data *s_data=guest_mem->scatter_data;
 
-    // // if (guest_mem->all_len == 0)
-    // // {
-    // //     //pixels=NULL
-    // //     glDrawElements(mode,count,type,NULL);
-    // //     return;
-    // // }
-
-    // // if(len==s_data[0].len){
-    // //     glDrawElements(mode,count,type,s_data[0].data);
-    // // }else{
-    // //     set_attrib_point_index(context,s_data,len);
-    // //     glDrawElements(mode,count,type,0);
-    // //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
-    // // }
-    // express_printf("indices:");
-    // for(int i=0;i<len/sizeof(unsigned short);i++){
-    //     express_printf("%hu ",((unsigned short *)indices)[i]);
-    // }
-    // express_printf("\n");
 
     // // @todo 这里根据数据的长度来决定到底是采用普通模式还是缓冲区模式，需要测试哪个长度更节约时间
     // if(len<40000){
@@ -518,34 +366,7 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    // Buffer_Status *status = bound_buffer->buffer_status;
 
-    // set_attrib_point(context,instancecount);
-    // if (status->array_buffer != 0)
-    // {
-    //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
-    // }
-    // //然后处理indices为数组的情况
-    // int len=count*gl_sizeof(type);
-
-    // // Guest_Mem *guest_mem=(Guest_Mem *)indices;
-    // // Scatter_Data *s_data=guest_mem->scatter_data;
-
-    // // if (guest_mem->all_len == 0)
-    // // {
-    // //     //pixels=NULL
-    // //     glDrawElementsInstanced(mode,count,type,NULL,instancecount);
-    // //     return;
-    // // }
-
-    // // if(len==s_data[0].len){
-    // //     glDrawElementsInstanced(mode,count,type,s_data[0].data,instancecount);
-    // // }else{
-    // //     set_attrib_point_index(context,s_data,len);
-    // //     glDrawElementsInstanced(mode,count,type,0,instancecount);
-    // //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
-    // // }
 
     // // @todo 这里根据数据的长度来决定到底是采用普通模式还是缓冲区模式，需要测试哪个长度更节约时间
     // if(len<40000){
@@ -598,33 +419,6 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    // Buffer_Status *status = bound_buffer->buffer_status;
-
-    // set_attrib_point(context,1);
-    // if (status->array_buffer != 0)
-    // {
-    //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
-    // }
-    // //然后处理indices为数组的情况
-    // int len=count*gl_sizeof(type);
-    // // Guest_Mem *guest_mem=(Guest_Mem *)indices;
-    // // Scatter_Data *s_data=guest_mem->scatter_data;
-
-    // // if (guest_mem->all_len == 0)
-    // // {
-    // //     //pixels=NULL
-    // //     glDrawRangeElements(mode, start, end, count, type, NULL);
-    // //     return;
-    // // }
-
-    // // if(len==s_data[0].len){
-    // //     glDrawRangeElements(mode, start, end, count, type, s_data[0].data);
-    // // }else{
-    // //     set_attrib_point_index(context,s_data,len);
-    // //     glDrawRangeElements(mode, start, end, count, type, 0);
-    // //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
-    // // }
 
     // // @todo 这里根据数据的长度来决定到底是采用普通模式还是缓冲区模式，需要测试哪个长度更节约时间
     // if(len<40000){

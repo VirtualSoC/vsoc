@@ -3,6 +3,8 @@
 #include "direct-express/direct_express_distribute.h"
 #include "direct-express/express_device_common.h"
 #include "express-gpu/glv3_context.h"
+#include "express-gpu/gl_helper.h"
+
 
 void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc, int *end_loc);
 

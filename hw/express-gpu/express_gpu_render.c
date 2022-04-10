@@ -485,7 +485,7 @@ static void handle_child_window_event()
 
             //context只能是由父线程创建，以进行资源共享
             {
-                void **window_ptr = (Window_Buffer *)child_event->data;
+                void **window_ptr = (void **)child_event->data;
                 if (window_ptr == NULL)
                 {
                     break;
@@ -511,52 +511,11 @@ static void handle_child_window_event()
             {
                 dying_surfaces = g_list_append(dying_surfaces, surface);
             }
-
-
-
-            // if (surface == NULL)
-            // {
-            //     break;
-            // }
-            // if (surface->I_am_composer)
-            // {
-            //     set_compose_surface(surface, NULL);
-            // }
-            // // if (surface->guest_gbuffer_id != 0)
-            // // {
-            // //     set_gbuffer_id_surface(NULL, surface->guest_gbuffer_id);
-            // // }
-
-            // // if (surface->type == WINDOW_SURFACE)
-            // // {
-            // //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-            // //     for(int i = 0;i<surface->guest_gbuffer_num;i++)
-            // //     {
-            // //         set_gbuffer_id_surface(surface->guest_gbuffer_id[i], surface, NULL);
-            // //     }
-            // // }
-            // printf("real destroy surface %llx\n", surface);
-
-            // //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
-            // glDeleteTextures(surface->buffer_num, surface->fbo_texture);
-            // glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_depth);
-            // glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_stencil);
-            // if (surface->config->sample_buffers_num != 0)
-            // {
-            //     glDeleteRenderbuffers(surface->buffer_num, surface->sampler_rbo);
-            // }
-            // for (int i = 0; i < 5; i++)
-            // {
-            //     if (surface->delete_sync[i] != 0)
-            //     {
-            //         glDeleteSync(surface->delete_sync[i]);
-            //     }
-            // }
-            // g_free(surface);
         }
         break;
         case MAIN_DESTROY_CONTEXT:
         {
+            //弃用
             Opengl_Context *opengl_context = (Opengl_Context *)child_event->data;
             if (opengl_context == NULL)
             {
@@ -1660,80 +1619,9 @@ int draw_wait_GSYNC(void *event, int wait_frame_num)
         return main_frame_num;
     }
 
-    //     if (wait_frame_num <= main_frame_num || wait_frame_num - main_frame_num > 60000)
-    //     {
-    //         //帧率太小了，赶不及窗口帧率，直接返回当前窗口frame_num
-    //         return main_frame_num;
-    //     }
-    //     else
-    //     {
-    //         while (wait_frame_num > main_frame_num || main_frame_num - wait_frame_num > 60000)
-    //         {
-    //             EVENT_QUEUE_LOCK;
-    //             g_queue_push_tail(event_queue, (gpointer)event);
-    //             EVENT_QUEUE_UNLOCK;
-    // #ifdef _WIN32
-    //             DWORD ret = WaitForSingleObject(event, 20);
-    // #elif
-    // #endif
-    //             if (ret == WAIT_TIMEOUT)
-    //             {
-    //                 express_printf("gsync wait timeout\n");
-    //             }
-    //         }
-    //     }
-    //     if (gen_time == 0 || interval == 0)
-    //     {
-    //         //假如这个时候帧率还没计算出来，则等待着最高帧率计算，或者程序设定不进行垂直同步
-    //         return;
-    //     }
-    //     else if (gen_time * now_screen_hz > 10000 * interval)
-    //     {
-    //         // gen_time>1000000/(now_screen_hz/interval)
-    //         //如果当前帧数达不到设定的垂直同步帧数，也就是帧生成时间大于该帧数的帧生成时间，则不进行垂直同步
-    //         return;
-    //     }
-    //     else
-    //     {
-    //         //否则，说明帧生成时间过短，需要等待信号
-    //         //等待的信号数量等于（需要等待的时间除以真正的帧生成时间 的向上取整）
-    //         int wait_cnt = interval - (gen_time * now_screen_hz) / 1000000;
-
-    //         while (wait_cnt != 0)
-    //         {
-    //             EVENT_QUEUE_LOCK;
-    //             g_queue_push_tail(event_queue, (gpointer)event);
-    //             EVENT_QUEUE_UNLOCK;
-    // #ifdef _WIN32
-    //             DWORD ret = WaitForSingleObject(event, 20);
-    // #elif
-    // #endif
-
-    //             if (ret == WAIT_TIMEOUT)
-    //             {
-    //                 express_printf("gsync wait timeout\n");
-    //             }
-    //             wait_cnt--;
-    //         }
-    //     }
-    // return;
+    
 }
 
-// bool should_give_up_gpu()
-// {
-//     if(stand_frame_time == 0){
-//         //正在计算标准的帧生成时间，此时需要放弃gpu，优先保证主窗口
-//         return true;
-//     }
-//     if (last_gen_frame_time * 10 > stand_frame_time * 11 ){
-//         //上一次帧生成时间过大，超过标准的110%，则需要放弃gpu，优先保证主窗口
-//         express_printf("give up gpu %lld %lld\n",last_gen_frame_time,stand_frame_time);
-//         return true;
-//     }
-//     express_printf("hold gpu %lld %lld\n",last_gen_frame_time,stand_frame_time);
-//     //默认情况都不需要放弃GPU
-//     return false;
-// }
 
 static void g_queue_event_notify(gpointer data, gpointer user_data)
 {
@@ -1743,22 +1631,7 @@ static void g_queue_event_notify(gpointer data, gpointer user_data)
     return;
 }
 
-// void render_windows_create(Window_Buffer *context)
-// {
 
-//     // Render_Thread_Context *render_context = (Render_Thread_Context *)context;
-//     // Window_Buffer *buffer_context = (render_context->render_double_buffer);
-//     // Opengl_Context *opengl_context = (render_context->opengl_context);
-
-//     if (context != NULL)
-//     {
-//         //send是同步的，发送完消息需要等待消息处理完
-//         //调用egl_context_create
-//         SendMessage(draw_native_window, WM_USER_WINDOW_CREATE, 0, (LPARAM)context);
-//     }
-
-//     return;
-// }
 
 void set_compose_surface(Window_Buffer *old_surface, Window_Buffer *new_surface)
 {
@@ -2049,6 +1922,10 @@ void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, 
         }
         for(int i = 0;i < origin_surface->guest_gbuffer_num;i++)
         {
+            if(origin_surface->guest_gbuffer_id[i] == 0)
+            {
+                continue;
+            }
             printf("remove surface %llx gbuffer_id %llx\n",origin_surface, origin_surface->guest_gbuffer_id[i]);
             g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(origin_surface->guest_gbuffer_id[i]));
         }
@@ -2074,10 +1951,25 @@ void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, 
             printf("add gbuffer_id %llx surface %llx\n",gbuffer_id,now_surface);
             
             ATOMIC_LOCK(gbuffer_id_surface_map_lock);  
-            Window_Buffer *test_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
-            if(test_surface!=NULL)
+            Window_Buffer *old_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
+            if(old_surface!=NULL)
             {
-                printf("error! add gbuffer_id %llx now_surface %llx origin_surface %llx",gbuffer_id, now_surface, test_surface);
+                printf("error! add gbuffer_id %llx now_surface %llx old_surface %llx",gbuffer_id, now_surface, old_surface);
+                
+                // 这里说明在别的surface还没删除的时候出现了gbuffer_id的复用，所以原有的surface相应的这个gbuffer_id的使用要删除
+                for(int i = 0;i < old_surface->guest_gbuffer_num;i++)
+                {
+                    if(old_surface->guest_gbuffer_id[i] == gbuffer_id)
+                    {
+                        old_surface->guest_gbuffer_id[i] = 0;
+                        if(i==old_surface->guest_gbuffer_num-1)
+                        {
+                            old_surface->guest_gbuffer_num--;
+                        }
+                        break;
+                    }
+                }
+
             }
             g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)now_surface);
             ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);

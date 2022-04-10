@@ -149,14 +149,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
             thread_context->opengl_context->is_current = 0;
 // if(thread_context->opengl_context->window != NULL)
 // {
-#ifdef USE_GLFW_AS_WGL
-            // glfwMakeContextCurrent(NULL);
-            //glfwDestroyWindow((GLFWwindow *)thread_context->opengl_context->window);
-#else
-            // egl_makeCurrent(NULL);
-            egl_destroyContext(thread_context->opengl_context->window);
-#endif
-            send_message_to_main_window(MAIN_DESTROY_CONTEXT, thread_context->opengl_context);
+
+            opengl_context_destroy(thread_context->opengl_context);
+            g_free(thread_context->opengl_context);
+            // send_message_to_main_window(MAIN_DESTROY_CONTEXT, thread_context->opengl_context);
         }
         else
         {
@@ -178,21 +174,11 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         return EGL_TRUE;
     }
 
-    //等待window真正的建立起来
-    int sleep_cnt = 0;
-    while (real_opengl_context->window == NULL)
-    {
-        g_usleep(1000);
-        sleep_cnt += 1;
-        if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
-        {
-            printf("wait for window creating too long! opengl context %llx\n", real_opengl_context);
-        }
-    }
 
 #ifdef USE_GLFW_AS_WGL
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
+    glfwShowWindow((GLFWwindow *)real_opengl_context->window);
 #endif
     // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
     glfwMakeContextCurrent((GLFWwindow *)real_opengl_context->window);

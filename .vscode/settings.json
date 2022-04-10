@@ -117,7 +117,8 @@
         "wglext.h": "c",
         "windows.h": "c",
         "winuser.h": "c",
-        "trace.h": "c"
+        "trace.h": "c",
+        "gl_helper.h": "c"
     },
     "cmake.configureOnOpen": false
 }
