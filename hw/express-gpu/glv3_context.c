@@ -1,10 +1,11 @@
 // #define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "express-gpu/glv3_context.h"
-
+#include "express-gpu/glv3_resource.h"
 
 #include "glad/glad.h"
 #include "express-gpu/egl_window.h"
+#include "express-gpu/offscreen_render_thread.h"
 
 
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
@@ -18,14 +19,14 @@ GHashTable *program_is_external_map = NULL;
 
 GHashTable *program_data_map = NULL;
 
-GHashTable *to_external_texture_id_map = NULL;
+// GHashTable *to_external_texture_id_map = NULL;
 
 
 static volatile GList *native_context_pool = NULL;
 static int native_context_pool_size;
 static int native_context_pool_locker = 0;
 
-
+int memcpy_with_add_vec(char* dst, char* origin, char *fun, int len);
 
 static void g_program_data_destroy(gpointer data)
 {
@@ -88,9 +89,11 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
         break;
     case GL_PIXEL_PACK_BUFFER:
         status->pixel_pack_buffer = buffer;
+        opengl_context->current_pack_buffer = buffer;
         break;
     case GL_PIXEL_UNPACK_BUFFER:
         status->pixel_unpack_buffer = buffer;
+        opengl_context->current_unpack_buffer = buffer;
         break;
     case GL_TRANSFORM_FEEDBACK_BUFFER:
         status->transform_feedback_buffer = buffer;
@@ -122,11 +125,27 @@ int init_program_data(GLuint program)
 
     glGetProgramiv(program, GL_LINK_STATUS, &link_status);
 
+    // printf("link program %d\n",program);
     int buf_len;
     GLchar *program_data;
 
     if (link_status == 0)
     {
+        GLint infoLen = 0;
+
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLen);
+
+        printf("GL_INFO_LOG_LENGTH %d\n", infoLen);
+
+
+        if (infoLen > 1)
+        {
+            char* infoLog = (char*)malloc(sizeof(char) * infoLen);
+            glGetProgramInfoLog(program, infoLen, NULL, infoLog);
+            printf("Error linking program:\n%s\n", infoLog);
+            free(infoLog);
+        }
+
         return 0;
     }
     else
@@ -362,6 +381,101 @@ void get_default_out(char *string, char *out)
     }
 }
 
+int memcpy_with_add_vec(char* dst, char* origin, char *fun, int len)
+{
+    char* lessThan_loc = strstr(origin, fun);
+    int fun_len = strlen(fun);
+    char* next_line_loc = NULL;
+    char* split_line_loc = NULL;
+    char* split_k_loc = NULL;
+
+    char* vec_loc = NULL;
+    // char* vec_loc2 = NULL;
+
+    int now_copy_len = 0;
+    int origin_copy_len = 0;
+    while (lessThan_loc != NULL && lessThan_loc - origin < len)
+    {
+        memcpy(dst + now_copy_len, origin + origin_copy_len, lessThan_loc - origin - origin_copy_len + fun_len);
+        now_copy_len += lessThan_loc - origin - origin_copy_len + fun_len;
+        origin_copy_len += lessThan_loc - origin - origin_copy_len + fun_len;
+
+        split_line_loc = strstr(lessThan_loc, ",");
+        split_k_loc = strstr(lessThan_loc, ")");
+        next_line_loc = strstr(lessThan_loc, ";");
+        vec_loc = strstr(lessThan_loc, "vec");
+        // vec_loc2 = strstr(split_line_loc, "vec");
+
+
+        if (vec_loc != NULL && split_line_loc != NULL && next_line_loc != NULL && vec_loc < next_line_loc && vec_loc[4] == '(')
+            // (vec_loc2 == vec_loc || vec_loc2 > next_line_loc || vec_loc2 == NULL) )
+        {
+            char vec_type = *(vec_loc - 1);
+            if (vec_type != 'b' && vec_type != 'i')
+            {
+                vec_type = ' ';
+            }
+
+            //暂时只看第一个参数，不看第二个参数了，因为要给第二个加vec太复杂了
+            // if (vec_loc < split_line_loc)
+            // {
+            //     memcpy(dst + now_copy_len, origin + origin_copy_len, split_line_loc - lessThan_loc - fun_len);
+            //     now_copy_len += split_line_loc - lessThan_loc - fun_len;
+            //     origin_copy_len += split_line_loc - lessThan_loc - fun_len;
+
+            //     dst[now_copy_len] = ',';
+            //     dst[now_copy_len + 1] = vec_type;
+            //     dst[now_copy_len + 2] = 'v';
+            //     dst[now_copy_len + 3] = 'e';
+            //     dst[now_copy_len + 4] = 'c';
+            //     dst[now_copy_len + 5] = vec_loc[3];
+            //     dst[now_copy_len + 6] = '(';
+            //     now_copy_len += 7;
+
+            //     memcpy(dst + now_copy_len, origin + origin_copy_len + 1, next_line_loc - split_line_loc);
+            //     now_copy_len += next_line_loc - split_line_loc;
+            //     origin_copy_len += next_line_loc - split_line_loc;
+
+
+            // }
+            if(vec_loc > split_line_loc && split_k_loc > split_line_loc)
+            {
+                dst[now_copy_len + 0] = vec_type;
+                dst[now_copy_len + 1] = 'v';
+                dst[now_copy_len + 2] = 'e';
+                dst[now_copy_len + 3] = 'c';
+                dst[now_copy_len + 4] = vec_loc[3];
+                dst[now_copy_len + 5] = '(';
+                now_copy_len += 6;
+
+                memcpy(dst + now_copy_len, origin + origin_copy_len, split_line_loc - lessThan_loc - fun_len);
+                now_copy_len += split_line_loc - lessThan_loc - fun_len;
+                origin_copy_len += split_line_loc - lessThan_loc - fun_len;
+
+                dst[now_copy_len] = ')';
+                now_copy_len += 1;
+
+                memcpy(dst + now_copy_len, origin + origin_copy_len, next_line_loc - split_line_loc + 1);
+                now_copy_len += next_line_loc - split_line_loc + 1;
+                origin_copy_len += next_line_loc - split_line_loc + 1;
+
+            }
+           
+        }
+        lessThan_loc = strstr(origin + origin_copy_len, fun);
+    }
+    if(len-origin_copy_len < 0)
+    {
+        printf("error! len %d origin %d\n origin:\n%s\nnow:%s\n",len,origin_copy_len,dst,origin);
+    }
+    assert(len-origin_copy_len>=0);
+    memcpy(dst + now_copy_len, origin + origin_copy_len, len - origin_copy_len);
+    now_copy_len += len - origin_copy_len;
+
+    return now_copy_len;
+}
+
+
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
 {
     static const char DEFAULT_VERSION[] = "#version 330\n";
@@ -376,6 +490,8 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     char *new_string1 = NULL;
     char *new_string2 = NULL;
 
+    int need_add_vec_num = 0;
+
     for (int i = 0; i < count; i++)
     {
         char *string_loc = strstr(string[i], "has_EGL_image_external");
@@ -387,7 +503,35 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         if (string_loc != NULL && string_loc - string[i] <= length[i])
         {
             has_version = 1;
+            char *enter_loc = strstr(string[i], "\n");
+            char *es100_loc = strstr(string[i], "100");
+            if(es100_loc != NULL && es100_loc < enter_loc)
+            {
+                //version是100，改成330
+                es100_loc[0]='3';
+                es100_loc[1]='3';
+            }
+            // char *enter_loc = strstr(string[i], "\n");
+            // char *es310_loc = strstr(string[i], "310");
+            // char *es_loc = strstr(string[i], "es");
+            // if(es310_loc != NULL && es310_loc < es_loc && es_loc < enter_loc)
+            // {
+            //     //version是310es，改成430
+            //     es310_loc[0]='4';
+            //     es310_loc[1]='3';
+            //     es_loc[0]=' ';
+            //     es_loc[1]=' ';
+            // }
         }
+
+        string_loc = strstr(string[i],"lessThan(");
+        while(string_loc!=NULL)
+        {
+            string_loc = strstr(string_loc + 9 , "lessThan(");
+            need_add_vec_num ++;
+        }
+
+
         string_loc = strstr(string[i], "textureCube");
         if (string_loc != NULL && string_loc - string[i] <= length[i])
         {
@@ -469,9 +613,9 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         }
     }
 
-    if (!has_version || has_texturecube)
+    if (!has_version || has_texturecube || need_add_vec_num != 0)
     {
-        new_string1 = g_malloc(length[0] + sizeof(DEFAULT_VERSION) + sizeof(SHADOW_SAMPLER_EXTENSION));
+        new_string1 = g_malloc(length[0] + sizeof(DEFAULT_VERSION) + sizeof(SHADOW_SAMPLER_EXTENSION) + need_add_vec_num*10);
         int loc = 0;
         int origin_loc = 0;
         if(!has_version)
@@ -497,11 +641,14 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
             memcpy(new_string1 + loc, SHADOW_SAMPLER_EXTENSION, sizeof(SHADOW_SAMPLER_EXTENSION) - 1);
             loc += sizeof(SHADOW_SAMPLER_EXTENSION) - 1;
         }
-        memcpy(new_string1 + loc, string[0] + origin_loc, length[0] - origin_loc);
-        loc += length[0] - origin_loc;
+        
+        // memcpy(new_string1 + loc, string[0] + origin_loc, length[0] - origin_loc);
+        // loc += length[0] - origin_loc;
+        loc += memcpy_with_add_vec(new_string1 + loc, string[0] + origin_loc, "lessThan(", length[0] - origin_loc);
         new_string1[loc] = 0;
         length[0] = loc;
         string[0] = new_string1;
+        // printf("%s\n", new_string1);
     }
 
     GLint shader_type;
@@ -569,7 +716,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     }
 
     glShaderSource(shader, count, string, length);
-    // printf("gl shader source after count %d context %llx:\n%s\n", count, context, string[0]);
+    // printf("\ngl shader %d source after count %d context %llx:\n%s\n", shader, count, context, string[0]);
 
     if (new_string1 != NULL)
     {
@@ -610,10 +757,25 @@ void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *b
 void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height)
 {
     Opengl_Context *real_opengl_context = (Opengl_Context *)context;
-    real_opengl_context->view_x = 0;
-    real_opengl_context->view_y = 0;
+
+    // if(width < real_opengl_context->view_w && height < real_opengl_context->view_h)
+    // {
+    //     real_opengl_context->view_x = x;
+    //     real_opengl_context->view_y = real_opengl_context->view_h - height;
+    //     real_opengl_context->view_w = width;
+    //     real_opengl_context->view_h = height;
+    //     glViewport(x, real_opengl_context->view_h - height, width, height);
+    //     printf("context %llx glViewport change y %d w %d h %d\n", context, real_opengl_context->view_y, width, height);
+
+    //     return;
+    // }
+
+    real_opengl_context->view_x = x;
+    real_opengl_context->view_y = y;
     real_opengl_context->view_w = width;
     real_opengl_context->view_h = height;
+
+    // printf("context %llx glViewport w %d h %d\n", context, width, height);
     glViewport(x, y, width, height);
     return;
 }
@@ -634,44 +796,63 @@ void d_glUseProgram_special(void *context, GLuint program)
         ret = g_hash_table_lookup(program_is_external_map, GUINT_TO_POINTER(program));
     }
 
-    if (ret == 1 && opengl_context->current_target == GL_TEXTURE_2D)
+    if (ret == 1)
     {
         //当前需要使用external纹理
+        opengl_context->is_using_external_program = 1;
+        // if(opengl_context->current_texture_external != 0)
+        // {
+        //     glActiveTexture(GL_TEXTURE0);
+        //     glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        //     opengl_context->current_target = GL_TEXTURE_EXTERNAL_OES;
+        //     glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        // }
 
-        for (int i = 0; i < preload_static_context_value->max_combined_texture_image_units; i++)
-        {
-            if (opengl_context->current_texture_external != 0)
-            {
-                GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external));
-                if (texture != 0)
-                {
-                    if(opengl_context->current_active_texture != 0)
-                    {
-                        glActiveTexture(GL_TEXTURE0);
-                    }
-                    glBindTexture(GL_TEXTURE_2D, texture);
-                    opengl_context->current_target = GL_TEXTURE_EXTERNAL_OES;
+        // for (int i = 0; i < preload_static_context_value->max_combined_texture_image_units; i++)
+        // {
+        //     if (opengl_context->current_texture_external != 0)
+        //     {
+        //         GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external));
+        //         if (texture != 0)
+        //         {
+        //             if(opengl_context->current_active_texture != 0)
+        //             {
+        //                 glActiveTexture(GL_TEXTURE0);
+        //             }
+        //             glBindTexture(GL_TEXTURE_2D, texture);
+        //             opengl_context->current_target = GL_TEXTURE_EXTERNAL_OES;
                     
-                    if(opengl_context->current_active_texture != 0)
-                    {
-                        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
-                    }
+        //             if(opengl_context->current_active_texture != 0)
+        //             {
+        //                 glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        //             }
 
-                    // int now_active;
-                    // glGetIntegerv(GL_ACTIVE_TEXTURE,&now_active);
+        //             // int now_active;
+        //             // glGetIntegerv(GL_ACTIVE_TEXTURE,&now_active);
 
-                    // printf("context %llx program %u change to external texture %u i %d current %u real current %d\n", opengl_context, program, texture, i,opengl_context->current_texture_external,now_active-GL_TEXTURE0);
-                    break;
-                }
-            }
-        }
+        //             // printf("context %llx program %u change to external texture %u i %d current %u real current %d\n", opengl_context, program, texture, i,opengl_context->current_texture_external,now_active-GL_TEXTURE0);
+        //             break;
+        //         }
+        //     }
+        // }
     }
-    if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
+    else
     {
-        // printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
-        opengl_context->current_target = GL_TEXTURE_2D;
+        opengl_context->is_using_external_program = 0;
     }
+    // if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
+    // {
+    //     // printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
+    //     if(opengl_context->current_texture_2D[0]!=0)
+    //     {
+    //         glActiveTexture(GL_TEXTURE0);
+    //         glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
+    //         glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+    //     }
+        
+    //     // glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
+    //     opengl_context->current_target = GL_TEXTURE_2D;
+    // }
     // printf("context %llx use program %u external active %d target %x\n", opengl_context, program,opengl_context->current_active_texture, opengl_context->current_target);
 
     glUseProgram(program);
@@ -679,126 +860,340 @@ void d_glUseProgram_special(void *context, GLuint program)
     
 }
 
-void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image)
+void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint texture, GLuint share_texture, EGLContext guest_share_ctx)
 {
-    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)t_context;
+
+    Process_Context *process_context = thread_context->process_context;   
+    Opengl_Context *opengl_context = (Opengl_Context *)thread_context->opengl_context;
     uint64_t gbuffer_id = (uint64_t)image;
-    Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
-    EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
+
+    GLuint host_share_texture;
+
+    //调用这个函数的时候，前面肯定有glbindtexture，所以opengl_context肯定存在
+    if(opengl_context == NULL)
+    {
+        printf("error! opengl_context null when bindEGLImage image id %llx\n",gbuffer_id);
+        return;
+    }
+
+
+    if(gbuffer_id == 0)
+    {
+        //说明要连接的是普通的texture类型
+
+        Opengl_Context *share_opengl_context =
+         (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(guest_share_ctx));
+        
+        if(share_opengl_context == NULL)
+        {
+            printf("error! glBindEGLImage with null share_context when gbuffer_id is 0 guest context %llx share_texture %d\n", guest_share_ctx, share_texture);
+            return;
+        }
+
+
+        host_share_texture = get_host_texture_id(share_opengl_context, share_texture);
+    }
+    else
+    {
+        //连接的为gbuffer
+        Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+
+        if(gbuffer == NULL)
+        {
+            //不是本进程创建的gbuffer，则到全局去找，这个一般只出现在合成器上
+            gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        }
+
+        if(gbuffer == NULL)
+        {
+            //不可能没找到
+            printf("error! cannot find gbuffer(id %llx)\n",gbuffer_id);
+            return;
+        }
+        // printf("glBindEGLImage gbuffer_id %llx when write %d sync %d\n", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
+        host_share_texture = gbuffer->data_texture;
+        if(gbuffer->is_dying)
+        {
+            gbuffer->remain_life_time = MAX_LIFE_TIME;
+        }
+
+        if (gbuffer->data_sync != 0)
+        {
+            // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+            glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
+            // if(gbuffer->delete_sync != 0)
+            // {
+            //     glDeleteSync(gbuffer->delete_sync);
+            // }
+            // gbuffer->delete_sync = gbuffer->data_sync;
+            // gbuffer->data_sync = NULL;
+        }
+
+    }
+
+    //原来的texture直接删除掉，假设原来的texture不会再被正常使用——不确定@todo
+    int origin_texture = (int)set_share_texture(opengl_context, texture, host_share_texture);
+    if(origin_texture > 0)
+    {
+        glDeleteTextures(1, &origin_texture);
+    }
+
+    if(target == GL_TEXTURE_2D)
+    {
+        opengl_context->current_texture_2D[opengl_context->current_active_texture] = host_share_texture;
+        glBindTexture(GL_TEXTURE_2D, host_share_texture);
+    }
+    else
+    {
+        opengl_context->current_texture_external = host_share_texture;
+    }
+    
+
+    // printf("context %llx glBindEGLImage target %x image %llx\n",opengl_context, target, image);
+    // if(opengl_context->current_external_gbuffer_id!=NULL)
+    // {
+    //     //只有surface的eglimage才需要释放
+    //     Window_Buffer *origin_surface = get_surface_from_gbuffer_id(opengl_context->current_external_gbuffer_id);
+    //     if(origin_surface!=NULL)
+    //     {
+    //         printf("release origin surface %llx\n",origin_surface);
+    //         release_texture_from_surface(origin_surface);
+    //         release_surface(origin_surface);
+    //         opengl_context->current_external_gbuffer_id = 0;
+    //         opengl_context->current_texture_external = 0;
+    //     }
+    // }
+
+    // if(gbuffer_id == 0)
+    // {
+    //     //绑定为0，只要release就行，不需要重置bind状态，因为后续会进一步的bind，会覆盖当前的
+    //     return;
+    // }
+
+    // Window_Buffer *real_surface = get_surface_from_gbuffer_id(gbuffer_id);
+
+    // EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
+
+    // //gbuffer_id二者都有的情况下，取年轻的一个
+    // int flag = 0;
+    // if(real_surface != NULL)
+    // {
+    //     flag = 1;
+    // }
+    // if(egl_image != NULL)
+    // {
+    //     if(real_surface == NULL || real_surface->remain_life_time < egl_image->remain_life_time )
+    //     {
+    //         flag = 2;
+    //     }
+    // }
+
+    // GLuint out_texture = 0;
+    // if(flag == 1)
+    // {
+    //     //read surface的情况，把external的状态修改一下，因为这个数据不会立即使用
+    //     out_texture = acquire_texture_from_surface(real_surface);
+    //     printf("image %llx is surface %llx, texture %d\n", image, real_surface, out_texture);
+    //     opengl_context->current_external_gbuffer_id = gbuffer_id;
+    //     opengl_context->current_texture_external = out_texture;
+    //     opengl_context->current_target = target;
+    //     if(target == GL_TEXTURE_2D)
+    //     {
+    //         glBindTexture(GL_TEXTURE_2D, out_texture);
+    //     }
+    // }
+    // else if(flag == 2)
+    // {
+    //     //image模式下，数据肯定已经在了，不需要专门sync
+    //     if(egl_image->fbo_texture == 0)
+    //     {
+    //         init_image_texture(egl_image);
+    //     }
+
+    //     if (egl_image->fbo_sync != NULL)
+    //     {
+    //         glClientWaitSync(egl_image->fbo_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    //         // glWaitSync(egl_image->fbo_sync, 0, GL_TIMEOUT_IGNORED);
+    //         glDeleteSync(egl_image->fbo_sync);
+    //     }
+
+    //     out_texture = egl_image->fbo_texture;
+    //     printf("image %llx is external, texture %d\n", image, out_texture);
+    //     opengl_context->current_external_gbuffer_id = gbuffer_id;
+    //     opengl_context->current_texture_external = out_texture;
+    //     opengl_context->current_target = target;
+    //     if(target == GL_TEXTURE_2D)
+    //     {
+    //         glBindTexture(GL_TEXTURE_2D, out_texture);
+    //     }
+    // }
+    // else
+    // {
+    // }
+
+    // release_surface(real_surface);
+
     // printf("#%llx glBindEGLImage %x image %llx real_surface %llx egl_image %llx now acquire %d\n", context, target, image, real_surface, egl_image, real_surface == NULL ? -1 : real_surface->now_acquired);
     // if(real_surface != NULL)
     // {
     //     printf("get gbuffer_id %llx surface %llx\n",gbuffer_id, real_surface);
     // }
 
-    if (real_surface != NULL && egl_image != NULL)
-    {
-        printf("error! real_surface %llx and egl_image %llx are not NULL!",real_surface, egl_image);
-    }
+    // if (real_surface != NULL && egl_image != NULL)
+    // {
+    //     printf("error! real_surface %llx and egl_image %llx are not NULL!",real_surface, egl_image);
+    // }
 
-    if (real_surface == NULL && egl_image == NULL)
-    {
-        printf("error! real_surface and egl_image are all NULL! gbuffer_id %llx\n",gbuffer_id);
-    }
+    // if (real_surface == NULL && egl_image == NULL)
+    // {
+    //     printf("error! real_surface and egl_image are all NULL! gbuffer_id %llx\n",gbuffer_id);
+    // }
 
-    switch (target)
-    {
-    case GL_READ_ONLY:
-    {
-        if (real_surface != NULL)
-        {
-            acquire_texture_from_surface(real_surface);
-            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
+    // switch (target)
+    // {
+    // case GL_READ_ONLY:
+    // {
+    //     if (real_surface != NULL)
+    //     {
+    //         acquire_texture_from_surface(real_surface);
+    //         glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
 
-            if (opengl_context->current_texture_external != 0)
-            {
-                if (to_external_texture_id_map == NULL)
-                {
-                    to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-                }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GUINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
-            }
-        }
-        if (egl_image != NULL)
-        {
-            init_image_texture(egl_image);
+    //         if (opengl_context->current_texture_external != 0)
+    //         {
+    //             if (to_external_texture_id_map == NULL)
+    //             {
+    //                 to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+    //             }
+    //             g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GUINT_TO_POINTER(real_surface->fbo_texture[real_surface->now_acquired]));
+    //         }
+    //     }
+    //     if (egl_image != NULL)
+    //     {
+    //         init_image_texture(egl_image);
 
-            acquire_texture_from_image(egl_image);
-            opengl_context->bind_image = egl_image;
+    //         acquire_texture_from_image(egl_image);
+    //         opengl_context->bind_image = egl_image;
 
-            if (opengl_context->current_texture_external != 0)
-            {
-                if (to_external_texture_id_map == NULL)
-                {
-                    to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-                }
-                g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GUINT_TO_POINTER(egl_image->fbo_texture));
-            }
-            // printf("eglimage bind texture %u\n",egl_image->fbo_texture);
-            // if(!glIsTexture(egl_image->fbo_texture))
-            // {
-            //     printf("eglimage gbuffer_id %llx fbo_texture %u is delete!\n",egl_image->gbuffer_id, egl_image->fbo_texture);
-            // }
-            glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
-        }
-        break;
-    }
-    case GL_WRITE_ONLY:
-    {
-        if (real_surface != NULL)
-        {
-            glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
-            printf("error! Surface is writen by image!");
-        }
+    //         if (opengl_context->current_texture_external != 0)
+    //         {
+    //             if (to_external_texture_id_map == NULL)
+    //             {
+    //                 to_external_texture_id_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+    //             }
+    //             g_hash_table_insert(to_external_texture_id_map, opengl_context->current_texture_external, GUINT_TO_POINTER(egl_image->fbo_texture));
+    //         }
+    //         // printf("eglimage bind texture %u\n",egl_image->fbo_texture);
+    //         // if(!glIsTexture(egl_image->fbo_texture))
+    //         // {
+    //         //     printf("eglimage gbuffer_id %llx fbo_texture %u is delete!\n",egl_image->gbuffer_id, egl_image->fbo_texture);
+    //         // }
+    //         glBindTexture(GL_TEXTURE_2D, egl_image->fbo_texture);
+    //     }
+    //     break;
+    // }
+    // case GL_WRITE_ONLY:
+    // {
+    //     if (real_surface != NULL)
+    //     {
+    //         glBindTexture(GL_TEXTURE_2D, real_surface->fbo_texture[real_surface->now_acquired]);
+    //         printf("error! Surface is writen by image!");
+    //     }
 
-        if (egl_image != NULL && egl_image->target != EGL_GL_TEXTURE_2D)
-        {
-            if (opengl_context->draw_surface != NULL && opengl_context->draw_surface->I_am_composer == 0)
-            {
-                egl_image->need_reverse = 1;
-            }
+    //     if (egl_image != NULL && egl_image->target != EGL_GL_TEXTURE_2D)
+    //     {
+    //         if (opengl_context->draw_surface != NULL && opengl_context->draw_surface->I_am_composer == 0)
+    //         {
+    //             egl_image->need_reverse = 1;
+    //         }
 
-            egl_image->host_has_data = 1;
-            init_image_fbo(egl_image, egl_image->need_reverse);
+    //         egl_image->host_has_data = 1;
+    //         init_image_fbo(egl_image, egl_image->need_reverse);
 
-            glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
-        }
-        break;
-    }
-    case GL_SYNC_FLUSH_COMMANDS_BIT:
-    {
-        if (real_surface != NULL)
-        {
-            release_texture_from_surface(real_surface);
-        }
-        if (egl_image != NULL)
-        {
-            release_texture_from_image(egl_image);
-            opengl_context->bind_image = NULL;
-        }
-        break;
-    }
-    case GL_NONE:
-    {
-        if (egl_image != NULL)
-        {
-            opengl_context->bind_image = NULL;
-            ATOMIC_SET_USED(egl_image->display_texture_is_use);
-        }
-    }
-    default:
-    {
+    //         glBindFramebuffer(GL_FRAMEBUFFER, egl_image->display_fbo);
+    //     }
+    //     break;
+    // }
+    // case GL_SYNC_FLUSH_COMMANDS_BIT:
+    // {
+    //     if (real_surface != NULL)
+    //     {
+    //         release_texture_from_surface(real_surface);
+    //     }
+    //     if (egl_image != NULL)
+    //     {
+    //         release_texture_from_image(egl_image);
+    //         opengl_context->bind_image = NULL;
+    //     }
+    //     break;
+    // }
+    // case GL_NONE:
+    // {
+    //     if (egl_image != NULL)
+    //     {
+    //         opengl_context->bind_image = NULL;
+    //         ATOMIC_SET_USED(egl_image->display_texture_is_use);
+    //     }
+    // }
+    // default:
+    // {
 
-        break;
-    }
-    }
-    if(gbuffer_id == NULL)
-    {
-        printf("error\n");
-    }
-    release_surface(real_surface);
+    //     break;
+    // }
+    // }
+    // if(gbuffer_id == NULL)
+    // {
+    //     printf("error\n");
+    // }
+    // release_surface(real_surface);
     return;
 }
+
+
+// void d_glFramebufferEGLImage(void *context, GLenum target, GLenum attachment, GLenum textarget, GLeglImageOES image, GLint level)
+// {
+// //     uint64_t gbuffer_id = (uint64_t)image;
+// //     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
+// //     if(egl_image->fbo_texture == 0)
+// //     {
+// //         init_image_texture(egl_image);
+// //     }
+// //     //image肯定存在，因为还有前面一系列的创建和连接的过程
+// //     glFramebufferTexture2D(target, attachment, GL_TEXTURE_2D, egl_image->fbo_texture, level);    
+
+// }
+
+// void d_glBindSharedGLImage(void *context, GLenum target, GLuint texture, void *share_ctx)
+// {
+//     GLuint share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_ctx, (unsigned int)texture);
+
+//     int sleep_cnt = 0;
+//     while(share_texture == 0 && sleep_cnt < 5)
+//     {
+//         //多线程操作，可能被share的texture还没创建起来，最多等它5ms
+//         g_usleep(1000);
+//         sleep_cnt++;
+//         share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_ctx, (unsigned int)texture);
+//     }
+//     glBindTexture(target, share_texture);
+// }
+
+
+// void d_glFramebufferSharedTexture2D(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level, void *share_context)
+// {
+//     // GLuint share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_context, (unsigned int)texture);
+
+//     // int sleep_cnt = 0;
+//     // while(share_texture == 0 && sleep_cnt < 5)
+//     // {
+//     //     //多线程操作，可能被share的texture还没创建起来，最多等它5ms
+//     //     g_usleep(1000);
+//     //     sleep_cnt++;
+//     //     share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_context, (unsigned int)texture);
+//     // }
+//     // glFramebufferTexture2D(target, attachment, GL_TEXTURE_2D, share_texture, level);
+// }
+
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image)
 {
@@ -845,7 +1240,7 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
     {                                                                                                  \
         for (int i = 1; i <= resources->resource_name->max_id; i++)                                    \
         {                                                                                              \
-            if (resources->resource_name->resource_id_map[i] == 0)                                     \
+            if (resources->resource_name->resource_id_map[i] <= 0)                                     \
                 continue;                                                                              \
             if (now_delete_len < 1000)                                                                 \
             {                                                                                          \
@@ -987,8 +1382,8 @@ void *get_native_opengl_context()
 
 void release_native_opengl_context(void *native_context)
 {
-    //假如已经保存有闲置的超过10个context，则新释放的context直接销毁，否则保存下来
-    if(native_context_pool_size < 10)
+    //假如已经保存有闲置的超过5个context，则新释放的context直接销毁，否则保存下来
+    if(native_context_pool_size < 5)
     {
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_append(native_context_pool, native_context);
@@ -1015,15 +1410,22 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     opengl_context->is_current = 0;
     opengl_context->need_destroy = 0;
     opengl_context->window = NULL;
+    opengl_context->current_unpack_buffer = 0;
+    opengl_context->current_pack_buffer = 0;
+    opengl_context->is_using_external_program = 0;
+    opengl_context->fbo_delete_cnt = 10;
+    opengl_context->fbo_delete_loc = 0;
+    opengl_context->fbo_delete = g_malloc(10*sizeof(GLuint));
 
-    opengl_context->bind_image = NULL;
+
+    // opengl_context->bind_image = NULL;
 
     opengl_context->current_texture_2D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
     memset(opengl_context->current_texture_2D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
     opengl_context->current_texture_external = 0;
 
-    opengl_context->current_target = GL_TEXTURE_2D;
+    // opengl_context->current_target = GL_TEXTURE_2D;
     opengl_context->current_active_texture = 0;
 
     opengl_context->view_x = 0;
@@ -1039,7 +1441,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
 // 不能在子线程中创建context，不然会为空
 //     opengl_context->window = egl_createContext();
 // #endif
-    printf("send message create window opengl context %llx window_ptr %llx\n", opengl_context, &(opengl_context->window));
+    // printf("send message create window opengl context %llx window_ptr %llx\n", opengl_context, &(opengl_context->window));
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)
@@ -1102,9 +1504,33 @@ void opengl_context_init(Opengl_Context *context)
         glEnable(GL_PROGRAM_POINT_SIZE);
         glEnable(GL_POINT_SPRITE);
 
+        //这个非常重要，不然很多游戏非常暗，因为他们用了SRGB纹理
+        glEnable(GL_FRAMEBUFFER_SRGB);
+
+        //放到前面去了
         //原窗口大小是1*1，所以默认的viewport也是1*1，所以在初始化的时候要手动设置下viewport
-        glViewport(context->view_x, context->view_y, context->view_w, context->view_h);
+        // glViewport(context->view_x, context->view_y, context->view_w, context->view_h);
     }
+}
+
+void opengl_context_add_fbo(Opengl_Context *context, GLuint fbo)
+{
+    if(fbo == 0)
+    {
+        return;
+    }
+    //这是因为fbo与context强绑定，必须在context销毁的时候一并销毁掉
+    if(context->fbo_delete_loc>= context->fbo_delete_cnt)
+    {
+        GLuint *temp= g_malloc0(context->fbo_delete_loc * 2 * sizeof(GLuint));
+        memcpy(temp, context->fbo_delete, context->fbo_delete_cnt * sizeof(GLuint));
+        g_free(context->fbo_delete);
+        context->fbo_delete = temp;
+        context->fbo_delete_cnt = context->fbo_delete_loc * 2;
+    }
+    context->fbo_delete[context->fbo_delete_loc] = fbo;
+    context->fbo_delete_loc++;
+
 }
 
 /**
@@ -1128,6 +1554,9 @@ void opengl_context_destroy(Opengl_Context *context)
     egl_makeCurrent(opengl_context->window);
 #endif
 
+    glDeleteFramebuffers(opengl_context->fbo_delete_loc, opengl_context->fbo_delete);
+
+    g_free(opengl_context->fbo_delete);
 
     //这三个remove后都有默认的销毁函数
     // g_hash_table_remove_all(opengl_context->buffer_map);
@@ -1142,6 +1571,13 @@ void opengl_context_destroy(Opengl_Context *context)
     }
 
     resource_context_destroy(&(opengl_context->resource_status));
+
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
 #ifdef USE_GLFW_AS_WGL
 #ifdef DEBUG_INDEPEND_WINDOW
     glfwHideWindow(opengl_context->window);

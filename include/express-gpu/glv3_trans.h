@@ -1635,6 +1635,18 @@
 #define PARA_NUM_MIN_glDrawElementsIndirect_without_bound (1)
 
 
+// #define FUNID_glBindSharedGLImage ((EXPRESS_GPU_FUN_ID << 32u) + 406)
+
+// #define PARA_NUM_MIN_glBindSharedGLImage (1)
+
+// #define FUNID_glFramebufferSharedTexture2D ((EXPRESS_GPU_FUN_ID << 32u) + 407)
+
+// #define PARA_NUM_MIN_glFramebufferSharedTexture2D (1)
+
+// #define FUNID_glFramebufferEGLImage ((EXPRESS_GPU_FUN_ID << 32u) + 408)
+
+// #define PARA_NUM_MIN_glFramebufferEGLImage (1)
+
 
 void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call);
 

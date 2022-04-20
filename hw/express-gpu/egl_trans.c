@@ -64,6 +64,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSurface read;
         EGLContext ctx;
         uint64_t gbuffer_id;
+        int width;
+        int height;
+        int hal_format;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglMakeCurrent)
@@ -75,7 +78,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (temp_len < 52 * 1)
         {
             break;
         }
@@ -112,6 +115,15 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         gbuffer_id = *(uint64_t *)(temp + temp_loc);
         temp_loc += 8;
 
+        width = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        hal_format = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
         int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
@@ -138,7 +150,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id);
+        EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id, width, height, hal_format);
         *ret_ptr = ret;
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
@@ -163,6 +175,10 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* Define variables */
         EGLDisplay dpy;
         EGLSurface surface;
+        uint64_t gbuffer_id;
+        int width;
+        int height;
+        int hal_format;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglSwapBuffers_sync)
@@ -174,7 +190,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (temp_len < 36 * 1)
         {
             break;
         }
@@ -201,6 +217,19 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         surface = *(EGLSurface *)(temp + temp_loc);
         temp_loc += 8;
+
+        gbuffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
+        width = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        hal_format = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
         int out_buf_len = all_para[1].data_len;
 
         unsigned char *ret_buf = NULL;
@@ -228,7 +257,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         }
         // assert(surface>1000);
 
-        EGLBoolean ret = d_eglSwapBuffers_sync(egl_context, dpy, surface);
+        EGLBoolean ret = d_eglSwapBuffers_sync(egl_context, dpy, surface, gbuffer_id, width, height, hal_format);
         *ret_ptr = ret;
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
@@ -2015,6 +2044,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         /* Define variables */
         EGLImage gbuffer_id;
+        int is_composer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglQueueBuffer)
@@ -2026,7 +2056,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < sizeof(EGLImage) * 1)
+        if (temp_len < 12 * 1)
         {
             break;
         }
@@ -2048,8 +2078,11 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned int temp_loc = 0;
 
-        gbuffer_id = *(EGLImage *)(temp + temp_loc);
-        temp_loc += sizeof(EGLImage);
+        gbuffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += sizeof(uint64_t);
+
+        is_composer = *(int *)(temp + temp_loc);
+        temp_loc += sizeof(int);
 
         /* Check length */
         if (temp_len < temp_loc)
@@ -2057,7 +2090,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_eglQueueBuffer(egl_context, gbuffer_id);
+        d_eglQueueBuffer(egl_context, gbuffer_id, is_composer);
     }
     break;
 
@@ -2136,7 +2169,12 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLDisplay dpy;
         EGLSurface surface;
         int64_t invoke_time;
-
+        uint64_t gbuffer_id;
+        int width;
+        int height;
+        int hal_format;
+        
+        
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_eglSwapBuffers)
         {
@@ -2147,7 +2185,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (temp_len < 44 * 1)
         {
             break;
         }
@@ -2178,11 +2216,23 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         invoke_time = *(int64_t *)(temp + temp_loc);
         temp_loc += 8;
 
+        gbuffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
+        width = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        hal_format = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
         int64_t *ret_invoke_time = all_para[1].data;
         // assert(surface>1000);
         int64_t *swap_time = all_para[2].data;
 
-        d_eglSwapBuffers(egl_context, dpy, surface, invoke_time, ret_invoke_time, swap_time);
+        d_eglSwapBuffers(egl_context, dpy, surface, invoke_time,gbuffer_id, width, height, hal_format, ret_invoke_time, swap_time);
     }
     break;
 
@@ -2259,6 +2309,60 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         d_eglSetGraphicBufferID(egl_context, surface, gbuffer_id);
     }
+
+    // case FUNID_eglRemainImage:
+
+    // {
+
+    //     EGLImage image;
+
+    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    //     if (para_num < PARA_NUM_MIN_eglRemainImage)
+    //     {
+    //         break;
+    //     }
+
+    //     size_t temp_len = 0;
+    //     unsigned char *temp = NULL;
+
+    //     temp_len = all_para[0].data_len;
+    //     if (temp_len < 8 * 1)
+    //     {
+    //         break;
+    //     }
+
+    //     int null_flag = 0;
+    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+    //     if (temp == NULL)
+    //     {
+    //         if (temp_len != 0 && null_flag == 0)
+    //         {
+    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+    //         }
+    //         else
+    //         {
+    //             break;
+    //         }
+    //     }
+
+    //     unsigned int temp_loc = 0;
+
+    //     image = *(EGLImage *)(temp + temp_loc);
+    //     temp_loc += 8;
+
+        
+    //     /* Check length */
+    //     if (temp_len < temp_loc)
+    //     {
+    //         break;
+    //     }
+
+        
+    //     d_eglRemainImage(egl_context, image);
+
+    // }
+    // break;
 
     default:
         break;

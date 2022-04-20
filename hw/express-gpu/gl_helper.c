@@ -796,6 +796,74 @@ size_t gl_pname_size(GLenum pname)
 }
 
 
+Dying_List *dying_list_append(Dying_List *list, void *data)
+{
+    if(list == NULL)
+    {
+        list = (Dying_List *)g_malloc(sizeof(Dying_List));
+        list->header = NULL;
+        list->tail = NULL;
+        list->num = 0;
+    }
+    Dying_List_Node *node = g_malloc(sizeof(Dying_List_Node));
+    node->data = data;
+    node->next = NULL;
+    if(list->tail == NULL)
+    {
+        list->tail = node;
+        list->header = node;
+        node->prev = NULL;
+    }
+    else
+    {
+        list->tail->next = node;
+        node->prev = list->tail;
+        list->tail = node;
+    }
+    list->num++;
+    return list;
+}
+
+Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun)
+{
+    if(list == NULL)
+    {
+        return list;
+    }
+    for(Dying_List_Node *node = list->header; node->next!=NULL;)
+    {
+        if(fun(node->data)==1)
+        {
+            if(node->prev == NULL)
+            {
+                list->header = node->next;
+            }
+            else
+            {
+                node->prev->next = node->next;
+            }
+            if(node->next == NULL)
+            {
+                list->tail = node->prev;
+            }
+            else
+            {
+                node->next->prev = node->prev;
+            }
+            Dying_List_Node *node_next = node->next;
+            g_free(node);
+            node = node_next;
+            list->num--;
+        }
+        else
+        {
+            node = node->next;
+        }
+    }
+    return list;
+}
+
+
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d)
 {
     printf("glTestInt asyn %d,%u,%f,%lf\n", a, b, c, d);

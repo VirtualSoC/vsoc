@@ -58,11 +58,13 @@
 
 //glEGLImageTargetRenderbufferStorageOES
 
-void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
+void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *call)
 {
-    Render_Thread_Context *render_context = (Render_Thread_Context *)context;
+    Render_Thread_Context *render_context = (Render_Thread_Context *)r_context;
     Opengl_Context *opengl_context = render_context->opengl_context;
-    if (opengl_context == NULL && call->id != FUNID_glGetStaticValues)
+    Process_Context *process_context = render_context->process_context;
+    if (opengl_context == NULL && call->id != FUNID_glGetStaticValues && call->id != FUNID_glBindEGLImage &&
+     call->id != PARA_NUM_MIN_glReadGraphicBuffer && call->id != PARA_NUM_MIN_glGraphicBufferData)
     {
         call->callback(call, 0);
         return;
@@ -2383,8 +2385,24 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetTexParameterfv(target, pname, params);
-
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glGetTexParameterfv(GL_TEXTURE_2D, pname, params);
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glGetTexParameterfv(target, pname, params);
+        }
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -2471,7 +2489,26 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glGetTexParameteriv(target, pname, params);
+
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glGetTexParameteriv(GL_TEXTURE_2D, pname, params);
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glGetTexParameteriv(target, pname, params);
+        }
+
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -3761,9 +3798,25 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             }
             break;
         }
-
-        glGetTexParameterxvOES(target, pname, params);
-
+        
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glGetTexParameterxvOES(GL_TEXTURE_2D, pname, params);
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glGetTexParameterxvOES(target, pname, params);
+        }
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -13339,7 +13392,10 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         /* Define variables */
         GLenum target;
-        GLeglImageOES gbuffer_id;
+        uint64_t image;
+        GLuint texture;
+        GLuint share_texture;
+        EGLContext share_ctx;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glBindEGLImage)
@@ -13351,7 +13407,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < (4 + sizeof(GLeglImageOES)) * 1)
+        if (temp_len < (28) * 1)
         {
             break;
         }
@@ -13376,15 +13432,25 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         target = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
-        gbuffer_id = *(GLeglImageOES *)(temp + temp_loc);
-        temp_loc += sizeof(GLeglImageOES);
+        image = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
+        texture = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        share_texture = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        share_ctx = *(EGLContext *)(temp + temp_loc);
+        temp_loc += 8;
         /* Check length */
         if (temp_len < temp_loc)
         {
             break;
         }
 
-        d_glBindEGLImage(opengl_context, target, gbuffer_id);
+        //尤其要注意这里，传入的得是r_context，不是opengl_context
+        d_glBindEGLImage(r_context, target, image, texture, share_texture, share_ctx);
     }
     break;
 
@@ -13502,6 +13568,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
+        // printf("attach shader %u to program %u\n",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
         glAttachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
     break;
@@ -14202,9 +14269,9 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             GLint infoLen = 0;
             glGetShaderiv(real_shader, GL_INFO_LOG_LENGTH, &infoLen);
-            char source[1024];
+            char source[10000];
             int source_len;
-            glGetShaderSource(real_shader, 1000, &source_len, source);
+            glGetShaderSource(real_shader, 10000, &source_len, source);
             printf("shader %d:\n%s\n",real_shader,source);
             if (infoLen > 1)
             {
@@ -15728,8 +15795,24 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
-        glTexParameterf(target, pname, param);
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glTexParameterf(GL_TEXTURE_2D, pname, param);
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glTexParameterf(target, pname, param);
+        }
     }
     break;
 
@@ -15794,7 +15877,24 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        glTexParameteri(target, pname, param);
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glTexParameteri(GL_TEXTURE_2D, pname, param);
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glTexParameteri(target, pname, param);
+        }
     }
     break;
 
@@ -20715,8 +20815,24 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
-        glTexParameterfv(target, pname, params);
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glTexParameterfv(GL_TEXTURE_2D, pname, params);
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glTexParameterfv(target, pname, params);
+        }
     }
     break;
 
@@ -20779,8 +20895,24 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             break;
         }
-
-        glTexParameteriv(target, pname, params);
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glTexParameteriv(GL_TEXTURE_2D, pname, params);
+            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+            if(opengl_context->current_active_texture!=0)
+            {
+                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glTexParameteriv(target, pname, params);
+        }
     }
     break;
 
@@ -26894,8 +27026,13 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     case FUNID_glGraphicBufferData:
 
     {
+        EGLContext ctx;
         uint64_t g_buffer_id;
+        int width;
+        int height;
         int buf_len;
+        int row_byte_len;
+        int stride;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glGraphicBufferData)
@@ -26907,7 +27044,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (temp_len < (36) * 1)
         {
             break;
         }
@@ -26929,23 +27066,44 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned int temp_loc = 0;
 
+        ctx = *(EGLContext *)(temp + temp_loc);
+        temp_loc += 8;
+
         g_buffer_id = *(uint64_t *)(temp + temp_loc);
         temp_loc += 8;
+
+        width = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(int *)(temp + temp_loc);
+        temp_loc += 4;
 
         buf_len = *(int *)(temp + temp_loc);
         temp_loc += 4;
 
+        row_byte_len = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        stride = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
         void *real_buffer = all_para[1].data;
 
-        d_glGraphicBufferData(opengl_context, g_buffer_id, buf_len, real_buffer);
+        //注意得传入r_context
+        d_glGraphicBufferData(r_context, ctx, g_buffer_id, width, height, buf_len, row_byte_len, stride, real_buffer);
     }
     break;
 
     case FUNID_glReadGraphicBuffer:
 
     {
+        EGLContext ctx;
         uint64_t g_buffer_id;
+        int width;
+        int height;
         int buf_len;
+        int row_byte_len;
+        int stride;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (para_num < PARA_NUM_MIN_glReadGraphicBuffer)
@@ -26957,7 +27115,7 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (temp_len < (8*2+4*5) * 1)
         {
             break;
         }
@@ -26979,15 +27137,32 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned int temp_loc = 0;
 
+        ctx = *(EGLContext *)(temp + temp_loc);
+        temp_loc += 8;
+
         g_buffer_id = *(uint64_t *)(temp + temp_loc);
         temp_loc += 8;
+
+        width = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        height = *(int *)(temp + temp_loc);
+        temp_loc += 4;
 
         buf_len = *(int *)(temp + temp_loc);
         temp_loc += 4;
 
+        row_byte_len = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+        stride = *(int *)(temp + temp_loc);
+        temp_loc += 4;
+
+
         void *real_buffer = all_para[1].data;
 
-        d_glReadGraphicBuffer(opengl_context, g_buffer_id, buf_len, real_buffer);
+        //注意得传入r_context
+        d_glReadGraphicBuffer(r_context, ctx, g_buffer_id, width, height, buf_len, row_byte_len, stride, real_buffer);
     }
     break;
 
@@ -28160,11 +28335,217 @@ void gl3_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     break;
 
+    // case FUNID_glBindSharedGLImage:
+
+    // {
+
+    //     /* Define variables */
+    //     GLenum target;
+    //     GLint texture;
+    //     EGLContext share_ctx;
+
+
+    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    //     if (para_num < PARA_NUM_MIN_glBindSharedGLImage)
+    //     {
+    //         break;
+    //     }
+
+    //     size_t temp_len = 0;
+    //     unsigned char *temp = NULL;
+
+    //     temp_len = all_para[0].data_len;
+    //     if (temp_len < 4+4+8)
+    //     {
+    //         break;
+    //     }
+
+    //     int null_flag = 0;
+    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+    //     if (temp == NULL)
+    //     {
+    //         if (temp_len != 0 && null_flag == 0)
+    //         {
+    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+    //         }
+    //         else
+    //         {
+    //             break;
+    //         }
+    //     }
+
+    //     unsigned int temp_loc = 0;
+
+    //     target = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     texture = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     share_ctx = *(EGLContext *)(temp + temp_loc);
+    //     temp_loc += 8;
+
+    //     /* Check length */
+    //     if (temp_len < temp_loc)
+    //     {
+    //         break;
+    //     }
+
+    //     Opengl_Context *share_context = (Opengl_Context *)g_hash_table_lookup(render_context->process_context->context_map, GUINT_TO_POINTER(share_ctx));
+
+    //     d_glBindSharedGLImage(opengl_context, target, texture, share_context);
+    // }
+    // break;
+
+    // case FUNID_glFramebufferSharedTexture2D:
+
+    // {
+
+    //     GLenum target;
+    //     GLenum attachment;
+    //     GLenum textarget;
+    //     GLuint texture;
+    //     GLint level;
+    //     EGLContext share_ctx;
+
+    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    //     if (para_num < PARA_NUM_MIN_glFramebufferSharedTexture2D)
+    //     {
+    //         break;
+    //     }
+
+    //     size_t temp_len = 0;
+    //     unsigned char *temp = NULL;
+
+    //     temp_len = all_para[0].data_len;
+    //     if (temp_len < 20 * 1 + 8)
+    //     {
+    //         break;
+    //     }
+
+    //     int null_flag = 0;
+    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+    //     if (temp == NULL)
+    //     {
+    //         if (temp_len != 0 && null_flag == 0)
+    //         {
+    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+    //         }
+    //         else
+    //         {
+    //             break;
+    //         }
+    //     }
+
+    //     unsigned int temp_loc = 0;
+
+    //     target = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     attachment = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     textarget = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     texture = *(GLuint *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     level = *(GLint *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     share_ctx = *(EGLContext *)(temp + temp_loc);
+    //     temp_loc += 8;
+
+    //     /* Check length */
+    //     if (temp_len < temp_loc)
+    //     {
+    //         break;
+    //     }
+    //     // GLuint t;
+    //     // glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
+    //     // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
+    //     Opengl_Context *share_context = (Opengl_Context *)g_hash_table_lookup(render_context->process_context->context_map, GUINT_TO_POINTER(share_ctx));
+        
+        
+    //     d_glFramebufferSharedTexture2D(opengl_context, target, attachment, textarget, texture, level, share_context);
+    // }
+    // break;
+
+    // case FUNID_glFramebufferEGLImage:
+
+    // {
+
+
+    //     /* Define variables */
+    //     GLenum target;
+    //     GLenum attachment;
+    //     GLenum textarget;
+    //     GLeglImageOES image;
+    //     GLint level;
+
+    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    //     if (para_num < PARA_NUM_MIN_glFramebufferEGLImage)
+    //     {
+    //         break;
+    //     }
+
+    //     size_t temp_len = 0;
+    //     unsigned char *temp = NULL;
+
+    //     temp_len = all_para[0].data_len;
+    //     if (temp_len < 24 * 1)
+    //     {
+    //         break;
+    //     }
+
+    //     int null_flag = 0;
+    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+    //     if (temp == NULL)
+    //     {
+    //         if (temp_len != 0 && null_flag == 0)
+    //         {
+    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+    //         }
+    //         else
+    //         {
+    //             break;
+    //         }
+    //     }
+
+    //     unsigned int temp_loc = 0;
+
+    //     target = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     attachment = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     textarget = *(GLenum *)(temp + temp_loc);
+    //     temp_loc += 4;
+
+    //     image = *(uint64_t *)(temp + temp_loc);
+    //     temp_loc += 8;
+
+    //     level = *(GLint *)(temp + temp_loc);
+    //     temp_loc += 4;
+    //     /* Check length */
+    //     if (temp_len < temp_loc)
+    //     {
+    //         break;
+    //     }
+    //     d_glFramebufferEGLImage(opengl_context, target, attachment, textarget, image, level);
+    // }
+    // break;
+
     default:
     {
         printf("error! invoke call id %llx not exist!\n",call->id);
-        break;
     }
+    break;
     }
 
     if(no_ptr_buf!=NULL)

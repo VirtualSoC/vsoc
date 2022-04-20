@@ -65,6 +65,30 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
     return 0;
 }
 
+
+long long set_host_map_id(Resource_Map_Status *status, int guest_id, int host_id)
+{
+    //这个函数只可能被texture资源使用到
+    if (guest_id > status->max_id || status->max_id == 0)
+    {
+        return;
+    }
+    long long origin_id = status->resource_id_map[guest_id];
+
+    //注意这里是设置为负值，表示来自共享的资源，这个共享通过EGLImage共享实现，因此不能随意删除，所以设置为负值
+    status->resource_id_map[guest_id] = -host_id;
+
+    if(host_id == 0)
+    {
+        //假如是设置为空的话，那就再创建一个新的
+        glGenTextures(1, &(host_id));
+        status->resource_id_map[guest_id] = host_id;
+    }
+
+    return origin_id;
+}
+
+
 /**
  * @brief 移除host这边的映射关系
  * 
@@ -100,9 +124,10 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
 
 void get_host_resource_ids(Resource_Map_Status *status, GLsizei n, const unsigned int *guest_ids, unsigned int *host_ids)
 {
+    //获取多个id时，一般用于批量化的删除，因此不删除连接共享资源的，不删除负数的
     for (int i = 0; i < n; i++)
     {
-        if (guest_ids[i] > status->max_id || status->max_id == 0)
+        if (guest_ids[i] > status->max_id || status->max_id == 0 || status->resource_id_map[guest_ids[i]] <= 0)
         {
             host_ids[i] = 0;
         }
@@ -126,7 +151,16 @@ unsigned long long get_host_resource_id(Resource_Map_Status *status, unsigned in
     {
         return 0;
     }
-    return status->resource_id_map[id];
+
+    //只有请求单个id，也就是用这个id的时候，才一定能返回正数
+    long long host_id = status->resource_id_map[id];
+
+    if(host_id < 0)
+    {
+        host_id = -host_id;
+    }
+
+    return host_id;
 }
 
 int guest_has_resource_id(Resource_Map_Status *status, unsigned int id)
@@ -157,7 +191,7 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
     {
         unsigned int host_id;
         glGenBuffers(1, &host_id);
-        printf("create buffer not in host %u guest %u\n",host_id,id);
+        // printf("create buffer not in host %u guest %u\n",host_id,id);
         unsigned long long host_id_long = host_id;
         int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
         if (ret == 0)
@@ -340,6 +374,16 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
     g_free(host_buffers);
     g_free(host_buffers_long);
 }
+
+
+long long set_share_texture(void *context, GLuint texture, GLuint share_texture)
+{
+    Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
+    Resource_Map_Status *map_status = resource_status->texture_resource;
+
+    return set_host_map_id(map_status, texture, share_texture);
+}
+
 
 void d_glGenSamplers(void *context, GLsizei count, const GLuint *samplers)
 {
@@ -578,13 +622,13 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, textures, host_buffers);
 
-    if(to_external_texture_id_map != NULL)
-    {
-        for(int i = 0;i<n;i++)
-        {
-            g_hash_table_remove(to_external_texture_id_map,GUINT_TO_POINTER(host_buffers[i]));
-        }
-    }
+    // if(to_external_texture_id_map != NULL)
+    // {
+    //     for(int i = 0;i<n;i++)
+    //     {
+    //         g_hash_table_remove(to_external_texture_id_map,GUINT_TO_POINTER(host_buffers[i]));
+    //     }
+    // }
 
     // for(int i = 0;i<n;i++)
     // {

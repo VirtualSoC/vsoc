@@ -213,6 +213,8 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
 void call_printf_flush(void)
 {
     char file_name[100];
+    static char now_file_name[100];
+    static FILE *fd = NULL;
     sprintf(file_name, "%s_%.16s.log", LOG_DIR, get_now_time());
 
     for (int i = 0; file_name[i] != 0; i++)
@@ -220,11 +222,24 @@ void call_printf_flush(void)
         if (file_name[i] == ':')
             file_name[i] = '-';
     }
-    FILE *fd = fopen(file_name, "a+");
+
+    if(fd==NULL||strcmp(now_file_name, file_name)!=0)
+    {
+        strcpy(now_file_name,file_name);
+        if(fd!=NULL)
+        {
+            fclose(fd);
+        }
+        fd = fopen(file_name, "a+");
+    }
+
+    
+    // FILE *fd = fopen(file_name, "a+");
     print_buf[loc] = '\n';
     print_buf[loc + 1] = '\n';
     fwrite(print_buf, sizeof(char), loc + 2, fd);
-    fclose(fd);
+    // fclose(fd);
+    fflush(fd);
     // memset(print_buf, 0, LOG_FILE_SIZE);
     // express_printf("write once %d\n",loc);
     loc = 0;

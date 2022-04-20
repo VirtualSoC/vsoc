@@ -123,7 +123,7 @@ typedef struct Resource_Map_Status
     unsigned int max_id;
     unsigned int map_size;
     // unsigned int now_map_len;
-    unsigned long long *resource_id_map;
+    long long *resource_id_map;
 } Resource_Map_Status;
 
 typedef struct Share_Resources
@@ -210,18 +210,27 @@ typedef struct Opengl_Context
     GLsizei view_w;
     GLsizei view_h;
 
-    Window_Buffer *draw_surface;
+    // Window_Buffer *draw_surface;
 
     // int has_init;
     int is_current;
     int need_destroy;
+    EGLContext guest_context;
 
     // external_texture不受到当前激活的纹理影响，只要绑定了就能用
-    EGL_Image *bind_image;
+    // EGL_Image *bind_image;
     GLuint current_active_texture;
     GLuint *current_texture_2D;
+    GLuint is_using_external_program;
     GLuint current_texture_external;
-    GLenum current_target;
+    GLuint current_pack_buffer;
+    GLuint current_unpack_buffer;
+
+    GLuint *fbo_delete;
+    int fbo_delete_loc;
+    int fbo_delete_cnt;
+    // Window_Buffer *current_external_gbuffer_id;
+    // GLenum current_target;
 } Opengl_Context;
 
 typedef struct Guest_Host_Map
@@ -234,7 +243,7 @@ typedef struct Guest_Host_Map
 } Guest_Host_Map;
 
 extern GHashTable *program_is_external_map;
-extern GHashTable *to_external_texture_id_map;
+// extern GHashTable *to_external_texture_id_map;
 extern GHashTable *program_data_map;
 
 
@@ -273,7 +282,17 @@ void d_glUseProgram_special(void *context, GLuint program);
 
 void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
 
-void d_glBindEGLImage(void *context, GLenum target, GLeglImageOES image);
+void d_glBindEGLImage(void *context, GLenum target, uint64_t image, GLuint texture, GLuint share_texture, EGLContext share_ctx);
+
+
+// void d_glBindSharedGLImage(void *context, GLenum target, GLuint texture, void *share_ctx);
+
+
+// void d_glFramebufferSharedTexture2D(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level, void *share_context);
+
+
+// void d_glFramebufferEGLImage(void *context, GLenum target, GLenum attachment, GLenum textarget, GLeglImageOES image, GLint level);
+
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
 
@@ -284,6 +303,8 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
 void resource_context_destroy(Resource_Context *resources);
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context);
+
+void opengl_context_add_fbo(Opengl_Context *context, GLuint fbo);
 
 void opengl_context_init(Opengl_Context *context);
 

@@ -32,7 +32,25 @@ void d_glTexEnvx_special(void *context, GLenum target, GLenum pname, GLfixed par
 
 void d_glTexParameterx_special(void *context, GLenum target, GLenum pname, GLint param)
 {
-    glTexParameteri(target, pname, param);
+    Opengl_Context *opengl_context = (Opengl_Context*)context; 
+    if(target == GL_TEXTURE_EXTERNAL_OES)
+    {
+        if(opengl_context->current_active_texture!=0)
+        {
+            glActiveTexture(GL_TEXTURE0);
+        }
+        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glTexParameterx(GL_TEXTURE_2D, pname, param);
+        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
+        if(opengl_context->current_active_texture!=0)
+        {
+            glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        }
+    }
+    else
+    {
+        glTexParameteri(target, pname, param);
+    }
 }
 
 void d_glShadeModel_special(void *context, GLenum mode)
@@ -50,11 +68,13 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
     fz = z <= 0 ? 0.0f : z;
     fz = fz * 2.0f - 1.0f;
 
+
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&pre_vbo);
     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint *)&pre_ebo);
 
     glUseProgram(draw_texi_program);
 
+    // printf("glv1 draw texture %d x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f\n",opengl_context->current_texture_2D[opengl_context->current_active_texture], x, y, z, width, height, left_x, right_x, bottom_y, top_y);
 
     GLint now_texture_target;
     glGetIntegerv(GL_ACTIVE_TEXTURE, &now_texture_target);

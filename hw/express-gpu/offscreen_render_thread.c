@@ -50,11 +50,11 @@ int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct
 
 static gboolean g_window_Surface_destroy(gpointer key, gpointer data, gpointer user_data);
 
-static void g_p_surface_map_destroy(gpointer data);
+static void g_surface_map_destroy(gpointer data);
 
 static void g_context_map_destroy(gpointer data);
 
-static void g_image_map_destroy(gpointer data);
+static void gbuffer_map_destroy(gpointer data);
 
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
@@ -362,10 +362,10 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
             process = g_malloc(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             //注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
-            process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_p_surface_map_destroy);
+            process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
             // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
-            process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-            process->gbuffer_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_image_map_destroy);
+            // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+            process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
             process->egl_sync_resource = g_malloc(sizeof(Resource_Map_Status));
             process->egl_sync_resource->map_size = 0;
             process->egl_sync_resource->max_id = 0;
@@ -426,25 +426,25 @@ void render_context_init(Thread_Context *context)
 //     }
 // }
 
-static gboolean g_window_surface_destroy(gpointer key, gpointer data, gpointer user_data)
-{
-    Window_Buffer *real_surface = (Window_Buffer *)data;
-    printf("remove window_surface %llx hold cnt %d guest_gbuffer_num %d surface type %d\n",data,real_surface->hold_surface_cnt, real_surface->guest_gbuffer_num, real_surface->type);
-    if (real_surface->type == WINDOW_SURFACE)
-    {
-        render_surface_destroy(real_surface);
-    }
-    return true;
-}
+// static gboolean g_window_surface_destroy(gpointer key, gpointer data, gpointer user_data)
+// {
+//     Window_Buffer *real_surface = (Window_Buffer *)data;
+//     printf("remove window_surface %llx hold cnt %d guest_gbuffer_num %d surface type %d\n",data,real_surface->hold_surface_cnt, real_surface->guest_gbuffer_num, real_surface->type);
+//     if (real_surface->type == WINDOW_SURFACE)
+//     {
+//         render_surface_destroy(real_surface);
+//     }
+//     return true;
+// }
 
-static void g_p_surface_map_destroy(gpointer data)
+static void g_surface_map_destroy(gpointer data)
 {
     Window_Buffer *real_surface = (Window_Buffer *)data;
-    if (real_surface->type == P_SURFACE)
-    {
+    // if (real_surface->type == P_SURFACE)
+    // {
         // printf("remove p_surface %llx\n",data);
-        render_surface_destroy(real_surface);
-    }
+    render_surface_destroy(real_surface);
+    // }
 }
 
 static void g_context_map_destroy(gpointer data)
@@ -466,46 +466,54 @@ static void g_context_map_destroy(gpointer data)
         //     glfwDestroyWindow(real_context->window);
         // }
 #else
-        printf("destroy context %llx\n",real_context);
+        // printf("destroy context %llx\n",real_context);
         opengl_context_destroy(real_context);
         g_free(real_context);
 #endif
     }
 }
 
-static void g_image_map_destroy(gpointer data)
+static void gbuffer_map_destroy(gpointer data)
 {
-    EGL_Image *real_image = (EGL_Image *)data;
+    Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
+    // EGL_Image *real_image = (EGL_Image *)data;
     // printf("destroy image invoke\n");
     // PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
     // send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
 
+    gbuffer->remain_life_time--;
+    gbuffer->is_dying = 1;
 
-    if(real_image->target != EGL_GL_TEXTURE_2D)
-    {
-        if(real_image->fbo_texture != 0)
-        {
-            send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture);
-        }
-        if(real_image->fbo_texture_reverse != 0)
-        {
-            send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture_reverse);
-        }
-    }
+    // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
+
+    send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
 
 
-    if (real_image->fbo_sync != NULL)
-    {
-        send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync);
-    }
-    if (real_image->fbo_sync_need_delete != NULL)
-    {
-        send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync_need_delete);
-    }
+    // if(real_image->target != EGL_GL_TEXTURE_2D)
+    // {
+    //     if(real_image->fbo_texture != 0)
+    //     {
+    //         send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture);
+    //     }
+    //     if(real_image->fbo_texture_reverse != 0)
+    //     {
+    //         send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture_reverse);
+    //     }
+    // }
 
-    set_gbuffer_id_image(real_image->gbuffer_id, real_image, NULL);
 
-    g_free(real_image);
+    // if (real_image->fbo_sync != NULL)
+    // {
+    //     send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync);
+    // }
+    // if (real_image->fbo_sync_need_delete != NULL)
+    // {
+    //     send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync_need_delete);
+    // }
+
+    // set_gbuffer_id_image(real_image->gbuffer_id, real_image, NULL);
+
+    // g_free(real_image);
     return;
 
 }
@@ -515,11 +523,11 @@ void render_context_destroy(Thread_Context *context)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-#ifdef USE_GLFW_AS_WGL
-    glfwMakeContextCurrent(NULL);
-#else
-    egl_makeCurrent(NULL);
-#endif
+// #ifdef USE_GLFW_AS_WGL
+//     glfwMakeContextCurrent(NULL);
+// #else
+//     egl_makeCurrent(NULL);
+// #endif
 
     //保证都不是current状态，确保能够删除成功
     if (thread_context->render_double_buffer_read != NULL)
@@ -551,14 +559,15 @@ void render_context_destroy(Thread_Context *context)
     {
         // printf("process destroy everything\n");
         g_hash_table_destroy(process_context->context_map);
-        //surface_map这个是删除p_surface
+
         g_hash_table_destroy(process_context->surface_map);
-        //native的这个map是删除Window_Surface
-        g_hash_table_foreach_remove(process_context->native_window_surface_map, g_window_surface_destroy, NULL);
-        g_hash_table_destroy(process_context->native_window_surface_map);
+
+        // g_hash_table_foreach_remove(process_context->native_window_surface_map, g_window_surface_destroy, NULL);
+        // g_hash_table_destroy(process_context->native_window_surface_map);
 
         //image删除，这里主要是为了释放gbuffer映射
-        g_hash_table_destroy(process_context->gbuffer_image_map);
+        // printf("destroy process context\n");
+        g_hash_table_destroy(process_context->gbuffer_map);
 
         send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);
 

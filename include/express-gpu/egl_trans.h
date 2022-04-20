@@ -141,6 +141,10 @@
 
 #define PARA_NUM_MIN_eglSetGraphicBufferID (1)
 
+// #define FUNID_eglRemainImage ((EXPRESS_GPU_FUN_ID << 32u) + 10046)
+
+// #define PARA_NUM_MIN_eglRemainImage (1)
+
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call);
 
 #endif

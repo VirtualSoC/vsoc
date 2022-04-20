@@ -6,6 +6,22 @@
 #include "express-gpu/express_gpu_render.h"
 
 
+
+
+typedef struct Dying_List_Node{
+    void *data;
+    struct Dying_List_Node *next;
+    struct Dying_List_Node *prev;
+} Dying_List_Node;
+
+
+typedef struct Dying_List{
+    Dying_List_Node *header;
+    Dying_List_Node *tail;
+    int num;
+
+} Dying_List;
+
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
  * 
@@ -24,6 +40,14 @@ int pixel_size_calc(GLenum format, GLenum type);
 size_t gl_sizeof(GLenum type);
 
 size_t gl_pname_size(GLenum pname);
+
+typedef int (*Dying_Function)(void *data);
+
+Dying_List *dying_list_append(Dying_List *list, void *data);
+
+Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun);
+
+
 
 
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d);

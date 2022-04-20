@@ -27,6 +27,7 @@
 #define MAIN_DESTROY_ALL_EGLSYNC 6
 #define MAIN_DESTROY_ONE_SYNC 7
 #define MAIN_DESTROY_ONE_TEXTURE 8
+#define MAIN_DESTROY_GBUFFER 9
 
 
 #define ATOMIC_LOCK(s)                       \
@@ -173,7 +174,125 @@ typedef struct Static_Context_Values
      GLuint64 extensions[512];
      //大概需要512*100+400左右的空间存放字符串，这么大的空间应该是够了
 
-} Static_Context_Values;
+}__attribute__((packed, aligned(1))) Static_Context_Values;
+
+// struct Static_Context_Values1
+// {
+
+//      GLint num_extensions;
+//      GLint major_version;
+//      GLint minor_version;
+//      GLint implementation_color_read_format;
+//      GLint implementation_color_read_type;
+//      GLint max_array_texture_layers;
+//      GLint max_color_attachments;
+//      GLint max_combined_uniform_blocks;
+//      GLint max_draw_buffers;
+//      GLint max_fragment_input_components;
+//      GLint max_fragment_uniform_blocks;
+//      GLint max_program_texel_offset;
+//      GLint max_transform_feedback_interleaved_components;
+//      GLint max_transform_feedback_separate_attribs;
+//      GLint max_transform_feedback_separate_components;
+//      GLint max_uniform_buffer_bindings;
+//      GLint max_varying_components;
+//      GLint max_varying_vectors;
+//      GLint max_vertex_output_components;
+//      GLint max_vertex_uniform_blocks;
+//      GLint min_program_texel_offset;
+//      GLint num_program_binary_formats;
+//      //     GLint samples;
+//      //     GLint sample_buffers;
+//      //____________ QUERY HOST ___________
+//      GLint subpixel_bits;
+//      GLint num_compressed_texture_formats;
+//      GLint compressed_texture_formats[128];
+//      GLint max_3d_texture_size;
+//      GLint max_texture_size;
+//      GLint max_combined_texture_image_units;
+//      GLint max_cube_map_texture_size;
+//      GLint max_elements_vertices;
+//      GLint max_elements_indices;
+//      GLint max_fragment_uniform_components;
+//      GLint max_fragment_uniform_vectors;
+//      GLint max_renderbuffer_size;
+//      GLint max_vertex_attribs;
+//      GLint max_image_units;
+//      GLint max_vertex_attrib_bindings;
+//      GLint max_computer_uniform_blocks;
+//      GLint max_computer_texture_image_units;
+//      GLint max_computer_image_uniforms;
+//      GLint max_computer_sharde_memory_size;
+//      GLint max_computer_uniform_components;
+//      GLint max_computer_atomic_counter_buffers;
+//      GLint max_computer_atomic_counters;
+//      GLint max_combined_compute_uniform_components;
+//      GLint max_computer_work_group_invocations;
+//      GLint max_computer_work_group_count[3];
+//      GLint max_computer_work_group_size[3];
+//      GLint max_uniform_locations;
+//      GLint max_framebuffer_width;
+//      GLint max_framebuffer_height;
+//      GLint max_framebuffer_samples;
+//      GLint max_vertex_atomic_counter_buffers;
+//      GLint max_fragment_atomic_counter_buffers;
+//      GLint max_combined_atomic_counter_buffers;
+//      GLint max_vertex_atomic_counters;
+//      GLint max_fragment_atomic_counters;
+//      GLint max_combined_atomic_counters;
+//      GLint max_atomic_counter_buffer_size;
+//      GLint max_atomic_counter_buffer_bindings;
+//      GLint max_vertex_image_uniforms;
+//      GLint max_fragment_image_uniforms;
+//      GLint max_combined_image_uniforms;
+//      GLint max_vertex_shader_storage_blocks;
+//      GLint max_fragment_shader_storage_blocks;
+//      GLint max_compute_shader_storage_blocks;
+//      GLint max_combined_shader_storage_blocks;
+//      GLint max_shader_storage_buffer_bindings;
+//      GLint max_shader_storage_block_size;
+//      GLint max_combined_shader_output_resources;
+//      GLint min_program_texture_gather_offset;
+//      GLint max_program_texture_gather_offset;
+//      GLint max_sample_mask_words;
+//      GLint max_color_texture_samples;
+//      GLint max_depth_texture_samples;
+//      GLint max_integer_samples;
+//      GLint max_vertex_attrib_relative_offset;
+//      // GLint max_vertex_attrib_bindings;
+//      GLint max_vertex_attrib_stride;
+//      GLint max_vertex_texture_image_units;
+//      GLint max_vertex_uniform_components;
+//      GLint max_vertex_uniform_vectors;
+//      GLint max_viewport_dims[2];
+//      GLint max_samples;
+//      // GLint max_atomic_counter_buffer_bindings;
+//      // GLint max_shader_storage_buffer_bindings;
+//      GLint num_shader_binary_formats;
+//      GLint program_binary_formats[8];
+//      GLint shader_binary_formats[8];
+//      //     GLint uniform_buffer_offset_alignment;
+//      //     GLint shader_storage_buffer_offset_alignment;
+//      GLfloat aliased_line_width_range[2];
+//      GLfloat aliased_point_size_range[2];
+//      GLfloat max_texture_log_bias;
+//      GLint64 max_element_index;
+//      // GLint64 max_server_wait_timeout;
+//      // GLint64 max_combined_fragment_uniform_components;
+//      // GLint64 max_combined_vertex_uniform_components;
+//      // GLint64 max_uniform_block_size;
+//      // //下面实际要作为指针使用，保证与32位应用的兼容性，所以要这样弄
+//      // GLuint64 vendor;
+//      // GLuint64 version;
+//      // GLuint64 renderer;
+//      // GLuint64 shading_language_version;
+//      // GLuint64 extensions_gles2;
+//      // GLuint64 extensions[512];
+//      //大概需要512*100+400左右的空间存放字符串，这么大的空间应该是够了
+
+// } __attribute__((aligned (1)));
+
+// typedef struct Static_Context_Values1 Static_Context_Values1;
 
 // extern HWND draw_native_window;
 
@@ -192,31 +311,38 @@ int draw_wait_GSYNC(void *event, int wait_frame_num);
 
 // void render_windows_create(Window_Buffer *context);
 
-void set_compose_surface(Window_Buffer *origin_surface, Window_Buffer *new_surface);
+// void set_compose_surface(Window_Buffer *origin_surface, Window_Buffer *new_surface);
 
-GLuint acquire_texture_from_surface(Window_Buffer *surface);
+// GLuint acquire_texture_from_surface(Window_Buffer *surface);
 
-void release_texture_from_surface(Window_Buffer *surface);
+// void release_texture_from_surface(Window_Buffer *surface);
 
-GLuint acquire_texture_from_image(EGL_Image *image);
+// GLuint acquire_texture_from_image(EGL_Image *image);
 
-void init_image_texture(EGL_Image *image);
+// void init_image_texture(EGL_Image *image);
 
-void init_image_fbo(EGL_Image *image, int need_reverse);
+// void init_image_fbo(EGL_Image *image, int need_reverse);
 
-void release_texture_from_image(EGL_Image *image);
+// void release_texture_from_image(EGL_Image *image);
 
-Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id);
+// Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id);
 
-void release_surface(Window_Buffer *real_surface);
+// void release_surface(Window_Buffer *real_surface);
 
-void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, Window_Buffer *now_surface);
+// void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, Window_Buffer *now_surface);
 
-EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id);
+// EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id);
 
-void set_gbuffer_id_image(uint64_t gbuffer_id, EGL_Image *origin_image, EGL_Image *now_image);
+// void set_gbuffer_id_image(uint64_t gbuffer_id, EGL_Image *origin_image, EGL_Image *now_image);
+
+void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer);
+
+
+Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
 
 void send_message_to_main_window(int message_code, void *data);
+
+void set_display_gbuffer(Graphic_Buffer *gbuffer);
 
 // bool should_give_up_gpu();
 
