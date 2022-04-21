@@ -83,6 +83,7 @@ char *get_now_time(void)
     time_cnt++;
     gint64 t_int = g_get_real_time();
     GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_int / 1000000);
+    t = g_date_time_to_local(t);
     gchar *t_s1 = g_date_time_format(t, "%F %T");
     sprintf(time_str, "%s.%06lld  %llu ", t_s1, t_int % 1000000, time_cnt);
     g_free(t_s1);

@@ -96,10 +96,12 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     }
     if (render_context->opengl_context != NULL)
     {
-        // GLenum error_code = glGetError();
-        // if(error_code!=GL_NO_ERROR){
-        //     printf("#fun_id %llu get error %lx\n",fun_id,error_code);
-        // }
+#ifdef ENABLE_OPENGL_DEBUG
+        GLenum error_code = glGetError();
+        if(error_code!=GL_NO_ERROR){
+            printf("#fun_id %llu get error %lx\n",fun_id,error_code);
+        }
+#endif
     }
     return;
 }

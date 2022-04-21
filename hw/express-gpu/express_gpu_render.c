@@ -96,6 +96,24 @@ static long window_height = 0;
 static long real_window_width = 0;
 static long real_window_height = 0;
 
+
+static double mouse_pos_record[100][100];
+static int mouse_pos_record_num[100];
+static int key_repeat_cnt[100];
+static int mouse_click_record[100];
+static int key_is_repeat[100];
+static int now_press_key;
+static double now_mouse_xpos;
+static double now_mouse_ypos;
+
+
+
+static bool is_replaying;
+static int replaying_key;
+
+static bool is_click;
+
+
 // static Window_Buffer *compose_surface;
 
 static Graphic_Buffer *display_gbuffer;
@@ -263,7 +281,81 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
         down = true;
     }
 
-    qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
+    if((mods & GLFW_MOD_ALT)!=0 && (action == GLFW_PRESS || action == GLFW_REPEAT) && key < 100)
+    {
+        if(key_is_repeat[key]==0)
+        {
+            // printf("press key %d\n",key);
+            now_press_key = key;
+            key_is_repeat[key] = 1;
+            mouse_click_record[key] = 0;
+            mouse_pos_record_num[key] = 0;
+            key_repeat_cnt[key] = 0;
+
+        }
+
+        // if(mouse_click_record[key]==1 && (mods & GLFW_MOD_SHIFT)!=0)
+        // {
+        //     if(action == GLFW_REPEAT && mouse_pos_record_num[key]<50)
+        //     {
+        //         mouse_pos_record[key][mouse_pos_record_num[key]*2] = now_mouse_xpos;
+        //         mouse_pos_record[key][mouse_pos_record_num[key]*2+1] = now_mouse_ypos;
+        //         mouse_pos_record_num[key]++;
+        //     }
+        // }
+
+    }
+
+
+    if(action == GLFW_RELEASE && key < 100)
+    {
+        key_is_repeat[key]=0;
+        now_press_key = 0;
+    }
+
+    if(mouse_click_record[key]==1 && key_is_repeat[key] == 0)
+    {
+        // printf("replay %d\n",key);
+
+
+        if(action == GLFW_PRESS)
+        {
+            // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(mouse_pos_record[key][0] / real_window_width * window_width), 0, window_width);
+            // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(mouse_pos_record[key][1] / real_window_height * window_height), 0, window_height);
+            // qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, true);
+            // key_repeat_cnt[key] = 1;
+            // printf("replay click pos1 %lf %lf\n",mouse_pos_record[key][0],mouse_pos_record[key][1]);
+            if(is_click)
+            {
+                qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, false);
+                is_click = false;
+            }
+            if(is_replaying)
+            {
+                return;
+            }
+            is_replaying = true;
+            replaying_key = key;
+            key_repeat_cnt[key]=0;
+        }
+        else if(action == GLFW_REPEAT)
+        {
+            // printf("replay hold\n");
+        }
+        else
+        {
+            is_replaying = false;
+            // printf("replay release\n");
+            qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, false);
+        }
+    }
+    else
+    {
+        qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
+
+    }
+
+
     // qemu_input_event_sync();
 
     // printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
@@ -271,6 +363,17 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
 
 static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
 {
+    now_mouse_xpos = xpos;
+    now_mouse_ypos = ypos;
+
+    // printf("now mouse %lf %lf\n", xpos,ypos);
+
+    if(is_replaying)
+    {
+        return;
+    }
+
+
 #ifdef ENSURE_SAME_WIDTH_HEIGHT_RATIO
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(xpos / real_window_width * window_width), 0, window_width);
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(ypos / real_window_height * window_height), 0, window_height);
@@ -298,6 +401,17 @@ static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double y
 static void mouse_click_handle_callback(GLFWwindow *window, int button, int action, int mods)
 {
     InputButton btn;
+    // printf("mouse click %d %d\n",button, action);
+    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    {
+        if(now_press_key!=0)
+        {
+            // printf("record pos1 %lf %lf\n",now_mouse_xpos,now_mouse_ypos);
+            mouse_click_record[now_press_key] = 1;
+        }
+    }
+
+
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
         btn = INPUT_BUTTON_LEFT;
@@ -320,6 +434,13 @@ static void mouse_click_handle_callback(GLFWwindow *window, int button, int acti
     {
         press = false;
     }
+
+    if(is_click == press || is_replaying)
+    {
+        return;
+    }
+    is_click = press;
+
     qemu_input_queue_btn(input_receive_con, btn, press);
     // qemu_input_event_sync();
 }
@@ -1638,6 +1759,28 @@ void *native_window_thread(void *opaque)
 
         handle_child_window_event();
         glfwPollEvents();
+
+        if(is_replaying && replaying_key!=0)
+        {
+            if(key_repeat_cnt[replaying_key] < mouse_pos_record_num[replaying_key])
+            {
+                qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(mouse_pos_record[replaying_key][key_repeat_cnt[replaying_key]*2] / real_window_width * window_width), 0, window_width);
+                qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(mouse_pos_record[replaying_key][key_repeat_cnt[replaying_key]*2+1] / real_window_height * window_height), 0, window_height);
+                if(key_repeat_cnt[replaying_key] == 0)
+                {
+                    qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, true);
+                }
+                key_repeat_cnt[replaying_key]++;
+            }
+        }
+
+        if(now_press_key != 0 && mouse_click_record[now_press_key]==1 & mouse_pos_record_num[now_press_key]<50)
+        {
+            mouse_pos_record[now_press_key][mouse_pos_record_num[now_press_key]*2] = now_mouse_xpos;
+            mouse_pos_record[now_press_key][mouse_pos_record_num[now_press_key]*2+1] = now_mouse_ypos;
+            mouse_pos_record_num[now_press_key]++;
+        }
+
         qemu_input_event_sync();
 
         // ATOMIC_LOCK(compose_surface_lock);
