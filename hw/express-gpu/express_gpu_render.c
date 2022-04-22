@@ -124,9 +124,9 @@ volatile int native_render_run = 0;
 
 static QemuConsole *input_receive_con = NULL;
 
-static const GLubyte GPU_VENDOR[] = "Express_GPU (";
+static const GLubyte GPU_VENDOR[] = "Qualcomm";
 static const GLubyte GPU_VERSION[] = "OpenGL ES 3.1 (";
-static const GLubyte GPU_RENDERER[] = "OpenGL ES Translator (";
+static const GLubyte GPU_RENDERER[] = "Adreno (TM) 660";
 static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
 
 //google devide info
@@ -1218,13 +1218,13 @@ static void static_value_prepare()
 
     memcpy(temp_loc, GPU_VENDOR, sizeof(GPU_VENDOR) - 1);
     temp_loc += sizeof(GPU_VENDOR) - 1;
-    memcpy(temp_loc, gl_string, strlen(gl_string));
-    temp_loc += strlen(gl_string);
-    *temp_loc = ')';
-    temp_loc++;
+    // memcpy(temp_loc, gl_string, strlen(gl_string));
+    // temp_loc += strlen(gl_string);
+    // *temp_loc = ')';
+    // temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    printf("\ngl vendor:%s\n", string_loc + (unsigned long)(preload_static_context_value->vendor));
+    printf("\ngl vendor:%s\n", (char *)gl_string);
 
     gl_string = glGetString(GL_VERSION);
     preload_static_context_value->version = (unsigned long long)(temp_loc - string_loc);
@@ -1244,13 +1244,13 @@ static void static_value_prepare()
 
     memcpy(temp_loc, GPU_RENDERER, sizeof(GPU_RENDERER) - 1);
     temp_loc += sizeof(GPU_RENDERER) - 1;
-    memcpy(temp_loc, gl_string, strlen(gl_string));
-    temp_loc += strlen(gl_string);
-    *temp_loc = ')';
-    temp_loc++;
+    // memcpy(temp_loc, gl_string, strlen(gl_string));
+    // temp_loc += strlen(gl_string);
+    // *temp_loc = ')';
+    // temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    printf("gl renderer:%s\n", string_loc + (unsigned long)(preload_static_context_value->renderer));
+    printf("gl renderer:%s\n", (char *)gl_string);
 
     preload_static_context_value->shading_language_version = (unsigned long long)(temp_loc - string_loc);
     memcpy(temp_loc, GPU_SHADER_LANGUAGE_VERSION, sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1);
