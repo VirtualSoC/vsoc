@@ -124,9 +124,9 @@ volatile int native_render_run = 0;
 
 static QemuConsole *input_receive_con = NULL;
 
-static const GLubyte GPU_VENDOR[] = "Qualcomm";
+static const GLubyte GPU_VENDOR[] = "ARM";
 static const GLubyte GPU_VERSION[] = "OpenGL ES 3.1 (";
-static const GLubyte GPU_RENDERER[] = "Adreno (TM) 660";
+static const GLubyte GPU_RENDERER[] = "Mali-G77";
 static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
 
 //google devide info
