@@ -9,7 +9,7 @@
  * 
  */
 
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "direct-express/direct_express_distribute.h"
 
 #include "direct-express/express_log.h"
@@ -21,6 +21,8 @@
 #include "express-gpu/glv3_trans.h"
 #include "express-gpu/egl_trans.h"
 #include "express-gpu/test_trans.h"
+
+#include "qemu/atomic.h"
 
 // #include "express-gpu/egl_surface.h"
 // #include "express-gpu/egl_context.h"
@@ -66,32 +68,32 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
 
-    express_printf("enter decode invoke\n");
+    // express_printf("enter decode invoke\n");
 
     uint64_t fun_id = GET_FUN_ID(call->id);
 
     if (fun_id >= 200000)
     {
-        express_printf("test decode invoke\n");
+        // express_printf("test decode invoke\n");
 
         test_decode_invoke(render_context, call);
     }
     else if (fun_id > 10000)
     {
-        express_printf("egl decode invoke %llu\n", fun_id);
+        // express_printf("egl decode invoke %llu\n", fun_id);
 
         egl_decode_invoke(render_context, call);
     }
     else if (fun_id == 9999)
     {
-        express_printf("cluster decode invoke %llu\n", fun_id);
+        // express_printf("cluster decode invoke %llu\n", fun_id);
 
         cluster_decode_invoke(context, call);
     }
     else
     {
 
-        express_printf("gl decode invoke %llu\n", fun_id);
+        // express_printf("gl decode invoke %llu\n", fun_id);
         gl3_decode_invoke(render_context, call);
     }
     if (render_context->opengl_context != NULL)
@@ -376,7 +378,8 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
 
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
         }
-        process->thread_cnt += 1;
+        atomic_inc(&(process->thread_cnt));
+        // process->thread_cnt += 1;
         thread_context->process_context = process;
         g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(unique_id), (gpointer)context);
     }
@@ -459,19 +462,9 @@ static void g_context_map_destroy(gpointer data)
     }
     else
     {
-#ifdef USE_GLFW_AS_WGL
-        // if(real_context->window != NULL)
-        // {
-        //     printf("destroy windows when remove\n");
-        //     glfwSetWindowShouldClose(real_context->window, 1);
-        //     glfwPollEvents();
-        //     glfwDestroyWindow(real_context->window);
-        // }
-#else
-        // printf("destroy context %llx\n",real_context);
+        express_printf("destroy context %llx\n",real_context);
         opengl_context_destroy(real_context);
         g_free(real_context);
-#endif
     }
 }
 
@@ -542,7 +535,7 @@ void render_context_destroy(Thread_Context *context)
     }
     if (thread_context->opengl_context != NULL)
     {
-        express_printf("render context destroy %llx\n", thread_context->opengl_context);
+        express_printf("render context destroy thread %llx context %llx when current window %llx\n", thread_context, thread_context->opengl_context, thread_context->opengl_context->window);
         // if(thread_context->opengl_context->window != NULL)
         // {
         //     printf("destroy windows when destroy all\n");
@@ -551,15 +544,15 @@ void render_context_destroy(Thread_Context *context)
         //     glfwDestroyWindow(thread_context->opengl_context->window);
         // }
         // thread_context->opengl_context->window = NULL;
-
+        egl_makeCurrent(NULL);
         thread_context->opengl_context->is_current = 0;
     }
 
-    process_context->thread_cnt -= 1;
-
-    if (process_context->thread_cnt == 0)
+    // process_context->thread_cnt -= 1;
+    express_printf("process destroy cnt %d\n",process_context->thread_cnt);
+    if (atomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
-        // printf("process destroy everything\n");
+        express_printf("process destroy everything\n");
         g_hash_table_destroy(process_context->context_map);
 
         g_hash_table_destroy(process_context->surface_map);

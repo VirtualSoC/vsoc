@@ -1,4 +1,4 @@
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 
 #include "express-gpu/egl_context.h"
 #include "express-gpu/glv3_context.h"
@@ -42,8 +42,21 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         real_share_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(share_context));
     }
 
-    Opengl_Context *opengl_context = opengl_context_create(real_share_context);
+    int independ_mode = 0;
 
+
+    for(int i =0; attrib_list[i]!=EGL_NONE;i+=2)
+    {
+        if(attrib_list[i]==0xffffff && attrib_list[i+1]==0xffffff)
+        {
+            independ_mode = 1;
+        }
+    }
+#ifdef DEBUG_INDEPEND_WINDOW
+    independ_mode = 1;
+#endif
+
+    Opengl_Context *opengl_context = opengl_context_create(real_share_context, independ_mode);
     for(int i =0; attrib_list[i]!=EGL_NONE;i+=2)
     {
         express_printf("eglcontext %llx attrib_list %x %x\n",opengl_context,attrib_list[i],attrib_list[i+1]);
@@ -51,7 +64,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
 
 
     //todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
-    // printf("#%llx context create share %llx\n",opengl_context,real_share_context);
+    express_printf("#%llx context create share %llx\n",opengl_context,real_share_context);
     express_printf("context create guest %lx host %lx\n", guest_context, opengl_context);
 
     opengl_context->guest_context = guest_context;

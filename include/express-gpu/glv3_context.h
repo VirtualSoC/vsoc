@@ -200,6 +200,10 @@ typedef struct Opengl_Context
 
     Resource_Context resource_status;
 
+
+
+
+    void *share_context;
     GHashTable *buffer_map;
     GLuint draw_fbo0;
     GLuint read_fbo0;
@@ -226,9 +230,13 @@ typedef struct Opengl_Context
     GLuint current_pack_buffer;
     GLuint current_unpack_buffer;
 
+    GLuint enable_scissor;
+
     GLuint *fbo_delete;
     int fbo_delete_loc;
     int fbo_delete_cnt;
+
+    int independ_mode;
     // Window_Buffer *current_external_gbuffer_id;
     // GLenum current_target;
 } Opengl_Context;
@@ -302,7 +310,7 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
 
 void resource_context_destroy(Resource_Context *resources);
 
-Opengl_Context *opengl_context_create(Opengl_Context *share_context);
+Opengl_Context *opengl_context_create(Opengl_Context *share_context, int independ_mode);
 
 void opengl_context_add_fbo(Opengl_Context *context, GLuint fbo);
 
@@ -310,8 +318,8 @@ void opengl_context_init(Opengl_Context *context);
 
 void opengl_context_destroy(Opengl_Context *context);
 
-void *get_native_opengl_context();
+void *get_native_opengl_context(int independ_mode);
 
-void release_native_opengl_context(void *native_context);
+void release_native_opengl_context(void *native_context, int independ_mode);
 
 #endif

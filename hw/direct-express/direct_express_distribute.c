@@ -187,7 +187,7 @@ void *get_direct_ptr(Guest_Mem *guest_mem, int *flag)
  */
 void guest_write(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
 {
-    if (guest == NULL)
+    if (guest == NULL || guest->all_len == 0)
     {
         return;
     }

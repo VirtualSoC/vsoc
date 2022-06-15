@@ -1635,6 +1635,11 @@
 #define PARA_NUM_MIN_glDrawElementsIndirect_without_bound (1)
 
 
+#define FUNID_glDiscardFramebufferEXT ((EXPRESS_GPU_FUN_ID << 32u) + 406)
+
+#define PARA_NUM_MIN_glDiscardFramebufferEXT (1)
+
+
 // #define FUNID_glBindSharedGLImage ((EXPRESS_GPU_FUN_ID << 32u) + 406)
 
 // #define PARA_NUM_MIN_glBindSharedGLImage (1)

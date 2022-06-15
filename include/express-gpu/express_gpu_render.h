@@ -42,11 +42,12 @@
 #define ATOMIC_SET_UNUSED(s) (atomic_cmpxchg(&(s), 1, 0))
 
 //是否启用opengl调试模式的宏定义
-// #define ENABLE_OPENGL_DEBUG
+#define ENABLE_OPENGL_DEBUG
 
-// 是否启用独立窗口进行调试的宏定义
+// 是否启用全局独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
 
+//下面这个宏定义已经弃用
 //是否使用glfw代替原生wgl创建pbuffer的过程，使用这个才能启用DEBUG_INDEPEND_WINDOW
 // #define USE_GLFW_AS_WGL
 
@@ -150,6 +151,10 @@ typedef struct Static_Context_Values
      GLint max_vertex_uniform_vectors;
      GLint max_viewport_dims[2];
      GLint max_samples;
+     GLint texture_image_units;
+     GLint uniform_buffer_offset_alignment;
+     GLint max_texture_anisotropy;
+
      // GLint max_atomic_counter_buffer_bindings;
      // GLint max_shader_storage_buffer_bindings;
      GLint num_shader_binary_formats;

@@ -1,8 +1,17 @@
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
+
+
+
 
 #include "express-gpu/glv3_texture.h"
 
 #include "express-gpu/offscreen_render_thread.h"
+
+
+
+
+
+#include "direct-express/express_log.h"
 
 void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, int end_loc);
 
@@ -470,7 +479,37 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
 
     // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
     prepare_unpack_texture(context, guest_mem, 0, imageSize);
+
+    // GLenum error = glGetError();
+
+    // if(error!=GL_NO_ERROR)
+    // {
+    //     printf("glCompressedTexSubImage2D prepare error %x\n",error);
+    // }
+
     glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, 0);
+
+    // error = glGetError();
+
+    // if(error!=GL_NO_ERROR)
+    // {
+    //     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    //     printf("glCompressedTexSubImage2D error %x target %d level %d xoffset %d yoffset %d width %d height %d format %x size %d\n",error,target, level, xoffset, yoffset, width, height, format, imageSize);
+    //     GLint now_texture = 0;
+    //     glGetIntegerv(GL_TEXTURE_BINDING_2D, &now_texture);
+    //     printf("current texture %d current active %d real %d is_texture %d\n",opengl_context->current_texture_2D[opengl_context->current_active_texture],
+    //         opengl_context->current_active_texture, now_texture, (int)glIsTexture(now_texture));
+
+    //     // GLint row_len = 0;
+    //     // glGetIntegerv(GL_UNPACK_ROW_LENGTH, &row_len);
+
+    //     // GLint row_len = 0;
+    //     // glGetIntegerv(GL_UNPACK_ROW_LENGTH, &row_len);
+
+
+
+    // }
+
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, ((Opengl_Context *)context)->current_unpack_buffer);
 }
 
@@ -549,7 +588,7 @@ void prepare_unpack_texture_to_egl_image(void *context, GLsizei width, GLsizei h
     int row_byte_len = buf_len / height;
     if (buf_len % height != 0)
     {
-        printf("error！ prepare_unpack_texture_to_egl_image buf_len %d %% height %d (width %d, format %x type %x) = %d!", buf_len, height, width, format, type, buf_len % height);
+        printf("error! prepare_unpack_texture_to_egl_image buf_len %d %% height %d (width %d, format %x type %x) = %d!", buf_len, height, width, format, type, buf_len % height);
     }
     for (int i = 0; i < height; i++)
     {
@@ -587,12 +626,27 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
     if(opengl_context == NULL)
     {
         opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
-        #ifdef USE_GLFW_AS_WGL
-        // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
-            glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
-        #else
-            egl_makeCurrent(opengl_context->window);
-        #endif
+        if(opengl_context == NULL)
+        {
+            printf("error! GraphicBufferData get null context!\n");
+        }
+        else
+        {
+            if(opengl_context->independ_mode==1)
+            {
+                glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+            }
+            else
+            {
+                egl_makeCurrent(opengl_context->window);
+            }
+        }
+        // #ifdef USE_GLFW_AS_WGL
+        // // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+        //     glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+        // #else
+        //     egl_makeCurrent(opengl_context->window);
+        // #endif
     }
 
     int real_width = width;
@@ -648,12 +702,20 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
 
     if(thread_context->opengl_context == NULL)
     {
-        #ifdef USE_GLFW_AS_WGL
-        // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+        if(opengl_context->independ_mode==1)
+        {
             glfwMakeContextCurrent((GLFWwindow *)NULL);
-        #else
+        }
+        else
+        {
             egl_makeCurrent(NULL);
-        #endif
+        }
+        // #ifdef USE_GLFW_AS_WGL
+        // // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+        //     glfwMakeContextCurrent((GLFWwindow *)NULL);
+        // #else
+        //     egl_makeCurrent(NULL);
+        // #endif
     }
 
     // printf("get graphic buffer from image %llx guest width %d height %d format %x len %d texture %u\n", gbuffer_id, width, height, gbuffer->format, buf_len, gbuffer->data_texture);
@@ -684,12 +746,20 @@ void d_glReadGraphicBuffer(void *r_context, EGLContext ctx, uint64_t gbuffer_id,
     if(opengl_context == NULL)
     {
         opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
-        #ifdef USE_GLFW_AS_WGL
-        // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+        if(opengl_context->independ_mode==1)
+        {
             glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
-        #else
+        }
+        else
+        {
             egl_makeCurrent(opengl_context->window);
-        #endif
+        }
+        // #ifdef USE_GLFW_AS_WGL
+        // // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+        //     glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+        // #else
+        //     egl_makeCurrent(opengl_context->window);
+        // #endif
     }
 
 

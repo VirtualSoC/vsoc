@@ -9,7 +9,7 @@
  * 
  */
 
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "express-gpu/egl_surface.h"
 #include "express-gpu/egl_display.h"
@@ -62,7 +62,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
     // now_draw_gbuffer->data_sync = wait_sync;
     // now_draw_gbuffer->is_writing = 0;
 
-    // printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n",surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
+    express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n",surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
 
     // if(surface->I_am_composer == 1)
     // {
@@ -119,7 +119,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
         next_draw_gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
         if(next_draw_gbuffer == NULL)
         {
-            // printf("create gbuffer_id %llx when surface %llx swapbuffer\n",gbuffer_id, surface);
+            express_printf("create gbuffer_id %llx when surface %llx swapbuffer context %llx width %d height %d\n",gbuffer_id, surface, opengl_context, width, height);
             next_draw_gbuffer = create_gbuffer_from_hal(width, height, hal_format, surface);
             opengl_context_add_fbo(opengl_context, next_draw_gbuffer->data_fbo);
             opengl_context_add_fbo(opengl_context, next_draw_gbuffer->sampler_fbo);
@@ -138,6 +138,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
     TIMER_START(sync)
     if (next_draw_gbuffer->data_sync != 0)
     {
+        // glFinish();
         // glClientWaitSync(next_draw_gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
         
         glWaitSync(next_draw_gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
@@ -1039,6 +1040,8 @@ void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, 
 
     Window_Buffer *host_surface = render_surface_create(config, width, height, P_SURFACE);
     host_surface->guest_surface = guest_surface;
+    
+    express_printf("pbuffer surface create host %llx guest %llx width %d height %d guest width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
 
     g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
@@ -1075,7 +1078,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
 
     Window_Buffer *host_surface = render_surface_create(config, width, height, WINDOW_SURFACE);
     host_surface->guest_surface = guest_surface;
-    // printf("surface create host %llx guest %llx width %d height %d guest width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
+    express_printf("surface create host %llx guest %llx width %d height %d guest width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
     g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 
 
@@ -1131,7 +1134,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Process_Context *process_context = thread_context->process_context;
 
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GUINT_TO_POINTER(surface));
-    // printf("destroy surface %llx\n", real_surface);
+    express_printf("destroy surface %llx\n", real_surface);
     if (real_surface == NULL)
     {
         return EGL_FALSE;
@@ -1297,14 +1300,22 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
+#ifdef ENABLE_OPENGL_DEBUG
+    GLenum error =glGetError();
+    if(error!=GL_NO_ERROR)
+    {
+        printf("error when creating gbuffer1 init error %x\n",error);
+    }
+#endif
     glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, pixel_type, NULL);
 
-    GLenum error =glGetError();
+#ifdef ENABLE_OPENGL_DEBUG
+    error =glGetError();
     if(error!=GL_NO_ERROR)
     {
         printf("error when creating gbuffer1 %x width %d height %d format %x pixel_type %x \n",error, width, height, format, pixel_type);
     }
+#endif
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1393,7 +1404,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (status != GL_FRAMEBUFFER_COMPLETE)
     {
-        printf("error！ Framebuffer is not complete! status is %x error is %x ", status, glGetError());
+        printf("error! Framebuffer is not complete! status is %x error is %x ", status, glGetError());
         printf("foramt %x pixel_type %x internal_format %x depth_internal_format %x stencil_internal_format %x\n", format, pixel_type, internal_format, depth_internal_format, stencil_internal_format);
     }
 
@@ -1564,21 +1575,31 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     }
 
     //gbuffer确实不存在，或者要create一个新的
-    if(gbuffer == NULL || gbuffer->width != width ||gbuffer->height !=height)
+    // if(gbuffer == NULL || gbuffer->width != width ||gbuffer->height !=height)
+    if(gbuffer == NULL)
     {
 
-        // printf("create image with gbuffer id %llx width %d height %d format %d\n",gbuffer_id,width ,height,hal_format);
+        express_printf("create image with gbuffer id %llx width %d height %d format %d\n",gbuffer_id,width ,height,hal_format);
         Opengl_Context *opengl_context = thread_context->opengl_context;
         if(opengl_context==NULL)
         {
             //假如现在没有opengl环境
             opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
-            #ifdef USE_GLFW_AS_WGL
-            // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+            if(opengl_context->independ_mode == 1)
+            {
                 glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
-            #else
+            }
+            else
+            {
                 egl_makeCurrent(opengl_context->window);
-            #endif
+            }
+
+            // #ifdef USE_GLFW_AS_WGL
+            // // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+            //     glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+            // #else
+            //     egl_makeCurrent(opengl_context->window);
+            // #endif
         }
 
         gbuffer = create_gbuffer_from_hal(width, height, hal_format, NULL);
@@ -1587,12 +1608,20 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
         if(thread_context->opengl_context==NULL)
         {
-            #ifdef USE_GLFW_AS_WGL
-            // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+            if(opengl_context->independ_mode == 1)
+            {
                 glfwMakeContextCurrent((GLFWwindow *)NULL);
-            #else
+            }
+            else
+            {
                 egl_makeCurrent(NULL);
-            #endif
+            }
+            // #ifdef USE_GLFW_AS_WGL
+            // // printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
+            //     glfwMakeContextCurrent((GLFWwindow *)NULL);
+            // #else
+            //     egl_makeCurrent(NULL);
+            // #endif
         }
 
         gbuffer->gbuffer_id = gbuffer_id;

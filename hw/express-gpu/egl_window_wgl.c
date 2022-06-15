@@ -166,7 +166,11 @@ void egl_makeCurrent(void *context)
     if (context != NULL)
     {
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);
-        wglMakeCurrent(pbuffer_dc, (HGLRC)context);
+        int ret = wglMakeCurrent(pbuffer_dc, (HGLRC)context);
+        if(ret == 0)
+        {
+            printf("error! makecurrent window %llx failed error %llu\n",context,(unsigned long long)GetLastError());
+        }
     }
     else
     {

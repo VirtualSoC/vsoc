@@ -1,8 +1,17 @@
 #ifndef QEMU_EXPRESS_LOG_H
 #define QEMU_EXPRESS_LOG_H
 
+
+
+// #define STD_DEBUG_LOG_GLOBAL_ON
+
+
 #ifdef STD_DEBUG_LOG
+#ifdef STD_DEBUG_LOG_GLOBAL_ON
 #define express_printf printf
+#else
+#define express_printf null_printf
+#endif
 #else
 #define express_printf null_printf
 #endif
@@ -40,4 +49,7 @@
 
 char *get_now_time(void);
 int null_printf(const char *a, ...);
+
+unsigned int updateCRC32(unsigned char ch, unsigned int crc);
+
 #endif

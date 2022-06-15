@@ -48,15 +48,15 @@
 
 #define PARA_NUM_MIN_eglChooseConfig (1)
 
-#define FUNID_eglCreatePbufferSurface ((EXPRESS_GPU_FUN_ID << 32u) + 10023)
+#define FUNID_eglCreatePbufferSurface ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u)  + 10023)
 
 #define PARA_NUM_MIN_eglCreatePbufferSurface (1)
 
-#define FUNID_eglCreateWindowSurface ((EXPRESS_GPU_FUN_ID << 32u) + 10024)
+#define FUNID_eglCreateWindowSurface ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u)  + 10024)
 
 #define PARA_NUM_MIN_eglCreateWindowSurface (1)
 
-#define FUNID_eglCreateContext ((EXPRESS_GPU_FUN_ID << 32u) + 10025)
+#define FUNID_eglCreateContext ((EXPRESS_GPU_FUN_ID << 32u) + (((unsigned long long)0x1) << 24u)  + 10025)
 
 #define PARA_NUM_MIN_eglCreateContext (1)
 
@@ -64,7 +64,7 @@
 
 #define PARA_NUM_MIN_eglDestroyContext (1)
 
-#define FUNID_eglDestroySurface ((EXPRESS_GPU_FUN_ID << 32u)  + (((unsigned long long)0x1) << 24u) + 10027)
+#define FUNID_eglDestroySurface ((EXPRESS_GPU_FUN_ID << 32u) + 10027)
 
 #define PARA_NUM_MIN_eglDestroySurface (1)
 

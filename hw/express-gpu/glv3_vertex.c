@@ -1,5 +1,5 @@
-// #define STD_DEBUG_LOG
-
+#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG_GLOBAL_ON
 #include "express-gpu/glv3_vertex.h"
 
 
@@ -13,17 +13,25 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
     GLuint max_len = offset + length;
 
     unsigned char *map_pointer = NULL;
+    // glDeleteBuffers(1, &(point_data->buffer_object[index]));
+    // glGenBuffers(1, &(point_data->buffer_object[index]));
     glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
+
+    //@todo 扩大提前申请的量级
 
     if (max_len > point_data->buffer_len[index])
     {
-        //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的两倍，类似于vector的翻倍机制
-        // glDeleteBuffers(1, &(point_data->buffer_object));
-        // glGenBuffers(1, &(point_data->buffer_object));
+        //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的10倍，类似于vector的翻倍机制，因为会画很多下，所以用10倍
+
+        int alloc_size =  max_len * BUFFER_MULTIPLY_FACTOR;
+        if(alloc_size < 1024)
+        {
+            alloc_size = 1024;
+        }
 
         //todo stream_draw需要验证
-        glBufferData(GL_ARRAY_BUFFER, max_len * BUFFER_MULTIPLY_FACTOR, NULL, GL_STREAM_DRAW);
-        point_data->buffer_len[index] = max_len * BUFFER_MULTIPLY_FACTOR;
+        glBufferData(GL_ARRAY_BUFFER, alloc_size, NULL, GL_STREAM_DRAW);
+        point_data->buffer_len[index] = alloc_size;
         map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
                                        GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
@@ -70,7 +78,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
         point_data->remain_buffer_len[index] -= length;
     }
 
-    express_printf("attrib point loc %d %d\n", point_data->buffer_loc[index], point_data->buffer_loc[index] + length);
+    express_printf("attrib point loc %d %d index %d offset %d len %d\n", point_data->buffer_loc[index], point_data->buffer_loc[index] + length,index, offset, length);
 
     glUnmapBuffer(GL_ARRAY_BUFFER);
 
@@ -79,22 +87,32 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
 
 void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLuint offset, GLuint length, const void *pointer)
 {
+    GLint vbo;
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+
     GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
+    express_printf("d_glVertexAttribPointer_without_bound index %u size %d type %x normalized %d stride %d offset %u length %d origin vbo %d\n",index, size, type, normalized, stride, offset, length, vbo);  
     glVertexAttribPointer(index, size, type, normalized, stride, loc);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
     return;
 }
 
 void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLuint offset, GLuint length, const void *pointer)
 {
+    GLint vbo;
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+
     GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
+
+    express_printf("d_glVertexAttribIPointer_without_bound index %u size %d type %x stride %d offset %u length %d origin vbo %d\n",index, size, type, stride, offset, length, vbo);  
 
     glVertexAttribIPointer(index, size, type, stride, loc);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
     return;
 }
@@ -105,12 +123,16 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
     // Buffer_Status *status = bound_buffer->buffer_status;
     Attrib_Point *point_data = bound_buffer->attrib_point;
 
+    GLint vbo;
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+
     glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
 
     express_printf("pointer offset %lld\n", offset + point_data->buffer_loc[index_father]);
     glVertexAttribPointer(index, size, type, normalized, stride, offset + point_data->buffer_loc[index_father]);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
 
     return;
 }
@@ -122,13 +144,16 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
     // Buffer_Status *status = bound_buffer->buffer_status;
     Attrib_Point *point_data = bound_buffer->attrib_point;
 
+    GLint vbo;
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+
     glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
 
     express_printf("pointer offset %lld\n", offset + point_data->buffer_loc[index_father]);
 
     glVertexAttribIPointer(index, size, type, stride, offset + point_data->buffer_loc[index_father]);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
     return;
 }
@@ -136,12 +161,27 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
 void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLintptr pointer)
 {
 
+    GLuint ebo = 0;
+    GLuint vbo = 0;
+#ifdef STD_DEBUG_LOG_GLOBAL_ON
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+#endif
+    express_printf("%llx d_glVertexAttribPointer_with_bound index %u size %d type %x normalized %d stride %d pointer %llx ebo %d vbo %d\n",context,index, size, type, normalized, stride, pointer, ebo, vbo);  
+
     glVertexAttribPointer(index, size, type, normalized, stride, (void *)pointer);
     return;
 }
 
 void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr pointer)
 {
+    GLuint ebo = 0;
+    GLuint vbo = 0;
+#ifdef STD_DEBUG_LOG_GLOBAL_ON
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+#endif
+    express_printf("%llx d_glVertexAttribIPointer_with_bound index %u size %d type %x stride %d pointer %llx ebo %d vbo %d\n",context,index, size, type, stride, pointer, ebo, vbo);  
 
     glVertexAttribIPointer(index, size, type, stride, (void *)pointer);
     return;
@@ -157,23 +197,26 @@ void d_glBindVertexArray_special(void *context, GLuint array)
 
     // bound_buffer->buffer_status=vao_status;
 
+
     Attrib_Point *temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(array));
     if (temp_point == NULL)
     {
         temp_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
+        printf("error! vao %d cannot find\n",array);
     }
 
     bound_buffer->attrib_point = temp_point;
 
     bound_buffer->buffer_status.element_array_buffer = temp_point->element_array_buffer;
     
-    glBindVertexArray(array);
+    GLuint host_array = (GLuint)get_host_array_id(context, (unsigned int)array);
+    glBindVertexArray(host_array);
 }
 
 void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
 {
     //反正array draw的时候还会传divisor，所以这里就不用保存了
-    express_printf("glVertexAttribDivisor %u %u\n", index, divisor);
+    express_printf("%llx glVertexAttribDivisor %u %u\n",context, index, divisor);
     glVertexAttribDivisor(index, divisor);
 }
 
@@ -186,11 +229,14 @@ void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
 void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
 {
     //这个enable和disable不需要设置本地状态，因为guest在发送顶点数据的时候会告知是否enable
+    express_printf("%llx glDisableVertexAttribArray %u\n",context, index);
+
     glDisableVertexAttribArray(index);
 }
 void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
 {
     //这个enable和disable不需要设置本地状态，因为guest在发送顶点数据的时候会告知是否enable
+    express_printf("%llx glEnableVertexAttribArray %u\n",context, index);
 
     glEnableVertexAttribArray(index);
 }
@@ -280,11 +326,14 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
     // {
     //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
     // }
-    // GLuint ebo;
-    // GLuint vbo;
-    // glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
-    // glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-    // printf("drawElements %x %d %x %lx vbo %u ebo %u\n",mode,(int)count,type,indices, vbo, ebo);
+
+    GLuint ebo = 0;
+    GLuint vbo = 0;
+#ifdef STD_DEBUG_LOG_GLOBAL_ON
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+#endif
+    express_printf("drawElements %x %d %x %lx vbo %u ebo %u\n",mode,(int)count,type,indices, vbo, ebo);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     if(opengl_context->is_using_external_program == 1)
     {
@@ -309,6 +358,8 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
 
     GLint buffer_loc = 0;
     unsigned char *map_pointer = NULL;
+    // glDeleteBuffers(1, &(point_data->indices_buffer_object));
+    // glGenBuffers(1, &(point_data->indices_buffer_object));
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, point_data->indices_buffer_object);
     if (length > point_data->indices_buffer_len)
     {
@@ -316,9 +367,15 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
         // glDeleteBuffers(1, &(point_data->buffer_object));
         // glGenBuffers(1, &(point_data->buffer_object));
 
+        int alloc_size =  length * BUFFER_MULTIPLY_FACTOR;
+        if(alloc_size < 1024)
+        {
+            alloc_size = 1024;
+        }
+
         //todo stream_draw需要验证
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, length * BUFFER_MULTIPLY_FACTOR, NULL, GL_STREAM_DRAW);
-        point_data->indices_buffer_len = length * BUFFER_MULTIPLY_FACTOR;
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, alloc_size, NULL, GL_STREAM_DRAW);
+        point_data->indices_buffer_len = alloc_size;
         map_pointer = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length,
                                        GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
@@ -377,7 +434,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
 
     int len = count * gl_sizeof(type);
 
-    // printf("drawElements without %x %d %x %lx len %d\n",mode,(int)count,type,indices,len);
+    express_printf("drawElements without %x %d %x %lx len %d\n",mode,(int)count,type,indices,len);
 
     GLint buffer_loc = set_indices_data(context, indices, len);
 
@@ -389,6 +446,31 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
+
+    // if(type == GL_UNSIGNED_SHORT)
+    // {
+    //     unsigned short *map_pointer = g_malloc(len);
+    //     guest_write((Guest_Mem *)indices,map_pointer,0,len);
+    //     unsigned short min_m = 0xffff,max_m = 0;
+    //     for(int i= 0;i<count;i++)
+    //     {
+    //         if(map_pointer[i] > ((Opengl_Context *)context)->attrib_data_index && ((Opengl_Context *)context)->attrib_data_index !=0)
+    //         {
+    //             printf("error! glDrawElement without indices %u max_index %d max len %d\n",(unsigned int)map_pointer[i],((Opengl_Context *)context)->attrib_data_index,((Opengl_Context *)context)->attrib_data_len);
+    //         }
+    //         if(max_m<map_pointer[i])
+    //             max_m = map_pointer[i];
+    //         if(min_m>map_pointer[i])
+    //             min_m = map_pointer[i];
+    //     }
+    //     printf("indices min %u max %u\n",(unsigned int)min_m,(unsigned int)max_m);
+
+    // }
+
+
+    // glDrawElements(mode, count, type, map_pointer);
+    // g_free(map_pointer);
+
 
     glDrawElements(mode, count, type, buffer_loc);
 

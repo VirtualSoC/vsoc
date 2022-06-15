@@ -124,9 +124,9 @@ volatile int native_render_run = 0;
 
 static QemuConsole *input_receive_con = NULL;
 
-static const GLubyte GPU_VENDOR[] = "Qualcomm";
+static const GLubyte GPU_VENDOR[] = "ARM";
 static const GLubyte GPU_VERSION[] = "OpenGL ES 3.1 (";
-static const GLubyte GPU_RENDERER[] = "Adreno (TM) 660";
+static const GLubyte GPU_RENDERER[] = "Mali-G77";
 static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
 
 //google devide info
@@ -166,8 +166,31 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*22*/ "GL_OES_texture_npot",
         /*23*/ "GL_OES_rgb8_rgba8",
         /*24*/ "GL_OES_framebuffer_object",
+        /*25*/ "GL_ARB_texture_non_power_of_two",
+        /*26*/ "GL_OES_blend_func_separate",
+        /*27*/ "GL_OES_blend_equation_separate",
+        /*28*/ "GL_OES_blend_subtract",
+        /*29*/ "GL_OES_byte_coordinates",
+        /*30*/ "GL_OES_point_size_array",
+        /*31*/ "GL_OES_point_sprite",
+        /*32*/ "GL_OES_single_precision",
+        /*33*/ "GL_OES_stencil_wrap",
+        /*34*/ "GL_OES_texture_env_crossbar",
+        /*35*/ "GL_OES_texture_mirrored_repeat",
+        /*36*/ "GL_OES_texture_cube_map",
+        /*37*/ "GL_OES_draw_texture",
+        /*38*/ "GL_OES_fbo_render_mipmap",
+        /*39*/ "GL_OES_stencil8",
+        /*40*/ "GL_EXT_texture_format_BGRA8888",
+        /*41*/ "GL_EXT_blend_minmax",
+        /*42*/ "GL_OES_standard_derivatives",
+        /*43*/ "GL_EXT_robustness",
+        /*44*/ "GL_EXT_copy_image",
+        /*45*/ "GL_EXT_texture_buffer",
+        /*46*/ "GL_OES_vertex_half_float",
+
 };
-static const int SPECIAL_EXTENSIONS_SIZE = 23;
+static const int SPECIAL_EXTENSIONS_SIZE = 46;
 
 //支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
@@ -201,7 +224,7 @@ static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
 static const int NOT_SUPPORT_EXTENSION_SIZE = 23;
 
 static void opengl_paint(Graphic_Buffer *gbuffer);
-static void *native_window_create();
+static void *native_window_create(int independ_mode);
 
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 
@@ -714,7 +737,13 @@ static void handle_child_window_event()
                 // printf("create window\n");
                 gint64 t = g_get_real_time();
                 // printf("start create window ptr %llx\n", window_ptr);
-                *window_ptr = (void *)native_window_create();
+                int independ_mode = 0;
+                if(*window_ptr!=NULL)
+                {
+                    independ_mode = 1;
+                }
+
+                *window_ptr = (void *)native_window_create(independ_mode);
                 // printf("create window time %lld window %llx\n", g_get_real_time() - t, *window_ptr);
             }
 
@@ -1011,7 +1040,7 @@ static int opengl_prepare(GLint *program, GLint *VAO)
 
     glUseProgram(programObject);
 
-    glClearColor(0, 1, 0, 1);
+    glClearColor(0, 0, 0, 1);
 
     return 1;
 }
@@ -1122,6 +1151,7 @@ static void static_value_prepare()
 
     glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &(preload_static_context_value->max_vertex_texture_image_units));
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &(preload_static_context_value->max_vertex_uniform_vectors));
+    // preload_static_context_value->max_vertex_uniform_vectors = 256;
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, &(preload_static_context_value->max_viewport_dims));
     glGetIntegerv(GL_NUM_SHADER_BINARY_FORMATS, &(preload_static_context_value->num_shader_binary_formats));
     glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &(preload_static_context_value->num_compressed_texture_formats));
@@ -1133,6 +1163,7 @@ static void static_value_prepare()
     glGetIntegerv(GL_MAX_FRAGMENT_INPUT_COMPONENTS, &(preload_static_context_value->max_fragment_input_components));
     glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &(preload_static_context_value->max_fragment_uniform_blocks));
     glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, &(preload_static_context_value->max_fragment_uniform_vectors));
+    // preload_static_context_value->max_fragment_uniform_vectors = 256;
     glGetIntegerv(GL_MAX_PROGRAM_TEXEL_OFFSET, &(preload_static_context_value->max_program_texel_offset));
     glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS, &(preload_static_context_value->max_transform_feedback_separate_attribs));
     glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS, &(preload_static_context_value->max_transform_feedback_separate_components));
@@ -1149,6 +1180,12 @@ static void static_value_prepare()
     // glGetIntegerv(GL_SAMPLES, &(preload_static_context_value->samples));
     // glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &(preload_static_context_value->shader_storage_buffer_offset_alignment));
     glGetIntegerv(GL_SUBPIXEL_BITS, &(preload_static_context_value->subpixel_bits));
+
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &(preload_static_context_value->texture_image_units));
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &(preload_static_context_value->uniform_buffer_offset_alignment));
+    glGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &(preload_static_context_value->max_texture_anisotropy));
+    // preload_static_context_value->uniform_buffer_offset_alignment = 1;
+
 
     glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, preload_static_context_value->aliased_line_width_range);
     glGetFloatv(GL_ALIASED_POINT_SIZE_RANGE, preload_static_context_value->aliased_point_size_range);
@@ -1192,6 +1229,17 @@ static void static_value_prepare()
     {
         preload_static_context_value->compressed_texture_formats[preload_static_context_value->num_compressed_texture_formats - 1] = GL_ETC1_RGB8_OES;
     }
+
+    // for(int i = 0; i<preload_static_context_value->num_compressed_texture_formats && i<128;i++)
+    // {
+    //     printf("support compress texture%d %x \n",i, preload_static_context_value->compressed_texture_formats[i]);
+    // }
+    // printf("binary formats num %d eg %d shader formats num %d eg %d\n",preload_static_context_value->num_program_binary_formats,
+    //     preload_static_context_value->program_binary_formats[0], 
+    //     preload_static_context_value->num_shader_binary_formats,
+    //     preload_static_context_value->shader_binary_formats[0]);
+    // preload_static_context_value->num_program_binary_formats =0;
+    // preload_static_context_value->num_shader_binary_formats = 0;
 
     if (preload_static_context_value->num_program_binary_formats > 8)
     {
@@ -1548,55 +1596,94 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
  * @param width 界面的宽
  * @param height 界面的高
  */
-static void *native_window_create()
+static void *native_window_create(int independ_mode)
 {
 
     void *child_window = NULL;
+    static int windows_cnt = 0;
+    int cnt = windows_cnt++;
 
-#ifdef USE_GLFW_AS_WGL
-    static int cnt = 0;
-    char name[100];
-    sprintf(name, "opengl-child-window%d", cnt);
-    cnt++;
-
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-
-    // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
-    // int idx = 0;
-    // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
-    // {
-    //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
-    //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
-    //     glfwWindowHint(hint_enum, hint_val);
-    //     idx += 2;
-    // }
-
-    // //屏幕分离调试专用
-#ifdef DEBUG_INDEPEND_WINDOW
-    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
-#else
-//因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
-#ifdef ENABLE_OPENGL_DEBUG
-    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
-    child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
-
-    if (child_window == NULL)
+    if(independ_mode==1)
     {
-        char *s;
-        int ret = glfwGetError(&s);
-        express_printf("error code %d detail %s", ret, s);
+        char name[100];
+        sprintf(name, "opengl-child-window%d", cnt);
+
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+
+        // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
+        // int idx = 0;
+        // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
+        // {
+        //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
+        //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
+        //     glfwWindowHint(hint_enum, hint_val);
+        //     idx += 2;
+        // }
+
+        // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+
+        //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+        child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
+
+        if (child_window == NULL)
+        {
+            char *s;
+            int ret = glfwGetError(&s);
+            express_printf("error code %d detail %s", ret, s);
+        }
+    }
+    else
+    {
+        child_window = egl_createContext();
     }
 
-#endif
+// #ifdef USE_GLFW_AS_WGL
+//     static int cnt = 0;
+//     char name[100];
+//     sprintf(name, "opengl-child-window%d", cnt);
+//     cnt++;
 
-#else
-    child_window = egl_createContext();
-#endif
+//     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+//     // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+
+//     // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
+//     // int idx = 0;
+//     // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
+//     // {
+//     //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
+//     //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
+//     //     glfwWindowHint(hint_enum, hint_val);
+//     //     idx += 2;
+//     // }
+
+//     // //屏幕分离调试专用
+// #ifdef DEBUG_INDEPEND_WINDOW
+//     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+//     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+//     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+//     child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
+// #else
+// //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+// #ifdef ENABLE_OPENGL_DEBUG
+//     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+// #endif
+//     child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
+
+//     if (child_window == NULL)
+//     {
+//         char *s;
+//         int ret = glfwGetError(&s);
+//         express_printf("error code %d detail %s", ret, s);
+//     }
+
+// #endif
+
+// #else
+//     child_window = egl_createContext();
+// #endif
 
     //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
     assert(child_window != NULL);
@@ -1791,7 +1878,7 @@ void *native_window_thread(void *opaque)
             if (sdl2_no_need == 0 && window_width != 0 && window_height != 0)
             {
                 sdl2_no_need = 1;
-                glfwSetWindowSize(glfw_window, window_width, window_height);
+                glfwSetWindowSize(glfw_window, window_width*3/4, window_height*3/4);
                 glfwShowWindow(glfw_window);
             }
 

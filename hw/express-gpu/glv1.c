@@ -173,12 +173,12 @@ void prepare_draw_texi()
 
         GLint linked;
         glGetProgramiv(program_id, GL_LINK_STATUS, &linked);
-        printf("linked %d program %u", linked, program_id);
+        express_printf("linked %d program %u\n", linked, program_id);
         if (!linked)
         {
             GLint infoLen = 0;
             glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &infoLen);
-            printf("GL_INFO_LOG_LENGTH %d", infoLen);
+            printf("GL_INFO_LOG_LENGTH %d\n", infoLen);
             if (infoLen > 1)
             {
                 char *infoLog = (char *)malloc(sizeof(char) * infoLen);

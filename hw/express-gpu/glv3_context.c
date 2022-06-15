@@ -1,4 +1,4 @@
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/glv3_resource.h"
@@ -23,7 +23,7 @@ GHashTable *program_data_map = NULL;
 
 
 static volatile GList *native_context_pool = NULL;
-static int native_context_pool_size;
+static int native_context_pool_size = 0;
 static int native_context_pool_locker = 0;
 
 int memcpy_with_add_vec(char* dst, char* origin, char *fun, int len);
@@ -115,7 +115,7 @@ void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer)
 
     }
 
-    // printf("context %llx glBindBuffer target %x buffer %d pre_buffer %d\n",context, target, buffer, pre_buffer);
+    express_printf("context %llx glBindBuffer target %x buffer %d\n",context, target, buffer);
     glBindBuffer(target, buffer);
 }
 
@@ -180,7 +180,7 @@ int init_program_data(GLuint program)
 
         GLchar *name_buf = g_malloc(name_len);
 
-        buf_len = (name_len + 3 * 4) * (uniform_num + attrib_num + uniform_blocks_num) + 4 * 7 + name_len;
+        buf_len = (name_len + 4 * 4) * (uniform_num + attrib_num + uniform_blocks_num) + 4 * 7 + name_len;
         program_data = g_malloc(buf_len);
 
         GLchar *temp_ptr = program_data;
@@ -229,7 +229,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            // printf("uniform |%d %d| |%s|\n", location, type, name_buf);
+            express_printf("uniform |%d %d| |%s|\n", location, type, name_buf);
         }
 
         for (int i = 0; i < attrib_num; i++)
@@ -249,7 +249,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            // printf("attrib |%d %d| |%s|\n", location, type, name_buf);
+            express_printf("attrib |%d %d| |%s|\n", location, type, name_buf);
         }
 
         int uniform_block_active_uniforms;
@@ -267,7 +267,7 @@ int init_program_data(GLuint program)
             temp_ptr += 3 * sizeof(int);
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
-            // printf("uniform block |%d %d| |%s|\n", uniform_block_active_uniforms, size, name_buf);
+            express_printf("uniform block |%d %d| |%s| index %d\n", uniform_block_active_uniforms, size, name_buf, i);
         }
 
         if (has_image)
@@ -286,8 +286,15 @@ int init_program_data(GLuint program)
         {
             buf_len = temp_ptr - program_data + 10;
         }
+        // assert(temp_ptr-program_data <= buf_len);
         g_free(name_buf);
-
+#ifdef ENABLE_OPENGL_DEBUG
+        GLenum error =glGetError();
+        if(error != GL_NO_ERROR)
+        {
+            printf("error when create program\n");
+        }
+#endif
         return buf_len;
     }
 }
@@ -329,6 +336,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
         return;
     }
 
+    express_printf("getProgramData len %d program %d map %llx\n", buf_len, program, program_data_map);
     guest_read(guest_mem, save_program_data, 0, buf_len);
 
     //读取完成后直接删除就行了
@@ -770,12 +778,12 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
     //     return;
     // }
 
-    real_opengl_context->view_x = x;
-    real_opengl_context->view_y = y;
-    real_opengl_context->view_w = width;
-    real_opengl_context->view_h = height;
+    // real_opengl_context->view_x = x;
+    // real_opengl_context->view_y = y;
+    // real_opengl_context->view_w = width;
+    // real_opengl_context->view_h = height;
 
-    // printf("context %llx glViewport w %d h %d\n", context, width, height);
+    express_printf("context %llx glViewport w %d h %d\n", context, width, height);
     glViewport(x, y, width, height);
     return;
 }
@@ -1338,16 +1346,21 @@ void resource_context_destroy(Resource_Context *resources)
     g_free(resources->exclusive_resources);
 }
 
-void *get_native_opengl_context()
+void *get_native_opengl_context(int independ_mode)
 {
     void *native_context = NULL;
 
     ATOMIC_LOCK(native_context_pool_locker);
     GList *first= g_list_first(native_context_pool);
     ATOMIC_UNLOCK(native_context_pool_locker);
-    if(first == NULL)
+    if(first == NULL || independ_mode == 1)
     {
         // #ifdef USE_GLFW_AS_WGL
+        if(independ_mode == 1)
+        {
+            native_context = (void *)0xffffff;
+        }
+
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
         // #else
         // 不能在子线程中创建context，不然会为空
@@ -1357,7 +1370,7 @@ void *get_native_opengl_context()
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
             //等待window真正的建立起来
         int sleep_cnt = 0;
-        while (native_context == NULL)
+        while (native_context == NULL || native_context == 0xffffff)
         {
             g_usleep(1000);
             sleep_cnt += 1;
@@ -1380,10 +1393,10 @@ void *get_native_opengl_context()
 
 
 
-void release_native_opengl_context(void *native_context)
+void release_native_opengl_context(void *native_context, int independ_mode)
 {
     //假如已经保存有闲置的超过5个context，则新释放的context直接销毁，否则保存下来
-    if(native_context_pool_size < 5)
+    if(native_context_pool_size < 5 && independ_mode == 0)
     {
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_append(native_context_pool, native_context);
@@ -1392,19 +1405,28 @@ void release_native_opengl_context(void *native_context)
     }
     else
     {
+        if(independ_mode == 1)
+        {
+            glfwSetWindowShouldClose(native_context, 1);
+            glfwDestroyWindow(native_context);
+        }
+        else
+        {
+            egl_destroyContext(native_context);
+        }
 
-#ifdef USE_GLFW_AS_WGL
-    glfwSetWindowShouldClose(native_context, 1);
-    glfwDestroyWindow(native_context);
-#else
-    egl_destroyContext(native_context);
-#endif
+// #ifdef USE_GLFW_AS_WGL
+//     glfwSetWindowShouldClose(native_context, 1);
+//     glfwDestroyWindow(native_context);
+// #else
+//     egl_destroyContext(native_context);
+// #endif
     }
 
 }
 
 
-Opengl_Context *opengl_context_create(Opengl_Context *share_context)
+Opengl_Context *opengl_context_create(Opengl_Context *share_context, int independ_mode)
 {
     Opengl_Context *opengl_context = g_malloc(sizeof(Opengl_Context));
     opengl_context->is_current = 0;
@@ -1416,7 +1438,8 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     opengl_context->fbo_delete_cnt = 10;
     opengl_context->fbo_delete_loc = 0;
     opengl_context->fbo_delete = g_malloc(10*sizeof(GLuint));
-
+    opengl_context->share_context = share_context;
+    opengl_context->independ_mode = independ_mode;
 
     // opengl_context->bind_image = NULL;
 
@@ -1436,7 +1459,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     //要在opengl_context里创建window，因为opengl环境保存在window里
 // #ifdef USE_GLFW_AS_WGL
     // send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(opengl_context->window));
-    opengl_context->window = get_native_opengl_context();
+    opengl_context->window = get_native_opengl_context(independ_mode);
 // #else
 // 不能在子线程中创建context，不然会为空
 //     opengl_context->window = egl_createContext();
@@ -1447,6 +1470,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context)
     if (share_context != NULL)
     {
         share_resources = share_context->resource_status.share_resources;
+        share_context->share_context = opengl_context;
     }
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
@@ -1507,6 +1531,11 @@ void opengl_context_init(Opengl_Context *context)
         //这个非常重要，不然很多游戏非常暗，因为他们用了SRGB纹理
         glEnable(GL_FRAMEBUFFER_SRGB);
 
+        // for(int i =0;i<16;i++)
+        // {
+        //     glDisableVertexAttribArray(i);
+        // }
+
         //放到前面去了
         //原窗口大小是1*1，所以默认的viewport也是1*1，所以在初始化的时候要手动设置下viewport
         // glViewport(context->view_x, context->view_y, context->view_w, context->view_h);
@@ -1546,13 +1575,20 @@ void opengl_context_destroy(Opengl_Context *context)
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
-
-#ifdef USE_GLFW_AS_WGL
-    // printf("make current context %llx windows %llx\n",opengl_context,opengl_context->window);
-    glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
-#else
-    egl_makeCurrent(opengl_context->window);
-#endif
+    if(opengl_context->independ_mode==1)
+    {
+        glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+    }
+    else
+    {
+        egl_makeCurrent(opengl_context->window);
+    }
+// #ifdef USE_GLFW_AS_WGL
+//     // printf("make current context %llx windows %llx\n",opengl_context,opengl_context->window);
+//     glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+// #else
+//     egl_makeCurrent(opengl_context->window);
+// #endif
 
     glDeleteFramebuffers(opengl_context->fbo_delete_loc, opengl_context->fbo_delete);
 
@@ -1578,15 +1614,26 @@ void opengl_context_destroy(Opengl_Context *context)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-#ifdef USE_GLFW_AS_WGL
-#ifdef DEBUG_INDEPEND_WINDOW
-    glfwHideWindow(opengl_context->window);
-#endif
-    glfwMakeContextCurrent(NULL);
-#else
-    egl_makeCurrent(NULL);
-#endif
-    release_native_opengl_context(opengl_context->window);
+    if(opengl_context->independ_mode==1)
+    {
+        glfwHideWindow(opengl_context->window);
+        glfwMakeContextCurrent(NULL);
+    }
+    else
+    {
+        express_printf("context %llx windows %llx makecurrent null\n",opengl_context, opengl_context->window);
+        egl_makeCurrent(NULL);
+    }
+// #ifdef USE_GLFW_AS_WGL
+// #ifdef DEBUG_INDEPEND_WINDOW
+//     glfwHideWindow(opengl_context->window);
+// #endif
+//     glfwMakeContextCurrent(NULL);
+// #else
+//     express_printf("context %llx windows %llx makecurrent null\n",opengl_context, opengl_context->window);
+//     egl_makeCurrent(NULL);
+// #endif
+    release_native_opengl_context(opengl_context->window, opengl_context->independ_mode);
 }
 
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用

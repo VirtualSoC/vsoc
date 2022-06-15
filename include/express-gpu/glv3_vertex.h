@@ -10,7 +10,7 @@
 
 // #define SYNC_TIMEOUT 10000000
 
-#define BUFFER_MULTIPLY_FACTOR 2
+#define BUFFER_MULTIPLY_FACTOR 10
 
 // void safe_release_point_data_data(Attrib_Point *point_data,int index);
 

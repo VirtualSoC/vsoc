@@ -12,6 +12,8 @@
 // #include "GLES3/gl3.h"
 // #include "GLES2/gl2ext.h"
 // #include "GLES3/gl3platform.h"
+#define STD_DEBUG_LOG
+
 
 #include "express-gpu/glv3_trans.h"
 #include "express-gpu/offscreen_render_thread.h"
@@ -63,13 +65,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     Render_Thread_Context *render_context = (Render_Thread_Context *)r_context;
     Opengl_Context *opengl_context = render_context->opengl_context;
     Process_Context *process_context = render_context->process_context;
+    uint64_t fun_id=GET_FUN_ID(call->id);
+
     if (opengl_context == NULL && call->id != FUNID_glGetStaticValues && call->id != FUNID_glBindEGLImage &&
-     call->id != PARA_NUM_MIN_glReadGraphicBuffer && call->id != PARA_NUM_MIN_glGraphicBufferData)
+     call->id != FUNID_glReadGraphicBuffer && call->id != FUNID_glGraphicBufferData && call->id != FUNID_glSync)
     {
+        printf("invoke func id %llu with null context\n",fun_id);
         call->callback(call, 0);
         return;
     }
-    //uint64_t fun_id=GET_FUN_ID(call->id);
     //uint64_t is_async=FUN_IS_ASYNC(call->id);
     //uint64_t need_speed=FUN_NEED_SPEED(call->id);
     Call_Para all_para[MAX_PARA_NUM];
@@ -166,6 +170,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         GLenum ret = glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), flags, timeout);
         *ret_ptr = ret;
+
+        express_printf("glClientWaitSync context %llx guest %u host %llu ret %x\n",opengl_context, (unsigned int)sync,
+            (GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), ret);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -2509,6 +2516,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             glGetTexParameteriv(target, pname, params);
         }
 
+        // printf("glGetTexParameteriv pname %x params %d\n",pname, *params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -3361,6 +3369,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         glGetProgramBinary((GLuint)get_host_program_id(opengl_context, (unsigned int)program), bufSize, length, binaryFormat, binary);
 
+        express_printf("glGetProgramBinary len %u format %lld\n",*length,*binaryFormat);
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -7900,7 +7909,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-
+        express_printf("glFlush\n");
         glFlush();
     }
     break;
@@ -7922,7 +7931,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-
+        express_printf("glFinish\n");
         glFinish();
     }
     break;
@@ -9676,8 +9685,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-
+        express_printf("glWaitSync context %llx guest %u host %llu timeout %llu\n",opengl_context, (unsigned int)sync,
+            (GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), timeout);
         glWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), flags, timeout);
+        // glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+
     }
     break;
 
@@ -9831,7 +9843,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             printf("error! glProgramBinary program_data_len != 4 %d\n", out_buf_len);
             break;
         }
-
+        express_printf("context %llx program binary %u host %u\n",opengl_context, program,
+            (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glProgramBinary_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), binaryFormat, binary, length, program_data_len);
 
         guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
@@ -12116,6 +12129,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
+        express_printf("context %llx link program %u host %u\n",opengl_context, program,
+            (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glLinkProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), program_data_len);
 
         guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
@@ -12693,8 +12708,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        // printf("context %llx bind vertexArray guest %u host %u\n",opengl_context,array,(GLuint)get_host_array_id(opengl_context, (unsigned int)array));
-        d_glBindVertexArray_special(opengl_context, (GLuint)get_host_array_id(opengl_context, (unsigned int)array));
+        express_printf("context %llx bind vertexArray guest %u host %u\n",opengl_context,array,(GLuint)get_host_array_id(opengl_context, (unsigned int)array));
+        d_glBindVertexArray_special(opengl_context, array);
     }
     break;
 
@@ -12754,7 +12769,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-
+        express_printf("glbindbuffer target %x %d\n",target, buffer);
         d_glBindBuffer_origin(opengl_context, target, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
     }
     break;
@@ -12950,7 +12965,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-
+        express_printf("mapbufferrange glbindbufferRange target %x index %d buffer %d offset %lld size %lld end %lld\n", target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size, offset+size);
         glBindBufferRange(target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
     }
     break;
@@ -14629,7 +14644,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-
+        if(cap == GL_SCISSOR_TEST && opengl_context!=NULL)
+        {
+            opengl_context->enable_scissor = 0;
+        }
         glDisable(cap);
     }
     break;
@@ -14685,6 +14703,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         if (temp_len < temp_loc)
         {
             break;
+        }
+
+        if(cap == GL_SCISSOR_TEST && opengl_context!=NULL)
+        {
+            opengl_context->enable_scissor = 1;
         }
 
         glEnable(cap);
@@ -16487,6 +16510,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
+        express_printf("context %llx use program guest %u host %u\n",opengl_context, program, 
+            (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glUseProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
     break;
@@ -27259,6 +27284,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     case FUNID_glSync:
     {
         //用于同步，不需要做任何事情
+        printf("guest sync\n");
+        // glFinish();
+
     }
     break;
 
@@ -28333,6 +28361,80 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         d_glDrawElementsIndirect_without_bound(opengl_context, mode, type, indirect);
     }
 
+    break;
+
+    case FUNID_glDiscardFramebufferEXT:
+
+    {
+
+        /* Define variables */
+        GLenum target;
+        GLsizei numAttachments;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glDiscardFramebufferEXT)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        target = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        numAttachments = *(GLsizei *)(temp + temp_loc);
+        temp_loc += 4;
+
+        GLenum *attachments = (const GLenum *)(temp + temp_loc);
+        temp_loc += numAttachments * sizeof(GLenum);
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        for (int i = 0; i < numAttachments; i++)
+        {
+            if (attachments[i] == GL_COLOR)
+            {
+                attachments[i] = GL_COLOR_ATTACHMENT0;
+            }
+            if (attachments[i] == GL_DEPTH)
+            {
+                attachments[i] = GL_DEPTH_ATTACHMENT;
+            }
+            if (attachments[i] == GL_STENCIL)
+            {
+                attachments[i] = GL_DEPTH_STENCIL_ATTACHMENT;
+            }
+        }
+        glInvalidateFramebuffer(target, numAttachments, attachments);
+        // glDiscardFramebufferEXT(target, numAttachments, attachments);
+    }
     break;
 
     // case FUNID_glBindSharedGLImage:
