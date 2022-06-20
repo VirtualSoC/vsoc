@@ -1639,6 +1639,15 @@
 
 #define PARA_NUM_MIN_glDiscardFramebufferEXT (1)
 
+#define FUNID_glTexBuffer ((EXPRESS_GPU_FUN_ID << 32u) + 407)
+
+#define PARA_NUM_MIN_glTexBuffer (1)
+
+#define FUNID_glTexBufferRange ((EXPRESS_GPU_FUN_ID << 32u) + 408)
+
+#define PARA_NUM_MIN_glTexBufferRange (1)
+
+
 
 // #define FUNID_glBindSharedGLImage ((EXPRESS_GPU_FUN_ID << 32u) + 406)
 

@@ -181,7 +181,6 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*37*/ "GL_OES_draw_texture",
         /*38*/ "GL_OES_fbo_render_mipmap",
         /*39*/ "GL_OES_stencil8",
-        /*40*/ "GL_EXT_texture_format_BGRA8888",
         /*41*/ "GL_EXT_blend_minmax",
         /*42*/ "GL_OES_standard_derivatives",
         /*43*/ "GL_EXT_robustness",
@@ -189,8 +188,9 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*45*/ "GL_EXT_texture_buffer",
         /*46*/ "GL_OES_vertex_half_float",
 
+        // /*40*/ "GL_EXT_texture_format_BGRA8888", pc很可能是不支持的
 };
-static const int SPECIAL_EXTENSIONS_SIZE = 46;
+static const int SPECIAL_EXTENSIONS_SIZE = 46 - 1;
 
 //支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
