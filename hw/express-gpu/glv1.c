@@ -10,6 +10,7 @@
  */
 
 #include "express-gpu/glv1.h"
+#include "express-gpu/glv3_status.h"
 
 static GLuint draw_texi_vao = 0;
 static GLuint draw_texi_program = 0;
@@ -35,16 +36,18 @@ void d_glTexParameterx_special(void *context, GLenum target, GLenum pname, GLint
     Opengl_Context *opengl_context = (Opengl_Context*)context; 
     if(target == GL_TEXTURE_EXTERNAL_OES)
     {
-        if(opengl_context->current_active_texture!=0)
+
+        Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+        if(texture_status->host_current_active_texture != 0)
         {
             glActiveTexture(GL_TEXTURE0);
         }
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
         glTexParameterx(GL_TEXTURE_2D, pname, param);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        if(opengl_context->current_active_texture!=0)
+        glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+        if(texture_status->host_current_active_texture!=0)
         {
-            glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+            glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
         }
     }
     else

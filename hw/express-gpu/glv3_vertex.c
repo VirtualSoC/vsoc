@@ -1,7 +1,7 @@
 #define STD_DEBUG_LOG
 // #define STD_DEBUG_LOG_GLOBAL_ON
 #include "express-gpu/glv3_vertex.h"
-
+#include "express-gpu/glv3_status.h"
 
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer)
@@ -207,8 +207,10 @@ void d_glBindVertexArray_special(void *context, GLuint array)
 
     bound_buffer->attrib_point = temp_point;
 
-    bound_buffer->buffer_status.element_array_buffer = temp_point->element_array_buffer;
+    bound_buffer->buffer_status.guest_element_array_buffer = temp_point->element_array_buffer;
+    bound_buffer->buffer_status.host_element_array_buffer = temp_point->element_array_buffer;
     
+
     GLuint host_array = (GLuint)get_host_array_id(context, (unsigned int)array);
     glBindVertexArray(host_array);
 }
@@ -258,10 +260,13 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
     // @todo 啥都不设置直接draw会导致segment fault，需要额外处理
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
     }
 
@@ -269,8 +274,8 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 
 
@@ -301,18 +306,20 @@ void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLs
     //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
     // }
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
     glDrawArraysInstanced(mode, first, count, instancecount);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }
 
@@ -335,18 +342,20 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
 #endif
     express_printf("drawElements %x %d %x %lx vbo %u ebo %u\n",mode,(int)count,type,indices, vbo, ebo);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
     glDrawElements(mode, count, type, (void *)indices);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }
 
@@ -439,10 +448,12 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
     GLint buffer_loc = set_indices_data(context, indices, len);
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
@@ -476,8 +487,8 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
 
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -503,10 +514,12 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
     GLint buffer_loc = set_indices_data(context, indices, len);
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
@@ -515,8 +528,8 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
 
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -544,18 +557,20 @@ void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei co
     //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
     // }
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
     glDrawElementsInstanced(mode, count, type, (void *)indices, instancecount);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }
 
@@ -572,18 +587,20 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
     //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
     // }
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
     glDrawRangeElements(mode, start, end, count, type, (void *)indices);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }
 
@@ -594,18 +611,20 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
 
     GLint buffer_loc = set_indices_data(context, indices, len);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
         // printf("use external texture %d\n", opengl_context->current_texture_external);
 
     }
     glDrawRangeElements(mode, start, end, count, type, buffer_loc);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -631,16 +650,18 @@ void d_glVertexBindingDivisor_special(void *context, GLuint bindingindex, GLuint
 void d_glDrawArraysIndirect_with_bound(void *context, GLenum mode, GLintptr indirect)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
     }
     glDrawArraysIndirect(mode, (void *)indirect);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }
 
@@ -649,32 +670,36 @@ void d_glDrawArraysIndirect_without_bound(void *context, GLenum mode, const void
     //由于indirect指向的数据只是一个结构体，里面的数据量很少，所以是直接接在前面两个参数后面的，不用单独来一个para
     //由于数据量很少，所以就不用专门再搞个buffer来存储了
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
     }
     glDrawArraysIndirect(mode, indirect);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }
 
 void d_glDrawElementsIndirect_with_bound(void *context, GLenum mode, GLenum type, GLintptr indirect)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
     }
     glDrawElementsIndirect(mode, type, (void *)indirect);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }
 
@@ -684,15 +709,17 @@ void d_glDrawElementsIndirect_without_bound(void *context, GLenum mode, GLenum t
     //由于indirect指向的数据只是一个结构体，里面的数据量很少，所以是直接接在前面两个参数后面的，不用单独来一个para
     //由于数据量很少，所以就不用专门再搞个buffer来存储了
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
     if(opengl_context->is_using_external_program == 1)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+        glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
     }
     glDrawElementsIndirect(mode, type, indirect);
     if(opengl_context->is_using_external_program == 1)
     {
-        glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-        glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+        glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
 }

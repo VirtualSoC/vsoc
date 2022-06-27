@@ -22,6 +22,7 @@
 #include "express-gpu/glv3_texture.h"
 #include "express-gpu/glv3_vertex.h"
 #include "express-gpu/glv3_resource.h"
+#include "express-gpu/glv3_status.h"
 
 #include "express-gpu/glv3_context.h"
 #include "express-gpu/gl_helper.h"
@@ -2394,17 +2395,19 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
-            if(opengl_context->current_active_texture!=0)
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glGetTexParameterfv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-            if(opengl_context->current_active_texture!=0)
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
             {
-                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
+
         }
         else
         {
@@ -2499,17 +2502,20 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
-            if(opengl_context->current_active_texture!=0)
+
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glGetTexParameteriv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-            if(opengl_context->current_active_texture!=0)
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
             {
-                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
+
         }
         else
         {
@@ -3810,16 +3816,17 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
-            if(opengl_context->current_active_texture!=0)
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glGetTexParameterxvOES(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-            if(opengl_context->current_active_texture!=0)
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
             {
-                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
         }
         else
@@ -12770,7 +12777,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
         express_printf("glbindbuffer target %x %d\n",target, buffer);
-        d_glBindBuffer_origin(opengl_context, target, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
+        d_glBindBuffer_special(opengl_context, target, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
     }
     break;
 
@@ -15820,17 +15827,19 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
-            if(opengl_context->current_active_texture!=0)
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glTexParameterf(GL_TEXTURE_2D, pname, param);
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-            if(opengl_context->current_active_texture!=0)
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
             {
-                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
+
         }
         else
         {
@@ -15902,16 +15911,17 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
-            if(opengl_context->current_active_texture!=0)
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glTexParameteri(GL_TEXTURE_2D, pname, param);
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-            if(opengl_context->current_active_texture!=0)
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
             {
-                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
         }
         else
@@ -20842,16 +20852,17 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
-            if(opengl_context->current_active_texture!=0)
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glTexParameterfv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-            if(opengl_context->current_active_texture!=0)
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
             {
-                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
         }
         else
@@ -20922,17 +20933,20 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
-            if(opengl_context->current_active_texture!=0)
+
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glTexParameteriv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[0]);
-            if(opengl_context->current_active_texture!=0)
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
             {
-                glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
+
         }
         else
         {

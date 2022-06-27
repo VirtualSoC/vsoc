@@ -309,6 +309,10 @@ extern Static_Context_Values *preload_static_context_value;
 
 extern void *dummy_window_for_sync;
 
+extern int host_opengl_version;
+
+extern int DSA_enable;
+
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);
 

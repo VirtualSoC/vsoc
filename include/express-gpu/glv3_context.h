@@ -5,50 +5,36 @@
 #include "direct-express/express_log.h"
 #include "express-gpu/express_gpu_render.h"
 
+#include "express-gpu/glv3_status.h"
+
 #define MAX_VERTEX_ATTRIBS_NUM 16
 
-typedef struct Pixel_Store_Status
-{
-    //表示数据对齐的标准
-    int unpack_alignment;
-    int pack_alignment;
+// typedef struct Pixel_Store_Status
+// {
+//     //表示数据对齐的标准
+//     int unpack_alignment;
+//     int pack_alignment;
 
-    //表示对于每个图片，每一行有多少个像素点，为0的时候像素点的个数就是传入的width
-    int unpack_row_length;
-    int pack_row_length;
+//     //表示对于每个图片，每一行有多少个像素点，为0的时候像素点的个数就是传入的width
+//     int unpack_row_length;
+//     int pack_row_length;
 
-    //表示对于这个图片的读取要跳过多少行像素
-    int unpack_skip_rows;
-    int pack_skip_rows;
+//     //表示对于这个图片的读取要跳过多少行像素
+//     int unpack_skip_rows;
+//     int pack_skip_rows;
 
-    //表示对于这个图片的这一行的读取要跳过多少个像素
-    int unpack_skip_pixels;
-    int pack_skip_pixels;
+//     //表示对于这个图片的这一行的读取要跳过多少个像素
+//     int unpack_skip_pixels;
+//     int pack_skip_pixels;
 
-    //表示对于一堆图片的读取要跳过多少张图片
-    int unpack_skip_images;
+//     //表示对于一堆图片的读取要跳过多少张图片
+//     int unpack_skip_images;
 
-    //表示每张图片的高度
-    int unpack_image_height;
-} Pixel_Store_Status;
+//     //表示每张图片的高度
+//     int unpack_image_height;
+// } Pixel_Store_Status;
 
-typedef struct Buffer_Status
-{
-    GLuint array_buffer; //vbo
-    GLuint element_array_buffer; //ebo
-    GLuint copy_read_buffer;
-    GLuint copy_write_buffer;
-    GLuint pixel_pack_buffer;
-    GLuint pixel_unpack_buffer;
-    GLuint transform_feedback_buffer;
-    GLuint uniform_buffer;
-    GLuint atomic_counter_buffer;
-    GLuint dispatch_indirect_buffer;
-    GLuint draw_indirect_buffer;
-    GLuint shader_storage_buffer;
-    GLuint vertex_array_buffer; //vao
 
-} Buffer_Status;
 
 
 typedef struct Attrib_Point
@@ -113,6 +99,9 @@ typedef struct Bound_Buffer
     //std::map<GLint, Element_Array_Buffer *> ebo_buffer;
 
 } Bound_Buffer;
+
+
+
 
 typedef struct Resource_Map_Status
 {
@@ -221,14 +210,16 @@ typedef struct Opengl_Context
     int need_destroy;
     EGLContext guest_context;
 
+
+    Texture_Binding_Status texture_binding_status;
     // external_texture不受到当前激活的纹理影响，只要绑定了就能用
     // EGL_Image *bind_image;
-    GLuint current_active_texture;
-    GLuint *current_texture_2D;
+    // GLuint current_active_texture;
+    // GLuint *current_texture_2D;
     GLuint is_using_external_program;
-    GLuint current_texture_external;
-    GLuint current_pack_buffer;
-    GLuint current_unpack_buffer;
+    // GLuint current_texture_external;
+    // GLuint current_pack_buffer;
+    // GLuint current_unpack_buffer;
 
     GLuint enable_scissor;
 
@@ -256,9 +247,9 @@ extern GHashTable *program_data_map;
 
 
 
-void get_program_data(GLuint program, int buf_len, GLchar *program_data);
+// void get_program_data(GLuint program, int buf_len, GLchar *program_data);
 
-int init_program_data(GLuint program);
+// int init_program_data(GLuint program);
 
 // void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc);
 
@@ -266,31 +257,31 @@ int init_program_data(GLuint program);
 
 // void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
 
-void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer);
+// void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer);
 
-void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
+// void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
 
-void d_glLinkProgram_special(void *context, GLuint program, int *program_data_len);
+// void d_glLinkProgram_special(void *context, GLuint program, int *program_data_len);
 
-void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len);
+// void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len);
 
-void d_glGetProgramData(void *context, GLuint program, int buf_len, void *program_data);
+// void d_glGetProgramData(void *context, GLuint program, int buf_len, void *program_data);
 
-void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string);
+// void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string);
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer);
 
 void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer);
 
-void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
+// void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
 
 //
 
-void d_glUseProgram_special(void *context, GLuint program);
+// void d_glUseProgram_special(void *context, GLuint program);
 
-void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
+// void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
 
-void d_glBindEGLImage(void *context, GLenum target, uint64_t image, GLuint texture, GLuint share_texture, EGLContext share_ctx);
+// void d_glBindEGLImage(void *context, GLenum target, uint64_t image, GLuint texture, GLuint share_texture, EGLContext share_ctx);
 
 
 // void d_glBindSharedGLImage(void *context, GLenum target, GLuint texture, void *share_ctx);
@@ -302,7 +293,7 @@ void d_glBindEGLImage(void *context, GLenum target, uint64_t image, GLuint textu
 // void d_glFramebufferEGLImage(void *context, GLenum target, GLenum attachment, GLenum textarget, GLeglImageOES image, GLint level);
 
 
-void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
+// void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
 
 //
 

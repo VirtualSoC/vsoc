@@ -38,6 +38,10 @@ Static_Context_Values *preload_static_context_value = NULL;
 
 int sdl2_no_need = 0;
 
+int host_opengl_version = 0;
+
+int DSA_enable = 0;
+
 static unsigned int main_frame_num = 0;
 
 static int event_queue_lock;
@@ -229,7 +233,6 @@ static void *native_window_create(int independ_mode);
 static void g_queue_event_notify(gpointer data, gpointer user_data);
 
 Notifier shutdown_notifier;
-
 // static Dying_List *dying_surfaces;
 // static Dying_List *dying_images;
 
@@ -1275,6 +1278,18 @@ static void static_value_prepare()
     printf("\ngl vendor:%s\n", (char *)gl_string);
 
     gl_string = glGetString(GL_VERSION);
+
+    if(gl_string != NULL && gl_string[0] == '4')
+    {
+        int major_version = gl_string[0] - '0';
+        int minor_version = gl_string[2] - '0';
+        if(major_version <= 4 && major_version >= 1 && minor_version >= 1 && minor_version <= 9)
+        {
+            host_opengl_version = major_version * 10 + minor_version;
+        }
+        host_opengl_version = 0;
+    }
+
     preload_static_context_value->version = (unsigned long long)(temp_loc - string_loc);
 
     memcpy(temp_loc, GPU_VERSION, sizeof(GPU_VERSION) - 1);
@@ -1285,7 +1300,7 @@ static void static_value_prepare()
     temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    printf("gl version:%s\n", string_loc + (unsigned long)(preload_static_context_value->version));
+    printf("%d\ngl version:%s\n", host_opengl_version, string_loc + (unsigned long)(preload_static_context_value->version));
 
     gl_string = glGetString(GL_RENDERER);
     preload_static_context_value->renderer = (unsigned long long)(temp_loc - string_loc);
@@ -1985,6 +2000,10 @@ int draw_wait_GSYNC(void *event, int wait_frame_num)
 {
 
     //帧率太小的情况，赶不及窗口帧率，直接返回当前窗口frame_num
+
+    // @todo
+    // 有些游戏有卡顿，怀疑是Gsync的问题，因此这里直接返回main_frame_num试试
+    return main_frame_num;
 
     if (wait_frame_num == -1)
     {
