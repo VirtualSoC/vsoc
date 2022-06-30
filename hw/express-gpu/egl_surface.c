@@ -1368,11 +1368,13 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
         }
     }
 
+#ifdef ENABLE_OPENGL_DEBUG
     error =glGetError();
     if(error!=GL_NO_ERROR)
     {
         printf("error when creating gbuffer2 %x\n",error);
     }
+#endif
 
     glBindFramebuffer(GL_FRAMEBUFFER, gbuffer->data_fbo);
     //附加颜色缓冲区
