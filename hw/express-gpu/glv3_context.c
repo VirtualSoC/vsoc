@@ -198,7 +198,7 @@ void *get_native_opengl_context(int independ_mode)
     ATOMIC_LOCK(native_context_pool_locker);
     GList *first= g_list_first(native_context_pool);
     ATOMIC_UNLOCK(native_context_pool_locker);
-    if(first == NULL || independ_mode == 1)
+    if(first == NULL || independ_mode == 1 || first->data == NULL)
     {
         // #ifdef USE_GLFW_AS_WGL
         if(independ_mode == 1)
@@ -241,24 +241,31 @@ void *get_native_opengl_context(int independ_mode)
 void release_native_opengl_context(void *native_context, int independ_mode)
 {
     //假如已经保存有闲置的超过5个context，则新释放的context直接销毁，否则保存下来
+    //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建5个备用的
+
     if(native_context_pool_size < 5 && independ_mode == 0)
     {
         ATOMIC_LOCK(native_context_pool_locker);
-        native_context_pool = g_list_append(native_context_pool, native_context);
+        native_context_pool = g_list_append(native_context_pool, NULL);
+        
+        GList *first = g_list_last(native_context_pool);
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(first->data));
+
         native_context_pool_size++;
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
+    // else
+    // {
+    
+    if(independ_mode == 1)
+    {
+        glfwSetWindowShouldClose(native_context, 1);
+        glfwDestroyWindow(native_context);
+    }
     else
     {
-        if(independ_mode == 1)
-        {
-            glfwSetWindowShouldClose(native_context, 1);
-            glfwDestroyWindow(native_context);
-        }
-        else
-        {
-            egl_destroyContext(native_context);
-        }
+        egl_destroyContext(native_context);
+    }
 
 // #ifdef USE_GLFW_AS_WGL
 //     glfwSetWindowShouldClose(native_context, 1);
@@ -266,7 +273,7 @@ void release_native_opengl_context(void *native_context, int independ_mode)
 // #else
 //     egl_destroyContext(native_context);
 // #endif
-    }
+    // }
 
 }
 
@@ -287,6 +294,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     // opengl_context->bind_image = NULL;
 
     Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+    memset(texture_status, 0 ,sizeof(Texture_Binding_Status));
     texture_status->guest_current_texture_2D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
     memset(texture_status->guest_current_texture_2D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
@@ -335,16 +343,13 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     texture_status->host_current_texture_buffer = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
     memset(texture_status->host_current_texture_buffer, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->current_texture_unit = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->current_texture_unit, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    // texture_status->guest_current_texture_unit = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    // memset(texture_status->guest_current_texture_unit, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    // opengl_context->current_texture_2D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    // texture_status->host_current_texture_unit = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    // memset(texture_status->host_current_texture_unit, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->current_texture_external = 0;
-
-    texture_status->guest_current_active_texture = 0;
-    texture_status->host_current_active_texture = 0;
-
+    texture_status->texture_unit_num =  preload_static_context_value->max_combined_texture_image_units;
 
     // opengl_context->current_target = GL_TEXTURE_2D;
 
@@ -371,7 +376,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     }
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
-    memset(bound_buffer,0,sizeof(Buffer_Status));
+    memset(bound_buffer,0,sizeof(Bound_Buffer));
 
     // opengl_context->pixel_store_status.pack_alignment=4;
     // opengl_context->pixel_store_status.unpack_alignment=4;
@@ -390,7 +395,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     Attrib_Point *temp_point = g_malloc(sizeof(Attrib_Point));
     memset(temp_point, 0, sizeof(Attrib_Point));
 
-    g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(0), (gpointer)temp_point);
+    // g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(0), (gpointer)temp_point);
 
     // bound_buffer->buffer_status=status;
     bound_buffer->attrib_point = temp_point;
@@ -412,15 +417,61 @@ void opengl_context_init(Opengl_Context *context)
 {
     //初始化opengl_context的一些资源，因为这个时候已经makecurrent了
     Bound_Buffer *bound_buffer = &(context->bound_buffer_status);
+    Resource_Context *resource_status = &(context->resource_status);
+
+    Resource_Map_Status *map_status = resource_status->vertex_array_resource;
+
+
+
     if (bound_buffer->has_init == 0)
     {
         //这个has_init也指opengl_context是否已经初始化
         bound_buffer->has_init = 1;
-        glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
-        glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
 
-        glGenBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
-        glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
+
+        GLuint vao0 = 0;
+        GLuint temp_guest_vao = 0;
+        unsigned long long temp_host_vao = 0;
+
+
+        if(host_opengl_version >= 45 && DSA_enable == 1)
+        {
+            glCreateVertexArrays(1, &vao0);
+            glCreateBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
+            glCreateBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+            
+            glCreateBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
+            glCreateBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
+
+
+            glVertexArrayElementBuffer(vao0, bound_buffer->attrib_point->indices_buffer_object);
+            bound_buffer->attrib_point->element_array_buffer = bound_buffer->attrib_point->indices_buffer_object;
+
+        }
+        else
+        {
+            glGenVertexArrays(1, &vao0);
+            
+            glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
+            glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+
+            glGenBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
+            glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
+
+        }
+
+        // printf("context %llx init vao %d\n",context, vao0);
+        
+        temp_host_vao = vao0;
+        create_host_map_ids(map_status, 1, &temp_guest_vao, &temp_host_vao);
+
+        g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao0), (gpointer)bound_buffer->attrib_point);
+
+        bound_buffer->buffer_status.host_vao = vao0;
+        bound_buffer->buffer_status.guest_vao = vao0;
+        context->vao0 = vao0;
+
+        glBindVertexArray(vao0);
 
         //这两个选项在gles中是默认开启，这样能够在着色器中获取到一些内建变量，所以在gl中要手动开启
         glEnable(GL_PROGRAM_POINT_SIZE);
@@ -428,6 +479,27 @@ void opengl_context_init(Opengl_Context *context)
 
         //这个非常重要，不然很多游戏非常暗，因为他们用了SRGB纹理
         glEnable(GL_FRAMEBUFFER_SRGB);
+
+
+        //下面这些都是context复用时，guest端有状态缓存减少调用的状态，context复用时需要进行恢复
+        // 先暂时不恢复，而是以销毁context再重建context的方式实现复用
+        // glActiveTexture(GL_TEXTURE0);
+        // glDisable(GL_CULL_FACE);
+        // glDisable(GL_POLYGON_OFFSET_FILL);
+        // glDisable(GL_SCISSOR_TEST);
+        // glDisable(GL_SAMPLE_COVERAGE);
+        // glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        // glDisable(GL_STENCIL_TEST);
+        // glDisable(GL_DEPTH_TEST);
+        // glDisable(GL_BLEND);
+        // glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
+        // glDisable(GL_RASTERIZER_DISCARD);
+        // glDisable(GL_DITHER);
+        // glDisable(GL_CULL_FACE);
+        // glDisable(GL_CULL_FACE);
+        //buffer和texture都被销毁了，一定会还原，所以不用管，主要要复原所有全局状态
+
+
 
         // for(int i =0;i<16;i++)
         // {
@@ -473,6 +545,27 @@ void opengl_context_destroy(Opengl_Context *context)
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
+    Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+    g_free(texture_status->guest_current_texture_2D);
+    g_free(texture_status->host_current_texture_2D);
+    g_free(texture_status->guest_current_texture_cube_map);
+    g_free(texture_status->host_current_texture_cube_map);
+    g_free(texture_status->guest_current_texture_3D);
+    g_free(texture_status->host_current_texture_3D);
+    g_free(texture_status->guest_current_texture_2D_array);
+    g_free(texture_status->host_current_texture_2D_array);
+    g_free(texture_status->guest_current_texture_2D_multisample);
+    g_free(texture_status->host_current_texture_2D_multisample);
+    g_free(texture_status->guest_current_texture_2D_multisample_array);
+    g_free(texture_status->host_current_texture_2D_multisample_array);
+    g_free(texture_status->guest_current_texture_cube_map_array);
+    g_free(texture_status->host_current_texture_cube_map_array);
+    g_free(texture_status->guest_current_texture_buffer);
+    g_free(texture_status->host_current_texture_buffer);
+    // g_free(texture_status->guest_current_texture_unit);
+    // g_free(texture_status->host_current_texture_unit);
+
+
     if(opengl_context->independ_mode==1)
     {
         glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
@@ -503,6 +596,23 @@ void opengl_context_destroy(Opengl_Context *context)
         glDeleteBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
         glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
     }
+
+    if(opengl_context->draw_texi_vbo!=0)
+    {
+        glDeleteBuffers(1, &(opengl_context->draw_texi_vbo));
+    }
+
+    if(opengl_context->draw_texi_ebo!=0)
+    {
+        glDeleteBuffers(1, &(opengl_context->draw_texi_ebo));
+    }
+
+    if(opengl_context->draw_texi_vao!=0)
+    {
+        glDeleteVertexArrays(1, &(opengl_context->draw_texi_vao));
+    }
+
+
 
     resource_context_destroy(&(opengl_context->resource_status));
 

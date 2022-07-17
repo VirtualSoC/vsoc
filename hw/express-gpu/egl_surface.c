@@ -134,6 +134,8 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
         next_draw_gbuffer = now_draw_gbuffer;
     }
     
+    GLenum attachments[]={GL_DEPTH_ATTACHMENT,GL_STENCIL_ATTACHMENT,GL_DEPTH_STENCIL_ATTACHMENT};
+    glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 3, attachments);
 
     TIMER_START(sync)
     if (next_draw_gbuffer->data_sync != 0)
@@ -1265,6 +1267,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     GLuint pre_fbo_draw = 0;
     GLuint pre_fbo_read = 0;
     GLuint pre_rbo = 0;
+    GLuint pre_unpack_buffer = 0;
 
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLuint *)&pre_vbo);
     glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
@@ -1273,6 +1276,8 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_draw);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_read);
     
+    glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&pre_unpack_buffer);
+
 
     if (sampler_num > 1)
     {
@@ -1296,7 +1301,6 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
         glGenFramebuffers(1, &(gbuffer->sampler_fbo));
         glGenRenderbuffers(1, &(gbuffer->sampler_rbo));
     }
-
     
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -1307,6 +1311,9 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
         printf("error when creating gbuffer1 init error %x\n",error);
     }
 #endif
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    
     glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, pixel_type, NULL);
 
 #ifdef ENABLE_OPENGL_DEBUG
@@ -1414,6 +1421,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
     glBindRenderbuffer(GL_RENDERBUFFER, pre_rbo);
 
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pre_unpack_buffer);
 
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pre_fbo_draw);

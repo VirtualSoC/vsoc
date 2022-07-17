@@ -93,7 +93,7 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     else
     {
 
-        // express_printf("gl decode invoke %llu\n", fun_id);
+        // express_printf("gl decode invoke %llu context %llx\n", fun_id, render_context->opengl_context);
         gl3_decode_invoke(render_context, call);
     }
     if (render_context->opengl_context != NULL)
@@ -101,7 +101,7 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 #ifdef ENABLE_OPENGL_DEBUG
         GLenum error_code = glGetError();
         if(error_code!=GL_NO_ERROR){
-            printf("#fun_id %llu get error %lx\n",fun_id,error_code);
+            printf("#fun_id %llu context %llx get error %lx\n",fun_id, render_context->opengl_context, error_code);
         }
 #endif
     }
@@ -544,7 +544,9 @@ void render_context_destroy(Thread_Context *context)
         //     glfwDestroyWindow(thread_context->opengl_context->window);
         // }
         // thread_context->opengl_context->window = NULL;
+        g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(thread_context->opengl_context->guest_context));
         egl_makeCurrent(NULL);
+
         thread_context->opengl_context->is_current = 0;
     }
 

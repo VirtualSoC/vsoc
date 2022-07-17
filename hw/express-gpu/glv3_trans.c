@@ -2393,26 +2393,35 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(target == GL_TEXTURE_EXTERNAL_OES)
+        if(host_opengl_version < 45 || DSA_enable == 0)
         {
-            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-            if(texture_status->host_current_active_texture != 0)
+            if(target == GL_TEXTURE_EXTERNAL_OES)
             {
-                glActiveTexture(GL_TEXTURE0);
-            }
-            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
-            glGetTexParameterfv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-            if(texture_status->host_current_active_texture!=0)
-            {
-                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
-            }
+                Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+                if(texture_status->host_current_active_texture != 0)
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                }
+                glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+                glGetTexParameterfv(GL_TEXTURE_2D, pname, params);
+                glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+                if(texture_status->host_current_active_texture!=0)
+                {
+                    glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+                }
 
+            }
+            else
+            {
+                glGetTexParameterfv(target, pname, params);
+            }
         }
         else
         {
-            glGetTexParameterfv(target, pname, params);
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glGetTextureParameterfv(bind_texture, pname, params);
         }
+
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -2499,27 +2508,34 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-
-        if(target == GL_TEXTURE_EXTERNAL_OES)
+        if(host_opengl_version < 45 || DSA_enable == 0)
         {
-
-            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-            if(texture_status->host_current_active_texture != 0)
+            if(target == GL_TEXTURE_EXTERNAL_OES)
             {
-                glActiveTexture(GL_TEXTURE0);
-            }
-            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
-            glGetTexParameteriv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-            if(texture_status->host_current_active_texture!=0)
-            {
-                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
-            }
 
+                Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+                if(texture_status->host_current_active_texture != 0)
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                }
+                glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+                glGetTexParameteriv(GL_TEXTURE_2D, pname, params);
+                glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+                if(texture_status->host_current_active_texture!=0)
+                {
+                    glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+                }
+
+            }
+            else
+            {
+                glGetTexParameteriv(target, pname, params);
+            }
         }
         else
-        {
-            glGetTexParameteriv(target, pname, params);
+        {  
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glGetTextureParameteriv(bind_texture, pname, params);
         }
 
         // printf("glGetTexParameteriv pname %x params %d\n",pname, *params);
@@ -3726,6 +3742,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
+        // if(host_opengl_version < 45 || DSA_enable == 0)
+        // {
+        // }
+        // else
+        // {
+        //     texture_binding_status_sync(opengl_context, target);
+        // }
         glGetTexEnvxvOES(target, pname, params);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
@@ -3814,6 +3837,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
         
+        if(host_opengl_version < 45 || DSA_enable == 0)
+        {
+        }
+        else
+        {
+            texture_binding_status_sync(opengl_context, target);
+        }
         if(target == GL_TEXTURE_EXTERNAL_OES)
         {
             Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
@@ -4860,8 +4890,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glGetTexLevelParameteriv(target, level, pname, params);
-
+        if(host_opengl_version < 45 || DSA_enable == 0)
+        {
+            glGetTexLevelParameteriv(target, level, pname, params);
+        }
+        else
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glGetTextureLevelParameteriv(bind_texture, level, pname, params);
+        }
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (out_buf_len > MAX_OUT_BUF_LEN)
@@ -4952,7 +4989,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glGetTexLevelParameterfv(target, level, pname, params);
+        if(host_opengl_version < 45 || DSA_enable == 0)
+        {
+            glGetTexLevelParameterfv(target, level, pname, params);
+        }
+        else
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glGetTextureLevelParameterfv(bind_texture, level, pname, params);
+        }
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -6989,7 +7034,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glGetBufferParameteriv(target, pname, params);
+        if(host_opengl_version < 45 || DSA_enable == 0)
+        {
+            glGetBufferParameteriv(target, pname, params);
+        }
+        else
+        {
+            GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
+            glGetNamedBufferParameteriv(bind_buffer, pname, params);
+        }
+
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -7077,7 +7131,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glGetBufferParameteri64v(target, pname, params);
+        if(host_opengl_version < 45 || DSA_enable == 0)
+        {
+            glGetBufferParameteri64v(target, pname, params);
+        }
+        else
+        {
+            GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
+            glGetNamedBufferParameteri64v(bind_buffer, pname, params);
+        }
+
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -7247,6 +7310,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
                 g_free(ret_buf);
             }
             break;
+        }
+
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            printf("@todo! glGetBooleani_v target %x index %x with dsa\n",target,index);
         }
 
         glGetBooleani_v(target, index, data);
@@ -7505,6 +7573,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            printf("@todo! glGetIntegeri_v target %x index %x with dsa\n",target,index);
+        }
+
         glGetIntegeri_v(target, index, data);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
@@ -7676,7 +7749,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             }
             break;
         }
-
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            printf("@todo! glGetInteger64i_v target %x index %x with dsa\n",target,index);
+        }
         glGetInteger64i_v(target, index, data);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
@@ -8199,7 +8275,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glTexStorage2D(target, levels, internalformat, width, height);
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glTextureStorage2D(bind_texture, levels, internalformat, width, height);
+        }
+        else
+        {
+            glTexStorage2D(target, levels, internalformat, width, height);
+        }
+
     }
     break;
 
@@ -8276,7 +8361,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glTexStorage3D(target, levels, internalformat, width, height, depth);
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glTextureStorage3D(bind_texture, levels, internalformat, width, height, depth);
+        }
+        else
+        {
+            glTexStorage3D(target, levels, internalformat, width, height, depth);
+        }
+        
     }
     break;
 
@@ -9170,7 +9264,20 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glCopyTexImage2D(target, level, internalformat, x, y, width, height, border);
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            if(glCopyTextureImage2DEXT == NULL)
+            {
+                printf("error! glCopyTextureImage2DEXT is NULL!\n");
+            }
+            glCopyTextureImage2DEXT(bind_texture, target, level, internalformat, x, y, width, height, border);
+        }
+        else
+        {
+            glCopyTexImage2D(target, level, internalformat, x, y, width, height, border);
+        }
+
     }
     break;
 
@@ -9255,7 +9362,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glCopyTextureSubImage2D(bind_texture, level, xoffset, yoffset, x, y, width, height);
+        }
+        else
+        {
+            glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
+        }
+
     }
     break;
 
@@ -9344,7 +9460,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glCopyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height);
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glCopyTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, x, y, width, height);
+        }
+        else
+        {
+            glCopyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height);
+        }
     }
     break;
 
@@ -12777,7 +12901,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
         express_printf("glbindbuffer target %x %d\n",target, buffer);
-        d_glBindBuffer_special(opengl_context, target, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
+        d_glBindBuffer_special(opengl_context, target, buffer);
     }
     break;
 
@@ -12973,7 +13097,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
         express_printf("mapbufferrange glbindbufferRange target %x index %d buffer %d offset %lld size %lld end %lld\n", target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size, offset+size);
-        glBindBufferRange(target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
+
+        d_glBindBufferRange_special(opengl_context, target, index, buffer, offset, size);
+
+        
     }
     break;
 
@@ -13038,7 +13165,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glBindBufferBase(target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
+        d_glBindBufferBase_special(opengl_context, target, index, buffer);
     }
     break;
 
@@ -13103,7 +13230,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         // static int cnt = 0;
         // cnt ++;
         // printf("context %llx cnt %d bindtexture target %x guest %u host %u pre %u\n",opengl_context,cnt,target,texture,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),pre_texture);
-        d_glBindTexture_special(opengl_context, target, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture));
+        d_glBindTexture_special(opengl_context, target, texture);
     }
     break;
 
@@ -14975,7 +15102,17 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glGenerateMipmap(target);
+        if(host_opengl_version >= 45 && DSA_enable == 1)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glGenerateTextureMipmap(bind_texture);
+
+        }
+        else
+        {
+            glGenerateMipmap(target);
+        }
+
     }
     break;
 
@@ -15825,26 +15962,36 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        if(target == GL_TEXTURE_EXTERNAL_OES)
-        {
-            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-            if(texture_status->host_current_active_texture != 0)
-            {
-                glActiveTexture(GL_TEXTURE0);
-            }
-            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
-            glTexParameterf(GL_TEXTURE_2D, pname, param);
-            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-            if(texture_status->host_current_active_texture!=0)
-            {
-                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
-            }
 
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glTextureParameterf(bind_texture, pname, param);
         }
         else
         {
-            glTexParameterf(target, pname, param);
+            if(target == GL_TEXTURE_EXTERNAL_OES)
+            {
+                Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+                if(texture_status->host_current_active_texture != 0)
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                }
+                glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+                glTexParameterf(GL_TEXTURE_2D, pname, param);
+                glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+                if(texture_status->host_current_active_texture!=0)
+                {
+                    glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+                }
+
+            }
+            else
+            {
+                glTexParameterf(target, pname, param);
+            }
         }
+
     }
     break;
 
@@ -15909,24 +16056,32 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(target == GL_TEXTURE_EXTERNAL_OES)
+        if(host_opengl_version >= 45 && DSA_enable != 0)
         {
-            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-            if(texture_status->host_current_active_texture != 0)
-            {
-                glActiveTexture(GL_TEXTURE0);
-            }
-            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
-            glTexParameteri(GL_TEXTURE_2D, pname, param);
-            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-            if(texture_status->host_current_active_texture!=0)
-            {
-                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
-            }
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glTextureParameteri(bind_texture, pname, param);
         }
         else
         {
-            glTexParameteri(target, pname, param);
+            if(target == GL_TEXTURE_EXTERNAL_OES)
+            {
+                Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+                if(texture_status->host_current_active_texture != 0)
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                }
+                glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+                glTexParameteri(GL_TEXTURE_2D, pname, param);
+                glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+                if(texture_status->host_current_active_texture!=0)
+                {
+                    glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+                }
+            }
+            else
+            {
+                glTexParameteri(target, pname, param);
+            }
         }
     }
     break;
@@ -17641,8 +17796,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-
-        glCopyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size);
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_buffer1 = get_guest_binding_texture(opengl_context, readTarget);
+            GLuint bind_buffer2 = get_guest_binding_texture(opengl_context, writeTarget);
+            glCopyNamedBufferSubData(bind_buffer1, bind_buffer2, readOffset, writeOffset, size);
+        }
+        else
+        {
+            glCopyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size);
+        }
     }
     break;
 
@@ -20850,25 +21013,35 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        if(target == GL_TEXTURE_EXTERNAL_OES)
+
+        if(host_opengl_version >= 45 && DSA_enable != 0)
         {
-            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-            if(texture_status->host_current_active_texture != 0)
-            {
-                glActiveTexture(GL_TEXTURE0);
-            }
-            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
-            glTexParameterfv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-            if(texture_status->host_current_active_texture!=0)
-            {
-                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
-            }
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glTextureParameterfv(bind_texture, pname, params);
         }
         else
         {
-            glTexParameterfv(target, pname, params);
+            if(target == GL_TEXTURE_EXTERNAL_OES)
+            {
+                Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+                if(texture_status->host_current_active_texture != 0)
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                }
+                glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+                glTexParameterfv(GL_TEXTURE_2D, pname, params);
+                glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+                if(texture_status->host_current_active_texture!=0)
+                {
+                    glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+                }
+            }
+            else
+            {
+                glTexParameterfv(target, pname, params);
+            }
         }
+
     }
     break;
 
@@ -20931,27 +21104,37 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        if(target == GL_TEXTURE_EXTERNAL_OES)
+
+        if(host_opengl_version >= 45 && DSA_enable != 0)
         {
-
-            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-            if(texture_status->host_current_active_texture != 0)
-            {
-                glActiveTexture(GL_TEXTURE0);
-            }
-            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
-            glTexParameteriv(GL_TEXTURE_2D, pname, params);
-            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-            if(texture_status->host_current_active_texture!=0)
-            {
-                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
-            }
-
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glTextureParameteriv(bind_texture, pname, params);
         }
         else
         {
-            glTexParameteriv(target, pname, params);
+            if(target == GL_TEXTURE_EXTERNAL_OES)
+            {
+
+                Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+                if(texture_status->host_current_active_texture != 0)
+                {
+                    glActiveTexture(GL_TEXTURE0);
+                }
+                glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+                glTexParameteriv(GL_TEXTURE_2D, pname, params);
+                glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+                if(texture_status->host_current_active_texture!=0)
+                {
+                    glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+                }
+
+            }
+            else
+            {
+                glTexParameteriv(target, pname, params);
+            }
         }
+
     }
     break;
 
@@ -28028,7 +28211,17 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        glTexStorage2DMultisample(target, samples, internalformat, width, height, fixedsamplelocations);
+
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
+            glTextureStorage2DMultisample(bind_texture, samples, internalformat, width, height, fixedsamplelocations);
+        }
+        else
+        {
+            glTexStorage2DMultisample(target, samples, internalformat, width, height, fixedsamplelocations);
+        }
+
     }
     break;
 
@@ -28505,8 +28698,17 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
+        
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
+            glTextureBuffer(bind_buffer, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
+        }
+        else
+        {
+            glTexBuffer(target, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
+        }
 
-        glTexBuffer(target, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
     }
     break;
 
@@ -28574,7 +28776,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glTexBufferRange(target, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
+        if(host_opengl_version >= 45 && DSA_enable != 0)
+        {
+            GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
+            glTexBufferRange(bind_buffer, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
+        }
+        else
+        {
+            glTexBufferRange(target, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
+        }
     }
     break;
 

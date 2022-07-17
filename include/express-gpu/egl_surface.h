@@ -272,6 +272,8 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
 
 int render_surface_destroy(Window_Buffer *surface);
 
+void destroy_gbuffer(Graphic_Buffer *gbuffer);
+
 // void destroy_real_image(EGL_Image *real_image);
 
 void d_eglIamComposer(void *context, EGLSurface surface);

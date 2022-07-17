@@ -38,7 +38,12 @@ typedef struct Texture_Binding_Status
     GLuint *host_current_texture_buffer;
     
 
-    GLuint *current_texture_unit;
+    // GLuint *guest_current_texture_unit;
+    // GLuint *host_current_texture_unit;
+
+    GLuint texture_unit_num;
+
+    GLuint now_max_texture_unit;
 
     GLuint current_texture_external;
 
@@ -96,6 +101,9 @@ typedef struct Buffer_Status
     GLuint guest_vao_ebo;
     GLuint host_vao_ebo;
 
+    GLuint guest_vao;
+    GLuint host_vao;
+
 } Buffer_Status;
 
 
@@ -104,10 +112,15 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 void d_glBindBuffer_special(void *context, GLenum target, GLuint buffer);
 
 
+void d_glBindBufferRange_special(void *context, GLenum target,GLuint index, GLuint guest_buffer, GLintptr offset, GLsizeiptr size);
+
+void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLuint guest_buffer);
+
 void buffer_binding_status_sync(void *context, GLenum target);
 
 GLuint get_guest_binding_buffer(void *context, GLenum target);
 
+GLuint get_guest_binding_texture(void *context, GLenum target);
 
 void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
 
@@ -123,10 +136,19 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint texture);
 
 void texture_binding_status_sync(void *context, GLenum target);
 
+void texture_unit_status_sync(void *context, GLint index);
+
 void d_glActiveTexture_special(void *context, GLenum texture);
 
 void active_texture_sync(void *context);
 
 void d_glPixelStorei_origin(void *context, GLenum pname, GLint param);
+
+void d_glBindVertexArray_special(void *context, GLuint array);
+
+GLuint get_guest_binding_vao(void *context);
+
+void vao_binding_status_sync(void *context);
+
 
 #endif

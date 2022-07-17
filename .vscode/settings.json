@@ -118,7 +118,9 @@
         "windows.h": "c",
         "winuser.h": "c",
         "trace.h": "c",
-        "gl_helper.h": "c"
+        "gl_helper.h": "c",
+        "glv3_program.h": "c",
+        "glv3_status.h": "c"
     },
     "cmake.configureOnOpen": false
 }

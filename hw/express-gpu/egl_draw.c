@@ -466,9 +466,8 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     real_opengl_context->read_fbo0 = thread_context->render_double_buffer_read->gbuffer->data_fbo;
     glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
 
-    GLenum attachments[]={GL_COLOR_ATTACHMENT0,GL_DEPTH_ATTACHMENT,GL_STENCIL_ATTACHMENT,GL_DEPTH_STENCIL_ATTACHMENT};
-    glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 4, attachments);
-    glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 4, attachments);
+    // GLenum attachments[]={GL_COLOR_ATTACHMENT0,GL_DEPTH_ATTACHMENT,GL_STENCIL_ATTACHMENT,GL_DEPTH_STENCIL_ATTACHMENT};
+    // glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 4, attachments);
 
     // if (real_surface->config->sample_buffers_num != 0)
     // {

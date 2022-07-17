@@ -855,6 +855,10 @@ static void handle_child_window_event()
             {
                 g_free(status->resource_id_map);
             }
+            if (status->resource_is_init != NULL)
+            {
+                g_free(status->resource_is_init);
+            }
             g_free(status);
         }
         break;
@@ -1287,7 +1291,7 @@ static void static_value_prepare()
         {
             host_opengl_version = major_version * 10 + minor_version;
         }
-        host_opengl_version = 0;
+        // host_opengl_version = 0;
     }
 
     preload_static_context_value->version = (unsigned long long)(temp_loc - string_loc);
@@ -1300,7 +1304,7 @@ static void static_value_prepare()
     temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    printf("%d\ngl version:%s\n", host_opengl_version, string_loc + (unsigned long)(preload_static_context_value->version));
+    printf("gl version:%s\n", string_loc + (unsigned long)(preload_static_context_value->version));
 
     gl_string = glGetString(GL_RENDERER);
     preload_static_context_value->renderer = (unsigned long long)(temp_loc - string_loc);
@@ -1327,43 +1331,66 @@ static void static_value_prepare()
     int no_need_extensions_cnt = 0;
     int num_extensions = preload_static_context_value->num_extensions;
 
-    num_extensions = 0;
+    // num_extensions = 0;
+    //目前暂时只设定固定的扩展支持
 
     int start_loc = 0;
-    for (int i = start_loc; i < start_loc + num_extensions && i < 512 - SPECIAL_EXTENSIONS_SIZE + no_need_extensions_cnt; i++)
+    int has_dsa = 0;
+    for (int i = start_loc; i < start_loc + num_extensions; i++)
     {
 
         gl_string = glGetStringi(GL_EXTENSIONS, i);
+        printf("host extension %d %s\n",i, gl_string);
 
-        int no_need_flag = 0;
-        for (int j = 0; j < NOT_SUPPORT_EXTENSION_SIZE; j++)
+
+        if(strstr(gl_string, "GL_EXT_direct_state_access") != NULL)
         {
-            if (strstr(gl_string, NOT_SUPPORT_EXTENSIONS[j]) != NULL)
-            {
-                no_need_flag = 1;
-                break;
-            }
-        }
-        if (no_need_flag == 1)
-        {
-            no_need_extensions_cnt += 1;
-            continue;
+            has_dsa = 1;
         }
 
-        preload_static_context_value->extensions[i - start_loc - no_need_extensions_cnt] = (unsigned long long)(temp_loc - string_loc);
 
-        memcpy(temp_loc, gl_string, strlen(gl_string));
-        temp_loc += strlen(gl_string);
-        *temp_loc = 0;
-        printf("%d %s\n", i, temp_loc - strlen(gl_string));
-        temp_loc++;
+        // if(i >= 512 - SPECIAL_EXTENSIONS_SIZE + no_need_extensions_cnt)
+        // {
+        //     continue;
+        // }
+
+        // int no_need_flag = 0;
+        // for (int j = 0; j < NOT_SUPPORT_EXTENSION_SIZE; j++)
+        // {
+        //     if (strstr(gl_string, NOT_SUPPORT_EXTENSIONS[j]) != NULL)
+        //     {
+        //         no_need_flag = 1;
+        //         break;
+        //     }
+        // }
+        // if (no_need_flag == 1)
+        // {
+        //     no_need_extensions_cnt += 1;
+        //     continue;
+        // }
+
+        // preload_static_context_value->extensions[i - start_loc - no_need_extensions_cnt] = (unsigned long long)(temp_loc - string_loc);
+
+        // memcpy(temp_loc, gl_string, strlen(gl_string));
+        // temp_loc += strlen(gl_string);
+        // *temp_loc = 0;
+        // printf("%d %s\n", i, temp_loc - strlen(gl_string));
+        // temp_loc++;
     }
 
-    num_extensions -= no_need_extensions_cnt;
+    if(has_dsa == 0)
+    {
+        DSA_enable = 0;
+    }
+
+
+    printf("host gl %d DSA_enable %d\n",host_opengl_version, DSA_enable);
+
+    // num_extensions -= no_need_extensions_cnt;
 
     for (int i = 0; i < SPECIAL_EXTENSIONS_SIZE; i++)
     {
-        preload_static_context_value->extensions[num_extensions + i] = temp_loc - string_loc;
+        preload_static_context_value->extensions[i] = temp_loc - string_loc;
 
         memcpy(temp_loc, SPECIAL_EXTENSIONS[i], strlen(SPECIAL_EXTENSIONS[i]));
         temp_loc += strlen(SPECIAL_EXTENSIONS[i]);
@@ -1371,7 +1398,7 @@ static void static_value_prepare()
         temp_loc++;
     }
 
-    num_extensions += SPECIAL_EXTENSIONS_SIZE;
+    num_extensions = SPECIAL_EXTENSIONS_SIZE;
 
     preload_static_context_value->num_extensions = num_extensions;
 

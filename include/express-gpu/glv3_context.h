@@ -113,6 +113,7 @@ typedef struct Resource_Map_Status
     unsigned int map_size;
     // unsigned int now_map_len;
     long long *resource_id_map;
+    char *resource_is_init;
 } Resource_Map_Status;
 
 typedef struct Share_Resources
@@ -196,6 +197,7 @@ typedef struct Opengl_Context
     GHashTable *buffer_map;
     GLuint draw_fbo0;
     GLuint read_fbo0;
+    GLuint vao0;
 
     GLint view_x;
     GLint view_y;
@@ -230,6 +232,10 @@ typedef struct Opengl_Context
     int independ_mode;
     // Window_Buffer *current_external_gbuffer_id;
     // GLenum current_target;
+
+    GLuint draw_texi_vao;
+    GLuint draw_texi_vbo;
+    GLuint draw_texi_ebo;
 } Opengl_Context;
 
 typedef struct Guest_Host_Map

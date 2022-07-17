@@ -12,7 +12,7 @@
 #include "express-gpu/glv1.h"
 #include "express-gpu/glv3_status.h"
 
-static GLuint draw_texi_vao = 0;
+// static GLuint draw_texi_vao = 0;
 static GLuint draw_texi_program = 0;
 static GLint draw_texi_texture_id_loc = 0;
 
@@ -28,32 +28,43 @@ void d_glTexEnvi_special(void *context, GLenum target, GLenum pname, GLint param
 
 void d_glTexEnvx_special(void *context, GLenum target, GLenum pname, GLfixed param)
 {
+    printf("null glTexEnvxOES %llx\n", (unsigned long long)glTexEnvxOES);
     // glTexEnvxOES(target, pname, param);
 }
 
 void d_glTexParameterx_special(void *context, GLenum target, GLenum pname, GLint param)
 {
-    Opengl_Context *opengl_context = (Opengl_Context*)context; 
-    if(target == GL_TEXTURE_EXTERNAL_OES)
-    {
 
-        Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-        if(texture_status->host_current_active_texture != 0)
-        {
-            glActiveTexture(GL_TEXTURE0);
-        }
-        glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
-        glTexParameterx(GL_TEXTURE_2D, pname, param);
-        glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-        if(texture_status->host_current_active_texture!=0)
-        {
-            glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
-        }
+    if(host_opengl_version >= 45 && DSA_enable != 0)
+    {
+        GLuint bind_texture = get_guest_binding_texture(context, target);
+        glTextureParameteri(bind_texture, pname, param);
     }
     else
     {
-        glTexParameteri(target, pname, param);
+        Opengl_Context *opengl_context = (Opengl_Context*)context; 
+        if(target == GL_TEXTURE_EXTERNAL_OES)
+        {
+
+            Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
+            if(texture_status->host_current_active_texture != 0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+            glTexParameterx(GL_TEXTURE_2D, pname, param);
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if(texture_status->host_current_active_texture!=0)
+            {
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+            }
+        }
+        else
+        {
+            glTexParameteri(target, pname, param);
+        }
     }
+
 }
 
 void d_glShadeModel_special(void *context, GLenum mode)
@@ -65,36 +76,17 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     GLuint pre_vbo;
-    GLuint pre_ebo;
+    GLuint pre_vao;
 
     float fz = z >= 1 ? 1.0f : z;
     fz = z <= 0 ? 0.0f : z;
     fz = fz * 2.0f - 1.0f;
 
-
-    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&pre_vbo);
-    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint *)&pre_ebo);
-
-    glUseProgram(draw_texi_program);
-
-    // printf("glv1 draw texture %d x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f\n",opengl_context->current_texture_2D[opengl_context->current_active_texture], x, y, z, width, height, left_x, right_x, bottom_y, top_y);
-
-    GLint now_texture_target;
-    glGetIntegerv(GL_ACTIVE_TEXTURE, &now_texture_target);
-
-    // GLuint now_bind_texture;
-    // glGetIntegerv(GL_TEXTURE_BINDING_2D, &now_bind_texture);
-
-    glUniform1i(draw_texi_texture_id_loc, now_texture_target - GL_TEXTURE0);
-
-    float positions[] = {
+    float positions_tex_coord[] = {
         1.0f, 1.0f, fz,   // top right
         1.0f, -1.0f, fz,  // bottom right
         -1.0f, -1.0f, fz, // bottom left
-        -1.0f, 1.0f, fz   // top left
-    };
-
-    float tex_coord[] = {
+        -1.0f, 1.0f, fz,   // top left
         right_x, top_y,    // top right
         right_x, bottom_y, // bottom right
         left_x, bottom_y,  // bottom left
@@ -106,23 +98,115 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
         1, 2, 3  // second triangle
     };
 
-    glViewport(x, y, width, height);
+    if(host_opengl_version >= 45 && DSA_enable == 1)
+    {
+        if(opengl_context->draw_texi_vao == 0)
+        {
+            glCreateVertexArrays(1, &(opengl_context->draw_texi_vao));
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            glCreateBuffers(1, &(opengl_context->draw_texi_vbo));
+            glCreateBuffers(1, &(opengl_context->draw_texi_ebo));
+            glNamedBufferData(opengl_context->draw_texi_vbo, 20*sizeof(float), NULL, GL_DYNAMIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, positions);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, tex_coord);
-    glEnableVertexAttribArray(1);
+            glNamedBufferData(opengl_context->draw_texi_ebo, 6*sizeof(int), indices, GL_STATIC_DRAW);
+            
+            glEnableVertexArrayAttribEXT(opengl_context->draw_texi_vao, 0);
+            glVertexArrayVertexAttribOffsetEXT(opengl_context->draw_texi_vao, opengl_context->draw_texi_vbo, 0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+            glVertexArrayVertexAttribOffsetEXT(opengl_context->draw_texi_vao, opengl_context->draw_texi_vbo, 1, 2, GL_FLOAT, GL_FALSE, 0, 12*sizeof(float));
+            glEnableVertexArrayAttribEXT(opengl_context->draw_texi_vao, 1);
+            // glVertexArrayAttribBinding(opengl_context->draw_texi_vao, 0, 0);
+            // glVertexArrayAttribBinding(opengl_context->draw_texi_vao, 1, 1);
 
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, indices);
+             glVertexArrayElementBuffer(opengl_context->draw_texi_vao, opengl_context->draw_texi_ebo);
+        }
 
-    glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
+        express_printf("glv1 draw texture %d x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f\n",opengl_context->texture_binding_status.guest_current_texture_2D[opengl_context->texture_binding_status.guest_current_active_texture], x, y, z, width, height, left_x, right_x, bottom_y, top_y);
 
-    glUseProgram(0);
-    glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pre_ebo);
+        Opengl_Context *opengl_context = (Opengl_Context *)context;
+        Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
+        Buffer_Status *status = &(bound_buffer->buffer_status);
+
+        glUseProgram(draw_texi_program);
+        glUniform1i(draw_texi_texture_id_loc, 0);
+        glViewport(x, y, width, height);
+
+        if(status->host_vao != opengl_context->draw_texi_vao)
+        {
+            glBindVertexArray(opengl_context->draw_texi_vao);
+            // printf("glv1 bind vao %d\n",opengl_context->draw_texi_vao);
+
+            status->host_vao = opengl_context->draw_texi_vao;
+            status->host_vao_ebo = opengl_context->draw_texi_ebo;
+
+            status->host_element_array_buffer = opengl_context->draw_texi_ebo;
+        }
+
+        glNamedBufferSubData(opengl_context->draw_texi_vbo, (GLintptr)0, (GLsizeiptr)20*sizeof(float), positions_tex_coord);
+
+        texture_unit_status_sync(context, 0);
+
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
+
+        glUseProgram(0);
+    }
+    else
+    {
+
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&pre_vbo);
+
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &pre_vao);
+
+        glUseProgram(draw_texi_program);
+
+
+
+        if(opengl_context->draw_texi_vao == 0)
+        {
+            glGenVertexArrays(1, &(opengl_context->draw_texi_vao));
+            glBindVertexArray(opengl_context->draw_texi_vao);
+            glGenBuffers(1, &(opengl_context->draw_texi_vbo));
+            glGenBuffers(1, &(opengl_context->draw_texi_ebo));
+            glBindBuffer(GL_ARRAY_BUFFER, opengl_context->draw_texi_vbo);
+            glBufferData(GL_ARRAY_BUFFER, 20*sizeof(float), NULL, GL_DYNAMIC_DRAW);
+
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, opengl_context->draw_texi_ebo);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6*sizeof(int), indices, GL_STATIC_DRAW);
+            
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 12*sizeof(float));
+            glEnableVertexAttribArray(1);
+        }
+
+        // printf("glv1 draw texture %d x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f\n",opengl_context->current_texture_2D[opengl_context->current_active_texture], x, y, z, width, height, left_x, right_x, bottom_y, top_y);
+
+        GLint now_texture_target;
+        glGetIntegerv(GL_ACTIVE_TEXTURE, &now_texture_target);
+
+        // GLuint now_bind_texture;
+        // glGetIntegerv(GL_TEXTURE_BINDING_2D, &now_bind_texture);
+
+        glUniform1i(draw_texi_texture_id_loc, now_texture_target - GL_TEXTURE0);
+        glViewport(x, y, width, height);
+
+
+        glBindVertexArray(opengl_context->draw_texi_vao);
+
+        glBindBuffer(GL_ARRAY_BUFFER, opengl_context->draw_texi_vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, (GLintptr)0, (GLsizeiptr)20*sizeof(float), positions_tex_coord);
+
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
+
+        glUseProgram(0);
+        glBindVertexArray(pre_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
+    }
+
+
 }
 
 void prepare_draw_texi()
