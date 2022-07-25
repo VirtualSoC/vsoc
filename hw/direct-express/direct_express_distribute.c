@@ -48,12 +48,18 @@ static VirtIODevice *direct_express_device;
 //用于回收call的队列，实现了无锁的入队，这里将它的大小设置为CALL_BUF_SIZE+2是为了保证队列不会爆，大小一定满足要求
 //这里设置volatile是为了保证其在不同线程间同步不会受到缓存的影响
 static Direct_Express_Call *call_recycle_queue[(CALL_BUF_SIZE + 2)];
-static int call_recycle_queue_header;
+static volatile int call_recycle_queue_header;
 static volatile int call_recycle_queue_tail;
 
 static void *guest_null_ptr = NULL;
 
 bool direct_express_should_stop = 0;
+
+int atomic_distribute_thread_running = 0;
+
+
+static volatile Direct_Express_Call *packaging_call = NULL;
+static int remain_elem_num = 0;
 
 
 static void release_call(Direct_Express_Call *out_call);
@@ -84,12 +90,12 @@ RECYCLE_EVENT recycle_event;
 static Direct_Express_Call pre_alloc_call[CALL_BUF_SIZE * 2];
 static bool pre_alloc_call_flag[CALL_BUF_SIZE * 2];
 
-static int pre_alloc_call_loc = 0;
+static volatile int pre_alloc_call_loc = 0;
 
 static Guest_Mem pre_guest_mem[CALL_BUF_SIZE * 2 * MAX_PARA_NUM];
 static bool pre_guest_mem_flag[CALL_BUF_SIZE * 2 * MAX_PARA_NUM];
 
-static int pre_guest_mem_loc = 0;
+static volatile int pre_guest_mem_loc = 0;
 
 Direct_Express_Call *alloc_one_call()
 {
@@ -482,6 +488,7 @@ static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsig
         {
             if (flag_buf == NULL)
             {
+                printf("error! null flag_buf\n");
                 return 0;
             }
             *id = flag_buf->id;
@@ -500,6 +507,11 @@ static int fill_direct_express_queue_elem(Direct_Express_Queue_Elem *elem, unsig
             *num = flag_buf_temp.para_num;
             *unique_id = flag_buf->unique_id;
         }
+        // printf(" %d ", (int)*id);
+        // if(id && (1<<24))
+        // {
+        //     printf(" sync ");
+        // }
         // if (!check_fun_id_para_num(*id, *num))
         // {
         //     return 0;
@@ -528,35 +540,63 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
     unsigned long long process_id;
     unsigned long long unique_id;
 
+    
     elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
     while (elem)
     {
 
-        if (unlikely(fill_direct_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0))
+        if(packaging_call != NULL)
         {
-            //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
-            VIRTIO_ELEM_PUSH_ALL(vq, Direct_Express_Queue_Elem, elem, 1, next);
-            DIRECT_EXPRESS_QUEUE_ELEMS_FREE(elem);
-            express_printf("fill error %u %u\n", elem->elem.in_num, elem->elem.out_num);
-            return NULL;
-        }
+            call = packaging_call;
+            packaging_call = NULL;
+            para_num = remain_elem_num - 1;
+            remain_elem_num = 0;
+            // printf("continue null elem reamin %d\n", para_num + 1);
 
-        call = alloc_one_call();
-        if(call == NULL)
+            if (unlikely(elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_direct_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
+            {
+                //要么是数据复制有问题，要么是这个elem是个in的类型，破坏了调用结构
+                //因此将已经保存的数据抛弃，将这个elem作为第一个elem重新尝试fill，所以是break后continue
+                VIRTIO_ELEM_PUSH_ALL(vq, Direct_Express_Queue_Elem, call->elem_header, 1, next);
+                DIRECT_EXPRESS_QUEUE_ELEMS_FREE(call->elem_header);
+                release_one_call(call);
+                call = NULL;
+                printf(YELLOW("fill para error first elem %u,%u remain_elem_num %d\n"), elem->elem.in_num, elem->elem.out_num, para_num);
+                break;
+            }
+            call->elem_tail->next = elem;
+            call->elem_tail = elem;
+
+        }
+        else
         {
-            printf("error! alloc call return NULL!\n");
-        }
-        call->elem_header = elem;
-        call->elem_tail = elem;
-        call->vq = vq;
+            if (unlikely(fill_direct_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0))
+            {
+                //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
+                VIRTIO_ELEM_PUSH_ALL(vq, Direct_Express_Queue_Elem, elem, 1, next);
+                DIRECT_EXPRESS_QUEUE_ELEMS_FREE(elem);
+                printf("fill error %u %u\n", elem->elem.in_num, elem->elem.out_num);
+                return NULL;
+            }
 
-        call->para_num = para_num;
-        call->id = fun_id;
-        call->thread_id = thread_id;
-        call->process_id = process_id;
-        call->unique_id = unique_id;
-        call->spend_time = 0;
-        call->next = NULL;
+            call = alloc_one_call();
+            if(call == NULL)
+            {
+                printf("error! alloc call return NULL!\n");
+            }
+            call->elem_header = elem;
+            call->elem_tail = elem;
+            call->vq = vq;
+
+            call->para_num = para_num;
+            call->id = fun_id;
+            call->thread_id = thread_id;
+            call->process_id = process_id;
+            call->unique_id = unique_id;
+            call->spend_time = 0;
+            call->next = NULL;
+
+        }
         // gint64 start_time=g_get_real_time();
 
         //会有para_num个传入参数，这些elem本应该都是out类型
@@ -570,18 +610,26 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
 
             elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
 
-            while (elem == NULL && cnt_timeout < 10000000)
+            if(elem == NULL)
             {
-                // t_int = g_get_real_time();
-                // start_time = g_get_real_time();
-
-                elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
-                cnt_timeout++;
-                if(direct_express_should_stop)
-                {
-                    return NULL;
-                }
+                packaging_call = call;
+                remain_elem_num = para_num - i;
+                // printf("find null elem\n");
+                return NULL;
             }
+
+            // while (elem == NULL)
+            // {
+            //     // t_int = g_get_real_time();
+            //     // start_time = g_get_real_time();
+
+            //     elem = virtqueue_pop(vq, sizeof(Direct_Express_Queue_Elem));
+            //     cnt_timeout++;
+            //     if(direct_express_should_stop)
+            //     {
+            //         return NULL;
+            //     }
+            // }
 
             if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_direct_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
             {
@@ -593,11 +641,11 @@ static Direct_Express_Call *pack_call_from_queue(VirtQueue *vq)
                 call = NULL;
                 if (elem == NULL)
                 {
-                    express_printf(YELLOW("fill para error NULL\n"));
+                    printf(YELLOW("fill para error NULL %d\n"),cnt_timeout);
                 }
                 else
                 {
-                    express_printf(YELLOW("fill para error %u,%u\n"), elem->elem.in_num, elem->elem.out_num);
+                    printf(YELLOW("fill para error %u,%u\n"), elem->elem.in_num, elem->elem.out_num);
                 }
                 break;
             }
@@ -817,6 +865,7 @@ void *call_distribute_thread(void *opaque)
     int pop_cnt = 0;
     int in_handle_num = 0;
 
+    e->thread_run = 2;
     // QemuThread t;
 
     // int cnt = 0;
@@ -825,6 +874,173 @@ void *call_distribute_thread(void *opaque)
     // unsigned long usleep_time = 1;
     // unsigned long long cnt_time=0;
     // int sleep_cnt=0;
+   
+   //这个挪到了线程建立之前
+    // guest_null_ptr_init(vq);
+
+    // int release_cnt_debug=0;
+    // int pop_cnt_debug=0;
+
+    int64_t spend_time_all = 0;
+    int64_t call_num = 0;
+
+    // return;
+#ifdef DISTRIBUTE_WHEN_VM_EXIT
+    while(atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0);
+#endif
+    while (e->thread_run && !direct_express_should_stop)
+    {
+
+        int has_handle_flag = 0;
+        int pop_flag = 1;
+        int recycle_flag = 1;
+        virtqueue_data_distribute_and_recycle(vq, &pop_flag, &recycle_flag);
+
+        if(pop_flag != 0)
+        {
+            pop_cnt += 1;
+            in_handle_num += 1;
+            has_handle_flag = 1;
+        }
+        if(recycle_flag != 0)
+        {
+            in_handle_num -= 1;
+            release_cnt += 1;
+            has_handle_flag = 1;
+        }
+
+        // if ((call = pack_call_from_queue(vq)) != NULL)
+        // {
+        //     //从queue中打包调用，假如打包失败的话，失败的部分也还是会还给guest
+        //     pop_cnt += 1;
+        //     in_handle_num += 1;
+        //     // atomic_add(&push_cnt, 1);
+        //     // sync_flag = call->fun_id;
+        //     //express_printf("virtio has data\n");
+        //     express_printf("virtio has data push\n");
+        //     //draw_call的其他部分都已经初始化过了
+        //     call->vdev = vdev;
+        //     call->callback = push_free_callback;
+        //     call->is_end = 0;
+        //     push_to_thread(call);
+        //     has_handle_flag = 1;
+        //     // pop_cnt_debug++;
+        //     // printf("pop %d\n",pop_cnt_debug);
+
+        //     // draw_call_printf(draw_call);
+        //     // Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)draw_call->elem_header->para;
+        //     // flag_buf->flag=1;
+        //     // release_call(draw_call);
+        //     // virtio_notify(VIRTIO_DEVICE(vdev), vq);
+        //     // push_free_callback(draw_call);
+        // }
+        // //这里之前是else if，高负载下导致大量call被堆积到这里，一直没法回收，影响了性能，因此这里进行修改
+        // //改为一次取数据对应着一次回收数据
+        // if (call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] != NULL)
+        // {
+        //     //将回收的部分和分发的部分放到一起是为了减小延迟
+
+        //     //出队直接把队头后面的数据交换出来，队头那里没有放数据，数据都是放在后面一个了
+        //     //这里没有使用无锁的方式是因为就这一个地方会出队，所以不存在并发问题
+        //     Direct_Express_Call *out_call = call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)];
+        //     call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
+        //     // Direct_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
+        //     call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
+        //     // express_printf("recycle one\n");
+        //     //express_printf("recycle one %s\n",(char *)out_call->elem_tail->para);
+        //     in_handle_num -= 1;
+        //     // gint64 start_time =g_get_real_time();
+        //     // uint64_t thread_id=out_call->thread_id;
+        //     release_call(out_call);
+        //     // spend_time_all += g_get_real_time()-start_time;
+        //     // call_num+=1;
+        //     // express_printf("call release time %lld %lld %lld %llu\n",spend_time_all/call_num,spend_time_all,call_num,thread_id);
+
+        //     // release_cnt_debug+=1;
+        //     // printf("%d %d %d\n",release_cnt_debug,call_recycle_queue_header,call_recycle_queue_tail);
+        //     release_cnt += 1;
+        //     has_handle_flag = 1;
+        // }
+
+        //前面两个改为if后，这里也改为判断前面两个if有没有进入
+        if (!has_handle_flag)
+        // else
+        {
+            //休眠前注入中断，通知对方，防止部分call的延迟过大
+            if (release_cnt != 0)
+            {
+
+                release_cnt = 0;
+                express_printf("notify guest\n");
+                virtio_notify(VIRTIO_DEVICE(vdev), vq);
+            }
+
+            pop_cnt = 0;
+
+#ifdef DISTRIBUTE_WHEN_VM_EXIT
+            atomic_set(&atomic_distribute_thread_running, 0);
+#endif
+            //休眠采用可以被其他线程打断的休眠，主要是被处理线程打断，打断的目的也是为了减小延迟
+            distribute_wait();
+            if(direct_express_should_stop)
+            {
+                return NULL;
+            }
+
+#ifdef DISTRIBUTE_WHEN_VM_EXIT
+            if(atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) == 1)
+            {
+                //人家在跑着，我得告诉他我准备好了，他得赶紧结束
+                if(atomic_cmpxchg(&atomic_distribute_thread_running, 1, 2) == 1)
+                {
+                    int cnt_lock = 0;
+                    while(atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0)
+                    {
+                        cnt_lock++;
+                        // if(cnt_lock%100 == 0)
+                        // {
+                        //     printf("lock %d %d\n",cnt_lock,atomic_read(&atomic_distribute_thread_running));
+                        // }
+                    }
+                }
+                else
+                {
+                    // 还没设置2表示我准备好了，结果人家就结束了，当然是接着继续运行了
+                    // printf("lock fail %d\n",atomic_read(&atomic_distribute_thread_running));
+                }
+            }
+#endif
+
+            // gint64 s2=g_get_real_time();
+            // if(in_handle_num!=0){
+            //     cnt_time+=s2-s1;
+            //     sleep_cnt+=1;
+            //     if(sleep_cnt%100==0){
+            //         express_printf("sleep cnt %d time %lld avg %lld\n",sleep_cnt,cnt_time,cnt_time/sleep_cnt);
+            //     }
+            // }
+        }
+
+        //下面这个不需要，因为高负载下，并不依赖与中断注入来回收数据
+        //高负载下依赖flag标志来回收数据
+        if (release_cnt >= 128)
+        {
+            //express_printf("recycle 128\n");
+            //平均一个call占用的空间为2左右，所以queue里理论上最大有1024/2=512个call，保留一定量的余量空间
+            //剩下的空间里留一部分给处理过程消耗，因此假设留给释放的call大概在128左右
+            //所以这时需要赶紧释放空间，防止queue满了
+            // express_printf("%s notify 128 with %d\n",get_now_time(),release_cnt);
+            release_cnt = 0;
+            virtio_notify(VIRTIO_DEVICE(vdev), vq);
+        }
+    }
+
+    return NULL;
+}
+
+
+void guest_null_ptr_init(VirtQueue *vq)
+{
     VirtQueueElement *elem;
 
     express_printf("wait for pop\n");
@@ -863,118 +1079,54 @@ void *call_distribute_thread(void *opaque)
     }
     else
     {
-        express_printf("error! null ptr cannot be init!\n");
+        printf("error! null ptr cannot be init!\n");
     }
     virtqueue_push(vq, elem, 1);
-    // int release_cnt_debug=0;
-    // int pop_cnt_debug=0;
+}
 
-    int64_t spend_time_all = 0;
-    int64_t call_num = 0;
-    while (e->thread_run && !direct_express_should_stop)
+/**
+ * @brief 分发线程处理virtqueue的call的函数
+ *
+ * @param vq Direct_Express和VirtQueue
+ * @param pop_flag 是否有取出call的flag
+ * @param recycle_flag 是否有回收call的flag
+ * @return void
+ */
+void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *recycle_flag)
+{
+    Direct_Express_Call *call = NULL;
+    int origin_pop_flag = *pop_flag;
+    int origin_recycle_flag = *recycle_flag;
+    *pop_flag = 0;
+    *recycle_flag = 0;
+    if (origin_pop_flag == 1 && (call = pack_call_from_queue(vq)) != NULL)
     {
+        //从queue中打包调用，假如打包失败的话，失败的部分也还是会还给guest
+        express_printf("virtio has data push\n");
+        //draw_call的其他部分都已经初始化过了
+        call->vdev = direct_express_device;
+        call->callback = push_free_callback;
+        call->is_end = 0;
+        push_to_thread(call);
+        *pop_flag = 1;
+    }
+    //这里之前是else if，高负载下导致大量call被堆积到这里，一直没法回收，影响了性能，因此这里进行修改
+    //改为一次取数据对应着一次回收数据
+    if (origin_recycle_flag == 1 && call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] != NULL)
+    {
+        //将回收的部分和分发的部分放到一起是为了减小延迟
 
-        int has_handle_flag = 0;
-        if ((call = pack_call_from_queue(vq)) != NULL)
-        {
-            //从queue中打包调用，假如打包失败的话，失败的部分也还是会还给guest
-            pop_cnt += 1;
-            in_handle_num += 1;
-            // atomic_add(&push_cnt, 1);
-            // sync_flag = call->fun_id;
-            //express_printf("virtio has data\n");
-            express_printf("virtio has data push\n");
-            //draw_call的其他部分都已经初始化过了
-            call->vdev = vdev;
-            call->callback = push_free_callback;
-            call->is_end = 0;
-            push_to_thread(call);
-            has_handle_flag = 1;
-            // pop_cnt_debug++;
-            // printf("pop %d\n",pop_cnt_debug);
-
-            // draw_call_printf(draw_call);
-            // Direct_Express_Flag_Buf *flag_buf = (Direct_Express_Flag_Buf *)draw_call->elem_header->para;
-            // flag_buf->flag=1;
-            // release_call(draw_call);
-            // virtio_notify(VIRTIO_DEVICE(vdev), vq);
-            // push_free_callback(draw_call);
-        }
-        //这里之前是else if，高负载下导致大量call被堆积到这里，一直没法回收，影响了性能，因此这里进行修改
-        //改为一次取数据对应着一次回收数据
-        if (call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] != NULL)
-        {
-            //将回收的部分和分发的部分放到一起是为了减小延迟
-
-            //出队直接把队头后面的数据交换出来，队头那里没有放数据，数据都是放在后面一个了
-            //这里没有使用无锁的方式是因为就这一个地方会出队，所以不存在并发问题
-            Direct_Express_Call *out_call = call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)];
-            call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
-            // Direct_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
-            call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
-            // express_printf("recycle one\n");
-            //express_printf("recycle one %s\n",(char *)out_call->elem_tail->para);
-            in_handle_num -= 1;
-            // gint64 start_time =g_get_real_time();
-            // uint64_t thread_id=out_call->thread_id;
-            release_call(out_call);
-            // spend_time_all += g_get_real_time()-start_time;
-            // call_num+=1;
-            // express_printf("call release time %lld %lld %lld %llu\n",spend_time_all/call_num,spend_time_all,call_num,thread_id);
-
-            // release_cnt_debug+=1;
-            // printf("%d %d %d\n",release_cnt_debug,call_recycle_queue_header,call_recycle_queue_tail);
-            release_cnt += 1;
-            has_handle_flag = 1;
-        }
-
-        //前面两个改为if后，这里也改为判断前面两个if有没有进入
-        if (!has_handle_flag)
-        // else
-        {
-            //休眠前注入中断，通知对方，防止部分call的延迟过大
-            if (release_cnt != 0)
-            {
-
-                release_cnt = 0;
-                express_printf("notify guest\n");
-                virtio_notify(VIRTIO_DEVICE(vdev), vq);
-            }
-
-            pop_cnt = 0;
-
-            //休眠采用可以被其他线程打断的休眠，主要是被处理线程打断，打断的目的也是为了减小延迟
-            distribute_wait();
-            if(direct_express_should_stop)
-            {
-                return NULL;
-            }
-
-            // gint64 s2=g_get_real_time();
-            // if(in_handle_num!=0){
-            //     cnt_time+=s2-s1;
-            //     sleep_cnt+=1;
-            //     if(sleep_cnt%100==0){
-            //         express_printf("sleep cnt %d time %lld avg %lld\n",sleep_cnt,cnt_time,cnt_time/sleep_cnt);
-            //     }
-            // }
-        }
-
-        //下面这个不需要，因为高负载下，并不依赖与中断注入来回收数据
-        //高负载下依赖flag标志来回收数据
-        if (release_cnt >= 128)
-        {
-            //express_printf("recycle 128\n");
-            //平均一个call占用的空间为2左右，所以queue里理论上最大有1024/2=512个call，保留一定量的余量空间
-            //剩下的空间里留一部分给处理过程消耗，因此假设留给释放的call大概在128左右
-            //所以这时需要赶紧释放空间，防止queue满了
-            // express_printf("%s notify 128 with %d\n",get_now_time(),release_cnt);
-            release_cnt = 0;
-            virtio_notify(VIRTIO_DEVICE(vdev), vq);
-        }
+        //出队直接把队头后面的数据交换出来，队头那里没有放数据，数据都是放在后面一个了
+        //这里没有使用无锁的方式是因为就这一个地方会出队，所以不存在并发问题
+        Direct_Express_Call *out_call = call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)];
+        call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
+        // Direct_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
+        call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
+        release_call(out_call);
+        *recycle_flag = 1;
     }
 
-    return NULL;
+    return;
 }
 
 // /**

@@ -110,7 +110,7 @@ long long set_host_map_id(Resource_Map_Status *status, int guest_id, int host_id
  */
 void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids)
 {
-    if (n <= 0)
+    if (n <= 0 || status->resource_id_map== NULL)
     {
         return;
     }

@@ -47,6 +47,7 @@ Direct_Express_Call *call_pop(Thread_Context *context)
         }
     }
     Direct_Express_Call *ret = context->call_buf[context->read_loc];
+    context->call_buf[context->read_loc] = NULL;
 
     context->read_loc = (context->read_loc + 1) % CALL_BUF_SIZE;
 
@@ -94,6 +95,10 @@ void call_push(Thread_Context *context, Direct_Express_Call *call)
             return;
         }
     }
+    if(context->call_buf[context->write_loc]!=NULL)
+    {
+        printf("error push find not null\n");
+    }
     context->call_buf[context->write_loc] = call;
 
     context->write_loc = (context->write_loc + 1) % CALL_BUF_SIZE;
@@ -130,7 +135,7 @@ void *handle_thread_run(void *opaque)
     {
         context->context_init(context);
     }
-    context->thread_run = 1;
+    context->thread_run = 2;
     context->init = 1;
     while (context->thread_run)
     {

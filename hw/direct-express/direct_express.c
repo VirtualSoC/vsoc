@@ -26,17 +26,87 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
 {
 
     Direct_Express *g = DIRECT_EXPRESS(vdev);
-    if (!g->thread_run)
+    if (g->thread_run == 0)
     {
+        guest_null_ptr_init(g->data_queue);
         express_printf("start handle thread\n");
         g->thread_run = 1;
         qemu_thread_create(&g->render_thread, "direct-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
     }
+    else if(g->thread_run == 1)
+    {
+        //分发线程还没跑起来，就不处理了
+        return;
+    }
     else
     {
+#ifdef DISTRIBUTE_WHEN_VM_EXIT
+        int running_flag = atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1);
+        if(running_flag == 0)
+        {
+            //没有在处理环上数据，那我就来处理
+            int pop_flag = 1;
+            int recycle_flag = 1;
+
+            int recycle_cnt = 0;
+            int pop_cnt = 0;
+
+            //我先处理着，但是分发线程也得赶紧醒来接着我处理
+            wake_up_distribute();
+
+            
+            // distribute_wait();
+            // printf("trying handle     ");
+
+            while(pop_flag != 0 || recycle_flag != 0)
+            {
+                //一旦分发线程跑起来了，就赶紧回虚拟机里去，避免长时间操作，影响vCPU运行，进而造成间歇性卡顿
+                if(atomic_read(&atomic_distribute_thread_running) == 2)
+                {
+                    running_flag = 1;
+                    break;
+                }
+
+                pop_flag = 1;
+                recycle_flag = 1;
+
+                virtqueue_data_distribute_and_recycle(g->data_queue, &pop_flag, &recycle_flag);
+                if(pop_flag != 0)
+                {
+                    pop_cnt += 1;
+                }
+                if(recycle_flag != 0)
+                {
+                    recycle_cnt += 1;
+                }
+            }
+            if(recycle_flag != 0)
+            {
+                // printf("direct notify\n");
+                virtio_notify(VIRTIO_DEVICE(vdev), vq);
+            }
+            
+            // printf("handle ok pop_cnt %d recycle_cnt %d ", pop_cnt, recycle_cnt);
+
+            if(running_flag == 1)
+            {
+                // printf("other thread continue\n");
+            }
+
+            atomic_set(&atomic_distribute_thread_running, 0);
+
+        }
+        else
+        {
+            //分发线程的处理流程运行中，那我就不管了
+        }
+#else
+        //不再尝试唤醒分发线程，而是直接我自己上手处理数据，以减少延迟
         wake_up_distribute();
+#endif
     }
+    return;
 }
 
 /**

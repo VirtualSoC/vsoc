@@ -410,6 +410,11 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     opengl_context->draw_fbo0 = 0;
     opengl_context->read_fbo0 = 0;
 
+    opengl_context->draw_texi_vbo = 0;
+    opengl_context->draw_texi_vao = 0;
+    opengl_context->draw_texi_ebo = 0;
+
+
     return opengl_context;
 }
 

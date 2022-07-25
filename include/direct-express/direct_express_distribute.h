@@ -15,6 +15,11 @@
 
 #define TERMINATE_FUN_ID 0
 
+
+//配置vm退出时是否进行取数据的工作，若是，则通知轮询线程外，会主动取数据，直到轮询线程结束休眠开始干活，若否，则只是通知轮询线程
+#define DISTRIBUTE_WHEN_VM_EXIT
+
+
 /**
  * @brief 释放Direct_Express_Queue链表中的Direct_Express_Queue_Elem包括额外的申请空间
  * 
@@ -178,8 +183,8 @@ typedef struct Thread_Context
     Direct_Express_Call *call_buf[CALL_BUF_SIZE + 2];
 
     //环形缓冲区的读写位置
-    int read_loc;
-    int write_loc;
+    volatile int read_loc;
+    volatile int write_loc;
 
     int atomic_event_lock;
 
@@ -230,7 +235,14 @@ typedef struct Express_Device_Info
 
 extern bool direct_express_should_stop;
 
+extern int atomic_distribute_thread_running;
+
+
 void *call_distribute_thread(void *opaque);
+
+void guest_null_ptr_init(VirtQueue *vq);
+
+void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *recycle_flag);
 
 Thread_Context *thread_context_create(uint64_t thread_id, uint64_t type_id, uint64_t len, Express_Device_Info *info);
 
