@@ -42,6 +42,10 @@ int host_opengl_version = 0;
 
 int DSA_enable = 0;
 
+int VSYNC_enable = 0;
+
+int composer_refresh_HZ = 60;
+
 static unsigned int main_frame_num = 0;
 
 static int event_queue_lock;
@@ -1058,6 +1062,8 @@ static void static_value_prepare()
     preload_static_context_value = g_malloc(sizeof(Static_Context_Values) + 512 * 100 + 400);
     memset(preload_static_context_value, 0, sizeof(Static_Context_Values) + 512 * 100 + 400);
 
+    preload_static_context_value->composer_HZ = composer_refresh_HZ;
+
     // initialize static status
     preload_static_context_value->major_version = OPENGL_MAJOR_VERSION;
     preload_static_context_value->minor_version = OPENGL_MINOR_VERSION;
@@ -1845,11 +1851,14 @@ void *native_window_thread(void *opaque)
 
     express_printf("native windows create!\n");
 
-#ifdef SPECIAL_SCREEN_SYNC_HZ
-    glfwSwapInterval(0);
-#else
-    glfwSwapInterval(1);
-#endif
+    if(VSYNC_enable == 0)
+    {
+        glfwSwapInterval(0);
+    }
+    else
+    {
+        glfwSwapInterval(1);
+    }
 
     // int a = 1;
     // glViewport(0, 0, window_width, window_height);
@@ -1985,22 +1994,22 @@ void *native_window_thread(void *opaque)
         {
             calc_screen_hz += 1;
         }
-
-#ifdef SPECIAL_SCREEN_SYNC_HZ
-
         gint64 spend_time = now_time - frame_start_time;
-        long need_sleep = 1000000 / SPECIAL_SCREEN_SYNC_HZ - spend_time + remain_sleep_time;
-
-        if (need_sleep <= 0)
+        if(VSYNC_enable == 0)
         {
-            need_sleep = 0;
+            long need_sleep = 1000000 / composer_refresh_HZ - spend_time + remain_sleep_time;
+
+            if (need_sleep <= 0)
+            {
+                need_sleep = 0;
+            }
+
+            gint64 sleep_start_time = now_time;
+            g_usleep(need_sleep);
+            gint64 sleep_end_time = g_get_real_time();
+            remain_sleep_time = need_sleep - (sleep_end_time - sleep_start_time);
         }
 
-        gint64 sleep_start_time = g_get_real_time();
-        g_usleep(need_sleep);
-        gint64 sleep_end_time = g_get_real_time();
-        remain_sleep_time = need_sleep - (sleep_end_time - sleep_start_time);
-#endif
     }
 
     // qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);

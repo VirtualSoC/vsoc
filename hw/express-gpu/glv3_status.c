@@ -513,6 +513,20 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
             printf("error! cannot find gbuffer(id %llx)\n",gbuffer_id);
             return;
         }
+        //假如应用帧数都是60帧，基本不可能出现这种情况，因为queuebuffer的时延也就几毫秒
+        if(gbuffer->is_writing == 1)
+        {
+#ifdef _WIN32
+            //不能因为等待导致掉帧或卡死
+            WaitForSingleObject(gbuffer->writing_ok_event, 1000/composer_refresh_HZ/2);
+            express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n",gbuffer->is_writing);
+            if(gbuffer->is_writing == 1)
+            {
+                printf("waiting gbuffer(release writing) out of time %d\n",1000/composer_refresh_HZ/2);
+            }
+#else
+#endif
+        }
         // printf("glBindEGLImage gbuffer_id %llx when write %d sync %d\n", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
         host_share_texture = gbuffer->data_texture;
         if(gbuffer->is_dying)

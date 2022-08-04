@@ -25,6 +25,13 @@
 typedef struct Graphic_Buffer{
 
      int is_writing;
+     
+     //假如合成器在使用这个gbufffer时发现正在写入，则新建并监听这个事件，以让对方来唤醒自己
+#ifdef _WIN32
+    HANDLE writing_ok_event;
+#else
+
+#endif
      int is_lock;
      int sampler_num;
      
@@ -74,8 +81,8 @@ typedef struct Window_Buffer
      Graphic_Buffer *gbuffer;
      uint64_t gbuffer_id;
 
-     //可以交换的事件
-     void *swap_event;
+     // //可以交换的事件
+     // void *swap_event;
      
 
      //表示窗口的宽和高，只有Pbuffer适用
@@ -86,7 +93,7 @@ typedef struct Window_Buffer
      int is_current;
      int need_destroy;
 
-     int last_frame_num;
+     // int last_frame_num;
      int swap_interval;
 
      int I_am_composer;
@@ -96,6 +103,8 @@ typedef struct Window_Buffer
      int64_t swap_time_all;
      int swap_loc;
      int swap_time_cnt;
+
+     int64_t frame_start_time;
 
 
      gint64 last_calc_time;

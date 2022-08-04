@@ -183,7 +183,7 @@ void egl_destroyContext(void *context)
 
     if (context != NULL)
     {
-        // gint64 t = g_get_real_time();
+        gint64 t = g_get_real_time();
         // printf("destroy ");
         printf("destroy window %llx\n",context);
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);
@@ -196,6 +196,6 @@ void egl_destroyContext(void *context)
         g_hash_table_remove(context_dc_map, (gpointer)context);
         g_hash_table_remove(context_pbuffer_map, (gpointer)context);
         
-        // printf("destroy window %lld\n", g_get_real_time() - t);
+        express_printf("destroy window ok %lld\n", g_get_real_time() - t);
     }
 }

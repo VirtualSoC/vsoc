@@ -254,7 +254,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if(real_surface_draw!=NULL)
     {
         real_surface_draw->is_current = 1;
-        real_surface_draw->last_frame_num = -1;
+        real_surface_draw->frame_start_time = 0;
+        // real_surface_draw->last_frame_num = -1;
     }
     thread_context->opengl_context = real_opengl_context;
     real_opengl_context->is_current = 1;
@@ -344,6 +345,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         if(real_surface_draw->gbuffer!=NULL)
         {
             real_surface_draw->gbuffer->is_writing = 0;
+#ifdef _WIN32
+            SetEvent(real_surface_draw->gbuffer->writing_ok_event);
+#else
+#endif
         }
 
         real_surface_draw->gbuffer = gbuffer;
@@ -351,6 +356,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         if(real_surface_draw->type == WINDOW_SURFACE)
         {
             gbuffer->is_writing = 1;
+#ifdef _WIN32
+            ResetEvent(gbuffer->writing_ok_event);
+#else
+#endif
             //pbuffer不设置正在write的标志
         }
     }
@@ -538,6 +547,11 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
     gbuffer->delete_sync = gbuffer->data_sync;
     gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     gbuffer->is_writing = 0;
+
+#ifdef _WIN32
+    SetEvent(gbuffer->writing_ok_event);
+#else
+#endif
     // glFinish();
     glFlush();
     if(opengl_context->independ_mode==1)
@@ -628,36 +642,52 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
 
     express_printf("#%llx swapbuffer real_surface %llx\n", thread_context->opengl_context, real_surface);
 
-    gint64 start_time = g_get_real_time();
+    // gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface, gbuffer_id, width, height, hal_format);
-    gint64 end_time = g_get_real_time();
-    gint64 now_swap_time = end_time - start_time;
+    // gint64 end_time = g_get_real_time();
+    // gint64 now_swap_time = end_time - start_time;
 
-    if (real_surface->swap_time_cnt < 20)
+    gint64 now_time = g_get_real_time();
+
+
+    if (real_surface->swap_time_cnt < 5)
     {
-        real_surface->swap_time[real_surface->swap_loc] = now_swap_time;
-        real_surface->swap_loc = (real_surface->swap_loc + 1) % 20;
-        real_surface->swap_time_all += now_swap_time;
+        //前两帧刚开始很可能用来进行初始化，因此前两帧帧的时间不能保存，都假设只是2ms的时间，因为这个是一次传输的延迟，相当于是距离前一个同步的时间
+        if(real_surface->swap_time_cnt <= 2)
+        {
+            real_surface->swap_time[real_surface->swap_loc] = 2000;
+            real_surface->swap_time_all += 2000;
+        }
+        else
+        {
+            real_surface->swap_time[real_surface->swap_loc] = now_time - real_surface->frame_start_time;
+            real_surface->swap_time_all += now_time - real_surface->frame_start_time;
+        }
+
+        real_surface->swap_loc = (real_surface->swap_loc + 1) % 5;
         real_surface->swap_time_cnt++;
     }
     else
     {
         real_surface->swap_time_all -= real_surface->swap_time[real_surface->swap_loc];
-        real_surface->swap_time_all += now_swap_time;
-        real_surface->swap_time[real_surface->swap_loc] = now_swap_time;
-        real_surface->swap_loc = (real_surface->swap_loc + 1) % 20;
+        real_surface->swap_time_all += now_time - real_surface->frame_start_time;
+        real_surface->swap_time[real_surface->swap_loc] = now_time - real_surface->frame_start_time;
+        real_surface->swap_loc = (real_surface->swap_loc + 1) % 5;
     }
+
+    real_surface->frame_start_time = 0;
+
     // if(real_surface->swap_loc==0){
     //     express_printf("avg swap time %lld\n",real_surface->swap_time_all/real_surface->swap_time_cnt);
     // }
 
     gint64 now_avg_swap_time = real_surface->swap_time_all / real_surface->swap_time_cnt;
 
-    //保证这个swap_time不为0，方便guest判断是否有返回
-    if (real_surface->swap_time_cnt <= 10)
-    {
-        now_avg_swap_time = -1;
-    }
+    // //保证这个swap_time不为0，方便guest判断是否有返回
+    // if (real_surface->swap_time_cnt <= 10)
+    // {
+    //     now_avg_swap_time = -1;
+    // }
 
     if (ret == EGL_TRUE)
     {
@@ -682,15 +712,39 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         }
     }
 
-    gint64 now_time = g_get_real_time();
 
     //计算帧率
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
-        printf("%llx surface draw %.2lfHz\n", real_surface, real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time));
+        double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);
+        printf("%llx surface draw %.2lfHz\n", real_surface, hz);
         real_surface->now_screen_hz = 0;
 
         real_surface->last_calc_time = now_time;
+        if(real_surface->I_am_composer)
+        {
+            if(hz > 132.0)
+            {
+                composer_refresh_HZ = 144;
+            }
+            else if(hz > 105.0)
+            {
+                composer_refresh_HZ = 120;
+            }
+            else if(hz > 82.5)
+            {
+                composer_refresh_HZ = 90;
+            }
+            else if(hz > 67.5)
+            {
+                composer_refresh_HZ = 75;
+            }
+            else
+            {
+                composer_refresh_HZ = 60;
+            }
+        }
+
     }
     else if (real_surface->last_calc_time == 0)
     {

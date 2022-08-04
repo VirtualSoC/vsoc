@@ -75,6 +75,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         call->callback(call, 0);
         return;
     }
+
+    Window_Buffer *draw_surface = render_context->render_double_buffer_draw;
+    if(draw_surface != NULL && draw_surface->frame_start_time == 0)
+    {
+        draw_surface->frame_start_time = g_get_real_time();
+    }
+
     //uint64_t is_async=FUN_IS_ASYNC(call->id);
     //uint64_t need_speed=FUN_NEED_SPEED(call->id);
     Call_Para all_para[MAX_PARA_NUM];
@@ -27481,7 +27488,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     case FUNID_glSync:
     {
         //用于同步，不需要做任何事情
-        printf("guest sync\n");
+        express_printf("guest sync\n");
         // glFinish();
 
     }

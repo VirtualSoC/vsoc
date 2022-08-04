@@ -62,7 +62,7 @@ typedef struct Main_window_Event
 //注意顺序，保证不影响结构体对齐
 typedef struct Static_Context_Values
 {
-
+     GLuint composer_HZ;
      GLint num_extensions;
      //____________ FIXED VALUE ____________
      GLint major_version;
@@ -312,6 +312,8 @@ extern void *dummy_window_for_sync;
 extern int host_opengl_version;
 
 extern int DSA_enable;
+
+extern int composer_refresh_HZ;
 
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);

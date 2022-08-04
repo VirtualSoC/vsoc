@@ -82,15 +82,15 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
 
     //垂直同步
     //刚开始要初始化
-    if (surface->last_frame_num == -1)
-    {
-        surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, -1);
-    }
-    else
-    {
-        int next_frame_num = (surface->last_frame_num + surface->swap_interval) % 65536;
-        surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, next_frame_num);
-    }
+    // if (surface->last_frame_num == -1)
+    // {
+    //     surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, -1);
+    // }
+    // else
+    // {
+    //     int next_frame_num = (surface->last_frame_num + surface->swap_interval) % 65536;
+    //     surface->last_frame_num = draw_wait_GSYNC(surface->swap_event, next_frame_num);
+    // }
 
     //尝试锁定下一个将要绘制的缓冲区
     // int next_draw_buffer = (surface->now_draw + 1) % surface->buffer_num;
@@ -128,6 +128,10 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
             add_gbuffer_to_global(next_draw_gbuffer);
         }
         next_draw_gbuffer->is_writing = 1;
+#ifdef _WIN32
+        ResetEvent(next_draw_gbuffer->writing_ok_event);
+#else
+#endif
     }
     else
     {
@@ -141,9 +145,9 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64
     if (next_draw_gbuffer->data_sync != 0)
     {
         // glFinish();
-        // glClientWaitSync(next_draw_gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+        glClientWaitSync(next_draw_gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
         
-        glWaitSync(next_draw_gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
+        // glWaitSync(next_draw_gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
 
         if(next_draw_gbuffer->delete_sync != 0)
         {
@@ -681,7 +685,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     surface->height = height;
     surface->swap_interval = 1;
 
-    surface->swap_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    // surface->swap_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
     eglConfig *config = config_to_hints(eglconfig, &surface->window_hints);; 
     surface->config = config;
@@ -1261,6 +1265,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     Graphic_Buffer *gbuffer = g_malloc(sizeof(Graphic_Buffer));
     memset(gbuffer,0,sizeof(Graphic_Buffer));
 
+    gbuffer->writing_ok_event = CreateEvent(NULL, FALSE, FALSE, NULL); 
 
     GLuint pre_vbo = 0;
     GLuint pre_texture = 0;
@@ -1490,6 +1495,12 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
         glDeleteSync(gbuffer->delete_sync);
     }
     
+#ifdef _WIN32
+    CloseHandle(gbuffer->writing_ok_event);
+#else
+
+#endif
+
     g_free(gbuffer);
 //         {
 //             glDeleteTextures(1, &(real_image->fbo_texture));
