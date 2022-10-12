@@ -148,6 +148,7 @@ void *handle_thread_run(void *opaque)
 
         if (call->is_end)
         {
+            express_printf("thread context %llx call end thread_id %lld process_id %lld\n", context, call->thread_id, call->process_id);
             call->callback(call, 0);
             context->thread_run = 0;
             continue;

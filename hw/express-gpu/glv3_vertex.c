@@ -575,6 +575,13 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
             // printf("use external texture %d\n", opengl_context->current_texture_external);
 
         }
+        // GLuint pre_array;
+        // glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &pre_array);
+        // printf("pre array vao %d\n",pre_array);
+        // glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_array);
+        // printf("pre array ebo %d\n",pre_array);
+        // @todo 3Dmark ice test crash
+
         glDrawElements(mode, count, type, (void *)indices);
         if(opengl_context->is_using_external_program == 1)
         {

@@ -82,6 +82,24 @@ int init_program_data(GLuint program)
         glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCKS, &uniform_blocks_num);
         glGetProgramiv(program, GL_TRANSFORM_FEEDBACK_VARYINGS, &transform_feedback_varyings);
 
+        GLuint group_size[3] = {0, 0, 0};
+
+        GLuint shader_ids[10];
+        GLsizei shader_cnt = 0;
+        glGetAttachedShaders(program, 10, &shader_cnt, shader_ids);
+        if(shader_cnt == 1)
+        {
+            //计算着色器是单独的一个
+            GLint shader_type;
+            glGetShaderiv(shader_ids[0], GL_SHADER_TYPE, &shader_type);
+            if(shader_type == GL_COMPUTE_SHADER)
+            {
+                glGetProgramiv(program, GL_COMPUTE_WORK_GROUP_SIZE, group_size);
+                // printf("computer shader size %d\n", shader_cnt);
+                // break;
+            }
+        }
+
         int name_len = max_uniform_name_len > max_attrib_name_len ? max_uniform_name_len : max_attrib_name_len;
         name_len = name_len > max_uniform_block_name_len ? name_len : max_uniform_block_name_len;
 
@@ -89,7 +107,7 @@ int init_program_data(GLuint program)
 
         GLchar *name_buf = g_malloc(name_len);
 
-        buf_len = (name_len + 4 * 4) * (uniform_num + attrib_num + uniform_blocks_num) + 4 * 7 + name_len;
+        buf_len = (name_len + 4 * 4) * (uniform_num + attrib_num + uniform_blocks_num) + 4 * 10 + name_len;
         program_data = g_malloc(buf_len);
 
         GLchar *temp_ptr = program_data;
@@ -102,8 +120,12 @@ int init_program_data(GLuint program)
         *(int_ptr + 4) = max_attrib_name_len;
         *(int_ptr + 5) = max_uniform_block_name_len;
         *(int_ptr + 6) = transform_feedback_varyings;
+        *(int_ptr + 7) = group_size[0];
+        *(int_ptr + 8) = group_size[1];
+        *(int_ptr + 9) = group_size[2];
 
-        temp_ptr += 7 * sizeof(int);
+
+        temp_ptr += 10 * sizeof(int);
 
         GLint size;
         GLenum type;
@@ -224,60 +246,11 @@ void d_glUseProgram_special(void *context, GLuint program)
     {
         //当前需要使用external纹理
         opengl_context->is_using_external_program = 1;
-        // if(opengl_context->current_texture_external != 0)
-        // {
-        //     glActiveTexture(GL_TEXTURE0);
-        //     glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_external);
-        //     opengl_context->current_target = GL_TEXTURE_EXTERNAL_OES;
-        //     glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
-        // }
-
-        // for (int i = 0; i < preload_static_context_value->max_combined_texture_image_units; i++)
-        // {
-        //     if (opengl_context->current_texture_external != 0)
-        //     {
-        //         GLuint texture = g_hash_table_lookup(to_external_texture_id_map, (gpointer)(opengl_context->current_texture_external));
-        //         if (texture != 0)
-        //         {
-        //             if(opengl_context->current_active_texture != 0)
-        //             {
-        //                 glActiveTexture(GL_TEXTURE0);
-        //             }
-        //             glBindTexture(GL_TEXTURE_2D, texture);
-        //             opengl_context->current_target = GL_TEXTURE_EXTERNAL_OES;
-                    
-        //             if(opengl_context->current_active_texture != 0)
-        //             {
-        //                 glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
-        //             }
-
-        //             // int now_active;
-        //             // glGetIntegerv(GL_ACTIVE_TEXTURE,&now_active);
-
-        //             // printf("context %llx program %u change to external texture %u i %d current %u real current %d\n", opengl_context, program, texture, i,opengl_context->current_texture_external,now_active-GL_TEXTURE0);
-        //             break;
-        //         }
-        //     }
-        // }
     }
     else
     {
         opengl_context->is_using_external_program = 0;
     }
-    // if (ret == 0 && opengl_context->current_target == GL_TEXTURE_EXTERNAL_OES)
-    // {
-    //     // printf("context %llx change to normal texture %u\n", opengl_context, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
-    //     if(opengl_context->current_texture_2D[0]!=0)
-    //     {
-    //         glActiveTexture(GL_TEXTURE0);
-    //         glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
-    //         glActiveTexture(opengl_context->current_active_texture + GL_TEXTURE0);
-    //     }
-        
-    //     // glBindTexture(GL_TEXTURE_2D, opengl_context->current_texture_2D[opengl_context->current_active_texture]);
-    //     opengl_context->current_target = GL_TEXTURE_2D;
-    // }
-    // printf("context %llx use program %u external active %d target %x\n", opengl_context, program,opengl_context->current_active_texture, opengl_context->current_target);
 
     glUseProgram(program);
 
@@ -720,5 +693,111 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     if (new_string2 != NULL)
     {
         g_free(new_string2);
+    }
+}
+
+static int GLSL_VERSION_SIZE = 7;
+static char *GLSL_VERSION[]={
+    "430",
+    "330",
+    "300 es",
+    "310 es",
+    "100",
+    "440",
+    "450"
+};
+
+void change_GLSL_version(char *start, char *end, int try_cnt)
+{
+    while(start + 3 < end && (*start < '0' || *start > '9'))
+    {
+        start++;
+    }
+
+    if(*start < '0' || *start > '9' || try_cnt >= GLSL_VERSION_SIZE)
+    {
+        return;
+    }
+
+    start[0]=GLSL_VERSION[try_cnt][0];
+    start[1]=GLSL_VERSION[try_cnt][1];
+    start[2]=GLSL_VERSION[try_cnt][2];
+    start += 3;
+    if((try_cnt >=2 && try_cnt <= 3) && end - start >= 3)
+    {
+        start[0]=GLSL_VERSION[try_cnt][3];
+        start[1]=GLSL_VERSION[try_cnt][4];
+        start[2]=GLSL_VERSION[try_cnt][5];
+        start += 3;
+    }
+    while(start != end)
+    {
+        *start = ' ';
+        start++;
+    }
+    return;
+
+}
+
+
+void d_glCompileShader_special(void *context, GLuint guest_id)
+{
+    GLuint host_id = (GLuint)get_host_shader_id(context, (unsigned int)guest_id);
+
+    glCompileShader(host_id);
+    GLenum error = glGetError();
+
+    if(error!=GL_NO_ERROR){
+        printf("glCompileShader %x guest %u host %u\n",error, guest_id,host_id);
+    }
+
+    GLint compiled;
+    glGetShaderiv(host_id, GL_COMPILE_STATUS, &compiled);
+
+    if (!compiled)
+    {
+        GLint source_len = 0;
+        glGetShaderiv(host_id, GL_SHADER_SOURCE_LENGTH, &source_len);
+
+        char *source = g_malloc(source_len + 1);
+        source[source_len] = 0;
+
+        glGetShaderSource(host_id, source_len, NULL, source);
+
+        GLint infoLen = 0;
+        glGetShaderiv(host_id, GL_INFO_LOG_LENGTH, &infoLen);
+
+        char *info_log = (char *)g_malloc(infoLen);
+        glGetShaderInfoLog(host_id, infoLen, NULL, info_log);
+
+        char *string_loc = strstr(source, "#version");
+        char *enter_loc = strstr(source, "\n");
+        if (string_loc != NULL && string_loc + 8 < enter_loc && enter_loc - string_loc - 8 < 100 && string_loc - source <= source_len)
+        {
+            //着色器编译报错的话，就尝试下更改版本号，看能不能编译过去，只有都编译不过去的时候才报错
+            int try_cnt = 0;
+            while(try_cnt < GLSL_VERSION_SIZE)
+            {
+                change_GLSL_version(string_loc + 8, enter_loc, try_cnt);
+                
+                glShaderSource(host_id, 1, (const char* const*)&source, &source_len);
+                glCompileShader(host_id);
+                glGetShaderiv(host_id, GL_COMPILE_STATUS, &compiled);
+                // printf("try change(%d) source compiled %d:%s\n", try_cnt, compiled, source);
+                if(compiled)
+                {
+                    break;
+                }
+                try_cnt++;
+            }
+        }
+        if(!compiled)
+        {
+            printf("shader compile error! shader source:\n%s\nerror info:\n%s\n", source, info_log);
+        }
+
+        g_free(source);
+        g_free(info_log);
+        
     }
 }

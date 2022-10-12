@@ -19,7 +19,10 @@
 #define HAL_PIXEL_FORMAT_RGB_565 4
 #define HAL_PIXEL_FORMAT_BGRA_8888 5
 
-#define MAX_LIFE_TIME 120
+#define MAX_WINDOW_LIFE_TIME (60*5)
+#define MAX_BITMAP_LIFE_TIME (60*15)
+#define MAX_COMPOSER_LIFE_TIME (MAX_WINDOW_LIFE_TIME*10)
+
 
 
 typedef struct Graphic_Buffer{
@@ -37,11 +40,18 @@ typedef struct Graphic_Buffer{
      
 
      GLuint data_texture;
-     GLuint data_fbo;
+     GLuint reverse_rbo;
      GLuint sampler_rbo;
-     GLuint sampler_fbo;
      GLuint rbo_depth;
      GLuint rbo_stencil;
+
+     //这两个fbo不是gbuffer自己产生的
+     GLuint data_fbo;
+     GLuint sampler_fbo;
+
+
+     //这个用来指示surface连接上gbuffer，防止出现三个gbuffer都连接到surface了，然后一个gbuffer长时间没用释放了，而surface的connect_texture还有值，导致后续绘制时新生成的gbuffer无法连接到surface
+     int has_connected_fbo;
 
      GLsync data_sync;
      GLsync delete_sync;
@@ -49,6 +59,8 @@ typedef struct Graphic_Buffer{
 
      int remain_life_time;
      int is_dying;
+     int is_using;
+     int need_reverse;
 
 
      int format;
@@ -64,6 +76,8 @@ typedef struct Graphic_Buffer{
      int stride;
      int width;
      int height;
+
+     int usage_type;
 
 } Graphic_Buffer;
 
@@ -117,165 +131,34 @@ typedef struct Window_Buffer
      // int row_byte_len;
      int depth_internal_format;
      int stencil_internal_format;
+     
+     GLuint now_fbo_loc;
+     GLuint data_fbo[3];
+     GLuint sampler_fbo[3];
+     GLuint connect_texture[3];
 
      // int64_t temp_time;
 
 } Window_Buffer;
 
 
-// typedef struct EGL_Image{
-//      GLenum target;
+Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *thread_context, EGLContext ctx, uint64_t gbuffer_id);
 
-//      int display_texture_is_use;
-//      int is_lock;
-//      GLuint display_fbo;
-//      GLuint fbo_texture;
-
-//      GLuint display_fbo_reverse;
-//      GLuint fbo_texture_reverse;
-
-
-//      GLsync fbo_sync;
-//      GLsync fbo_sync_need_delete;
-//      uint64_t gbuffer_id;
-
-//      int remain_life_time;
-//      int is_dying;
-
-//      int format;
-//      int pixel_type;
-//      int internal_format;
-//      int row_byte_len;
-
-//      int origin_format;
-
-//      int stride;
-//      int width;
-//      int height;
-//      // int host_has_data;
-//      int need_reverse;
-// } EGL_Image;
-
-
-// typedef struct Window_Buffer
-// {
-
-//      //创建这个fbo的窗口，不一定是当前的环境
-//      void *creater_window;
-//      GLFWHints window_hints;
-
-//      eglConfig *config;
-
-//      uint64_t guest_native_window;
-
-//      EGL_Image *display_image;
-//      // uint64_t display_guest_gbuffer_id;
-
-//      //这里之所以是64，是因为安卓一个window最多可以有64个gbuffer
-//      uint64_t guest_gbuffer_id[64];     
-//      int guest_gbuffer_num;
-//      int remain_life_time;
-
-
-//      int hold_surface_cnt;
-
-//      // struct Window_Buffer *now_acquired_surface;
-//      // struct Window_Buffer *last_acquired_surface;
-
-//      //可以交换的事件
-//      void *swap_event;
-
-//      //这里用数组循环是为了方便进行设置单缓冲、双缓冲，甚至是三重缓冲
-//      GLuint display_fbo[5];
-
-//      //创建读取fbo的窗口
-//      void *reader_window;
-//      //专门用于读取的fbo，一般read_surface与draw_surface不同时需要设置，因为不可能被多个同时读取，所以只设定一个是合理的
-//      GLuint read_fbo[5];
-
-//      //用于MSAA抗锯齿的fbo
-//      GLuint sampler_fbo[5];
-//      GLuint now_draw;
-//      GLuint now_read;
-//      GLint now_acquired;
-//      // GLuint draw_num;
-//      // GLuint read_num;
-
-//      GLuint buffer_num;
- 
-//      // GLuint fbo_draw;
-//      // GLuint fbo_display;
-
-//      GLuint fbo_texture[5];
-//      GLuint display_rbo_depth[5];
-//      GLuint display_rbo_stencil[5];
-
-//      //用于MSAA抗锯齿的rbo
-//      //由于图像之后可能要被surfaceflinger使用，因此这里只能使用bilt来复制出来数据
-//      GLuint sampler_rbo[5];
-     
-
-//      GLsync fbo_sync[5];
-
-
-//      GLsync delete_sync[5];
-//      int delete_loc;
-
-//      //表示这个纹理当前是不是被用来绘制，是的话这个时候这个纹理不能被用来绘制，只能读取
-//      int display_texture_is_use[5];
-
-
-
-
-//      //表示窗口的宽和高
-//      int width;
-//      int height;
-
-//      int type;
-
-//      int is_current;
-//      int need_destroy;
-
-//      int last_frame_num;
-//      int swap_interval;
-
-//      int I_am_composer;
-
-//      // //它绑定的opengl指针
-//      // void *opengl_context;
-     
-//      // int calc_hz;
-//      // int draw_hz;
-
-//      // int frame_gen_time;
-//      // gint64 last_gen_time;
-
-//      // gint64 last_swap_time;
-
-//      int64_t swap_time[20];
-//      int64_t swap_time_all;
-//      int swap_loc;
-//      int swap_time_cnt;
-
-
-//      gint64 last_calc_time;
-//      int now_screen_hz;
-
-//      // int64_t temp_time;
-
-// } Window_Buffer;
-
-
-Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface);
+Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id);
 
 Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num, 
      int format,
      int pixel_type,
      int internal_format,
      int depth_internal_format,
-     int stencil_internal_format);
+     int stencil_internal_format,
+     uint64_t gbuffer_id);
 
 Graphic_Buffer *create_gbuffer_from_surface(Window_Buffer *surface);
+
+void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface);
+
+void reverse_gbuffer(Graphic_Buffer *gbuffer);
 
 void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64_t gbuffer_id, int width, int height, int hal_format);
 
@@ -283,9 +166,14 @@ int render_surface_destroy(Window_Buffer *surface);
 
 void destroy_gbuffer(Graphic_Buffer *gbuffer);
 
+void render_surface_init(Window_Buffer *surface);
+
+void render_surface_uninit(Window_Buffer *surface);
+
+
 // void destroy_real_image(EGL_Image *real_image);
 
-void d_eglIamComposer(void *context, EGLSurface surface);
+void d_eglIamComposer(void *context, EGLSurface surface, unsigned int pid);
 
 // EGLBoolean d_eglSwapBuffers_special(Render_Thread_Context *context, EGLDisplay dpy, EGLSurface surface);
 // EGLBoolean d_eglMakeCurrent_special(Render_Thread_Context *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);

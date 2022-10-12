@@ -65,6 +65,11 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
         // printf("create texture id %d %d\n",(int)guest_ids[i],(int)host_ids[i]);
         status->resource_id_map[guest_ids[i]] = host_ids[i];
         status->resource_is_init[guest_ids[i]] = 0;
+        if(status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
+        {
+            status->gbuffer_ptr_map[guest_ids[i]] = NULL;
+        }
+
     }
     if (status->max_id < max_id)
     {
@@ -127,6 +132,10 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
         }
         status->resource_id_map[guest_ids[i]] = 0;
         status->resource_is_init[guest_ids[i]] = 0;
+        if(status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
+        {
+            status->gbuffer_ptr_map[guest_ids[i]] = NULL;
+        }
     }
     while (status->max_id > 0 && status->resource_id_map[status->max_id] == 0)
     {
@@ -189,9 +198,9 @@ char set_host_resource_init(Resource_Map_Status *status, unsigned int id)
     }
 
     char host_init = status->resource_is_init[id];
-    if(host_init == 1)
+    if(host_init != 0)
     {
-        return 1;
+        return host_init;
     }
     else
     {
@@ -522,6 +531,43 @@ long long set_share_texture(void *context, GLuint texture, GLuint share_texture)
 }
 
 
+Graphic_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
+{
+    Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
+    Resource_Map_Status *map_status = resource_status->texture_resource;
+    if(map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
+    {
+        return NULL;
+    }
+    else
+    {
+        return map_status->gbuffer_ptr_map[texture];
+    }
+}
+
+void set_texture_gbuffer_ptr(void *context, GLuint texture, Graphic_Buffer *gbuffer)
+{
+    Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
+    Resource_Map_Status *map_status = resource_status->texture_resource;
+    if(map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
+    {
+        void **temp = g_malloc0(sizeof(void *)*map_status->map_size);
+        if(map_status->gbuffer_ptr_map != NULL)
+        {
+            memcpy(temp, map_status->gbuffer_ptr_map, map_status->gbuffer_map_max_size*sizeof(void *));
+            g_free(map_status->gbuffer_ptr_map);
+        }
+        map_status->gbuffer_ptr_map = (Graphic_Buffer **)temp;
+        map_status->gbuffer_map_max_size = map_status->map_size;
+    }
+    map_status->gbuffer_ptr_map[texture] = gbuffer;
+    map_status->resource_is_init[texture] = 2;
+
+
+    return;
+}
+
+
 void d_glGenSamplers(void *context, GLsizei count, const GLuint *samplers)
 {
     GLuint *host_buffers = g_malloc(count * sizeof(GLuint));
@@ -745,7 +791,7 @@ void d_glGenQueries(void *context, GLsizei n, const GLuint *ids)
     Resource_Map_Status *map_status = resource_status->query_resource;
 
     create_host_map_ids(map_status, n, ids, host_buffers_long);
-
+ 
     g_free(host_buffers);
     g_free(host_buffers_long);
 }
@@ -1010,7 +1056,7 @@ void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
     for (int i = 0; i < n; i++)
     {
         GLuint vao_index = get_host_array_id(context, (unsigned int)arrays[i]);
-        if (vao_index == 0)
+        if (vao_index == 0 || arrays[i] == 0)
         {
             continue;
         }

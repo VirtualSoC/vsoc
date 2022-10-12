@@ -1,4 +1,6 @@
 #include "express-gpu/egl_window.h"
+#include "direct-express/express_log.h"
+
 #include <glib.h>
 
 PFN_wglSwapInterval wglSwapInterval;

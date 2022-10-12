@@ -58,7 +58,12 @@ static GQueue *sync_event_queue;
 
 
 static GHashTable *gbuffer_global_map = NULL;
+static GHashTable *gbuffer_global_types = NULL;
+
 static volatile int gbuffer_global_map_lock = 0;
+
+static volatile int gbuffer_global_types_lock = 0;
+
 
 
 
@@ -164,7 +169,7 @@ static const GLubyte *SPECIAL_EXTENSIONS[] =
         /*13*/ "GL_KHR_texture_compression_astc_hdr",
         /*14*/ "GL_OES_vertex_array_object",
         // /*14*/ "GL_EXT_shader_framebuffer_fetch",   //这个暂时看情况支持，webview用它来混合，会着色器中使用变量gl_LastFragData
-        // /*15*/ "GL_EXT_multisampled_render_to_texture",  //这个暂时不能有，因为它需要支持相关函数
+        // /*15*/ "GL_EXT_multisampled_render_to_texture",  //这个暂时不能有，因为它需要支持相关函数 这个具体涉及到glFramebufferTexture2DMultisampleEXT函数，这个函数是tile-based GPU使用TBDR渲染特有的，用来节省带宽，IMR模式的PC上没有，所以没法启用。glFramebufferTexture2DMultisampleEXT这个函数被PUBG在抗锯齿时用到了
         /*16*/ "GL_EXT_color_buffer_float",
         /*17*/ "GL_EXT_color_buffer_half_float",
         /*18*/ "GL_OES_element_index_uint",
@@ -569,7 +574,13 @@ static int try_destroy_gbuffer(void *data)
         return 1;
     }
 
-    if(gbuffer->remain_life_time>0){
+    if(gbuffer->is_dying == 0)
+    {
+        return 1;
+    }
+
+    if(gbuffer->remain_life_time > 0)
+    {
         gbuffer->remain_life_time--;
         return 0;
     }
@@ -579,126 +590,29 @@ static int try_destroy_gbuffer(void *data)
         display_gbuffer = NULL;
     }
 
-    remove_gbuffer_from_global_map(gbuffer->gbuffer_id);
+    if(gbuffer->gbuffer_id != 0)
+    {
+        // psurface的gbuffer_id为0
+        remove_gbuffer_from_global_map(gbuffer->gbuffer_id);
+    }
+    
+    if(gbuffer->usage_type == GBUFFER_TYPE_BITMAP)
+    {
+        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP_NEED_DATA);
+    }
+    else if(gbuffer->usage_type == GBUFFER_TYPE_FBO)
+    {
+        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_FBO_NEED_DATA);
+    }
+    else
+    {
+        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
+    }
     destroy_gbuffer(gbuffer);
     // printf("gbuffer %llx is dead\n",gbuffer->gbuffer_id);
 
     return 1;
 }
-
-// static int destroy_surface(void *data)
-// {
-//     Window_Buffer *surface = (Window_Buffer *)data;
-//     if (surface == NULL)
-//     {
-//         return 1;
-//     }
-//     if (surface->I_am_composer)
-//     {
-//         set_compose_surface(surface, NULL);
-//     }
-
-//     if(surface->remain_life_time == MAX_LIFE_TIME)
-//     {
-//         //生存时间最大，说明这个刚被remain维护过，不需要删除
-//         return 1;
-//     }
-
-//     if(surface->remain_life_time>0){
-//         surface->remain_life_time--;
-//         return 0;
-//     }
-
-//     if (surface->type == WINDOW_SURFACE)
-//     {
-//         //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-//         set_gbuffer_id_surface(NULL, surface, NULL);
-//         printf("remove surface %llx all gbuffer_id\n",surface);
-//     }
-
-//     // if (surface->guest_gbuffer_id != 0)
-//     // {
-//     //     set_gbuffer_id_surface(NULL, surface->guest_gbuffer_id);
-//     // }
-
-//     // if (surface->type == WINDOW_SURFACE)
-//     // {
-//     //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-//     //     for(int i = 0;i<surface->guest_gbuffer_num;i++)
-//     //     {
-//     //         set_gbuffer_id_surface(surface->guest_gbuffer_id[i], surface, NULL);
-//     //     }
-//     // }
-//     printf("real destroy surface %llx\n", surface);
-
-//     //删除surface只是试图删除它拥有的缓冲区，而不需要删除window
-//     glDeleteTextures(surface->buffer_num, surface->fbo_texture);
-//     glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_depth);
-//     glDeleteRenderbuffers(surface->buffer_num, surface->display_rbo_stencil);
-//     if (surface->config->sample_buffers_num != 0)
-//     {
-//         glDeleteRenderbuffers(surface->buffer_num, surface->sampler_rbo);
-//     }
-//     for (int i = 0; i < 5; i++)
-//     {
-//         if (surface->delete_sync[i] != 0)
-//         {
-//             glDeleteSync(surface->delete_sync[i]);
-//         }
-//     }
-//     g_free(surface);
-//     return 1;
-// }
-
-// static int destroy_image(void *data)
-// {
-//     EGL_Image *real_image = (EGL_Image *)data;
-//     if(real_image == NULL)
-//     {
-//         return 1;
-//     }
-//     if(real_image->remain_life_time == MAX_LIFE_TIME ||real_image->is_dying == 0)
-//     {
-//         //生存时间最大，说明这个刚被remain维护过，不需要删除
-//         return 1;
-//     }
-
-//     if(real_image->remain_life_time>0){
-//         real_image->remain_life_time--;
-//         return 0;
-//     }
-//     if (real_image->fbo_texture != 0)
-//     {
-//         glDeleteTextures(1, &(real_image->fbo_texture));
-//     }
-//     // if (real_image->target != EGL_GL_TEXTURE_2D)
-//     // {
-//     //     if (real_image->fbo_texture != 0)
-//     //     {
-//     //         glDeleteTextures(1, &(real_image->fbo_texture));
-//     //     }
-
-//     //     if (real_image->display_fbo != 0)
-//     //     {
-//     //         glDeleteFramebuffers(1, &(real_image->display_fbo));
-//     //         glDeleteFramebuffers(1, &(real_image->display_fbo_reverse));
-
-//     //         glDeleteTextures(1, &(real_image->fbo_texture_reverse));
-//     //     }
-//     // }
-
-//     if (real_image->fbo_sync != NULL)
-//     {
-//         glDeleteSync(real_image->fbo_sync);
-//     }
-//     if (real_image->fbo_sync_need_delete != NULL)
-//     {
-//         glDeleteSync(real_image->fbo_sync_need_delete);
-//     }
-//     set_gbuffer_id_image(real_image->gbuffer_id, real_image, NULL);
-//     g_free(real_image);
-//     return 1;
-// }
 
 
 static void handle_child_window_event()
@@ -706,25 +620,6 @@ static void handle_child_window_event()
     ATOMIC_LOCK(main_window_event_queue_lock);
     Main_window_Event *child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
     ATOMIC_UNLOCK(main_window_event_queue_lock);
-
-    dying_list_foreach(dying_gbuffer, try_destroy_gbuffer);
-    
-    // dying_list_foreach(dying_surfaces, destroy_surface);
-    // dying_list_foreach(dying_images, destroy_image);
-    // if(dying_surfaces!=NULL)
-    // {
-    //     //销毁surface，需要延期60帧销毁
-    //     g_list_foreach(dying_surfaces, destroy_surface, NULL);
-    //     GList *first=g_list_first(dying_surfaces);
-    //     while(first!=NULL && ((Window_Buffer *)(first->data))->remain_life_time<=0)
-    //     {
-    //         printf("remove first %llx %d\n", ((Window_Buffer *)(first->data)), ((Window_Buffer *)(first->data))->remain_life_time);
-    //         dying_surfaces = g_list_remove(dying_surfaces, first->data);
-    //         first=g_list_first(dying_surfaces);
-    //     }
-    // }
-
-    
 
     while (child_event != NULL)
     {
@@ -765,118 +660,63 @@ static void handle_child_window_event()
                 }
                 else
                 {
+                    // printf("real destroy gbuffer %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
                     dying_gbuffer = dying_list_append(dying_gbuffer, gbuffer);
                 }
 
             }
             break;
-        // case MAIN_DESTROY_SURFACE:
-        // {
-        //     //这个destroy调用来自于客户端进程关闭后的销毁函数
-        //     Window_Buffer *surface = (Window_Buffer *)child_event->data;
-        //     if(surface == NULL)
-        //     {
-        //         break;
-        //     }
-
-        //     if(surface->guest_gbuffer_num == 0)
-        //     {
-        //         surface->remain_life_time = 0;
-        //         destroy_surface(surface);
-        //     }
-        //     else
-        //     {
-        //         dying_surfaces = dying_list_append(dying_surfaces, surface);
-        //     }
-        // }
-        // break;
-//         case MAIN_DESTROY_CONTEXT:
-//         {
-//             //弃用
-//             Opengl_Context *opengl_context = (Opengl_Context *)child_event->data;
-//             if (opengl_context == NULL)
-//             {
-//                 break;
-//             }
-
-//             //删除context意味着要删除窗口，不过这个时候窗口连接的surface假如仍然存在的话，surface对应的texture的空间一定存在
-//             if (opengl_context->window != NULL)
-//             {
-//                 // gint64 t = g_get_real_time();
-//                 // printf("start destroy window %lld\n", t);
-// #ifdef USE_GLFW_AS_WGL
-//                 glfwSetWindowShouldClose(opengl_context->window, 1);
-//                 glfwDestroyWindow((GLFWwindow *)opengl_context->window);
-// #else
-//                 // egl_destroyContext(opengl_context->window);
-// #endif
-//                 // printf("end destroy window %lld\n", g_get_real_time() - t);
-//             }
-
-//             opengl_context_destroy(opengl_context);
-//             g_free(opengl_context);
-//         }
-//         break;
-        // case MAIN_DESTROY_IMAGE:
-        // {
-        //     EGL_Image *real_image = (EGL_Image *)child_event->data;
-        //     if (real_image == NULL)
-        //     {
-        //         break;
-        //     }
-        //     if(real_image->fbo_texture == 0)
-        //     {
-        //         real_image->remain_life_time = 0;
-        //         destroy_image(real_image);
-        //     }
-        //     else
-        //     {
-        //         dying_images = dying_list_append(dying_images, real_image);
-        //     }
-
-
-        //     // set_gbuffer_id_image(real_image->gbuffer_id, real_image, NULL);
-        //     // express_printf("real destroy image %lx\n", real_image);
-
-        //     // destroy_real_image(real_image);
-        // }
-        // break;
-        case MAIN_DESTROY_ALL_EGLSYNC:
-        {
-            Resource_Map_Status *status = (Resource_Map_Status *)child_event->data;
-            if (status == NULL || status->max_id == 0)
+        case MAIN_CANCEL_GBUFFER:
             {
-                break;
-            }
-            for (int i = 1; i <= status->max_id; i++)
-            {
-                if (status->resource_id_map[i] != 0)
+                Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+                if(gbuffer != NULL)
                 {
-                    glDeleteSync((GLsync)status->resource_id_map[i]);
+                    // printf("real cancel gbuffer delete %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
+                    dying_gbuffer = dying_list_remove(dying_gbuffer, gbuffer);
                 }
             }
-            if (status->resource_id_map != NULL)
-            {
-                g_free(status->resource_id_map);
-            }
-            if (status->resource_is_init != NULL)
-            {
-                g_free(status->resource_is_init);
-            }
-            g_free(status);
-        }
-        break;
-        case MAIN_DESTROY_ONE_SYNC:
-        {
-            GLsync sync = (GLsync)child_event->data;
-            if (sync == NULL)
-            {
-                break;
-            }
+            break;
 
-            glDeleteSync(sync);
-        }
-        break;
+        case MAIN_DESTROY_ALL_EGLSYNC:
+            {
+                Resource_Map_Status *status = (Resource_Map_Status *)child_event->data;
+                if (status == NULL || status->max_id == 0)
+                {
+                    break;
+                }
+                for (int i = 1; i <= status->max_id; i++)
+                {
+                    if (status->resource_id_map[i] != 0)
+                    {
+                        glDeleteSync((GLsync)status->resource_id_map[i]);
+                    }
+                }
+                if (status->resource_id_map != NULL)
+                {
+                    g_free(status->resource_id_map);
+                }
+                if (status->resource_is_init != NULL)
+                {
+                    g_free(status->resource_is_init);
+                }
+                if (status->gbuffer_ptr_map != NULL)
+                {
+                    g_free(status->gbuffer_ptr_map);
+                }
+                g_free(status);
+            }
+            break;
+        case MAIN_DESTROY_ONE_SYNC:
+            {
+                GLsync sync = (GLsync)child_event->data;
+                if (sync == NULL)
+                {
+                    break;
+                }
+
+                glDeleteSync(sync);
+            }
+            break;
         // case MAIN_DESTROY_ONE_TEXTURE:
         // {
         //     GLuint texture = (GLsync)child_event->data;
@@ -898,6 +738,8 @@ static void handle_child_window_event()
         child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
         ATOMIC_UNLOCK(main_window_event_queue_lock);
     }
+    // 把foreach放到下面，是因为主线程的消息中可能有取消gbuffer销毁流程的消息
+    dying_list_foreach(dying_gbuffer, try_destroy_gbuffer);
 
     return;
 }
@@ -1063,7 +905,8 @@ static void static_value_prepare()
     memset(preload_static_context_value, 0, sizeof(Static_Context_Values) + 512 * 100 + 400);
 
     preload_static_context_value->composer_HZ = composer_refresh_HZ;
-
+    preload_static_context_value->composer_pid = 0;
+    
     // initialize static status
     preload_static_context_value->major_version = OPENGL_MAJOR_VERSION;
     preload_static_context_value->minor_version = OPENGL_MINOR_VERSION;
@@ -1251,6 +1094,8 @@ static void static_value_prepare()
     //     preload_static_context_value->program_binary_formats[0], 
     //     preload_static_context_value->num_shader_binary_formats,
     //     preload_static_context_value->shader_binary_formats[0]);
+    
+    //@todo 增加换硬件后暂时移除binary的功能
     // preload_static_context_value->num_program_binary_formats =0;
     // preload_static_context_value->num_shader_binary_formats = 0;
 
@@ -1446,6 +1291,9 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
 
     if(gbuffer != NULL)
     {
+        // printf("opengl_paint gbuffer %llx texture %d\n", gbuffer->gbuffer_id, gbuffer->data_texture);
+        gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
+
         if (window_width == 0 || window_height == 0)
         {
             window_width = gbuffer->width;
@@ -1486,75 +1334,7 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
 
         gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-
     }
-
-    // if (d_buffer->type == WINDOW_SURFACE)
-    // {
-    //     if (is_reverse == 1)
-    //     {
-    //         is_reverse = 0;
-    //         glUniform1i(reverse_loc, 0);
-    //     }
-    //     if (window_width == 0 || window_height == 0)
-    //     {
-    //         window_width = d_buffer->width;
-    //         window_height = d_buffer->height;
-    //         real_window_width = window_width;
-    //         real_window_height = window_height;
-    //         glViewport(0, 0, window_width, window_height);
-    //     }
-
-    //     GLuint texture = acquire_texture_from_surface(d_buffer);
-
-    //     glBindTexture(GL_TEXTURE_2D, texture);
-
-    //     glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    //     release_texture_from_surface(d_buffer);
-    // }
-    // else if (d_buffer->type == P_SURFACE)
-    // {
-    //     if (d_buffer->display_image == 0)
-    //     {
-    //         return;
-    //     }
-    //     if (is_reverse == 0)
-    //     {
-    //         is_reverse = 1;
-    //         glUniform1i(reverse_loc, 1);
-    //     }
-
-    //     //注意，下面这种情况是为了照顾android10下的surfaceflinger的合成逻辑
-    //     EGL_Image *real_image = d_buffer->display_image;
-    //     // printf("main acquire image %lx to read\n",real_image);
-
-    //     if (window_width == 0 || window_height == 0)
-    //     {
-    //         window_width = real_image->width;
-    //         window_height = real_image->height;
-    //         real_window_width = window_width;
-    //         real_window_height = window_height;
-    //         glViewport(0, 0, window_width, window_height);
-    //     }
-
-    //     if (real_image->fbo_sync != NULL)
-    //     {
-    //         glWaitSync(real_image->fbo_sync, 0, GL_TIMEOUT_IGNORED);
-    //         glDeleteSync(real_image->fbo_sync);
-    //     }
-
-    //     // GLuint texture = acquire_texture_from_image(real_image);
-
-    //     glBindTexture(GL_TEXTURE_2D, real_image->fbo_texture);
-
-    //     glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    //     real_image->fbo_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        
-    //     // release_texture_from_image(real_image);
-    //     // printf("main release image %lx to read\n",real_image);
-    // }
 }
 
 #ifdef ENABLE_OPENGL_DEBUG
@@ -1688,51 +1468,6 @@ static void *native_window_create(int independ_mode)
         child_window = egl_createContext();
     }
 
-// #ifdef USE_GLFW_AS_WGL
-//     static int cnt = 0;
-//     char name[100];
-//     sprintf(name, "opengl-child-window%d", cnt);
-//     cnt++;
-
-//     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-//     // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-
-//     // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
-//     // int idx = 0;
-//     // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
-//     // {
-//     //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
-//     //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
-//     //     glfwWindowHint(hint_enum, hint_val);
-//     //     idx += 2;
-//     // }
-
-//     // //屏幕分离调试专用
-// #ifdef DEBUG_INDEPEND_WINDOW
-//     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-//     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-//     glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-//     child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
-// #else
-// //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
-// #ifdef ENABLE_OPENGL_DEBUG
-//     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-// #endif
-//     child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
-
-//     if (child_window == NULL)
-//     {
-//         char *s;
-//         int ret = glfwGetError(&s);
-//         express_printf("error code %d detail %s", ret, s);
-//     }
-
-// #endif
-
-// #else
-//     child_window = egl_createContext();
-// #endif
-
     //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
     assert(child_window != NULL);
 
@@ -1837,6 +1572,8 @@ void *native_window_thread(void *opaque)
     }
 
     gbuffer_global_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+    gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+
 
     // gbuffer_id_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
     // gbuffer_id_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
@@ -2109,358 +1846,28 @@ void set_display_gbuffer(Graphic_Buffer *gbuffer)
 }
 
 
-// void set_compose_surface(Window_Buffer *old_surface, Window_Buffer *new_surface)
-// {
-//     if (old_surface != NULL)
-//     {
-//         if (compose_surface != old_surface)
-//         {
-//             return;
-//         }
-//     }
-//     if (compose_surface == new_surface)
-//     {
-//         return;
-//     }
-//     ATOMIC_LOCK(compose_surface_lock);
-//     compose_surface = new_surface;
-//     ATOMIC_UNLOCK(compose_surface_lock);
-//     express_printf("change compose surface %lx\n", compose_surface);
-// }
+int get_global_gbuffer_type(uint64_t gbuffer_id)
+{
+    ATOMIC_LOCK(gbuffer_global_types_lock);
+    int type = (Graphic_Buffer *)g_hash_table_lookup(gbuffer_global_types, (gpointer)(gbuffer_id));
+    ATOMIC_UNLOCK(gbuffer_global_types_lock);
+    return type;
+}
 
-// GLuint acquire_texture_from_surface(Window_Buffer *surface)
-// {
-//     // TIMER_START(texture_loc)
-
-//     // surface->temp_time = g_get_real_time();
-
-//     //PBuffer不允许获取texture
-//     if (surface->type == P_SURFACE)
-//     {
-//         return 0;
-//     }
-//     //printf("lock on read %llx texture %d ",surface,now_read);
-//     // ATOMIC_LOCK(surface->display_texture_is_use[now_read]);
-//     if (surface->now_acquired != -1)
-//     {
-//         ATOMIC_SET_UNUSED(surface->display_texture_is_use[surface->now_acquired]);
-//     }
-
-//     int now_read = surface->now_read;
-//     ATOMIC_SET_USED(surface->display_texture_is_use[now_read]);
-
-//     // TIMER_END(texture_loc)
-
-//     // TIMER_OUTPUT(texture_loc, 100)
-//     // TIMER_START(sync)
-//     glFlush();
-//     if (surface->fbo_sync[now_read] != NULL)
-//     {
-//         //最多等待80ms
-//         // glClientWaitSync(surface->fbo_sync[now_read], GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
-//         glWaitSync(surface->fbo_sync[now_read], 0, GL_TIMEOUT_IGNORED);
-//     }
-
-//     // TIMER_END(sync)
-
-//     // TIMER_OUTPUT(sync, 100)
-
-//     surface->now_acquired = now_read;
-//     GLuint texture = surface->fbo_texture[now_read];
-
-//     // printf("acquire surface %llx texture %u\n",surface, texture);
-
-//     return texture;
-// }
-
-// void release_texture_from_surface(Window_Buffer *surface)
-// {
-
-//     int now_read = surface->now_acquired;
-//     // printf("release surface %llx\n",surface);
-
-//     //PBuffer不允许获取texture
-//     if (surface->type == P_SURFACE)
-//     {
-//         return;
-//     }
-//     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-//     glFlush();
-
-//     //延迟删除glsync，以防止waitsync后立马删除这个sync引起的屏幕闪烁问题（不确定是不是这个原因引起）
-//     if (surface->fbo_sync[now_read] != NULL)
-//     {
-//         if (surface->delete_sync[surface->delete_loc] != 0)
-//         {
-//             glDeleteSync(surface->delete_sync[surface->delete_loc]);
-//         }
-//         surface->delete_sync[surface->delete_loc] = surface->fbo_sync[now_read];
-//         surface->delete_loc = (surface->delete_loc + 1) % 5;
-//     }
-//     surface->fbo_sync[now_read] = wait_sync;
-//     // TIMER_END(finish)
-
-//     // TIMER_OUTPUT(finish,100)
-
-//     // uint64_t spend_time = g_get_real_time() - surface->temp_time;
-//     // static int cal_cnt = 0;
-//     // static long all_spend_time = 0;
-//     // if(cal_cnt<100){
-//     //     all_spend_time += spend_time;
-//     //     cal_cnt += 1;
-//     // }else{
-//     //     printf("lock avg time %lluus(%llu/%d)\n",spend_time/cal_cnt,spend_time,cal_cnt);
-//     //     all_spend_time = 0;
-//     //     cal_cnt = 0;
-//     // }
-//     // printf("unlock on read %llx texture %d ",surface,now_read);
-//     // ATOMIC_UNLOCK(surface->display_texture_is_use[now_read]);
-//     ATOMIC_SET_UNUSED(surface->display_texture_is_use[now_read]);
-//     surface->now_acquired = -1;
-// }
-
-// GLuint acquire_texture_from_image(EGL_Image *image)
-// {
-
-//     if (image->is_lock == 1)
-//     {
-//         return 0;
-//     }
-//     // ATOMIC_LOCK(image->display_texture_is_use);
-//     ATOMIC_SET_USED(image->display_texture_is_use);
-
-//     glFlush();
-//     image->is_lock = 1;
-//     if (image->fbo_sync != NULL)
-//     {
-//         //最多等待8ms
-//         // glClientWaitSync(image->fbo_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 80000000);
-//         glWaitSync(image->fbo_sync, 0, GL_TIMEOUT_IGNORED);
-//         if (image->fbo_sync_need_delete != NULL)
-//         {
-//             glDeleteSync(image->fbo_sync_need_delete);
-//         }
-//         image->fbo_sync_need_delete = image->fbo_sync;
-//     }
-//     image->fbo_sync = NULL;
-
-//     GLuint texture = image->fbo_texture;
-
-//     return texture;
-// }
-
-
-// void init_image_fbo(EGL_Image *image, int need_reverse)
-// {
-//     if (image->display_fbo == 0)
-//     {
-//         glGenFramebuffers(1, &(image->display_fbo));
-//         glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
-//         //附加颜色缓冲区
-//         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
-
-//         if (need_reverse)
-//         {
-//             image->fbo_texture_reverse = image->fbo_texture;
-//             image->display_fbo_reverse = image->display_fbo;
-//             image->fbo_texture = 0;
-//             init_image_texture(image);
-
-//             glGenFramebuffers(1, &(image->display_fbo));
-//             glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
-//             //附加颜色缓冲区
-//             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, image->fbo_texture, 0);
-//         }
-//     }
-// }
-
-// void release_texture_from_image(EGL_Image *image)
-// {
-
-//     if (image->is_lock == 0)
-//     {
-//         return;
-//     }
-
-//     if (image->need_reverse == 1)
-//     {
-//         image->need_reverse = 0;
-
-//         // printf("reverse eglimage gbuffer_id %llx\n", image->gbuffer_id);
-
-//         glBlitNamedFramebuffer(image->display_fbo, image->display_fbo_reverse, 0, 0, image->width, image->height, 0, image->height, image->width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-//         GLuint temp_id;
-
-//         temp_id = image->display_fbo;
-//         image->display_fbo = image->display_fbo_reverse;
-//         image->display_fbo_reverse = temp_id;
-
-//         temp_id = image->fbo_texture;
-//         image->fbo_texture = image->fbo_texture_reverse;
-//         image->fbo_texture_reverse = temp_id;
-
-//         glBindTexture(GL_TEXTURE_2D, image->fbo_texture);
-//         glBindFramebuffer(GL_FRAMEBUFFER, image->display_fbo);
-//     }
-
-//     GLsync wait_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-//     glFlush();
-//     image->is_lock = 0;
-//     //延迟删除glsync，以防止waitsync后立马删除这个sync引起的屏幕闪烁问题（不确定是不是这个原因引起）
-//     if (image->fbo_sync != NULL)
-//     {
-//         if (image->fbo_sync_need_delete != NULL)
-//         {
-//             glDeleteSync(image->fbo_sync_need_delete);
-//         }
-//         image->fbo_sync_need_delete = image->fbo_sync;
-//     }
-//     image->fbo_sync = wait_sync;
-
-//     // ATOMIC_UNLOCK(image->display_texture_is_use);
-//     ATOMIC_SET_UNUSED(image->display_texture_is_use);
-// }
-
-// Window_Buffer *get_surface_from_gbuffer_id(uint64_t gbuffer_id)
-// {
-//     if (gbuffer_id_surface_map == NULL)
-//     {
-//         return NULL;
-//     }
-//     ATOMIC_LOCK(gbuffer_id_surface_map_lock);
-//     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
-//     if(real_surface != NULL)
-//     {
-//         atomic_add(&(real_surface->hold_surface_cnt), 1);
-//     }
-//     ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
-//     return real_surface;
-// }
-
-// void release_surface(Window_Buffer *real_surface)
-// {
-//     if(real_surface != NULL)
-//     {
-//         atomic_sub(&(real_surface->hold_surface_cnt), 1);
-//     }
-// }
-
-// void set_gbuffer_id_surface(uint64_t gbuffer_id, Window_Buffer *origin_surface, Window_Buffer *now_surface)
-// {
-//     if (gbuffer_id_surface_map == NULL)
-//     {
-//         return;
-//     }
-
-//     if (now_surface == NULL)
-//     {
-//         ATOMIC_LOCK(gbuffer_id_surface_map_lock);
-//         while(origin_surface->hold_surface_cnt > 0)
-//         {
-//             ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
-//             printf("wait! surface %lx don't finish using\n",origin_surface);
-//             g_usleep(1000);
-//             ATOMIC_LOCK(gbuffer_id_surface_map_lock);
-//         }
-//         for(int i = 0;i < origin_surface->guest_gbuffer_num;i++)
-//         {
-//             if(origin_surface->guest_gbuffer_id[i] == 0)
-//             {
-//                 continue;
-//             }
-//             printf("remove surface %llx gbuffer_id %llx\n",origin_surface, origin_surface->guest_gbuffer_id[i]);
-//             g_hash_table_remove(gbuffer_id_surface_map, (gpointer)(origin_surface->guest_gbuffer_id[i]));
-//         }
-//         ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
-//     }
-//     else
-//     {
-//         int find_flag = 0;
-
-//         for(int i = 0; i < now_surface->guest_gbuffer_num;i++)
-//         {
-//             if(now_surface->guest_gbuffer_id[i] == gbuffer_id)
-//             {
-//                 find_flag = 1;
-//                 break;
-//             }
-//         }
-
-//         if(find_flag == 0 && now_surface->guest_gbuffer_num < 64)
-//         {
-//             now_surface->guest_gbuffer_id[now_surface->guest_gbuffer_num] = gbuffer_id;
-//             now_surface->guest_gbuffer_num += 1;
-//             printf("add gbuffer_id %llx surface %llx\n",gbuffer_id,now_surface);
-            
-//             ATOMIC_LOCK(gbuffer_id_surface_map_lock);  
-//             Window_Buffer *old_surface = (Window_Buffer *)g_hash_table_lookup(gbuffer_id_surface_map, (gpointer)(gbuffer_id));
-//             if(old_surface!=NULL)
-//             {
-//                 printf("error! add gbuffer_id %llx now_surface %llx old_surface %llx",gbuffer_id, now_surface, old_surface);
-                
-//                 // 这里说明在别的surface还没删除的时候出现了gbuffer_id的复用，所以原有的surface相应的这个gbuffer_id的使用要删除
-//                 for(int i = 0;i < old_surface->guest_gbuffer_num;i++)
-//                 {
-//                     if(old_surface->guest_gbuffer_id[i] == gbuffer_id)
-//                     {
-//                         old_surface->guest_gbuffer_id[i] = 0;
-//                         if(i==old_surface->guest_gbuffer_num-1)
-//                         {
-//                             old_surface->guest_gbuffer_num--;
-//                         }
-//                         break;
-//                     }
-//                 }
-
-//             }
-//             g_hash_table_insert(gbuffer_id_surface_map, (gpointer)(gbuffer_id), (gpointer)now_surface);
-//             ATOMIC_UNLOCK(gbuffer_id_surface_map_lock);
-//         }
-
-//         if(now_surface->guest_gbuffer_num >= 64)
-//         {
-//             printf("error! guest surface %llx gbuffer >=64",now_surface);
-//         }
-
-//     }
-    
-//     return;
-// }
-
-// EGL_Image *get_image_from_gbuffer_id(uint64_t gbuffer_id)
-// {
-//     if (gbuffer_id_image_map == NULL)
-//     {
-//         return NULL;
-//     }
-//     ATOMIC_LOCK(gbuffer_id_image_map_lock);
-//     EGL_Image *real_image = (EGL_Image *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
-//     ATOMIC_UNLOCK(gbuffer_id_image_map_lock);
-//     return real_image;
-// }
-
-// void set_gbuffer_id_image(uint64_t gbuffer_id, EGL_Image *origin_image, EGL_Image *now_image)
-// {
-//     if (gbuffer_id_image_map == NULL || gbuffer_id == 0)
-//     {
-//         return;
-//     }
-//     ATOMIC_LOCK(gbuffer_id_image_map_lock);
-//     if (now_image == NULL)
-//     {
-//         EGL_Image *real_image = (EGL_Image *)g_hash_table_lookup(gbuffer_id_image_map, (gpointer)(gbuffer_id));
-//         if (real_image == origin_image)
-//         {
-//             g_hash_table_remove(gbuffer_id_image_map, (gpointer)(gbuffer_id));
-//         }
-//     }
-//     else
-//     {
-//         g_hash_table_insert(gbuffer_id_image_map, (gpointer)(gbuffer_id), (gpointer)now_image);
-//     }
-//     ATOMIC_UNLOCK(gbuffer_id_image_map_lock);
-//     return;
-// }
+void set_global_gbuffer_type(uint64_t gbuffer_id, int type)
+{
+    ATOMIC_LOCK(gbuffer_global_types_lock);
+    if(type == GBUFFER_TYPE_NONE)
+    {
+        g_hash_table_remove(gbuffer_global_types, (gpointer)(gbuffer_id));
+    }
+    else
+    {
+        g_hash_table_insert(gbuffer_global_types, (gpointer)(gbuffer_id), (gpointer)type);
+    }
+    ATOMIC_UNLOCK(gbuffer_global_types_lock);
+    return;
+}
 
 
 void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer)
@@ -2474,6 +1881,10 @@ Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(gbuffer_global_map, (gpointer)(gbuffer_id));
+    if(gbuffer != NULL)
+    {
+        gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
+    }
     ATOMIC_UNLOCK(gbuffer_global_map_lock);
     
     return gbuffer;

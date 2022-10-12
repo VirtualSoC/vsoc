@@ -11,7 +11,7 @@
 #define RET_PARA 4
 
 //最多的参数数目
-#define MAX_PARA_NUM 64
+#define MAX_PARA_NUM 60
 
 #define TERMINATE_FUN_ID 0
 

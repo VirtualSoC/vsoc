@@ -469,6 +469,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     Process_Context *process_context = thread_context->process_context;   
     Opengl_Context *opengl_context = (Opengl_Context *)thread_context->opengl_context;
     uint64_t gbuffer_id = (uint64_t)image;
+    Graphic_Buffer *gbuffer = NULL;
 
     GLuint host_share_texture;
 
@@ -479,74 +480,60 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         return;
     }
 
-
-    if(gbuffer_id == 0)
+    gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+    if(gbuffer == NULL)
     {
-        //说明要连接的是普通的texture类型
-
-        Opengl_Context *share_opengl_context =
-         (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(guest_share_ctx));
-        
-        if(share_opengl_context == NULL)
-        {
-            printf("error! glBindEGLImage with null share_context when gbuffer_id is 0 guest context %llx share_texture %d\n", guest_share_ctx, share_texture);
-            return;
-        }
-
-
-        host_share_texture = get_host_texture_id(share_opengl_context, share_texture);
+        printf("error! glBindEGLImage with NULL gbuffer when finding in process gbuffer_id %llx type %d\n", gbuffer_id, gbuffer->usage_type);
+        return;
     }
-    else
+
+    // printf("glBindEGLImage gbuffer %llx ptr %llx type %d target-texture(%d)\n",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
+
+    if(gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
     {
-        //连接的为gbuffer
-        Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
-
-        if(gbuffer == NULL)
+        set_texture_gbuffer_ptr(opengl_context, texture, gbuffer);
+        // printf("glBindEGLImage gbuffer_id %llx when write %d sync %d\n", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
+        Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+        if(target == GL_TEXTURE_2D)
         {
-            //不是本进程创建的gbuffer，则到全局去找，这个一般只出现在合成器上
-            gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+            status->current_2D_gbuffer = gbuffer;
         }
-
-        if(gbuffer == NULL)
+        else
         {
-            //不可能没找到
-            printf("error! cannot find gbuffer(id %llx)\n",gbuffer_id);
-            return;
+            status->current_external_gbuffer = gbuffer;
         }
-        //假如应用帧数都是60帧，基本不可能出现这种情况，因为queuebuffer的时延也就几毫秒
+    }
+
+    //假如应用帧数都是60帧，则基本不可能出现这种情况，因为queuebuffer的时延也就几毫秒
+    if(gbuffer->is_writing == 1)
+    {
+#ifdef _WIN32
+        //不能因为等待导致掉帧或卡死
+        WaitForSingleObject(gbuffer->writing_ok_event, 1000/composer_refresh_HZ/4*3);
+        express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n",gbuffer->is_writing);
         if(gbuffer->is_writing == 1)
         {
-#ifdef _WIN32
-            //不能因为等待导致掉帧或卡死
-            WaitForSingleObject(gbuffer->writing_ok_event, 1000/composer_refresh_HZ/2);
-            express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n",gbuffer->is_writing);
-            if(gbuffer->is_writing == 1)
-            {
-                printf("waiting gbuffer(release writing) out of time %d\n",1000/composer_refresh_HZ/2);
-            }
+            printf("waiting gbuffer(release writing) out of time %d\n",1000/composer_refresh_HZ/4*3);
+        }
 #else
 #endif
-        }
-        // printf("glBindEGLImage gbuffer_id %llx when write %d sync %d\n", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
-        host_share_texture = gbuffer->data_texture;
-        if(gbuffer->is_dying)
-        {
-            gbuffer->remain_life_time = MAX_LIFE_TIME;
-        }
-
-        if (gbuffer->data_sync != 0)
-        {
-            // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-            glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
-            // if(gbuffer->delete_sync != 0)
-            // {
-            //     glDeleteSync(gbuffer->delete_sync);
-            // }
-            // gbuffer->delete_sync = gbuffer->data_sync;
-            // gbuffer->data_sync = NULL;
-        }
-
     }
+
+    if (gbuffer->data_sync != 0)
+    {
+        if(gbuffer->delete_sync != 0)
+        {
+            glDeleteSync(gbuffer->delete_sync);
+        }
+        glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
+
+        gbuffer->delete_sync = gbuffer->data_sync;
+        gbuffer->data_sync = 0;
+
+        // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    }
+
+    host_share_texture = gbuffer->data_texture;
 
     //原来的texture直接删除掉，假设原来的texture不会再被正常使用——不确定@todo
     int origin_texture = (int)set_share_texture(opengl_context, texture, host_share_texture);
@@ -588,50 +575,6 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
 }
 
 
-// void d_glFramebufferEGLImage(void *context, GLenum target, GLenum attachment, GLenum textarget, GLeglImageOES image, GLint level)
-// {
-// //     uint64_t gbuffer_id = (uint64_t)image;
-// //     EGL_Image *egl_image = get_image_from_gbuffer_id(gbuffer_id);
-// //     if(egl_image->fbo_texture == 0)
-// //     {
-// //         init_image_texture(egl_image);
-// //     }
-// //     //image肯定存在，因为还有前面一系列的创建和连接的过程
-// //     glFramebufferTexture2D(target, attachment, GL_TEXTURE_2D, egl_image->fbo_texture, level);    
-
-// }
-
-// void d_glBindSharedGLImage(void *context, GLenum target, GLuint texture, void *share_ctx)
-// {
-//     GLuint share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_ctx, (unsigned int)texture);
-
-//     int sleep_cnt = 0;
-//     while(share_texture == 0 && sleep_cnt < 5)
-//     {
-//         //多线程操作，可能被share的texture还没创建起来，最多等它5ms
-//         g_usleep(1000);
-//         sleep_cnt++;
-//         share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_ctx, (unsigned int)texture);
-//     }
-//     glBindTexture(target, share_texture);
-// }
-
-
-// void d_glFramebufferSharedTexture2D(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level, void *share_context)
-// {
-//     // GLuint share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_context, (unsigned int)texture);
-
-//     // int sleep_cnt = 0;
-//     // while(share_texture == 0 && sleep_cnt < 5)
-//     // {
-//     //     //多线程操作，可能被share的texture还没创建起来，最多等它5ms
-//     //     g_usleep(1000);
-//     //     sleep_cnt++;
-//     //     share_texture = (GLuint)get_host_texture_id((Opengl_Context *)share_context, (unsigned int)texture);
-//     // }
-//     // glFramebufferTexture2D(target, attachment, GL_TEXTURE_2D, share_texture, level);
-// }
-
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image)
 {
@@ -654,11 +597,6 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
     express_printf("context %llx target %x texture %u guest %d current %d\n", opengl_context,target, texture, guest_texture, status->guest_current_active_texture);
-    // if (target == GL_TEXTURE_EXTERNAL_OES)
-    // {
-    //     target = GL_TEXTURE_2D;
-    //     opengl_context->current_texture_external = texture;
-    // }
     
     
     if(is_init == 0)
@@ -677,6 +615,14 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_2D[status->host_current_active_texture] = texture;
+        }
+        if(is_init == 2)
+        {
+            status->current_2D_gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
+        }
+        else
+        {
+            status->current_2D_gbuffer = NULL;
         }
         break;
     case GL_TEXTURE_2D_MULTISAMPLE:
@@ -730,6 +676,14 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         break;
     case GL_TEXTURE_EXTERNAL_OES:
         status->current_texture_external = texture;
+        if(is_init == 2)
+        {
+            status->current_external_gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
+        }
+        else
+        {
+            status->current_external_gbuffer = NULL;
+        }
         break;
     default:
         printf("error! glBindBuffer error target %x\n",target);
@@ -1113,10 +1067,10 @@ void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 
 void d_glBindVertexArray_special(void *context, GLuint array)
 {
-    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-
-
     Opengl_Context *opengl_context = (Opengl_Context *)context;
+
+
+    Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
 
     // Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(array));
@@ -1128,6 +1082,10 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     GLuint pre_vao = status->guest_vao;
 
     GLuint now_vao = (GLuint)get_host_array_id(context, (unsigned int)array);
+    if(array == 0 && now_vao == 0)
+    {
+        now_vao = opengl_context->vao0;
+    }
 
 
     Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));

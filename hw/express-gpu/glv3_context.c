@@ -111,6 +111,7 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
             resource_delete(now_delete_len, delete_buffers);                                           \
             now_delete_len = 0;                                                                        \
         }                                                                                              \
+        g_free(resources->resource_name->resource_is_init);                                            \
         g_free(resources->resource_name->resource_id_map);                                             \
     }
 
@@ -123,6 +124,12 @@ void resource_context_destroy(Resource_Context *resources)
     if (resources->share_resources->counter == 0)
     {
         DESTROY_RESOURCES(texture_resource, glDeleteTextures);
+        // gbuffer_ptr_map 只有texture_resource有
+        if(resources->texture_resource->gbuffer_ptr_map != NULL)
+        {
+            g_free(resources->texture_resource->gbuffer_ptr_map);
+        }
+
         DESTROY_RESOURCES(buffer_resource, glDeleteBuffers);
         DESTROY_RESOURCES(render_buffer_resource, glDeleteRenderbuffers);
         DESTROY_RESOURCES(sampler_resource, glDeleteSamplers);
@@ -285,9 +292,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     opengl_context->need_destroy = 0;
     opengl_context->window = NULL;
     opengl_context->is_using_external_program = 0;
-    opengl_context->fbo_delete_cnt = 10;
-    opengl_context->fbo_delete_loc = 0;
-    opengl_context->fbo_delete = g_malloc(10*sizeof(GLuint));
     opengl_context->share_context = share_context;
     opengl_context->independ_mode = independ_mode;
 
@@ -517,25 +521,6 @@ void opengl_context_init(Opengl_Context *context)
     }
 }
 
-void opengl_context_add_fbo(Opengl_Context *context, GLuint fbo)
-{
-    if(fbo == 0)
-    {
-        return;
-    }
-    //这是因为fbo与context强绑定，必须在context销毁的时候一并销毁掉
-    if(context->fbo_delete_loc>= context->fbo_delete_cnt)
-    {
-        GLuint *temp= g_malloc0(context->fbo_delete_loc * 2 * sizeof(GLuint));
-        memcpy(temp, context->fbo_delete, context->fbo_delete_cnt * sizeof(GLuint));
-        g_free(context->fbo_delete);
-        context->fbo_delete = temp;
-        context->fbo_delete_cnt = context->fbo_delete_loc * 2;
-    }
-    context->fbo_delete[context->fbo_delete_loc] = fbo;
-    context->fbo_delete_loc++;
-
-}
 
 /**
  * @brief 销毁opengl_context函数，主要为销毁资源，真正的opengl context可能会缓存
@@ -586,9 +571,6 @@ void opengl_context_destroy(Opengl_Context *context)
 //     egl_makeCurrent(opengl_context->window);
 // #endif
 
-    glDeleteFramebuffers(opengl_context->fbo_delete_loc, opengl_context->fbo_delete);
-
-    g_free(opengl_context->fbo_delete);
 
     //这三个remove后都有默认的销毁函数
     // g_hash_table_remove_all(opengl_context->buffer_map);

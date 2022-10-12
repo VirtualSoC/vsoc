@@ -35,5 +35,8 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
 void d_glUseProgram_special(void *context, GLuint program);
 
+void change_GLSL_version(char *start, char *end, int try_cnt);
+
+void d_glCompileShader_special(void *context, GLuint id);
 
 #endif

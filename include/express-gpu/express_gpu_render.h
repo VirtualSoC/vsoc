@@ -28,6 +28,17 @@
 #define MAIN_DESTROY_ONE_SYNC 7
 #define MAIN_DESTROY_ONE_TEXTURE 8
 #define MAIN_DESTROY_GBUFFER 9
+#define MAIN_CANCEL_GBUFFER 10
+
+
+#define GBUFFER_TYPE_NONE 0
+#define GBUFFER_TYPE_WINDOW 1
+#define GBUFFER_TYPE_BITMAP 2
+#define GBUFFER_TYPE_NATIVE 3
+#define GBUFFER_TYPE_BITMAP_NEED_DATA 4
+#define GBUFFER_TYPE_TEXTURE 5
+#define GBUFFER_TYPE_FBO 6
+#define GBUFFER_TYPE_FBO_NEED_DATA 7
 
 
 #define ATOMIC_LOCK(s)                       \
@@ -43,6 +54,9 @@
 
 //是否启用opengl调试模式的宏定义
 #define ENABLE_OPENGL_DEBUG
+
+//是否启用opengl执行性能警告输出
+// #ifdef ENABLE_OPENGL_PERFORMANCE_WARNING
 
 // 是否启用全局独立窗口进行调试的宏定义
 // #define DEBUG_INDEPEND_WINDOW
@@ -63,6 +77,7 @@ typedef struct Main_window_Event
 typedef struct Static_Context_Values
 {
      GLuint composer_HZ;
+     GLuint composer_pid;
      GLint num_extensions;
      //____________ FIXED VALUE ____________
      GLint major_version;
@@ -350,6 +365,10 @@ void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer);
 
 
 Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
+
+int get_global_gbuffer_type(uint64_t gbuffer_id);
+
+void set_global_gbuffer_type(uint64_t gbuffer_id, int type);
 
 void send_message_to_main_window(int message_code, void *data);
 

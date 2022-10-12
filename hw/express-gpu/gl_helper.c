@@ -824,13 +824,54 @@ Dying_List *dying_list_append(Dying_List *list, void *data)
     return list;
 }
 
+Dying_List *dying_list_remove(Dying_List *list, void *data)
+{
+    if(list == NULL)
+    {
+        return list;
+    }
+    for(Dying_List_Node *node = list->header; node!=NULL;)
+    {
+        if(node->data == data)
+        {
+            if(node->prev == NULL)
+            {
+                list->header = node->next;
+            }
+            else
+            {
+                node->prev->next = node->next;
+            }
+            if(node->next == NULL)
+            {
+                list->tail = node->prev;
+            }
+            else
+            {
+                node->next->prev = node->prev;
+            }
+            Dying_List_Node *node_next = node->next;
+            g_free(node);
+            node = node_next;
+            list->num--;
+            return list;
+        }
+        else
+        {
+            node = node->next;
+        }
+    }
+    return list;
+
+}
+
 Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun)
 {
     if(list == NULL)
     {
         return list;
     }
-    for(Dying_List_Node *node = list->header; node->next!=NULL;)
+    for(Dying_List_Node *node = list->header; node != NULL;)
     {
         if(fun(node->data)==1)
         {

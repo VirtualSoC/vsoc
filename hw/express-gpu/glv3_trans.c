@@ -77,9 +77,20 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     }
 
     Window_Buffer *draw_surface = render_context->render_double_buffer_draw;
-    if(draw_surface != NULL && draw_surface->frame_start_time == 0)
+    if(draw_surface != NULL)
     {
-        draw_surface->frame_start_time = g_get_real_time();
+        if(draw_surface->frame_start_time == 0)
+        {
+            draw_surface->frame_start_time = g_get_real_time();
+        }
+        if(draw_surface->type == WINDOW_SURFACE && draw_surface->gbuffer != NULL && draw_surface->gbuffer->is_writing == 0)
+        {
+            draw_surface->gbuffer->is_writing = 1;
+#ifdef _WIN32
+            ResetEvent(draw_surface->gbuffer->writing_ok_event);
+#else
+#endif
+        }
     }
 
     //uint64_t is_async=FUN_IS_ASYNC(call->id);
@@ -2722,6 +2733,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
 
         glGetQueryObjectuiv((GLuint)get_host_query_id(opengl_context, (unsigned int)id), pname, params);
+        // printf("glGetQueryObjectuiv %llx %d -> %d r_context %llx\n",opengl_context, id, (GLuint)get_host_query_id(opengl_context, (unsigned int)id), r_context);
+
+        // if(glGetError()!=GL_NO_ERROR)
+        // {
+        //     printf("%llx error get query id %d host %d is(%d) pname %x\n",opengl_context ,id, (GLuint)get_host_query_id(opengl_context, (unsigned int)id), (int)glIsQuery((GLuint)get_host_query_id(opengl_context, (unsigned int)id)), pname);
+        // }
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -8084,6 +8101,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
 
         glBeginQuery(target, (GLuint)get_host_query_id(opengl_context, (unsigned int)id));
+        // printf("glBeginQuery %llx %d -> %d target %llx r_context %llx\n", opengl_context, id, (GLuint)get_host_query_id(opengl_context, (unsigned int)id), target, r_context);
     }
     break;
 
@@ -8141,6 +8159,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
 
         glEndQuery(target);
+        // printf("glEndQuery target %llx\n", target);
+
     }
     break;
 
@@ -14408,35 +14428,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glCompileShader((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
-        GLenum error = glGetError();
-
-        if(error!=GL_NO_ERROR){
-            printf("glCompileShader %x guest %u host %u\n",error,shader,(GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
-        }
-        // @todo 下面的需要注释掉
-        GLint compiled;
-        GLuint real_shader = (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader);
-        glGetShaderiv(real_shader, GL_COMPILE_STATUS, &compiled);
-
-        // GLenum error = glGetError();
-        //     printf("glGetShaderiv %x\n",error);
-        if (!compiled)
-        {
-            GLint infoLen = 0;
-            glGetShaderiv(real_shader, GL_INFO_LOG_LENGTH, &infoLen);
-            char source[10000];
-            int source_len;
-            glGetShaderSource(real_shader, 10000, &source_len, source);
-            printf("shader %d:\n%s\n",real_shader,source);
-            if (infoLen > 1)
-            {
-                char *infoLog = (char *)g_malloc(sizeof(char) * infoLen);
-                glGetShaderInfoLog((GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), infoLen, NULL, infoLog);
-                printf("#Error compiling shader:\n%s\n", infoLog);
-                g_free(infoLog);
-            }
-        }
+        d_glCompileShader_special(opengl_context, shader);
     }
     break;
 
@@ -14995,7 +14987,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         // GLuint t;
         // glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
         // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
-        glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
+        d_glFramebufferTexture2D_special(opengl_context, target, attachment, textarget, texture, level);
+        // glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
     }
     break;
 
@@ -28794,6 +28787,204 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
     }
     break;
+
+    case FUNID_glColorMaski:
+
+    {
+        
+        GLuint buf;
+        GLboolean red;
+        GLboolean green;
+        GLboolean blue;
+        GLboolean alpha;
+
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glColorMaski)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        buf = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        red = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 1;
+
+        green = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 1;
+
+        blue = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 1;
+
+        alpha = *(GLboolean *)(temp + temp_loc);
+        temp_loc += 1;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glColorMaski(buf, red, green, blue, alpha);
+    }
+    break;
+
+    case FUNID_glBlendFuncSeparatei:
+
+    {
+        
+        GLuint buf;
+        GLenum srcRGB;
+        GLenum dstRGB;
+        GLenum srcAlpha;
+        GLenum dstAlpha;
+
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBlendFuncSeparatei)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 20 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        buf = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        srcRGB = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        dstRGB = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        srcAlpha = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        dstAlpha = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glBlendFuncSeparatei(buf, srcRGB, dstRGB, srcAlpha, dstAlpha);
+    }
+    break;
+
+    case FUNID_glBlendEquationSeparatei:
+
+    {
+        
+        GLuint buf;
+        GLenum modeRGB;
+        GLenum modeAlpha;
+
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_glBlendEquationSeparatei)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 12 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        buf = *(GLuint *)(temp + temp_loc);
+        temp_loc += 4;
+
+        modeRGB = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        modeAlpha = *(GLenum *)(temp + temp_loc);
+        temp_loc += 4;
+
+        /* Check length */
+        if (temp_len < temp_loc)
+        {
+            break;
+        }
+
+        glBlendEquationSeparatei(buf, modeRGB, modeAlpha);
+    }
+    break;
+
+
 
     // case FUNID_glBindSharedGLImage:
 

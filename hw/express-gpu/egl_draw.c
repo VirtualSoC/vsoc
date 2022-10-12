@@ -17,6 +17,15 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLen
         return;
     }
 
+#ifdef ENABLE_OPENGL_PERFORMANCE_WARNING
+
+#else
+    if(type == GL_DEBUG_TYPE_PERFORMANCE)
+    {
+        return;
+    }
+#endif
+
     printf("\ndebug message(%u):%s\n", id, message);
     switch (source)
     {
@@ -101,42 +110,41 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     express_printf("make current guest draw %llx read %llx context %llx\n",draw, read, ctx);
 
-    //原来current的surface可能要destroy
-    //但是由于surface连接到窗口，在应用一直存在，窗口一直存在时，合成时还会继续进行下去的，所以surface不能删除，只能是在应用关掉时删除
+    if( thread_context->render_double_buffer_draw == real_surface_draw &&  thread_context->render_double_buffer_read == real_surface_read)
+    {
+        return EGL_TRUE;
+    }
 
-    //但是假如是pbuffer，则此时应该删除
-    if (thread_context->render_double_buffer_draw != NULL)
+    if (thread_context->render_double_buffer_draw != NULL && thread_context->render_double_buffer_draw != real_surface_draw)
     {
         thread_context->render_double_buffer_draw->is_current = 0;
+        render_surface_uninit(thread_context->render_double_buffer_draw);
         if (thread_context->render_double_buffer_draw->need_destroy)
         {
-            // printf("#%llx remove draw surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_draw);
-            // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_draw);
-            // printf("makecurrent null destroy surface %llx\n",thread_context->render_double_buffer_draw);
-            // if (thread_context->render_double_buffer_draw->type == WINDOW_SURFACE)
-            // {
-            //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-            //     set_gbuffer_id_surface(NULL, thread_context->render_double_buffer_draw, NULL);
-            // }
             g_hash_table_remove(process_context->surface_map, GUINT_TO_POINTER(thread_context->render_double_buffer_draw->guest_surface));
+        }
+        Graphic_Buffer *old_draw_gbuffer = thread_context->render_double_buffer_draw->gbuffer;
+        if(thread_context->render_double_buffer_draw->type == WINDOW_SURFACE && old_draw_gbuffer->gbuffer_id != gbuffer_id)
+        {
+            ATOMIC_LOCK(old_draw_gbuffer->is_lock);
+            old_draw_gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
+            if(old_draw_gbuffer->is_using == 0 && old_draw_gbuffer->is_dying == 0)
+            {
+                old_draw_gbuffer->is_dying = 1;
+                send_message_to_main_window(MAIN_DESTROY_GBUFFER, old_draw_gbuffer);
+            }
+            ATOMIC_UNLOCK(old_draw_gbuffer->is_lock);
         }
     }
 
-    if (thread_context->render_double_buffer_read != NULL && thread_context->render_double_buffer_read != thread_context->render_double_buffer_draw)
+    if (thread_context->render_double_buffer_read != NULL && thread_context->render_double_buffer_read != thread_context->render_double_buffer_draw
+         && thread_context->render_double_buffer_read != real_surface_read)
     {
         thread_context->render_double_buffer_read->is_current = 0;
+        render_surface_uninit(thread_context->render_double_buffer_read);
         if (thread_context->render_double_buffer_read->need_destroy)
         {
-            // printf("#%llx remove read surface %llx in makecurrent\n", thread_context->opengl_context, thread_context->render_double_buffer_read);
-            // PostMessage(draw_native_window, WM_USER_SURFACE_DESTROY, 0, (LPARAM)thread_context->render_double_buffer_read);
-            // if (thread_context->render_double_buffer_read->type == WINDOW_SURFACE)
-            // {
-            //     //surface删除的时候，只有当surface是window类型，而且当前gbuffer_id确实是当前的surface的时候才能删除连接
-            //     set_gbuffer_id_surface(NULL, thread_context->render_double_buffer_read, NULL);
-            // }
             g_hash_table_remove(process_context->surface_map, GUINT_TO_POINTER(thread_context->render_double_buffer_draw->guest_surface));
-
-            // send_message_to_main_window(MAIN_DESTROY_SURFACE, thread_context->render_double_buffer_read);
         }
     }
 
@@ -146,21 +154,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     {
         // thread_context->opengl_context->draw_surface = NULL;
         express_printf("makecurrent context change %llx window %llx\n", thread_context->opengl_context, thread_context->opengl_context->window);
+        thread_context->opengl_context->is_current = 0;
         if (thread_context->opengl_context->need_destroy)
         {
-            thread_context->opengl_context->is_current = 0;
-// if(thread_context->opengl_context->window != NULL)
-// {
-
             g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(thread_context->opengl_context->guest_context));
-
-            // opengl_context_destroy(thread_context->opengl_context);
-            // g_free(thread_context->opengl_context);
-            // send_message_to_main_window(MAIN_DESTROY_CONTEXT, thread_context->opengl_context);
-        }
-        else
-        {
-            thread_context->opengl_context->is_current = 0;
         }
     }
 
@@ -212,35 +209,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         egl_makeCurrent(real_opengl_context->window);
     }
 
-
-// #ifdef USE_GLFW_AS_WGL
-// #ifdef DEBUG_INDEPEND_WINDOW
-//     printf("make current context %llx windows %llx\n",real_opengl_context,real_opengl_context->window);
-//     glfwMakeContextCurrent((GLFWwindow *)real_opengl_context->window);
-//     if(real_surface_draw!=NULL && real_surface_draw->type == WINDOW_SURFACE && real_surface_draw->width >10 &&real_surface_draw->height >10)
-//     {
-//         glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
-//         glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
-//         glfwShowWindow((GLFWwindow *)real_opengl_context->window);
-//     }
-//     else
-//     {
-//         glfwHideWindow((GLFWwindow *)real_opengl_context->window);
-//     }
-// #endif
-// #else
-//     express_printf("thread %llx context %llx makecurrent window %llx\n",thread_context, real_opengl_context, real_opengl_context->window);
-//     egl_makeCurrent(real_opengl_context->window);
-// #endif
-
-// GLint flags;
-// glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
-// if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
-// {
-//     printf("debug on\n");
-// }else{
-//     printf("debuf off\n");
-// }
 #ifdef ENABLE_OPENGL_DEBUG
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
@@ -290,16 +258,27 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     {
         if(real_surface_draw->type == WINDOW_SURFACE)
         {
-            gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+            gbuffer = get_gbuffer_from_global_map(gbuffer_id);
             if(gbuffer == NULL)
             {
                 express_printf("#context %llx makecurrent %llx with create window gbuffer %llx\n",real_opengl_context,real_surface_draw, gbuffer_id);
-                gbuffer = create_gbuffer_from_hal(width, height, hal_format, real_surface_draw);
-                opengl_context_add_fbo(real_opengl_context, gbuffer->data_fbo);
-                opengl_context_add_fbo(real_opengl_context, gbuffer->sampler_fbo);
-                gbuffer->gbuffer_id = gbuffer_id;
-                g_hash_table_insert(process_context->gbuffer_map, (gpointer)(gbuffer_id), (gpointer)gbuffer);
+                gbuffer = create_gbuffer_from_hal(width, height, hal_format, real_surface_draw, gbuffer_id);
+                
+                express_printf("create gbuffer when makecurrent gbuffer %llx ptr %llx\n", gbuffer_id, gbuffer);
+
                 add_gbuffer_to_global(gbuffer);
+                set_global_gbuffer_type(gbuffer_id, GBUFFER_TYPE_WINDOW);
+            }
+            else
+            {
+                ATOMIC_LOCK(gbuffer->is_lock);
+                gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
+                if(gbuffer->is_using == 0 && gbuffer->is_dying == 1)
+                {
+                    gbuffer->is_dying = 0;
+                    send_message_to_main_window(MAIN_CANCEL_GBUFFER, gbuffer);
+                }
+                ATOMIC_UNLOCK(gbuffer->is_lock);
             }
         }
         else
@@ -307,40 +286,16 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
             gbuffer = real_surface_draw->gbuffer;
             if(gbuffer == NULL)
             {
-                express_printf("#context %llx makecurrent psurface %llx with create window gbuffer %llx\n",real_opengl_context,real_surface_draw, gbuffer_id);
+                express_printf("#context %llx makecurrent psurface %llx with create window gbuffer %llx ptr %llx\n",real_opengl_context,real_surface_draw, gbuffer_id, gbuffer);
                 gbuffer = create_gbuffer_from_surface(real_surface_draw);
-                opengl_context_add_fbo(real_opengl_context, gbuffer->data_fbo);
-                opengl_context_add_fbo(real_opengl_context, gbuffer->sampler_fbo);
+
                 gbuffer->gbuffer_id = 0;
-                //pbuffer 不需要添加到map中
+                //psurface 不需要保留120帧
+                gbuffer->remain_life_time = 0;
+                //pbuffer 不需要添加到global_map中
             }
         }
 
-        //read的情况一定有数据
-        // if(real_surface_draw != real_surface_read)
-        // {
-        //     if(real_surface_read->type == WINDOW_SURFACE)
-        //     {
-        //         r_gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(r_gbuffer_id));
-        //         if(r_gbuffer == NULL)
-        //         {
-        //             r_gbuffer = create_gbuffer_from_hal(r_width, r_height, r_hal_format, real_surface_read);
-        //             r_gbuffer->gbuffer_id = r_gbuffer_id;
-        //             g_hash_table_insert(process_context->gbuffer_map, (gpointer)(gbuffer_id), (gpointer)r_gbuffer);
-        //             add_gbuffer_to_global(r_gbuffer);
-        //         }
-        //     }
-        //     else
-        //     {
-        //         r_gbuffer = real_surface_read->gbuffer;
-        //         if(r_gbuffer == NULL)
-        //         {
-        //             r_gbuffer = create_gbuffer_from_surface(real_surface_read);
-        //             r_gbuffer->gbuffer_id = r_gbuffer_id;
-        //             //pbuffer 不需要添加到map中
-        //         }
-        //     }
-        // }
 
         if(real_surface_draw->gbuffer!=NULL)
         {
@@ -353,19 +308,17 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
         real_surface_draw->gbuffer = gbuffer;
 
-        if(real_surface_draw->type == WINDOW_SURFACE)
-        {
-            gbuffer->is_writing = 1;
-#ifdef _WIN32
-            ResetEvent(gbuffer->writing_ok_event);
-#else
-#endif
-            //pbuffer不设置正在write的标志
-        }
     }
 
 
     opengl_context_init(real_opengl_context);
+    render_surface_init(real_surface_draw);
+    if(real_surface_read != real_surface_draw)
+    {
+        render_surface_init(real_surface_read);
+    }
+
+    connect_gbuffer_to_surface(gbuffer, real_surface_draw);
 
     //@todo 设置各种config、attrib
     
@@ -389,32 +342,11 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     real_opengl_context->read_fbo0 = read_fbo;
     real_opengl_context->draw_fbo0 = write_fbo;
-
+    
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
 
-    // glClearColor(0,1.0,0.0,1.0);
-    // glClear(GL_COLOR_BUFFER_BIT);
-    // glFinish();
-
-    // #ifdef DEBUG_INDEPEND_WINDOW
-    //     //屏幕分离调试专用
-    //     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    //     ShowWindow(real_surface_draw->window, TRUE);
-    // #else
-    //注意，后续正常环境下，这个set_compose_surface只应该运行一次，即只存在一个composer
-    // if (real_surface_draw->I_am_composer)
-    // {
-    //     set_compose_surface(NULL, real_surface_draw);
-    // }
-    // #endif
-
-    // memset(real_surface_draw->display_texture_is_use, 0, sizeof(real_surface_draw->display_texture_is_use));
-    // memset(real_surface_read->display_texture_is_use, 0, sizeof(real_surface_read->display_texture_is_use));
-
-    // //锁定当前画的缓冲区，表示后续要开始画了
-    // // ATOMIC_LOCK(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
-    // ATOMIC_SET_USED(real_surface_draw->display_texture_is_use[real_surface_read->now_draw]);
+    // printf("context %llx makecurrent fbo %d %d gbuffer %llx\n", real_opengl_context, real_opengl_context->draw_fbo0, real_opengl_context->read_fbo0, real_surface_draw->gbuffer->gbuffer_id);
 
     return EGL_TRUE;
 }
@@ -435,33 +367,14 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     Opengl_Context *real_opengl_context = thread_context->opengl_context;
     // printf("context %llx swapbuffer\n",real_opengl_context);
 
-    // Window_Buffer *bind_surface = NULL;
-    // if(real_opengl_context->current_external_gbuffer_id != 0)
-    // {
-    //     //只有surface的eglimage才需要释放
-    //     bind_surface = get_surface_from_gbuffer_id(real_opengl_context->current_external_gbuffer_id);
-    // }
 
-    
+    if(real_surface != thread_context->render_double_buffer_draw)
+    {
+        printf("error! real_surface != thread_context->render_double_buffer_draw %llx %llx\n", real_surface, thread_context->render_double_buffer_draw);
+    }
 
     egl_surface_swap_buffer(context, real_surface, gbuffer_id, width, height, hal_format);
 
-
-    // if(bind_surface!=NULL)
-    // {
-    //     printf("swapbuffer with release surface %llx image %llx\n", bind_surface, real_opengl_context->current_external_gbuffer_id);
-    //     release_texture_from_surface(bind_surface);
-    // }
-    // if(bind_surface != NULL)
-    // {
-    //     GLuint out_texture = acquire_texture_from_surface(bind_surface);
-    //     real_opengl_context->current_texture_external = out_texture;
-    //     if(real_opengl_context->current_target == GL_TEXTURE_2D)
-    //     {
-    //         glBindTexture(GL_TEXTURE_2D, out_texture);
-    //     }
-    //     release_surface(bind_surface);
-    // }
 
     if (real_surface->sampler_num > 1)
     {
@@ -474,6 +387,8 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 
     real_opengl_context->read_fbo0 = thread_context->render_double_buffer_read->gbuffer->data_fbo;
     glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
+
+    // printf("context %llx swapbuffer fbo %d %d gbuffer %llx texture %d\n", real_opengl_context, real_opengl_context->draw_fbo0, real_opengl_context->read_fbo0, real_surface->gbuffer->gbuffer_id, real_surface->gbuffer->data_texture);
 
     // GLenum attachments[]={GL_COLOR_ATTACHMENT0,GL_DEPTH_ATTACHMENT,GL_STENCIL_ATTACHMENT,GL_DEPTH_STENCIL_ATTACHMENT};
     // glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 4, attachments);
@@ -493,16 +408,27 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     return EGL_TRUE;
 }
 
+
+// static gboolean gbuffer_printf(gpointer key, gpointer data, gpointer user_data)
+// {
+//     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
+//     printf("%llx-%dx%d-%d ", gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->usage_type);
+//     return true;
+// }
+
+
 void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = thread_context->opengl_context;
 
+    Window_Buffer *draw_surface = thread_context->render_double_buffer_draw;
+
     // glFlush();
     // glFinish();
 
-    Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
 
     if(gbuffer_id == NULL || gbuffer == NULL)
     {
@@ -535,6 +461,18 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
         {
             glEnable(GL_SCISSOR_TEST);
         }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, opengl_context->draw_fbo0);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
+    }
+
+    if(preload_static_context_value->composer_pid != 0 && ((int)(gbuffer->gbuffer_id>>32)) != preload_static_context_value->composer_pid)
+    {
+        //这种情况太罕见了，只在长按图标拖动时才会出现，这种情况下的gbuffer提供者也是自己，而不是surfaceflinger，它会把数据绘制到surface上，进而绘制到gbuffer上。
+        //由于之后gbuffer被作为texture用时，会有个自动上下颠倒，因此直接在这里进行上下颠倒，这样保存到texture中的就已经是上下颠倒过了的
+        //为什么surfaceflinger不需要上下颠倒？安卓9的surfaceflinger输出的图像是到正常的fbo里，不需要颠倒，而安卓10输出到gbuffer里，确实是上下颠倒的，但是我们的窗口在这种情况下进行颠倒输出的，因此不存在问题
+        //为什么surfaceflinger把其他窗口gbuffer数据当成texture来用不需要颠倒？也需要颠倒，但是这个颠倒操作是surfaceflinger自己完成的，我们通过设置a_win->perform(a_win, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, HAL_TRANSFORM_FLIP_V)来实现
+        printf("reverse gbuffer %llx\n", gbuffer->gbuffer_id);
+        reverse_gbuffer(gbuffer);
     }
 
 
@@ -548,12 +486,13 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
     gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     gbuffer->is_writing = 0;
 
+    // glFinish();
+    glFlush();
 #ifdef _WIN32
     SetEvent(gbuffer->writing_ok_event);
 #else
 #endif
-    // glFinish();
-    glFlush();
+
     if(opengl_context->independ_mode==1)
     {
         if(opengl_context != NULL && opengl_context->enable_scissor==1)
@@ -568,6 +507,8 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
             glEnable(GL_SCISSOR_TEST);
         }
         glfwSwapBuffers(opengl_context->window);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, opengl_context->draw_fbo0);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
     }
 // #ifdef DEBUG_INDEPEND_WINDOW
 //     glBindFramebuffer(GL_READ_FRAMEBUFFER, gbuffer->data_fbo);
@@ -578,48 +519,42 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
 
     if(is_composer == 1)
     {
+        //合成器生成的gbuffer没有createImage和destroyImage的过程，所以可能面临内存泄露的问题，因此合成器产生的gbuffer就直接延迟删除，假如要用到了，则延长寿命，但是始终不从链表上删除
+        gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
+        if(gbuffer->is_dying == 0)
+        {
+            //保证destroy消息只发送一次，并且一直在链表上
+            gbuffer->is_dying = 1;
+            send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
+        }
+        // 合成器的生存时间要长5倍，相当于是10秒钟
         set_display_gbuffer(gbuffer);
+
     }
-
-
-
-
-    // gint64 now_time = g_get_real_time();
-    // static gint64 last_calc_time = 0;
-    // static int now_screen_hz = 0;
-
-    // //计算合成器的帧率
-    // if (now_time - last_calc_time > 1000000 && last_calc_time != 0)
+    else
+    {
+        //is_using和is_dying要一起判断，一起设置，否则这个会产生竞争，导致消息遗漏或者消息过多，例如这里进了判断，刚设置完is_dying等于1, createImage就依据这个发送cancel destroy，然后这里发送destroy消息，就会导致gbuffer被意外删除
+        ATOMIC_LOCK(gbuffer->is_lock);
+        gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
+        if(gbuffer->is_using == 0 && gbuffer->is_dying == 0)
+        {
+            gbuffer->is_dying = 1;
+            send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
+        }
+        ATOMIC_UNLOCK(gbuffer->is_lock);
+    }
+    
+    // int size =  (int)g_hash_table_size(process_context->gbuffer_map);
+    // if(size > 0)
     // {
-    //     // printf("composer draw %dHz\n", now_screen_hz);
-    //     now_screen_hz = 0;
-
-    //     last_calc_time = now_time;
-    // }
-    // else if (last_calc_time == 0)
-    // {
-    //     last_calc_time = now_time;
-    //     now_screen_hz = 0;
-    // }
-    // else
-    // {
-    //     now_screen_hz += 1;
+    //     printf("process %llx keep gbuffer %d (%d):\n", process_context,size, is_composer);
+    //     g_hash_table_foreach(process_context->gbuffer_map, gbuffer_printf, NULL);
+    //     printf("\n\n");
     // }
 
-    //queuebuffer似乎不需要垂直同步
-
-    //垂直同步
-    //刚开始要初始化
-    // if (real_surface->last_frame_num == -1)
-    // {
-    //     real_surface->last_frame_num = draw_wait_GSYNC(real_surface->swap_event, -1);
-    // }
-    // else
-    // {
-    //     int next_frame_num = (real_surface->last_frame_num + real_surface->swap_interval) % 65536;
-    //     real_surface->last_frame_num = draw_wait_GSYNC(real_surface->swap_event, next_frame_num);
-    // }
 }
+
+
 
 EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, uint64_t gbuffer_id, int width, int height, int hal_format, int64_t *ret_invoke_time, int64_t *swap_time)
 {
@@ -653,7 +588,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     if (real_surface->swap_time_cnt < 5)
     {
         //前两帧刚开始很可能用来进行初始化，因此前两帧帧的时间不能保存，都假设只是2ms的时间，因为这个是一次传输的延迟，相当于是距离前一个同步的时间
-        if(real_surface->swap_time_cnt <= 2)
+        if(real_surface->swap_time_cnt <= 2 || real_surface->frame_start_time == 0)
         {
             real_surface->swap_time[real_surface->swap_loc] = 2000;
             real_surface->swap_time_all += 2000;
@@ -669,9 +604,17 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     }
     else
     {
+        if(real_surface->frame_start_time != 0)
+        {
+            real_surface->swap_time_all += 2000;
+            real_surface->swap_time[real_surface->swap_loc] = 2000;
+        }
+        else
+        {
+            real_surface->swap_time_all += now_time - real_surface->frame_start_time;
+            real_surface->swap_time[real_surface->swap_loc] = now_time - real_surface->frame_start_time;
+        }
         real_surface->swap_time_all -= real_surface->swap_time[real_surface->swap_loc];
-        real_surface->swap_time_all += now_time - real_surface->frame_start_time;
-        real_surface->swap_time[real_surface->swap_loc] = now_time - real_surface->frame_start_time;
         real_surface->swap_loc = (real_surface->swap_loc + 1) % 5;
     }
 
@@ -705,7 +648,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
             // now_flag_cnt = (now_flag_cnt + 1) % 1024;
 
             // EGLint swap_time = (EGLint)(real_surface->frame_gen_time);
-
+            // printf("#%llx write now_avg_swap_time %lld\n", ((Render_Thread_Context *)thread_context)->opengl_context, now_avg_swap_time);
             guest_read(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
 
             guest_read(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
@@ -742,6 +685,10 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
             else
             {
                 composer_refresh_HZ = 60;
+            }
+            if(composer_refresh_HZ != preload_static_context_value->composer_HZ)
+            {
+                preload_static_context_value->composer_HZ = composer_refresh_HZ;
             }
         }
 

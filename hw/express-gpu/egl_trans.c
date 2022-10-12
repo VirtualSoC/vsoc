@@ -1323,7 +1323,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        d_eglIamComposer(egl_context, surface);
+        unsigned int pid = call->process_id;
+
+        d_eglIamComposer(egl_context, surface, pid);
     }
     break;
 
@@ -1871,43 +1873,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-
-        int out_buf_len = all_para[1].data_len;
-
-        unsigned char *ret_buf = NULL;
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        int out_buf_loc = 0;
-
-        EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
-        out_buf_loc += sizeof(EGLint);
-
-        if (out_buf_loc > out_buf_len)
-        {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
-            {
-                g_free(ret_buf);
-            }
-            break;
-        }
         
-        EGLint ret = d_eglCreateImage(egl_context, dpy, ctx, target, buffer, attrib_list, image);
-
-        *ret_ptr = ret;
-
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
-
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
+        d_eglCreateImage(egl_context, dpy, ctx, target, buffer, attrib_list, image);
 
     }
     break;
@@ -2309,6 +2276,60 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         d_eglSetGraphicBufferID(egl_context, surface, gbuffer_id);
     }
+    break;
+
+    case FUNID_eglGetGBufferType:
+    {
+        uint64_t gbuffer_id;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (para_num < PARA_NUM_MIN_eglGetSyncAttrib)
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (temp_len < 8 * 1)
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (temp == NULL)
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        gbuffer_id = *(uint64_t *)(temp + temp_loc);
+        temp_loc += 8;
+
+        int out_buf_len = all_para[1].data_len;
+        if(out_buf_len != 4)
+        {
+            printf("error! get gbuffer type get >4 size\n");
+            break;
+        }
+
+        int ret = get_global_gbuffer_type(gbuffer_id);
+
+        guest_read(all_para[1].data, &ret, 0, out_buf_len);
+
+    }
+    break;
 
     // case FUNID_eglRemainImage:
 

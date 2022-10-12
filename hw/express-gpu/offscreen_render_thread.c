@@ -50,7 +50,6 @@ int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct
 
 // static void g_window_surface_map_destroy(gpointer data);
 
-static gboolean g_window_Surface_destroy(gpointer key, gpointer data, gpointer user_data);
 
 static void g_surface_map_destroy(gpointer data);
 
@@ -370,7 +369,7 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
             // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
             // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
             process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
-            process->egl_sync_resource = g_malloc(sizeof(Resource_Map_Status));
+            process->egl_sync_resource = g_malloc0(sizeof(Resource_Map_Status));
             process->egl_sync_resource->map_size = 0;
             process->egl_sync_resource->max_id = 0;
             process->egl_sync_resource->resource_id_map = NULL;
@@ -472,17 +471,37 @@ static void gbuffer_map_destroy(gpointer data)
 {
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
     // EGL_Image *real_image = (EGL_Image *)data;
-    // printf("destroy image invoke\n");
+    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n",gbuffer->gbuffer_id, gbuffer->usage_type, gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
     // PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
     // send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
 
-    gbuffer->remain_life_time--;
-    gbuffer->is_dying = 1;
+    if(gbuffer->usage_type == GBUFFER_TYPE_TEXTURE)
+    {
+        if(gbuffer->data_sync != NULL)
+        {
+            glDeleteSync(gbuffer->data_sync);
+        }
+        if(gbuffer->delete_sync != NULL)
+        {
+            glDeleteSync(gbuffer->delete_sync);
+        }
+        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
+        g_free(gbuffer);
+    }
+    else
+    {
+        ATOMIC_LOCK(gbuffer->is_lock);
+        gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
+        gbuffer->is_using = 0;
+        if(gbuffer->is_dying == 0)
+        {
+            gbuffer->is_dying = 1;
+            send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
+        }
+        ATOMIC_UNLOCK(gbuffer->is_lock);
 
-    // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
-
-    send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
-
+    }
+        // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
 
     // if(real_image->target != EGL_GL_TEXTURE_2D)
     // {
@@ -551,10 +570,10 @@ void render_context_destroy(Thread_Context *context)
     }
 
     // process_context->thread_cnt -= 1;
-    express_printf("process destroy cnt %d\n",process_context->thread_cnt);
+    express_printf("process %llx destroy cnt %d\n", process_context, process_context->thread_cnt);
     if (atomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
-        express_printf("process destroy everything\n");
+        express_printf("process %llx destroy everything\n", process_context);
         g_hash_table_destroy(process_context->context_map);
 
         g_hash_table_destroy(process_context->surface_map);

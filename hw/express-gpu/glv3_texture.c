@@ -5,6 +5,7 @@
 
 #include "express-gpu/glv3_texture.h"
 #include "express-gpu/glv3_status.h"
+#include "express-gpu/glv3_resource.h"
 
 #include "express-gpu/offscreen_render_thread.h"
 
@@ -291,7 +292,8 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
             buffer_status->host_pixel_unpack_buffer = 0;
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
-        
+        printf("error! glTexSubImage2D get NULL data! target %x level %d xoffset %d yoffset %d width %d height %d format %x type %x buf_len %d",
+            target, level, xoffset, yoffset, (int)width, (int)height, format, type, buf_len);
         if(host_opengl_version >= 45 && DSA_enable == 1)
         {
             //pixels=NULL
@@ -357,6 +359,22 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
         // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer_status->host_pixel_unpack_buffer);
     }
 
+    Graphic_Buffer *gbuffer = NULL;
+    if(target == GL_TEXTURE_2D)
+    {
+        gbuffer = texture_status->current_2D_gbuffer;
+    }
+    else if(target == GL_TEXTURE_EXTERNAL_OES)
+    {
+        gbuffer = texture_status->current_external_gbuffer;
+    }
+    if(gbuffer != NULL && gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
+    {
+        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP);
+        gbuffer->usage_type = GBUFFER_TYPE_BITMAP;
+        gbuffer->remain_life_time = MAX_BITMAP_LIFE_TIME;
+    }
+
 }
 
 void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
@@ -400,6 +418,21 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
         {
             glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, (void *)pixels);
         }
+    }
+
+    Graphic_Buffer *gbuffer = NULL;
+    if(target == GL_TEXTURE_2D)
+    {
+        gbuffer = texture_status->current_2D_gbuffer;
+    }
+    else if(target == GL_TEXTURE_EXTERNAL_OES)
+    {
+        gbuffer = texture_status->current_external_gbuffer;
+    }
+    if(gbuffer != NULL && gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
+    {
+        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP);
+        gbuffer->usage_type = GBUFFER_TYPE_BITMAP;
     }
 
 }
@@ -1130,7 +1163,7 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
 
     if (row_byte_len * height > buf_len)
     {
-        printf("error! GraphicBuffer Data len error! row %d height %d get len %d\n", row_byte_len, height, buf_len);
+        printf("error! GraphicBuffer Data len error! width %d height %d row_byte_len %d stride %d get len %d\n", width, height, row_byte_len, stride, buf_len); 
         return;
     }
 
@@ -1168,14 +1201,25 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
        map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, row_byte_len * height, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
     }
+    printf("glGraphicBufferData id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n", gbuffer->gbuffer_id, width, height, gbuffer->internal_format, gbuffer->format, row_byte_len, buf_len);
 
     // GraphicBuffer里的图片是正的，放到纹理里要倒个个
     // -- 不用倒个了，因为系统内整体进行了倒个
-    // for (int i = 0; i < egl_image->height; i++)
-    // {
-    //     guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
-    // }
-    guest_write(guest_mem, map_pointer, 0, buf_len);
+    if(guest_row_byte_len != row_byte_len)
+    {
+        for (int i = 0; i < height; i++)
+        {
+            // guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
+            guest_write(guest_mem, map_pointer + i * row_byte_len, i * guest_row_byte_len, row_byte_len);
+        }
+    }
+    else
+    {
+        guest_write(guest_mem, map_pointer, 0, row_byte_len * height);
+    }
+
+    //不能直接write，因为每一行有额外的填充
+    // guest_write(guest_mem, map_pointer, 0, buf_len);
     if(host_opengl_version >= 45 && DSA_enable == 1)
     {
         glUnmapNamedBuffer(asyn_texture);
@@ -1206,7 +1250,20 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
         // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, opengl_context->current_unpack_buffer);
     }
 
+    if (gbuffer->data_sync != 0)
+    {
+        if(gbuffer->delete_sync != 0)
+        {
+            glDeleteSync(gbuffer->delete_sync);
+        }
 
+        gbuffer->delete_sync = gbuffer->data_sync;
+        gbuffer->data_sync = 0;
+    }
+
+    gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+    
 
 
     if(thread_context->opengl_context == NULL)
@@ -1248,6 +1305,7 @@ void d_glReadGraphicBuffer(void *r_context, EGLContext ctx, uint64_t gbuffer_id,
 
     if(gbuffer == NULL || width != gbuffer->width || height != gbuffer->height)
     {
+        printf("error! guest require gbuffer data size error %d %d origin %d %d", width, height, gbuffer==NULL?0:gbuffer->width, gbuffer==NULL?0:gbuffer->height);
         return;
     }
 
@@ -1288,68 +1346,67 @@ void d_glReadGraphicBuffer(void *r_context, EGLContext ctx, uint64_t gbuffer_id,
         return;
     }
 
+    // 用temp_buffer是为了防止数组越界造成程序崩溃，在数组越界时opengl会报错，保证程序不崩
+    GLuint temp_buffer;
+    glGenBuffers(1, &temp_buffer);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, temp_buffer);
+    glBufferData(GL_PIXEL_PACK_BUFFER, row_byte_len * height, NULL, GL_STREAM_READ);
 
     if(host_opengl_version >= 45 && DSA_enable == 1)
     {
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-
-        GLubyte *map_pointer = g_malloc(row_byte_len * gbuffer->height);
-        glGetTextureImage(gbuffer->data_texture, 0, gbuffer->format, gbuffer->pixel_type, row_byte_len * gbuffer->height, map_pointer);
-
-        
-
-        //read不确定是否需要颠倒，遇到再说@todo
-        for (int i = 0; i < gbuffer->height; i++)
-        {
-            guest_read(guest_mem, map_pointer + (gbuffer->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
-        }
-
-
-        // glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->rea);
-
-        Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
-        buffer_status->host_pixel_pack_buffer = 0;
+        glGetTextureImage(gbuffer->data_texture, 0, gbuffer->format, gbuffer->pixel_type, row_byte_len * gbuffer->height, 0);
     }
     else
     {
+        GLuint pre_texture = 0;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &pre_texture);
 
-        GLuint pre_fbo;
-        // GLuint pre_pack;
-        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo);
-        // glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, (GLint *)&pre_pack);
+        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
-        Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
-        GLint asyn_texture = bound_buffer->asyn_pack_texture_buffer;
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, asyn_texture);
+        glGetTexImage(GL_TEXTURE_2D, 0, gbuffer->format, gbuffer->pixel_type, 0);
 
-        //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-        glBufferData(GL_PIXEL_PACK_BUFFER, buf_len, NULL, GL_STREAM_READ);
-
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, gbuffer->data_fbo);
-        
-        glReadPixels(0, 0, gbuffer->width, gbuffer->height, gbuffer->format, gbuffer->pixel_type, 0);
-
-        GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, buf_len, GL_MAP_READ_BIT);
-
-        //read不确定是否需要颠倒，遇到再说@todo
-        for (int i = 0; i < gbuffer->height; i++)
+        if(pre_texture != gbuffer->data_texture)
         {
-            guest_read(guest_mem, map_pointer + (gbuffer->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+            glBindTexture(GL_TEXTURE_2D, pre_texture);
         }
-
-        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-
-
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, pre_fbo);
-        // glBindBuffer(GL_PIXEL_PACK_BUFFER, pre_pack);
-
-        // glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->rea);
-
-        Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
-
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer_status->host_pixel_pack_buffer);
     }
 
+    GLint error = glGetError();
+    if(error != 0)
+    {
+        printf("error %x when d_glReadGraphicBuffer width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n", error, width, height, gbuffer->internal_format, gbuffer->format, row_byte_len, buf_len);
+    }
+
+    printf("glReadGraphicBuffer id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n", gbuffer->gbuffer_id, width, height, gbuffer->internal_format, gbuffer->format, row_byte_len, buf_len);
+    GLubyte *map_pointer = NULL;
+    if(host_opengl_version >= 45 && DSA_enable == 1)
+    {
+       map_pointer = glMapNamedBufferRange(temp_buffer, 0, row_byte_len * height, GL_MAP_READ_BIT);
+    }
+    else
+    {
+       map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER , 0, row_byte_len * height, GL_MAP_READ_BIT);
+
+    }
+
+    if(guest_row_byte_len != row_byte_len)
+    {
+        for (int i = 0; i < height; i++)
+        {
+            // guest_write(guest_mem, map_pointer + (height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
+            guest_read(guest_mem, map_pointer + i * row_byte_len, i * guest_row_byte_len, row_byte_len);
+        }
+    }
+    else
+    {
+        guest_read(guest_mem, map_pointer, 0, row_byte_len * height);
+    }
+
+    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+    glDeleteBuffers(1, &temp_buffer);
+
+    Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
+    buffer_status->host_pixel_pack_buffer = 0;
     
 
     // glBindBuffer(GL_PIXEL_PACK_BUFFER, opengl_context->current_pack_buffer);
@@ -1368,3 +1425,28 @@ void d_glReadGraphicBuffer(void *r_context, EGLContext ctx, uint64_t gbuffer_id,
 }
 
 
+
+
+void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint guest_texture, GLint level)
+{
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture);
+
+
+    char is_init = set_host_texture_init(opengl_context, guest_texture);
+
+    if(is_init == 2)
+    {
+        Graphic_Buffer *gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
+        if(gbuffer != NULL)
+        {
+            set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_FBO);
+        }
+        if(textarget == GL_TEXTURE_EXTERNAL_OES)
+        {
+            textarget = GL_TEXTURE_2D;
+        }
+    }
+
+    glFramebufferTexture2D(target, attachment, textarget, host_texture, level);
+}

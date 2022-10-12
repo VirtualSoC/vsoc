@@ -46,6 +46,9 @@ void d_glGraphicBufferData(void *context, EGLContext ctx, uint64_t g_buffer_id, 
 
 void d_glReadGraphicBuffer(void *context, EGLContext ctx, uint64_t g_buffer_id, int width, int height, int buf_len, int row_byte_len, int stride, void *real_buffer);
 
+
+void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+
 // void d_glBindTexture_special(void *context, GLenum target, GLuint texture);
 
 // void d_glActiveTexture_special(void *context, GLenum texture);

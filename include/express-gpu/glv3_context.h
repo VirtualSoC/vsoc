@@ -114,6 +114,10 @@ typedef struct Resource_Map_Status
     // unsigned int now_map_len;
     long long *resource_id_map;
     char *resource_is_init;
+    
+    unsigned int gbuffer_map_max_size;
+    Graphic_Buffer **gbuffer_ptr_map;
+    
 } Resource_Map_Status;
 
 typedef struct Share_Resources
@@ -225,10 +229,6 @@ typedef struct Opengl_Context
 
     GLuint enable_scissor;
 
-    GLuint *fbo_delete;
-    int fbo_delete_loc;
-    int fbo_delete_cnt;
-
     int independ_mode;
     // Window_Buffer *current_external_gbuffer_id;
     // GLenum current_target;
@@ -309,7 +309,6 @@ void resource_context_destroy(Resource_Context *resources);
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context, int independ_mode);
 
-void opengl_context_add_fbo(Opengl_Context *context, GLuint fbo);
 
 void opengl_context_init(Opengl_Context *context);
 

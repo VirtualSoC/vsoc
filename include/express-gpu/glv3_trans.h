@@ -1647,6 +1647,17 @@
 
 #define PARA_NUM_MIN_glTexBufferRange (1)
 
+#define FUNID_glColorMaski ((EXPRESS_GPU_FUN_ID << 32u) + 409)
+
+#define PARA_NUM_MIN_glColorMaski (1)
+
+#define FUNID_glBlendFuncSeparatei ((EXPRESS_GPU_FUN_ID << 32u) + 410)
+
+#define PARA_NUM_MIN_glBlendFuncSeparatei (1)
+
+#define FUNID_glBlendEquationSeparatei ((EXPRESS_GPU_FUN_ID << 32u) + 411)
+
+#define PARA_NUM_MIN_glBlendEquationSeparatei (1)
 
 
 // #define FUNID_glBindSharedGLImage ((EXPRESS_GPU_FUN_ID << 32u) + 406)

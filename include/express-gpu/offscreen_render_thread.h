@@ -41,7 +41,6 @@ typedef struct
     Egl_Display *egl_display;
 } Render_Thread_Context;
 
-void real_egl_swap_buffer(Render_Thread_Context *context);
 
 
 

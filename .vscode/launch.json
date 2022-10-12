@@ -3,12 +3,42 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch",
+            "name": "Launch-quick",
             "type": "cppdbg",
             "request": "launch",
             "targetArchitecture": "x64",
             "program": "${workspaceFolder}\\x86_64-softmmu\\qemu-system-x86_64.exe",
-            "args": ["-accel", "hax", "-m", "4096", "-smp", "4", "-machine", "usb=on", "-device", "usb-kbd", "-device", "usb-tablet", "-boot", "menu=on", "-serial", "mon:stdio", "-net", "nic", "-net", "user,hostfwd=tcp::5555-:5555", "-device", "direct-express-pci", "-display", "sdl", "-hda", "D:/hda.img", "-cdrom", "D:/android_x86_64.iso"],
+            // "args": [
+            //     "-accel", "hax",
+            //     "-m", "6096",
+            //     "-smp", "6", 
+            //     "-machine", "usb=on", 
+            //     "-device", "usb-kbd", "-device", "usb-tablet",
+            //     "-soundhw", "hda", 
+            //     "-net", "nic", "-net", "user,hostfwd=tcp::5555-:5555", 
+            //     "-kernel", "D:/kernel", "-append", "\"console=ttyS0 RAMDISK=vdb DATA=vdc video=1920x1080 quiet\"", 
+            //     "-initrd", "D:/initrd.img",
+            //     "-drive", "index=0,if=virtio,id=system,file=D:/system.img,format=raw",
+            //     "-drive", "index=1,if=virtio,id=ramdisk,file=D:/ramdisk.img,format=raw",
+            //     "-drive", "index=2,if=virtio,id=userdata,file=D:/userdata_60G2.qcow2,format=qcow2",
+            //     "-serial", "stdio",
+            //     "-device", "direct-express-pci", 
+            //     "-display", "none"
+            // ],
+            "args": [
+                "-accel", "hax",
+                "-m", "6096",
+                "-smp", "6", 
+                "-machine", "usb=on", 
+                "-device", "usb-kbd", "-device", "usb-tablet",
+                "-soundhw", "hda", 
+                "-net", "nic", "-net", "user,hostfwd=tcp::5555-:5555", 
+                "-hda", "D:/hda_t.img",
+                "-cdrom", "D:/android_x86_64.iso",
+                "-serial", "stdio",
+                "-device", "direct-express-pci", 
+            ],
+
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}\\x86_64-softmmu",
             // "environment": [{
@@ -26,6 +56,6 @@
                 }
             ],
             // "logging": { "engineLogging": true },
-        }
+        },
     ]
 }
