@@ -26,6 +26,8 @@
 #define TARGET_ARM_INTERNALS_H
 
 #include "hw/registerfields.h"
+#include "tcg/tcg-gvec-desc.h"
+#include "syndrome.h"
 
 /* register banks for CPU modes */
 #define BANK_USRSYS 0
@@ -79,6 +81,18 @@ FIELD(V7M_EXCRET, RES1, 7, 25) /* including the must-be-1 prefix */
  */
 #define FNC_RETURN_MIN_MAGIC 0xfefffffe
 
+/* Bit definitions for DBGWCRn and DBGWCRn_EL1 */
+FIELD(DBGWCR, E, 0, 1)
+FIELD(DBGWCR, PAC, 1, 2)
+FIELD(DBGWCR, LSC, 3, 2)
+FIELD(DBGWCR, BAS, 5, 8)
+FIELD(DBGWCR, HMC, 13, 1)
+FIELD(DBGWCR, SSC, 14, 2)
+FIELD(DBGWCR, LBN, 16, 4)
+FIELD(DBGWCR, WT, 20, 1)
+FIELD(DBGWCR, MASK, 24, 5)
+FIELD(DBGWCR, SSCE, 29, 1)
+
 /* We use a few fake FSR values for internal purposes in M profile.
  * M profile cores don't have A/R format FSRs, but currently our
  * get_phys_addr() code assumes A/R profile and reports failures via
@@ -100,13 +114,13 @@ FIELD(V7M_EXCRET, RES1, 7, 25) /* including the must-be-1 prefix */
  * and target exception level. This should be called from helper functions,
  * and never returns because we will longjump back up to the CPU main loop.
  */
-void QEMU_NORETURN raise_exception(CPUARMState *env, uint32_t excp,
-                                   uint32_t syndrome, uint32_t target_el);
+G_NORETURN void raise_exception(CPUARMState *env, uint32_t excp,
+                                uint32_t syndrome, uint32_t target_el);
 
 /*
  * Similarly, but also use unwinding to restore cpu state.
  */
-void QEMU_NORETURN raise_exception_ra(CPUARMState *env, uint32_t excp,
+G_NORETURN void raise_exception_ra(CPUARMState *env, uint32_t excp,
                                       uint32_t syndrome, uint32_t target_el,
                                       uintptr_t ra);
 
@@ -171,6 +185,10 @@ static inline int r14_bank_number(int mode)
 void arm_cpu_register_gdb_regs_for_features(ARMCPU *cpu);
 void arm_translate_init(void);
 
+#ifdef CONFIG_TCG
+void arm_cpu_synchronize_from_tb(CPUState *cs, const TranslationBlock *tb);
+#endif /* CONFIG_TCG */
+
 enum arm_fprounding {
     FPROUNDING_TIEEVEN,
     FPROUNDING_POSINF,
@@ -226,24 +244,7 @@ static inline void update_spsel(CPUARMState *env, uint32_t imm)
  * Returns the implementation defined bit-width of physical addresses.
  * The ARMv8 reference manuals refer to this as PAMax().
  */
-static inline unsigned int arm_pamax(ARMCPU *cpu)
-{
-    static const unsigned int pamax_map[] = {
-        [0] = 32,
-        [1] = 36,
-        [2] = 40,
-        [3] = 42,
-        [4] = 44,
-        [5] = 48,
-    };
-    unsigned int parange =
-        FIELD_EX64(cpu->isar.id_aa64mmfr0, ID_AA64MMFR0, PARANGE);
-
-    /* id_aa64mmfr0 is a read-only register so values outside of the
-     * supported mappings can be considered an implementation error.  */
-    assert(parange < ARRAY_SIZE(pamax_map));
-    return pamax_map[parange];
-}
+unsigned int arm_pamax(ARMCPU *cpu);
 
 /* Return true if extended addresses are enabled.
  * This is always the case if our translation regime is 64 bit,
@@ -251,253 +252,9 @@ static inline unsigned int arm_pamax(ARMCPU *cpu)
  */
 static inline bool extended_addresses_enabled(CPUARMState *env)
 {
-    TCR *tcr = &env->cp15.tcr_el[arm_is_secure(env) ? 3 : 1];
+    uint64_t tcr = env->cp15.tcr_el[arm_is_secure(env) ? 3 : 1];
     return arm_el_is_aa64(env, 1) ||
-           (arm_feature(env, ARM_FEATURE_LPAE) && (tcr->raw_tcr & TTBCR_EAE));
-}
-
-/* Valid Syndrome Register EC field values */
-enum arm_exception_class {
-    EC_UNCATEGORIZED          = 0x00,
-    EC_WFX_TRAP               = 0x01,
-    EC_CP15RTTRAP             = 0x03,
-    EC_CP15RRTTRAP            = 0x04,
-    EC_CP14RTTRAP             = 0x05,
-    EC_CP14DTTRAP             = 0x06,
-    EC_ADVSIMDFPACCESSTRAP    = 0x07,
-    EC_FPIDTRAP               = 0x08,
-    EC_PACTRAP                = 0x09,
-    EC_CP14RRTTRAP            = 0x0c,
-    EC_BTITRAP                = 0x0d,
-    EC_ILLEGALSTATE           = 0x0e,
-    EC_AA32_SVC               = 0x11,
-    EC_AA32_HVC               = 0x12,
-    EC_AA32_SMC               = 0x13,
-    EC_AA64_SVC               = 0x15,
-    EC_AA64_HVC               = 0x16,
-    EC_AA64_SMC               = 0x17,
-    EC_SYSTEMREGISTERTRAP     = 0x18,
-    EC_SVEACCESSTRAP          = 0x19,
-    EC_INSNABORT              = 0x20,
-    EC_INSNABORT_SAME_EL      = 0x21,
-    EC_PCALIGNMENT            = 0x22,
-    EC_DATAABORT              = 0x24,
-    EC_DATAABORT_SAME_EL      = 0x25,
-    EC_SPALIGNMENT            = 0x26,
-    EC_AA32_FPTRAP            = 0x28,
-    EC_AA64_FPTRAP            = 0x2c,
-    EC_SERROR                 = 0x2f,
-    EC_BREAKPOINT             = 0x30,
-    EC_BREAKPOINT_SAME_EL     = 0x31,
-    EC_SOFTWARESTEP           = 0x32,
-    EC_SOFTWARESTEP_SAME_EL   = 0x33,
-    EC_WATCHPOINT             = 0x34,
-    EC_WATCHPOINT_SAME_EL     = 0x35,
-    EC_AA32_BKPT              = 0x38,
-    EC_VECTORCATCH            = 0x3a,
-    EC_AA64_BKPT              = 0x3c,
-};
-
-#define ARM_EL_EC_SHIFT 26
-#define ARM_EL_IL_SHIFT 25
-#define ARM_EL_ISV_SHIFT 24
-#define ARM_EL_IL (1 << ARM_EL_IL_SHIFT)
-#define ARM_EL_ISV (1 << ARM_EL_ISV_SHIFT)
-
-static inline uint32_t syn_get_ec(uint32_t syn)
-{
-    return syn >> ARM_EL_EC_SHIFT;
-}
-
-/* Utility functions for constructing various kinds of syndrome value.
- * Note that in general we follow the AArch64 syndrome values; in a
- * few cases the value in HSR for exceptions taken to AArch32 Hyp
- * mode differs slightly, and we fix this up when populating HSR in
- * arm_cpu_do_interrupt_aarch32_hyp().
- * The exception is FP/SIMD access traps -- these report extra information
- * when taking an exception to AArch32. For those we include the extra coproc
- * and TA fields, and mask them out when taking the exception to AArch64.
- */
-static inline uint32_t syn_uncategorized(void)
-{
-    return (EC_UNCATEGORIZED << ARM_EL_EC_SHIFT) | ARM_EL_IL;
-}
-
-static inline uint32_t syn_aa64_svc(uint32_t imm16)
-{
-    return (EC_AA64_SVC << ARM_EL_EC_SHIFT) | ARM_EL_IL | (imm16 & 0xffff);
-}
-
-static inline uint32_t syn_aa64_hvc(uint32_t imm16)
-{
-    return (EC_AA64_HVC << ARM_EL_EC_SHIFT) | ARM_EL_IL | (imm16 & 0xffff);
-}
-
-static inline uint32_t syn_aa64_smc(uint32_t imm16)
-{
-    return (EC_AA64_SMC << ARM_EL_EC_SHIFT) | ARM_EL_IL | (imm16 & 0xffff);
-}
-
-static inline uint32_t syn_aa32_svc(uint32_t imm16, bool is_16bit)
-{
-    return (EC_AA32_SVC << ARM_EL_EC_SHIFT) | (imm16 & 0xffff)
-        | (is_16bit ? 0 : ARM_EL_IL);
-}
-
-static inline uint32_t syn_aa32_hvc(uint32_t imm16)
-{
-    return (EC_AA32_HVC << ARM_EL_EC_SHIFT) | ARM_EL_IL | (imm16 & 0xffff);
-}
-
-static inline uint32_t syn_aa32_smc(void)
-{
-    return (EC_AA32_SMC << ARM_EL_EC_SHIFT) | ARM_EL_IL;
-}
-
-static inline uint32_t syn_aa64_bkpt(uint32_t imm16)
-{
-    return (EC_AA64_BKPT << ARM_EL_EC_SHIFT) | ARM_EL_IL | (imm16 & 0xffff);
-}
-
-static inline uint32_t syn_aa32_bkpt(uint32_t imm16, bool is_16bit)
-{
-    return (EC_AA32_BKPT << ARM_EL_EC_SHIFT) | (imm16 & 0xffff)
-        | (is_16bit ? 0 : ARM_EL_IL);
-}
-
-static inline uint32_t syn_aa64_sysregtrap(int op0, int op1, int op2,
-                                           int crn, int crm, int rt,
-                                           int isread)
-{
-    return (EC_SYSTEMREGISTERTRAP << ARM_EL_EC_SHIFT) | ARM_EL_IL
-        | (op0 << 20) | (op2 << 17) | (op1 << 14) | (crn << 10) | (rt << 5)
-        | (crm << 1) | isread;
-}
-
-static inline uint32_t syn_cp14_rt_trap(int cv, int cond, int opc1, int opc2,
-                                        int crn, int crm, int rt, int isread,
-                                        bool is_16bit)
-{
-    return (EC_CP14RTTRAP << ARM_EL_EC_SHIFT)
-        | (is_16bit ? 0 : ARM_EL_IL)
-        | (cv << 24) | (cond << 20) | (opc2 << 17) | (opc1 << 14)
-        | (crn << 10) | (rt << 5) | (crm << 1) | isread;
-}
-
-static inline uint32_t syn_cp15_rt_trap(int cv, int cond, int opc1, int opc2,
-                                        int crn, int crm, int rt, int isread,
-                                        bool is_16bit)
-{
-    return (EC_CP15RTTRAP << ARM_EL_EC_SHIFT)
-        | (is_16bit ? 0 : ARM_EL_IL)
-        | (cv << 24) | (cond << 20) | (opc2 << 17) | (opc1 << 14)
-        | (crn << 10) | (rt << 5) | (crm << 1) | isread;
-}
-
-static inline uint32_t syn_cp14_rrt_trap(int cv, int cond, int opc1, int crm,
-                                         int rt, int rt2, int isread,
-                                         bool is_16bit)
-{
-    return (EC_CP14RRTTRAP << ARM_EL_EC_SHIFT)
-        | (is_16bit ? 0 : ARM_EL_IL)
-        | (cv << 24) | (cond << 20) | (opc1 << 16)
-        | (rt2 << 10) | (rt << 5) | (crm << 1) | isread;
-}
-
-static inline uint32_t syn_cp15_rrt_trap(int cv, int cond, int opc1, int crm,
-                                         int rt, int rt2, int isread,
-                                         bool is_16bit)
-{
-    return (EC_CP15RRTTRAP << ARM_EL_EC_SHIFT)
-        | (is_16bit ? 0 : ARM_EL_IL)
-        | (cv << 24) | (cond << 20) | (opc1 << 16)
-        | (rt2 << 10) | (rt << 5) | (crm << 1) | isread;
-}
-
-static inline uint32_t syn_fp_access_trap(int cv, int cond, bool is_16bit)
-{
-    /* AArch32 FP trap or any AArch64 FP/SIMD trap: TA == 0 coproc == 0xa */
-    return (EC_ADVSIMDFPACCESSTRAP << ARM_EL_EC_SHIFT)
-        | (is_16bit ? 0 : ARM_EL_IL)
-        | (cv << 24) | (cond << 20) | 0xa;
-}
-
-static inline uint32_t syn_simd_access_trap(int cv, int cond, bool is_16bit)
-{
-    /* AArch32 SIMD trap: TA == 1 coproc == 0 */
-    return (EC_ADVSIMDFPACCESSTRAP << ARM_EL_EC_SHIFT)
-        | (is_16bit ? 0 : ARM_EL_IL)
-        | (cv << 24) | (cond << 20) | (1 << 5);
-}
-
-static inline uint32_t syn_sve_access_trap(void)
-{
-    return EC_SVEACCESSTRAP << ARM_EL_EC_SHIFT;
-}
-
-static inline uint32_t syn_pactrap(void)
-{
-    return EC_PACTRAP << ARM_EL_EC_SHIFT;
-}
-
-static inline uint32_t syn_btitrap(int btype)
-{
-    return (EC_BTITRAP << ARM_EL_EC_SHIFT) | btype;
-}
-
-static inline uint32_t syn_insn_abort(int same_el, int ea, int s1ptw, int fsc)
-{
-    return (EC_INSNABORT << ARM_EL_EC_SHIFT) | (same_el << ARM_EL_EC_SHIFT)
-        | ARM_EL_IL | (ea << 9) | (s1ptw << 7) | fsc;
-}
-
-static inline uint32_t syn_data_abort_no_iss(int same_el, int fnv,
-                                             int ea, int cm, int s1ptw,
-                                             int wnr, int fsc)
-{
-    return (EC_DATAABORT << ARM_EL_EC_SHIFT) | (same_el << ARM_EL_EC_SHIFT)
-           | ARM_EL_IL
-           | (fnv << 10) | (ea << 9) | (cm << 8) | (s1ptw << 7)
-           | (wnr << 6) | fsc;
-}
-
-static inline uint32_t syn_data_abort_with_iss(int same_el,
-                                               int sas, int sse, int srt,
-                                               int sf, int ar,
-                                               int ea, int cm, int s1ptw,
-                                               int wnr, int fsc,
-                                               bool is_16bit)
-{
-    return (EC_DATAABORT << ARM_EL_EC_SHIFT) | (same_el << ARM_EL_EC_SHIFT)
-           | (is_16bit ? 0 : ARM_EL_IL)
-           | ARM_EL_ISV | (sas << 22) | (sse << 21) | (srt << 16)
-           | (sf << 15) | (ar << 14)
-           | (ea << 9) | (cm << 8) | (s1ptw << 7) | (wnr << 6) | fsc;
-}
-
-static inline uint32_t syn_swstep(int same_el, int isv, int ex)
-{
-    return (EC_SOFTWARESTEP << ARM_EL_EC_SHIFT) | (same_el << ARM_EL_EC_SHIFT)
-        | ARM_EL_IL | (isv << 24) | (ex << 6) | 0x22;
-}
-
-static inline uint32_t syn_watchpoint(int same_el, int cm, int wnr)
-{
-    return (EC_WATCHPOINT << ARM_EL_EC_SHIFT) | (same_el << ARM_EL_EC_SHIFT)
-        | ARM_EL_IL | (cm << 8) | (wnr << 6) | 0x22;
-}
-
-static inline uint32_t syn_breakpoint(int same_el)
-{
-    return (EC_BREAKPOINT << ARM_EL_EC_SHIFT) | (same_el << ARM_EL_EC_SHIFT)
-        | ARM_EL_IL | 0x22;
-}
-
-static inline uint32_t syn_wfx(int cv, int cond, int ti, bool is_16bit)
-{
-    return (EC_WFX_TRAP << ARM_EL_EC_SHIFT) |
-           (is_16bit ? 0 : (1 << ARM_EL_IL_SHIFT)) |
-           (cv << 24) | (cond << 20) | ti;
+           (arm_feature(env, ARM_FEATURE_LPAE) && (tcr & TTBCR_EAE));
 }
 
 /* Update a QEMU watchpoint based on the information the guest has set in the
@@ -518,6 +275,9 @@ void hw_breakpoint_update(ARMCPU *cpu, int n);
  * suitable for use after migration or on reset.
  */
 void hw_breakpoint_update_all(ARMCPU *cpu);
+
+/* Callback function for checking if a breakpoint should trigger. */
+bool arm_debug_check_breakpoint(CPUState *cs);
 
 /* Callback function for checking if a watchpoint should trigger. */
 bool arm_debug_check_watchpoint(CPUState *cs, CPUWatchpoint *wp);
@@ -593,6 +353,7 @@ typedef enum ARMFaultType {
  * @s2addr: Address that caused a fault at stage 2
  * @stage2: True if we faulted at stage 2
  * @s1ptw: True if we faulted at stage 2 while doing a stage 1 page-table walk
+ * @s1ns: True if we faulted on a non-secure IPA while in secure state
  * @ea: True if we should set the EA (external abort type) bit in syndrome
  */
 typedef struct ARMMMUFaultInfo ARMMMUFaultInfo;
@@ -603,6 +364,7 @@ struct ARMMMUFaultInfo {
     int domain;
     bool stage2;
     bool s1ptw;
+    bool s1ns;
     bool ea;
 };
 
@@ -701,28 +463,51 @@ static inline uint32_t arm_fi_to_lfsc(ARMMMUFaultInfo *fi)
     case ARMFault_None:
         return 0;
     case ARMFault_AddressSize:
-        fsc = fi->level & 3;
+        assert(fi->level >= -1 && fi->level <= 3);
+        if (fi->level < 0) {
+            fsc = 0b101001;
+        } else {
+            fsc = fi->level;
+        }
         break;
     case ARMFault_AccessFlag:
-        fsc = (fi->level & 3) | (0x2 << 2);
+        assert(fi->level >= 0 && fi->level <= 3);
+        fsc = 0b001000 | fi->level;
         break;
     case ARMFault_Permission:
-        fsc = (fi->level & 3) | (0x3 << 2);
+        assert(fi->level >= 0 && fi->level <= 3);
+        fsc = 0b001100 | fi->level;
         break;
     case ARMFault_Translation:
-        fsc = (fi->level & 3) | (0x1 << 2);
+        assert(fi->level >= -1 && fi->level <= 3);
+        if (fi->level < 0) {
+            fsc = 0b101011;
+        } else {
+            fsc = 0b000100 | fi->level;
+        }
         break;
     case ARMFault_SyncExternal:
         fsc = 0x10 | (fi->ea << 12);
         break;
     case ARMFault_SyncExternalOnWalk:
-        fsc = (fi->level & 3) | (0x5 << 2) | (fi->ea << 12);
+        assert(fi->level >= -1 && fi->level <= 3);
+        if (fi->level < 0) {
+            fsc = 0b010011;
+        } else {
+            fsc = 0b010100 | fi->level;
+        }
+        fsc |= fi->ea << 12;
         break;
     case ARMFault_SyncParity:
         fsc = 0x18;
         break;
     case ARMFault_SyncParityOnWalk:
-        fsc = (fi->level & 3) | (0x7 << 2);
+        assert(fi->level >= -1 && fi->level <= 3);
+        if (fi->level < 0) {
+            fsc = 0b011011;
+        } else {
+            fsc = 0b011100 | fi->level;
+        }
         break;
     case ARMFault_AsyncParity:
         fsc = 0x19;
@@ -766,9 +551,17 @@ static inline bool arm_extabort_type(MemTxResult result)
     return result != MEMTX_DECODE_ERROR;
 }
 
+#ifdef CONFIG_USER_ONLY
+void arm_cpu_record_sigsegv(CPUState *cpu, vaddr addr,
+                            MMUAccessType access_type,
+                            bool maperr, uintptr_t ra);
+void arm_cpu_record_sigbus(CPUState *cpu, vaddr addr,
+                           MMUAccessType access_type, uintptr_t ra);
+#else
 bool arm_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                       MMUAccessType access_type, int mmu_idx,
                       bool probe, uintptr_t retaddr);
+#endif
 
 static inline int arm_to_core_mmu_idx(ARMMMUIdx mmu_idx)
 {
@@ -809,14 +602,19 @@ ARMMMUIdx arm_v7m_mmu_idx_for_secstate_and_priv(CPUARMState *env,
 /* Return the MMU index for a v7M CPU in the specified security state */
 ARMMMUIdx arm_v7m_mmu_idx_for_secstate(CPUARMState *env, bool secstate);
 
-/* Return true if the stage 1 translation regime is using LPAE format page
- * tables */
+/* Return true if the translation regime is using LPAE format page tables */
+bool regime_using_lpae_format(CPUARMState *env, ARMMMUIdx mmu_idx);
+
+/*
+ * Return true if the stage 1 translation regime is using LPAE
+ * format page tables
+ */
 bool arm_s1_regime_using_lpae_format(CPUARMState *env, ARMMMUIdx mmu_idx);
 
 /* Raise a data fault alignment exception for the specified virtual address */
-void arm_cpu_do_unaligned_access(CPUState *cs, vaddr vaddr,
-                                 MMUAccessType access_type,
-                                 int mmu_idx, uintptr_t retaddr);
+G_NORETURN void arm_cpu_do_unaligned_access(CPUState *cs, vaddr vaddr,
+                                            MMUAccessType access_type,
+                                            int mmu_idx, uintptr_t retaddr);
 
 /* arm_cpu_do_transaction_failed: handle a memory system error response
  * (eg "no device/memory present at address") by raising an external abort
@@ -851,6 +649,9 @@ static inline bool regime_has_2_ranges(ARMMMUIdx mmu_idx)
     case ARMMMUIdx_Stage1_E0:
     case ARMMMUIdx_Stage1_E1:
     case ARMMMUIdx_Stage1_E1_PAN:
+    case ARMMMUIdx_Stage1_SE0:
+    case ARMMMUIdx_Stage1_SE1:
+    case ARMMMUIdx_Stage1_SE1_PAN:
     case ARMMMUIdx_E10_0:
     case ARMMMUIdx_E10_1:
     case ARMMMUIdx_E10_1_PAN:
@@ -860,6 +661,9 @@ static inline bool regime_has_2_ranges(ARMMMUIdx mmu_idx)
     case ARMMMUIdx_SE10_0:
     case ARMMMUIdx_SE10_1:
     case ARMMMUIdx_SE10_1_PAN:
+    case ARMMMUIdx_SE20_0:
+    case ARMMMUIdx_SE20_2:
+    case ARMMMUIdx_SE20_2_PAN:
         return true;
     default:
         return false;
@@ -890,6 +694,14 @@ static inline bool regime_is_secure(CPUARMState *env, ARMMMUIdx mmu_idx)
     case ARMMMUIdx_SE10_0:
     case ARMMMUIdx_SE10_1:
     case ARMMMUIdx_SE10_1_PAN:
+    case ARMMMUIdx_SE20_0:
+    case ARMMMUIdx_SE20_2:
+    case ARMMMUIdx_SE20_2_PAN:
+    case ARMMMUIdx_Stage1_SE0:
+    case ARMMMUIdx_Stage1_SE1:
+    case ARMMMUIdx_Stage1_SE1_PAN:
+    case ARMMMUIdx_SE2:
+    case ARMMMUIdx_Stage2_S:
     case ARMMMUIdx_MSPrivNegPri:
     case ARMMMUIdx_MSUserNegPri:
     case ARMMMUIdx_MSPriv:
@@ -904,38 +716,97 @@ static inline bool regime_is_pan(CPUARMState *env, ARMMMUIdx mmu_idx)
 {
     switch (mmu_idx) {
     case ARMMMUIdx_Stage1_E1_PAN:
+    case ARMMMUIdx_Stage1_SE1_PAN:
     case ARMMMUIdx_E10_1_PAN:
     case ARMMMUIdx_E20_2_PAN:
     case ARMMMUIdx_SE10_1_PAN:
+    case ARMMMUIdx_SE20_2_PAN:
         return true;
     default:
         return false;
     }
 }
 
-/* Return the FSR value for a debug exception (watchpoint, hardware
- * breakpoint or BKPT insn) targeting the specified exception level.
- */
-static inline uint32_t arm_debug_exception_fsr(CPUARMState *env)
+/* Return the exception level which controls this address translation regime */
+static inline uint32_t regime_el(CPUARMState *env, ARMMMUIdx mmu_idx)
 {
-    ARMMMUFaultInfo fi = { .type = ARMFault_Debug };
-    int target_el = arm_debug_target_el(env);
-    bool using_lpae = false;
-
-    if (target_el == 2 || arm_el_is_aa64(env, target_el)) {
-        using_lpae = true;
-    } else {
-        if (arm_feature(env, ARM_FEATURE_LPAE) &&
-            (env->cp15.tcr_el[target_el].raw_tcr & TTBCR_EAE)) {
-            using_lpae = true;
-        }
+    switch (mmu_idx) {
+    case ARMMMUIdx_SE20_0:
+    case ARMMMUIdx_SE20_2:
+    case ARMMMUIdx_SE20_2_PAN:
+    case ARMMMUIdx_E20_0:
+    case ARMMMUIdx_E20_2:
+    case ARMMMUIdx_E20_2_PAN:
+    case ARMMMUIdx_Stage2:
+    case ARMMMUIdx_Stage2_S:
+    case ARMMMUIdx_SE2:
+    case ARMMMUIdx_E2:
+        return 2;
+    case ARMMMUIdx_SE3:
+        return 3;
+    case ARMMMUIdx_SE10_0:
+    case ARMMMUIdx_Stage1_SE0:
+        return arm_el_is_aa64(env, 3) ? 1 : 3;
+    case ARMMMUIdx_SE10_1:
+    case ARMMMUIdx_SE10_1_PAN:
+    case ARMMMUIdx_Stage1_E0:
+    case ARMMMUIdx_Stage1_E1:
+    case ARMMMUIdx_Stage1_E1_PAN:
+    case ARMMMUIdx_Stage1_SE1:
+    case ARMMMUIdx_Stage1_SE1_PAN:
+    case ARMMMUIdx_E10_0:
+    case ARMMMUIdx_E10_1:
+    case ARMMMUIdx_E10_1_PAN:
+    case ARMMMUIdx_MPrivNegPri:
+    case ARMMMUIdx_MUserNegPri:
+    case ARMMMUIdx_MPriv:
+    case ARMMMUIdx_MUser:
+    case ARMMMUIdx_MSPrivNegPri:
+    case ARMMMUIdx_MSUserNegPri:
+    case ARMMMUIdx_MSPriv:
+    case ARMMMUIdx_MSUser:
+        return 1;
+    default:
+        g_assert_not_reached();
     }
+}
 
-    if (using_lpae) {
-        return arm_fi_to_lfsc(&fi);
-    } else {
-        return arm_fi_to_sfsc(&fi);
+/* Return the SCTLR value which controls this address translation regime */
+static inline uint64_t regime_sctlr(CPUARMState *env, ARMMMUIdx mmu_idx)
+{
+    return env->cp15.sctlr_el[regime_el(env, mmu_idx)];
+}
+
+/*
+ * These are the fields in VTCR_EL2 which affect both the Secure stage 2
+ * and the Non-Secure stage 2 translation regimes (and hence which are
+ * not present in VSTCR_EL2).
+ */
+#define VTCR_SHARED_FIELD_MASK \
+    (R_VTCR_IRGN0_MASK | R_VTCR_ORGN0_MASK | R_VTCR_SH0_MASK | \
+     R_VTCR_PS_MASK | R_VTCR_VS_MASK | R_VTCR_HA_MASK | R_VTCR_HD_MASK | \
+     R_VTCR_DS_MASK)
+
+/* Return the value of the TCR controlling this translation regime */
+static inline uint64_t regime_tcr(CPUARMState *env, ARMMMUIdx mmu_idx)
+{
+    if (mmu_idx == ARMMMUIdx_Stage2) {
+        return env->cp15.vtcr_el2;
     }
+    if (mmu_idx == ARMMMUIdx_Stage2_S) {
+        /*
+         * Secure stage 2 shares fields from VTCR_EL2. We merge those
+         * in with the VSTCR_EL2 value to synthesize a single VTCR_EL2 format
+         * value so the callers don't need to special case this.
+         *
+         * If a future architecture change defines bits in VSTCR_EL2 that
+         * overlap with these VTCR_EL2 fields we may need to revisit this.
+         */
+        uint64_t v = env->cp15.vstcr_el2 & ~VTCR_SHARED_FIELD_MASK;
+        v |= env->cp15.vtcr_el2 & VTCR_SHARED_FIELD_MASK;
+        return v;
+    }
+    return env->cp15.tcr_el[regime_el(env, mmu_idx)];
 }
 
 /**
@@ -1068,6 +939,14 @@ void arm_cpu_update_virq(ARMCPU *cpu);
 void arm_cpu_update_vfiq(ARMCPU *cpu);
 
 /**
+ * arm_cpu_update_vserr: Update CPU_INTERRUPT_VSERR bit
+ *
+ * Update the CPU_INTERRUPT_VSERR bit in cs->interrupt_request,
+ * following a change to the HCR_EL2.VSE bit.
+ */
+void arm_cpu_update_vserr(ARMCPU *cpu);
+
+/**
  * arm_mmu_idx_el:
  * @env: The cpu environment
  * @el: The EL to use.
@@ -1091,11 +970,16 @@ ARMMMUIdx arm_mmu_idx(CPUARMState *env);
  * Return the ARMMMUIdx for the stage1 traversal for the current regime.
  */
 #ifdef CONFIG_USER_ONLY
+static inline ARMMMUIdx stage_1_mmu_idx(ARMMMUIdx mmu_idx)
+{
+    return ARMMMUIdx_Stage1_E0;
+}
 static inline ARMMMUIdx arm_stage1_mmu_idx(CPUARMState *env)
 {
     return ARMMMUIdx_Stage1_E0;
 }
 #else
+ARMMMUIdx stage_1_mmu_idx(ARMMMUIdx mmu_idx);
 ARMMMUIdx arm_stage1_mmu_idx(CPUARMState *env);
 #endif
 
@@ -1112,6 +996,9 @@ static inline bool arm_mmu_idx_is_stage1_of_2(ARMMMUIdx mmu_idx)
     case ARMMMUIdx_Stage1_E0:
     case ARMMMUIdx_Stage1_E1:
     case ARMMMUIdx_Stage1_E1_PAN:
+    case ARMMMUIdx_Stage1_SE0:
+    case ARMMMUIdx_Stage1_SE1:
+    case ARMMMUIdx_Stage1_SE1_PAN:
         return true;
     default:
         return false;
@@ -1141,6 +1028,12 @@ static inline uint32_t aarch32_cpsr_valid_mask(uint64_t features,
     if (isar_feature_aa32_pan(id)) {
         valid |= CPSR_PAN;
     }
+    if (isar_feature_aa32_dit(id)) {
+        valid |= CPSR_DIT;
+    }
+    if (isar_feature_aa32_ssbs(id)) {
+        valid |= CPSR_SSBS;
+    }
 
     return valid;
 }
@@ -1159,6 +1052,15 @@ static inline uint32_t aarch64_pstate_valid_mask(const ARMISARegisters *id)
     if (isar_feature_aa64_uao(id)) {
         valid |= PSTATE_UAO;
     }
+    if (isar_feature_aa64_dit(id)) {
+        valid |= PSTATE_DIT;
+    }
+    if (isar_feature_aa64_ssbs(id)) {
+        valid |= PSTATE_SSBS;
+    }
+    if (isar_feature_aa64_mte(id)) {
+        valid |= PSTATE_TCO;
+    }
 
     return valid;
 }
@@ -1169,30 +1071,41 @@ static inline uint32_t aarch64_pstate_valid_mask(const ARMISARegisters *id)
  */
 typedef struct ARMVAParameters {
     unsigned tsz    : 8;
+    unsigned ps     : 3;
+    unsigned sh     : 2;
     unsigned select : 1;
     bool tbi        : 1;
     bool epd        : 1;
     bool hpd        : 1;
     bool using16k   : 1;
     bool using64k   : 1;
+    bool tsz_oob    : 1;  /* tsz has been clamped to legal range */
+    bool ds         : 1;
 } ARMVAParameters;
 
 ARMVAParameters aa64_va_parameters(CPUARMState *env, uint64_t va,
                                    ARMMMUIdx mmu_idx, bool data);
 
-static inline int exception_target_el(CPUARMState *env)
+int aa64_va_parameter_tbi(uint64_t tcr, ARMMMUIdx mmu_idx);
+int aa64_va_parameter_tbid(uint64_t tcr, ARMMMUIdx mmu_idx);
+
+/* Determine if allocation tags are available.  */
+static inline bool allocation_tag_access_enabled(CPUARMState *env, int el,
+                                                 uint64_t sctlr)
 {
-    int target_el = MAX(1, arm_current_el(env));
-
-    /*
-     * No such thing as secure EL1 if EL3 is aarch32,
-     * so update the target EL to EL3 in this case.
-     */
-    if (arm_is_secure(env) && !arm_el_is_aa64(env, 3) && target_el == 1) {
-        target_el = 3;
+    if (el < 3
+        && arm_feature(env, ARM_FEATURE_EL3)
+        && !(env->cp15.scr_el3 & SCR_ATA)) {
+        return false;
     }
-
-    return target_el;
+    if (el < 2 && arm_is_el2_enabled(env)) {
+        uint64_t hcr = arm_hcr_el2_eff(env);
+        if (!(hcr & HCR_ATA) && (!(hcr & HCR_E2H) || !(hcr & HCR_TGE))) {
+            return false;
+        }
+    }
+    sctlr &= (el == 0 ? SCTLR_ATA0 : SCTLR_ATA);
+    return sctlr != 0;
 }
 
 #ifndef CONFIG_USER_ONLY
@@ -1220,18 +1133,208 @@ bool pmsav8_mpu_lookup(CPUARMState *env, uint32_t address,
 
 /* Cacheability and shareability attributes for a memory access */
 typedef struct ARMCacheAttrs {
-    unsigned int attrs:8; /* as in the MAIR register encoding */
+    /*
+     * If is_s2_format is true, attrs is the S2 descriptor bits [5:2]
+     * Otherwise, attrs is the same as the MAIR_EL1 8-bit format
+     */
+    unsigned int attrs:8;
     unsigned int shareability:2; /* as in the SH field of the VMSAv8-64 PTEs */
+    bool is_s2_format:1;
 } ARMCacheAttrs;
 
 bool get_phys_addr(CPUARMState *env, target_ulong address,
                    MMUAccessType access_type, ARMMMUIdx mmu_idx,
                    hwaddr *phys_ptr, MemTxAttrs *attrs, int *prot,
                    target_ulong *page_size,
-                   ARMMMUFaultInfo *fi, ARMCacheAttrs *cacheattrs);
+                   ARMMMUFaultInfo *fi, ARMCacheAttrs *cacheattrs)
+    __attribute__((nonnull));
 
-void arm_log_exception(int idx);
+void arm_log_exception(CPUState *cs);
 
 #endif /* !CONFIG_USER_ONLY */
+
+/*
+ * The log2 of the words in the tag block, for GMID_EL1.BS.
+ * The is the maximum, 256 bytes, which manipulates 64-bits of tags.
+ */
+#define GMID_EL1_BS  6
+
+/* We associate one allocation tag per 16 bytes, the minimum.  */
+#define LOG2_TAG_GRANULE 4
+#define TAG_GRANULE      (1 << LOG2_TAG_GRANULE)
+
+/*
+ * SVE predicates are 1/8 the size of SVE vectors, and cannot use
+ * the same simd_desc() encoding due to restrictions on size.
+ * Use these instead.
+ */
+FIELD(PREDDESC, OPRSZ, 0, 6)
+FIELD(PREDDESC, ESZ, 6, 2)
+FIELD(PREDDESC, DATA, 8, 24)
+
+/*
+ * The SVE simd_data field, for memory ops, contains either
+ * rd (5 bits) or a shift count (2 bits).
+ */
+#define SVE_MTEDESC_SHIFT 5
+
+/* Bits within a descriptor passed to the helper_mte_check* functions. */
+FIELD(MTEDESC, MIDX,  0, 4)
+FIELD(MTEDESC, TBI,   4, 2)
+FIELD(MTEDESC, TCMA,  6, 2)
+FIELD(MTEDESC, WRITE, 8, 1)
+FIELD(MTEDESC, SIZEM1, 9, SIMD_DATA_BITS - 9)  /* size - 1 */
+
+bool mte_probe(CPUARMState *env, uint32_t desc, uint64_t ptr);
+uint64_t mte_check(CPUARMState *env, uint32_t desc, uint64_t ptr, uintptr_t ra);
+
+static inline int allocation_tag_from_addr(uint64_t ptr)
+{
+    return extract64(ptr, 56, 4);
+}
+
+static inline uint64_t address_with_allocation_tag(uint64_t ptr, int rtag)
+{
+    return deposit64(ptr, 56, 4, rtag);
+}
+
+/* Return true if tbi bits mean that the access is checked.  */
+static inline bool tbi_check(uint32_t desc, int bit55)
+{
+    return (desc >> (R_MTEDESC_TBI_SHIFT + bit55)) & 1;
+}
+
+/* Return true if tcma bits mean that the access is unchecked.  */
+static inline bool tcma_check(uint32_t desc, int bit55, int ptr_tag)
+{
+    /*
+     * We had extracted bit55 and ptr_tag for other reasons, so fold
+     * (ptr<59:55> == 00000 || ptr<59:55> == 11111) into a single test.
+     */
+    bool match = ((ptr_tag + bit55) & 0xf) == 0;
+    bool tcma = (desc >> (R_MTEDESC_TCMA_SHIFT + bit55)) & 1;
+    return tcma && match;
+}
+
+/*
+ * For TBI, ideally, we would do nothing.  Proper behaviour on fault is
+ * for the tag to be present in the FAR_ELx register.  But for user-only
+ * mode, we do not have a TLB with which to implement this, so we must
+ * remove the top byte.
+ */
+static inline uint64_t useronly_clean_ptr(uint64_t ptr)
+{
+#ifdef CONFIG_USER_ONLY
+    /* TBI0 is known to be enabled, while TBI1 is disabled. */
+    ptr &= sextract64(ptr, 0, 56);
+#endif
+    return ptr;
+}
+
+static inline uint64_t useronly_maybe_clean_ptr(uint32_t desc, uint64_t ptr)
+{
+#ifdef CONFIG_USER_ONLY
+    int64_t clean_ptr = sextract64(ptr, 0, 56);
+    if (tbi_check(desc, clean_ptr < 0)) {
+        ptr = clean_ptr;
+    }
+#endif
+    return ptr;
+}
+
+/* Values for M-profile PSR.ECI for MVE insns */
+enum MVEECIState {
+    ECI_NONE = 0, /* No completed beats */
+    ECI_A0 = 1, /* Completed: A0 */
+    ECI_A0A1 = 2, /* Completed: A0, A1 */
+    /* 3 is reserved */
+    ECI_A0A1A2 = 4, /* Completed: A0, A1, A2 */
+    ECI_A0A1A2B0 = 5, /* Completed: A0, A1, A2, B0 */
+    /* All other values reserved */
+};
+
+/* Definitions for the PMU registers */
+#define PMCRN_MASK  0xf800
+#define PMCRN_SHIFT 11
+#define PMCRLC  0x40
+#define PMCRDP  0x20
+#define PMCRX   0x10
+#define PMCRD   0x8
+#define PMCRC   0x4
+#define PMCRP   0x2
+#define PMCRE   0x1
+/*
+ * Mask of PMCR bits writable by guest (not including WO bits like C, P,
+ * which can be written as 1 to trigger behaviour but which stay RAZ).
+ */
+#define PMCR_WRITABLE_MASK (PMCRLC | PMCRDP | PMCRX | PMCRD | PMCRE)
+
+#define PMXEVTYPER_P          0x80000000
+#define PMXEVTYPER_U          0x40000000
+#define PMXEVTYPER_NSK        0x20000000
+#define PMXEVTYPER_NSU        0x10000000
+#define PMXEVTYPER_NSH        0x08000000
+#define PMXEVTYPER_M          0x04000000
+#define PMXEVTYPER_MT         0x02000000
+#define PMXEVTYPER_EVTCOUNT   0x0000ffff
+#define PMXEVTYPER_MASK       (PMXEVTYPER_P | PMXEVTYPER_U | PMXEVTYPER_NSK | \
+                               PMXEVTYPER_NSU | PMXEVTYPER_NSH | \
+                               PMXEVTYPER_M | PMXEVTYPER_MT | \
+                               PMXEVTYPER_EVTCOUNT)
+
+#define PMCCFILTR             0xf8000000
+#define PMCCFILTR_M           PMXEVTYPER_M
+#define PMCCFILTR_EL0         (PMCCFILTR | PMCCFILTR_M)
+
+static inline uint32_t pmu_num_counters(CPUARMState *env)
+{
+    ARMCPU *cpu = env_archcpu(env);
+
+    return (cpu->isar.reset_pmcr_el0 & PMCRN_MASK) >> PMCRN_SHIFT;
+}
+
+/* Bits allowed to be set/cleared for PMCNTEN* and PMINTEN* */
+static inline uint64_t pmu_counter_mask(CPUARMState *env)
+{
+  return (1 << 31) | ((1 << pmu_num_counters(env)) - 1);
+}
+
+#ifdef TARGET_AARCH64
+int arm_gdb_get_svereg(CPUARMState *env, GByteArray *buf, int reg);
+int arm_gdb_set_svereg(CPUARMState *env, uint8_t *buf, int reg);
+int aarch64_fpu_gdb_get_reg(CPUARMState *env, GByteArray *buf, int reg);
+int aarch64_fpu_gdb_set_reg(CPUARMState *env, uint8_t *buf, int reg);
+void arm_cpu_sve_finalize(ARMCPU *cpu, Error **errp);
+void arm_cpu_sme_finalize(ARMCPU *cpu, Error **errp);
+void arm_cpu_pauth_finalize(ARMCPU *cpu, Error **errp);
+void arm_cpu_lpa2_finalize(ARMCPU *cpu, Error **errp);
+#endif
+
+#ifdef CONFIG_USER_ONLY
+static inline void define_cortex_a72_a57_a53_cp_reginfo(ARMCPU *cpu) { }
+#else
+void define_cortex_a72_a57_a53_cp_reginfo(ARMCPU *cpu);
+#endif
+
+bool el_is_in_host(CPUARMState *env, int el);
+
+void aa32_max_features(ARMCPU *cpu);
+int exception_target_el(CPUARMState *env);
+bool arm_singlestep_active(CPUARMState *env);
+bool arm_generate_debug_exceptions(CPUARMState *env);
+
+/* Add the cpreg definitions for debug related system registers */
+void define_debug_regs(ARMCPU *cpu);
+
+/* Effective value of MDCR_EL2 */
+static inline uint64_t arm_mdcr_el2_eff(CPUARMState *env)
+{
+    return arm_is_el2_enabled(env) ? env->cp15.mdcr_el2 : 0;
+}
+
+/* Powers of 2 for sve_vq_map et al. */
+#define SVE_VQ_POW2_MAP                                 \
+    ((1 << (1 - 1)) | (1 << (2 - 1)) |                  \
+     (1 << (4 - 1)) | (1 << (8 - 1)) | (1 << (16 - 1)))
 
 #endif

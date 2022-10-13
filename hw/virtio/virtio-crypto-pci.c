@@ -21,6 +21,7 @@
 #include "hw/virtio/virtio-crypto.h"
 #include "qapi/error.h"
 #include "qemu/module.h"
+#include "qom/object.h"
 
 typedef struct VirtIOCryptoPCI VirtIOCryptoPCI;
 
@@ -28,8 +29,8 @@ typedef struct VirtIOCryptoPCI VirtIOCryptoPCI;
  * virtio-crypto-pci: This extends VirtioPCIProxy.
  */
 #define TYPE_VIRTIO_CRYPTO_PCI "virtio-crypto-pci"
-#define VIRTIO_CRYPTO_PCI(obj) \
-        OBJECT_CHECK(VirtIOCryptoPCI, (obj), TYPE_VIRTIO_CRYPTO_PCI)
+DECLARE_INSTANCE_CHECKER(VirtIOCryptoPCI, VIRTIO_CRYPTO_PCI,
+                         TYPE_VIRTIO_CRYPTO_PCI)
 
 struct VirtIOCryptoPCI {
     VirtIOPCIProxy parent_obj;
@@ -53,12 +54,10 @@ static void virtio_crypto_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
         return;
     }
 
-    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
     virtio_pci_force_virtio_1(vpci_dev);
-    object_property_set_bool(OBJECT(vdev), true, "realized", errp);
-    object_property_set_link(OBJECT(vcrypto),
-                 OBJECT(vcrypto->vdev.conf.cryptodev), "cryptodev",
-                 NULL);
+    if (!qdev_realize(vdev, BUS(&vpci_dev->bus), errp)) {
+        return;
+    }
 }
 
 static void virtio_crypto_pci_class_init(ObjectClass *klass, void *data)

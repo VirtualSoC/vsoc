@@ -13,13 +13,10 @@
 #include "qemu/osdep.h"
 #include "hw/irq.h"
 #include "hw/sysbus.h"
+#include "qapi/error.h"
 #include "qemu/module.h"
 #include "hw/pcmcia.h"
 #include "hw/arm/pxa.h"
-
-#define TYPE_PXA2XX_PCMCIA "pxa2xx-pcmcia"
-#define PXA2XX_PCMCIA(obj) \
-    OBJECT_CHECK(PXA2xxPCMCIAState, obj, TYPE_PXA2XX_PCMCIA)
 
 struct PXA2xxPCMCIAState {
     SysBusDevice parent_obj;
@@ -147,11 +144,11 @@ PXA2xxPCMCIAState *pxa2xx_pcmcia_init(MemoryRegion *sysmem,
     DeviceState *dev;
     PXA2xxPCMCIAState *s;
 
-    dev = qdev_create(NULL, TYPE_PXA2XX_PCMCIA);
+    dev = qdev_new(TYPE_PXA2XX_PCMCIA);
     sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, base);
     s = PXA2XX_PCMCIA(dev);
 
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
 
     return s;
 }

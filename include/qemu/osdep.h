@@ -29,10 +29,22 @@
 
 #include "config-host.h"
 #ifdef NEED_CPU_H
-#include "config-target.h"
+#include CONFIG_TARGET
 #else
 #include "exec/poison.h"
 #endif
+
+/*
+ * HOST_WORDS_BIGENDIAN was replaced with HOST_BIG_ENDIAN. Prevent it from
+ * creeping back in.
+ */
+#pragma GCC poison HOST_WORDS_BIGENDIAN
+
+/*
+ * TARGET_WORDS_BIGENDIAN was replaced with TARGET_BIG_ENDIAN. Prevent it from
+ * creeping back in.
+ */
+#pragma GCC poison TARGET_WORDS_BIGENDIAN
 
 #include "qemu/compiler.h"
 
@@ -57,13 +69,13 @@
 #define daemon qemu_fake_daemon_function
 #include <stdlib.h>
 #undef daemon
-extern int daemon(int, int);
+QEMU_EXTERN_C int daemon(int, int);
 #endif
 
 #ifdef _WIN32
 /* as defined in sdkddkver.h */
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0600 /* Vista */
+#define _WIN32_WINNT 0x0601 /* Windows 7 API (should be in sync with glib) */
 #endif
 /* reduces the number of implicitly included headers */
 #ifndef WIN32_LEAN_AND_MEAN
@@ -104,8 +116,13 @@ extern int daemon(int, int);
 #include <setjmp.h>
 #include <signal.h>
 
-#ifdef __OpenBSD__
-#include <sys/signal.h>
+#ifdef CONFIG_IOVEC
+#include <sys/uio.h>
+#endif
+
+#if defined(__linux__) && defined(__sparc__)
+/* The SPARC definition of QEMU_VMALLOC_ALIGN needs SHMLBA */
+#include <sys/shm.h>
 #endif
 
 #ifndef _WIN32
@@ -115,6 +132,17 @@ extern int daemon(int, int);
 #define WEXITSTATUS(x) (x)
 #endif
 
+#ifdef __APPLE__
+#include <AvailabilityMacros.h>
+#endif
+
+/*
+ * This is somewhat like a system header; it must be outside any extern "C"
+ * block because it includes system headers itself, including glib.h,
+ * which will not compile if inside an extern "C" block.
+ */
+#include "glib-compat.h"
+
 #ifdef _WIN32
 #include "sysemu/os-win32.h"
 #endif
@@ -123,7 +151,10 @@ extern int daemon(int, int);
 #include "sysemu/os-posix.h"
 #endif
 
-#include "glib-compat.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "qemu/typedefs.h"
 
 /*
@@ -136,6 +167,23 @@ extern int daemon(int, int);
 #ifdef __MINGW32__
 #undef assert
 #define assert(x)  g_assert(x)
+#endif
+
+/**
+ * qemu_build_not_reached()
+ *
+ * The compiler, during optimization, is expected to prove that a call
+ * to this function cannot be reached and remove it.  If the compiler
+ * supports QEMU_ERROR, this will be reported at compile time; otherwise
+ * this will be reported at link time due to the missing symbol.
+ */
+extern G_NORETURN
+void QEMU_ERROR("code path is reachable")
+    qemu_build_not_reached_always(void);
+#if defined(__OPTIMIZE__) && !defined(__NO_INLINE__)
+#define qemu_build_not_reached()  qemu_build_not_reached_always()
+#else
+#define qemu_build_not_reached()  g_assert_not_reached()
 #endif
 
 /*
@@ -173,6 +221,12 @@ extern int daemon(int, int);
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
 #endif
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0
+#endif
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0
+#endif
 #ifndef ENOMEDIUM
 #define ENOMEDIUM ENODEV
 #endif
@@ -188,6 +242,8 @@ extern int daemon(int, int);
 #if !defined(ESHUTDOWN)
 #define ESHUTDOWN 4099
 #endif
+
+#define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
 /* time_t may be either 32 or 64 bits depending on the host OS, and
  * can be either signed or unsigned, so we can't just hardcode a
@@ -219,42 +275,82 @@ extern int daemon(int, int);
 #define TIME_MAX TYPE_MAXIMUM(time_t)
 #endif
 
-/* HOST_LONG_BITS is the size of a native pointer in bits. */
-#if UINTPTR_MAX == UINT32_MAX
-# define HOST_LONG_BITS 32
-#elif UINTPTR_MAX == UINT64_MAX
-# define HOST_LONG_BITS 64
-#else
-# error Unknown pointer size
-#endif
-
 /* Mac OSX has a <stdint.h> bug that incorrectly defines SIZE_MAX with
  * the wrong type. Our replacement isn't usable in preprocessor
  * expressions, but it is sufficient for our needs. */
-#if defined(HAVE_BROKEN_SIZE_MAX) && HAVE_BROKEN_SIZE_MAX
+#ifdef HAVE_BROKEN_SIZE_MAX
 #undef SIZE_MAX
 #define SIZE_MAX ((size_t)-1)
 #endif
 
-#ifndef MIN
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#endif
-#ifndef MAX
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+/*
+ * Two variations of MIN/MAX macros. The first is for runtime use, and
+ * evaluates arguments only once (so it is safe even with side
+ * effects), but will not work in constant contexts (such as array
+ * size declarations) because of the '{}'.  The second is for constant
+ * expression use, where evaluating arguments twice is safe because
+ * the result is going to be constant anyway, but will not work in a
+ * runtime context because of a void expression where a value is
+ * expected.  Thus, both gcc and clang will fail to compile if you use
+ * the wrong macro (even if the error may seem a bit cryptic).
+ *
+ * Note that neither form is usable as an #if condition; if you truly
+ * need to write conditional code that depends on a minimum or maximum
+ * determined by the pre-processor instead of the compiler, you'll
+ * have to open-code it.  Sadly, Coverity is severely confused by the
+ * constant variants, so we have to dumb things down there.
+ */
+#undef MIN
+#define MIN(a, b)                                       \
+    ({                                                  \
+        typeof(1 ? (a) : (b)) _a = (a), _b = (b);       \
+        _a < _b ? _a : _b;                              \
+    })
+#undef MAX
+#define MAX(a, b)                                       \
+    ({                                                  \
+        typeof(1 ? (a) : (b)) _a = (a), _b = (b);       \
+        _a > _b ? _a : _b;                              \
+    })
+
+#ifdef __COVERITY__
+# define MIN_CONST(a, b) ((a) < (b) ? (a) : (b))
+# define MAX_CONST(a, b) ((a) > (b) ? (a) : (b))
+#else
+# define MIN_CONST(a, b)                                        \
+    __builtin_choose_expr(                                      \
+        __builtin_constant_p(a) && __builtin_constant_p(b),     \
+        (a) < (b) ? (a) : (b),                                  \
+        ((void)0))
+# define MAX_CONST(a, b)                                        \
+    __builtin_choose_expr(                                      \
+        __builtin_constant_p(a) && __builtin_constant_p(b),     \
+        (a) > (b) ? (a) : (b),                                  \
+        ((void)0))
 #endif
 
-/* Minimum function that returns zero only iff both values are zero.
- * Intended for use with unsigned values only. */
+/*
+ * Minimum function that returns zero only if both values are zero.
+ * Intended for use with unsigned values only.
+ */
 #ifndef MIN_NON_ZERO
-#define MIN_NON_ZERO(a, b) ((a) == 0 ? (b) : \
-                                ((b) == 0 ? (a) : (MIN(a, b))))
+#define MIN_NON_ZERO(a, b)                              \
+    ({                                                  \
+        typeof(1 ? (a) : (b)) _a = (a), _b = (b);       \
+        _a == 0 ? _b : (_b == 0 || _b > _a) ? _a : _b;  \
+    })
 #endif
 
-/* Round number down to multiple */
+/*
+ * Round number down to multiple. Safe when m is not a power of 2 (see
+ * ROUND_DOWN for a faster version when a power of 2 is guaranteed).
+ */
 #define QEMU_ALIGN_DOWN(n, m) ((n) / (m) * (m))
 
-/* Round number up to multiple. Safe when m is not a power of 2 (see
- * ROUND_UP for a faster version when a power of 2 is guaranteed) */
+/*
+ * Round number up to multiple. Safe when m is not a power of 2 (see
+ * ROUND_UP for a faster version when a power of 2 is guaranteed).
+ */
 #define QEMU_ALIGN_UP(n, m) QEMU_ALIGN_DOWN((n) + (m) - 1, (m))
 
 /* Check if n is a multiple of m */
@@ -271,11 +367,22 @@ extern int daemon(int, int);
 /* Check if pointer p is n-bytes aligned */
 #define QEMU_PTR_IS_ALIGNED(p, n) QEMU_IS_ALIGNED((uintptr_t)(p), (n))
 
-/* Round number up to multiple. Requires that d be a power of 2 (see
+/*
+ * Round number down to multiple. Requires that d be a power of 2 (see
  * QEMU_ALIGN_UP for a safer but slower version on arbitrary
- * numbers); works even if d is a smaller type than n.  */
+ * numbers); works even if d is a smaller type than n.
+ */
+#ifndef ROUND_DOWN
+#define ROUND_DOWN(n, d) ((n) & -(0 ? (n) : (d)))
+#endif
+
+/*
+ * Round number up to multiple. Requires that d be a power of 2 (see
+ * QEMU_ALIGN_UP for a safer but slower version on arbitrary
+ * numbers); works even if d is a smaller type than n.
+ */
 #ifndef ROUND_UP
-#define ROUND_UP(n, d) (((n) + (d) - 1) & -(0 ? (n) : (d)))
+#define ROUND_UP(n, d) ROUND_DOWN((n) + (d) - 1, (d))
 #endif
 
 #ifndef DIV_ROUND_UP
@@ -294,86 +401,9 @@ extern int daemon(int, int);
 #endif
 
 int qemu_daemon(int nochdir, int noclose);
-void *qemu_try_memalign(size_t alignment, size_t size);
-void *qemu_memalign(size_t alignment, size_t size);
-void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared);
-void qemu_vfree(void *ptr);
+void *qemu_anon_ram_alloc(size_t size, uint64_t *align, bool shared,
+                          bool noreserve);
 void qemu_anon_ram_free(void *ptr, size_t size);
-
-#define QEMU_MADV_INVALID -1
-
-#if defined(CONFIG_MADVISE)
-
-#define QEMU_MADV_WILLNEED  MADV_WILLNEED
-#define QEMU_MADV_DONTNEED  MADV_DONTNEED
-#ifdef MADV_DONTFORK
-#define QEMU_MADV_DONTFORK  MADV_DONTFORK
-#else
-#define QEMU_MADV_DONTFORK  QEMU_MADV_INVALID
-#endif
-#ifdef MADV_MERGEABLE
-#define QEMU_MADV_MERGEABLE MADV_MERGEABLE
-#else
-#define QEMU_MADV_MERGEABLE QEMU_MADV_INVALID
-#endif
-#ifdef MADV_UNMERGEABLE
-#define QEMU_MADV_UNMERGEABLE MADV_UNMERGEABLE
-#else
-#define QEMU_MADV_UNMERGEABLE QEMU_MADV_INVALID
-#endif
-#ifdef MADV_DODUMP
-#define QEMU_MADV_DODUMP MADV_DODUMP
-#else
-#define QEMU_MADV_DODUMP QEMU_MADV_INVALID
-#endif
-#ifdef MADV_DONTDUMP
-#define QEMU_MADV_DONTDUMP MADV_DONTDUMP
-#else
-#define QEMU_MADV_DONTDUMP QEMU_MADV_INVALID
-#endif
-#ifdef MADV_HUGEPAGE
-#define QEMU_MADV_HUGEPAGE MADV_HUGEPAGE
-#else
-#define QEMU_MADV_HUGEPAGE QEMU_MADV_INVALID
-#endif
-#ifdef MADV_NOHUGEPAGE
-#define QEMU_MADV_NOHUGEPAGE MADV_NOHUGEPAGE
-#else
-#define QEMU_MADV_NOHUGEPAGE QEMU_MADV_INVALID
-#endif
-#ifdef MADV_REMOVE
-#define QEMU_MADV_REMOVE MADV_REMOVE
-#else
-#define QEMU_MADV_REMOVE QEMU_MADV_INVALID
-#endif
-
-#elif defined(CONFIG_POSIX_MADVISE)
-
-#define QEMU_MADV_WILLNEED  POSIX_MADV_WILLNEED
-#define QEMU_MADV_DONTNEED  POSIX_MADV_DONTNEED
-#define QEMU_MADV_DONTFORK  QEMU_MADV_INVALID
-#define QEMU_MADV_MERGEABLE QEMU_MADV_INVALID
-#define QEMU_MADV_UNMERGEABLE QEMU_MADV_INVALID
-#define QEMU_MADV_DODUMP QEMU_MADV_INVALID
-#define QEMU_MADV_DONTDUMP QEMU_MADV_INVALID
-#define QEMU_MADV_HUGEPAGE  QEMU_MADV_INVALID
-#define QEMU_MADV_NOHUGEPAGE  QEMU_MADV_INVALID
-#define QEMU_MADV_REMOVE QEMU_MADV_INVALID
-
-#else /* no-op */
-
-#define QEMU_MADV_WILLNEED  QEMU_MADV_INVALID
-#define QEMU_MADV_DONTNEED  QEMU_MADV_INVALID
-#define QEMU_MADV_DONTFORK  QEMU_MADV_INVALID
-#define QEMU_MADV_MERGEABLE QEMU_MADV_INVALID
-#define QEMU_MADV_UNMERGEABLE QEMU_MADV_INVALID
-#define QEMU_MADV_DODUMP QEMU_MADV_INVALID
-#define QEMU_MADV_DONTDUMP QEMU_MADV_INVALID
-#define QEMU_MADV_HUGEPAGE  QEMU_MADV_INVALID
-#define QEMU_MADV_NOHUGEPAGE  QEMU_MADV_INVALID
-#define QEMU_MADV_REMOVE QEMU_MADV_INVALID
-
-#endif
 
 #ifdef _WIN32
 #define HAVE_CHARDEV_SERIAL 1
@@ -386,6 +416,18 @@ void qemu_anon_ram_free(void *ptr, size_t size);
 #if defined(__linux__) || defined(__FreeBSD__) ||               \
     defined(__FreeBSD_kernel__) || defined(__DragonFly__)
 #define HAVE_CHARDEV_PARPORT 1
+#endif
+
+#if defined(__HAIKU__)
+#define SIGIO SIGPOLL
+#endif
+
+#ifdef HAVE_MADVISE_WITHOUT_PROTOTYPE
+/*
+ * See MySQL bug #7156 (http://bugs.mysql.com/bug.php?id=7156) for discussion
+ * about Solaris missing the madvise() prototype.
+ */
+extern int madvise(char *, size_t, int);
 #endif
 
 #if defined(CONFIG_LINUX)
@@ -408,10 +450,9 @@ void qemu_anon_ram_free(void *ptr, size_t size);
    /* Use 1 MiB (segment size) alignment so gmap can be used by KVM. */
 #  define QEMU_VMALLOC_ALIGN (256 * 4096)
 #elif defined(__linux__) && defined(__sparc__)
-#include <sys/shm.h>
-#  define QEMU_VMALLOC_ALIGN MAX(qemu_real_host_page_size, SHMLBA)
+#  define QEMU_VMALLOC_ALIGN MAX(qemu_real_host_page_size(), SHMLBA)
 #else
-#  define QEMU_VMALLOC_ALIGN qemu_real_host_page_size
+#  define QEMU_VMALLOC_ALIGN qemu_real_host_page_size()
 #endif
 
 #ifdef CONFIG_POSIX
@@ -442,20 +483,23 @@ void sigaction_invoke(struct sigaction *action,
                       struct qemu_signalfd_siginfo *info);
 #endif
 
-int qemu_madvise(void *addr, size_t len, int advice);
-int qemu_mprotect_rwx(void *addr, size_t size);
-int qemu_mprotect_none(void *addr, size_t size);
-
-int qemu_open(const char *name, int flags, ...);
+/*
+ * Don't introduce new usage of this function, prefer the following
+ * qemu_open/qemu_create that take an "Error **errp"
+ */
+int qemu_open_old(const char *name, int flags, ...);
+int qemu_open(const char *name, int flags, Error **errp);
+int qemu_create(const char *name, int flags, mode_t mode, Error **errp);
 int qemu_close(int fd);
 int qemu_unlink(const char *name);
 #ifndef _WIN32
+int qemu_dup_flags(int fd, int flags);
 int qemu_dup(int fd);
-#endif
 int qemu_lock_fd(int fd, int64_t start, int64_t len, bool exclusive);
 int qemu_unlock_fd(int fd, int64_t start, int64_t len);
 int qemu_lock_fd_test(int fd, int64_t start, int64_t len, bool exclusive);
 bool qemu_has_ofd_lock(void);
+#endif
 
 #if defined(__HAIKU__) && defined(__i386__)
 #define FMT_pid "%ld"
@@ -481,8 +525,6 @@ struct iovec {
 
 ssize_t readv(int fd, const struct iovec *iov, int iov_cnt);
 ssize_t writev(int fd, const struct iovec *iov, int iov_cnt);
-#else
-#include <sys/uio.h>
 #endif
 
 #ifdef _WIN32
@@ -502,46 +544,18 @@ static inline void qemu_timersub(const struct timeval *val1,
 #define qemu_timersub timersub
 #endif
 
+ssize_t qemu_write_full(int fd, const void *buf, size_t count)
+    G_GNUC_WARN_UNUSED_RESULT;
+
 void qemu_set_cloexec(int fd);
 
-/* Starting on QEMU 2.5, qemu_hw_version() returns "2.5+" by default
- * instead of QEMU_VERSION, so setting hw_version on MachineClass
- * is no longer mandatory.
- *
- * Do NOT change this string, or it will break compatibility on all
- * machine classes that don't set hw_version.
- */
-#define QEMU_HW_VERSION "2.5+"
-
-/* QEMU "hardware version" setting. Used to replace code that exposed
- * QEMU_VERSION to guests in the past and need to keep compatibility.
- * Do not use qemu_hw_version() in new code.
- */
-void qemu_set_hw_version(const char *);
-const char *qemu_hw_version(void);
-
-void fips_set_state(bool requested);
-bool fips_get_state(void);
-
-/* Return a dynamically allocated pathname denoting a file or directory that is
- * appropriate for storing local state.
- *
- * @relative_pathname need not start with a directory separator; one will be
- * added automatically.
+/* Return a dynamically allocated directory path that is appropriate for storing
+ * local state.
  *
  * The caller is responsible for releasing the value returned with g_free()
  * after use.
  */
-char *qemu_get_local_state_pathname(const char *relative_pathname);
-
-/* Find program directory, and save it for later usage with
- * qemu_get_exec_dir().
- * Try OS specific API first, if not working, parse from argv0. */
-void qemu_init_exec_dir(const char *argv0);
-
-/* Get the saved exec dir.
- * Caller needs to release the returned string by g_free() */
-char *qemu_get_exec_dir(void);
+char *qemu_get_local_state_dir(void);
 
 /**
  * qemu_getauxval:
@@ -584,13 +598,15 @@ pid_t qemu_fork(Error **errp);
 /* Using intptr_t ensures that qemu_*_page_mask is sign-extended even
  * when intptr_t is 32-bit and we are aligning a long long.
  */
-extern uintptr_t qemu_real_host_page_size;
-extern intptr_t qemu_real_host_page_mask;
+static inline uintptr_t qemu_real_host_page_size(void)
+{
+    return getpagesize();
+}
 
-extern int qemu_icache_linesize;
-extern int qemu_icache_linesize_log;
-extern int qemu_dcache_linesize;
-extern int qemu_dcache_linesize_log;
+static inline intptr_t qemu_real_host_page_mask(void)
+{
+    return -(intptr_t)qemu_real_host_page_size();
+}
 
 /*
  * After using getopt or getopt_long, if you need to parse another set
@@ -606,5 +622,68 @@ static inline void qemu_reset_optind(void)
     optind = 0;
 #endif
 }
+
+int qemu_fdatasync(int fd);
+
+/**
+ * Sync changes made to the memory mapped file back to the backing
+ * storage. For POSIX compliant systems this will fallback
+ * to regular msync call. Otherwise it will trigger whole file sync
+ * (including the metadata case there is no support to skip that otherwise)
+ *
+ * @addr   - start of the memory area to be synced
+ * @length - length of the are to be synced
+ * @fd     - file descriptor for the file to be synced
+ *           (mandatory only for POSIX non-compliant systems)
+ */
+int qemu_msync(void *addr, size_t length, int fd);
+
+/**
+ * qemu_get_host_physmem:
+ *
+ * Operating system agnostic way of querying host memory.
+ *
+ * Returns amount of physical memory on the system. This is purely
+ * advisery and may return 0 if we can't work it out. At the other
+ * end we saturate to SIZE_MAX if you are lucky enough to have that
+ * much memory.
+ */
+size_t qemu_get_host_physmem(void);
+
+/*
+ * Toggle write/execute on the pages marked MAP_JIT
+ * for the current thread.
+ */
+#if defined(MAC_OS_VERSION_11_0) && \
+    MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_VERSION_11_0
+static inline void qemu_thread_jit_execute(void)
+{
+    pthread_jit_write_protect_np(true);
+}
+
+static inline void qemu_thread_jit_write(void)
+{
+    pthread_jit_write_protect_np(false);
+}
+#else
+static inline void qemu_thread_jit_write(void) {}
+static inline void qemu_thread_jit_execute(void) {}
+#endif
+
+/**
+ * Platforms which do not support system() return ENOSYS
+ */
+#ifndef HAVE_SYSTEM_FUNCTION
+#define system platform_does_not_support_system
+static inline int platform_does_not_support_system(const char *command)
+{
+    errno = ENOSYS;
+    return -1;
+}
+#endif /* !HAVE_SYSTEM_FUNCTION */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

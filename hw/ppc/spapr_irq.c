@@ -139,6 +139,7 @@ SpaprIrq spapr_irq_dual = {
 
 static int spapr_irq_check(SpaprMachineState *spapr, Error **errp)
 {
+    ERRP_GUARD();
     MachineState *machine = MACHINE(spapr);
 
     /*
@@ -171,7 +172,7 @@ static int spapr_irq_check(SpaprMachineState *spapr, Error **errp)
          * To cover both and not confuse the OS, add an early failure in
          * QEMU.
          */
-        if (spapr->irq == &spapr_irq_xive) {
+        if (!spapr->irq->xics) {
             error_setg(errp, "XIVE-only machines require a POWER9 CPU");
             return -1;
         }
@@ -179,14 +180,19 @@ static int spapr_irq_check(SpaprMachineState *spapr, Error **errp)
 
     /*
      * On a POWER9 host, some older KVM XICS devices cannot be destroyed and
-     * re-created. Detect that early to avoid QEMU to exit later when the
-     * guest reboots.
+     * re-created. Same happens with KVM nested guests. Detect that early to
+     * avoid QEMU to exit later when the guest reboots.
      */
     if (kvm_enabled() &&
         spapr->irq == &spapr_irq_dual &&
         kvm_kernel_irqchip_required() &&
-        xics_kvm_has_broken_disconnect(spapr)) {
-        error_setg(errp, "KVM is too old to support ic-mode=dual,kernel-irqchip=on");
+        xics_kvm_has_broken_disconnect()) {
+        error_setg(errp,
+            "KVM is incompatible with ic-mode=dual,kernel-irqchip=on");
+        error_append_hint(errp,
+            "This can happen with an old KVM or in a KVM nested guest.\n");
+        error_append_hint(errp,
+            "Try without kernel-irqchip or with kernel-irqchip=off.\n");
         return -1;
     }
 
@@ -302,18 +308,15 @@ void spapr_irq_init(SpaprMachineState *spapr, Error **errp)
     spapr_irq_msi_init(spapr);
 
     if (spapr->irq->xics) {
-        Error *local_err = NULL;
         Object *obj;
 
         obj = object_new(TYPE_ICS_SPAPR);
 
         object_property_add_child(OBJECT(spapr), "ics", obj);
-        object_property_set_link(obj, OBJECT(spapr), ICS_PROP_XICS,
+        object_property_set_link(obj, ICS_PROP_XICS, OBJECT(spapr),
                                  &error_abort);
-        object_property_set_int(obj, smc->nr_xirqs, "nr-irqs", &error_abort);
-        object_property_set_bool(obj, true, "realized", &local_err);
-        if (local_err) {
-            error_propagate(errp, local_err);
+        object_property_set_int(obj, "nr-irqs", smc->nr_xirqs, &error_abort);
+        if (!qdev_realize(DEVICE(obj), NULL, errp)) {
             return;
         }
 
@@ -325,16 +328,16 @@ void spapr_irq_init(SpaprMachineState *spapr, Error **errp)
         DeviceState *dev;
         int i;
 
-        dev = qdev_create(NULL, TYPE_SPAPR_XIVE);
+        dev = qdev_new(TYPE_SPAPR_XIVE);
         qdev_prop_set_uint32(dev, "nr-irqs", smc->nr_xirqs + SPAPR_XIRQ_BASE);
         /*
          * 8 XIVE END structures per CPU. One for each available
          * priority
          */
         qdev_prop_set_uint32(dev, "nr-ends", nr_servers << 3);
-        object_property_set_link(OBJECT(dev), OBJECT(spapr), "xive-fabric",
+        object_property_set_link(OBJECT(dev), "xive-fabric", OBJECT(spapr),
                                  &error_abort);
-        qdev_init_nofail(dev);
+        sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
 
         spapr->xive = SPAPR_XIVE(dev);
 

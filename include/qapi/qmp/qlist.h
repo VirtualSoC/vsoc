@@ -26,6 +26,10 @@ struct QList {
     QTAILQ_HEAD(,QListEntry) head;
 };
 
+void qlist_unref(QList *q);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(QList, qlist_unref)
+
 #define qlist_append(qlist, obj) \
         qlist_append_obj(qlist, QOBJECT(obj))
 
@@ -51,8 +55,6 @@ QObject *qlist_pop(QList *qlist);
 QObject *qlist_peek(QList *qlist);
 int qlist_empty(const QList *qlist);
 size_t qlist_size(const QList *qlist);
-bool qlist_is_equal(const QObject *x, const QObject *y);
-void qlist_destroy_obj(QObject *obj);
 
 static inline const QListEntry *qlist_first(const QList *qlist)
 {

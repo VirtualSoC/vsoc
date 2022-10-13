@@ -127,21 +127,6 @@ SRST
     Show local APIC state
 ERST
 
-#if defined(TARGET_I386)
-    {
-        .name       = "ioapic",
-        .args_type  = "",
-        .params     = "",
-        .help       = "show io apic state",
-        .cmd        = hmp_info_io_apic,
-    },
-#endif
-
-SRST
-  ``info ioapic``
-    Show io APIC state
-ERST
-
     {
         .name       = "cpus",
         .args_type  = "",
@@ -174,7 +159,7 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show the interrupts statistics (if available)",
-        .cmd        = hmp_info_irq,
+        .cmd_info_hrt = qmp_x_query_irq,
     },
 
 SRST
@@ -200,7 +185,7 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show RDMA state",
-        .cmd        = hmp_info_rdma,
+        .cmd_info_hrt = qmp_x_query_rdma,
     },
 
 SRST
@@ -254,11 +239,12 @@ ERST
 
     {
         .name       = "mtree",
-        .args_type  = "flatview:-f,dispatch_tree:-d,owner:-o",
-        .params     = "[-f][-d][-o]",
+        .args_type  = "flatview:-f,dispatch_tree:-d,owner:-o,disabled:-D",
+        .params     = "[-f][-d][-o][-D]",
         .help       = "show memory tree (-f: dump flat view for address spaces;"
                       "-d: dump dispatch tree, valid with -f only);"
-                      "-o: dump region owners/parents",
+                      "-o: dump region owners/parents;"
+                      "-D: dump disabled regions",
         .cmd        = hmp_info_mtree,
     },
 
@@ -273,7 +259,6 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show dynamic compiler info",
-        .cmd        = hmp_info_jit,
     },
 #endif
 
@@ -288,7 +273,6 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show dynamic compiler opcode counters",
-        .cmd        = hmp_info_opcount,
     },
 #endif
 
@@ -341,7 +325,7 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show NUMA information",
-        .cmd        = hmp_info_numa,
+        .cmd_info_hrt = qmp_x_query_numa,
     },
 
 SRST
@@ -354,7 +338,7 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show guest USB devices",
-        .cmd        = hmp_info_usb,
+        .cmd_info_hrt = qmp_x_query_usb,
     },
 
 SRST
@@ -367,7 +351,6 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show host USB devices",
-        .cmd        = hmp_info_usbhost,
     },
 
 SRST
@@ -375,13 +358,15 @@ SRST
     Show host USB devices.
 ERST
 
+#if defined(CONFIG_TCG)
     {
         .name       = "profile",
         .args_type  = "",
         .params     = "",
         .help       = "show profiling information",
-        .cmd        = hmp_info_profile,
+        .cmd_info_hrt = qmp_x_query_profile,
     },
+#endif
 
 SRST
   ``info profile``
@@ -499,19 +484,6 @@ SRST
     Show the current VM UUID.
 ERST
 
-    {
-        .name       = "cpustats",
-        .args_type  = "",
-        .params     = "",
-        .help       = "show CPU statistics",
-        .cmd        = hmp_info_cpustats,
-    },
-
-SRST
-  ``info cpustats``
-    Show CPU statistics.
-ERST
-
 #if defined(CONFIG_SLIRP)
     {
         .name       = "usernet",
@@ -564,19 +536,6 @@ ERST
 SRST
   ``info migrate_parameters``
     Show current migration parameters.
-ERST
-
-    {
-        .name       = "migrate_cache_size",
-        .args_type  = "",
-        .params     = "",
-        .help       = "show current migration xbzrle cache size",
-        .cmd        = hmp_info_migrate_cache_size,
-    },
-
-SRST
-  ``info migrate_cache_size``
-    Show current migration xbzrle cache size.
 ERST
 
     {
@@ -637,7 +596,7 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "show roms",
-        .cmd        = hmp_info_roms,
+        .cmd_info_hrt = qmp_x_query_roms,
     },
 
 SRST
@@ -815,7 +774,7 @@ ERST
         .args_type  = "",
         .params     = "",
         .help       = "Display system ramblock information",
-        .cmd        = hmp_info_ramblock,
+        .cmd_info_hrt = qmp_x_query_ramblock,
     },
 
 SRST
@@ -880,4 +839,85 @@ SRST
     Show SEV information.
 ERST
 
+    {
+        .name       = "replay",
+        .args_type  = "",
+        .params     = "",
+        .help       = "show record/replay information",
+        .cmd        = hmp_info_replay,
+    },
 
+SRST
+  ``info replay``
+    Display the record/replay information: mode and the current icount.
+ERST
+
+    {
+        .name       = "dirty_rate",
+        .args_type  = "",
+        .params     = "",
+        .help       = "show dirty rate information",
+        .cmd        = hmp_info_dirty_rate,
+    },
+
+SRST
+  ``info dirty_rate``
+    Display the vcpu dirty rate information.
+ERST
+
+    {
+        .name       = "vcpu_dirty_limit",
+        .args_type  = "",
+        .params     = "",
+        .help       = "show dirty page limit information of all vCPU",
+        .cmd        = hmp_info_vcpu_dirty_limit,
+    },
+
+SRST
+  ``info vcpu_dirty_limit``
+    Display the vcpu dirty page limit information.
+ERST
+
+#if defined(TARGET_I386)
+    {
+        .name       = "sgx",
+        .args_type  = "",
+        .params     = "",
+        .help       = "show intel SGX information",
+        .cmd        = hmp_info_sgx,
+    },
+#endif
+
+SRST
+  ``info sgx``
+    Show intel SGX information.
+ERST
+
+#if defined(CONFIG_MOS6522)
+    {
+        .name         = "via",
+        .args_type    = "",
+        .params       = "",
+        .help         = "show guest mos6522 VIA devices",
+        .cmd          = hmp_info_via,
+    },
+#endif
+
+SRST
+  ``info via``
+    Show guest mos6522 VIA devices.
+ERST
+
+    {
+        .name       = "stats",
+        .args_type  = "target:s,names:s?,provider:s?",
+        .params     = "target [names] [provider]",
+        .help       = "show statistics for the given target (vm or vcpu); optionally filter by"
+                      "name (comma-separated list, or * for all) and provider",
+        .cmd        = hmp_info_stats,
+    },
+
+SRST
+  ``stats``
+    Show runtime-collected statistics
+ERST

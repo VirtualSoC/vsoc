@@ -30,6 +30,7 @@
 #include "qemu/error-report.h"
 #include "qemu/module.h"
 #include "trace.h"
+#include "qom/object.h"
 
 #define D(x)
 
@@ -323,11 +324,9 @@ static void mdio_cycle(struct qemu_mdio *bus)
 #define FS_ETH_MAX_REGS      0x17
 
 #define TYPE_ETRAX_FS_ETH "etraxfs-eth"
-#define ETRAX_FS_ETH(obj) \
-    OBJECT_CHECK(ETRAXFSEthState, (obj), TYPE_ETRAX_FS_ETH)
+OBJECT_DECLARE_SIMPLE_TYPE(ETRAXFSEthState, ETRAX_FS_ETH)
 
-typedef struct ETRAXFSEthState
-{
+struct ETRAXFSEthState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
@@ -348,7 +347,7 @@ typedef struct ETRAXFSEthState
 
     /* PHY.     */
     struct qemu_phy phy;
-} ETRAXFSEthState;
+};
 
 static void eth_validate_duplex(ETRAXFSEthState *eth)
 {
@@ -654,7 +653,7 @@ etraxfs_eth_init(NICInfo *nd, hwaddr base, int phyaddr,
     DeviceState *dev;
     qemu_check_nic_model(nd, "fseth");
 
-    dev = qdev_create(NULL, "etraxfs-eth");
+    dev = qdev_new("etraxfs-eth");
     qdev_set_nic_properties(dev, nd);
     qdev_prop_set_uint32(dev, "phyaddr", phyaddr);
 
@@ -668,7 +667,7 @@ etraxfs_eth_init(NICInfo *nd, hwaddr base, int phyaddr,
      */
     ETRAX_FS_ETH(dev)->dma_out = dma_out;
     ETRAX_FS_ETH(dev)->dma_in = dma_in;
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
     sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, base);
 
     return dev;

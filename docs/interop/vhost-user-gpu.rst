@@ -2,9 +2,10 @@
 Vhost-user-gpu Protocol
 =======================
 
-:Licence: This work is licensed under the terms of the GNU GPL,
-          version 2 or later. See the COPYING file in the top-level
-          directory.
+..
+  Licence: This work is licensed under the terms of the GNU GPL,
+           version 2 or later. See the COPYING file in the top-level
+           directory.
 
 .. contents:: Table of Contents
 
@@ -12,10 +13,10 @@ Introduction
 ============
 
 The vhost-user-gpu protocol is aiming at sharing the rendering result
-of a virtio-gpu, done from a vhost-user slave process to a vhost-user
-master process (such as QEMU). It bears a resemblance to a display
+of a virtio-gpu, done from a vhost-user back-end process to a vhost-user
+front-end process (such as QEMU). It bears a resemblance to a display
 server protocol, if you consider QEMU as the display server and the
-slave as the client, but in a very limited way. Typically, it will
+back-end as the client, but in a very limited way. Typically, it will
 work by setting a scanout/display configuration, before sending flush
 events for the display updates. It will also update the cursor shape
 and position.
@@ -25,8 +26,8 @@ socket ancillary data to share opened file descriptors (DMABUF fds or
 shared memory). The socket is usually obtained via
 ``VHOST_USER_GPU_SET_SOCKET``.
 
-Requests are sent by the *slave*, and the optional replies by the
-*master*.
+Requests are sent by the *back-end*, and the optional replies by the
+*front-end*.
 
 Wire format
 ===========
@@ -66,7 +67,7 @@ VhostUserGpuCursorPos
 
 :scanout-id: ``u32``, the scanout where the cursor is located
 
-:x/y: ``u32``, the cursor postion
+:x/y: ``u32``, the cursor position
 
 VhostUserGpuCursorUpdate
 ^^^^^^^^^^^^^^^^^^^^^^^^

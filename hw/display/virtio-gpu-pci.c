@@ -19,6 +19,7 @@
 #include "hw/virtio/virtio.h"
 #include "hw/virtio/virtio-bus.h"
 #include "hw/virtio/virtio-gpu-pci.h"
+#include "qom/object.h"
 
 static Property virtio_gpu_pci_base_properties[] = {
     DEFINE_VIRTIO_GPU_PCI_PROPERTIES(VirtIOPCIProxy),
@@ -31,21 +32,15 @@ static void virtio_gpu_pci_base_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     VirtIOGPUBase *g = vgpu->vgpu;
     DeviceState *vdev = DEVICE(g);
     int i;
-    Error *local_error = NULL;
 
-    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
     virtio_pci_force_virtio_1(vpci_dev);
-    object_property_set_bool(OBJECT(vdev), true, "realized", &local_error);
-
-    if (local_error) {
-        error_propagate(errp, local_error);
+    if (!qdev_realize(vdev, BUS(&vpci_dev->bus), errp)) {
         return;
     }
 
     for (i = 0; i < g->conf.max_outputs; i++) {
-        object_property_set_link(OBJECT(g->scanout[i].con),
-                                 OBJECT(vpci_dev),
-                                 "device", errp);
+        object_property_set_link(OBJECT(g->scanout[i].con), "device",
+                                 OBJECT(vpci_dev), &error_abort);
     }
 }
 
@@ -69,15 +64,18 @@ static const TypeInfo virtio_gpu_pci_base_info = {
     .class_init = virtio_gpu_pci_base_class_init,
     .abstract = true
 };
+module_obj(TYPE_VIRTIO_GPU_PCI_BASE);
+module_kconfig(VIRTIO_PCI);
 
 #define TYPE_VIRTIO_GPU_PCI "virtio-gpu-pci"
-#define VIRTIO_GPU_PCI(obj)                                 \
-    OBJECT_CHECK(VirtIOGPUPCI, (obj), TYPE_VIRTIO_GPU_PCI)
+typedef struct VirtIOGPUPCI VirtIOGPUPCI;
+DECLARE_INSTANCE_CHECKER(VirtIOGPUPCI, VIRTIO_GPU_PCI,
+                         TYPE_VIRTIO_GPU_PCI)
 
-typedef struct VirtIOGPUPCI {
+struct VirtIOGPUPCI {
     VirtIOGPUPCIBase parent_obj;
     VirtIOGPU vdev;
-} VirtIOGPUPCI;
+};
 
 static void virtio_gpu_initfn(Object *obj)
 {
@@ -94,6 +92,7 @@ static const VirtioPCIDeviceTypeInfo virtio_gpu_pci_info = {
     .instance_size = sizeof(VirtIOGPUPCI),
     .instance_init = virtio_gpu_initfn,
 };
+module_obj(TYPE_VIRTIO_GPU_PCI);
 
 static void virtio_gpu_pci_register_types(void)
 {

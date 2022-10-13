@@ -9,7 +9,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -39,7 +39,7 @@ cryptodev_backend_new_client(const char *model,
 {
     CryptoDevBackendClient *cc;
 
-    cc = g_malloc0(sizeof(CryptoDevBackendClient));
+    cc = g_new0(CryptoDevBackendClient, 1);
     cc->model = g_strdup(model);
     if (name) {
         cc->name = g_strdup(name);
@@ -72,9 +72,9 @@ void cryptodev_backend_cleanup(
     }
 }
 
-int64_t cryptodev_backend_sym_create_session(
+int64_t cryptodev_backend_create_session(
            CryptoDevBackend *backend,
-           CryptoDevBackendSymSessionInfo *sess_info,
+           CryptoDevBackendSessionInfo *sess_info,
            uint32_t queue_index, Error **errp)
 {
     CryptoDevBackendClass *bc =
@@ -87,7 +87,7 @@ int64_t cryptodev_backend_sym_create_session(
     return -1;
 }
 
-int cryptodev_backend_sym_close_session(
+int cryptodev_backend_close_session(
            CryptoDevBackend *backend,
            uint64_t session_id,
            uint32_t queue_index, Error **errp)
@@ -102,16 +102,16 @@ int cryptodev_backend_sym_close_session(
     return -1;
 }
 
-static int cryptodev_backend_sym_operation(
+static int cryptodev_backend_operation(
                  CryptoDevBackend *backend,
-                 CryptoDevBackendSymOpInfo *op_info,
+                 CryptoDevBackendOpInfo *op_info,
                  uint32_t queue_index, Error **errp)
 {
     CryptoDevBackendClass *bc =
                       CRYPTODEV_BACKEND_GET_CLASS(backend);
 
-    if (bc->do_sym_op) {
-        return bc->do_sym_op(backend, op_info, queue_index, errp);
+    if (bc->do_op) {
+        return bc->do_op(backend, op_info, queue_index, errp);
     }
 
     return -VIRTIO_CRYPTO_ERR;
@@ -123,20 +123,18 @@ int cryptodev_backend_crypto_operation(
                  uint32_t queue_index, Error **errp)
 {
     VirtIOCryptoReq *req = opaque;
+    CryptoDevBackendOpInfo *op_info = &req->op_info;
+    enum CryptoDevBackendAlgType algtype = req->flags;
 
-    if (req->flags == CRYPTODEV_BACKEND_ALG_SYM) {
-        CryptoDevBackendSymOpInfo *op_info;
-        op_info = req->u.sym_op_info;
-
-        return cryptodev_backend_sym_operation(backend,
-                         op_info, queue_index, errp);
-    } else {
+    if ((algtype != CRYPTODEV_BACKEND_ALG_SYM)
+        && (algtype != CRYPTODEV_BACKEND_ALG_ASYM)) {
         error_setg(errp, "Unsupported cryptodev alg type: %" PRIu32 "",
-                   req->flags);
-       return -VIRTIO_CRYPTO_NOTSUPP;
+                   algtype);
+
+        return -VIRTIO_CRYPTO_NOTSUPP;
     }
 
-    return -VIRTIO_CRYPTO_ERR;
+    return cryptodev_backend_operation(backend, op_info, queue_index, errp);
 }
 
 static void
@@ -154,21 +152,17 @@ cryptodev_backend_set_queues(Object *obj, Visitor *v, const char *name,
                              void *opaque, Error **errp)
 {
     CryptoDevBackend *backend = CRYPTODEV_BACKEND(obj);
-    Error *local_err = NULL;
     uint32_t value;
 
-    visit_type_uint32(v, name, &value, &local_err);
-    if (local_err) {
-        goto out;
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
     }
     if (!value) {
-        error_setg(&local_err, "Property '%s.%s' doesn't take value '%"
-                   PRIu32 "'", object_get_typename(obj), name, value);
-        goto out;
+        error_setg(errp, "Property '%s.%s' doesn't take value '%" PRIu32 "'",
+                   object_get_typename(obj), name, value);
+        return;
     }
     backend->conf.peers.queues = value;
-out:
-    error_propagate(errp, local_err);
 }
 
 static void
@@ -210,12 +204,8 @@ cryptodev_backend_can_be_deleted(UserCreatable *uc)
 
 static void cryptodev_backend_instance_init(Object *obj)
 {
-    object_property_add(obj, "queues", "uint32",
-                          cryptodev_backend_get_queues,
-                          cryptodev_backend_set_queues,
-                          NULL, NULL);
     /* Initialize devices' queues property to 1 */
-    object_property_set_int(obj, 1, "queues", NULL);
+    object_property_set_int(obj, "queues", 1, NULL);
 }
 
 static void cryptodev_backend_finalize(Object *obj)
@@ -234,6 +224,10 @@ cryptodev_backend_class_init(ObjectClass *oc, void *data)
     ucc->can_be_deleted = cryptodev_backend_can_be_deleted;
 
     QTAILQ_INIT(&crypto_clients);
+    object_class_property_add(oc, "queues", "uint32",
+                              cryptodev_backend_get_queues,
+                              cryptodev_backend_set_queues,
+                              NULL, NULL);
 }
 
 static const TypeInfo cryptodev_backend_info = {

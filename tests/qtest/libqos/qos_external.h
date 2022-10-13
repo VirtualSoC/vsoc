@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,7 +19,9 @@
 #ifndef QOS_EXTERNAL_H
 #define QOS_EXTERNAL_H
 
-#include "libqos/malloc.h"
+#include "qgraph.h"
+
+#include "malloc.h"
 #include "qapi/qapi-types-machine.h"
 #include "qapi/qapi-types-qom.h"
 

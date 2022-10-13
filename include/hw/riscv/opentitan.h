@@ -20,20 +20,36 @@
 #define HW_OPENTITAN_H
 
 #include "hw/riscv/riscv_hart.h"
+#include "hw/intc/sifive_plic.h"
+#include "hw/char/ibex_uart.h"
+#include "hw/timer/ibex_timer.h"
+#include "hw/ssi/ibex_spi_host.h"
+#include "qom/object.h"
 
 #define TYPE_RISCV_IBEX_SOC "riscv.lowrisc.ibex.soc"
-#define RISCV_IBEX_SOC(obj) \
-    OBJECT_CHECK(LowRISCIbexSoCState, (obj), TYPE_RISCV_IBEX_SOC)
+OBJECT_DECLARE_SIMPLE_TYPE(LowRISCIbexSoCState, RISCV_IBEX_SOC)
 
-typedef struct LowRISCIbexSoCState {
+enum {
+    OPENTITAN_SPI_HOST0,
+    OPENTITAN_SPI_HOST1,
+    OPENTITAN_NUM_SPI_HOSTS,
+};
+
+struct LowRISCIbexSoCState {
     /*< private >*/
     SysBusDevice parent_obj;
 
     /*< public >*/
     RISCVHartArrayState cpus;
+    SiFivePLICState plic;
+    IbexUartState uart;
+    IbexTimerState timer;
+    IbexSPIHostState spi_host[OPENTITAN_NUM_SPI_HOSTS];
+
     MemoryRegion flash_mem;
     MemoryRegion rom;
-} LowRISCIbexSoCState;
+    MemoryRegion flash_alias;
+};
 
 typedef struct OpenTitanState {
     /*< private >*/
@@ -44,25 +60,56 @@ typedef struct OpenTitanState {
 } OpenTitanState;
 
 enum {
-    IBEX_ROM,
-    IBEX_RAM,
-    IBEX_FLASH,
-    IBEX_UART,
-    IBEX_GPIO,
-    IBEX_SPI,
-    IBEX_FLASH_CTRL,
-    IBEX_RV_TIMER,
-    IBEX_AES,
-    IBEX_HMAC,
-    IBEX_PLIC,
-    IBEX_PWRMGR,
-    IBEX_RSTMGR,
-    IBEX_CLKMGR,
-    IBEX_PINMUX,
-    IBEX_ALERT_HANDLER,
-    IBEX_NMI_GEN,
-    IBEX_USBDEV,
-    IBEX_PADCTRL,
+    IBEX_DEV_ROM,
+    IBEX_DEV_RAM,
+    IBEX_DEV_FLASH,
+    IBEX_DEV_FLASH_VIRTUAL,
+    IBEX_DEV_UART,
+    IBEX_DEV_SPI_DEVICE,
+    IBEX_DEV_SPI_HOST0,
+    IBEX_DEV_SPI_HOST1,
+    IBEX_DEV_GPIO,
+    IBEX_DEV_I2C,
+    IBEX_DEV_PATTGEN,
+    IBEX_DEV_TIMER,
+    IBEX_DEV_SENSOR_CTRL,
+    IBEX_DEV_OTP_CTRL,
+    IBEX_DEV_PWRMGR,
+    IBEX_DEV_RSTMGR,
+    IBEX_DEV_CLKMGR,
+    IBEX_DEV_PINMUX,
+    IBEX_DEV_PADCTRL,
+    IBEX_DEV_USBDEV,
+    IBEX_DEV_FLASH_CTRL,
+    IBEX_DEV_PLIC,
+    IBEX_DEV_AES,
+    IBEX_DEV_HMAC,
+    IBEX_DEV_KMAC,
+    IBEX_DEV_KEYMGR,
+    IBEX_DEV_CSRNG,
+    IBEX_DEV_ENTROPY,
+    IBEX_DEV_EDNO,
+    IBEX_DEV_EDN1,
+    IBEX_DEV_ALERT_HANDLER,
+    IBEX_DEV_NMI_GEN,
+    IBEX_DEV_OTBN,
+    IBEX_DEV_PERI,
+};
+
+enum {
+    IBEX_UART0_TX_WATERMARK_IRQ   = 1,
+    IBEX_UART0_RX_WATERMARK_IRQ   = 2,
+    IBEX_UART0_TX_EMPTY_IRQ       = 3,
+    IBEX_UART0_RX_OVERFLOW_IRQ    = 4,
+    IBEX_UART0_RX_FRAME_ERR_IRQ   = 5,
+    IBEX_UART0_RX_BREAK_ERR_IRQ   = 6,
+    IBEX_UART0_RX_TIMEOUT_IRQ     = 7,
+    IBEX_UART0_RX_PARITY_ERR_IRQ  = 8,
+    IBEX_TIMER_TIMEREXPIRED0_0    = 126,
+    IBEX_SPI_HOST0_ERR_IRQ        = 150,
+    IBEX_SPI_HOST0_SPI_EVENT_IRQ  = 151,
+    IBEX_SPI_HOST1_ERR_IRQ        = 152,
+    IBEX_SPI_HOST1_SPI_EVENT_IRQ  = 153,
 };
 
 #endif

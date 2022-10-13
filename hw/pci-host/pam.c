@@ -28,7 +28,6 @@
  */
 
 #include "qemu/osdep.h"
-#include "qom/object.h"
 #include "hw/pci-host/pam.h"
 
 void init_pam(DeviceState *dev, MemoryRegion *ram_memory,
@@ -63,7 +62,7 @@ void init_pam(DeviceState *dev, MemoryRegion *ram_memory,
 
 void pam_update(PAMMemoryRegion *pam, int idx, uint8_t val)
 {
-    assert(0 <= idx && idx <= 12);
+    assert(0 <= idx && idx < PAM_REGIONS_COUNT);
 
     memory_region_set_enabled(&pam->alias[pam->current], false);
     pam->current = (val >> ((!(idx & 1)) * 4)) & PAM_ATTR_MASK;

@@ -56,21 +56,34 @@
  *
  */
 
-#ifndef HW_ACPI_GED_H
-#define HW_ACPI_GED_H
+#ifndef HW_ACPI_GENERIC_EVENT_DEVICE_H
+#define HW_ACPI_GENERIC_EVENT_DEVICE_H
 
 #include "hw/sysbus.h"
 #include "hw/acpi/memory_hotplug.h"
 #include "hw/acpi/ghes.h"
+#include "qom/object.h"
 
 #define ACPI_POWER_BUTTON_DEVICE "PWRB"
 
 #define TYPE_ACPI_GED "acpi-ged"
-#define ACPI_GED(obj) \
-    OBJECT_CHECK(AcpiGedState, (obj), TYPE_ACPI_GED)
+OBJECT_DECLARE_SIMPLE_TYPE(AcpiGedState, ACPI_GED)
+
+#define TYPE_ACPI_GED_X86 "acpi-ged-x86"
 
 #define ACPI_GED_EVT_SEL_OFFSET    0x0
 #define ACPI_GED_EVT_SEL_LEN       0x4
+
+#define ACPI_GED_REG_SLEEP_CTL     0x00
+#define ACPI_GED_REG_SLEEP_STS     0x01
+#define ACPI_GED_REG_RESET         0x02
+#define ACPI_GED_REG_COUNT         0x03
+
+/* ACPI_GED_REG_RESET value for reset*/
+#define ACPI_GED_RESET_VALUE       0x42
+
+/* ACPI_GED_REG_SLEEP_CTL.SLP_TYP value for S5 (aka poweroff) */
+#define ACPI_GED_SLP_TYP_S5        0x05
 
 #define GED_DEVICE      "GED"
 #define AML_GED_EVT_REG "EREG"
@@ -86,11 +99,12 @@
 #define ACPI_GED_NVDIMM_HOTPLUG_EVT 0x4
 
 typedef struct GEDState {
-    MemoryRegion io;
+    MemoryRegion evt;
+    MemoryRegion regs;
     uint32_t     sel;
 } GEDState;
 
-typedef struct AcpiGedState {
+struct AcpiGedState {
     SysBusDevice parent_obj;
     MemHotplugState memhp_state;
     MemoryRegion container_memhp;
@@ -98,9 +112,10 @@ typedef struct AcpiGedState {
     uint32_t ged_event_bitmap;
     qemu_irq irq;
     AcpiGhesState ghes_state;
-} AcpiGedState;
+};
 
 void build_ged_aml(Aml *table, const char* name, HotplugHandler *hotplug_dev,
                    uint32_t ged_irq, AmlRegionSpace rs, hwaddr ged_base);
+void acpi_dsdt_add_power_button(Aml *scope);
 
 #endif

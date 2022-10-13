@@ -28,6 +28,7 @@
 #include "hw/hw.h"
 #include "hw/pci/msi.h"
 #include "qemu/timer.h"
+#include "qom/object.h"
 #include "qemu/main-loop.h" /* iothread mutex */
 #include "qemu/module.h"
 #include "qapi/visitor.h"
@@ -42,16 +43,17 @@
 #include "qemu/atomic.h"
 
 #define TYPE_PCI_EDU_DEVICE "edu"
-#define EDU(obj) OBJECT_CHECK(EduState, obj, TYPE_PCI_EDU_DEVICE)
+typedef struct EduState EduState;
+DECLARE_INSTANCE_CHECKER(EduState, EDU,
+                         TYPE_PCI_EDU_DEVICE)
 
-#define FACT_IRQ 0x00000001
-#define DMA_IRQ 0x00000100
+#define FACT_IRQ        0x00000001
+#define DMA_IRQ         0x00000100
 
-#define DMA_START 0x40000
-#define DMA_SIZE 4096
+#define DMA_START       0x40000
+#define DMA_SIZE        4096
 
-typedef struct
-{
+struct EduState {
     PCIDevice pdev;
     MemoryRegion mmio;
 
@@ -62,19 +64,18 @@ typedef struct
 
     uint32_t addr4;
     uint32_t fact;
-#define EDU_STATUS_COMPUTING 0x01
-#define EDU_STATUS_IRQFACT 0x80
+#define EDU_STATUS_COMPUTING    0x01
+#define EDU_STATUS_IRQFACT      0x80
     uint32_t status;
 
     uint32_t irq_status;
 
-#define EDU_DMA_RUN 0x1
-#define EDU_DMA_DIR(cmd) (((cmd)&0x2) >> 1)
-#define EDU_DMA_FROM_PCI 0
-#define EDU_DMA_TO_PCI 1
-#define EDU_DMA_IRQ 0x4
-    struct dma_state
-    {
+#define EDU_DMA_RUN             0x1
+#define EDU_DMA_DIR(cmd)        (((cmd) & 0x2) >> 1)
+# define EDU_DMA_FROM_PCI       0
+# define EDU_DMA_TO_PCI         1
+#define EDU_DMA_IRQ             0x4
+    struct dma_state {
         dma_addr_t src;
         dma_addr_t dst;
         dma_addr_t cnt;
@@ -83,7 +84,7 @@ typedef struct
     QEMUTimer dma_timer;
     char dma_buf[DMA_SIZE];
     uint64_t dma_mask;
-} EduState;
+};
 
 // /* qemu-angle OpenGL */
 // //GLuint LoadShader ( GLenum type, const char *shaderSrc );
@@ -169,7 +170,7 @@ static bool within(uint64_t addr, uint64_t start, uint64_t end)
 }
 
 static void edu_check_range(uint64_t addr, uint64_t size1, uint64_t start,
-                            uint64_t size2)
+                uint64_t size2)
 {
     uint64_t end1 = addr + size1;
     uint64_t end2 = start + size2;
@@ -288,7 +289,7 @@ static uint64_t edu_mmio_read(void *opaque, hwaddr addr, unsigned size)
         qemu_mutex_unlock(&edu->thr_mutex);
         break;
     case 0x20:
-        val = atomic_read(&edu->status);
+        val = qatomic_read(&edu->status);
         break;
     case 0x24:
         val = edu->irq_status;
@@ -331,8 +332,7 @@ static void edu_mmio_write(void *opaque, hwaddr addr, uint64_t val,
         edu->addr4 = ~val;
         break;
     case 0x08:
-        if (atomic_read(&edu->status) & EDU_STATUS_COMPUTING)
-        {
+        if (qatomic_read(&edu->status) & EDU_STATUS_COMPUTING) {
             break;
         }
         /* EDU_STATUS_COMPUTING cannot go 0->1 concurrently, because it is only
@@ -340,18 +340,15 @@ static void edu_mmio_write(void *opaque, hwaddr addr, uint64_t val,
          */
         qemu_mutex_lock(&edu->thr_mutex);
         edu->fact = val;
-        atomic_or(&edu->status, EDU_STATUS_COMPUTING);
+        qatomic_or(&edu->status, EDU_STATUS_COMPUTING);
         qemu_cond_signal(&edu->thr_cond);
         qemu_mutex_unlock(&edu->thr_mutex);
         break;
     case 0x20:
-        if (val & EDU_STATUS_IRQFACT)
-        {
-            atomic_or(&edu->status, EDU_STATUS_IRQFACT);
-        }
-        else
-        {
-            atomic_and(&edu->status, ~EDU_STATUS_IRQFACT);
+        if (val & EDU_STATUS_IRQFACT) {
+            qatomic_or(&edu->status, EDU_STATUS_IRQFACT);
+        } else {
+            qatomic_and(&edu->status, ~EDU_STATUS_IRQFACT);
         }
         break;
     case 0x60:
@@ -1345,15 +1342,15 @@ static void edu_class_init(ObjectClass *class, void *data)
 static void pci_edu_register_types(void)
 {
     static InterfaceInfo interfaces[] = {
-        {INTERFACE_CONVENTIONAL_PCI_DEVICE},
-        {},
+        { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { },
     };
     static const TypeInfo edu_info = {
-        .name = TYPE_PCI_EDU_DEVICE,
-        .parent = TYPE_PCI_DEVICE,
+        .name          = TYPE_PCI_EDU_DEVICE,
+        .parent        = TYPE_PCI_DEVICE,
         .instance_size = sizeof(EduState),
         .instance_init = edu_instance_init,
-        .class_init = edu_class_init,
+        .class_init    = edu_class_init,
         .interfaces = interfaces,
     };
 

@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,6 +22,7 @@
 #include "qemu/module.h"
 #include "hw/mips/cps.h"
 #include "hw/mips/mips.h"
+#include "hw/qdev-clock.h"
 #include "hw/qdev-properties.h"
 #include "hw/mips/cpudevs.h"
 #include "sysemu/kvm.h"
@@ -38,6 +39,7 @@ static void mips_cps_init(Object *obj)
     SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
     MIPSCPSState *s = MIPS_CPS(obj);
 
+    s->clock = qdev_init_clock_in(DEVICE(obj), "clk-in", NULL, NULL, 0);
     /*
      * Cover entire address space as there do not seem to be any
      * constraints for the base address of CPC and GIC.
@@ -52,15 +54,11 @@ static void main_cpu_reset(void *opaque)
     CPUState *cs = CPU(cpu);
 
     cpu_reset(cs);
-
-    /* All VPs are halted on reset. Leave powering up to CPC. */
-    cs->halted = 1;
 }
 
 static bool cpu_mips_itu_supported(CPUMIPSState *env)
 {
-    bool is_mt = (env->CP0_Config5 & (1 << CP0C5_VP)) ||
-                 (env->CP0_Config3 & (1 << CP0C3_MT));
+    bool is_mt = (env->CP0_Config5 & (1 << CP0C5_VP)) || ase_mt_available(env);
 
     return is_mt && !kvm_enabled();
 }
@@ -71,13 +69,29 @@ static void mips_cps_realize(DeviceState *dev, Error **errp)
     CPUMIPSState *env;
     MIPSCPU *cpu;
     int i;
-    Error *err = NULL;
     target_ulong gcr_base;
     bool itu_present = false;
     bool saar_present = false;
 
+    if (!clock_get(s->clock)) {
+        error_setg(errp, "CPS input clock is not connected to an output clock");
+        return;
+    }
+
     for (i = 0; i < s->num_vp; i++) {
-        cpu = MIPS_CPU(cpu_create(s->cpu_type));
+        cpu = MIPS_CPU(object_new(s->cpu_type));
+
+        /* All VPs are halted on reset. Leave powering up to CPC. */
+        if (!object_property_set_bool(OBJECT(cpu), "start-powered-off", true,
+                                      errp)) {
+            return;
+        }
+        /* All cores use the same clock tree */
+        qdev_connect_clock_in(DEVICE(cpu), "clk-in", s->clock);
+
+        if (!qdev_realize_and_unref(DEVICE(cpu), NULL, errp)) {
+            return;
+        }
 
         /* Init internal devices */
         cpu_mips_irq_init_cpu(cpu);
@@ -99,18 +113,17 @@ static void mips_cps_realize(DeviceState *dev, Error **errp)
 
     /* Inter-Thread Communication Unit */
     if (itu_present) {
-        sysbus_init_child_obj(OBJECT(dev), "itu", &s->itu, sizeof(s->itu),
-                              TYPE_MIPS_ITU);
-        object_property_set_int(OBJECT(&s->itu), 16, "num-fifo", &err);
-        object_property_set_int(OBJECT(&s->itu), 16, "num-semaphores", &err);
-        object_property_set_bool(OBJECT(&s->itu), saar_present, "saar-present",
-                                 &err);
+        object_initialize_child(OBJECT(dev), "itu", &s->itu, TYPE_MIPS_ITU);
+        object_property_set_int(OBJECT(&s->itu), "num-fifo", 16,
+                                &error_abort);
+        object_property_set_int(OBJECT(&s->itu), "num-semaphores", 16,
+                                &error_abort);
+        object_property_set_bool(OBJECT(&s->itu), "saar-present", saar_present,
+                                 &error_abort);
         if (saar_present) {
             s->itu.saar = &env->CP0_SAAR;
         }
-        object_property_set_bool(OBJECT(&s->itu), true, "realized", &err);
-        if (err != NULL) {
-            error_propagate(errp, err);
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->itu), errp)) {
             return;
         }
 
@@ -119,13 +132,12 @@ static void mips_cps_realize(DeviceState *dev, Error **errp)
     }
 
     /* Cluster Power Controller */
-    sysbus_init_child_obj(OBJECT(dev), "cpc", &s->cpc, sizeof(s->cpc),
-                          TYPE_MIPS_CPC);
-    object_property_set_int(OBJECT(&s->cpc), s->num_vp, "num-vp", &err);
-    object_property_set_int(OBJECT(&s->cpc), 1, "vp-start-running", &err);
-    object_property_set_bool(OBJECT(&s->cpc), true, "realized", &err);
-    if (err != NULL) {
-        error_propagate(errp, err);
+    object_initialize_child(OBJECT(dev), "cpc", &s->cpc, TYPE_MIPS_CPC);
+    object_property_set_int(OBJECT(&s->cpc), "num-vp", s->num_vp,
+                            &error_abort);
+    object_property_set_int(OBJECT(&s->cpc), "vp-start-running", 1,
+                            &error_abort);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->cpc), errp)) {
         return;
     }
 
@@ -133,13 +145,12 @@ static void mips_cps_realize(DeviceState *dev, Error **errp)
                             sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->cpc), 0));
 
     /* Global Interrupt Controller */
-    sysbus_init_child_obj(OBJECT(dev), "gic", &s->gic, sizeof(s->gic),
-                          TYPE_MIPS_GIC);
-    object_property_set_int(OBJECT(&s->gic), s->num_vp, "num-vp", &err);
-    object_property_set_int(OBJECT(&s->gic), 128, "num-irq", &err);
-    object_property_set_bool(OBJECT(&s->gic), true, "realized", &err);
-    if (err != NULL) {
-        error_propagate(errp, err);
+    object_initialize_child(OBJECT(dev), "gic", &s->gic, TYPE_MIPS_GIC);
+    object_property_set_int(OBJECT(&s->gic), "num-vp", s->num_vp,
+                            &error_abort);
+    object_property_set_int(OBJECT(&s->gic), "num-irq", 128,
+                            &error_abort);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->gic), errp)) {
         return;
     }
 
@@ -149,16 +160,18 @@ static void mips_cps_realize(DeviceState *dev, Error **errp)
     /* Global Configuration Registers */
     gcr_base = env->CP0_CMGCRBase << 4;
 
-    sysbus_init_child_obj(OBJECT(dev), "gcr", &s->gcr, sizeof(s->gcr),
-                          TYPE_MIPS_GCR);
-    object_property_set_int(OBJECT(&s->gcr), s->num_vp, "num-vp", &err);
-    object_property_set_int(OBJECT(&s->gcr), 0x800, "gcr-rev", &err);
-    object_property_set_int(OBJECT(&s->gcr), gcr_base, "gcr-base", &err);
-    object_property_set_link(OBJECT(&s->gcr), OBJECT(&s->gic.mr), "gic", &err);
-    object_property_set_link(OBJECT(&s->gcr), OBJECT(&s->cpc.mr), "cpc", &err);
-    object_property_set_bool(OBJECT(&s->gcr), true, "realized", &err);
-    if (err != NULL) {
-        error_propagate(errp, err);
+    object_initialize_child(OBJECT(dev), "gcr", &s->gcr, TYPE_MIPS_GCR);
+    object_property_set_int(OBJECT(&s->gcr), "num-vp", s->num_vp,
+                            &error_abort);
+    object_property_set_int(OBJECT(&s->gcr), "gcr-rev", 0x800,
+                            &error_abort);
+    object_property_set_int(OBJECT(&s->gcr), "gcr-base", gcr_base,
+                            &error_abort);
+    object_property_set_link(OBJECT(&s->gcr), "gic", OBJECT(&s->gic.mr),
+                             &error_abort);
+    object_property_set_link(OBJECT(&s->gcr), "cpc", OBJECT(&s->cpc.mr),
+                             &error_abort);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->gcr), errp)) {
         return;
     }
 

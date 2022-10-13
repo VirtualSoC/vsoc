@@ -23,11 +23,11 @@
 #include "standard-headers/linux/virtio_iommu.h"
 #include "hw/virtio/virtio.h"
 #include "hw/pci/pci.h"
+#include "qom/object.h"
 
 #define TYPE_VIRTIO_IOMMU "virtio-iommu-device"
-#define TYPE_VIRTIO_IOMMU_PCI "virtio-iommu-device-base"
-#define VIRTIO_IOMMU(obj) \
-        OBJECT_CHECK(VirtIOIOMMU, (obj), TYPE_VIRTIO_IOMMU)
+#define TYPE_VIRTIO_IOMMU_PCI "virtio-iommu-pci"
+OBJECT_DECLARE_SIMPLE_TYPE(VirtIOIOMMU, VIRTIO_IOMMU)
 
 #define TYPE_VIRTIO_IOMMU_MEMORY_REGION "virtio-iommu-memory-region"
 
@@ -37,6 +37,8 @@ typedef struct IOMMUDevice {
     int           devfn;
     IOMMUMemoryRegion  iommu_mr;
     AddressSpace  as;
+    MemoryRegion root;          /* The root container of the device */
+    MemoryRegion bypass_mr;     /* The alias of shared memory MR */
 } IOMMUDevice;
 
 typedef struct IOMMUPciBus {
@@ -44,7 +46,7 @@ typedef struct IOMMUPciBus {
     IOMMUDevice  *pbdev[]; /* Parent array is sparse, so dynamically alloc */
 } IOMMUPciBus;
 
-typedef struct VirtIOIOMMU {
+struct VirtIOIOMMU {
     VirtIODevice parent_obj;
     VirtQueue *req_vq;
     VirtQueue *event_vq;
@@ -53,9 +55,12 @@ typedef struct VirtIOIOMMU {
     GHashTable *as_by_busptr;
     IOMMUPciBus *iommu_pcibus_by_bus_num[PCI_BUS_MAX];
     PCIBus *primary_bus;
+    ReservedRegion *reserved_regions;
+    uint32_t nb_reserved_regions;
     GTree *domains;
-    QemuMutex mutex;
+    QemuRecMutex mutex;
     GTree *endpoints;
-} VirtIOIOMMU;
+    bool boot_bypass;
+};
 
 #endif

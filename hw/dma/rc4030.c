@@ -28,11 +28,13 @@
 #include "hw/mips/mips.h"
 #include "hw/sysbus.h"
 #include "migration/vmstate.h"
+#include "qapi/error.h"
 #include "qemu/timer.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
 #include "exec/address-spaces.h"
 #include "trace.h"
+#include "qom/object.h"
 
 /********************************************************/
 /* rc4030 emulation                                     */
@@ -54,12 +56,11 @@ typedef struct dma_pagetable_entry {
 #define DMA_FLAG_ADDR_INTR  0x0400
 
 #define TYPE_RC4030 "rc4030"
-#define RC4030(obj) \
-    OBJECT_CHECK(rc4030State, (obj), TYPE_RC4030)
+OBJECT_DECLARE_SIMPLE_TYPE(rc4030State, RC4030)
 
 #define TYPE_RC4030_IOMMU_MEMORY_REGION "rc4030-iommu-memory-region"
 
-typedef struct rc4030State {
+struct rc4030State {
 
     SysBusDevice parent;
 
@@ -100,7 +101,7 @@ typedef struct rc4030State {
 
     MemoryRegion iomem_chipset;
     MemoryRegion iomem_jazzio;
-} rc4030State;
+};
 
 static void set_next_tick(rc4030State *s)
 {
@@ -645,8 +646,8 @@ static rc4030_dma *rc4030_allocate_dmas(void *opaque, int n)
     struct rc4030DMAState *p;
     int i;
 
-    s = (rc4030_dma *)g_new0(rc4030_dma, n);
-    p = (struct rc4030DMAState *)g_new0(struct rc4030DMAState, n);
+    s = g_new0(rc4030_dma, n);
+    p = g_new0(struct rc4030DMAState, n);
     for (i = 0; i < n; i++) {
         p->opaque = opaque;
         p->n = i;
@@ -744,8 +745,8 @@ DeviceState *rc4030_init(rc4030_dma **dmas, IOMMUMemoryRegion **dma_mr)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, TYPE_RC4030);
-    qdev_init_nofail(dev);
+    dev = qdev_new(TYPE_RC4030);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
 
     *dmas = rc4030_allocate_dmas(dev, 4);
     *dma_mr = &RC4030(dev)->dma_mr;

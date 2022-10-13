@@ -364,7 +364,7 @@ void qemu_input_event_send(QemuConsole *src, InputEvent *evt)
      * when 'alt+print' was pressed. This flaw is now fixed and the
      * 'sysrq' key serves no further purpose. We normalize it to
      * 'print', so that downstream receivers of the event don't
-     * neeed to deal with this mistake
+     * need to deal with this mistake
      */
     if (evt->type == INPUT_EVENT_KIND_KEY &&
         evt->u.key.data->key->u.qcode.data == Q_KEY_CODE_SYSRQ) {
@@ -571,7 +571,7 @@ void qemu_remove_mouse_mode_change_notifier(Notifier *notify)
 MouseInfoList *qmp_query_mice(Error **errp)
 {
     MouseInfoList *mice_list = NULL;
-    MouseInfoList *info;
+    MouseInfo *info;
     QemuInputHandlerState *s;
     bool current = true;
 
@@ -581,16 +581,14 @@ MouseInfoList *qmp_query_mice(Error **errp)
             continue;
         }
 
-        info = g_new0(MouseInfoList, 1);
-        info->value = g_new0(MouseInfo, 1);
-        info->value->index = s->id;
-        info->value->name = g_strdup(s->handler->name);
-        info->value->absolute = s->handler->mask & INPUT_EVENT_MASK_ABS;
-        info->value->current = current;
+        info = g_new0(MouseInfo, 1);
+        info->index = s->id;
+        info->name = g_strdup(s->handler->name);
+        info->absolute = s->handler->mask & INPUT_EVENT_MASK_ABS;
+        info->current = current;
 
         current = false;
-        info->next = mice_list;
-        mice_list = info;
+        QAPI_LIST_PREPEND(mice_list, info);
     }
 
     return mice_list;

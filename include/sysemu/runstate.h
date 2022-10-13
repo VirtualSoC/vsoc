@@ -6,11 +6,11 @@
 
 bool runstate_check(RunState state);
 void runstate_set(RunState new_state);
-int runstate_is_running(void);
+bool runstate_is_running(void);
 bool runstate_needs_reset(void);
 bool runstate_store(char *str, size_t size);
 
-typedef void VMChangeStateHandler(void *opaque, int running, RunState state);
+typedef void VMChangeStateHandler(void *opaque, bool running, RunState state);
 
 VMChangeStateEntry *qemu_add_vm_change_state_handler(VMChangeStateHandler *cb,
                                                      void *opaque);
@@ -20,7 +20,13 @@ VMChangeStateEntry *qdev_add_vm_change_state_handler(DeviceState *dev,
                                                      VMChangeStateHandler *cb,
                                                      void *opaque);
 void qemu_del_vm_change_state_handler(VMChangeStateEntry *e);
-void vm_state_notify(int running, RunState state);
+/**
+ * vm_state_notify: Notify the state of the VM
+ *
+ * @running: whether the VM is running or not.
+ * @state: the #RunState of the VM.
+ */
+void vm_state_notify(bool running, RunState state);
 
 static inline bool shutdown_caused_by_guest(ShutdownCause cause)
 {
@@ -28,7 +34,13 @@ static inline bool shutdown_caused_by_guest(ShutdownCause cause)
 }
 
 void vm_start(void);
-int vm_prepare_start(void);
+
+/**
+ * vm_prepare_start: Prepare for starting/resuming the VM
+ *
+ * @step_pending: whether any of the CPUs is about to be single-stepped by gdb
+ */
+int vm_prepare_start(bool step_pending);
 int vm_stop(RunState state);
 int vm_stop_force_state(RunState state);
 int vm_shutdown(void);
@@ -41,7 +53,6 @@ typedef enum WakeupReason {
     QEMU_WAKEUP_REASON_OTHER,
 } WakeupReason;
 
-void qemu_exit_preconfig_request(void);
 void qemu_system_reset_request(ShutdownCause reason);
 void qemu_system_suspend_request(void);
 void qemu_register_suspend_notifier(Notifier *notifier);
@@ -64,6 +75,7 @@ void qemu_system_killed(int signal, pid_t pid);
 void qemu_system_reset(ShutdownCause reason);
 void qemu_system_guest_panicked(GuestPanicInformation *info);
 void qemu_system_guest_crashloaded(GuestPanicInformation *info);
+bool qemu_system_dump_in_progress(void);
 
 #endif
 

@@ -31,7 +31,6 @@
 #include "hw/loader.h"
 #include "hw/sparc/sparc64.h"
 #include "hw/rtc/sun4v-rtc.h"
-#include "exec/address-spaces.h"
 #include "sysemu/block-backend.h"
 #include "qemu/error-report.h"
 #include "sysemu/qtest.h"
@@ -68,7 +67,6 @@ typedef struct NiagaraBoardState {
 
 #define NIAGARA_VDISK_BASE  0x1f40000000ULL
 #define NIAGARA_RTC_BASE    0xfff0c1fff8ULL
-#define NIAGARA_UART_BASE   0x1f10000000ULL
 
 /* Firmware layout
  *
@@ -100,7 +98,7 @@ static void add_rom_or_fail(const char *file, const hwaddr addr)
 static void niagara_init(MachineState *machine)
 {
     NiagaraBoardState *s = g_new(NiagaraBoardState, 1);
-    DriveInfo *dinfo = drive_get_next(IF_PFLASH);
+    DriveInfo *dinfo = drive_get(IF_PFLASH, 0, 0);
     MemoryRegion *sysmem = get_system_memory();
 
     /* init CPUs */
@@ -152,10 +150,8 @@ static void niagara_init(MachineState *machine)
             exit(1);
         }
     }
-    if (serial_hd(0)) {
-        serial_mm_init(sysmem, NIAGARA_UART_BASE, 0, NULL, 115200,
-                       serial_hd(0), DEVICE_BIG_ENDIAN);
-    }
+    serial_mm_init(sysmem, NIAGARA_UART_BASE, 0, NULL,
+                   115200, serial_hd(0), DEVICE_BIG_ENDIAN);
     create_unimplemented_device("sun4v-iob", NIAGARA_IOBBASE, NIAGARA_IOBSIZE);
     sun4v_rtc_init(NIAGARA_RTC_BASE);
 }

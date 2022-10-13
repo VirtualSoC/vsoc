@@ -25,8 +25,6 @@
 #include "qemu/units.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
-#include "cpu.h"
-#include "sysemu/sysemu.h"
 #include "hw/sysbus.h"
 #include "net/net.h"
 #include "hw/arm/boot.h"
@@ -69,7 +67,6 @@ static unsigned long exynos4_board_ram_size[EXYNOS4_NUM_OF_BOARDS] = {
 static struct arm_boot_info exynos4_board_binfo = {
     .loader_start     = EXYNOS4210_BASE_BOOT_ADDR,
     .smp_loader_start = EXYNOS4210_SMP_BOOT_ADDR,
-    .nb_cpus          = EXYNOS4210_NCPUS,
     .write_secondary_boot = exynos4210_write_secondary,
 };
 
@@ -81,11 +78,11 @@ static void lan9215_init(uint32_t base, qemu_irq irq)
     /* This should be a 9215 but the 9118 is close enough */
     if (nd_table[0].used) {
         qemu_check_nic_model(&nd_table[0], "lan9118");
-        dev = qdev_create(NULL, TYPE_LAN9118);
+        dev = qdev_new(TYPE_LAN9118);
         qdev_set_nic_properties(dev, &nd_table[0]);
         qdev_prop_set_uint32(dev, "mode_16bit", 1);
-        qdev_init_nofail(dev);
         s = SYS_BUS_DEVICE(dev);
+        sysbus_realize_and_unref(s, &error_fatal);
         sysbus_mmio_map(s, 0, base);
         sysbus_connect_irq(s, 0, irq);
     }
@@ -128,10 +125,9 @@ exynos4_boards_init_common(MachineState *machine,
     exynos4_boards_init_ram(s, get_system_memory(),
                             exynos4_board_ram_size[board_type]);
 
-    sysbus_init_child_obj(OBJECT(machine), "soc",
-                          &s->soc, sizeof(s->soc), TYPE_EXYNOS4210_SOC);
-    object_property_set_bool(OBJECT(&s->soc), true, "realized",
-                             &error_fatal);
+    object_initialize_child(OBJECT(machine), "soc", &s->soc,
+                            TYPE_EXYNOS4210_SOC);
+    sysbus_realize(SYS_BUS_DEVICE(&s->soc), &error_fatal);
 
     return s;
 }

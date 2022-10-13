@@ -6,6 +6,7 @@
 #include "hw/qdev-core.h"
 #include "scsi/utils.h"
 #include "qemu/notify.h"
+#include "qom/object.h"
 
 #define MAX_SCSI_DEVS	255
 
@@ -17,6 +18,7 @@ typedef struct SCSIReqOps SCSIReqOps;
 
 #define SCSI_SENSE_BUF_SIZE_OLD 96
 #define SCSI_SENSE_BUF_SIZE 252
+#define DEFAULT_IO_TIMEOUT 30
 
 struct SCSIRequest {
     SCSIBus           *bus;
@@ -25,9 +27,10 @@ struct SCSIRequest {
     uint32_t          refcount;
     uint32_t          tag;
     uint32_t          lun;
-    uint32_t          status;
+    int16_t           status;
+    int16_t           host_status;
     void              *hba_private;
-    size_t            resid;
+    uint64_t          residual;
     SCSICommand       cmd;
     NotifierList      cancel_notifiers;
 
@@ -49,14 +52,9 @@ struct SCSIRequest {
 };
 
 #define TYPE_SCSI_DEVICE "scsi-device"
-#define SCSI_DEVICE(obj) \
-     OBJECT_CHECK(SCSIDevice, (obj), TYPE_SCSI_DEVICE)
-#define SCSI_DEVICE_CLASS(klass) \
-     OBJECT_CLASS_CHECK(SCSIDeviceClass, (klass), TYPE_SCSI_DEVICE)
-#define SCSI_DEVICE_GET_CLASS(obj) \
-     OBJECT_GET_CLASS(SCSIDeviceClass, (obj), TYPE_SCSI_DEVICE)
+OBJECT_DECLARE_TYPE(SCSIDevice, SCSIDeviceClass, SCSI_DEVICE)
 
-typedef struct SCSIDeviceClass {
+struct SCSIDeviceClass {
     DeviceClass parent_class;
     void (*realize)(SCSIDevice *dev, Error **errp);
     void (*unrealize)(SCSIDevice *dev);
@@ -65,7 +63,7 @@ typedef struct SCSIDeviceClass {
     SCSIRequest *(*alloc_req)(SCSIDevice *s, uint32_t tag, uint32_t lun,
                               uint8_t *buf, void *hba_private);
     void (*unit_attention_reported)(SCSIDevice *s);
-} SCSIDeviceClass;
+};
 
 struct SCSIDevice
 {
@@ -88,6 +86,7 @@ struct SCSIDevice
     uint64_t port_wwn;
     int scsi_version;
     int default_scsi_version;
+    uint32_t io_timeout;
     bool needs_vpd_bl_emulation;
     bool hba_supports_iothread;
 };
@@ -125,7 +124,8 @@ struct SCSIBusInfo {
     int (*parse_cdb)(SCSIDevice *dev, SCSICommand *cmd, uint8_t *buf,
                      void *hba_private);
     void (*transfer_data)(SCSIRequest *req, uint32_t arg);
-    void (*complete)(SCSIRequest *req, uint32_t arg, size_t resid);
+    void (*fail)(SCSIRequest *req);
+    void (*complete)(SCSIRequest *req, size_t residual);
     void (*cancel)(SCSIRequest *req);
     void (*change)(SCSIBus *bus, SCSIDevice *dev, SCSISense sense);
     QEMUSGList *(*get_sg_list)(SCSIRequest *req);
@@ -136,7 +136,7 @@ struct SCSIBusInfo {
 };
 
 #define TYPE_SCSI_BUS "SCSI"
-#define SCSI_BUS(obj) OBJECT_CHECK(SCSIBus, (obj), TYPE_SCSI_BUS)
+OBJECT_DECLARE_SIMPLE_TYPE(SCSIBus, SCSI_BUS)
 
 struct SCSIBus {
     BusState qbus;
@@ -146,8 +146,34 @@ struct SCSIBus {
     const SCSIBusInfo *info;
 };
 
-void scsi_bus_new(SCSIBus *bus, size_t bus_size, DeviceState *host,
-                  const SCSIBusInfo *info, const char *bus_name);
+/**
+ * scsi_bus_init_named: Initialize a SCSI bus with the specified name
+ * @bus: SCSIBus object to initialize
+ * @bus_size: size of @bus object
+ * @host: Device which owns the bus (generally the SCSI controller)
+ * @info: structure defining callbacks etc for the controller
+ * @bus_name: Name to use for this bus
+ *
+ * This in-place initializes @bus as a new SCSI bus with a name
+ * provided by the caller. It is the caller's responsibility to make
+ * sure that name does not clash with the name of any other bus in the
+ * system. Unless you need the new bus to have a specific name, you
+ * should use scsi_bus_init() instead.
+ */
+void scsi_bus_init_named(SCSIBus *bus, size_t bus_size, DeviceState *host,
+                         const SCSIBusInfo *info, const char *bus_name);
+
+/**
+ * scsi_bus_init: Initialize a SCSI bus
+ *
+ * This in-place-initializes @bus as a new SCSI bus and gives it
+ * an automatically generated unique name.
+ */
+static inline void scsi_bus_init(SCSIBus *bus, size_t bus_size,
+                                 DeviceState *host, const SCSIBusInfo *info)
+{
+    scsi_bus_init_named(bus, bus_size, host, info, NULL);
+}
 
 static inline SCSIBus *scsi_bus_from_device(SCSIDevice *d)
 {
@@ -179,6 +205,7 @@ void scsi_req_print(SCSIRequest *req);
 void scsi_req_continue(SCSIRequest *req);
 void scsi_req_data(SCSIRequest *req, int len);
 void scsi_req_complete(SCSIRequest *req, int status);
+void scsi_req_complete_failed(SCSIRequest *req, int host_status);
 uint8_t *scsi_req_get_buf(SCSIRequest *req);
 int scsi_req_get_sense(SCSIRequest *req, uint8_t *buf, int len);
 void scsi_req_cancel_complete(SCSIRequest *req);
@@ -192,10 +219,17 @@ void scsi_device_unit_attention_reported(SCSIDevice *dev);
 void scsi_generic_read_device_inquiry(SCSIDevice *dev);
 int scsi_device_get_sense(SCSIDevice *dev, uint8_t *buf, int len, bool fixed);
 int scsi_SG_IO_FROM_DEV(BlockBackend *blk, uint8_t *cmd, uint8_t cmd_size,
-                        uint8_t *buf, uint8_t buf_size);
+                        uint8_t *buf, uint8_t buf_size, uint32_t timeout);
 SCSIDevice *scsi_device_find(SCSIBus *bus, int channel, int target, int lun);
+SCSIDevice *scsi_device_get(SCSIBus *bus, int channel, int target, int lun);
 
 /* scsi-generic.c. */
 extern const SCSIReqOps scsi_generic_req_ops;
+
+/* scsi-disk.c */
+#define SCSI_DISK_QUIRK_MODE_PAGE_APPLE_VENDOR             0
+#define SCSI_DISK_QUIRK_MODE_SENSE_ROM_USE_DBD             1
+#define SCSI_DISK_QUIRK_MODE_PAGE_VENDOR_SPECIFIC_APPLE    2
+#define SCSI_DISK_QUIRK_MODE_PAGE_TRUNCATED                3
 
 #endif

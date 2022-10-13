@@ -1,4 +1,5 @@
 # -*- Mode: Python -*-
+# vim: filetype=python
 #
 
 ##
@@ -32,7 +33,6 @@
 #        all the QMP capabilities will be turned off by default.
 #
 # Since: 0.13
-#
 ##
 { 'command': 'qmp_capabilities',
   'data': { '*enable': [ 'QMPCapability' ] },
@@ -48,7 +48,6 @@
 #       (Please refer to qmp-spec.txt for more information on OOB)
 #
 # Since: 2.12
-#
 ##
 { 'enum': 'QMPCapability',
   'data': [ 'oob' ] }
@@ -69,7 +68,6 @@
 { 'struct': 'VersionTriple',
   'data': {'major': 'int', 'minor': 'int', 'micro': 'int'} }
 
-
 ##
 # @VersionInfo:
 #
@@ -86,7 +84,7 @@
 #           exact format depends on the downstream however it highly
 #           recommended that a unique name is used.
 #
-# Since: 0.14.0
+# Since: 0.14
 ##
 { 'struct': 'VersionInfo',
   'data': {'qemu': 'VersionTriple', 'package': 'str'} }
@@ -98,7 +96,7 @@
 #
 # Returns: A @VersionInfo object describing the current version of QEMU.
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
@@ -125,7 +123,7 @@
 #
 # @name: The command name
 #
-# Since: 0.14.0
+# Since: 0.14
 ##
 { 'struct': 'CommandInfo', 'data': {'name': 'str'} }
 
@@ -136,7 +134,7 @@
 #
 # Returns: A list of @CommandInfo for all supported commands
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
@@ -159,51 +157,6 @@
   'allow-preconfig': true }
 
 ##
-# @EventInfo:
-#
-# Information about a QMP event
-#
-# @name: The event name
-#
-# Since: 1.2.0
-##
-{ 'struct': 'EventInfo', 'data': {'name': 'str'} }
-
-##
-# @query-events:
-#
-# Return information on QMP events.
-#
-# Features:
-# @deprecated: This command is deprecated, because its output doesn't
-#     reflect compile-time configuration.  Use 'query-qmp-schema'
-#     instead.
-#
-# Returns: A list of @EventInfo.
-#
-# Since: 1.2.0
-#
-# Example:
-#
-# -> { "execute": "query-events" }
-# <- {
-#      "return": [
-#          {
-#             "name":"SHUTDOWN"
-#          },
-#          {
-#             "name":"RESET"
-#          }
-#       ]
-#    }
-#
-# Note: This example has been shortened as the real response is too long.
-#
-##
-{ 'command': 'query-events', 'returns': ['EventInfo'],
-  'features': [ 'deprecated' ] }
-
-##
 # @quit:
 #
 # This command will cause the QEMU process to exit gracefully.  While every
@@ -211,14 +164,15 @@
 # guaranteed.  When using this interface, a premature EOF would not be
 # unexpected.
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
 # -> { "execute": "quit" }
 # <- { "return": {} }
 ##
-{ 'command': 'quit' }
+{ 'command': 'quit',
+  'allow-preconfig': true }
 
 ##
 # @MonitorMode:
@@ -238,14 +192,14 @@
 #
 # Options to be used for adding a new monitor.
 #
-# @id:          Name of the monitor
+# @id: Name of the monitor
 #
-# @mode:        Selects the monitor mode (default: readline in the system
-#               emulator, control in qemu-storage-daemon)
+# @mode: Selects the monitor mode (default: readline in the system
+#           emulator, control in qemu-storage-daemon)
 #
-# @pretty:      Enables pretty printing (QMP only)
+# @pretty: Enables pretty printing (QMP only)
 #
-# @chardev:     Name of a character device to expose the monitor on
+# @chardev: Name of a character device to expose the monitor on
 #
 # Since: 5.0
 ##

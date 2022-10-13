@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,16 +18,16 @@
 
 #include "qemu/osdep.h"
 #include <getopt.h>
-#include "libqtest.h"
+#include "../libqtest.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qbool.h"
 #include "qapi/qmp/qstring.h"
 #include "qemu/module.h"
 #include "qapi/qmp/qlist.h"
-#include "libqos/malloc.h"
-#include "libqos/qgraph.h"
-#include "libqos/qgraph_internal.h"
-#include "libqos/qos_external.h"
+#include "malloc.h"
+#include "qgraph.h"
+#include "qgraph_internal.h"
+#include "qos_external.h"
 
 static void machine_apply_to_node(const char *name)
 {

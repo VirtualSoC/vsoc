@@ -15,8 +15,9 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
+#include "qemu/datadir.h"
 #include "qemu/units.h"
+#include "qemu/guest-random.h"
 #include "qapi/error.h"
 #include "e500.h"
 #include "e500-ccsr.h"
@@ -24,7 +25,6 @@
 #include "qemu/config-file.h"
 #include "hw/char/serial.h"
 #include "hw/pci/pci.h"
-#include "hw/boards.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/kvm.h"
 #include "sysemu/reset.h"
@@ -38,7 +38,6 @@
 #include "hw/loader.h"
 #include "elf.h"
 #include "hw/sysbus.h"
-#include "exec/address-spaces.h"
 #include "qemu/host-utils.h"
 #include "qemu/option.h"
 #include "hw/pci-host/ppce500.h"
@@ -49,7 +48,6 @@
 #include "hw/irq.h"
 
 #define EPAPR_MAGIC                (0x45504150)
-#define BINARY_DEVICE_TREE_FILE    "mpc8544ds.dtb"
 #define DTC_LOAD_PAD               0x1800000
 #define DTC_PAD_MASK               0xFFFFF
 #define DTB_MAX_SIZE               (8 * MiB)
@@ -72,6 +70,8 @@
 #define MPC8XXX_GPIO_IRQ           47
 #define MPC8544_I2C_IRQ            43
 #define RTC_REGS_OFFSET            0x68
+
+#define PLATFORM_CLK_FREQ_HZ       (400 * 1000 * 1000)
 
 struct boot_info
 {
@@ -123,7 +123,7 @@ static void dt_serial_create(void *fdt, unsigned long long offset,
     qemu_fdt_setprop_string(fdt, ser, "compatible", "ns16550");
     qemu_fdt_setprop_cells(fdt, ser, "reg", offset, 0x100);
     qemu_fdt_setprop_cell(fdt, ser, "cell-index", idx);
-    qemu_fdt_setprop_cell(fdt, ser, "clock-frequency", 0);
+    qemu_fdt_setprop_cell(fdt, ser, "clock-frequency", PLATFORM_CLK_FREQ_HZ);
     qemu_fdt_setprop_cells(fdt, ser, "interrupts", 42, 2);
     qemu_fdt_setprop_phandle(fdt, ser, "interrupt-parent", mpic);
     qemu_fdt_setprop_string(fdt, "/aliases", alias, ser);
@@ -228,11 +228,14 @@ static int create_devtree_etsec(SysBusDevice *sbdev, PlatformDevtreeData *data)
     assert(irq2 >= 0);
 
     qemu_fdt_add_subnode(fdt, node);
+    qemu_fdt_setprop(fdt, node, "ranges", NULL, 0);
     qemu_fdt_setprop_string(fdt, node, "device_type", "network");
     qemu_fdt_setprop_string(fdt, node, "compatible", "fsl,etsec2");
     qemu_fdt_setprop_string(fdt, node, "model", "eTSEC");
     qemu_fdt_setprop(fdt, node, "local-mac-address", etsec->conf.macaddr.a, 6);
     qemu_fdt_setprop_cells(fdt, node, "fixed-link", 0, 1, 1000, 0, 0);
+    qemu_fdt_setprop_cells(fdt, node, "#size-cells", 1);
+    qemu_fdt_setprop_cells(fdt, node, "#address-cells", 1);
 
     qemu_fdt_add_subnode(fdt, group);
     qemu_fdt_setprop_cells(fdt, group, "reg", mmio0, 0x1000);
@@ -319,8 +322,8 @@ static int ppce500_load_device_tree(PPCE500MachineState *pms,
     int fdt_size;
     void *fdt;
     uint8_t hypercall[16];
-    uint32_t clock_freq = 400000000;
-    uint32_t tb_freq = 400000000;
+    uint32_t clock_freq = PLATFORM_CLK_FREQ_HZ;
+    uint32_t tb_freq = PLATFORM_CLK_FREQ_HZ;
     int i;
     char compatible_sb[] = "fsl,mpc8544-immr\0simple-bus";
     char *soc;
@@ -342,9 +345,9 @@ static int ppce500_load_device_tree(PPCE500MachineState *pms,
             pmc->pci_pio_base >> 32, pmc->pci_pio_base,
             0x0, 0x10000,
         };
-    QemuOpts *machine_opts = qemu_get_machine_opts();
-    const char *dtb_file = qemu_opt_get(machine_opts, "dtb");
-    const char *toplevel_compat = qemu_opt_get(machine_opts, "dt_compatible");
+    const char *dtb_file = machine->dtb;
+    const char *toplevel_compat = machine->dt_compatible;
+    uint8_t rng_seed[32];
 
     if (dtb_file) {
         char *filename;
@@ -401,6 +404,9 @@ static int ppce500_load_device_tree(PPCE500MachineState *pms,
                                       machine->kernel_cmdline);
     if (ret < 0)
         fprintf(stderr, "couldn't set /chosen/bootargs\n");
+
+    qemu_guest_getrandom_nofail(rng_seed, sizeof(rng_seed));
+    qemu_fdt_setprop(fdt, "/chosen", "rng-seed", rng_seed, sizeof(rng_seed));
 
     if (kvm_enabled()) {
         /* Read out host's frequencies */
@@ -704,9 +710,6 @@ static void ppce500_cpu_reset_sec(void *opaque)
 
     cpu_reset(cs);
 
-    /* Secondary CPU starts in halted state for now. Needs to change when
-       implementing non-kernel boot. */
-    cs->halted = 1;
     cs->exception_index = EXCP_HLT;
 }
 
@@ -743,13 +746,13 @@ static DeviceState *ppce500_init_mpic_qemu(PPCE500MachineState *pms,
     unsigned int smp_cpus = machine->smp.cpus;
     const PPCE500MachineClass *pmc = PPCE500_MACHINE_GET_CLASS(pms);
 
-    dev = qdev_create(NULL, TYPE_OPENPIC);
+    dev = qdev_new(TYPE_OPENPIC);
     object_property_add_child(OBJECT(machine), "pic", OBJECT(dev));
     qdev_prop_set_uint32(dev, "model", pmc->mpic_version);
     qdev_prop_set_uint32(dev, "nb_cpus", smp_cpus);
 
-    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
 
     k = 0;
     for (i = 0; i < smp_cpus; i++) {
@@ -764,16 +767,13 @@ static DeviceState *ppce500_init_mpic_qemu(PPCE500MachineState *pms,
 static DeviceState *ppce500_init_mpic_kvm(const PPCE500MachineClass *pmc,
                                           IrqLines *irqs, Error **errp)
 {
-    Error *err = NULL;
     DeviceState *dev;
     CPUState *cs;
 
-    dev = qdev_create(NULL, TYPE_KVM_OPENPIC);
+    dev = qdev_new(TYPE_KVM_OPENPIC);
     qdev_prop_set_uint32(dev, "model", pmc->mpic_version);
 
-    object_property_set_bool(OBJECT(dev), true, "realized", &err);
-    if (err) {
-        error_propagate(errp, err);
+    if (!sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), errp)) {
         object_unparent(OBJECT(dev));
         return NULL;
     }
@@ -866,9 +866,8 @@ void ppce500_init(MachineState *machine)
     for (i = 0; i < smp_cpus; i++) {
         PowerPCCPU *cpu;
         CPUState *cs;
-        qemu_irq *input;
 
-        cpu = POWERPC_CPU(cpu_create(machine->cpu_type));
+        cpu = POWERPC_CPU(object_new(machine->cpu_type));
         env = &cpu->env;
         cs = CPU(cpu);
 
@@ -878,23 +877,32 @@ void ppce500_init(MachineState *machine)
             exit(1);
         }
 
+        /*
+         * Secondary CPU starts in halted state for now. Needs to change
+         * when implementing non-kernel boot.
+         */
+        object_property_set_bool(OBJECT(cs), "start-powered-off", i != 0,
+                                 &error_fatal);
+        qdev_realize_and_unref(DEVICE(cs), NULL, &error_fatal);
+
         if (!firstenv) {
             firstenv = env;
         }
 
-        input = (qemu_irq *)env->irq_inputs;
-        irqs[i].irq[OPENPIC_OUTPUT_INT] = input[PPCE500_INPUT_INT];
-        irqs[i].irq[OPENPIC_OUTPUT_CINT] = input[PPCE500_INPUT_CINT];
+        irqs[i].irq[OPENPIC_OUTPUT_INT] =
+            qdev_get_gpio_in(DEVICE(cpu), PPCE500_INPUT_INT);
+        irqs[i].irq[OPENPIC_OUTPUT_CINT] =
+            qdev_get_gpio_in(DEVICE(cpu), PPCE500_INPUT_CINT);
         env->spr_cb[SPR_BOOKE_PIR].default_value = cs->cpu_index = i;
         env->mpic_iack = pmc->ccsrbar_base + MPC8544_MPIC_REGS_OFFSET + 0xa0;
 
-        ppc_booke_timers_init(cpu, 400000000, PPC_TIMER_E500);
+        ppc_booke_timers_init(cpu, PLATFORM_CLK_FREQ_HZ, PPC_TIMER_E500);
 
         /* Register reset handler */
         if (!i) {
             /* Primary CPU */
             struct boot_info *boot_info;
-            boot_info = g_malloc0(sizeof(struct boot_info));
+            boot_info = g_new0(struct boot_info, 1);
             qemu_register_reset(ppce500_cpu_reset, cpu);
             env->load_info = boot_info;
         } else {
@@ -913,16 +921,17 @@ void ppce500_init(MachineState *machine)
     /* Register Memory */
     memory_region_add_subregion(address_space_mem, 0, machine->ram);
 
-    dev = qdev_create(NULL, "e500-ccsr");
+    dev = qdev_new("e500-ccsr");
     object_property_add_child(qdev_get_machine(), "e500-ccsr",
                               OBJECT(dev));
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
     ccsr = CCSR(dev);
     ccsr_addr_space = &ccsr->ccsr_space;
     memory_region_add_subregion(address_space_mem, pmc->ccsrbar_base,
                                 ccsr_addr_space);
 
     mpicdev = ppce500_init_mpic(pms, ccsr_addr_space, irqs);
+    g_free(irqs);
 
     /* Serial */
     if (serial_hd(0)) {
@@ -937,30 +946,30 @@ void ppce500_init(MachineState *machine)
                        serial_hd(1), DEVICE_BIG_ENDIAN);
     }
         /* I2C */
-    dev = qdev_create(NULL, "mpc-i2c");
+    dev = qdev_new("mpc-i2c");
     s = SYS_BUS_DEVICE(dev);
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     sysbus_connect_irq(s, 0, qdev_get_gpio_in(mpicdev, MPC8544_I2C_IRQ));
     memory_region_add_subregion(ccsr_addr_space, MPC8544_I2C_REGS_OFFSET,
                                 sysbus_mmio_get_region(s, 0));
     i2c = (I2CBus *)qdev_get_child_bus(dev, "i2c");
-    i2c_create_slave(i2c, "ds1338", RTC_REGS_OFFSET);
+    i2c_slave_create_simple(i2c, "ds1338", RTC_REGS_OFFSET);
 
 
     /* General Utility device */
-    dev = qdev_create(NULL, "mpc8544-guts");
-    qdev_init_nofail(dev);
+    dev = qdev_new("mpc8544-guts");
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     memory_region_add_subregion(ccsr_addr_space, MPC8544_UTIL_OFFSET,
                                 sysbus_mmio_get_region(s, 0));
 
     /* PCI */
-    dev = qdev_create(NULL, "e500-pcihost");
+    dev = qdev_new("e500-pcihost");
     object_property_add_child(qdev_get_machine(), "pci-host", OBJECT(dev));
     qdev_prop_set_uint32(dev, "first_slot", pmc->pci_first_slot);
     qdev_prop_set_uint32(dev, "first_pin_irq", pci_irq_nrs[0]);
-    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     for (i = 0; i < PCI_NUM_PINS; i++) {
         sysbus_connect_irq(s, i, qdev_get_gpio_in(mpicdev, pci_irq_nrs[i]));
     }
@@ -985,9 +994,9 @@ void ppce500_init(MachineState *machine)
     if (pmc->has_mpc8xxx_gpio) {
         qemu_irq poweroff_irq;
 
-        dev = qdev_create(NULL, "mpc8xxx_gpio");
+        dev = qdev_new("mpc8xxx_gpio");
         s = SYS_BUS_DEVICE(dev);
-        qdev_init_nofail(dev);
+        sysbus_realize_and_unref(s, &error_fatal);
         sysbus_connect_irq(s, 0, qdev_get_gpio_in(mpicdev, MPC8XXX_GPIO_IRQ));
         memory_region_add_subregion(ccsr_addr_space, MPC8XXX_GPIO_OFFSET,
                                     sysbus_mmio_get_region(s, 0));
@@ -999,11 +1008,11 @@ void ppce500_init(MachineState *machine)
 
     /* Platform Bus Device */
     if (pmc->has_platform_bus) {
-        dev = qdev_create(NULL, TYPE_PLATFORM_BUS_DEVICE);
-        dev->id = TYPE_PLATFORM_BUS_DEVICE;
+        dev = qdev_new(TYPE_PLATFORM_BUS_DEVICE);
+        dev->id = g_strdup(TYPE_PLATFORM_BUS_DEVICE);
         qdev_prop_set_uint32(dev, "num_irqs", pmc->platform_bus_num_irqs);
         qdev_prop_set_uint32(dev, "mmio_size", pmc->platform_bus_size);
-        qdev_init_nofail(dev);
+        sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
         pms->pbus_dev = PLATFORM_BUS_DEVICE(dev);
 
         s = SYS_BUS_DEVICE(pms->pbus_dev);
@@ -1033,7 +1042,7 @@ void ppce500_init(MachineState *machine)
      * -kernel to users but allows them to run through u-boot as well.
      */
     kernel_as_payload = false;
-    if (bios_name == NULL) {
+    if (machine->firmware == NULL) {
         if (machine->kernel_filename) {
             payload_name = machine->kernel_filename;
             kernel_as_payload = true;
@@ -1041,7 +1050,7 @@ void ppce500_init(MachineState *machine)
             payload_name = "u-boot.e500";
         }
     } else {
-        payload_name = bios_name;
+        payload_name = machine->firmware;
     }
 
     filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, payload_name);

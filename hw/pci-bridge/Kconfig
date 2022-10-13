@@ -5,7 +5,7 @@ config PCIE_PORT
 
 config PXB
     bool
-    default y if Q35
+    default y if Q35 || ARM_VIRT
 
 config XIO3130
     bool
@@ -27,3 +27,8 @@ config DEC_PCI
 
 config SIMBA
     bool
+
+config CXL
+    bool
+    default y if PCI_EXPRESS && PXB
+    depends on PCI_EXPRESS && MSI_NONBROKEN && PXB

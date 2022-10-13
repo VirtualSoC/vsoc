@@ -17,8 +17,9 @@ int qemu_socket(int domain, int type, int protocol);
 int qemu_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
 int socket_set_cork(int fd, int v);
 int socket_set_nodelay(int fd);
-void qemu_set_block(int fd);
-void qemu_set_nonblock(int fd);
+void qemu_socket_set_block(int fd);
+int qemu_socket_try_set_nonblock(int fd);
+void qemu_socket_set_nonblock(int fd);
 int socket_set_fast_reuse(int fd);
 
 #ifdef WIN32
@@ -109,5 +110,16 @@ SocketAddress *socket_remote_address(int fd, Error **errp);
  * Returns: the argument converted to SocketAddress.
  */
 SocketAddress *socket_address_flatten(SocketAddressLegacy *addr);
+
+/**
+ * socket_address_parse_named_fd:
+ *
+ * Modify @addr, replacing a named fd by its corresponding number.
+ * Needed for callers that plan to pass @addr to a context where the
+ * current monitor is not available.
+ *
+ * Return 0 on success.
+ */
+int socket_address_parse_named_fd(SocketAddress *addr, Error **errp);
 
 #endif /* QEMU_SOCKETS_H */

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# group: rw auto quick
 #
 # Test case for ejecting BDSs with block jobs still running on them
 #
@@ -19,7 +20,7 @@
 #
 
 # creator
-owner=mreitz@redhat.com
+owner=hreitz@redhat.com
 
 seq="$(basename $0)"
 echo "QA output created by $seq"
@@ -89,8 +90,8 @@ test_blockjob()
 
 
 TEST_IMG="$TEST_DIR/b.$IMGFMT" _make_test_img 1M
-TEST_IMG="$TEST_DIR/m.$IMGFMT" _make_test_img -b "$TEST_DIR/b.$IMGFMT" 1M
-_make_test_img -b "$TEST_DIR/m.$IMGFMT" 1M
+TEST_IMG="$TEST_DIR/m.$IMGFMT" _make_test_img -b "$TEST_DIR/b.$IMGFMT" -F $IMGFMT 1M
+_make_test_img -b "$TEST_DIR/m.$IMGFMT" 1M -F $IMGFMT
 
 _launch_qemu -nodefaults
 

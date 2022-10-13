@@ -29,11 +29,12 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #include "cpu.h"
+#include "qapi/error.h"
 #include "qapi/visitor.h"
 #include "qemu/range.h"
 #include "hw/isa/isa.h"
-#include "hw/sysbus.h"
 #include "migration/vmstate.h"
 #include "hw/irq.h"
 #include "hw/isa/apm.h"
@@ -44,12 +45,12 @@
 #include "hw/acpi/ich9.h"
 #include "hw/pci/pci_bus.h"
 #include "hw/qdev-properties.h"
-#include "exec/address-spaces.h"
 #include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
 #include "hw/core/cpu.h"
 #include "hw/nvram/fw_cfg.h"
 #include "qemu/cutils.h"
+#include "hw/acpi/acpi_aml_interface.h"
 
 /*****************************************************************************/
 /* ICH9 LPC PCI to ISA bridge */
@@ -312,10 +313,12 @@ void ich9_generate_smi(void)
     cpu_interrupt(first_cpu, CPU_INTERRUPT_SMI);
 }
 
+/* Returns -1 on error, IRQ number on success */
 static int ich9_lpc_sci_irq(ICH9LPCState *lpc)
 {
-    switch (lpc->d.config[ICH9_LPC_ACPI_CTRL] &
-            ICH9_LPC_ACPI_CTRL_SCI_IRQ_SEL_MASK) {
+    uint8_t sel = lpc->d.config[ICH9_LPC_ACPI_CTRL] &
+                  ICH9_LPC_ACPI_CTRL_SCI_IRQ_SEL_MASK;
+    switch (sel) {
     case ICH9_LPC_ACPI_CTRL_9:
         return 9;
     case ICH9_LPC_ACPI_CTRL_10:
@@ -328,6 +331,8 @@ static int ich9_lpc_sci_irq(ICH9LPCState *lpc)
         return 21;
     default:
         /* reserved */
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "ICH9 LPC: SCI IRQ SEL #%u is reserved\n", sel);
         break;
     }
     return -1;
@@ -361,6 +366,7 @@ static void smi_features_ok_callback(void *opaque)
 {
     ICH9LPCState *lpc = opaque;
     uint64_t guest_features;
+    uint64_t guest_cpu_hotplug_features;
 
     if (lpc->smi_features_ok) {
         /* negotiation already complete, features locked */
@@ -371,6 +377,24 @@ static void smi_features_ok_callback(void *opaque)
     le64_to_cpus(&guest_features);
     if (guest_features & ~lpc->smi_host_features) {
         /* guest requests invalid features, leave @features_ok at zero */
+        return;
+    }
+
+    guest_cpu_hotplug_features = guest_features &
+                                 (BIT_ULL(ICH9_LPC_SMI_F_CPU_HOTPLUG_BIT) |
+                                  BIT_ULL(ICH9_LPC_SMI_F_CPU_HOT_UNPLUG_BIT));
+    if (!(guest_features & BIT_ULL(ICH9_LPC_SMI_F_BROADCAST_BIT)) &&
+        guest_cpu_hotplug_features) {
+        /*
+         * cpu hot-[un]plug with SMI requires SMI broadcast,
+         * leave @features_ok at zero
+         */
+        return;
+    }
+
+    if (guest_cpu_hotplug_features ==
+        BIT_ULL(ICH9_LPC_SMI_F_CPU_HOT_UNPLUG_BIT)) {
+        /* cpu hot-unplug is unsupported without cpu-hotplug */
         return;
     }
 
@@ -450,7 +474,7 @@ ich9_lpc_pmbase_sci_update(ICH9LPCState *lpc)
 {
     uint32_t pm_io_base = pci_get_long(lpc->d.config + ICH9_LPC_PMBASE);
     uint8_t acpi_cntl = pci_get_long(lpc->d.config + ICH9_LPC_ACPI_CTRL);
-    uint8_t new_gsi;
+    int new_gsi;
 
     if (acpi_cntl & ICH9_LPC_ACPI_CTRL_ACPI_EN) {
         pm_io_base &= ICH9_LPC_PMBASE_BASE_ADDRESS_MASK;
@@ -461,6 +485,9 @@ ich9_lpc_pmbase_sci_update(ICH9LPCState *lpc)
     ich9_pm_iospace_update(&lpc->pm, pm_io_base);
 
     new_gsi = ich9_lpc_sci_irq(lpc);
+    if (new_gsi == -1) {
+        return;
+    }
     if (lpc->sci_level && new_gsi != lpc->sci_gsi) {
         qemu_set_irq(lpc->pm.irq, 0);
         lpc->sci_gsi = new_gsi;
@@ -638,6 +665,9 @@ static void ich9_lpc_initfn(Object *obj)
                                   &acpi_enable_cmd, OBJ_PROP_FLAG_READ);
     object_property_add_uint8_ptr(OBJECT(lpc), ACPI_PM_PROP_ACPI_DISABLE_CMD,
                                   &acpi_disable_cmd, OBJ_PROP_FLAG_READ);
+    object_property_add_uint64_ptr(obj, ICH9_LPC_SMI_NEGOTIATED_FEAT_PROP,
+                                   &lpc->smi_negotiated_features,
+                                   OBJ_PROP_FLAG_READ);
 
     ich9_pm_add_properties(obj, &lpc->pm);
 }
@@ -647,6 +677,18 @@ static void ich9_lpc_realize(PCIDevice *d, Error **errp)
     ICH9LPCState *lpc = ICH9_LPC_DEVICE(d);
     DeviceState *dev = DEVICE(d);
     ISABus *isa_bus;
+
+    if ((lpc->smi_host_features & BIT_ULL(ICH9_LPC_SMI_F_CPU_HOT_UNPLUG_BIT)) &&
+        !(lpc->smi_host_features & BIT_ULL(ICH9_LPC_SMI_F_CPU_HOTPLUG_BIT))) {
+        /*
+         * smi_features_ok_callback() throws an error on this.
+         *
+         * So bail out here instead of advertizing the invalid
+         * configuration and get obscure firmware failures from that.
+         */
+        error_setg(errp, "cpu hot-unplug requires cpu hot-plug");
+        return;
+    }
 
     isa_bus = isa_bus_new(DEVICE(d), get_system_memory(), get_system_io(),
                           errp);
@@ -745,8 +787,13 @@ static const VMStateDescription vmstate_ich9_lpc = {
 
 static Property ich9_lpc_properties[] = {
     DEFINE_PROP_BOOL("noreboot", ICH9LPCState, pin_strap.spkr_hi, true),
+    DEFINE_PROP_BOOL("smm-compat", ICH9LPCState, pm.smm_compat, false),
     DEFINE_PROP_BIT64("x-smi-broadcast", ICH9LPCState, smi_host_features,
                       ICH9_LPC_SMI_F_BROADCAST_BIT, true),
+    DEFINE_PROP_BIT64("x-smi-cpu-hotplug", ICH9LPCState, smi_host_features,
+                      ICH9_LPC_SMI_F_CPU_HOTPLUG_BIT, true),
+    DEFINE_PROP_BIT64("x-smi-cpu-hotunplug", ICH9LPCState, smi_host_features,
+                      ICH9_LPC_SMI_F_CPU_HOT_UNPLUG_BIT, true),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -757,12 +804,28 @@ static void ich9_send_gpe(AcpiDeviceIf *adev, AcpiEventStatusBits ev)
     acpi_send_gpe_event(&s->pm.acpi_regs, s->pm.irq, ev);
 }
 
+static void build_ich9_isa_aml(AcpiDevAmlIf *adev, Aml *scope)
+{
+    BusChild *kid;
+    ICH9LPCState *s = ICH9_LPC_DEVICE(adev);
+    BusState *bus = BUS(s->isa_bus);
+
+    /* ICH9 PCI to ISA irq remapping */
+    aml_append(scope, aml_operation_region("PIRQ", AML_PCI_CONFIG,
+                                           aml_int(0x60), 0x0C));
+
+    QTAILQ_FOREACH(kid, &bus->children, sibling) {
+            call_dev_aml_func(DEVICE(kid->child), scope);
+    }
+}
+
 static void ich9_lpc_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
     HotplugHandlerClass *hc = HOTPLUG_HANDLER_CLASS(klass);
     AcpiDeviceIfClass *adevc = ACPI_DEVICE_IF_CLASS(klass);
+    AcpiDevAmlIfClass *amldevc = ACPI_DEV_AML_IF_CLASS(klass);
 
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
     dc->reset = ich9_lpc_reset;
@@ -787,18 +850,20 @@ static void ich9_lpc_class_init(ObjectClass *klass, void *data)
     adevc->ospm_status = ich9_pm_ospm_status;
     adevc->send_event = ich9_send_gpe;
     adevc->madt_cpu = pc_madt_cpu_entry;
+    amldevc->build_dev_aml = build_ich9_isa_aml;
 }
 
 static const TypeInfo ich9_lpc_info = {
     .name       = TYPE_ICH9_LPC_DEVICE,
     .parent     = TYPE_PCI_DEVICE,
-    .instance_size = sizeof(struct ICH9LPCState),
+    .instance_size = sizeof(ICH9LPCState),
     .instance_init = ich9_lpc_initfn,
     .class_init  = ich9_lpc_class_init,
     .interfaces = (InterfaceInfo[]) {
         { TYPE_HOTPLUG_HANDLER },
         { TYPE_ACPI_DEVICE_IF },
         { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { TYPE_ACPI_DEV_AML_IF },
         { }
     }
 };

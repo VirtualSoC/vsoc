@@ -22,6 +22,7 @@
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
 #include "migration/vmstate.h"
+#include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/module.h"
 #include "qemu/timer.h"
@@ -31,8 +32,10 @@
 #include "hw/arm/exynos4210.h"
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
+#include "hw/qdev-properties-system.h"
 
 #include "trace.h"
+#include "qom/object.h"
 
 /*
  *  Offsets for UART registers relative to SFR base address
@@ -137,10 +140,9 @@ typedef struct {
 } Exynos4210UartFIFO;
 
 #define TYPE_EXYNOS4210_UART "exynos4210.uart"
-#define EXYNOS4210_UART(obj) \
-    OBJECT_CHECK(Exynos4210UartState, (obj), TYPE_EXYNOS4210_UART)
+OBJECT_DECLARE_SIMPLE_TYPE(Exynos4210UartState, EXYNOS4210_UART)
 
-typedef struct Exynos4210UartState {
+struct Exynos4210UartState {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
@@ -158,7 +160,7 @@ typedef struct Exynos4210UartState {
 
     uint32_t channel;
 
-} Exynos4210UartState;
+};
 
 
 /* Used only for tracing */
@@ -517,6 +519,7 @@ static uint64_t exynos4210_uart_read(void *opaque, hwaddr offset,
             s->reg[I_(UTRSTAT)] &= ~UTRSTAT_Rx_BUFFER_DATA_READY;
             res = s->reg[I_(URXH)];
         }
+        qemu_chr_fe_accept_input(&s->chr);
         exynos4210_uart_update_dmabusy(s);
         trace_exynos_uart_read(s->channel, offset,
                                exynos4210_uart_regname(offset), res);
@@ -551,7 +554,11 @@ static int exynos4210_uart_can_receive(void *opaque)
 {
     Exynos4210UartState *s = (Exynos4210UartState *)opaque;
 
-    return fifo_empty_elements_number(&s->rx);
+    if (s->reg[I_(UFCON)] & UFCON_FIFO_ENABLE) {
+        return fifo_empty_elements_number(&s->rx);
+    } else {
+        return !(s->reg[I_(UTRSTAT)] & UTRSTAT_Rx_BUFFER_DATA_READY);
+    }
 }
 
 static void exynos4210_uart_receive(void *opaque, const uint8_t *buf, int size)
@@ -621,7 +628,6 @@ static const VMStateDescription vmstate_exynos4210_uart_fifo = {
     .name = "exynos4210.uart.fifo",
     .version_id = 1,
     .minimum_version_id = 1,
-    .post_load = exynos4210_uart_post_load,
     .fields = (VMStateField[]) {
         VMSTATE_UINT32(sp, Exynos4210UartFIFO),
         VMSTATE_UINT32(rp, Exynos4210UartFIFO),
@@ -634,6 +640,7 @@ static const VMStateDescription vmstate_exynos4210_uart = {
     .name = "exynos4210.uart",
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = exynos4210_uart_post_load,
     .fields = (VMStateField[]) {
         VMSTATE_STRUCT(rx, Exynos4210UartState, 1,
                        vmstate_exynos4210_uart_fifo, Exynos4210UartFIFO),
@@ -652,7 +659,7 @@ DeviceState *exynos4210_uart_create(hwaddr addr,
     DeviceState  *dev;
     SysBusDevice *bus;
 
-    dev = qdev_create(NULL, TYPE_EXYNOS4210_UART);
+    dev = qdev_new(TYPE_EXYNOS4210_UART);
 
     qdev_prop_set_chr(dev, "chardev", chr);
     qdev_prop_set_uint32(dev, "channel", channel);
@@ -660,7 +667,7 @@ DeviceState *exynos4210_uart_create(hwaddr addr,
     qdev_prop_set_uint32(dev, "tx-size", fifo_size);
 
     bus = SYS_BUS_DEVICE(dev);
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(bus, &error_fatal);
     if (addr != (hwaddr)-1) {
         sysbus_mmio_map(bus, 0, addr);
     }

@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,10 +17,10 @@
  */
 
 #include "qemu/osdep.h"
-#include "libqtest.h"
+#include "../libqtest.h"
 #include "qemu/module.h"
-#include "libqos/malloc.h"
-#include "libqos/qgraph.h"
+#include "malloc.h"
+#include "qgraph.h"
 #include "sdhci.h"
 
 #define ARM_PAGE_SIZE             4096

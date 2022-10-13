@@ -204,16 +204,12 @@ static int acpi_ghes_record_mem_error(uint64_t error_block_address,
 
     /* This is the length if adding a new generic error data entry*/
     data_length = ACPI_GHES_DATA_LENGTH + ACPI_GHES_MEM_CPER_LENGTH;
-
     /*
-     * Check whether it will run out of the preallocated memory if adding a new
-     * generic error data entry
+     * It should not run out of the preallocated memory if adding a new generic
+     * error data entry
      */
-    if ((data_length + ACPI_GHES_GESB_SIZE) > ACPI_GHES_MAX_RAW_DATA_LENGTH) {
-        error_report("Not enough memory to record new CPER!!!");
-        g_array_free(block, true);
-        return -1;
-    }
+    assert((data_length + ACPI_GHES_GESB_SIZE) <=
+            ACPI_GHES_MAX_RAW_DATA_LENGTH);
 
     /* Build the new generic error status block header */
     acpi_ghes_generic_error_status(block, ACPI_GEBS_UNCORRECTABLE,
@@ -253,7 +249,7 @@ void build_ghes_error_table(GArray *hardware_errors, BIOSLinker *linker)
     for (i = 0; i < ACPI_GHES_ERROR_SOURCE_COUNT; i++) {
         /*
          * Initialize the value of read_ack_register to 1, so GHES can be
-         * writeable after (re)boot.
+         * writable after (re)boot.
          * ACPI 6.2: 18.3.2.8 Generic Hardware Error Source version 2
          * (GHESv2 - Type 10)
          */
@@ -363,20 +359,19 @@ static void build_ghes_v2(GArray *table_data, int source_id, BIOSLinker *linker)
 }
 
 /* Build Hardware Error Source Table */
-void acpi_build_hest(GArray *table_data, BIOSLinker *linker)
+void acpi_build_hest(GArray *table_data, BIOSLinker *linker,
+                     const char *oem_id, const char *oem_table_id)
 {
-    uint64_t hest_start = table_data->len;
+    AcpiTable table = { .sig = "HEST", .rev = 1,
+                        .oem_id = oem_id, .oem_table_id = oem_table_id };
 
-    /* Hardware Error Source Table header*/
-    acpi_data_push(table_data, sizeof(AcpiTableHeader));
+    acpi_table_begin(&table, table_data);
 
     /* Error Source Count */
     build_append_int_noprefix(table_data, ACPI_GHES_ERROR_SOURCE_COUNT, 4);
-
     build_ghes_v2(table_data, ACPI_HEST_SRC_ID_SEA, linker);
 
-    build_header(linker, table_data, (void *)(table_data->data + hest_start),
-        "HEST", table_data->len - hest_start, 1, NULL, NULL);
+    acpi_table_end(linker, &table);
 }
 
 void acpi_ghes_add_fw_cfg(AcpiGhesState *ags, FWCfgState *s,
@@ -389,6 +384,8 @@ void acpi_ghes_add_fw_cfg(AcpiGhesState *ags, FWCfgState *s,
     /* Create a read-write fw_cfg file for Address */
     fw_cfg_add_file_callback(s, ACPI_GHES_DATA_ADDR_FW_CFG_FILE, NULL, NULL,
         NULL, &(ags->ghes_addr_le), sizeof(ags->ghes_addr_le), false);
+
+    ags->present = true;
 }
 
 int acpi_ghes_record_errors(uint8_t source_id, uint64_t physical_address)
@@ -445,4 +442,19 @@ int acpi_ghes_record_errors(uint8_t source_id, uint64_t physical_address)
     }
 
     return ret;
+}
+
+bool acpi_ghes_present(void)
+{
+    AcpiGedState *acpi_ged_state;
+    AcpiGhesState *ags;
+
+    acpi_ged_state = ACPI_GED(object_resolve_path_type("", TYPE_ACPI_GED,
+                                                       NULL));
+
+    if (!acpi_ged_state) {
+        return false;
+    }
+    ags = &acpi_ged_state->ghes_state;
+    return ags->present;
 }

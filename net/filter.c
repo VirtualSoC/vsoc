@@ -212,18 +212,6 @@ static void netfilter_init(Object *obj)
     nf->on = true;
     nf->insert_before_flag = false;
     nf->position = g_strdup("tail");
-
-    object_property_add_str(obj, "netdev",
-                            netfilter_get_netdev_id, netfilter_set_netdev_id);
-    object_property_add_enum(obj, "queue", "NetFilterDirection",
-                             &NetFilterDirection_lookup,
-                             netfilter_get_direction, netfilter_set_direction);
-    object_property_add_str(obj, "status",
-                            netfilter_get_status, netfilter_set_status);
-    object_property_add_str(obj, "position",
-                            netfilter_get_position, netfilter_set_position);
-    object_property_add_str(obj, "insert",
-                            netfilter_get_insert, netfilter_set_insert);
 }
 
 static void netfilter_complete(UserCreatable *uc, Error **errp)
@@ -338,7 +326,7 @@ static void default_handle_event(NetFilterState *nf, int event, Error **errp)
     case COLO_EVENT_CHECKPOINT:
         break;
     case COLO_EVENT_FAILOVER:
-        object_property_set_str(OBJECT(nf), "off", "status", errp);
+        object_property_set_str(OBJECT(nf), "status", "off", errp);
         break;
     default:
         break;
@@ -349,6 +337,18 @@ static void netfilter_class_init(ObjectClass *oc, void *data)
 {
     UserCreatableClass *ucc = USER_CREATABLE_CLASS(oc);
     NetFilterClass *nfc = NETFILTER_CLASS(oc);
+
+    object_class_property_add_str(oc, "netdev",
+                                  netfilter_get_netdev_id, netfilter_set_netdev_id);
+    object_class_property_add_enum(oc, "queue", "NetFilterDirection",
+                                   &NetFilterDirection_lookup,
+                                   netfilter_get_direction, netfilter_set_direction);
+    object_class_property_add_str(oc, "status",
+                                  netfilter_get_status, netfilter_set_status);
+    object_class_property_add_str(oc, "position",
+                                  netfilter_get_position, netfilter_set_position);
+    object_class_property_add_str(oc, "insert",
+                                  netfilter_get_insert, netfilter_set_insert);
 
     ucc->complete = netfilter_complete;
     nfc->handle_event = default_handle_event;

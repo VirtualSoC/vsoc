@@ -4,6 +4,7 @@
 #include "cpu-qom.h"
 #include "exec/cpu-defs.h"
 #include "fpu/softfloat-types.h"
+#include "hw/clock.h"
 #include "mips-defs.h"
 
 #define TCG_GUEST_DEFAULT_MO (0)
@@ -34,7 +35,7 @@ union fpr_t {
  *define FP_ENDIAN_IDX to access the same location
  * in the fpr_t union regardless of the host endianness
  */
-#if defined(HOST_WORDS_BIGENDIAN)
+#if HOST_BIG_ENDIAN
 #  define FP_ENDIAN_IDX 1
 #else
 #  define FP_ENDIAN_IDX 0
@@ -198,8 +199,8 @@ typedef struct mips_def_t mips_def_t;
  * 3   Config3                             WatchLo3          WatchHi
  * 4   Config4                             WatchLo4          WatchHi
  * 5   Config5                             WatchLo5          WatchHi
- * 6                                       WatchLo6          WatchHi
- * 7                                       WatchLo7          WatchHi
+ * 6   Config6                             WatchLo6          WatchHi
+ * 7   Config7                             WatchLo7          WatchHi
  *
  *
  *     Register 20       Register 21       Register 22       Register 23
@@ -459,6 +460,13 @@ typedef struct mips_def_t mips_def_t;
 typedef struct TCState TCState;
 struct TCState {
     target_ulong gpr[32];
+#if defined(TARGET_MIPS64)
+    /*
+     * For CPUs using 128-bit GPR registers, we put the lower halves in gpr[])
+     * and the upper halves in gpr_hi[].
+     */
+    uint64_t gpr_hi[32];
+#endif /* TARGET_MIPS64 */
     target_ulong PC;
     target_ulong HI[MIPS_DSP_ACC];
     target_ulong LO[MIPS_DSP_ACC];
@@ -504,9 +512,6 @@ struct TCState {
 
     float_status msa_fp_status;
 
-    /* Upper 64-bit MMRs (multimedia registers); the lower 64-bit are GPRs */
-    uint64_t mmr[32];
-
 #define NUMBER_OF_MXU_REGISTERS 16
     target_ulong mxu_gpr[NUMBER_OF_MXU_REGISTERS - 1];
     target_ulong mxu_cr;
@@ -519,8 +524,7 @@ struct TCState {
 };
 
 struct MIPSITUState;
-typedef struct CPUMIPSState CPUMIPSState;
-struct CPUMIPSState {
+typedef struct CPUArchState {
     TCState active_tc;
     CPUMIPSFPUContext active_fpu;
 
@@ -618,6 +622,7 @@ struct CPUMIPSState {
  * CP0 Register 5
  */
     int32_t CP0_PageMask;
+#define CP0PM_MASK 13
     int32_t CP0_PageGrain_rw_bitmask;
     int32_t CP0_PageGrain;
 #define CP0PG_RIE 31
@@ -826,7 +831,7 @@ struct CPUMIPSState {
 #define CP0EBase_WG 11
     target_ulong CP0_CMGCRBase;
 /*
- * CP0 Register 16
+ * CP0 Register 16 (after Release 1)
  */
     int32_t CP0_Config0;
 #define CP0C0_M    31
@@ -842,6 +847,15 @@ struct CPUMIPSState {
 #define CP0C0_MT   7     /*  9..7  */
 #define CP0C0_VI   3
 #define CP0C0_K0   0     /*  2..0  */
+#define CP0C0_AR_LENGTH 3
+/*
+ * CP0 Register 16 (before Release 1)
+ */
+#define CP0C0_Impl 16    /* 24..16 */
+#define CP0C0_IC   9     /* 11..9 */
+#define CP0C0_DC   6     /*  8..6 */
+#define CP0C0_IB   5
+#define CP0C0_DB   4
     int32_t CP0_Config1;
 #define CP0C1_M    31
 #define CP0C1_MMU  25    /* 30..25 */
@@ -940,7 +954,35 @@ struct CPUMIPSState {
 #define CP0C5_UFR          2
 #define CP0C5_NFExists     0
     int32_t CP0_Config6;
+    int32_t CP0_Config6_rw_bitmask;
+#define CP0C6_BPPASS          31
+#define CP0C6_KPOS            24
+#define CP0C6_KE              23
+#define CP0C6_VTLBONLY        22
+#define CP0C6_LASX            21
+#define CP0C6_SSEN            20
+#define CP0C6_DISDRTIME       19
+#define CP0C6_PIXNUEN         18
+#define CP0C6_SCRAND          17
+#define CP0C6_LLEXCEN         16
+#define CP0C6_DISVC           15
+#define CP0C6_VCLRU           14
+#define CP0C6_DCLRU           13
+#define CP0C6_PIXUEN          12
+#define CP0C6_DISBLKLYEN      11
+#define CP0C6_UMEMUALEN       10
+#define CP0C6_SFBEN           8
+#define CP0C6_FLTINT          7
+#define CP0C6_VLTINT          6
+#define CP0C6_DISBTB          5
+#define CP0C6_STPREFCTL       2
+#define CP0C6_INSTPREF        1
+#define CP0C6_DATAPREF        0
     int32_t CP0_Config7;
+    int64_t CP0_Config7_rw_bitmask;
+#define CP0C7_NAPCGEN       2
+#define CP0C7_UNIMUEN       1
+#define CP0C7_VFPUCGEN      0
     uint64_t CP0_LLAddr;
     uint64_t CP0_MAAR[MIPS_MAAR_MAX];
     int32_t CP0_MAARI;
@@ -963,6 +1005,7 @@ struct CPUMIPSState {
  */
     uint64_t CP0_WatchHi[8];
 #define CP0WH_ASID 16
+#define CP0WH_M    31
 /*
  * CP0 Register 20
  */
@@ -1034,7 +1077,7 @@ struct CPUMIPSState {
 #define EXCP_INST_NOTAVAIL 0x2 /* No valid instruction word for BadInstr */
     uint32_t hflags;    /* CPU State */
     /* TMASK defines different execution modes */
-#define MIPS_HFLAG_TMASK  0x1F5807FF
+#define MIPS_HFLAG_TMASK  0x3F5807FF
 #define MIPS_HFLAG_MODE   0x00007 /* execution modes                    */
     /*
      * The KSU flags must be the lowest bits in hflags. The flag order
@@ -1109,27 +1152,31 @@ struct CPUMIPSState {
     CPUMIPSMVPContext *mvp;
 #if !defined(CONFIG_USER_ONLY)
     CPUMIPSTLBContext *tlb;
+    void *irq[8];
+    struct MIPSITUState *itu;
+    MemoryRegion *itc_tag; /* ITC Configuration Tags */
 #endif
 
     const mips_def_t *cpu_model;
-    void *irq[8];
     QEMUTimer *timer; /* Internal timer */
-    struct MIPSITUState *itu;
-    MemoryRegion *itc_tag; /* ITC Configuration Tags */
     target_ulong exception_base; /* ExceptionBase input to the core */
-};
+    uint64_t cp0_count_ns; /* CP0_Count clock period (in nanoseconds) */
+} CPUMIPSState;
 
 /**
  * MIPSCPU:
  * @env: #CPUMIPSState
+ * @clock: this CPU input clock (may be connected
+ *         to an output clock from another device).
  *
  * A MIPS CPU.
  */
-struct MIPSCPU {
+struct ArchCPU {
     /*< private >*/
     CPUState parent_obj;
     /*< public >*/
 
+    Clock *clock;
     CPUNegativeOffsetState neg;
     CPUMIPSState env;
 };
@@ -1137,7 +1184,6 @@ struct MIPSCPU {
 
 void mips_cpu_list(void);
 
-#define cpu_signal_handler cpu_mips_signal_handler
 #define cpu_list mips_cpu_list
 
 extern void cpu_wrdsp(uint32_t rs, uint32_t mask_num, CPUMIPSState *env);
@@ -1163,26 +1209,7 @@ static inline int cpu_mmu_index(CPUMIPSState *env, bool ifetch)
     return hflags_mmu_index(env->hflags);
 }
 
-typedef CPUMIPSState CPUArchState;
-typedef MIPSCPU ArchCPU;
-
 #include "exec/cpu-all.h"
-
-/*
- * Memory access type :
- * may be needed for precise access rights control and precise exceptions.
- */
-enum {
-    /* 1 bit to define user level / supervisor access */
-    ACCESS_USER  = 0x00,
-    ACCESS_SUPER = 0x01,
-    /* 1 bit to indicate direction */
-    ACCESS_STORE = 0x02,
-    /* Type of instruction that generated the access */
-    ACCESS_CODE  = 0x10, /* Code fetch access                */
-    ACCESS_INT   = 0x20, /* Integer load/store access        */
-    ACCESS_FLOAT = 0x30, /* floating point load/store access */
-};
 
 /* Exceptions */
 enum {
@@ -1225,8 +1252,9 @@ enum {
     EXCP_MSAFPE,
     EXCP_TLBXI,
     EXCP_TLBRI,
+    EXCP_SEMIHOST,
 
-    EXCP_LAST = EXCP_TLBRI,
+    EXCP_LAST = EXCP_SEMIHOST,
 };
 
 /*
@@ -1237,21 +1265,52 @@ enum {
  */
 #define CPU_INTERRUPT_WAKE CPU_INTERRUPT_TGT_INT_0
 
-int cpu_mips_signal_handler(int host_signum, void *pinfo, void *puc);
-
 #define MIPS_CPU_TYPE_SUFFIX "-" TYPE_MIPS_CPU
 #define MIPS_CPU_TYPE_NAME(model) model MIPS_CPU_TYPE_SUFFIX
 #define CPU_RESOLVING_TYPE TYPE_MIPS_CPU
 
-bool cpu_supports_cps_smp(const char *cpu_type);
-bool cpu_supports_isa(const char *cpu_type, uint64_t isa);
+bool cpu_type_supports_cps_smp(const char *cpu_type);
+bool cpu_supports_isa(const CPUMIPSState *env, uint64_t isa_mask);
+bool cpu_type_supports_isa(const char *cpu_type, uint64_t isa);
+
+/* Check presence of MSA implementation */
+static inline bool ase_msa_available(CPUMIPSState *env)
+{
+    return env->CP0_Config3 & (1 << CP0C3_MSAP);
+}
+
+/* Check presence of multi-threading ASE implementation */
+static inline bool ase_mt_available(CPUMIPSState *env)
+{
+    return env->CP0_Config3 & (1 << CP0C3_MT);
+}
+
+static inline bool cpu_type_is_64bit(const char *cpu_type)
+{
+    return cpu_type_supports_isa(cpu_type, CPU_MIPS64);
+}
+
 void cpu_set_exception_base(int vp_index, target_ulong address);
+
+/* addr.c */
+uint64_t cpu_mips_kseg0_to_phys(void *opaque, uint64_t addr);
+uint64_t cpu_mips_phys_to_kseg0(void *opaque, uint64_t addr);
+
+uint64_t cpu_mips_kvm_um_phys_to_kseg0(void *opaque, uint64_t addr);
+uint64_t cpu_mips_kseg1_to_phys(void *opaque, uint64_t addr);
+uint64_t cpu_mips_phys_to_kseg1(void *opaque, uint64_t addr);
+bool mips_um_ksegs_enabled(void);
+void mips_um_ksegs_enable(void);
+
+#if !defined(CONFIG_USER_ONLY)
 
 /* mips_int.c */
 void cpu_mips_soft_irq(CPUMIPSState *env, int irq, int level);
 
 /* mips_itu.c */
 void itc_reconfigure(struct MIPSITUState *tag);
+
+#endif /* !CONFIG_USER_ONLY */
 
 /* helper.c */
 target_ulong exception_resume_pc(CPUMIPSState *env);
@@ -1264,5 +1323,17 @@ static inline void cpu_get_tb_cpu_state(CPUMIPSState *env, target_ulong *pc,
     *flags = env->hflags & (MIPS_HFLAG_TMASK | MIPS_HFLAG_BMASK |
                             MIPS_HFLAG_HWRENA_ULR);
 }
+
+/**
+ * mips_cpu_create_with_clock:
+ * @typename: a MIPS CPU type.
+ * @cpu_refclk: this cpu input clock (an output clock of another device)
+ *
+ * Instantiates a MIPS CPU, set the input clock of the CPU to @cpu_refclk,
+ * then realizes the CPU.
+ *
+ * Returns: A #CPUState or %NULL if an error occurred.
+ */
+MIPSCPU *mips_cpu_create_with_clock(const char *cpu_type, Clock *cpu_refclk);
 
 #endif /* MIPS_CPU_H */

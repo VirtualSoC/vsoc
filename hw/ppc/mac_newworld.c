@@ -47,7 +47,7 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
+#include "qemu/datadir.h"
 #include "qapi/error.h"
 #include "hw/ppc/ppc.h"
 #include "hw/qdev-properties.h"
@@ -57,7 +57,6 @@
 #include "hw/pci/pci.h"
 #include "net/net.h"
 #include "sysemu/sysemu.h"
-#include "hw/boards.h"
 #include "hw/nvram/fw_cfg.h"
 #include "hw/char/escc.h"
 #include "hw/misc/macio/macio.h"
@@ -70,7 +69,6 @@
 #include "sysemu/reset.h"
 #include "kvm_ppc.h"
 #include "hw/usb.h"
-#include "exec/address-spaces.h"
 #include "hw/sysbus.h"
 #include "trace.h"
 
@@ -82,6 +80,8 @@
 
 #define NDRV_VGA_FILENAME "qemu_vga.ndrv"
 
+#define PROM_BASE 0xfff00000
+#define PROM_SIZE (1 * MiB)
 
 static void fw_cfg_boot_set(void *opaque, const char *boot_device,
                             Error **errp)
@@ -100,17 +100,18 @@ static void ppc_core99_reset(void *opaque)
 
     cpu_reset(CPU(cpu));
     /* 970 CPUs want to get their initial IP as part of their boot protocol */
-    cpu->env.nip = PROM_ADDR + 0x100;
+    cpu->env.nip = PROM_BASE + 0x100;
 }
 
 /* PowerPC Mac99 hardware initialisation */
 static void ppc_core99_init(MachineState *machine)
 {
     ram_addr_t ram_size = machine->ram_size;
+    const char *bios_name = machine->firmware ?: PROM_FILENAME;
     const char *kernel_filename = machine->kernel_filename;
     const char *kernel_cmdline = machine->kernel_cmdline;
     const char *initrd_filename = machine->initrd_filename;
-    const char *boot_device = machine->boot_order;
+    const char *boot_device = machine->boot_config.order;
     Core99MachineState *core99_machine = CORE99_MACHINE(machine);
     PowerPCCPU *cpu = NULL;
     CPUPPCState *env = NULL;
@@ -122,7 +123,8 @@ static void ppc_core99_init(MachineState *machine)
     long kernel_size, initrd_size;
     UNINHostState *uninorth_pci;
     PCIBus *pci_bus;
-    NewWorldMacIOState *macio;
+    PCIDevice *macio;
+    ESCCState *escc;
     bool has_pmu, has_adb;
     MACIOIDEState *macio_ide;
     BusState *adb_bus;
@@ -134,6 +136,7 @@ static void ppc_core99_init(MachineState *machine)
     int machine_arch;
     SysBusDevice *s;
     DeviceState *dev, *pic_dev;
+    DeviceState *uninorth_internal_dev = NULL, *uninorth_agp_dev = NULL;
     hwaddr nvram_addr = 0xFFF04000;
     uint64_t tbfreq;
     unsigned int smp_cpus = machine->smp.cpus;
@@ -151,33 +154,37 @@ static void ppc_core99_init(MachineState *machine)
     }
 
     /* allocate RAM */
+    if (machine->ram_size > 2 * GiB) {
+        error_report("RAM size more than 2 GiB is not supported");
+        exit(1);
+    }
     memory_region_add_subregion(get_system_memory(), 0, machine->ram);
 
-    /* allocate and load BIOS */
-    memory_region_init_rom(bios, NULL, "ppc_core99.bios", BIOS_SIZE,
+    /* allocate and load firmware ROM */
+    memory_region_init_rom(bios, NULL, "ppc_core99.bios", PROM_SIZE,
                            &error_fatal);
+    memory_region_add_subregion(get_system_memory(), PROM_BASE, bios);
 
-    if (bios_name == NULL)
-        bios_name = PROM_FILENAME;
     filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
-    memory_region_add_subregion(get_system_memory(), PROM_ADDR, bios);
-
-    /* Load OpenBIOS (ELF) */
     if (filename) {
+        /* Load OpenBIOS (ELF) */
         bios_size = load_elf(filename, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, 1, PPC_ELF_MACHINE, 0, 0);
 
+        if (bios_size <= 0) {
+            /* or load binary ROM image */
+            bios_size = load_image_targphys(filename, PROM_BASE, PROM_SIZE);
+        }
         g_free(filename);
     } else {
         bios_size = -1;
     }
-    if (bios_size < 0 || bios_size > BIOS_SIZE) {
+    if (bios_size < 0 || bios_size > PROM_SIZE) {
         error_report("could not load PowerPC bios '%s'", bios_name);
         exit(1);
     }
 
     if (linux_boot) {
-        uint64_t lowaddr = 0;
         int bswap_needed;
 
 #ifdef BSWAP_NEEDED
@@ -188,9 +195,8 @@ static void ppc_core99_init(MachineState *machine)
         kernel_base = KERNEL_LOAD_ADDR;
 
         kernel_size = load_elf(kernel_filename, NULL,
-                               translate_kernel_address, NULL,
-                               NULL, &lowaddr, NULL, NULL, 1, PPC_ELF_MACHINE,
-                               0, 0);
+                               translate_kernel_address, NULL, NULL, NULL,
+                               NULL, NULL, 1, PPC_ELF_MACHINE, 0, 0);
         if (kernel_size < 0)
             kernel_size = load_aout(kernel_filename, kernel_base,
                                     ram_size - kernel_base, bswap_needed,
@@ -242,9 +248,9 @@ static void ppc_core99_init(MachineState *machine)
     }
 
     /* UniN init */
-    dev = qdev_create(NULL, TYPE_UNI_NORTH);
-    qdev_init_nofail(dev);
+    dev = qdev_new(TYPE_UNI_NORTH);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     memory_region_add_subregion(get_system_memory(), 0xf8000000,
                                 sysbus_mmio_get_region(s, 0));
 
@@ -256,30 +262,30 @@ static void ppc_core99_init(MachineState *machine)
         switch (PPC_INPUT(env)) {
         case PPC_FLAGS_INPUT_6xx:
             openpic_irqs[i].irq[OPENPIC_OUTPUT_INT] =
-                ((qemu_irq *)env->irq_inputs)[PPC6xx_INPUT_INT];
+                qdev_get_gpio_in(DEVICE(cpu), PPC6xx_INPUT_INT);
             openpic_irqs[i].irq[OPENPIC_OUTPUT_CINT] =
-                ((qemu_irq *)env->irq_inputs)[PPC6xx_INPUT_INT];
+                 qdev_get_gpio_in(DEVICE(cpu), PPC6xx_INPUT_INT);
             openpic_irqs[i].irq[OPENPIC_OUTPUT_MCK] =
-                ((qemu_irq *)env->irq_inputs)[PPC6xx_INPUT_MCP];
+                qdev_get_gpio_in(DEVICE(cpu), PPC6xx_INPUT_MCP);
             /* Not connected ? */
             openpic_irqs[i].irq[OPENPIC_OUTPUT_DEBUG] = NULL;
             /* Check this */
             openpic_irqs[i].irq[OPENPIC_OUTPUT_RESET] =
-                ((qemu_irq *)env->irq_inputs)[PPC6xx_INPUT_HRESET];
+                qdev_get_gpio_in(DEVICE(cpu), PPC6xx_INPUT_HRESET);
             break;
 #if defined(TARGET_PPC64)
         case PPC_FLAGS_INPUT_970:
             openpic_irqs[i].irq[OPENPIC_OUTPUT_INT] =
-                ((qemu_irq *)env->irq_inputs)[PPC970_INPUT_INT];
+                qdev_get_gpio_in(DEVICE(cpu), PPC970_INPUT_INT);
             openpic_irqs[i].irq[OPENPIC_OUTPUT_CINT] =
-                ((qemu_irq *)env->irq_inputs)[PPC970_INPUT_INT];
+                qdev_get_gpio_in(DEVICE(cpu), PPC970_INPUT_INT);
             openpic_irqs[i].irq[OPENPIC_OUTPUT_MCK] =
-                ((qemu_irq *)env->irq_inputs)[PPC970_INPUT_MCP];
+                qdev_get_gpio_in(DEVICE(cpu), PPC970_INPUT_MCP);
             /* Not connected ? */
             openpic_irqs[i].irq[OPENPIC_OUTPUT_DEBUG] = NULL;
             /* Check this */
             openpic_irqs[i].irq[OPENPIC_OUTPUT_RESET] =
-                ((qemu_irq *)env->irq_inputs)[PPC970_INPUT_HRESET];
+                qdev_get_gpio_in(DEVICE(cpu), PPC970_INPUT_HRESET);
             break;
 #endif /* defined(TARGET_PPC64) */
         default:
@@ -288,25 +294,11 @@ static void ppc_core99_init(MachineState *machine)
         }
     }
 
-    pic_dev = qdev_create(NULL, TYPE_OPENPIC);
-    qdev_prop_set_uint32(pic_dev, "model", OPENPIC_MODEL_KEYLARGO);
-    qdev_init_nofail(pic_dev);
-    s = SYS_BUS_DEVICE(pic_dev);
-    k = 0;
-    for (i = 0; i < smp_cpus; i++) {
-        for (j = 0; j < OPENPIC_OUTPUT_NB; j++) {
-            sysbus_connect_irq(s, k++, openpic_irqs[i].irq[j]);
-        }
-    }
-    g_free(openpic_irqs);
-
     if (PPC_INPUT(env) == PPC_FLAGS_INPUT_970) {
         /* 970 gets a U3 bus */
         /* Uninorth AGP bus */
-        dev = qdev_create(NULL, TYPE_U3_AGP_HOST_BRIDGE);
-        object_property_set_link(OBJECT(dev), OBJECT(pic_dev), "pic",
-                                 &error_abort);
-        qdev_init_nofail(dev);
+        dev = qdev_new(TYPE_U3_AGP_HOST_BRIDGE);
+        sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
         uninorth_pci = U3_AGP_HOST_BRIDGE(dev);
         s = SYS_BUS_DEVICE(dev);
         /* PCI hole */
@@ -322,29 +314,24 @@ static void ppc_core99_init(MachineState *machine)
     } else {
         /* Use values found on a real PowerMac */
         /* Uninorth AGP bus */
-        dev = qdev_create(NULL, TYPE_UNI_NORTH_AGP_HOST_BRIDGE);
-        object_property_set_link(OBJECT(dev), OBJECT(pic_dev), "pic",
-                                 &error_abort);
-        qdev_init_nofail(dev);
-        s = SYS_BUS_DEVICE(dev);
+        uninorth_agp_dev = qdev_new(TYPE_UNI_NORTH_AGP_HOST_BRIDGE);
+        s = SYS_BUS_DEVICE(uninorth_agp_dev);
+        sysbus_realize_and_unref(s, &error_fatal);
         sysbus_mmio_map(s, 0, 0xf0800000);
         sysbus_mmio_map(s, 1, 0xf0c00000);
 
         /* Uninorth internal bus */
-        dev = qdev_create(NULL, TYPE_UNI_NORTH_INTERNAL_PCI_HOST_BRIDGE);
-        object_property_set_link(OBJECT(dev), OBJECT(pic_dev), "pic",
-                                 &error_abort);
-        qdev_init_nofail(dev);
-        s = SYS_BUS_DEVICE(dev);
+        uninorth_internal_dev = qdev_new(
+                                TYPE_UNI_NORTH_INTERNAL_PCI_HOST_BRIDGE);
+        s = SYS_BUS_DEVICE(uninorth_internal_dev);
+        sysbus_realize_and_unref(s, &error_fatal);
         sysbus_mmio_map(s, 0, 0xf4800000);
         sysbus_mmio_map(s, 1, 0xf4c00000);
 
         /* Uninorth main bus */
-        dev = qdev_create(NULL, TYPE_UNI_NORTH_PCI_HOST_BRIDGE);
+        dev = qdev_new(TYPE_UNI_NORTH_PCI_HOST_BRIDGE);
         qdev_prop_set_uint32(dev, "ofw-addr", 0xf2000000);
-        object_property_set_link(OBJECT(dev), OBJECT(pic_dev), "pic",
-                                 &error_abort);
-        qdev_init_nofail(dev);
+        sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
         uninorth_pci = UNI_NORTH_PCI_HOST_BRIDGE(dev);
         s = SYS_BUS_DEVICE(dev);
         /* PCI hole */
@@ -375,14 +362,48 @@ static void ppc_core99_init(MachineState *machine)
     pci_bus = PCI_HOST_BRIDGE(uninorth_pci)->bus;
 
     /* MacIO */
-    macio = NEWWORLD_MACIO(pci_create(pci_bus, -1, TYPE_NEWWORLD_MACIO));
+    macio = pci_new(-1, TYPE_NEWWORLD_MACIO);
     dev = DEVICE(macio);
     qdev_prop_set_uint64(dev, "frequency", tbfreq);
     qdev_prop_set_bit(dev, "has-pmu", has_pmu);
     qdev_prop_set_bit(dev, "has-adb", has_adb);
-    object_property_set_link(OBJECT(macio), OBJECT(pic_dev), "pic",
-                             &error_abort);
-    qdev_init_nofail(dev);
+
+    escc = ESCC(object_resolve_path_component(OBJECT(macio), "escc"));
+    qdev_prop_set_chr(DEVICE(escc), "chrA", serial_hd(0));
+    qdev_prop_set_chr(DEVICE(escc), "chrB", serial_hd(1));
+
+    pci_realize_and_unref(macio, pci_bus, &error_fatal);
+
+    pic_dev = DEVICE(object_resolve_path_component(OBJECT(macio), "pic"));
+    for (i = 0; i < 4; i++) {
+        qdev_connect_gpio_out(DEVICE(uninorth_pci), i,
+                              qdev_get_gpio_in(pic_dev, 0x1b + i));
+    }
+
+    /* TODO: additional PCI buses only wired up for 32-bit machines */
+    if (PPC_INPUT(env) != PPC_FLAGS_INPUT_970) {
+        /* Uninorth AGP bus */
+        for (i = 0; i < 4; i++) {
+            qdev_connect_gpio_out(uninorth_agp_dev, i,
+                                  qdev_get_gpio_in(pic_dev, 0x1b + i));
+        }
+
+        /* Uninorth internal bus */
+        for (i = 0; i < 4; i++) {
+            qdev_connect_gpio_out(uninorth_internal_dev, i,
+                                  qdev_get_gpio_in(pic_dev, 0x1b + i));
+        }
+    }
+
+    /* OpenPIC */
+    s = SYS_BUS_DEVICE(pic_dev);
+    k = 0;
+    for (i = 0; i < smp_cpus; i++) {
+        for (j = 0; j < OPENPIC_OUTPUT_NB; j++) {
+            sysbus_connect_irq(s, k++, openpic_irqs[i].irq[j]);
+        }
+    }
+    g_free(openpic_irqs);
 
     /* We only emulate 2 out of 3 IDE controllers for now */
     ide_drive_get(hd, ARRAY_SIZE(hd));
@@ -403,13 +424,11 @@ static void ppc_core99_init(MachineState *machine)
         }
 
         adb_bus = qdev_get_child_bus(dev, "adb.0");
-        dev = qdev_create(adb_bus, TYPE_ADB_KEYBOARD);
-        qdev_prop_set_bit(dev, "disable-direct-reg3-writes", true);
-        qdev_init_nofail(dev);
+        dev = qdev_new(TYPE_ADB_KEYBOARD);
+        qdev_realize_and_unref(dev, adb_bus, &error_fatal);
 
-        dev = qdev_create(adb_bus, TYPE_ADB_MOUSE);
-        qdev_prop_set_bit(dev, "disable-direct-reg3-writes", true);
-        qdev_init_nofail(dev);
+        dev = qdev_new(TYPE_ADB_MOUSE);
+        qdev_realize_and_unref(dev, adb_bus, &error_fatal);
     }
 
     if (machine->usb) {
@@ -436,28 +455,28 @@ static void ppc_core99_init(MachineState *machine)
     }
 
     /* The NewWorld NVRAM is not located in the MacIO device */
-    if (kvm_enabled() && qemu_real_host_page_size > 4096) {
+    if (kvm_enabled() && qemu_real_host_page_size() > 4096) {
         /* We can't combine read-write and read-only in a single page, so
            move the NVRAM out of ROM again for KVM */
         nvram_addr = 0xFFE00000;
     }
-    dev = qdev_create(NULL, TYPE_MACIO_NVRAM);
+    dev = qdev_new(TYPE_MACIO_NVRAM);
     qdev_prop_set_uint32(dev, "size", 0x2000);
     qdev_prop_set_uint32(dev, "it_shift", 1);
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
     sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, nvram_addr);
     nvr = MACIO_NVRAM(dev);
     pmac_format_nvram_partition(nvr, 0x2000);
     /* No PCI init: the BIOS will do it */
 
-    dev = qdev_create(NULL, TYPE_FW_CFG_MEM);
+    dev = qdev_new(TYPE_FW_CFG_MEM);
     fw_cfg = FW_CFG(dev);
     qdev_prop_set_uint32(dev, "data_width", 1);
     qdev_prop_set_bit(dev, "dma_enabled", false);
     object_property_add_child(OBJECT(qdev_get_machine()), TYPE_FW_CFG,
                               OBJECT(fw_cfg));
-    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     sysbus_mmio_map(s, 0, CFG_ADDR);
     sysbus_mmio_map(s, 1, CFG_ADDR + 2);
 
@@ -521,8 +540,6 @@ static char *core99_fw_dev_path(FWPathProvider *p, BusState *bus,
                                 DeviceState *dev)
 {
     PCIDevice *pci;
-    IDEBus *ide_bus;
-    IDEState *ide_s;
     MACIOIDEState *macio_ide;
 
     if (!strcmp(object_get_typename(OBJECT(dev)), "macio-newworld")) {
@@ -533,17 +550,6 @@ static char *core99_fw_dev_path(FWPathProvider *p, BusState *bus,
     if (!strcmp(object_get_typename(OBJECT(dev)), "macio-ide")) {
         macio_ide = MACIO_IDE(dev);
         return g_strdup_printf("ata-3@%x", macio_ide->addr);
-    }
-
-    if (!strcmp(object_get_typename(OBJECT(dev)), "ide-drive")) {
-        ide_bus = IDE_BUS(qdev_get_parent_bus(dev));
-        ide_s = idebus_active_if(ide_bus);
-
-        if (ide_s->drive_kind == IDE_CD) {
-            return g_strdup("cdrom");
-        }
-
-        return g_strdup("disk");
     }
 
     if (!strcmp(object_get_typename(OBJECT(dev)), "ide-hd")) {
@@ -574,7 +580,8 @@ static void core99_machine_class_init(ObjectClass *oc, void *data)
     mc->desc = "Mac99 based PowerMAC";
     mc->init = ppc_core99_init;
     mc->block_default_type = IF_IDE;
-    mc->max_cpus = MAX_CPUS;
+    /* SMP is not supported currently */
+    mc->max_cpus = 1;
     mc->default_boot_order = "cd";
     mc->default_display = "std";
     mc->kvm_type = core99_kvm_type;

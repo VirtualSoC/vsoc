@@ -3,6 +3,7 @@
 
 #include "qemu/notify.h"
 #include "qapi/qapi-types-common.h"
+#include "qemu/uuid.h"
 #include "hw/boards.h"
 #include "hw/block/fdc.h"
 #include "hw/block/flash.h"
@@ -10,6 +11,10 @@
 
 #include "hw/acpi/acpi_dev_interface.h"
 #include "hw/hotplug.h"
+#include "qom/object.h"
+#include "hw/i386/sgx-epc.h"
+#include "hw/firmware/smbios.h"
+#include "hw/cxl/cxl.h"
 
 #define HPET_INTCAP "hpet-intcap"
 
@@ -17,9 +22,8 @@
  * PCMachineState:
  * @acpi_dev: link to ACPI PM device that performs ACPI hotplug handling
  * @boot_cpus: number of present VCPUs
- * @smp_dies: number of dies per one package
  */
-struct PCMachineState {
+typedef struct PCMachineState {
     /*< private >*/
     X86MachineState parent_obj;
 
@@ -29,33 +33,41 @@ struct PCMachineState {
     Notifier machine_done;
 
     /* Pointers to devices and objects: */
-    HotplugHandler *acpi_dev;
     PCIBus *bus;
     I2CBus *smbus;
     PFlashCFI01 *flash[2];
+    ISADevice *pcspk;
+    DeviceState *iommu;
 
     /* Configuration options: */
+    uint64_t max_ram_below_4g;
     OnOffAuto vmport;
+    SmbiosEntryPointType smbios_entry_point_type;
 
     bool acpi_build_enabled;
     bool smbus_enabled;
     bool sata_enabled;
-    bool pit_enabled;
-
-    /* NUMA information: */
-    uint64_t numa_nodes;
-    uint64_t *node_mem;
+    bool hpet_enabled;
+    bool i8042_enabled;
+    bool default_bus_bypass_iommu;
+    uint64_t max_fw_size;
 
     /* ACPI Memory hotplug IO base address */
     hwaddr memhp_io_base;
-};
+
+    SGXEPCState sgx_epc;
+    CXLState cxl_devices_state;
+} PCMachineState;
 
 #define PC_MACHINE_ACPI_DEVICE_PROP "acpi-device"
+#define PC_MACHINE_MAX_RAM_BELOW_4G "max-ram-below-4g"
 #define PC_MACHINE_DEVMEM_REGION_SIZE "device-memory-region-size"
 #define PC_MACHINE_VMPORT           "vmport"
 #define PC_MACHINE_SMBUS            "smbus"
 #define PC_MACHINE_SATA             "sata"
-#define PC_MACHINE_PIT              "pit"
+#define PC_MACHINE_I8042            "i8042"
+#define PC_MACHINE_MAX_FW_SIZE      "max-fw-size"
+#define PC_MACHINE_SMBIOS_EP        "smbios-entry-point-type"
 
 /**
  * PCMachineClass:
@@ -73,7 +85,7 @@ struct PCMachineState {
  *                  way we can use 1GByte pages in the host.
  *
  */
-typedef struct PCMachineClass {
+struct PCMachineClass {
     /*< private >*/
     X86MachineClass parent_class;
 
@@ -94,7 +106,7 @@ typedef struct PCMachineClass {
     bool rsdp_in_ram;
     int legacy_acpi_table_size;
     unsigned acpi_data_size;
-    bool do_not_add_smb_acpi;
+    int pci_root_uid;
 
     /* SMBIOS compat: */
     bool smbios_defaults;
@@ -106,24 +118,23 @@ typedef struct PCMachineClass {
     bool has_reserved_memory;
     bool enforce_aligned_dimm;
     bool broken_reserved_end;
+    bool enforce_amd_1tb_hole;
 
     /* generate legacy CPU hotplug AML */
     bool legacy_cpu_hotplug;
 
-    /* use DMA capable linuxboot option rom */
-    bool linuxboot_dma_enabled;
-
     /* use PVH to load kernels that support this feature */
     bool pvh_enabled;
-} PCMachineClass;
+
+    /* create kvmclock device even when KVM PV features are not exposed */
+    bool kvmclock_create_always;
+
+    /* skip passing an rng seed for legacy machines */
+    bool legacy_no_rng_seed;
+};
 
 #define TYPE_PC_MACHINE "generic-pc-machine"
-#define PC_MACHINE(obj) \
-    OBJECT_CHECK(PCMachineState, (obj), TYPE_PC_MACHINE)
-#define PC_MACHINE_GET_CLASS(obj) \
-    OBJECT_GET_CLASS(PCMachineClass, (obj), TYPE_PC_MACHINE)
-#define PC_MACHINE_CLASS(klass) \
-    OBJECT_CLASS_CHECK(PCMachineClass, (klass), TYPE_PC_MACHINE)
+OBJECT_DECLARE_TYPE(PCMachineState, PCMachineClass, PC_MACHINE)
 
 /* ioapic.c */
 
@@ -133,9 +144,6 @@ GSIState *pc_gsi_create(qemu_irq **irqs, bool pci_enabled);
 extern int fd_bootchk;
 
 void pc_acpi_smi_interrupt(void *opaque, int irq, int level);
-
-void pc_hot_add_cpu(MachineState *ms, const int64_t id, Error **errp);
-void pc_smp_parse(MachineState *ms, QemuOpts *opts);
 
 void pc_guest_info_init(PCMachineState *pcms);
 
@@ -155,28 +163,21 @@ void xen_load_linux(PCMachineState *pcms);
 void pc_memory_init(PCMachineState *pcms,
                     MemoryRegion *system_memory,
                     MemoryRegion *rom_memory,
-                    MemoryRegion **ram_memory);
+                    MemoryRegion **ram_memory,
+                    uint64_t pci_hole64_size);
 uint64_t pc_pci_hole64_start(void);
 DeviceState *pc_vga_init(ISABus *isa_bus, PCIBus *pci_bus);
-void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
+void pc_basic_device_init(struct PCMachineState *pcms,
+                          ISABus *isa_bus, qemu_irq *gsi,
                           ISADevice **rtc_state,
                           bool create_fdctrl,
-                          bool no_vmport,
-                          bool has_pit,
                           uint32_t hpet_irqs);
-void pc_init_ne2k_isa(ISABus *bus, NICInfo *nd);
 void pc_cmos_init(PCMachineState *pcms,
                   BusState *ide0, BusState *ide1,
                   ISADevice *s);
 void pc_nic_init(PCMachineClass *pcmc, ISABus *isa_bus, PCIBus *pci_bus);
-void pc_pci_device_init(PCIBus *pci_bus);
-
-typedef void (*cpu_set_smm_t)(int smm, void *arg);
 
 void pc_i8259_create(ISABus *isa_bus, qemu_irq *i8259_irqs);
-
-ISADevice *pc_find_fdc0(void);
-int cmos_get_fd_drive_type(FloppyDriveType fd0);
 
 /* port92.c */
 #define PORT92_A20_LINE "a20"
@@ -185,11 +186,37 @@ int cmos_get_fd_drive_type(FloppyDriveType fd0);
 
 /* pc_sysfw.c */
 void pc_system_flash_create(PCMachineState *pcms);
+void pc_system_flash_cleanup_unused(PCMachineState *pcms);
 void pc_system_firmware_init(PCMachineState *pcms, MemoryRegion *rom_memory);
+bool pc_system_ovmf_table_find(const char *entry, uint8_t **data,
+                               int *data_len);
+void pc_system_parse_ovmf_flash(uint8_t *flash_ptr, size_t flash_size);
 
-/* acpi-build.c */
+/* hw/i386/acpi-common.c */
 void pc_madt_cpu_entry(AcpiDeviceIf *adev, int uid,
-                       const CPUArchIdList *apic_ids, GArray *entry);
+                       const CPUArchIdList *apic_ids, GArray *entry,
+                       bool force_enabled);
+
+/* sgx.c */
+void pc_machine_init_sgx_epc(PCMachineState *pcms);
+
+extern GlobalProperty pc_compat_7_0[];
+extern const size_t pc_compat_7_0_len;
+
+extern GlobalProperty pc_compat_6_2[];
+extern const size_t pc_compat_6_2_len;
+
+extern GlobalProperty pc_compat_6_1[];
+extern const size_t pc_compat_6_1_len;
+
+extern GlobalProperty pc_compat_6_0[];
+extern const size_t pc_compat_6_0_len;
+
+extern GlobalProperty pc_compat_5_2[];
+extern const size_t pc_compat_5_2_len;
+
+extern GlobalProperty pc_compat_5_1[];
+extern const size_t pc_compat_5_1_len;
 
 extern GlobalProperty pc_compat_5_0[];
 extern const size_t pc_compat_5_0_len;
@@ -260,14 +287,6 @@ extern const size_t pc_compat_1_5_len;
 extern GlobalProperty pc_compat_1_4[];
 extern const size_t pc_compat_1_4_len;
 
-/* Helper for setting model-id for CPU models that changed model-id
- * depending on QEMU versions up to QEMU 2.4.
- */
-#define PC_CPU_MODEL_IDS(v) \
-    { "qemu32-" TYPE_X86_CPU, "model-id", "QEMU Virtual CPU version " v, },\
-    { "qemu64-" TYPE_X86_CPU, "model-id", "QEMU Virtual CPU version " v, },\
-    { "athlon-" TYPE_X86_CPU, "model-id", "QEMU Virtual CPU version " v, },
-
 #define DEFINE_PC_MACHINE(suffix, namestr, initfn, optsfn) \
     static void pc_machine_##suffix##_class_init(ObjectClass *oc, void *data) \
     { \
@@ -286,5 +305,4 @@ extern const size_t pc_compat_1_4_len;
     } \
     type_init(pc_machine_init_##suffix)
 
-extern void igd_passthrough_isa_bridge_create(PCIBus *bus, uint16_t gpu_dev_id);
 #endif

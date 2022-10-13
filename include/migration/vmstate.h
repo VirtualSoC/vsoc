@@ -43,7 +43,7 @@ struct VMStateInfo {
     const char *name;
     int (*get)(QEMUFile *f, void *pv, size_t size, const VMStateField *field);
     int (*put)(QEMUFile *f, void *pv, size_t size, const VMStateField *field,
-               QJSON *vmdesc);
+               JSONWriter *vmdesc);
 };
 
 enum VMStateFlags {
@@ -153,6 +153,7 @@ typedef enum {
     MIG_PRI_DEFAULT = 0,
     MIG_PRI_IOMMU,              /* Must happen before PCI devices */
     MIG_PRI_PCI_BUS,            /* Must happen before IOMMU */
+    MIG_PRI_VIRTIO_MEM,         /* Must happen before IOMMU */
     MIG_PRI_GICV3_ITS,          /* Must happen before PCI devices */
     MIG_PRI_GICV3,              /* Must happen before the ITS */
     MIG_PRI_MAX,
@@ -180,9 +181,7 @@ struct VMStateDescription {
     int unmigratable;
     int version_id;
     int minimum_version_id;
-    int minimum_version_id_old;
     MigrationPriority priority;
-    LoadStateHandler *load_state_old;
     int (*pre_load)(void *opaque);
     int (*post_load)(void *opaque, int version_id);
     int (*pre_save)(void *opaque);
@@ -193,8 +192,6 @@ struct VMStateDescription {
     const VMStateField *fields;
     const VMStateDescription **subsections;
 };
-
-extern const VMStateDescription vmstate_dummy;
 
 extern const VMStateInfo vmstate_info_bool;
 
@@ -219,7 +216,6 @@ extern const VMStateInfo vmstate_info_uint64;
 #define VMS_NULLPTR_MARKER (0x30U) /* '0' */
 extern const VMStateInfo vmstate_info_nullptr;
 
-extern const VMStateInfo vmstate_info_float64;
 extern const VMStateInfo vmstate_info_cpudouble;
 
 extern const VMStateInfo vmstate_info_timer;
@@ -429,6 +425,16 @@ extern const VMStateInfo vmstate_info_qlist;
     .info       = &(_info),                                          \
     .size       = sizeof(_type),                                     \
     .flags      = VMS_VARRAY_UINT32|VMS_POINTER|VMS_ALLOC,           \
+    .offset     = vmstate_offset_pointer(_state, _field, _type),     \
+}
+
+#define VMSTATE_VARRAY_UINT16_ALLOC(_field, _state, _field_num, _version, _info, _type) {\
+    .name       = (stringify(_field)),                               \
+    .version_id = (_version),                                        \
+    .num_offset = vmstate_offset_value(_state, _field_num, uint16_t),\
+    .info       = &(_info),                                          \
+    .size       = sizeof(_type),                                     \
+    .flags      = VMS_VARRAY_UINT16 | VMS_POINTER | VMS_ALLOC,       \
     .offset     = vmstate_offset_pointer(_state, _field, _type),     \
 }
 
@@ -987,12 +993,6 @@ extern const VMStateInfo vmstate_info_qlist;
     VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_info_uint64, uint64_t)
 
 
-#define VMSTATE_FLOAT64_V(_f, _s, _v)                                 \
-    VMSTATE_SINGLE(_f, _s, _v, vmstate_info_float64, float64)
-
-#define VMSTATE_FLOAT64(_f, _s)                                       \
-    VMSTATE_FLOAT64_V(_f, _s, 0)
-
 #define VMSTATE_TIMER_PTR_TEST(_f, _s, _test)                             \
     VMSTATE_POINTER_TEST(_f, _s, _test, vmstate_info_timer, QEMUTimer *)
 
@@ -1104,12 +1104,6 @@ extern const VMStateInfo vmstate_info_qlist;
 #define VMSTATE_INT64_ARRAY(_f, _s, _n)                               \
     VMSTATE_INT64_ARRAY_V(_f, _s, _n, 0)
 
-#define VMSTATE_FLOAT64_ARRAY_V(_f, _s, _n, _v)                       \
-    VMSTATE_ARRAY(_f, _s, _n, _v, vmstate_info_float64, float64)
-
-#define VMSTATE_FLOAT64_ARRAY(_f, _s, _n)                             \
-    VMSTATE_FLOAT64_ARRAY_V(_f, _s, _n, 0)
-
 #define VMSTATE_CPUDOUBLE_ARRAY_V(_f, _s, _n, _v)                     \
     VMSTATE_ARRAY(_f, _s, _n, _v, vmstate_info_cpudouble, CPU_DoubleU)
 
@@ -1172,9 +1166,10 @@ extern const VMStateInfo vmstate_info_qlist;
 int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                        void *opaque, int version_id);
 int vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
-                       void *opaque, QJSON *vmdesc);
+                       void *opaque, JSONWriter *vmdesc);
 int vmstate_save_state_v(QEMUFile *f, const VMStateDescription *vmsd,
-                         void *opaque, QJSON *vmdesc, int version_id);
+                         void *opaque, JSONWriter *vmdesc,
+                         int version_id);
 
 bool vmstate_save_needed(const VMStateDescription *vmsd, void *opaque);
 

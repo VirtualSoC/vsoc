@@ -23,24 +23,25 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qemu/cutils.h"
 #include "qemu/module.h"
 #include "qemu/bcd.h"
+#include "hw/acpi/acpi_aml_interface.h"
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
+#include "hw/qdev-properties-system.h"
 #include "qemu/timer.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/replay.h"
 #include "sysemu/reset.h"
 #include "sysemu/runstate.h"
+#include "sysemu/rtc.h"
 #include "hw/rtc/mc146818rtc.h"
 #include "hw/rtc/mc146818rtc_regs.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
-#include "qapi/qapi-events-misc-target.h"
+#include "qapi/qapi-events-misc.h"
 #include "qapi/visitor.h"
-#include "exec/address-spaces.h"
 #include "hw/rtc/mc146818rtc_regs.h"
 
 #ifdef TARGET_I386
@@ -72,6 +73,8 @@
 #define RTC_REINJECT_ON_ACK_COUNT 20
 #define RTC_CLOCK_RATE            32768
 #define UIP_HOLD_LENGTH           (8 * NANOSECONDS_PER_SECOND / 32768)
+
+#define RTC_ISA_BASE 0x70
 
 static void rtc_set_time(RTCState *s);
 static void rtc_update_time(RTCState *s);
@@ -610,12 +613,13 @@ static void rtc_get_time(RTCState *s, struct tm *tm)
 static void rtc_set_time(RTCState *s)
 {
     struct tm tm;
+    g_autofree const char *qom_path = object_get_canonical_path(OBJECT(s));
 
     rtc_get_time(s, &tm);
     s->base_rtc = mktimegm(&tm);
     s->last_update = qemu_clock_get_ns(rtc_clock);
 
-    qapi_event_send_rtc_change(qemu_timedate_diff(&tm));
+    qapi_event_send_rtc_change(qemu_timedate_diff(&tm), qom_path);
 }
 
 static void rtc_set_cmos(RTCState *s, const struct tm *tm)
@@ -870,22 +874,6 @@ static void rtc_notify_suspend(Notifier *notifier, void *data)
     rtc_set_memory(ISA_DEVICE(s), 0xF, 0xFE);
 }
 
-static void rtc_reset(void *opaque)
-{
-    RTCState *s = opaque;
-
-    s->cmos_data[RTC_REG_B] &= ~(REG_B_PIE | REG_B_AIE | REG_B_SQWE);
-    s->cmos_data[RTC_REG_C] &= ~(REG_C_UF | REG_C_IRQF | REG_C_PF | REG_C_AF);
-    check_update_timer(s);
-
-    qemu_irq_lower(s->irq);
-
-    if (s->lost_tick_policy == LOST_TICK_POLICY_SLEW) {
-        s->irq_coalesced = 0;
-        s->irq_reinject_on_ack_count = 0;
-    }
-}
-
 static const MemoryRegionOps cmos_ops = {
     .read = cmos_ioport_read,
     .write = cmos_ioport_write,
@@ -926,6 +914,11 @@ static void rtc_realizefn(DeviceState *dev, Error **errp)
         s->base_year = 0;
     }
 
+    if (s->isairq >= ISA_NUM_IRQS) {
+        error_setg(errp, "Maximum value for \"irq\" is: %u", ISA_NUM_IRQS - 1);
+        return;
+    }
+
     rtc_set_date_from_host(isadev);
 
     switch (s->lost_tick_policy) {
@@ -950,7 +943,7 @@ static void rtc_realizefn(DeviceState *dev, Error **errp)
     qemu_register_suspend_notifier(&s->suspend_notifier);
 
     memory_region_init_io(&s->io, OBJECT(s), &cmos_ops, s, "rtc", 2);
-    isa_register_ioport(isadev, &s->io, RTC_ISA_BASE);
+    isa_register_ioport(isadev, &s->io, s->io_base);
 
     /* register rtc 0x70 port for coalesced_pio */
     memory_region_set_flush_coalesced(&s->io);
@@ -959,8 +952,7 @@ static void rtc_realizefn(DeviceState *dev, Error **errp)
     memory_region_add_subregion(&s->io, 0, &s->coalesced_io);
     memory_region_add_coalescing(&s->coalesced_io, 0, 1);
 
-    qdev_set_legacy_instance_id(dev, RTC_ISA_BASE, 3);
-    qemu_register_reset(rtc_reset, s);
+    qdev_set_legacy_instance_id(dev, s->io_base, 3);
 
     object_property_add_tm(OBJECT(s), "date", rtc_get_date);
 
@@ -972,15 +964,17 @@ ISADevice *mc146818_rtc_init(ISABus *bus, int base_year, qemu_irq intercept_irq)
 {
     DeviceState *dev;
     ISADevice *isadev;
+    RTCState *s;
 
-    isadev = isa_create(bus, TYPE_MC146818_RTC);
+    isadev = isa_new(TYPE_MC146818_RTC);
     dev = DEVICE(isadev);
+    s = MC146818_RTC(isadev);
     qdev_prop_set_int32(dev, "base_year", base_year);
-    qdev_init_nofail(dev);
+    isa_realize_and_unref(isadev, bus, &error_fatal);
     if (intercept_irq) {
         qdev_connect_gpio_out(dev, 0, intercept_irq);
     } else {
-        isa_connect_gpio_out(isadev, 0, RTC_ISA_IRQ);
+        isa_connect_gpio_out(isadev, 0, s->isairq);
     }
 
     object_property_add_alias(qdev_get_machine(), "rtc-time", OBJECT(isadev),
@@ -991,30 +985,76 @@ ISADevice *mc146818_rtc_init(ISABus *bus, int base_year, qemu_irq intercept_irq)
 
 static Property mc146818rtc_properties[] = {
     DEFINE_PROP_INT32("base_year", RTCState, base_year, 1980),
+    DEFINE_PROP_UINT16("iobase", RTCState, io_base, RTC_ISA_BASE),
+    DEFINE_PROP_UINT8("irq", RTCState, isairq, RTC_ISA_IRQ),
     DEFINE_PROP_LOSTTICKPOLICY("lost_tick_policy", RTCState,
                                lost_tick_policy, LOST_TICK_POLICY_DISCARD),
     DEFINE_PROP_END_OF_LIST(),
 };
 
-static void rtc_resetdev(DeviceState *d)
+static void rtc_reset_enter(Object *obj, ResetType type)
 {
-    RTCState *s = MC146818_RTC(d);
+    RTCState *s = MC146818_RTC(obj);
 
     /* Reason: VM do suspend self will set 0xfe
      * Reset any values other than 0xfe(Guest suspend case) */
     if (s->cmos_data[0x0f] != 0xfe) {
         s->cmos_data[0x0f] = 0x00;
     }
+
+    s->cmos_data[RTC_REG_B] &= ~(REG_B_PIE | REG_B_AIE | REG_B_SQWE);
+    s->cmos_data[RTC_REG_C] &= ~(REG_C_UF | REG_C_IRQF | REG_C_PF | REG_C_AF);
+    check_update_timer(s);
+
+
+    if (s->lost_tick_policy == LOST_TICK_POLICY_SLEW) {
+        s->irq_coalesced = 0;
+        s->irq_reinject_on_ack_count = 0;
+    }
+}
+
+static void rtc_reset_hold(Object *obj)
+{
+    RTCState *s = MC146818_RTC(obj);
+
+    qemu_irq_lower(s->irq);
+}
+
+static void rtc_build_aml(AcpiDevAmlIf *adev, Aml *scope)
+{
+    RTCState *s = MC146818_RTC(adev);
+    Aml *dev;
+    Aml *crs;
+
+    /*
+     * Reserving 8 io ports here, following what physical hardware
+     * does, even though qemu only responds to the first two ports.
+     */
+    crs = aml_resource_template();
+    aml_append(crs, aml_io(AML_DECODE16, s->io_base, s->io_base,
+                           0x01, 0x08));
+    aml_append(crs, aml_irq_no_flags(s->isairq));
+
+    dev = aml_device("RTC");
+    aml_append(dev, aml_name_decl("_HID", aml_eisaid("PNP0B00")));
+    aml_append(dev, aml_name_decl("_CRS", crs));
+
+    aml_append(scope, dev);
 }
 
 static void rtc_class_initfn(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
+    AcpiDevAmlIfClass *adevc = ACPI_DEV_AML_IF_CLASS(klass);
 
     dc->realize = rtc_realizefn;
-    dc->reset = rtc_resetdev;
     dc->vmsd = &vmstate_rtc;
+    rc->phases.enter = rtc_reset_enter;
+    rc->phases.hold = rtc_reset_hold;
+    adevc->build_dev_aml = rtc_build_aml;
     device_class_set_props(dc, mc146818rtc_properties);
+    set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
 
 static const TypeInfo mc146818rtc_info = {
@@ -1022,6 +1062,10 @@ static const TypeInfo mc146818rtc_info = {
     .parent        = TYPE_ISA_DEVICE,
     .instance_size = sizeof(RTCState),
     .class_init    = rtc_class_initfn,
+    .interfaces = (InterfaceInfo[]) {
+        { TYPE_ACPI_DEV_AML_IF },
+        { },
+    },
 };
 
 static void mc146818rtc_register_types(void)

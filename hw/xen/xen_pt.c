@@ -58,14 +58,23 @@
 
 #include "hw/pci/pci.h"
 #include "hw/qdev-properties.h"
+#include "hw/qdev-properties-system.h"
 #include "hw/xen/xen.h"
-#include "hw/i386/pc.h"
 #include "hw/xen/xen-legacy-backend.h"
 #include "xen_pt.h"
 #include "qemu/range.h"
-#include "exec/address-spaces.h"
 
-bool has_igd_gfx_passthru;
+static bool has_igd_gfx_passthru;
+
+bool xen_igd_gfx_pt_enabled(void)
+{
+    return has_igd_gfx_passthru;
+}
+
+void xen_igd_gfx_pt_set(bool value, Error **errp)
+{
+    has_igd_gfx_passthru = value;
+}
 
 #define XEN_PT_NR_IRQS (256)
 static uint8_t xen_pt_mapped_machine_irq[XEN_PT_NR_IRQS] = {0};
@@ -479,7 +488,7 @@ static int xen_pt_register_regions(XenPCIPassthroughState *s, uint16_t *cmd)
         pci_register_bar(&s->dev, i, type, &s->bar[i]);
 
         XEN_PT_LOG(&s->dev, "IO region %i registered (size=0x%08"PRIx64
-                   " base_addr=0x%08"PRIx64" type: %#x)\n",
+                   " base_addr=0x%08"PRIx64" type: 0x%x)\n",
                    i, r->size, r->base_addr, type);
     }
 
@@ -568,7 +577,7 @@ static void xen_pt_check_bar_overlap(PCIBus *bus, PCIDevice *d, void *opaque)
         if (ranges_overlap(arg->addr, arg->size, r->addr, r->size)) {
             XEN_PT_WARN(&s->dev,
                         "Overlapped to device [%02x:%02x.%d] Region: %i"
-                        " (addr: %#"FMT_PCIBUS", len: %#"FMT_PCIBUS")\n",
+                        " (addr: 0x%"FMT_PCIBUS", len: 0x%"FMT_PCIBUS")\n",
                         pci_bus_num(bus), PCI_SLOT(d->devfn),
                         PCI_FUNC(d->devfn), i, r->addr, r->size);
             arg->rc = true;
@@ -605,11 +614,11 @@ static void xen_pt_region_update(XenPCIPassthroughState *s,
     }
 
     args.type = d->io_regions[bar].type;
-    pci_for_each_device(pci_get_bus(d), pci_dev_bus_num(d),
-                        xen_pt_check_bar_overlap, &args);
+    pci_for_each_device_under_bus(pci_get_bus(d),
+                                  xen_pt_check_bar_overlap, &args);
     if (args.rc) {
-        XEN_PT_WARN(d, "Region: %d (addr: %#"FMT_PCIBUS
-                    ", len: %#"FMT_PCIBUS") is overlapped.\n",
+        XEN_PT_WARN(d, "Region: %d (addr: 0x%"FMT_PCIBUS
+                    ", len: 0x%"FMT_PCIBUS") is overlapped.\n",
                     bar, sec->offset_within_address_space,
                     int128_get64(sec->size));
     }
@@ -679,27 +688,18 @@ static void xen_pt_io_region_del(MemoryListener *l, MemoryRegionSection *sec)
 }
 
 static const MemoryListener xen_pt_memory_listener = {
+    .name = "xen-pt-mem",
     .region_add = xen_pt_region_add,
     .region_del = xen_pt_region_del,
     .priority = 10,
 };
 
 static const MemoryListener xen_pt_io_listener = {
+    .name = "xen-pt-io",
     .region_add = xen_pt_io_region_add,
     .region_del = xen_pt_io_region_del,
     .priority = 10,
 };
-
-static void
-xen_igd_passthrough_isa_bridge_create(XenPCIPassthroughState *s,
-                                      XenHostPCIDevice *dev)
-{
-    uint16_t gpu_dev_id;
-    PCIDevice *d = &s->dev;
-
-    gpu_dev_id = dev->device_id;
-    igd_passthrough_isa_bridge_create(pci_get_bus(d), gpu_dev_id);
-}
 
 /* destroy. */
 static void xen_pt_destroy(PCIDevice *d) {
@@ -767,26 +767,25 @@ static void xen_pt_destroy(PCIDevice *d) {
 
 static void xen_pt_realize(PCIDevice *d, Error **errp)
 {
+    ERRP_GUARD();
     XenPCIPassthroughState *s = XEN_PT_DEVICE(d);
     int i, rc = 0;
     uint8_t machine_irq = 0, scratch;
     uint16_t cmd = 0;
     int pirq = XEN_PT_UNASSIGNED_PIRQ;
-    Error *err = NULL;
 
     /* register real device */
     XEN_PT_LOG(d, "Assigning real physical device %02x:%02x.%d"
-               " to devfn %#x\n",
+               " to devfn 0x%x\n",
                s->hostaddr.bus, s->hostaddr.slot, s->hostaddr.function,
                s->dev.devfn);
 
     xen_host_pci_device_get(&s->real_device,
                             s->hostaddr.domain, s->hostaddr.bus,
                             s->hostaddr.slot, s->hostaddr.function,
-                            &err);
-    if (err) {
-        error_append_hint(&err, "Failed to \"open\" the real pci device");
-        error_propagate(errp, err);
+                            errp);
+    if (*errp) {
+        error_append_hint(errp, "Failed to \"open\" the real pci device");
         return;
     }
 
@@ -813,11 +812,10 @@ static void xen_pt_realize(PCIDevice *d, Error **errp)
             return;
         }
 
-        xen_pt_setup_vga(s, &s->real_device, &err);
-        if (err) {
-            error_append_hint(&err, "Setup VGA BIOS of passthrough"
-                    " GFX failed");
-            error_propagate(errp, err);
+        xen_pt_setup_vga(s, &s->real_device, errp);
+        if (*errp) {
+            error_append_hint(errp, "Setup VGA BIOS of passthrough"
+                              " GFX failed");
             xen_host_pci_device_put(&s->real_device);
             return;
         }
@@ -830,10 +828,9 @@ static void xen_pt_realize(PCIDevice *d, Error **errp)
     xen_pt_register_regions(s, &cmd);
 
     /* reinitialize each config register to be emulated */
-    xen_pt_config_init(s, &err);
-    if (err) {
-        error_append_hint(&err, "PCI Config space initialisation failed");
-        error_propagate(errp, err);
+    xen_pt_config_init(s, errp);
+    if (*errp) {
+        error_append_hint(errp, "PCI Config space initialisation failed");
         rc = -1;
         goto err_out;
     }

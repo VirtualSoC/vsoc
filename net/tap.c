@@ -32,12 +32,12 @@
 #include <sys/socket.h>
 #include <net/if.h>
 
+#include "net/eth.h"
 #include "net/net.h"
 #include "clients.h"
 #include "monitor/monitor.h"
 #include "sysemu/sysemu.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "qemu/cutils.h"
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
@@ -189,6 +189,8 @@ static void tap_send(void *opaque)
 
     while (true) {
         uint8_t *buf = s->buf;
+        uint8_t min_pkt[ETH_ZLEN];
+        size_t min_pktsz = sizeof(min_pkt);
 
         size = tap_read_packet(s->fd, s->buf, sizeof(s->buf));
         if (size <= 0) {
@@ -198,6 +200,13 @@ static void tap_send(void *opaque)
         if (s->host_vnet_hdr_len && !s->using_vnet_hdr) {
             buf  += s->host_vnet_hdr_len;
             size -= s->host_vnet_hdr_len;
+        }
+
+        if (net_peer_needs_padding(&s->nc)) {
+            if (eth_pad_short_frame(min_pkt, &min_pktsz, buf, size)) {
+                buf = min_pkt;
+                size = min_pktsz;
+            }
         }
 
         size = qemu_send_packet_async(&s->nc, buf, size, tap_send_completed);
@@ -254,7 +263,8 @@ static void tap_set_vnet_hdr_len(NetClientState *nc, int len)
 
     assert(nc->info->type == NET_CLIENT_DRIVER_TAP);
     assert(len == sizeof(struct virtio_net_hdr_mrg_rxbuf) ||
-           len == sizeof(struct virtio_net_hdr));
+           len == sizeof(struct virtio_net_hdr) ||
+           len == sizeof(struct virtio_net_hdr_v1_hash));
 
     tap_fd_set_vnet_hdr_len(s->fd, len);
     s->host_vnet_hdr_len = len;
@@ -336,6 +346,14 @@ static void tap_poll(NetClientState *nc, bool enable)
     tap_write_poll(s, enable);
 }
 
+static bool tap_set_steering_ebpf(NetClientState *nc, int prog_fd)
+{
+    TAPState *s = DO_UPCAST(TAPState, nc, nc);
+    assert(nc->info->type == NET_CLIENT_DRIVER_TAP);
+
+    return tap_fd_set_steering_ebpf(s->fd, prog_fd) == 0;
+}
+
 int tap_get_fd(NetClientState *nc)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
@@ -361,6 +379,7 @@ static NetClientInfo net_tap_info = {
     .set_vnet_hdr_len = tap_set_vnet_hdr_len,
     .set_vnet_le = tap_set_vnet_le,
     .set_vnet_be = tap_set_vnet_be,
+    .set_steering_ebpf = tap_set_steering_ebpf,
 };
 
 static TAPState *net_tap_fd_init(NetClientState *peer,
@@ -477,6 +496,7 @@ static int net_bridge_run_helper(const char *helper, const char *bridge,
                                  Error **errp)
 {
     sigset_t oldmask, mask;
+    g_autofree char *default_helper = NULL;
     int pid, status;
     char *args[5];
     char **parg;
@@ -485,6 +505,10 @@ static int net_bridge_run_helper(const char *helper, const char *bridge,
     sigemptyset(&mask);
     sigaddset(&mask, SIGCHLD);
     sigprocmask(SIG_BLOCK, &mask, &oldmask);
+
+    if (!helper) {
+        helper = default_helper = get_relocated_path(DEFAULT_BRIDGE_HELPER);
+    }
 
     if (socketpair(PF_UNIX, SOCK_STREAM, 0, sv) == -1) {
         error_setg_errno(errp, errno, "socketpair() failed");
@@ -587,8 +611,7 @@ int net_init_bridge(const Netdev *netdev, const char *name,
 
     assert(netdev->type == NET_CLIENT_DRIVER_BRIDGE);
     bridge = &netdev->u.bridge;
-
-    helper = bridge->has_helper ? bridge->helper : DEFAULT_BRIDGE_HELPER;
+    helper = bridge->has_helper ? bridge->helper : NULL;
     br     = bridge->has_br     ? bridge->br     : DEFAULT_BRIDGE_INTERFACE;
 
     fd = net_bridge_run_helper(helper, br, errp);
@@ -596,8 +619,15 @@ int net_init_bridge(const Netdev *netdev, const char *name,
         return -1;
     }
 
-    qemu_set_nonblock(fd);
-    vnet_hdr = tap_probe_vnet_hdr(fd);
+    if (!g_unix_set_fd_nonblocking(fd, true, NULL)) {
+        error_setg_errno(errp, errno, "Failed to set FD nonblocking");
+        return -1;
+    }
+    vnet_hdr = tap_probe_vnet_hdr(fd, errp);
+    if (vnet_hdr < 0) {
+        close(fd);
+        return -1;
+    }
     s = net_tap_fd_init(peer, "bridge", name, fd, vnet_hdr);
 
     snprintf(s->nc.info_str, sizeof(s->nc.info_str), "helper=%s,br=%s", helper,
@@ -689,7 +719,7 @@ static void net_init_tap_one(const NetdevTapOptions *tap, NetClientState *peer,
         }
 
         if (vhostfdname) {
-            vhostfd = monitor_fd_param(cur_mon, vhostfdname, &err);
+            vhostfd = monitor_fd_param(monitor_cur(), vhostfdname, &err);
             if (vhostfd == -1) {
                 if (tap->has_vhostforce && tap->vhostforce) {
                     error_propagate(errp, err);
@@ -698,7 +728,11 @@ static void net_init_tap_one(const NetdevTapOptions *tap, NetClientState *peer,
                 }
                 return;
             }
-            qemu_set_nonblock(vhostfd);
+            if (!g_unix_set_fd_nonblocking(vhostfd, true, NULL)) {
+                error_setg_errno(errp, errno, "%s: Can't use file descriptor %d",
+                                 name, fd);
+                return;
+            }
         } else {
             vhostfd = open("/dev/vhost-net", O_RDWR);
             if (vhostfd < 0) {
@@ -711,9 +745,13 @@ static void net_init_tap_one(const NetdevTapOptions *tap, NetClientState *peer,
                 }
                 return;
             }
-            qemu_set_nonblock(vhostfd);
+            if (!g_unix_set_fd_nonblocking(vhostfd, true, NULL)) {
+                error_setg_errno(errp, errno, "Failed to set FD nonblocking");
+                return;
+            }
         }
         options.opaque = (void *)(uintptr_t)vhostfd;
+        options.nvqs = 2;
 
         s->vhost_net = vhost_net_init(&options);
         if (!s->vhost_net) {
@@ -761,16 +799,19 @@ int net_init_tap(const Netdev *netdev, const char *name,
     const NetdevTapOptions *tap;
     int fd, vnet_hdr = 0, i = 0, queues;
     /* for the no-fd, no-helper case */
-    const char *script = NULL; /* suppress wrong "uninit'd use" gcc warning */
-    const char *downscript = NULL;
+    const char *script;
+    const char *downscript;
     Error *err = NULL;
     const char *vhostfdname;
     char ifname[128];
+    int ret = 0;
 
     assert(netdev->type == NET_CLIENT_DRIVER_TAP);
     tap = &netdev->u.tap;
     queues = tap->has_queues ? tap->queues : 1;
     vhostfdname = tap->has_vhostfd ? tap->vhostfd : NULL;
+    script = tap->has_script ? tap->script : NULL;
+    downscript = tap->has_downscript ? tap->downscript : NULL;
 
     /* QEMU hubs do not support multiqueue tap, in this case peer is set.
      * For -netdev, peer is always NULL. */
@@ -789,28 +830,36 @@ int net_init_tap(const Netdev *netdev, const char *name,
             return -1;
         }
 
-        fd = monitor_fd_param(cur_mon, tap->fd, &err);
+        fd = monitor_fd_param(monitor_cur(), tap->fd, errp);
         if (fd == -1) {
-            error_propagate(errp, err);
             return -1;
         }
 
-        qemu_set_nonblock(fd);
+        if (!g_unix_set_fd_nonblocking(fd, true, NULL)) {
+            error_setg_errno(errp, errno, "%s: Can't use file descriptor %d",
+                             name, fd);
+            close(fd);
+            return -1;
+        }
 
-        vnet_hdr = tap_probe_vnet_hdr(fd);
+        vnet_hdr = tap_probe_vnet_hdr(fd, errp);
+        if (vnet_hdr < 0) {
+            close(fd);
+            return -1;
+        }
 
         net_init_tap_one(tap, peer, "tap", name, NULL,
                          script, downscript,
                          vhostfdname, vnet_hdr, fd, &err);
         if (err) {
             error_propagate(errp, err);
+            close(fd);
             return -1;
         }
     } else if (tap->has_fds) {
         char **fds;
         char **vhost_fds;
         int nfds = 0, nvhosts = 0;
-        int ret = 0;
 
         if (tap->has_ifname || tap->has_script || tap->has_downscript ||
             tap->has_vnet_hdr || tap->has_helper || tap->has_queues ||
@@ -836,18 +885,26 @@ int net_init_tap(const Netdev *netdev, const char *name,
         }
 
         for (i = 0; i < nfds; i++) {
-            fd = monitor_fd_param(cur_mon, fds[i], &err);
+            fd = monitor_fd_param(monitor_cur(), fds[i], errp);
             if (fd == -1) {
-                error_propagate(errp, err);
                 ret = -1;
                 goto free_fail;
             }
 
-            qemu_set_nonblock(fd);
+            ret = g_unix_set_fd_nonblocking(fd, true, NULL);
+            if (!ret) {
+                error_setg_errno(errp, errno, "%s: Can't use file descriptor %d",
+                                 name, fd);
+                goto free_fail;
+            }
 
             if (i == 0) {
-                vnet_hdr = tap_probe_vnet_hdr(fd);
-            } else if (vnet_hdr != tap_probe_vnet_hdr(fd)) {
+                vnet_hdr = tap_probe_vnet_hdr(fd, errp);
+                if (vnet_hdr < 0) {
+                    ret = -1;
+                    goto free_fail;
+                }
+            } else if (vnet_hdr != tap_probe_vnet_hdr(fd, NULL)) {
                 error_setg(errp,
                            "vnet_hdr not consistent across given tap fds");
                 ret = -1;
@@ -891,8 +948,15 @@ free_fail:
             return -1;
         }
 
-        qemu_set_nonblock(fd);
-        vnet_hdr = tap_probe_vnet_hdr(fd);
+        if (!g_unix_set_fd_nonblocking(fd, true, NULL)) {
+            error_setg_errno(errp, errno, "Failed to set FD nonblocking");
+            return -1;
+        }
+        vnet_hdr = tap_probe_vnet_hdr(fd, errp);
+        if (vnet_hdr < 0) {
+            close(fd);
+            return -1;
+        }
 
         net_init_tap_one(tap, peer, "bridge", name, ifname,
                          script, downscript, vhostfdname,
@@ -903,13 +967,20 @@ free_fail:
             return -1;
         }
     } else {
+        g_autofree char *default_script = NULL;
+        g_autofree char *default_downscript = NULL;
         if (tap->has_vhostfds) {
             error_setg(errp, "vhostfds= is invalid if fds= wasn't specified");
             return -1;
         }
-        script = tap->has_script ? tap->script : DEFAULT_NETWORK_SCRIPT;
-        downscript = tap->has_downscript ? tap->downscript :
-            DEFAULT_NETWORK_DOWN_SCRIPT;
+
+        if (!script) {
+            script = default_script = get_relocated_path(DEFAULT_NETWORK_SCRIPT);
+        }
+        if (!downscript) {
+            downscript = default_downscript =
+                                 get_relocated_path(DEFAULT_NETWORK_DOWN_SCRIPT);
+        }
 
         if (tap->has_ifname) {
             pstrcpy(ifname, sizeof ifname, tap->ifname);

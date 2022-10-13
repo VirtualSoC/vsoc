@@ -23,6 +23,7 @@
 #include "qemu/cutils.h"
 #include "hw/pci/pci.h"
 #include "hw/qdev-properties.h"
+#include "hw/qdev-properties-system.h"
 #include "hw/pci/msi.h"
 #include "hw/pci/msix.h"
 #include "sysemu/kvm.h"
@@ -34,10 +35,10 @@
 #include "qom/object_interfaces.h"
 #include "chardev/char-fe.h"
 #include "sysemu/hostmem.h"
-#include "sysemu/qtest.h"
 #include "qapi/visitor.h"
 
 #include "hw/misc/ivshmem.h"
+#include "qom/object.h"
 
 #define PCI_VENDOR_ID_IVSHMEM   PCI_VENDOR_ID_REDHAT_QUMRANET
 #define PCI_DEVICE_ID_IVSHMEM   0x1110
@@ -57,20 +58,21 @@
     } while (0)
 
 #define TYPE_IVSHMEM_COMMON "ivshmem-common"
-#define IVSHMEM_COMMON(obj) \
-    OBJECT_CHECK(IVShmemState, (obj), TYPE_IVSHMEM_COMMON)
+typedef struct IVShmemState IVShmemState;
+DECLARE_INSTANCE_CHECKER(IVShmemState, IVSHMEM_COMMON,
+                         TYPE_IVSHMEM_COMMON)
 
 #define TYPE_IVSHMEM_PLAIN "ivshmem-plain"
-#define IVSHMEM_PLAIN(obj) \
-    OBJECT_CHECK(IVShmemState, (obj), TYPE_IVSHMEM_PLAIN)
+DECLARE_INSTANCE_CHECKER(IVShmemState, IVSHMEM_PLAIN,
+                         TYPE_IVSHMEM_PLAIN)
 
 #define TYPE_IVSHMEM_DOORBELL "ivshmem-doorbell"
-#define IVSHMEM_DOORBELL(obj) \
-    OBJECT_CHECK(IVShmemState, (obj), TYPE_IVSHMEM_DOORBELL)
+DECLARE_INSTANCE_CHECKER(IVShmemState, IVSHMEM_DOORBELL,
+                         TYPE_IVSHMEM_DOORBELL)
 
 #define TYPE_IVSHMEM "ivshmem"
-#define IVSHMEM(obj) \
-    OBJECT_CHECK(IVShmemState, (obj), TYPE_IVSHMEM)
+DECLARE_INSTANCE_CHECKER(IVShmemState, IVSHMEM,
+                         TYPE_IVSHMEM)
 
 typedef struct Peer {
     int nb_eventfds;
@@ -83,7 +85,7 @@ typedef struct MSIVector {
     bool unmasked;
 } MSIVector;
 
-typedef struct IVShmemState {
+struct IVShmemState {
     /*< private >*/
     PCIDevice parent_obj;
     /*< public >*/
@@ -115,7 +117,7 @@ typedef struct IVShmemState {
     /* migration stuff */
     OnOffAuto master;
     Error *migration_blocker;
-} IVShmemState;
+};
 
 /* registers for the Inter-VM shared memory device */
 enum ivshmem_registers {
@@ -241,7 +243,7 @@ static uint64_t ivshmem_io_read(void *opaque, hwaddr addr,
 static const MemoryRegionOps ivshmem_mmio_ops = {
     .read = ivshmem_io_read,
     .write = ivshmem_io_write,
-    .endianness = DEVICE_NATIVE_ENDIAN,
+    .endianness = DEVICE_LITTLE_ENDIAN,
     .impl = {
         .min_access_size = 4,
         .max_access_size = 4,
@@ -409,7 +411,7 @@ static void resize_peers(IVShmemState *s, int nb_peers)
     assert(nb_peers > old_nb_peers);
     IVSHMEM_DPRINTF("bumping storage to %d peers\n", nb_peers);
 
-    s->peers = g_realloc(s->peers, nb_peers * sizeof(Peer));
+    s->peers = g_renew(Peer, s->peers, nb_peers);
     s->nb_peers = nb_peers;
 
     for (i = old_nb_peers; i < nb_peers; i++) {
@@ -422,16 +424,19 @@ static void ivshmem_add_kvm_msi_virq(IVShmemState *s, int vector,
                                      Error **errp)
 {
     PCIDevice *pdev = PCI_DEVICE(s);
+    KVMRouteChange c;
     int ret;
 
     IVSHMEM_DPRINTF("ivshmem_add_kvm_msi_virq vector:%d\n", vector);
     assert(!s->msi_vectors[vector].pdev);
 
-    ret = kvm_irqchip_add_msi_route(kvm_state, vector, pdev);
+    c = kvm_irqchip_begin_route_changes(kvm_state);
+    ret = kvm_irqchip_add_msi_route(&c, vector, pdev);
     if (ret < 0) {
         error_setg(errp, "kvm_irqchip_add_msi_route failed");
         return;
     }
+    kvm_irqchip_commit_route_changes(&c);
 
     s->msi_vectors[vector].virq = ret;
     s->msi_vectors[vector].pdev = pdev;
@@ -491,8 +496,8 @@ static void process_msg_shmem(IVShmemState *s, int fd, Error **errp)
     size = buf.st_size;
 
     /* mmap the region and map into the BAR2 */
-    memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s),
-                                   "ivshmem.bar2", size, true, fd, &local_err);
+    memory_region_init_ram_from_fd(&s->server_bar2, OBJECT(s), "ivshmem.bar2",
+                                   size, RAM_SHARED, fd, 0, &local_err);
     if (local_err) {
         error_propagate(errp, local_err);
         return;
@@ -532,7 +537,7 @@ static void process_msg_connect(IVShmemState *s, uint16_t posn, int fd,
 
     IVSHMEM_DPRINTF("eventfds[%d][%d] = %d\n", posn, vector, fd);
     event_notifier_init_fd(&peer->eventfds[vector], fd);
-    fcntl_setfl(fd, O_NONBLOCK); /* msix/irqfd poll non block */
+    g_unix_set_fd_nonblocking(fd, true, NULL); /* msix/irqfd poll non block */
 
     if (posn == s->vm_id) {
         setup_interrupt(s, vector, errp);
@@ -726,7 +731,7 @@ static void ivshmem_reset(DeviceState *d)
 static int ivshmem_setup_interrupts(IVShmemState *s, Error **errp)
 {
     /* allocate QEMU callback data for receiving interrupts */
-    s->msi_vectors = g_malloc0(s->vectors * sizeof(MSIVector));
+    s->msi_vectors = g_new0(MSIVector, s->vectors);
 
     if (ivshmem_has_feature(s, IVSHMEM_MSI)) {
         if (msix_init_exclusive_bar(PCI_DEVICE(s), s->vectors, 1, errp)) {
@@ -898,9 +903,7 @@ static void ivshmem_common_realize(PCIDevice *dev, Error **errp)
     if (!ivshmem_is_master(s)) {
         error_setg(&s->migration_blocker,
                    "Migration is disabled when using feature 'peer mode' in device 'ivshmem'");
-        migrate_add_blocker(s->migration_blocker, &err);
-        if (err) {
-            error_propagate(errp, err);
+        if (migrate_add_blocker(s->migration_blocker, errp) < 0) {
             error_free(s->migration_blocker);
             return;
         }
@@ -1039,9 +1042,8 @@ static void ivshmem_plain_realize(PCIDevice *dev, Error **errp)
         error_setg(errp, "You must specify a 'memdev'");
         return;
     } else if (host_memory_backend_is_mapped(s->hostmem)) {
-        char *path = object_get_canonical_path_component(OBJECT(s->hostmem));
-        error_setg(errp, "can't use already busy memdev: %s", path);
-        g_free(path);
+        error_setg(errp, "can't use already busy memdev: %s",
+                   object_get_canonical_path_component(OBJECT(s->hostmem)));
         return;
     }
 

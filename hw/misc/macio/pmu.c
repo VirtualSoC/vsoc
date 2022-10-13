@@ -29,7 +29,6 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "hw/ppc/mac.h"
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
@@ -38,8 +37,11 @@
 #include "hw/misc/mos6522.h"
 #include "hw/misc/macio/gpio.h"
 #include "hw/misc/macio/pmu.h"
+#include "qapi/error.h"
 #include "qemu/timer.h"
 #include "sysemu/runstate.h"
+#include "sysemu/rtc.h"
+#include "qapi/error.h"
 #include "qemu/cutils.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
@@ -55,27 +57,14 @@
 
 #define VIA_TIMER_FREQ (4700000 / 6)
 
-static void via_update_irq(PMUState *s)
-{
-    MOS6522PMUState *mps = MOS6522_PMU(&s->mos6522_pmu);
-    MOS6522State *ms = MOS6522(mps);
-
-    bool new_state = !!(ms->ifr & ms->ier & (SR_INT | T1_INT | T2_INT));
-
-    if (new_state != s->via_irq_state) {
-        s->via_irq_state = new_state;
-        qemu_set_irq(s->via_irq, new_state);
-    }
-}
-
 static void via_set_sr_int(void *opaque)
 {
     PMUState *s = opaque;
     MOS6522PMUState *mps = MOS6522_PMU(&s->mos6522_pmu);
     MOS6522State *ms = MOS6522(mps);
-    MOS6522DeviceClass *mdc = MOS6522_DEVICE_GET_CLASS(ms);
+    qemu_irq irq = qdev_get_gpio_in(DEVICE(ms), SR_INT_BIT);
 
-    mdc->set_sr_int(ms);
+    qemu_set_irq(irq, 1);
 }
 
 static void pmu_update_extirq(PMUState *s)
@@ -90,10 +79,11 @@ static void pmu_update_extirq(PMUState *s)
 static void pmu_adb_poll(void *opaque)
 {
     PMUState *s = opaque;
+    ADBBusState *adb_bus = &s->adb_bus;
     int olen;
 
     if (!(s->intbits & PMU_INT_ADB)) {
-        olen = adb_poll(&s->adb_bus, s->adb_reply, s->adb_poll_mask);
+        olen = adb_poll(adb_bus, s->adb_reply, adb_bus->autopoll_mask);
         trace_pmu_adb_poll(olen);
 
         if (olen > 0) {
@@ -102,9 +92,6 @@ static void pmu_adb_poll(void *opaque)
             pmu_update_extirq(s);
         }
     }
-
-    timer_mod(s->adb_poll_timer,
-              qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 30);
 }
 
 static void pmu_one_sec_timer(void *opaque)
@@ -171,18 +158,15 @@ static void pmu_cmd_set_int_mask(PMUState *s,
 
 static void pmu_cmd_set_adb_autopoll(PMUState *s, uint16_t mask)
 {
+    ADBBusState *adb_bus = &s->adb_bus;
+
     trace_pmu_cmd_set_adb_autopoll(mask);
 
-    if (s->autopoll_mask == mask) {
-        return;
-    }
-
-    s->autopoll_mask = mask;
     if (mask) {
-        timer_mod(s->adb_poll_timer,
-                  qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 30);
+        adb_set_autopoll_mask(adb_bus, mask);
+        adb_set_autopoll_enabled(adb_bus, true);
     } else {
-        timer_del(s->adb_poll_timer);
+        adb_set_autopoll_enabled(adb_bus, false);
     }
 }
 
@@ -265,6 +249,8 @@ static void pmu_cmd_adb_poll_off(PMUState *s,
                                  const uint8_t *in_data, uint8_t in_len,
                                  uint8_t *out_data, uint8_t *out_len)
 {
+    ADBBusState *adb_bus = &s->adb_bus;
+
     if (in_len != 0) {
         qemu_log_mask(LOG_GUEST_ERROR,
                       "PMU: ADB POLL OFF command, invalid len: %d want: 0\n",
@@ -272,9 +258,8 @@ static void pmu_cmd_adb_poll_off(PMUState *s,
         return;
     }
 
-    if (s->has_adb && s->autopoll_mask) {
-        timer_del(s->adb_poll_timer);
-        s->autopoll_mask = false;
+    if (s->has_adb) {
+        adb_set_autopoll_enabled(adb_bus, false);
     }
 }
 
@@ -519,6 +504,7 @@ static void pmu_update(PMUState *s)
 {
     MOS6522PMUState *mps = &s->mos6522_pmu;
     MOS6522State *ms = MOS6522(mps);
+    ADBBusState *adb_bus = &s->adb_bus;
 
     /* Only react to changes in reg B */
     if (ms->b == s->last_b) {
@@ -580,6 +566,7 @@ static void pmu_update(PMUState *s)
         s->cmd_rsp_pos = 0;
         s->cmd_state = pmu_state_cmd;
 
+        adb_autopoll_block(adb_bus);
         trace_pmu_debug_protocol_cmd(s->cmd, s->cmdlen, s->rsplen);
         break;
 
@@ -638,6 +625,7 @@ static void pmu_update(PMUState *s)
     if (s->cmd_state == pmu_state_rsp && s->rsplen == s->cmd_rsp_pos) {
         trace_pmu_debug_protocol_cmd_resp_complete(ms->ier);
 
+        adb_autopoll_unblock(adb_bus);
         s->cmd_state = pmu_state_idle;
     }
 }
@@ -682,12 +670,10 @@ static bool pmu_adb_state_needed(void *opaque)
 
 static const VMStateDescription vmstate_pmu_adb = {
     .name = "pmu/adb",
-    .version_id = 0,
-    .minimum_version_id = 0,
+    .version_id = 1,
+    .minimum_version_id = 1,
     .needed = pmu_adb_state_needed,
     .fields = (VMStateField[]) {
-        VMSTATE_UINT16(adb_poll_mask, PMUState),
-        VMSTATE_TIMER_PTR(adb_poll_timer, PMUState),
         VMSTATE_UINT8(adb_reply_size, PMUState),
         VMSTATE_BUFFER(adb_reply, PMUState),
         VMSTATE_END_OF_LIST()
@@ -696,8 +682,8 @@ static const VMStateDescription vmstate_pmu_adb = {
 
 static const VMStateDescription vmstate_pmu = {
     .name = "pmu",
-    .version_id = 0,
-    .minimum_version_id = 0,
+    .version_id = 1,
+    .minimum_version_id = 1,
     .fields = (VMStateField[]) {
         VMSTATE_STRUCT(mos6522_pmu.parent_obj, PMUState, 0, vmstate_mos6522,
                        MOS6522State),
@@ -712,8 +698,6 @@ static const VMStateDescription vmstate_pmu = {
         VMSTATE_BUFFER(cmd_rsp, PMUState),
         VMSTATE_UINT8(intbits, PMUState),
         VMSTATE_UINT8(intmask, PMUState),
-        VMSTATE_UINT8(autopoll_rate_ms, PMUState),
-        VMSTATE_UINT8(autopoll_mask, PMUState),
         VMSTATE_UINT32(tick_offset, PMUState),
         VMSTATE_TIMER_PTR(one_sec_timer, PMUState),
         VMSTATE_INT64(one_sec_target, PMUState),
@@ -721,6 +705,7 @@ static const VMStateDescription vmstate_pmu = {
     },
     .subsections = (const VMStateDescription * []) {
         &vmstate_pmu_adb,
+        NULL
     }
 };
 
@@ -733,22 +718,22 @@ static void pmu_reset(DeviceState *dev)
     s->intbits = 0;
 
     s->cmd_state = pmu_state_idle;
-    s->autopoll_mask = 0;
 }
 
 static void pmu_realize(DeviceState *dev, Error **errp)
 {
     PMUState *s = VIA_PMU(dev);
     SysBusDevice *sbd;
-    MOS6522State *ms;
-    DeviceState *d;
+    ADBBusState *adb_bus = &s->adb_bus;
     struct tm tm;
 
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->mos6522_pmu), errp)) {
+        return;
+    }
+
     /* Pass IRQ from 6522 */
-    d = DEVICE(&s->mos6522_pmu);
-    ms = MOS6522(d);
     sbd = SYS_BUS_DEVICE(s);
-    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(ms));
+    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(&s->mos6522_pmu));
 
     qemu_get_timedate(&tm, 0);
     s->tick_offset = (uint32_t)mktimegm(&tm) + RTC_OFFSET;
@@ -757,11 +742,9 @@ static void pmu_realize(DeviceState *dev, Error **errp)
     timer_mod(s->one_sec_timer, s->one_sec_target);
 
     if (s->has_adb) {
-        qbus_create_inplace(&s->adb_bus, sizeof(s->adb_bus), TYPE_ADB_BUS,
-                            dev, "adb.0");
-        s->adb_poll_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, pmu_adb_poll, s);
-        s->adb_poll_mask = 0xffff;
-        s->autopoll_rate_ms = 20;
+        qbus_init(&s->adb_bus, sizeof(s->adb_bus), TYPE_ADB_BUS,
+                  dev, "adb.0");
+        adb_register_autopoll_callback(adb_bus, pmu_adb_poll, s);
     }
 }
 
@@ -775,8 +758,8 @@ static void pmu_init(Object *obj)
                              qdev_prop_allow_set_link_before_realize,
                              0);
 
-    sysbus_init_child_obj(obj, "mos6522-pmu", &s->mos6522_pmu,
-                          sizeof(s->mos6522_pmu), TYPE_MOS6522_PMU);
+    object_initialize_child(obj, "mos6522-pmu", &s->mos6522_pmu,
+                            TYPE_MOS6522_PMU);
 
     memory_region_init_io(&s->mem, obj, &mos6522_pmu_ops, s, "via-pmu",
                           0x2000);
@@ -812,26 +795,7 @@ static void mos6522_pmu_portB_write(MOS6522State *s)
     MOS6522PMUState *mps = container_of(s, MOS6522PMUState, parent_obj);
     PMUState *ps = container_of(mps, PMUState, mos6522_pmu);
 
-    if ((s->pcr & 0xe0) == 0x20 || (s->pcr & 0xe0) == 0x60) {
-        s->ifr &= ~CB2_INT;
-    }
-    s->ifr &= ~CB1_INT;
-
-    via_update_irq(ps);
     pmu_update(ps);
-}
-
-static void mos6522_pmu_portA_write(MOS6522State *s)
-{
-    MOS6522PMUState *mps = container_of(s, MOS6522PMUState, parent_obj);
-    PMUState *ps = container_of(mps, PMUState, mos6522_pmu);
-
-    if ((s->pcr & 0x0e) == 0x02 || (s->pcr & 0x0e) == 0x06) {
-        s->ifr &= ~CA2_INT;
-    }
-    s->ifr &= ~CA1_INT;
-
-    via_update_irq(ps);
 }
 
 static void mos6522_pmu_reset(DeviceState *dev)
@@ -839,7 +803,7 @@ static void mos6522_pmu_reset(DeviceState *dev)
     MOS6522State *ms = MOS6522(dev);
     MOS6522PMUState *mps = container_of(ms, MOS6522PMUState, parent_obj);
     PMUState *s = container_of(mps, PMUState, mos6522_pmu);
-    MOS6522DeviceClass *mdc = MOS6522_DEVICE_GET_CLASS(ms);
+    MOS6522DeviceClass *mdc = MOS6522_GET_CLASS(ms);
 
     mdc->parent_reset(dev);
 
@@ -852,11 +816,11 @@ static void mos6522_pmu_reset(DeviceState *dev)
 static void mos6522_pmu_class_init(ObjectClass *oc, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(oc);
-    MOS6522DeviceClass *mdc = MOS6522_DEVICE_CLASS(oc);
+    MOS6522DeviceClass *mdc = MOS6522_CLASS(oc);
 
-    dc->reset = mos6522_pmu_reset;
+    device_class_set_parent_reset(dc, mos6522_pmu_reset,
+                                  &mdc->parent_reset);
     mdc->portB_write = mos6522_pmu_portB_write;
-    mdc->portA_write = mos6522_pmu_portA_write;
 }
 
 static const TypeInfo mos6522_pmu_type_info = {

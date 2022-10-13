@@ -28,24 +28,18 @@
 #include "hw/isa/isa.h"
 #include "hw/intc/intc.h"
 #include "hw/intc/i8259.h"
+#include "qom/object.h"
 
-typedef struct PICCommonState PICCommonState;
 
 #define TYPE_PIC_COMMON "pic-common"
-#define PIC_COMMON(obj) \
-     OBJECT_CHECK(PICCommonState, (obj), TYPE_PIC_COMMON)
-#define PIC_COMMON_CLASS(klass) \
-     OBJECT_CLASS_CHECK(PICCommonClass, (klass), TYPE_PIC_COMMON)
-#define PIC_COMMON_GET_CLASS(obj) \
-     OBJECT_GET_CLASS(PICCommonClass, (obj), TYPE_PIC_COMMON)
+OBJECT_DECLARE_TYPE(PICCommonState, PICCommonClass, PIC_COMMON)
 
-typedef struct PICCommonClass
-{
+struct PICCommonClass {
     ISADeviceClass parent_class;
 
     void (*pre_save)(PICCommonState *s);
     void (*post_load)(PICCommonState *s);
-} PICCommonClass;
+};
 
 struct PICCommonState {
     ISADevice parent_obj;
@@ -78,8 +72,5 @@ struct PICCommonState {
 void pic_reset_common(PICCommonState *s);
 ISADevice *i8259_init_chip(const char *name, ISABus *bus, bool master);
 void pic_stat_update_irq(int irq, int level);
-bool pic_get_statistics(InterruptStatsProvider *obj,
-                        uint64_t **irq_counts, unsigned int *nb_irqs);
-void pic_print_info(InterruptStatsProvider *obj, Monitor *mon);
 
 #endif /* QEMU_I8259_INTERNAL_H */

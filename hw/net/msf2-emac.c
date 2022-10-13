@@ -29,10 +29,8 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qemu/log.h"
 #include "qapi/error.h"
-#include "exec/address-spaces.h"
 #include "hw/registerfields.h"
 #include "hw/net/msf2-emac.h"
 #include "hw/net/mii.h"
@@ -158,7 +156,7 @@ static void msf2_dma_tx(MSF2EmacState *s)
          * R_CFG1 bit 0 is set.
          */
         if (s->regs[R_CFG1] & R_CFG1_LB_EN_MASK) {
-            nc->info->receive(nc, buf, size);
+            qemu_receive_packet(nc, buf, size);
         } else {
             qemu_send_packet(nc, buf, size);
         }

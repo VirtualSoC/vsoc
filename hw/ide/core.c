@@ -29,6 +29,8 @@
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
+#include "qemu/hw-version.h"
+#include "qemu/memalign.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/blockdev.h"
 #include "sysemu/dma.h"
@@ -98,8 +100,12 @@ static void put_le16(uint16_t *p, unsigned int v)
 static void ide_identify_size(IDEState *s)
 {
     uint16_t *p = (uint16_t *)s->identify_data;
-    put_le16(p + 60, s->nb_sectors);
-    put_le16(p + 61, s->nb_sectors >> 16);
+    int64_t nb_sectors_lba28 = s->nb_sectors;
+    if (nb_sectors_lba28 >= 1 << 28) {
+        nb_sectors_lba28 = (1 << 28) - 1;
+    }
+    put_le16(p + 60, nb_sectors_lba28);
+    put_le16(p + 61, nb_sectors_lba28 >> 16);
     put_le16(p + 100, s->nb_sectors);
     put_le16(p + 101, s->nb_sectors >> 16);
     put_le16(p + 102, s->nb_sectors >> 32);
@@ -367,7 +373,7 @@ fill_buffer:
 
 static void ide_set_signature(IDEState *s)
 {
-    s->select &= 0xf0; /* clear head */
+    s->select &= ~(ATA_DEV_HS); /* clear head */
     /* put signature */
     s->nsector = 1;
     s->sector = 1;
@@ -429,12 +435,16 @@ static const AIOCBInfo trim_aiocb_info = {
 static void ide_trim_bh_cb(void *opaque)
 {
     TrimAIOCB *iocb = opaque;
+    BlockBackend *blk = iocb->s->blk;
 
     iocb->common.cb(iocb->common.opaque, iocb->ret);
 
     qemu_bh_delete(iocb->bh);
     iocb->bh = NULL;
     qemu_aio_unref(iocb);
+
+    /* Paired with an increment in ide_issue_trim() */
+    blk_dec_in_flight(blk);
 }
 
 static void ide_issue_trim_cb(void *opaque, int ret)
@@ -503,6 +513,9 @@ BlockAIOCB *ide_issue_trim(
 {
     IDEState *s = opaque;
     TrimAIOCB *iocb;
+
+    /* Paired with a decrement in ide_trim_bh_cb() */
+    blk_inc_in_flight(s->blk);
 
     iocb = blk_aio_get(&trim_aiocb_info, s->blk, cb, cb_opaque);
     iocb->s = s;
@@ -586,48 +599,54 @@ void ide_transfer_stop(IDEState *s)
 int64_t ide_get_sector(IDEState *s)
 {
     int64_t sector_num;
-    if (s->select & 0x40) {
-        /* lba */
-        if (!s->lba48) {
-            sector_num = ((s->select & 0x0f) << 24) | (s->hcyl << 16) |
-                (s->lcyl << 8) | s->sector;
-        } else {
+    if (s->select & (ATA_DEV_LBA)) {
+        if (s->lba48) {
             sector_num = ((int64_t)s->hob_hcyl << 40) |
                 ((int64_t) s->hob_lcyl << 32) |
                 ((int64_t) s->hob_sector << 24) |
                 ((int64_t) s->hcyl << 16) |
                 ((int64_t) s->lcyl << 8) | s->sector;
+        } else {
+            /* LBA28 */
+            sector_num = ((s->select & (ATA_DEV_LBA_MSB)) << 24) |
+                (s->hcyl << 16) | (s->lcyl << 8) | s->sector;
         }
     } else {
+        /* CHS */
         sector_num = ((s->hcyl << 8) | s->lcyl) * s->heads * s->sectors +
-            (s->select & 0x0f) * s->sectors + (s->sector - 1);
+            (s->select & (ATA_DEV_HS)) * s->sectors + (s->sector - 1);
     }
+
     return sector_num;
 }
 
 void ide_set_sector(IDEState *s, int64_t sector_num)
 {
     unsigned int cyl, r;
-    if (s->select & 0x40) {
-        if (!s->lba48) {
-            s->select = (s->select & 0xf0) | (sector_num >> 24);
-            s->hcyl = (sector_num >> 16);
-            s->lcyl = (sector_num >> 8);
-            s->sector = (sector_num);
-        } else {
+    if (s->select & (ATA_DEV_LBA)) {
+        if (s->lba48) {
             s->sector = sector_num;
             s->lcyl = sector_num >> 8;
             s->hcyl = sector_num >> 16;
             s->hob_sector = sector_num >> 24;
             s->hob_lcyl = sector_num >> 32;
             s->hob_hcyl = sector_num >> 40;
+        } else {
+            /* LBA28 */
+            s->select = (s->select & ~(ATA_DEV_LBA_MSB)) |
+                ((sector_num >> 24) & (ATA_DEV_LBA_MSB));
+            s->hcyl = (sector_num >> 16);
+            s->lcyl = (sector_num >> 8);
+            s->sector = (sector_num);
         }
     } else {
+        /* CHS */
         cyl = sector_num / (s->heads * s->sectors);
         r = sector_num % (s->heads * s->sectors);
         s->hcyl = cyl >> 8;
         s->lcyl = cyl;
-        s->select = (s->select & 0xf0) | ((r / s->sectors) & 0x0f);
+        s->select = (s->select & ~(ATA_DEV_HS)) |
+            ((r / s->sectors) & (ATA_DEV_HS));
         s->sector = (r % s->sectors) + 1;
     }
 }
@@ -709,7 +728,7 @@ void ide_cancel_dma_sync(IDEState *s)
     /*
      * We can't cancel Scatter Gather DMA in the middle of the
      * operation or a partial (not full) DMA transfer would reach
-     * the storage so we wait for completion instead (we beahve
+     * the storage so we wait for completion instead (we behave
      * like if the DMA was completed by the time the guest trying
      * to cancel dma with bmdma_cmd_writeb with BM_CMD_START not
      * set).
@@ -1215,8 +1234,7 @@ static void ide_cmd_lba48_transform(IDEState *s, int lba48)
 static void ide_clear_hob(IDEBus *bus)
 {
     /* any write clears HOB high bit of device control register */
-    bus->ifs[0].select &= ~(1 << 7);
-    bus->ifs[1].select &= ~(1 << 7);
+    bus->cmd &= ~(IDE_CTRL_HOB);
 }
 
 /* IOport [W]rite [R]egisters */
@@ -1256,12 +1274,14 @@ void ide_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         return;
     }
 
+    /* NOTE: Device0 and Device1 both receive incoming register writes.
+     * (They're on the same bus! They have to!) */
+
     switch (reg_num) {
     case 0:
         break;
     case ATA_IOPORT_WR_FEATURES:
         ide_clear_hob(bus);
-        /* NOTE: data is written to the two drives */
         bus->ifs[0].hob_feature = bus->ifs[0].feature;
         bus->ifs[1].hob_feature = bus->ifs[1].feature;
         bus->ifs[0].feature = val;
@@ -1296,15 +1316,16 @@ void ide_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         bus->ifs[1].hcyl = val;
         break;
     case ATA_IOPORT_WR_DEVICE_HEAD:
-        /* FIXME: HOB readback uses bit 7 */
-        bus->ifs[0].select = (val & ~0x10) | 0xa0;
-        bus->ifs[1].select = (val | 0x10) | 0xa0;
+        ide_clear_hob(bus);
+        bus->ifs[0].select = val | (ATA_DEV_ALWAYS_ON);
+        bus->ifs[1].select = val | (ATA_DEV_ALWAYS_ON);
         /* select drive */
-        bus->unit = (val >> 4) & 1;
+        bus->unit = (val & (ATA_DEV_SELECT)) ? 1 : 0;
         break;
     default:
     case ATA_IOPORT_WR_COMMAND:
-        /* command */
+        ide_clear_hob(bus);
+        qemu_irq_lower(bus->irq);
         ide_exec_cmd(bus, val);
         break;
     }
@@ -1338,7 +1359,7 @@ static void ide_reset(IDEState *s)
     s->hob_lcyl = 0;
     s->hob_hcyl = 0;
 
-    s->select = 0xa0;
+    s->select = (ATA_DEV_ALWAYS_ON);
     s->status = READY_STAT | SEEK_STAT;
 
     s->lba48 = 0;
@@ -2142,12 +2163,14 @@ uint32_t ide_ioport_read(void *opaque, uint32_t addr)
     int ret, hob;
 
     reg_num = addr & 7;
-    /* FIXME: HOB readback uses bit 7, but it's always set right now */
-    //hob = s->select & (1 << 7);
-    hob = 0;
+    hob = bus->cmd & (IDE_CTRL_HOB);
     switch (reg_num) {
     case ATA_IOPORT_RR_DATA:
-        ret = 0xff;
+        /*
+         * The pre-GRUB Solaris x86 bootloader relies upon inb
+         * consuming a word from the drive's sector buffer.
+         */
+        ret = ide_data_readw(bus, addr) & 0xff;
         break;
     case ATA_IOPORT_RR_ERROR:
         if ((!bus->ifs[0].blk && !bus->ifs[1].blk) ||
@@ -2235,34 +2258,54 @@ uint32_t ide_status_read(void *opaque, uint32_t addr)
     return ret;
 }
 
-void ide_cmd_write(void *opaque, uint32_t addr, uint32_t val)
+static void ide_perform_srst(IDEState *s)
+{
+    s->status |= BUSY_STAT;
+
+    /* Halt PIO (Via register state); PIO BH remains scheduled. */
+    ide_transfer_halt(s);
+
+    /* Cancel DMA -- may drain block device and invoke callbacks */
+    ide_cancel_dma_sync(s);
+
+    /* Cancel PIO callback, reset registers/signature, etc */
+    ide_reset(s);
+
+    /* perform diagnostic */
+    cmd_exec_dev_diagnostic(s, WIN_DIAGNOSE);
+}
+
+static void ide_bus_perform_srst(void *opaque)
 {
     IDEBus *bus = opaque;
     IDEState *s;
     int i;
 
-    trace_ide_cmd_write(addr, val, bus);
+    for (i = 0; i < 2; i++) {
+        s = &bus->ifs[i];
+        ide_perform_srst(s);
+    }
 
-    /* common for both drives */
-    if (!(bus->cmd & IDE_CMD_RESET) &&
-        (val & IDE_CMD_RESET)) {
-        /* reset low to high */
-        for(i = 0;i < 2; i++) {
+    bus->cmd &= ~IDE_CTRL_RESET;
+}
+
+void ide_ctrl_write(void *opaque, uint32_t addr, uint32_t val)
+{
+    IDEBus *bus = opaque;
+    IDEState *s;
+    int i;
+
+    trace_ide_ctrl_write(addr, val, bus);
+
+    /* Device0 and Device1 each have their own control register,
+     * but QEMU models it as just one register in the controller. */
+    if (!(bus->cmd & IDE_CTRL_RESET) && (val & IDE_CTRL_RESET)) {
+        for (i = 0; i < 2; i++) {
             s = &bus->ifs[i];
-            s->status = BUSY_STAT | SEEK_STAT;
-            s->error = 0x01;
+            s->status |= BUSY_STAT;
         }
-    } else if ((bus->cmd & IDE_CMD_RESET) &&
-               !(val & IDE_CMD_RESET)) {
-        /* high to low */
-        for(i = 0;i < 2; i++) {
-            s = &bus->ifs[i];
-            if (s->drive_kind == IDE_CD)
-                s->status = 0x00; /* NOTE: READY is _not_ set */
-            else
-                s->status = READY_STAT | SEEK_STAT;
-            ide_set_signature(s);
-        }
+        replay_bh_schedule_oneshot_event(qemu_get_aio_context(),
+                                         ide_bus_perform_srst, bus);
     }
 
     bus->cmd = val;
@@ -2505,13 +2548,12 @@ int ide_init_drive(IDEState *s, BlockBackend *blk, IDEDriveKind kind,
     s->smart_selftest_count = 0;
     if (kind == IDE_CD) {
         blk_set_dev_ops(blk, &ide_cd_block_ops, s);
-        blk_set_guest_block_size(blk, 2048);
     } else {
         if (!blk_is_inserted(s->blk)) {
             error_setg(errp, "Device needs media, but drive is empty");
             return -1;
         }
-        if (blk_is_read_only(blk)) {
+        if (!blk_is_writable(blk)) {
             error_setg(errp, "Can't use a read-only drive");
             return -1;
         }
@@ -2570,16 +2612,16 @@ static void ide_init1(IDEBus *bus, int unit)
                                            ide_sector_write_timer_cb, s);
 }
 
-static int ide_nop_int(IDEDMA *dma, bool is_write)
+static int ide_nop_int(const IDEDMA *dma, bool is_write)
 {
     return 0;
 }
 
-static void ide_nop(IDEDMA *dma)
+static void ide_nop(const IDEDMA *dma)
 {
 }
 
-static int32_t ide_nop_int32(IDEDMA *dma, int32_t l)
+static int32_t ide_nop_int32(const IDEDMA *dma, int32_t l)
 {
     return 0;
 }
@@ -2651,7 +2693,7 @@ static void ide_restart_bh(void *opaque)
     }
 }
 
-static void ide_restart_cb(void *opaque, int running, RunState state)
+static void ide_restart_cb(void *opaque, bool running, RunState state)
 {
     IDEBus *bus = opaque;
 
@@ -2690,7 +2732,6 @@ void ide_init2(IDEBus *bus, qemu_irq irq)
 
 void ide_exit(IDEState *s)
 {
-    timer_del(s->sector_write_timer);
     timer_free(s->sector_write_timer);
     qemu_vfree(s->smart_selftest_data);
     qemu_vfree(s->io_buffer);

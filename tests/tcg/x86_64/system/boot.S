@@ -56,7 +56,7 @@
 	*
 	* - `ebx`: contains the physical memory address where the loader has placed
 	*          the boot start info structure.
-	* - `cr0`: bit 0 (PE) must be set. All the other writeable bits are cleared.
+	* - `cr0`: bit 0 (PE) must be set. All the other writable bits are cleared.
 	* - `cr4`: all bits are cleared.
 	* - `cs `: must be a 32-bit read/execute code segment with a base of ‘0’
 	*          and a limit of ‘0xFFFFFFFF’. The selector value is unspecified.
@@ -124,7 +124,7 @@ _start:
         /* don't worry about stack frame, assume everthing is garbage when we return */
 	call main
 
-        /* output any non-zero result in eax to isa-debug-exit device */
+_exit:	/* output any non-zero result in eax to isa-debug-exit device */
         test %al, %al
         jz 1f
         out %ax, $0xf4

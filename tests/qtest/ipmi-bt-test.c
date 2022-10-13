@@ -31,7 +31,6 @@
 
 
 #include "libqtest-single.h"
-#include "qemu-common.h"
 
 #define IPMI_IRQ        5
 
@@ -98,7 +97,8 @@ static void bt_wait_b_busy(void)
 {
     unsigned int count = 1000;
     while (IPMI_BT_CTLREG_GET_B_BUSY() != 0) {
-        g_assert(--count != 0);
+        --count;
+        g_assert(count != 0);
         usleep(100);
     }
 }
@@ -107,7 +107,8 @@ static void bt_wait_b2h_atn(void)
 {
     unsigned int count = 1000;
     while (IPMI_BT_CTLREG_GET_B2H_ATN() == 0) {
-        g_assert(--count != 0);
+        --count;
+        g_assert(count != 0);
         usleep(100);
     }
 }
@@ -376,7 +377,7 @@ static void test_enable_irq(void)
  */
 static void open_socket(void)
 {
-    struct sockaddr_in myaddr;
+    struct sockaddr_in myaddr = {};
     socklen_t addrlen;
 
     myaddr.sin_family = AF_INET;

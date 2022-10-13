@@ -22,30 +22,21 @@
  * THE SOFTWARE.
  */
 #include "qemu/osdep.h"
-
-/* Needed early for CONFIG_BSD etc. */
-
-#ifdef CONFIG_SOLARIS
-#include <sys/statvfs.h>
-/* See MySQL bug #7156 (http://bugs.mysql.com/bug.php?id=7156) for
-   discussion about Solaris header problems */
-extern int madvise(char *, size_t, int);
-#endif
-
-#include "qemu-common.h"
+#include "qapi/error.h"
 #include "qemu/cutils.h"
 #include "qemu/sockets.h"
 #include "qemu/error-report.h"
+#include "qemu/madvise.h"
+#include "qemu/mprotect.h"
+#include "qemu/hw-version.h"
 #include "monitor/monitor.h"
-
-static bool fips_enabled = false;
 
 static const char *hw_version = QEMU_HW_VERSION;
 
 int socket_set_cork(int fd, int v)
 {
 #if defined(SOL_TCP) && defined(TCP_CORK)
-    return qemu_setsockopt(fd, SOL_TCP, TCP_CORK, &v, sizeof(v));
+    return setsockopt(fd, SOL_TCP, TCP_CORK, &v, sizeof(v));
 #else
     return 0;
 #endif
@@ -54,7 +45,7 @@ int socket_set_cork(int fd, int v)
 int socket_set_nodelay(int fd)
 {
     int v = 1;
-    return qemu_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &v, sizeof(v));
+    return setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &v, sizeof(v));
 }
 
 int qemu_madvise(void *addr, size_t len, int advice)
@@ -75,8 +66,8 @@ int qemu_madvise(void *addr, size_t len, int advice)
 
 static int qemu_mprotect__osdep(void *addr, size_t size, int prot)
 {
-    g_assert(!((uintptr_t)addr & ~qemu_real_host_page_mask));
-    g_assert(!(size & ~qemu_real_host_page_mask));
+    g_assert(!((uintptr_t)addr & ~qemu_real_host_page_mask()));
+    g_assert(!(size & ~qemu_real_host_page_mask()));
 
 #ifdef _WIN32
     DWORD old_protect;
@@ -93,6 +84,15 @@ static int qemu_mprotect__osdep(void *addr, size_t size, int prot)
         return -1;
     }
     return 0;
+#endif
+}
+
+int qemu_mprotect_rw(void *addr, size_t size)
+{
+#ifdef _WIN32
+    return qemu_mprotect__osdep(addr, size, PAGE_READWRITE);
+#else
+    return qemu_mprotect__osdep(addr, size, PROT_READ | PROT_WRITE);
 #endif
 }
 
@@ -122,7 +122,7 @@ static int fcntl_op_getlk = -1;
 /*
  * Dups an fd and sets the flags
  */
-static int qemu_dup_flags(int fd, int flags)
+int qemu_dup_flags(int fd, int flags)
 {
     int ret;
     int serrno;
@@ -279,58 +279,9 @@ int qemu_lock_fd_test(int fd, int64_t start, int64_t len, bool exclusive)
 }
 #endif
 
-/*
- * Opens a file with FD_CLOEXEC set
- */
-int qemu_open(const char *name, int flags, ...)
+static int qemu_open_cloexec(const char *name, int flags, mode_t mode)
 {
     int ret;
-    int mode = 0;
-
-#ifndef _WIN32
-    const char *fdset_id_str;
-
-    /* Attempt dup of fd from fd set */
-    if (strstart(name, "/dev/fdset/", &fdset_id_str)) {
-        int64_t fdset_id;
-        int fd, dupfd;
-
-        fdset_id = qemu_parse_fdset(fdset_id_str);
-        if (fdset_id == -1) {
-            errno = EINVAL;
-            return -1;
-        }
-
-        fd = monitor_fdset_get_fd(fdset_id, flags);
-        if (fd < 0) {
-            errno = -fd;
-            return -1;
-        }
-
-        dupfd = qemu_dup_flags(fd, flags);
-        if (dupfd == -1) {
-            return -1;
-        }
-
-        ret = monitor_fdset_dup_fd_add(fdset_id, dupfd);
-        if (ret == -1) {
-            close(dupfd);
-            errno = EINVAL;
-            return -1;
-        }
-
-        return dupfd;
-    }
-#endif
-
-    if (flags & O_CREAT) {
-        va_list ap;
-
-        va_start(ap, flags);
-        mode = va_arg(ap, int);
-        va_end(ap);
-    }
-
 #ifdef O_CLOEXEC
     ret = open(name, flags | O_CLOEXEC, mode);
 #else
@@ -339,6 +290,98 @@ int qemu_open(const char *name, int flags, ...)
         qemu_set_cloexec(ret);
     }
 #endif
+    return ret;
+}
+
+/*
+ * Opens a file with FD_CLOEXEC set
+ */
+static int
+qemu_open_internal(const char *name, int flags, mode_t mode, Error **errp)
+{
+    int ret;
+
+#ifndef _WIN32
+    const char *fdset_id_str;
+
+    /* Attempt dup of fd from fd set */
+    if (strstart(name, "/dev/fdset/", &fdset_id_str)) {
+        int64_t fdset_id;
+        int dupfd;
+
+        fdset_id = qemu_parse_fdset(fdset_id_str);
+        if (fdset_id == -1) {
+            error_setg(errp, "Could not parse fdset %s", name);
+            errno = EINVAL;
+            return -1;
+        }
+
+        dupfd = monitor_fdset_dup_fd_add(fdset_id, flags);
+        if (dupfd == -1) {
+            error_setg_errno(errp, errno, "Could not dup FD for %s flags %x",
+                             name, flags);
+            return -1;
+        }
+
+        return dupfd;
+    }
+#endif
+
+    ret = qemu_open_cloexec(name, flags, mode);
+
+    if (ret == -1) {
+        const char *action = flags & O_CREAT ? "create" : "open";
+#ifdef O_DIRECT
+        /* Give more helpful error message for O_DIRECT */
+        if (errno == EINVAL && (flags & O_DIRECT)) {
+            ret = open(name, flags & ~O_DIRECT, mode);
+            if (ret != -1) {
+                close(ret);
+                error_setg(errp, "Could not %s '%s': "
+                           "filesystem does not support O_DIRECT",
+                           action, name);
+                errno = EINVAL; /* restore first open()'s errno */
+                return -1;
+            }
+        }
+#endif /* O_DIRECT */
+        error_setg_errno(errp, errno, "Could not %s '%s'",
+                         action, name);
+    }
+
+    return ret;
+}
+
+
+int qemu_open(const char *name, int flags, Error **errp)
+{
+    assert(!(flags & O_CREAT));
+
+    return qemu_open_internal(name, flags, 0, errp);
+}
+
+
+int qemu_create(const char *name, int flags, mode_t mode, Error **errp)
+{
+    assert(!(flags & O_CREAT));
+
+    return qemu_open_internal(name, flags | O_CREAT, mode, errp);
+}
+
+
+int qemu_open_old(const char *name, int flags, ...)
+{
+    va_list ap;
+    mode_t mode = 0;
+    int ret;
+
+    va_start(ap, flags);
+    if (flags & O_CREAT) {
+        mode = va_arg(ap, int);
+    }
+    va_end(ap);
+
+    ret = qemu_open_internal(name, flags, mode, NULL);
 
 #ifdef O_DIRECT
     if (ret == -1 && errno == EINVAL && (flags & O_DIRECT)) {
@@ -392,7 +435,7 @@ int qemu_unlink(const char *name)
  * Set errno if fewer than `count' bytes are written.
  *
  * This function don't work with non-blocking fd's.
- * Any of the possibilities with non-bloking fd's is bad:
+ * Any of the possibilities with non-blocking fd's is bad:
  *   - return a short write (then name is wrong)
  *   - busy wait adding (errno == EAGAIN) to the loop
  */
@@ -469,32 +512,6 @@ const char *qemu_hw_version(void)
     return hw_version;
 }
 
-void fips_set_state(bool requested)
-{
-#ifdef __linux__
-    if (requested) {
-        FILE *fds = fopen("/proc/sys/crypto/fips_enabled", "r");
-        if (fds != NULL) {
-            fips_enabled = (fgetc(fds) == '1');
-            fclose(fds);
-        }
-    }
-#else
-    fips_enabled = false;
-#endif /* __linux__ */
-
-#ifdef _FIPS_DEBUG
-    fprintf(stderr, "FIPS mode %s (requested %s)\n",
-            (fips_enabled ? "enabled" : "disabled"),
-            (requested ? "enabled" : "disabled"));
-#endif
-}
-
-bool fips_get_state(void)
-{
-    return fips_enabled;
-}
-
 #ifdef _WIN32
 static void socket_cleanup(void)
 {
@@ -562,3 +579,19 @@ writev(int fd, const struct iovec *iov, int iov_cnt)
     return readv_writev(fd, iov, iov_cnt, true);
 }
 #endif
+
+/*
+ * Make sure data goes on disk, but if possible do not bother to
+ * write out the inode just for timestamp updates.
+ *
+ * Unfortunately even in 2009 many operating systems do not support
+ * fdatasync and have to fall back to fsync.
+ */
+int qemu_fdatasync(int fd)
+{
+#ifdef CONFIG_FDATASYNC
+    return fdatasync(fd);
+#else
+    return fsync(fd);
+#endif
+}

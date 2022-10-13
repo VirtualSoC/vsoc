@@ -11,12 +11,8 @@
  */
 
 #include "qemu/osdep.h"
-#include "cpu.h"
 #include "sysemu/kvm.h"
-
-#ifndef CONFIG_USER_ONLY
 #include "hw/pci/msi.h"
-#endif
 
 KVMState *kvm_state;
 bool kvm_kernel_irqchip;
@@ -32,35 +28,12 @@ bool kvm_readonly_mem_allowed;
 bool kvm_ioeventfd_any_length_allowed;
 bool kvm_msi_use_devid;
 
-int kvm_destroy_vcpu(CPUState *cpu)
-{
-    return -ENOSYS;
-}
-
-int kvm_init_vcpu(CPUState *cpu)
-{
-    return -ENOSYS;
-}
-
 void kvm_flush_coalesced_mmio_buffer(void)
 {
 }
 
 void kvm_cpu_synchronize_state(CPUState *cpu)
 {
-}
-
-void kvm_cpu_synchronize_post_reset(CPUState *cpu)
-{
-}
-
-void kvm_cpu_synchronize_post_init(CPUState *cpu)
-{
-}
-
-int kvm_cpu_exec(CPUState *cpu)
-{
-    abort();
 }
 
 bool kvm_has_sync_mmu(void)
@@ -104,18 +77,7 @@ int kvm_on_sigbus(int code, void *addr)
     return 1;
 }
 
-bool kvm_memcrypt_enabled(void)
-{
-    return false;
-}
-
-int kvm_memcrypt_encrypt_data(uint8_t *ptr, uint64_t len)
-{
-  return 1;
-}
-
-#ifndef CONFIG_USER_ONLY
-int kvm_irqchip_add_msi_route(KVMState *s, int vector, PCIDevice *dev)
+int kvm_irqchip_add_msi_route(KVMRouteChange *c, int vector, PCIDevice *dev)
 {
     return -ENOSYS;
 }
@@ -181,4 +143,13 @@ bool kvm_arm_supports_user_irq(void)
 {
     return false;
 }
-#endif
+
+bool kvm_dirty_ring_enabled(void)
+{
+    return false;
+}
+
+uint32_t kvm_dirty_ring_size(void)
+{
+    return 0;
+}

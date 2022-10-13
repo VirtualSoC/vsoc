@@ -27,7 +27,6 @@ static const char *hmp_cmds[] = {
     "chardev-change testchardev1 ringbuf",
     "chardev-remove testchardev1",
     "commit all",
-    "cpu-add 1",
     "cpu 0",
     "device_add ?",
     "device_add usb-mouse,id=mouse1",
@@ -46,9 +45,9 @@ static const char *hmp_cmds[] = {
     "log all",
     "log none",
     "memsave 0 4096 \"/dev/null\"",
-    "migrate_set_cache_size 1",
-    "migrate_set_downtime 1",
-    "migrate_set_speed 1",
+    "migrate_set_parameter xbzrle_cache_size 1",
+    "migrate_set_parameter downtime_limit 1",
+    "migrate_set_parameter max_bandwidth 1",
     "netdev_add user,id=net1",
     "set_link net1 off",
     "set_link net1 on",
@@ -142,11 +141,6 @@ static void test_machine(gconstpointer data)
 static void add_machine_test_case(const char *mname)
 {
     char *path;
-
-    /* Ignore blacklisted machines that have known problems */
-    if (!memcmp("xenfv", mname, 5) || g_str_equal("xenpv", mname)) {
-        return;
-    }
 
     path = g_strdup_printf("hmp/%s", mname);
     qtest_add_data_func(path, g_strdup(mname), test_machine);

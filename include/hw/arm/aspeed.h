@@ -10,25 +10,22 @@
 #define ARM_ASPEED_H
 
 #include "hw/boards.h"
+#include "qom/object.h"
 
-typedef struct AspeedBoardState AspeedBoardState;
+typedef struct AspeedMachineState AspeedMachineState;
 
 #define TYPE_ASPEED_MACHINE       MACHINE_TYPE_NAME("aspeed")
-#define ASPEED_MACHINE(obj) \
-    OBJECT_CHECK(AspeedMachine, (obj), TYPE_ASPEED_MACHINE)
+typedef struct AspeedMachineClass AspeedMachineClass;
+DECLARE_OBJ_CHECKERS(AspeedMachineState, AspeedMachineClass,
+                     ASPEED_MACHINE, TYPE_ASPEED_MACHINE)
 
-typedef struct AspeedMachine {
-    MachineState parent_obj;
+#define ASPEED_MAC0_ON   (1 << 0)
+#define ASPEED_MAC1_ON   (1 << 1)
+#define ASPEED_MAC2_ON   (1 << 2)
+#define ASPEED_MAC3_ON   (1 << 3)
 
-    bool mmio_exec;
-} AspeedMachine;
 
-#define ASPEED_MACHINE_CLASS(klass) \
-     OBJECT_CLASS_CHECK(AspeedMachineClass, (klass), TYPE_ASPEED_MACHINE)
-#define ASPEED_MACHINE_GET_CLASS(obj) \
-     OBJECT_GET_CLASS(AspeedMachineClass, (obj), TYPE_ASPEED_MACHINE)
-
-typedef struct AspeedMachineClass {
+struct AspeedMachineClass {
     MachineClass parent_obj;
 
     const char *name;
@@ -39,8 +36,10 @@ typedef struct AspeedMachineClass {
     const char *fmc_model;
     const char *spi_model;
     uint32_t num_cs;
-    void (*i2c_init)(AspeedBoardState *bmc);
-} AspeedMachineClass;
+    uint32_t macs_mask;
+    void (*i2c_init)(AspeedMachineState *bmc);
+    uint32_t uart_default;
+};
 
 
 #endif

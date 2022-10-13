@@ -29,6 +29,7 @@
 #include "hw/qdev-properties.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
+#include "qom/object.h"
 
 #define D(x)
 
@@ -61,8 +62,8 @@ struct xlx_timer
 };
 
 #define TYPE_XILINX_TIMER "xlnx.xps-timer"
-#define XILINX_TIMER(obj) \
-    OBJECT_CHECK(struct timerblock, (obj), TYPE_XILINX_TIMER)
+DECLARE_INSTANCE_CHECKER(struct timerblock, XILINX_TIMER,
+                         TYPE_XILINX_TIMER)
 
 struct timerblock
 {
@@ -222,7 +223,7 @@ static void xilinx_timer_realize(DeviceState *dev, Error **errp)
 
         xt->parent = t;
         xt->nr = i;
-        xt->ptimer = ptimer_init(timer_hit, xt, PTIMER_POLICY_DEFAULT);
+        xt->ptimer = ptimer_init(timer_hit, xt, PTIMER_POLICY_LEGACY);
         ptimer_transaction_begin(xt->ptimer);
         ptimer_set_freq(xt->ptimer, t->freq_hz);
         ptimer_transaction_commit(xt->ptimer);

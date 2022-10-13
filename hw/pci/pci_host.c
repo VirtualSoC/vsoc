@@ -22,8 +22,10 @@
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_bridge.h"
 #include "hw/pci/pci_host.h"
+#include "hw/qdev-properties.h"
 #include "qemu/module.h"
 #include "hw/pci/pci_bus.h"
+#include "migration/vmstate.h"
 #include "trace.h"
 
 /* debug PCI */
@@ -72,11 +74,13 @@ void pci_host_config_write_common(PCIDevice *pci_dev, uint32_t addr,
     /* non-zero functions are only exposed when function 0 is present,
      * allowing direct removal of unexposed functions.
      */
-    if (pci_dev->qdev.hotplugged && !pci_get_function_0(pci_dev)) {
+    if ((pci_dev->qdev.hotplugged && !pci_get_function_0(pci_dev)) ||
+        !pci_dev->has_power) {
         return;
     }
 
-    trace_pci_cfg_write(pci_dev->name, PCI_SLOT(pci_dev->devfn),
+    trace_pci_cfg_write(pci_dev->name, pci_dev_bus_num(pci_dev),
+                        PCI_SLOT(pci_dev->devfn),
                         PCI_FUNC(pci_dev->devfn), addr, val);
     pci_dev->config_write(pci_dev, addr, val, MIN(len, limit - addr));
 }
@@ -95,12 +99,14 @@ uint32_t pci_host_config_read_common(PCIDevice *pci_dev, uint32_t addr,
     /* non-zero functions are only exposed when function 0 is present,
      * allowing direct removal of unexposed functions.
      */
-    if (pci_dev->qdev.hotplugged && !pci_get_function_0(pci_dev)) {
+    if ((pci_dev->qdev.hotplugged && !pci_get_function_0(pci_dev)) ||
+        !pci_dev->has_power) {
         return ~0x0;
     }
 
     ret = pci_dev->config_read(pci_dev, addr, MIN(len, limit - addr));
-    trace_pci_cfg_read(pci_dev->name, PCI_SLOT(pci_dev->devfn),
+    trace_pci_cfg_read(pci_dev->name, pci_dev_bus_num(pci_dev),
+                       PCI_SLOT(pci_dev->devfn),
                        PCI_FUNC(pci_dev->devfn), addr, ret);
 
     return ret;
@@ -200,12 +206,44 @@ const MemoryRegionOps pci_host_data_be_ops = {
     .endianness = DEVICE_BIG_ENDIAN,
 };
 
+static bool pci_host_needed(void *opaque)
+{
+    PCIHostState *s = opaque;
+    return s->mig_enabled;
+}
+
+const VMStateDescription vmstate_pcihost = {
+    .name = "PCIHost",
+    .needed = pci_host_needed,
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .fields = (VMStateField[]) {
+        VMSTATE_UINT32(config_reg, PCIHostState),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static Property pci_host_properties_common[] = {
+    DEFINE_PROP_BOOL("x-config-reg-migration-enabled", PCIHostState,
+                     mig_enabled, true),
+    DEFINE_PROP_BOOL("bypass-iommu", PCIHostState, bypass_iommu, false),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void pci_host_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    device_class_set_props(dc, pci_host_properties_common);
+    dc->vmsd = &vmstate_pcihost;
+}
+
 static const TypeInfo pci_host_type_info = {
     .name = TYPE_PCI_HOST_BRIDGE,
     .parent = TYPE_SYS_BUS_DEVICE,
     .abstract = true,
     .class_size = sizeof(PCIHostBridgeClass),
     .instance_size = sizeof(PCIHostState),
+    .class_init = pci_host_class_init,
 };
 
 static void pci_host_register_types(void)

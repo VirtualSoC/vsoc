@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,19 +17,34 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "qemu/osdep.h"
-#include "qemu/log.h"
 #include "qemu/main-loop.h"
 #include "cpu.h"
 #include "exec/helper-proto.h"
 #include "internals.h"
 #include "exec/exec-all.h"
 #include "exec/cpu_ldst.h"
+#include "cpregs.h"
 
 #define SIGNBIT (uint32_t)0x80000000
 #define SIGNBIT64 ((uint64_t)1 << 63)
 
-static CPUState *do_raise_exception(CPUARMState *env, uint32_t excp,
-                                    uint32_t syndrome, uint32_t target_el)
+int exception_target_el(CPUARMState *env)
+{
+    int target_el = MAX(1, arm_current_el(env));
+
+    /*
+     * No such thing as secure EL1 if EL3 is aarch32,
+     * so update the target EL to EL3 in this case.
+     */
+    if (arm_is_secure(env) && !arm_el_is_aa64(env, 3) && target_el == 1) {
+        target_el = 3;
+    }
+
+    return target_el;
+}
+
+void raise_exception(CPUARMState *env, uint32_t excp,
+                     uint32_t syndrome, uint32_t target_el)
 {
     CPUState *cs = env_cpu(env);
 
@@ -50,39 +65,41 @@ static CPUState *do_raise_exception(CPUARMState *env, uint32_t excp,
     cs->exception_index = excp;
     env->exception.syndrome = syndrome;
     env->exception.target_el = target_el;
-
-    return cs;
-}
-
-void raise_exception(CPUARMState *env, uint32_t excp,
-                     uint32_t syndrome, uint32_t target_el)
-{
-    CPUState *cs = do_raise_exception(env, excp, syndrome, target_el);
     cpu_loop_exit(cs);
 }
 
 void raise_exception_ra(CPUARMState *env, uint32_t excp, uint32_t syndrome,
                         uint32_t target_el, uintptr_t ra)
 {
-    CPUState *cs = do_raise_exception(env, excp, syndrome, target_el);
-    cpu_loop_exit_restore(cs, ra);
+    CPUState *cs = env_cpu(env);
+
+    /*
+     * restore_state_to_opc() will set env->exception.syndrome, so
+     * we must restore CPU state here before setting the syndrome
+     * the caller passed us, and cannot use cpu_loop_exit_restore().
+     */
+    cpu_restore_state(cs, ra, true);
+    raise_exception(env, excp, syndrome, target_el);
 }
 
-uint32_t HELPER(neon_tbl)(uint32_t ireg, uint32_t def, void *vn,
-                          uint32_t maxindex)
+uint64_t HELPER(neon_tbl)(CPUARMState *env, uint32_t desc,
+                          uint64_t ireg, uint64_t def)
 {
-    uint32_t val, shift;
-    uint64_t *table = vn;
+    uint64_t tmp, val = 0;
+    uint32_t maxindex = ((desc & 3) + 1) * 8;
+    uint32_t base_reg = desc >> 2;
+    uint32_t shift, index, reg;
 
-    val = 0;
-    for (shift = 0; shift < 32; shift += 8) {
-        uint32_t index = (ireg >> shift) & 0xff;
+    for (shift = 0; shift < 64; shift += 8) {
+        index = (ireg >> shift) & 0xff;
         if (index < maxindex) {
-            uint32_t tmp = (table[index >> 3] >> ((index & 7) << 3)) & 0xff;
-            val |= tmp << shift;
+            reg = base_reg + (index >> 3);
+            tmp = *aa32_vfp_dreg(env, reg);
+            tmp = ((tmp >> ((index & 7) << 3)) & 0xff) << shift;
         } else {
-            val |= def & (0xff << shift);
+            tmp = def & (0xffull << shift);
         }
+        val |= tmp;
     }
     return val;
 }
@@ -94,15 +111,12 @@ void HELPER(v8m_stackcheck)(CPUARMState *env, uint32_t newvalue)
      * raising an exception if the limit is breached.
      */
     if (newvalue < v7m_sp_limit(env)) {
-        CPUState *cs = env_cpu(env);
-
         /*
          * Stack limit exceptions are a rare case, so rather than syncing
-         * PC/condbits before the call, we use cpu_restore_state() to
-         * get them right before raising the exception.
+         * PC/condbits before the call, we use raise_exception_ra() so
+         * that cpu_restore_state() will sort them out.
          */
-        cpu_restore_state(cs, GETPC(), true);
-        raise_exception(env, EXCP_STKOF, 0, 1);
+        raise_exception_ra(env, EXCP_STKOF, 0, 1, GETPC());
     }
 }
 
@@ -226,6 +240,23 @@ void HELPER(setend)(CPUARMState *env)
     arm_rebuild_hflags(env);
 }
 
+void HELPER(check_bxj_trap)(CPUARMState *env, uint32_t rm)
+{
+    /*
+     * Only called if in NS EL0 or EL1 for a BXJ for a v7A CPU;
+     * check if HSTR.TJDBX means we need to trap to EL2.
+     */
+    if (env->cp15.hstr_el2 & HSTR_TJDBX) {
+        /*
+         * We know the condition code check passed, so take the IMPDEF
+         * choice to always report CV=1 COND 0xe
+         */
+        uint32_t syn = syn_bxjtrap(1, 0xe, rm);
+        raise_exception_ra(env, EXCP_HYP_TRAP, syn, 2, GETPC());
+    }
+}
+
+#ifndef CONFIG_USER_ONLY
 /* Function checks whether WFx (WFI/WFE) instructions are set up to be trapped.
  * The function returns the target EL (1-3) if the instruction is to be trapped;
  * otherwise it returns 0 indicating it is not trapped.
@@ -280,9 +311,21 @@ static inline int check_wfx_trap(CPUARMState *env, bool is_wfe)
 
     return 0;
 }
+#endif
 
 void HELPER(wfi)(CPUARMState *env, uint32_t insn_len)
 {
+#ifdef CONFIG_USER_ONLY
+    /*
+     * WFI in the user-mode emulator is technically permitted but not
+     * something any real-world code would do. AArch64 Linux kernels
+     * trap it via SCTRL_EL1.nTWI and make it an (expensive) NOP;
+     * AArch32 kernels don't trap it so it will delay a bit.
+     * For QEMU, make it NOP here, because trying to raise EXCP_HLT
+     * would trigger an abort.
+     */
+    return;
+#else
     CPUState *cs = env_cpu(env);
     int target_el = check_wfx_trap(env, false);
 
@@ -307,6 +350,7 @@ void HELPER(wfi)(CPUARMState *env, uint32_t insn_len)
     cs->exception_index = EXCP_HLT;
     cs->halted = 1;
     cpu_loop_exit(cs);
+#endif
 }
 
 void HELPER(wfe)(CPUARMState *env)
@@ -337,7 +381,7 @@ void HELPER(yield)(CPUARMState *env)
  * those EXCP values which are special cases for QEMU to interrupt
  * execution and not to be used for exceptions which are passed to
  * the guest (those must all have syndrome information and thus should
- * use exception_with_syndrome).
+ * use exception_with_syndrome*).
  */
 void HELPER(exception_internal)(CPUARMState *env, uint32_t excp)
 {
@@ -349,51 +393,25 @@ void HELPER(exception_internal)(CPUARMState *env, uint32_t excp)
 }
 
 /* Raise an exception with the specified syndrome register value */
-void HELPER(exception_with_syndrome)(CPUARMState *env, uint32_t excp,
-                                     uint32_t syndrome, uint32_t target_el)
+void HELPER(exception_with_syndrome_el)(CPUARMState *env, uint32_t excp,
+                                        uint32_t syndrome, uint32_t target_el)
 {
     raise_exception(env, excp, syndrome, target_el);
 }
 
-/* Raise an EXCP_BKPT with the specified syndrome register value,
- * targeting the correct exception level for debug exceptions.
+/*
+ * Raise an exception with the specified syndrome register value
+ * to the default target el.
  */
-void HELPER(exception_bkpt_insn)(CPUARMState *env, uint32_t syndrome)
+void HELPER(exception_with_syndrome)(CPUARMState *env, uint32_t excp,
+                                     uint32_t syndrome)
 {
-    int debug_el = arm_debug_target_el(env);
-    int cur_el = arm_current_el(env);
-
-    /* FSR will only be used if the debug target EL is AArch32. */
-    env->exception.fsr = arm_debug_exception_fsr(env);
-    /* FAR is UNKNOWN: clear vaddress to avoid potentially exposing
-     * values to the guest that it shouldn't be able to see at its
-     * exception/security level.
-     */
-    env->exception.vaddress = 0;
-    /*
-     * Other kinds of architectural debug exception are ignored if
-     * they target an exception level below the current one (in QEMU
-     * this is checked by arm_generate_debug_exceptions()). Breakpoint
-     * instructions are special because they always generate an exception
-     * to somewhere: if they can't go to the configured debug exception
-     * level they are taken to the current exception level.
-     */
-    if (debug_el < cur_el) {
-        debug_el = cur_el;
-    }
-    raise_exception(env, EXCP_BKPT, syndrome, debug_el);
+    raise_exception(env, excp, syndrome, exception_target_el(env));
 }
 
 uint32_t HELPER(cpsr_read)(CPUARMState *env)
 {
-    /*
-     * We store the ARMv8 PSTATE.SS bit in env->uncached_cpsr.
-     * This is convenient for populating SPSR_ELx, but must be
-     * hidden from aarch32 mode, where it is not visible.
-     *
-     * TODO: ARMv8.4-DIT -- need to move SS somewhere else.
-     */
-    return cpsr_read(env) & ~(CPSR_EXEC | PSTATE_SS);
+    return cpsr_read(env) & ~CPSR_EXEC;
 }
 
 void HELPER(cpsr_write)(CPUARMState *env, uint32_t val, uint32_t mask)
@@ -609,12 +627,15 @@ uint32_t HELPER(mrs_banked)(CPUARMState *env, uint32_t tgtmode, uint32_t regno)
 void HELPER(access_check_cp_reg)(CPUARMState *env, void *rip, uint32_t syndrome,
                                  uint32_t isread)
 {
+    ARMCPU *cpu = env_archcpu(env);
     const ARMCPRegInfo *ri = rip;
+    CPAccessResult res = CP_ACCESS_OK;
     int target_el;
 
     if (arm_feature(env, ARM_FEATURE_XSCALE) && ri->cp < 14
         && extract32(env->cp15.c15_cpar, ri->cp, 1) == 0) {
-        raise_exception(env, EXCP_UDEF, syndrome, exception_target_el(env));
+        res = CP_ACCESS_TRAP;
+        goto fail;
     }
 
     /*
@@ -633,61 +654,54 @@ void HELPER(access_check_cp_reg)(CPUARMState *env, void *rip, uint32_t syndrome,
         mask &= ~((1 << 4) | (1 << 14));
 
         if (env->cp15.hstr_el2 & mask) {
-            target_el = 2;
-            goto exept;
+            res = CP_ACCESS_TRAP_EL2;
+            goto fail;
         }
     }
 
-    if (!ri->accessfn) {
+    if (ri->accessfn) {
+        res = ri->accessfn(env, ri, isread);
+    }
+    if (likely(res == CP_ACCESS_OK)) {
         return;
     }
 
-    switch (ri->accessfn(env, ri, isread)) {
-    case CP_ACCESS_OK:
-        return;
+ fail:
+    switch (res & ~CP_ACCESS_EL_MASK) {
     case CP_ACCESS_TRAP:
-        target_el = exception_target_el(env);
-        break;
-    case CP_ACCESS_TRAP_EL2:
-        /* Requesting a trap to EL2 when we're in EL3 or S-EL0/1 is
-         * a bug in the access function.
-         */
-        assert(!arm_is_secure(env) && arm_current_el(env) != 3);
-        target_el = 2;
-        break;
-    case CP_ACCESS_TRAP_EL3:
-        target_el = 3;
         break;
     case CP_ACCESS_TRAP_UNCATEGORIZED:
-        target_el = exception_target_el(env);
+        if (cpu_isar_feature(aa64_ids, cpu) && isread &&
+            arm_cpreg_in_idspace(ri)) {
+            /*
+             * FEAT_IDST says this should be reported as EC_SYSTEMREGISTERTRAP,
+             * not EC_UNCATEGORIZED
+             */
+            break;
+        }
         syndrome = syn_uncategorized();
-        break;
-    case CP_ACCESS_TRAP_UNCATEGORIZED_EL2:
-        target_el = 2;
-        syndrome = syn_uncategorized();
-        break;
-    case CP_ACCESS_TRAP_UNCATEGORIZED_EL3:
-        target_el = 3;
-        syndrome = syn_uncategorized();
-        break;
-    case CP_ACCESS_TRAP_FP_EL2:
-        target_el = 2;
-        /* Since we are an implementation that takes exceptions on a trapped
-         * conditional insn only if the insn has passed its condition code
-         * check, we take the IMPDEF choice to always report CV=1 COND=0xe
-         * (which is also the required value for AArch64 traps).
-         */
-        syndrome = syn_fp_access_trap(1, 0xe, false);
-        break;
-    case CP_ACCESS_TRAP_FP_EL3:
-        target_el = 3;
-        syndrome = syn_fp_access_trap(1, 0xe, false);
         break;
     default:
         g_assert_not_reached();
     }
 
-exept:
+    target_el = res & CP_ACCESS_EL_MASK;
+    switch (target_el) {
+    case 0:
+        target_el = exception_target_el(env);
+        break;
+    case 2:
+        assert(arm_current_el(env) != 3);
+        assert(arm_is_el2_enabled(env));
+        break;
+    case 3:
+        assert(arm_feature(env, ARM_FEATURE_EL3));
+        break;
+    default:
+        /* No "direct" traps to EL1 */
+        g_assert_not_reached();
+    }
+
     raise_exception(env, EXCP_UDEF, syndrome, target_el);
 }
 
@@ -933,5 +947,64 @@ uint32_t HELPER(ror_cc)(CPUARMState *env, uint32_t x, uint32_t i)
     } else {
         env->CF = (x >> (shift - 1)) & 1;
         return ((uint32_t)x >> shift) | (x << (32 - shift));
+    }
+}
+
+void HELPER(probe_access)(CPUARMState *env, target_ulong ptr,
+                          uint32_t access_type, uint32_t mmu_idx,
+                          uint32_t size)
+{
+    uint32_t in_page = -((uint32_t)ptr | TARGET_PAGE_SIZE);
+    uintptr_t ra = GETPC();
+
+    if (likely(size <= in_page)) {
+        probe_access(env, ptr, size, access_type, mmu_idx, ra);
+    } else {
+        probe_access(env, ptr, in_page, access_type, mmu_idx, ra);
+        probe_access(env, ptr + in_page, size - in_page,
+                     access_type, mmu_idx, ra);
+    }
+}
+
+/*
+ * This function corresponds to AArch64.vESBOperation().
+ * Note that the AArch32 version is not functionally different.
+ */
+void HELPER(vesb)(CPUARMState *env)
+{
+    /*
+     * The EL2Enabled() check is done inside arm_hcr_el2_eff,
+     * and will return HCR_EL2.VSE == 0, so nothing happens.
+     */
+    uint64_t hcr = arm_hcr_el2_eff(env);
+    bool enabled = !(hcr & HCR_TGE) && (hcr & HCR_AMO);
+    bool pending = enabled && (hcr & HCR_VSE);
+    bool masked  = (env->daif & PSTATE_A);
+
+    /* If VSE pending and masked, defer the exception.  */
+    if (pending && masked) {
+        uint32_t syndrome;
+
+        if (arm_el_is_aa64(env, 1)) {
+            /* Copy across IDS and ISS from VSESR. */
+            syndrome = env->cp15.vsesr_el2 & 0x1ffffff;
+        } else {
+            ARMMMUFaultInfo fi = { .type = ARMFault_AsyncExternal };
+
+            if (extended_addresses_enabled(env)) {
+                syndrome = arm_fi_to_lfsc(&fi);
+            } else {
+                syndrome = arm_fi_to_sfsc(&fi);
+            }
+            /* Copy across AET and ExT from VSESR. */
+            syndrome |= env->cp15.vsesr_el2 & 0xd000;
+        }
+
+        /* Set VDISR_EL2.A along with the syndrome. */
+        env->cp15.vdisr_el2 = syndrome | (1u << 31);
+
+        /* Clear pending virtual SError */
+        env->cp15.hcr_el2 &= ~HCR_VSE;
+        cpu_reset_interrupt(env_cpu(env), CPU_INTERRUPT_VSERR);
     }
 }

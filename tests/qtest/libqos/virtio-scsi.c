@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,11 +17,11 @@
  */
 
 #include "qemu/osdep.h"
-#include "libqtest.h"
+#include "../libqtest.h"
 #include "qemu/module.h"
 #include "standard-headers/linux/virtio_ids.h"
-#include "libqos/qgraph.h"
-#include "libqos/virtio-scsi.h"
+#include "qgraph.h"
+#include "virtio-scsi.h"
 
 /* virtio-scsi-device */
 static void *qvirtio_scsi_get_driver(QVirtioSCSI *v_scsi,

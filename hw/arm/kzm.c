@@ -15,7 +15,6 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "cpu.h"
 #include "hw/arm/fsl-imx31.h"
 #include "hw/boards.h"
 #include "qemu/error-report.h"
@@ -71,10 +70,9 @@ static void kzm_init(MachineState *machine)
     unsigned int alias_offset;
     unsigned int i;
 
-    object_initialize_child(OBJECT(machine), "soc", &s->soc, sizeof(s->soc),
-                            TYPE_FSL_IMX31, &error_abort, NULL);
+    object_initialize_child(OBJECT(machine), "soc", &s->soc, TYPE_FSL_IMX31);
 
-    object_property_set_bool(OBJECT(&s->soc), true, "realized", &error_fatal);
+    qdev_realize(DEVICE(&s->soc), NULL, &error_fatal);
 
     /* Check the amount of memory is compatible with the SOC */
     if (machine->ram_size > (FSL_IMX31_SDRAM0_SIZE + FSL_IMX31_SDRAM1_SIZE)) {
@@ -126,7 +124,6 @@ static void kzm_init(MachineState *machine)
     }
 
     kzm_binfo.ram_size = machine->ram_size;
-    kzm_binfo.nb_cpus = 1;
 
     if (!qtest_enabled()) {
         arm_load_kernel(&s->soc.cpu, machine, &kzm_binfo);

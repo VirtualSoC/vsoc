@@ -20,6 +20,7 @@
  * 4xx SoCs, such as the 440EP. */
 
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #include "hw/irq.h"
 #include "hw/ppc/ppc.h"
 #include "hw/ppc/ppc4xx.h"
@@ -28,8 +29,8 @@
 #include "sysemu/reset.h"
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_host.h"
-#include "exec/address-spaces.h"
 #include "trace.h"
+#include "qom/object.h"
 
 struct PCIMasterMap {
     uint32_t la;
@@ -43,23 +44,23 @@ struct PCITargetMap {
     uint32_t la;
 };
 
-#define PPC4xx_PCI_HOST_BRIDGE(obj) \
-    OBJECT_CHECK(PPC4xxPCIState, (obj), TYPE_PPC4xx_PCI_HOST_BRIDGE)
+OBJECT_DECLARE_SIMPLE_TYPE(PPC4xxPCIState, PPC4xx_PCI_HOST_BRIDGE)
 
 #define PPC4xx_PCI_NR_PMMS 3
 #define PPC4xx_PCI_NR_PTMS 2
+
+#define PPC4xx_PCI_NUM_DEVS 5
 
 struct PPC4xxPCIState {
     PCIHostState parent_obj;
 
     struct PCIMasterMap pmm[PPC4xx_PCI_NR_PMMS];
     struct PCITargetMap ptm[PPC4xx_PCI_NR_PTMS];
-    qemu_irq irq[4];
+    qemu_irq irq[PPC4xx_PCI_NUM_DEVS];
 
     MemoryRegion container;
     MemoryRegion iomem;
 };
-typedef struct PPC4xxPCIState PPC4xxPCIState;
 
 #define PCIC0_CFGADDR       0x0
 #define PCIC0_CFGDATA       0x4
@@ -152,8 +153,9 @@ static void ppc4xx_pci_reg_write4(void *opaque, hwaddr offset,
         break;
 
     default:
-        printf("%s: unhandled PCI internal register 0x%lx\n", __func__,
-               (unsigned long)offset);
+        qemu_log_mask(LOG_GUEST_ERROR,
+                     "%s: unhandled PCI internal register 0x%" HWADDR_PRIx "\n",
+                     __func__, offset);
         break;
     }
 }
@@ -218,8 +220,9 @@ static uint64_t ppc4xx_pci_reg_read4(void *opaque, hwaddr offset,
         break;
 
     default:
-        printf("%s: invalid PCI internal register 0x%lx\n", __func__,
-               (unsigned long)offset);
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: invalid PCI internal register 0x%" HWADDR_PRIx "\n",
+                      __func__, offset);
         value = 0;
     }
 
@@ -244,11 +247,11 @@ static void ppc4xx_pci_reset(void *opaque)
  * may need further refactoring for other boards. */
 static int ppc4xx_pci_map_irq(PCIDevice *pci_dev, int irq_num)
 {
-    int slot = pci_dev->devfn >> 3;
+    int slot = PCI_SLOT(pci_dev->devfn);
 
     trace_ppc4xx_pci_map_irq(pci_dev->devfn, irq_num, slot);
 
-    return slot - 1;
+    return slot > 0 ? slot - 1 : PPC4xx_PCI_NUM_DEVS - 1;
 }
 
 static void ppc4xx_pci_set_irq(void *opaque, int irq_num, int level)
@@ -256,10 +259,7 @@ static void ppc4xx_pci_set_irq(void *opaque, int irq_num, int level)
     qemu_irq *pci_irqs = opaque;
 
     trace_ppc4xx_pci_set_irq(irq_num);
-    if (irq_num < 0) {
-        fprintf(stderr, "%s: PCI irq %d\n", __func__, irq_num);
-        return;
-    }
+    assert(irq_num >= 0 && irq_num < PPC4xx_PCI_NUM_DEVS);
     qemu_set_irq(pci_irqs[irq_num], level);
 }
 
@@ -320,7 +320,8 @@ static void ppc4xx_pcihost_realize(DeviceState *dev, Error **errp)
 
     b = pci_register_root_bus(dev, NULL, ppc4xx_pci_set_irq,
                               ppc4xx_pci_map_irq, s->irq, get_system_memory(),
-                              get_system_io(), 0, 4, TYPE_PCI_BUS);
+                              get_system_io(), 0, ARRAY_SIZE(s->irq),
+                              TYPE_PCI_BUS);
     h->bus = b;
 
     pci_create_simple(b, 0, "ppc4xx-host-bridge");

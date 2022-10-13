@@ -26,13 +26,15 @@
 #include "qemu/osdep.h"
 #include "hw/pcmcia.h"
 #include "migration/vmstate.h"
+#include "qapi/error.h"
 #include "qemu/module.h"
 #include "sysemu/dma.h"
 
 #include "hw/ide/internal.h"
+#include "qom/object.h"
 
 #define TYPE_MICRODRIVE "microdrive"
-#define MICRODRIVE(obj) OBJECT_CHECK(MicroDriveState, (obj), TYPE_MICRODRIVE)
+OBJECT_DECLARE_SIMPLE_TYPE(MicroDriveState, MICRODRIVE)
 
 /***********************************************************/
 /* CF-ATA Microdrive */
@@ -41,7 +43,7 @@
 
 /* DSCM-1XXXX Microdrive hard disk with CF+ II / PCMCIA interface.  */
 
-typedef struct MicroDriveState {
+struct MicroDriveState {
     /*< private >*/
     PCMCIACardState parent_obj;
     /*< public >*/
@@ -58,7 +60,7 @@ typedef struct MicroDriveState {
     uint8_t ctrl;
     uint16_t io;
     uint8_t cycle;
-} MicroDriveState;
+};
 
 /* Register bitfields */
 enum md_opt {
@@ -560,7 +562,7 @@ PCMCIACardState *dscm1xxxx_init(DriveInfo *dinfo)
     MicroDriveState *md;
 
     md = MICRODRIVE(object_new(TYPE_DSCM1XXXX));
-    qdev_init_nofail(DEVICE(md));
+    qdev_realize(DEVICE(md), NULL, &error_fatal);
 
     if (dinfo != NULL) {
         ide_create_drive(&md->bus, 0, dinfo);
@@ -603,7 +605,7 @@ static void microdrive_init(Object *obj)
 {
     MicroDriveState *md = MICRODRIVE(obj);
 
-    ide_bus_new(&md->bus, sizeof(md->bus), DEVICE(obj), 0, 1);
+    ide_bus_init(&md->bus, sizeof(md->bus), DEVICE(obj), 0, 1);
 }
 
 static void microdrive_class_init(ObjectClass *oc, void *data)

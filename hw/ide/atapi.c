@@ -98,11 +98,11 @@ cd_read_sector_sync(IDEState *s)
     switch (s->cd_sector_size) {
     case 2048:
         ret = blk_pread(s->blk, (int64_t)s->lba << ATAPI_SECTOR_BITS,
-                        s->io_buffer, ATAPI_SECTOR_SIZE);
+                        ATAPI_SECTOR_SIZE, s->io_buffer, 0);
         break;
     case 2352:
         ret = blk_pread(s->blk, (int64_t)s->lba << ATAPI_SECTOR_BITS,
-                        s->io_buffer + 16, ATAPI_SECTOR_SIZE);
+                        ATAPI_SECTOR_SIZE, s->io_buffer + 16, 0);
         if (ret >= 0) {
             cd_data_to_raw(s->io_buffer, s->lba);
         }
@@ -276,6 +276,8 @@ void ide_atapi_cmd_reply_end(IDEState *s)
         s->packet_transfer_size -= size;
         s->elementary_transfer_size -= size;
         s->io_buffer_index += size;
+        assert(size <= s->io_buffer_total_len);
+        assert(s->io_buffer_index <= s->io_buffer_total_len);
 
         /* Some adapters process PIO data right away.  In that case, we need
          * to avoid mutual recursion between ide_transfer_start
@@ -316,10 +318,12 @@ static void ide_atapi_cmd_reply(IDEState *s, int size, int max_size)
     }
 }
 
-/* start a CD-CDROM read command */
+/* start a CD-ROM read command */
 static void ide_atapi_cmd_read_pio(IDEState *s, int lba, int nb_sectors,
                                    int sector_size)
 {
+    assert(0 <= lba && lba < (s->nb_sectors >> 2));
+
     s->lba = lba;
     s->packet_transfer_size = nb_sectors * sector_size;
     s->elementary_transfer_size = 0;
@@ -413,11 +417,13 @@ eot:
     ide_set_inactive(s, false);
 }
 
-/* start a CD-CDROM read command with DMA */
+/* start a CD-ROM read command with DMA */
 /* XXX: test if DMA is available */
 static void ide_atapi_cmd_read_dma(IDEState *s, int lba, int nb_sectors,
                                    int sector_size)
 {
+    assert(0 <= lba && lba < (s->nb_sectors >> 2));
+
     s->lba = lba;
     s->packet_transfer_size = nb_sectors * sector_size;
     s->io_buffer_size = 0;
@@ -824,9 +830,9 @@ static void cmd_get_configuration(IDEState *s, uint8_t *buf)
      *
      *      Only a problem if the feature/profiles grow.
      */
-    if (max_len > 512) {
+    if (max_len > BDRV_SECTOR_SIZE) {
         /* XXX: assume 1 sector */
-        max_len = 512;
+        max_len = BDRV_SECTOR_SIZE;
     }
 
     memset(buf, 0, max_len);
@@ -971,17 +977,24 @@ static void cmd_prevent_allow_medium_removal(IDEState *s, uint8_t* buf)
 
 static void cmd_read(IDEState *s, uint8_t* buf)
 {
-    int nb_sectors, lba;
+    unsigned int nb_sectors, lba;
+
+    /* Total logical sectors of ATAPI_SECTOR_SIZE(=2048) bytes */
+    uint64_t total_sectors = s->nb_sectors >> 2;
 
     if (buf[0] == GPCMD_READ_10) {
         nb_sectors = lduw_be_p(buf + 7);
     } else {
         nb_sectors = ldl_be_p(buf + 6);
     }
-
-    lba = ldl_be_p(buf + 2);
     if (nb_sectors == 0) {
         ide_atapi_cmd_ok(s);
+        return;
+    }
+
+    lba = ldl_be_p(buf + 2);
+    if (lba >= total_sectors || lba + nb_sectors - 1 >= total_sectors) {
+        ide_atapi_cmd_error(s, ILLEGAL_REQUEST, ASC_LOGICAL_BLOCK_OOR);
         return;
     }
 
@@ -990,13 +1003,20 @@ static void cmd_read(IDEState *s, uint8_t* buf)
 
 static void cmd_read_cd(IDEState *s, uint8_t* buf)
 {
-    int nb_sectors, lba, transfer_request;
+    unsigned int nb_sectors, lba, transfer_request;
+
+    /* Total logical sectors of ATAPI_SECTOR_SIZE(=2048) bytes */
+    uint64_t total_sectors = s->nb_sectors >> 2;
 
     nb_sectors = (buf[6] << 16) | (buf[7] << 8) | buf[8];
-    lba = ldl_be_p(buf + 2);
-
     if (nb_sectors == 0) {
         ide_atapi_cmd_ok(s);
+        return;
+    }
+
+    lba = ldl_be_p(buf + 2);
+    if (lba >= total_sectors || lba + nb_sectors - 1 >= total_sectors) {
+        ide_atapi_cmd_error(s, ILLEGAL_REQUEST, ASC_LOGICAL_BLOCK_OOR);
         return;
     }
 
@@ -1186,8 +1206,8 @@ static void cmd_read_dvd_structure(IDEState *s, uint8_t* buf)
         }
     }
 
-    memset(buf, 0, max_len > IDE_DMA_BUF_SECTORS * 512 + 4 ?
-           IDE_DMA_BUF_SECTORS * 512 + 4 : max_len);
+    memset(buf, 0, max_len > IDE_DMA_BUF_SECTORS * BDRV_SECTOR_SIZE + 4 ?
+           IDE_DMA_BUF_SECTORS * BDRV_SECTOR_SIZE + 4 : max_len);
 
     switch (format) {
         case 0x00 ... 0x7f:

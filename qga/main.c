@@ -18,17 +18,16 @@
 #include <syslog.h>
 #include <sys/wait.h>
 #endif
-#include "qemu-common.h"
+#include "qemu/help-texts.h"
 #include "qapi/qmp/json-parser.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qjson.h"
-#include "qapi/qmp/qstring.h"
 #include "guest-agent-core.h"
 #include "qga-qapi-init-commands.h"
 #include "qapi/qmp/qerror.h"
 #include "qapi/error.h"
 #include "channel.h"
-#include "qemu/bswap.h"
+#include "qemu/cutils.h"
 #include "qemu/help_option.h"
 #include "qemu/sockets.h"
 #include "qemu/systemd.h"
@@ -130,12 +129,12 @@ static void stop_agent(GAState *s, bool requested);
 static void
 init_dfl_pathnames(void)
 {
+    g_autofree char *state = qemu_get_local_state_dir();
+
     g_assert(dfl_pathnames.state_dir == NULL);
     g_assert(dfl_pathnames.pidfile == NULL);
-    dfl_pathnames.state_dir = qemu_get_local_state_pathname(
-      QGA_STATE_RELATIVE_DIR);
-    dfl_pathnames.pidfile   = qemu_get_local_state_pathname(
-      QGA_STATE_RELATIVE_DIR G_DIR_SEPARATOR_S "qemu-ga.pid");
+    dfl_pathnames.state_dir = g_build_filename(state, QGA_STATE_RELATIVE_DIR, NULL);
+    dfl_pathnames.pidfile = g_build_filename(state, QGA_STATE_RELATIVE_DIR, "qemu-ga.pid", NULL);
 }
 
 static void quit_handler(int sig)
@@ -224,6 +223,10 @@ void reopen_fd_to_null(int fd)
 
 static void usage(const char *cmd)
 {
+#ifdef CONFIG_FSFREEZE
+    g_autofree char *fsfreeze_hook = get_relocated_path(QGA_FSFREEZE_HOOK_DEFAULT);
+#endif
+
     printf(
 "Usage: %s [-m <method> -p <path>] [<options>]\n"
 "QEMU Guest Agent " QEMU_FULL_VERSION "\n"
@@ -271,7 +274,7 @@ QEMU_HELP_BOTTOM "\n"
     , cmd, QGA_VIRTIO_PATH_DEFAULT, QGA_SERIAL_PATH_DEFAULT,
     dfl_pathnames.pidfile,
 #ifdef CONFIG_FSFREEZE
-    QGA_FSFREEZE_HOOK_DEFAULT,
+    fsfreeze_hook,
 #endif
     dfl_pathnames.state_dir);
 }
@@ -279,20 +282,20 @@ QEMU_HELP_BOTTOM "\n"
 static const char *ga_log_level_str(GLogLevelFlags level)
 {
     switch (level & G_LOG_LEVEL_MASK) {
-        case G_LOG_LEVEL_ERROR:
-            return "error";
-        case G_LOG_LEVEL_CRITICAL:
-            return "critical";
-        case G_LOG_LEVEL_WARNING:
-            return "warning";
-        case G_LOG_LEVEL_MESSAGE:
-            return "message";
-        case G_LOG_LEVEL_INFO:
-            return "info";
-        case G_LOG_LEVEL_DEBUG:
-            return "debug";
-        default:
-            return "user";
+    case G_LOG_LEVEL_ERROR:
+        return "error";
+    case G_LOG_LEVEL_CRITICAL:
+        return "critical";
+    case G_LOG_LEVEL_WARNING:
+        return "warning";
+    case G_LOG_LEVEL_MESSAGE:
+        return "message";
+    case G_LOG_LEVEL_INFO:
+        return "info";
+    case G_LOG_LEVEL_DEBUG:
+        return "debug";
+    default:
+        return "user";
     }
 }
 
@@ -315,7 +318,6 @@ static void ga_log(const gchar *domain, GLogLevelFlags level,
                    const gchar *msg, gpointer opaque)
 {
     GAState *s = opaque;
-    GTimeVal time;
     const char *level_str = ga_log_level_str(level);
 
     if (!ga_logging_enabled(s)) {
@@ -330,9 +332,9 @@ static void ga_log(const gchar *domain, GLogLevelFlags level,
 #else
     if (level & s->log_level) {
 #endif
-        g_get_current_time(&time);
-        fprintf(s->log_file,
-                "%lu.%lu: %s: %s\n", time.tv_sec, time.tv_usec, level_str, msg);
+        g_autoptr(GDateTime) now = g_date_time_new_now_utc();
+        g_autofree char *nowstr = g_date_time_format(now, "%s.%f");
+        fprintf(s->log_file, "%s: %s: %s\n", nowstr, level_str, msg);
         fflush(s->log_file);
     }
 }
@@ -375,7 +377,7 @@ static void ga_disable_non_whitelisted(const QmpCommand *cmd, void *opaque)
     }
     if (!whitelisted) {
         g_debug("disabling command: %s", name);
-        qmp_disable_command(&ga_commands, name);
+        qmp_disable_command(&ga_commands, name, "the agent is in frozen state");
     }
 }
 
@@ -527,31 +529,28 @@ fail:
 
 static int send_response(GAState *s, const QDict *rsp)
 {
-    const char *buf;
-    QString *payload_qstr, *response_qstr;
+    GString *response;
     GIOStatus status;
 
-    g_assert(rsp && s->channel);
+    g_assert(s->channel);
 
-    payload_qstr = qobject_to_json(QOBJECT(rsp));
-    if (!payload_qstr) {
+    if (!rsp) {
+        return 0;
+    }
+
+    response = qobject_to_json(QOBJECT(rsp));
+    if (!response) {
         return -EINVAL;
     }
 
     if (s->delimit_response) {
         s->delimit_response = false;
-        response_qstr = qstring_new();
-        qstring_append_chr(response_qstr, QGA_SENTINEL_BYTE);
-        qstring_append(response_qstr, qstring_get_str(payload_qstr));
-        qobject_unref(payload_qstr);
-    } else {
-        response_qstr = payload_qstr;
+        g_string_prepend_c(response, QGA_SENTINEL_BYTE);
     }
 
-    qstring_append_chr(response_qstr, '\n');
-    buf = qstring_get_str(response_qstr);
-    status = ga_channel_write_all(s->channel, buf, strlen(buf));
-    qobject_unref(response_qstr);
+    g_string_append_c(response, '\n');
+    status = ga_channel_write_all(s->channel, response->str, response->len);
+    g_string_free(response, true);
     if (status != G_IO_STATUS_NORMAL) {
         return -EIO;
     }
@@ -574,7 +573,7 @@ static void process_event(void *opaque, QObject *obj, Error *err)
     }
 
     g_debug("processing command");
-    rsp = qmp_dispatch(&ga_commands, obj, false);
+    rsp = qmp_dispatch(&ga_commands, obj, false, NULL);
 
 end:
     ret = send_response(s, rsp);
@@ -589,7 +588,7 @@ end:
 static gboolean channel_event_cb(GIOCondition condition, gpointer data)
 {
     GAState *s = data;
-    gchar buf[QGA_READ_COUNT_DEFAULT+1];
+    gchar buf[QGA_READ_COUNT_DEFAULT + 1];
     gsize count;
     GIOStatus status = ga_channel_read(s->channel, buf, QGA_READ_COUNT_DEFAULT, &count);
     switch (status) {
@@ -613,7 +612,7 @@ static gboolean channel_event_cb(GIOCondition condition, gpointer data)
          * host-side chardev. sleep a bit to mitigate this
          */
         if (s->virtio) {
-            usleep(100*1000);
+            g_usleep(G_USEC_PER_SEC / 10);
         }
         return true;
     default:
@@ -689,21 +688,20 @@ DWORD WINAPI service_ctrl_handler(DWORD ctrl, DWORD type, LPVOID data,
     DWORD ret = NO_ERROR;
     GAService *service = &ga_state->service;
 
-    switch (ctrl)
-    {
-        case SERVICE_CONTROL_STOP:
-        case SERVICE_CONTROL_SHUTDOWN:
-            quit_handler(SIGTERM);
-            SetEvent(ga_state->wakeup_event);
-            service->status.dwCurrentState = SERVICE_STOP_PENDING;
-            SetServiceStatus(service->status_handle, &service->status);
-            break;
-        case SERVICE_CONTROL_DEVICEEVENT:
-            handle_serial_device_events(type, data);
-            break;
+    switch (ctrl) {
+    case SERVICE_CONTROL_STOP:
+    case SERVICE_CONTROL_SHUTDOWN:
+        quit_handler(SIGTERM);
+        SetEvent(ga_state->wakeup_event);
+        service->status.dwCurrentState = SERVICE_STOP_PENDING;
+        SetServiceStatus(service->status_handle, &service->status);
+        break;
+    case SERVICE_CONTROL_DEVICEEVENT:
+        handle_serial_device_events(type, data);
+        break;
 
-        default:
-            ret = ERROR_CALL_NOT_IMPLEMENTED;
+    default:
+        ret = ERROR_CALL_NOT_IMPLEMENTED;
     }
     return ret;
 }
@@ -964,7 +962,7 @@ static void config_load(GAConfig *config)
 {
     GError *gerr = NULL;
     GKeyFile *keyfile;
-    const char *conf = g_getenv("QGA_CONF") ?: QGA_CONF_DEFAULT;
+    g_autofree char *conf = g_strdup(g_getenv("QGA_CONF")) ?: get_relocated_path(QGA_CONF_DEFAULT);
 
     /* read system config */
     keyfile = g_key_file_new();
@@ -1023,7 +1021,7 @@ end:
     if (gerr &&
         !(gerr->domain == G_FILE_ERROR && gerr->code == G_FILE_ERROR_NOENT)) {
         g_critical("error loading configuration from path: %s, %s",
-                   QGA_CONF_DEFAULT, gerr->message);
+                   conf, gerr->message);
         exit(EXIT_FAILURE);
     }
     g_clear_error(&gerr);
@@ -1137,7 +1135,7 @@ static void config_parse(GAConfig *config, int argc, char **argv)
 #ifdef CONFIG_FSFREEZE
         case 'F':
             g_free(config->fsfreeze_hook);
-            config->fsfreeze_hook = g_strdup(optarg ?: QGA_FSFREEZE_HOOK_DEFAULT);
+            config->fsfreeze_hook = optarg ? g_strdup(optarg) : get_relocated_path(QGA_FSFREEZE_HOOK_DEFAULT);
             break;
 #endif
         case 't':
@@ -1277,6 +1275,8 @@ static GAState *initialize_agent(GAConfig *config, int socket_activation)
     g_log_set_fatal_mask(NULL, G_LOG_LEVEL_ERROR);
     ga_enable_logging(s);
 
+    g_debug("Guest agent version %s started", QEMU_FULL_VERSION);
+
 #ifdef _WIN32
     /* On win32 the state directory is application specific (be it the default
      * or a user override). We got past the command line parsing; let's create
@@ -1332,7 +1332,7 @@ static GAState *initialize_agent(GAConfig *config, int socket_activation)
         s->blacklist = config->blacklist;
         do {
             g_debug("disabling command: %s", (char *)l->data);
-            qmp_disable_command(&ga_commands, l->data);
+            qmp_disable_command(&ga_commands, l->data, NULL);
             l = g_list_next(l);
         } while (l);
     }
@@ -1459,6 +1459,7 @@ int main(int argc, char **argv)
 
     config->log_level = G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL;
 
+    qemu_init_exec_dir(argv[0]);
     qga_qmp_init_marshal(&ga_commands);
 
     init_dfl_pathnames();

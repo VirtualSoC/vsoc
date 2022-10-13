@@ -34,7 +34,7 @@ void hmp_info_cpus(Monitor *mon, const QDict *qdict)
     for (cpu = cpu_list; cpu; cpu = cpu->next) {
         int active = ' ';
 
-        if (cpu->value->cpu_index == monitor_get_cpu_index()) {
+        if (cpu->value->cpu_index == monitor_get_cpu_index(mon)) {
             active = '*';
         }
 
@@ -46,18 +46,6 @@ void hmp_info_cpus(Monitor *mon, const QDict *qdict)
     qapi_free_CpuInfoFastList(cpu_list);
 }
 
-void hmp_cpu_add(Monitor *mon, const QDict *qdict)
-{
-    int cpuid;
-    Error *err = NULL;
-
-    error_report("cpu_add is deprecated, please use device_add instead");
-
-    cpuid = qdict_get_int(qdict, "id");
-    qmp_cpu_add(cpuid, &err);
-    hmp_handle_error(mon, err);
-}
-
 void hmp_hotpluggable_cpus(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
@@ -65,8 +53,7 @@ void hmp_hotpluggable_cpus(Monitor *mon, const QDict *qdict)
     HotpluggableCPUList *saved = l;
     CpuInstanceProperties *c;
 
-    if (err != NULL) {
-        hmp_handle_error(mon, err);
+    if (hmp_handle_error(mon, err)) {
         return;
     }
 
@@ -89,6 +76,10 @@ void hmp_hotpluggable_cpus(Monitor *mon, const QDict *qdict)
         }
         if (c->has_die_id) {
             monitor_printf(mon, "    die-id: \"%" PRIu64 "\"\n", c->die_id);
+        }
+        if (c->has_cluster_id) {
+            monitor_printf(mon, "    cluster-id: \"%" PRIu64 "\"\n",
+                           c->cluster_id);
         }
         if (c->has_core_id) {
             monitor_printf(mon, "    core-id: \"%" PRIu64 "\"\n", c->core_id);
@@ -122,6 +113,12 @@ void hmp_info_memdev(Monitor *mon, const QDict *qdict)
                        m->value->dump ? "true" : "false");
         monitor_printf(mon, "  prealloc: %s\n",
                        m->value->prealloc ? "true" : "false");
+        monitor_printf(mon, "  share: %s\n",
+                       m->value->share ? "true" : "false");
+        if (m->value->has_reserve) {
+            monitor_printf(mon, "  reserve: %s\n",
+                           m->value->reserve ? "true" : "false");
+        }
         monitor_printf(mon, "  policy: %s\n",
                        HostMemPolicy_str(m->value->policy));
         visit_complete(v, &str);
@@ -136,39 +133,4 @@ void hmp_info_memdev(Monitor *mon, const QDict *qdict)
 
     qapi_free_MemdevList(memdev_list);
     hmp_handle_error(mon, err);
-}
-
-void hmp_info_numa(Monitor *mon, const QDict *qdict)
-{
-    int i, nb_numa_nodes;
-    NumaNodeMem *node_mem;
-    CpuInfoList *cpu_list, *cpu;
-    MachineState *ms = MACHINE(qdev_get_machine());
-
-    nb_numa_nodes = ms->numa_state ? ms->numa_state->num_nodes : 0;
-    monitor_printf(mon, "%d nodes\n", nb_numa_nodes);
-    if (!nb_numa_nodes) {
-        return;
-    }
-
-    cpu_list = qmp_query_cpus(&error_abort);
-    node_mem = g_new0(NumaNodeMem, nb_numa_nodes);
-
-    query_numa_node_mem(node_mem, ms);
-    for (i = 0; i < nb_numa_nodes; i++) {
-        monitor_printf(mon, "node %d cpus:", i);
-        for (cpu = cpu_list; cpu; cpu = cpu->next) {
-            if (cpu->value->has_props && cpu->value->props->has_node_id &&
-                cpu->value->props->node_id == i) {
-                monitor_printf(mon, " %" PRIi64, cpu->value->CPU);
-            }
-        }
-        monitor_printf(mon, "\n");
-        monitor_printf(mon, "node %d size: %" PRId64 " MB\n", i,
-                       node_mem[i].node_mem >> 20);
-        monitor_printf(mon, "node %d plugged: %" PRId64 " MB\n", i,
-                       node_mem[i].node_plugged_mem >> 20);
-    }
-    qapi_free_CpuInfoList(cpu_list);
-    g_free(node_mem);
 }

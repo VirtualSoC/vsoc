@@ -11,18 +11,15 @@
 #define ASPEED_GPIO_H
 
 #include "hw/sysbus.h"
+#include "qom/object.h"
 
 #define TYPE_ASPEED_GPIO "aspeed.gpio"
-#define ASPEED_GPIO(obj) OBJECT_CHECK(AspeedGPIOState, (obj), TYPE_ASPEED_GPIO)
-#define ASPEED_GPIO_CLASS(klass) \
-     OBJECT_CLASS_CHECK(AspeedGPIOClass, (klass), TYPE_ASPEED_GPIO)
-#define ASPEED_GPIO_GET_CLASS(obj) \
-     OBJECT_GET_CLASS(AspeedGPIOClass, (obj), TYPE_ASPEED_GPIO)
+OBJECT_DECLARE_TYPE(AspeedGPIOState, AspeedGPIOClass, ASPEED_GPIO)
 
 #define ASPEED_GPIO_MAX_NR_SETS 8
+#define ASPEED_GPIOS_PER_SET 32
 #define ASPEED_REGS_PER_BANK 14
 #define ASPEED_GPIO_MAX_NR_REGS (ASPEED_REGS_PER_BANK * ASPEED_GPIO_MAX_NR_SETS)
-#define ASPEED_GPIO_NR_PINS 228
 #define ASPEED_GROUPS_PER_SET 4
 #define ASPEED_GPIO_NR_DEBOUNCE_REGS 3
 #define ASPEED_CHARS_PER_GROUP_LABEL 4
@@ -53,21 +50,34 @@ enum GPIORegType {
     gpio_reg_input_mask,
 };
 
+/* GPIO index mode */
+enum GPIORegIndexType {
+    gpio_reg_idx_data = 0,
+    gpio_reg_idx_direction,
+    gpio_reg_idx_interrupt,
+    gpio_reg_idx_debounce,
+    gpio_reg_idx_tolerance,
+    gpio_reg_idx_cmd_src,
+    gpio_reg_idx_input_mask,
+    gpio_reg_idx_reserved,
+    gpio_reg_idx_new_w_cmd_src,
+    gpio_reg_idx_new_r_cmd_src,
+};
+
 typedef struct AspeedGPIOReg {
     uint16_t set_idx;
     enum GPIORegType type;
- } AspeedGPIOReg;
+} AspeedGPIOReg;
 
-typedef struct  AspeedGPIOClass {
+struct AspeedGPIOClass {
     SysBusDevice parent_obj;
     const GPIOSetProperties *props;
     uint32_t nr_gpio_pins;
     uint32_t nr_gpio_sets;
-    uint32_t gap;
     const AspeedGPIOReg *reg_table;
-}  AspeedGPIOClass;
+};
 
-typedef struct AspeedGPIOState {
+struct AspeedGPIOState {
     /* <private> */
     SysBusDevice parent;
 
@@ -75,7 +85,7 @@ typedef struct AspeedGPIOState {
     MemoryRegion iomem;
     int pending;
     qemu_irq irq;
-    qemu_irq gpios[ASPEED_GPIO_NR_PINS];
+    qemu_irq gpios[ASPEED_GPIO_MAX_NR_SETS][ASPEED_GPIOS_PER_SET];
 
 /* Parallel GPIO Registers */
     uint32_t debounce_regs[ASPEED_GPIO_NR_DEBOUNCE_REGS];
@@ -95,6 +105,6 @@ typedef struct AspeedGPIOState {
         uint32_t debounce_2;
         uint32_t input_mask;
     } sets[ASPEED_GPIO_MAX_NR_SETS];
-} AspeedGPIOState;
+};
 
-#endif /* _ASPEED_GPIO_H_ */
+#endif /* ASPEED_GPIO_H */

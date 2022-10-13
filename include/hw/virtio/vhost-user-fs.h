@@ -11,17 +11,17 @@
  * top-level directory.
  */
 
-#ifndef _QEMU_VHOST_USER_FS_H
-#define _QEMU_VHOST_USER_FS_H
+#ifndef QEMU_VHOST_USER_FS_H
+#define QEMU_VHOST_USER_FS_H
 
 #include "hw/virtio/virtio.h"
 #include "hw/virtio/vhost.h"
 #include "hw/virtio/vhost-user.h"
 #include "chardev/char-fe.h"
+#include "qom/object.h"
 
 #define TYPE_VHOST_USER_FS "vhost-user-fs-device"
-#define VHOST_USER_FS(obj) \
-        OBJECT_CHECK(VHostUserFS, (obj), TYPE_VHOST_USER_FS)
+OBJECT_DECLARE_SIMPLE_TYPE(VHostUserFS, VHOST_USER_FS)
 
 typedef struct {
     CharBackend chardev;
@@ -30,7 +30,7 @@ typedef struct {
     uint16_t queue_size;
 } VHostUserFSConf;
 
-typedef struct {
+struct VHostUserFS {
     /*< private >*/
     VirtIODevice parent;
     VHostUserFSConf conf;
@@ -39,8 +39,9 @@ typedef struct {
     VhostUserState vhost_user;
     VirtQueue **req_vqs;
     VirtQueue *hiprio_vq;
+    int32_t bootindex;
 
     /*< public >*/
-} VHostUserFS;
+};
 
-#endif /* _QEMU_VHOST_USER_FS_H */
+#endif /* QEMU_VHOST_USER_FS_H */

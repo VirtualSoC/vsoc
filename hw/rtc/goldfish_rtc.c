@@ -20,7 +20,6 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "hw/rtc/goldfish_rtc.h"
 #include "migration/vmstate.h"
 #include "hw/irq.h"
@@ -29,6 +28,7 @@
 #include "qemu/bitops.h"
 #include "qemu/timer.h"
 #include "sysemu/sysemu.h"
+#include "sysemu/rtc.h"
 #include "qemu/cutils.h"
 #include "qemu/log.h"
 
@@ -94,12 +94,22 @@ static uint64_t goldfish_rtc_read(void *opaque, hwaddr offset,
     GoldfishRTCState *s = opaque;
     uint64_t r = 0;
 
+    /*
+     * From the documentation linked at the top of the file:
+     *
+     *   To read the value, the kernel must perform an IO_READ(TIME_LOW), which
+     *   returns an unsigned 32-bit value, before an IO_READ(TIME_HIGH), which
+     *   returns a signed 32-bit value, corresponding to the higher half of the
+     *   full value.
+     */
     switch (offset) {
     case RTC_TIME_LOW:
-        r = goldfish_rtc_get_count(s) & 0xffffffff;
+        r = goldfish_rtc_get_count(s);
+        s->time_high = r >> 32;
+        r &= 0xffffffff;
         break;
     case RTC_TIME_HIGH:
-        r = goldfish_rtc_get_count(s) >> 32;
+        r = s->time_high;
         break;
     case RTC_ALARM_LOW:
         r = s->alarm_next & 0xffffffff;
@@ -201,13 +211,15 @@ static int goldfish_rtc_post_load(void *opaque, int version_id)
             qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     s->tick_offset = s->tick_offset_vmstate - delta;
 
+    goldfish_rtc_set_alarm(s);
+
     return 0;
 }
 
 static const MemoryRegionOps goldfish_rtc_ops = {
     .read = goldfish_rtc_read,
     .write = goldfish_rtc_write,
-    .endianness = DEVICE_LITTLE_ENDIAN,
+    .endianness = DEVICE_NATIVE_ENDIAN,
     .valid = {
         .min_access_size = 4,
         .max_access_size = 4
@@ -216,7 +228,7 @@ static const MemoryRegionOps goldfish_rtc_ops = {
 
 static const VMStateDescription goldfish_rtc_vmstate = {
     .name = TYPE_GOLDFISH_RTC,
-    .version_id = 1,
+    .version_id = 2,
     .pre_save = goldfish_rtc_pre_save,
     .post_load = goldfish_rtc_post_load,
     .fields = (VMStateField[]) {
@@ -225,6 +237,7 @@ static const VMStateDescription goldfish_rtc_vmstate = {
         VMSTATE_UINT32(alarm_running, GoldfishRTCState),
         VMSTATE_UINT32(irq_pending, GoldfishRTCState),
         VMSTATE_UINT32(irq_enabled, GoldfishRTCState),
+        VMSTATE_UINT32(time_high, GoldfishRTCState),
         VMSTATE_END_OF_LIST()
     }
 };

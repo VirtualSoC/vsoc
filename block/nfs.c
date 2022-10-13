@@ -24,7 +24,9 @@
 
 #include "qemu/osdep.h"
 
+#if !defined(_WIN32)
 #include <poll.h>
+#endif
 #include "qemu/config-file.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
@@ -37,7 +39,6 @@
 #include "qemu/option.h"
 #include "qemu/uri.h"
 #include "qemu/cutils.h"
-#include "sysemu/sysemu.h"
 #include "sysemu/replay.h"
 #include "qapi/qapi-visit-block-core.h"
 #include "qapi/qmp/qdict.h"
@@ -58,7 +59,7 @@ typedef struct NFSClient {
     bool has_zero_init;
     AioContext *aio_context;
     QemuMutex mutex;
-    blkcnt_t st_blocks;
+    uint64_t st_blocks;
     bool cache_used;
     NFSServer *server;
     char *path;
@@ -146,9 +147,7 @@ out:
     if (qp) {
         query_params_free(qp);
     }
-    if (uri) {
-        uri_free(uri);
-    }
+    uri_free(uri);
     return ret;
 }
 
@@ -198,7 +197,7 @@ static void nfs_set_events(NFSClient *client)
                            false,
                            (ev & POLLIN) ? nfs_process_read : NULL,
                            (ev & POLLOUT) ? nfs_process_write : NULL,
-                           NULL, client);
+                           NULL, NULL, client);
 
     }
     client->events = ev;
@@ -263,9 +262,9 @@ nfs_co_generic_cb(int ret, struct nfs_context *nfs, void *data,
                                      nfs_co_generic_bh_cb, task);
 }
 
-static int coroutine_fn nfs_co_preadv(BlockDriverState *bs, uint64_t offset,
-                                      uint64_t bytes, QEMUIOVector *iov,
-                                      int flags)
+static int coroutine_fn nfs_co_preadv(BlockDriverState *bs, int64_t offset,
+                                      int64_t bytes, QEMUIOVector *iov,
+                                      BdrvRequestFlags flags)
 {
     NFSClient *client = bs->opaque;
     NFSRPC task;
@@ -297,9 +296,9 @@ static int coroutine_fn nfs_co_preadv(BlockDriverState *bs, uint64_t offset,
     return 0;
 }
 
-static int coroutine_fn nfs_co_pwritev(BlockDriverState *bs, uint64_t offset,
-                                       uint64_t bytes, QEMUIOVector *iov,
-                                       int flags)
+static int coroutine_fn nfs_co_pwritev(BlockDriverState *bs, int64_t offset,
+                                       int64_t bytes, QEMUIOVector *iov,
+                                       BdrvRequestFlags flags)
 {
     NFSClient *client = bs->opaque;
     NFSRPC task;
@@ -373,7 +372,7 @@ static void nfs_detach_aio_context(BlockDriverState *bs)
     NFSClient *client = bs->opaque;
 
     aio_set_fd_handler(client->aio_context, nfs_get_fd(client->context),
-                       false, NULL, NULL, NULL, NULL);
+                       false, NULL, NULL, NULL, NULL, NULL);
     client->events = 0;
 }
 
@@ -391,7 +390,7 @@ static void nfs_client_close(NFSClient *client)
     if (client->context) {
         qemu_mutex_lock(&client->mutex);
         aio_set_fd_handler(client->aio_context, nfs_get_fd(client->context),
-                           false, NULL, NULL, NULL, NULL);
+                           false, NULL, NULL, NULL, NULL, NULL);
         qemu_mutex_unlock(&client->mutex);
         if (client->fh) {
             nfs_close(client->context, client->fh);
@@ -545,7 +544,9 @@ static int64_t nfs_client_open(NFSClient *client, BlockdevOptionsNfs *opts,
     }
 
     ret = DIV_ROUND_UP(st.st_size, BDRV_SECTOR_SIZE);
+#if !defined(_WIN32)
     client->st_blocks = st.st_blocks;
+#endif
     client->has_zero_init = S_ISREG(st.st_mode);
     *strp = '/';
     goto out;
@@ -563,18 +564,15 @@ static BlockdevOptionsNfs *nfs_options_qdict_to_qapi(QDict *options,
     BlockdevOptionsNfs *opts = NULL;
     Visitor *v;
     const QDictEntry *e;
-    Error *local_err = NULL;
 
     v = qobject_input_visitor_new_flat_confused(options, errp);
     if (!v) {
         return NULL;
     }
 
-    visit_type_BlockdevOptionsNfs(v, NULL, &opts, &local_err);
+    visit_type_BlockdevOptionsNfs(v, NULL, &opts, errp);
     visit_free(v);
-
-    if (local_err) {
-        error_propagate(errp, local_err);
+    if (!opts) {
         return NULL;
     }
 
@@ -591,7 +589,7 @@ static int64_t nfs_client_open_qdict(NFSClient *client, QDict *options,
                                      int flags, int open_flags, Error **errp)
 {
     BlockdevOptionsNfs *opts;
-    int ret;
+    int64_t ret;
 
     opts = nfs_options_qdict_to_qapi(options, errp);
     if (opts == NULL) {
@@ -709,6 +707,7 @@ static int nfs_has_zero_init(BlockDriverState *bs)
     return client->has_zero_init;
 }
 
+#if !defined(_WIN32)
 /* Called (via nfs_service) with QemuMutex held.  */
 static void
 nfs_get_allocated_file_size_cb(int ret, struct nfs_context *nfs, void *data,
@@ -724,7 +723,7 @@ nfs_get_allocated_file_size_cb(int ret, struct nfs_context *nfs, void *data,
     }
 
     /* Set task->complete before reading bs->wakeup.  */
-    atomic_mb_set(&task->complete, 1);
+    qatomic_mb_set(&task->complete, 1);
     bdrv_wakeup(task->bs);
 }
 
@@ -751,6 +750,7 @@ static int64_t nfs_get_allocated_file_size(BlockDriverState *bs)
 
     return (task.ret < 0 ? task.ret : st.st_blocks * 512);
 }
+#endif
 
 static int coroutine_fn
 nfs_file_co_truncate(BlockDriverState *bs, int64_t offset, bool exact,
@@ -803,7 +803,9 @@ static int nfs_reopen_prepare(BDRVReopenState *state,
                        nfs_get_error(client->context));
             return ret;
         }
+#if !defined(_WIN32)
         client->st_blocks = st.st_blocks;
+#endif
     }
 
     return 0;
@@ -872,7 +874,10 @@ static BlockDriver bdrv_nfs = {
     .create_opts                    = &nfs_create_opts,
 
     .bdrv_has_zero_init             = nfs_has_zero_init,
+/* libnfs does not provide the allocated filesize of a file on win32. */
+#if !defined(_WIN32)
     .bdrv_get_allocated_file_size   = nfs_get_allocated_file_size,
+#endif
     .bdrv_co_truncate               = nfs_file_co_truncate,
 
     .bdrv_file_open                 = nfs_file_open,

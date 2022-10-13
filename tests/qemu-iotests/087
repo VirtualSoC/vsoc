@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# group: rw quick
 #
 # Test unsupported blockdev-add cases
 #
@@ -39,6 +40,7 @@ trap "_cleanup; exit \$status" 0 1 2 3 15
 _supported_fmt qcow2
 _supported_proto file
 _supported_os Linux
+_require_working_luks
 
 do_run_qemu()
 {
@@ -141,9 +143,7 @@ run_qemu <<EOF
   "arguments": {
       "qom-type": "secret",
       "id": "sec0",
-      "props": {
-          "data": "123456"
-      }
+      "data": "123456"
   }
 }
 { "execute": "blockdev-add",
@@ -174,9 +174,7 @@ run_qemu <<EOF
   "arguments": {
       "qom-type": "secret",
       "id": "sec0",
-      "props": {
-          "data": "123456"
-      }
+      "data": "123456"
   }
 }
 { "execute": "blockdev-add",

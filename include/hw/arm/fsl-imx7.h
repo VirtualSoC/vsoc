@@ -39,9 +39,10 @@
 #include "hw/pci-host/designware.h"
 #include "hw/usb/chipidea.h"
 #include "cpu.h"
+#include "qom/object.h"
 
-#define TYPE_FSL_IMX7 "fsl,imx7"
-#define FSL_IMX7(obj) OBJECT_CHECK(FslIMX7State, (obj), TYPE_FSL_IMX7)
+#define TYPE_FSL_IMX7 "fsl-imx7"
+OBJECT_DECLARE_SIMPLE_TYPE(FslIMX7State, FSL_IMX7)
 
 enum FslIMX7Configuration {
     FSL_IMX7_NUM_CPUS         = 2,
@@ -59,7 +60,7 @@ enum FslIMX7Configuration {
     FSL_IMX7_NUM_ADCS         = 2,
 };
 
-typedef struct FslIMX7State {
+struct FslIMX7State {
     /*< private >*/
     DeviceState    parent_obj;
 
@@ -81,7 +82,8 @@ typedef struct FslIMX7State {
     IMX7GPRState       gpr;
     ChipideaState      usb[FSL_IMX7_NUM_USBS];
     DesignwarePCIEHost pcie;
-} FslIMX7State;
+    uint32_t           phy_num[FSL_IMX7_NUM_ETHS];
+};
 
 enum FslIMX7MemoryMap {
     FSL_IMX7_MMDC_ADDR            = 0x80000000,
@@ -171,6 +173,11 @@ enum FslIMX7MemoryMap {
     FSL_IMX7_UART5_ADDR           = 0x30A70000,
     FSL_IMX7_UART6_ADDR           = 0x30A80000,
     FSL_IMX7_UART7_ADDR           = 0x30A90000,
+
+    FSL_IMX7_SAI1_ADDR            = 0x308A0000,
+    FSL_IMX7_SAI2_ADDR            = 0x308B0000,
+    FSL_IMX7_SAI3_ADDR            = 0x308C0000,
+    FSL_IMX7_SAIn_SIZE            = 0x10000,
 
     FSL_IMX7_ENET1_ADDR           = 0x30BE0000,
     FSL_IMX7_ENET2_ADDR           = 0x30BF0000,

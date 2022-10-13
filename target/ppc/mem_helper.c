@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,7 +25,6 @@
 #include "exec/helper-proto.h"
 #include "helper_regs.h"
 #include "exec/cpu_ldst.h"
-#include "tcg/tcg.h"
 #include "internal.h"
 #include "qemu/atomic128.h"
 
@@ -33,10 +32,10 @@
 
 static inline bool needs_byteswap(const CPUPPCState *env)
 {
-#if defined(TARGET_WORDS_BIGENDIAN)
-  return msr_le;
+#if TARGET_BIG_ENDIAN
+  return FIELD_EX64(env->msr, MSR, LE);
 #else
-  return !msr_le;
+  return !FIELD_EX64(env->msr, MSR, LE);
 #endif
 }
 
@@ -278,7 +277,7 @@ static void dcbz_common(CPUPPCState *env, target_ulong addr,
     target_ulong mask, dcbz_size = env->dcache_line_size;
     uint32_t i;
     void *haddr;
-    int mmu_idx = epid ? PPC_TLB_EPID_STORE : env->dmmu_idx;
+    int mmu_idx = epid ? PPC_TLB_EPID_STORE : cpu_mmu_index(env, false);
 
 #if defined(TARGET_PPC64)
     /* Check for dcbz vs dcbzl on 970 */
@@ -376,7 +375,7 @@ uint64_t helper_lq_le_parallel(CPUPPCState *env, target_ulong addr,
 
     /* We will have raised EXCP_ATOMIC from the translator.  */
     assert(HAVE_ATOMIC128);
-    ret = helper_atomic_ldo_le_mmu(env, addr, opidx, GETPC());
+    ret = cpu_atomic_ldo_le_mmu(env, addr, opidx, GETPC());
     env->retxh = int128_gethi(ret);
     return int128_getlo(ret);
 }
@@ -388,7 +387,7 @@ uint64_t helper_lq_be_parallel(CPUPPCState *env, target_ulong addr,
 
     /* We will have raised EXCP_ATOMIC from the translator.  */
     assert(HAVE_ATOMIC128);
-    ret = helper_atomic_ldo_be_mmu(env, addr, opidx, GETPC());
+    ret = cpu_atomic_ldo_be_mmu(env, addr, opidx, GETPC());
     env->retxh = int128_gethi(ret);
     return int128_getlo(ret);
 }
@@ -401,7 +400,7 @@ void helper_stq_le_parallel(CPUPPCState *env, target_ulong addr,
     /* We will have raised EXCP_ATOMIC from the translator.  */
     assert(HAVE_ATOMIC128);
     val = int128_make128(lo, hi);
-    helper_atomic_sto_le_mmu(env, addr, val, opidx, GETPC());
+    cpu_atomic_sto_le_mmu(env, addr, val, opidx, GETPC());
 }
 
 void helper_stq_be_parallel(CPUPPCState *env, target_ulong addr,
@@ -412,7 +411,7 @@ void helper_stq_be_parallel(CPUPPCState *env, target_ulong addr,
     /* We will have raised EXCP_ATOMIC from the translator.  */
     assert(HAVE_ATOMIC128);
     val = int128_make128(lo, hi);
-    helper_atomic_sto_be_mmu(env, addr, val, opidx, GETPC());
+    cpu_atomic_sto_be_mmu(env, addr, val, opidx, GETPC());
 }
 
 uint32_t helper_stqcx_le_parallel(CPUPPCState *env, target_ulong addr,
@@ -429,8 +428,8 @@ uint32_t helper_stqcx_le_parallel(CPUPPCState *env, target_ulong addr,
 
         cmpv = int128_make128(env->reserve_val2, env->reserve_val);
         newv = int128_make128(new_lo, new_hi);
-        oldv = helper_atomic_cmpxchgo_le_mmu(env, addr, cmpv, newv,
-                                             opidx, GETPC());
+        oldv = cpu_atomic_cmpxchgo_le_mmu(env, addr, cmpv, newv,
+                                          opidx, GETPC());
         success = int128_eq(oldv, cmpv);
     }
     env->reserve_addr = -1;
@@ -451,8 +450,8 @@ uint32_t helper_stqcx_be_parallel(CPUPPCState *env, target_ulong addr,
 
         cmpv = int128_make128(env->reserve_val2, env->reserve_val);
         newv = int128_make128(new_lo, new_hi);
-        oldv = helper_atomic_cmpxchgo_be_mmu(env, addr, cmpv, newv,
-                                             opidx, GETPC());
+        oldv = cpu_atomic_cmpxchgo_be_mmu(env, addr, cmpv, newv,
+                                          opidx, GETPC());
         success = int128_eq(oldv, cmpv);
     }
     env->reserve_addr = -1;
@@ -462,7 +461,7 @@ uint32_t helper_stqcx_be_parallel(CPUPPCState *env, target_ulong addr,
 
 /*****************************************************************************/
 /* Altivec extension helpers */
-#if defined(HOST_WORDS_BIGENDIAN)
+#if HOST_BIG_ENDIAN
 #define HI_IDX 0
 #define LO_IDX 1
 #else
@@ -471,8 +470,8 @@ uint32_t helper_stqcx_be_parallel(CPUPPCState *env, target_ulong addr,
 #endif
 
 /*
- * We use msr_le to determine index ordering in a vector.  However,
- * byteswapping is not simply controlled by msr_le.  We also need to
+ * We use MSR_LE to determine index ordering in a vector.  However,
+ * byteswapping is not simply controlled by MSR_LE.  We also need to
  * take into account endianness of the target.  This is done for the
  * little-endian PPC64 user-mode target.
  */
@@ -485,7 +484,7 @@ uint32_t helper_stqcx_be_parallel(CPUPPCState *env, target_ulong addr,
         int adjust = HI_IDX * (n_elems - 1);                    \
         int sh = sizeof(r->element[0]) >> 1;                    \
         int index = (addr & 0xf) >> sh;                         \
-        if (msr_le) {                                           \
+        if (FIELD_EX64(env->msr, MSR, LE)) {                    \
             index = n_elems - index - 1;                        \
         }                                                       \
                                                                 \
@@ -512,7 +511,7 @@ LVE(lvewx, cpu_ldl_data_ra, bswap32, u32)
         int adjust = HI_IDX * (n_elems - 1);                            \
         int sh = sizeof(r->element[0]) >> 1;                            \
         int index = (addr & 0xf) >> sh;                                 \
-        if (msr_le) {                                                   \
+        if (FIELD_EX64(env->msr, MSR, LE)) {                            \
             index = n_elems - index - 1;                                \
         }                                                               \
                                                                         \
@@ -546,7 +545,7 @@ void helper_##name(CPUPPCState *env, target_ulong addr,                 \
     t.s128 = int128_zero();                                             \
     if (nb) {                                                           \
         nb = (nb >= 16) ? 16 : nb;                                      \
-        if (msr_le && !lj) {                                            \
+        if (FIELD_EX64(env->msr, MSR, LE) && !lj) {                     \
             for (i = 16; i > 16 - nb; i--) {                            \
                 t.VsrB(i - 1) = cpu_ldub_data_ra(env, addr, GETPC());   \
                 addr = addr_add(env, addr, 1);                          \
@@ -577,7 +576,7 @@ void helper_##name(CPUPPCState *env, target_ulong addr,           \
     }                                                             \
                                                                   \
     nb = (nb >= 16) ? 16 : nb;                                    \
-    if (msr_le && !lj) {                                          \
+    if (FIELD_EX64(env->msr, MSR, LE) && !lj) {                   \
         for (i = 16; i > 16 - nb; i--) {                          \
             cpu_stb_data_ra(env, addr, xt->VsrB(i - 1), GETPC()); \
             addr = addr_add(env, addr, 1);                        \
@@ -613,11 +612,12 @@ void helper_tbegin(CPUPPCState *env)
     env->spr[SPR_TEXASR] =
         (1ULL << TEXASR_FAILURE_PERSISTENT) |
         (1ULL << TEXASR_NESTING_OVERFLOW) |
-        (msr_hv << TEXASR_PRIVILEGE_HV) |
-        (msr_pr << TEXASR_PRIVILEGE_PR) |
+        (FIELD_EX64_HV(env->msr) << TEXASR_PRIVILEGE_HV) |
+        (FIELD_EX64(env->msr, MSR, PR) << TEXASR_PRIVILEGE_PR) |
         (1ULL << TEXASR_FAILURE_SUMMARY) |
         (1ULL << TEXASR_TFIAR_EXACT);
-    env->spr[SPR_TFIAR] = env->nip | (msr_hv << 1) | msr_pr;
+    env->spr[SPR_TFIAR] = env->nip | (FIELD_EX64_HV(env->msr) << 1) |
+                          FIELD_EX64(env->msr, MSR, PR);
     env->spr[SPR_TFHAR] = env->nip + 4;
     env->crf[0] = 0xB; /* 0b1010 = transaction failure */
 }

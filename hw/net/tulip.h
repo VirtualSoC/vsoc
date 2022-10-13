@@ -3,9 +3,10 @@
 
 #include "qemu/units.h"
 #include "net/net.h"
+#include "qom/object.h"
 
 #define TYPE_TULIP "tulip"
-#define TULIP(obj) OBJECT_CHECK(TULIPState, (obj), TYPE_TULIP)
+OBJECT_DECLARE_SIMPLE_TYPE(TULIPState, TULIP)
 
 #define CSR(_x) ((_x) << 3)
 
@@ -211,7 +212,7 @@
 #define RDES0_RF         BIT(11)
 #define RDES0_DT_SHIFT   12
 #define RDES0_DT_MASK    3
-#define RDES0_LE         BIT(14)
+#define RDES0_DE         BIT(14)
 #define RDES0_ES         BIT(15)
 #define RDES0_FL_SHIFT   16
 #define RDES0_FL_MASK    0x3fff

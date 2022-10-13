@@ -12,7 +12,6 @@
 
 #include "qemu/osdep.h"
 #include "sysemu/hostmem.h"
-#include "sysemu/sysemu.h"
 #include "hw/boards.h"
 #include "qapi/error.h"
 #include "qapi/qapi-builtin-visit.h"
@@ -20,6 +19,7 @@
 #include "qemu/config-file.h"
 #include "qom/object_interfaces.h"
 #include "qemu/mmap-alloc.h"
+#include "qemu/madvise.h"
 
 #ifdef CONFIG_NUMA
 #include <numaif.h>
@@ -33,7 +33,7 @@ char *
 host_memory_backend_get_name(HostMemoryBackend *backend)
 {
     if (!backend->use_canonical_path) {
-        return object_get_canonical_path_component(OBJECT(backend));
+        return g_strdup(object_get_canonical_path_component(OBJECT(backend)));
     }
 
     return object_get_canonical_path(OBJECT(backend));
@@ -54,28 +54,24 @@ host_memory_backend_set_size(Object *obj, Visitor *v, const char *name,
                              void *opaque, Error **errp)
 {
     HostMemoryBackend *backend = MEMORY_BACKEND(obj);
-    Error *local_err = NULL;
     uint64_t value;
 
     if (host_memory_backend_mr_inited(backend)) {
-        error_setg(&local_err, "cannot change property %s of %s ",
-                   name, object_get_typename(obj));
-        goto out;
+        error_setg(errp, "cannot change property %s of %s ", name,
+                   object_get_typename(obj));
+        return;
     }
 
-    visit_type_size(v, name, &value, &local_err);
-    if (local_err) {
-        goto out;
+    if (!visit_type_size(v, name, &value, errp)) {
+        return;
     }
     if (!value) {
-        error_setg(&local_err,
+        error_setg(errp,
                    "property '%s' of %s doesn't take value '%" PRIu64 "'",
                    name, object_get_typename(obj), value);
-        goto out;
+        return;
     }
     backend->size = value;
-out:
-    error_propagate(errp, local_err);
 }
 
 static void
@@ -84,7 +80,7 @@ host_memory_backend_get_host_nodes(Object *obj, Visitor *v, const char *name,
 {
     HostMemoryBackend *backend = MEMORY_BACKEND(obj);
     uint16List *host_nodes = NULL;
-    uint16List **node = &host_nodes;
+    uint16List **tail = &host_nodes;
     unsigned long value;
 
     value = find_first_bit(backend->host_nodes, MAX_NODES);
@@ -92,9 +88,7 @@ host_memory_backend_get_host_nodes(Object *obj, Visitor *v, const char *name,
         goto ret;
     }
 
-    *node = g_malloc0(sizeof(**node));
-    (*node)->value = value;
-    node = &(*node)->next;
+    QAPI_LIST_APPEND(tail, value);
 
     do {
         value = find_next_bit(backend->host_nodes, MAX_NODES, value + 1);
@@ -102,13 +96,12 @@ host_memory_backend_get_host_nodes(Object *obj, Visitor *v, const char *name,
             break;
         }
 
-        *node = g_malloc0(sizeof(**node));
-        (*node)->value = value;
-        node = &(*node)->next;
+        QAPI_LIST_APPEND(tail, value);
     } while (true);
 
 ret:
     visit_type_uint16List(v, name, &host_nodes, errp);
+    qapi_free_uint16List(host_nodes);
 }
 
 static void
@@ -224,6 +217,11 @@ static void host_memory_backend_set_prealloc(Object *obj, bool value,
     Error *local_err = NULL;
     HostMemoryBackend *backend = MEMORY_BACKEND(obj);
 
+    if (!backend->reserve && value) {
+        error_setg(errp, "'prealloc=on' and 'reserve=off' are incompatible");
+        return;
+    }
+
     if (!host_memory_backend_mr_inited(backend)) {
         backend->prealloc = value;
         return;
@@ -254,22 +252,17 @@ static void host_memory_backend_set_prealloc_threads(Object *obj, Visitor *v,
     const char *name, void *opaque, Error **errp)
 {
     HostMemoryBackend *backend = MEMORY_BACKEND(obj);
-    Error *local_err = NULL;
     uint32_t value;
 
-    visit_type_uint32(v, name, &value, &local_err);
-    if (local_err) {
-        goto out;
+    if (!visit_type_uint32(v, name, &value, errp)) {
+        return;
     }
     if (value <= 0) {
-        error_setg(&local_err,
-                   "property '%s' of %s doesn't take value '%d'",
-                   name, object_get_typename(obj), value);
-        goto out;
+        error_setg(errp, "property '%s' of %s doesn't take value '%d'", name,
+                   object_get_typename(obj), value);
+        return;
     }
     backend->prealloc_threads = value;
-out:
-    error_propagate(errp, local_err);
 }
 
 static void host_memory_backend_init(Object *obj)
@@ -280,7 +273,8 @@ static void host_memory_backend_init(Object *obj)
     /* TODO: convert access to globals to compat properties */
     backend->merge = machine_mem_merge(machine);
     backend->dump = machine_dump_guest_core(machine);
-    backend->prealloc_threads = 1;
+    backend->reserve = true;
+    backend->prealloc_threads = machine->smp.cpus;
 }
 
 static void host_memory_backend_post_init(Object *obj)
@@ -325,7 +319,7 @@ size_t host_memory_backend_pagesize(HostMemoryBackend *memdev)
 #else
 size_t host_memory_backend_pagesize(HostMemoryBackend *memdev)
 {
-    return qemu_real_host_page_size;
+    return qemu_real_host_page_size();
 }
 #endif
 
@@ -438,6 +432,30 @@ static void host_memory_backend_set_share(Object *o, bool value, Error **errp)
     backend->share = value;
 }
 
+#ifdef CONFIG_LINUX
+static bool host_memory_backend_get_reserve(Object *o, Error **errp)
+{
+    HostMemoryBackend *backend = MEMORY_BACKEND(o);
+
+    return backend->reserve;
+}
+
+static void host_memory_backend_set_reserve(Object *o, bool value, Error **errp)
+{
+    HostMemoryBackend *backend = MEMORY_BACKEND(o);
+
+    if (host_memory_backend_mr_inited(backend)) {
+        error_setg(errp, "cannot change property value");
+        return;
+    }
+    if (backend->prealloc && !value) {
+        error_setg(errp, "'prealloc=on' and 'reserve=off' are incompatible");
+        return;
+    }
+    backend->reserve = value;
+}
+#endif /* CONFIG_LINUX */
+
 static bool
 host_memory_backend_get_use_canonical_path(Object *obj, Error **errp)
 {
@@ -506,6 +524,22 @@ host_memory_backend_class_init(ObjectClass *oc, void *data)
         host_memory_backend_get_share, host_memory_backend_set_share);
     object_class_property_set_description(oc, "share",
         "Mark the memory as private to QEMU or shared");
+#ifdef CONFIG_LINUX
+    object_class_property_add_bool(oc, "reserve",
+        host_memory_backend_get_reserve, host_memory_backend_set_reserve);
+    object_class_property_set_description(oc, "reserve",
+        "Reserve swap space (or huge pages) if applicable");
+#endif /* CONFIG_LINUX */
+    /*
+     * Do not delete/rename option. This option must be considered stable
+     * (as if it didn't have the 'x-' prefix including deprecation period) as
+     * long as 4.0 and older machine types exists.
+     * Option will be used by upper layers to override (disable) canonical path
+     * for ramblock-id set by compat properties on old machine types ( <= 4.0),
+     * to keep migration working when backend is used for main RAM with
+     * -machine memory-backend= option (main RAM historically used prefix-less
+     * ramblock-id).
+     */
     object_class_property_add_bool(oc, "x-use-canonical-path-for-ramblock-id",
         host_memory_backend_get_use_canonical_path,
         host_memory_backend_set_use_canonical_path);

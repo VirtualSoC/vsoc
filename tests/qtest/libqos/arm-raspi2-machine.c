@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,10 +17,10 @@
  */
 
 #include "qemu/osdep.h"
-#include "libqtest.h"
+#include "../libqtest.h"
 #include "qemu/module.h"
-#include "libqos/malloc.h"
-#include "libqos/qgraph.h"
+#include "malloc.h"
+#include "qgraph.h"
 #include "sdhci.h"
 
 #define ARM_PAGE_SIZE             4096
@@ -42,7 +42,7 @@ static void *raspi2_get_driver(void *object, const char *interface)
         return &machine->alloc;
     }
 
-    fprintf(stderr, "%s not present in arm/raspi2\n", interface);
+    fprintf(stderr, "%s not present in arm/raspi2b\n", interface);
     g_assert_not_reached();
 }
 
@@ -53,7 +53,7 @@ static QOSGraphObject *raspi2_get_device(void *obj, const char *device)
         return &machine->sdhci.obj;
     }
 
-    fprintf(stderr, "%s not present in arm/raspi2\n", device);
+    fprintf(stderr, "%s not present in arm/raspi2b\n", device);
     g_assert_not_reached();
 }
 
@@ -85,8 +85,8 @@ static void *qos_create_machine_arm_raspi2(QTestState *qts)
 
 static void raspi2_register_nodes(void)
 {
-    qos_node_create_machine("arm/raspi2", qos_create_machine_arm_raspi2);
-    qos_node_contains("arm/raspi2", "generic-sdhci", NULL);
+    qos_node_create_machine("arm/raspi2b", qos_create_machine_arm_raspi2);
+    qos_node_contains("arm/raspi2b", "generic-sdhci", NULL);
 }
 
 libqos_init(raspi2_register_nodes);

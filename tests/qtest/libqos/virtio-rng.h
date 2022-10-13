@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,9 +19,9 @@
 #ifndef TESTS_LIBQOS_VIRTIO_RNG_H
 #define TESTS_LIBQOS_VIRTIO_RNG_H
 
-#include "libqos/qgraph.h"
-#include "libqos/virtio.h"
-#include "libqos/virtio-pci.h"
+#include "qgraph.h"
+#include "virtio.h"
+#include "virtio-pci.h"
 
 typedef struct QVirtioRng QVirtioRng;
 typedef struct QVirtioRngPCI QVirtioRngPCI;

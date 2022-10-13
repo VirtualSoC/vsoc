@@ -11,7 +11,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -45,28 +45,24 @@ static void nvdimm_set_label_size(Object *obj, Visitor *v, const char *name,
                                   void *opaque, Error **errp)
 {
     NVDIMMDevice *nvdimm = NVDIMM(obj);
-    Error *local_err = NULL;
     uint64_t value;
 
     if (nvdimm->nvdimm_mr) {
-        error_setg(&local_err, "cannot change property value");
-        goto out;
+        error_setg(errp, "cannot change property value");
+        return;
     }
 
-    visit_type_size(v, name, &value, &local_err);
-    if (local_err) {
-        goto out;
+    if (!visit_type_size(v, name, &value, errp)) {
+        return;
     }
     if (value < MIN_NAMESPACE_LABEL_SIZE) {
-        error_setg(&local_err, "Property '%s.%s' (0x%" PRIx64 ") is required"
-                   " at least 0x%lx", object_get_typename(obj),
-                   name, value, MIN_NAMESPACE_LABEL_SIZE);
-        goto out;
+        error_setg(errp, "Property '%s.%s' (0x%" PRIx64 ") is required"
+                   " at least 0x%lx", object_get_typename(obj), name, value,
+                   MIN_NAMESPACE_LABEL_SIZE);
+        return;
     }
 
     nvdimm->label_size = value;
-out:
-    error_propagate(errp, local_err);
 }
 
 static void nvdimm_get_uuid(Object *obj, Visitor *v, const char *name,
@@ -86,22 +82,18 @@ static void nvdimm_set_uuid(Object *obj, Visitor *v, const char *name,
                                   void *opaque, Error **errp)
 {
     NVDIMMDevice *nvdimm = NVDIMM(obj);
-    Error *local_err = NULL;
     char *value;
 
-    visit_type_str(v, name, &value, &local_err);
-    if (local_err) {
-        goto out;
+    if (!visit_type_str(v, name, &value, errp)) {
+        return;
     }
 
     if (qemu_uuid_parse(value, &nvdimm->uuid) != 0) {
         error_setg(errp, "Property '%s.%s' has invalid value",
                    object_get_typename(obj), name);
     }
-    g_free(value);
 
-out:
-    error_propagate(errp, local_err);
+    g_free(value);
 }
 
 
@@ -145,13 +137,21 @@ static void nvdimm_prepare_memory_region(NVDIMMDevice *nvdimm, Error **errp)
 
     if (size <= nvdimm->label_size || !pmem_size) {
         HostMemoryBackend *hostmem = dimm->hostmem;
-        char *path = object_get_canonical_path_component(OBJECT(hostmem));
 
         error_setg(errp, "the size of memdev %s (0x%" PRIx64 ") is too "
                    "small to contain nvdimm label (0x%" PRIx64 ") and "
                    "aligned PMEM (0x%" PRIx64 ")",
-                   path, memory_region_size(mr), nvdimm->label_size, align);
-        g_free(path);
+                   object_get_canonical_path_component(OBJECT(hostmem)),
+                   memory_region_size(mr), nvdimm->label_size, align);
+        return;
+    }
+
+    if (!nvdimm->unarmed && memory_region_is_rom(mr)) {
+        HostMemoryBackend *hostmem = dimm->hostmem;
+
+        error_setg(errp, "'unarmed' property must be off since memdev %s "
+                   "is read-only",
+                   object_get_canonical_path_component(OBJECT(hostmem)));
         return;
     }
 
@@ -181,9 +181,24 @@ static MemoryRegion *nvdimm_md_get_memory_region(MemoryDeviceState *md,
 static void nvdimm_realize(PCDIMMDevice *dimm, Error **errp)
 {
     NVDIMMDevice *nvdimm = NVDIMM(dimm);
+    NVDIMMClass *ndc = NVDIMM_GET_CLASS(nvdimm);
 
     if (!nvdimm->nvdimm_mr) {
         nvdimm_prepare_memory_region(nvdimm, errp);
+    }
+
+    if (ndc->realize) {
+        ndc->realize(nvdimm, errp);
+    }
+}
+
+static void nvdimm_unrealize(PCDIMMDevice *dimm)
+{
+    NVDIMMDevice *nvdimm = NVDIMM(dimm);
+    NVDIMMClass *ndc = NVDIMM_GET_CLASS(nvdimm);
+
+    if (ndc->unrealize) {
+        ndc->unrealize(nvdimm);
     }
 }
 
@@ -240,14 +255,16 @@ static void nvdimm_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc = DEVICE_CLASS(oc);
 
     ddc->realize = nvdimm_realize;
+    ddc->unrealize = nvdimm_unrealize;
     mdc->get_memory_region = nvdimm_md_get_memory_region;
     device_class_set_props(dc, nvdimm_properties);
 
     nvc->read_label_data = nvdimm_read_label_data;
     nvc->write_label_data = nvdimm_write_label_data;
+    set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
 }
 
-static TypeInfo nvdimm_info = {
+static const TypeInfo nvdimm_info = {
     .name          = TYPE_NVDIMM,
     .parent        = TYPE_PC_DIMM,
     .class_size    = sizeof(NVDIMMClass),

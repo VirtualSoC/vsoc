@@ -7,7 +7,7 @@
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
 # License as published by the Free Software Foundation; either
-# version 2 of the License, or (at your option) any later version.
+# version 2.1 of the License, or (at your option) any later version.
 #
 # This library is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -97,7 +97,8 @@ class MigrationFile(object):
         # Seek back to where we were at the beginning
         self.file.seek(entrypos, 0)
 
-        return data[jsonpos:jsonpos + jsonlen]
+        # explicit decode() needed for Python 3.5 compatibility
+        return data[jsonpos:jsonpos + jsonlen].decode("utf-8")
 
     def close(self):
         self.file.close()
@@ -587,7 +588,7 @@ if args.extract:
 
     dump.read(desc_only = True)
     print("desc.json")
-    f = open("desc.json", "wb")
+    f = open("desc.json", "w")
     f.truncate()
     f.write(jsonenc.encode(dump.vmsd_desc))
     f.close()
@@ -595,7 +596,7 @@ if args.extract:
     dump.read(write_memory = True)
     dict = dump.getDict()
     print("state.json")
-    f = open("state.json", "wb")
+    f = open("state.json", "w")
     f.truncate()
     f.write(jsonenc.encode(dict))
     f.close()
@@ -609,4 +610,4 @@ elif args.dump == "desc":
     dump.read(desc_only = True)
     print(jsonenc.encode(dump.vmsd_desc))
 else:
-    raise Exception("Please specify either -x, -d state or -d dump")
+    raise Exception("Please specify either -x, -d state or -d desc")

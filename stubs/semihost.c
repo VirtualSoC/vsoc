@@ -11,8 +11,7 @@
 #include "qemu/osdep.h"
 #include "qemu/option.h"
 #include "qemu/error-report.h"
-#include "hw/semihosting/semihost.h"
-#include "sysemu/sysemu.h"
+#include "semihosting/semihost.h"
 
 /* Empty config */
 QemuOptsList qemu_semihosting_config_opts = {
@@ -66,10 +65,6 @@ void semihosting_arg_fallback(const char *file, const char *cmd)
 {
 }
 
-void qemu_semihosting_connect_chardevs(void)
-{
-}
-
-void qemu_semihosting_console_init(void)
+void qemu_semihosting_chardev_init(void)
 {
 }

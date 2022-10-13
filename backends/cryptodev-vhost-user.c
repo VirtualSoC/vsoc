@@ -9,7 +9,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -30,6 +30,7 @@
 #include "sysemu/cryptodev-vhost.h"
 #include "chardev/char-fe.h"
 #include "sysemu/cryptodev-vhost-user.h"
+#include "qom/object.h"
 
 
 /**
@@ -38,12 +39,10 @@
  */
 #define TYPE_CRYPTODEV_BACKEND_VHOST_USER "cryptodev-vhost-user"
 
-#define CRYPTODEV_BACKEND_VHOST_USER(obj) \
-    OBJECT_CHECK(CryptoDevBackendVhostUser, \
-                 (obj), TYPE_CRYPTODEV_BACKEND_VHOST_USER)
+OBJECT_DECLARE_SIMPLE_TYPE(CryptoDevBackendVhostUser, CRYPTODEV_BACKEND_VHOST_USER)
 
 
-typedef struct CryptoDevBackendVhostUser {
+struct CryptoDevBackendVhostUser {
     CryptoDevBackend parent_obj;
 
     VhostUserState vhost_user;
@@ -51,7 +50,7 @@ typedef struct CryptoDevBackendVhostUser {
     char *chr_name;
     bool opened;
     CryptoDevBackendVhost *vhost_crypto[MAX_CRYPTO_QUEUE_NUM];
-} CryptoDevBackendVhostUser;
+};
 
 static int
 cryptodev_vhost_user_running(
@@ -209,8 +208,7 @@ static void cryptodev_vhost_user_init(
         backend->conf.peers.ccs[i] = cc;
 
         if (i == 0) {
-            if (!qemu_chr_fe_init(&s->chr, chr, &local_err)) {
-                error_propagate(errp, local_err);
+            if (!qemu_chr_fe_init(&s->chr, chr, errp)) {
                 return;
             }
         }
@@ -261,7 +259,33 @@ static int64_t cryptodev_vhost_user_sym_create_session(
     return -1;
 }
 
-static int cryptodev_vhost_user_sym_close_session(
+static int64_t cryptodev_vhost_user_create_session(
+           CryptoDevBackend *backend,
+           CryptoDevBackendSessionInfo *sess_info,
+           uint32_t queue_index, Error **errp)
+{
+    uint32_t op_code = sess_info->op_code;
+    CryptoDevBackendSymSessionInfo *sym_sess_info;
+
+    switch (op_code) {
+    case VIRTIO_CRYPTO_CIPHER_CREATE_SESSION:
+    case VIRTIO_CRYPTO_HASH_CREATE_SESSION:
+    case VIRTIO_CRYPTO_MAC_CREATE_SESSION:
+    case VIRTIO_CRYPTO_AEAD_CREATE_SESSION:
+        sym_sess_info = &sess_info->u.sym_sess_info;
+        return cryptodev_vhost_user_sym_create_session(backend, sym_sess_info,
+                   queue_index, errp);
+    default:
+        error_setg(errp, "Unsupported opcode :%" PRIu32 "",
+                   sess_info->op_code);
+        return -1;
+
+    }
+
+    return -1;
+}
+
+static int cryptodev_vhost_user_close_session(
            CryptoDevBackend *backend,
            uint64_t session_id,
            uint32_t queue_index, Error **errp)
@@ -336,13 +360,6 @@ cryptodev_vhost_user_get_chardev(Object *obj, Error **errp)
     return NULL;
 }
 
-static void cryptodev_vhost_user_instance_int(Object *obj)
-{
-    object_property_add_str(obj, "chardev",
-                            cryptodev_vhost_user_get_chardev,
-                            cryptodev_vhost_user_set_chardev);
-}
-
 static void cryptodev_vhost_user_finalize(Object *obj)
 {
     CryptoDevBackendVhostUser *s =
@@ -360,16 +377,20 @@ cryptodev_vhost_user_class_init(ObjectClass *oc, void *data)
 
     bc->init = cryptodev_vhost_user_init;
     bc->cleanup = cryptodev_vhost_user_cleanup;
-    bc->create_session = cryptodev_vhost_user_sym_create_session;
-    bc->close_session = cryptodev_vhost_user_sym_close_session;
-    bc->do_sym_op = NULL;
+    bc->create_session = cryptodev_vhost_user_create_session;
+    bc->close_session = cryptodev_vhost_user_close_session;
+    bc->do_op = NULL;
+
+    object_class_property_add_str(oc, "chardev",
+                                  cryptodev_vhost_user_get_chardev,
+                                  cryptodev_vhost_user_set_chardev);
+
 }
 
 static const TypeInfo cryptodev_vhost_user_info = {
     .name = TYPE_CRYPTODEV_BACKEND_VHOST_USER,
     .parent = TYPE_CRYPTODEV_BACKEND,
     .class_init = cryptodev_vhost_user_class_init,
-    .instance_init = cryptodev_vhost_user_instance_int,
     .instance_finalize = cryptodev_vhost_user_finalize,
     .instance_size = sizeof(CryptoDevBackendVhostUser),
 };

@@ -36,7 +36,7 @@
 #include <mpath_persist.h>
 #endif
 
-#include "qemu-common.h"
+#include "qemu/help-texts.h"
 #include "qapi/error.h"
 #include "qemu/cutils.h"
 #include "qemu/main-loop.h"
@@ -77,8 +77,10 @@ static int gid = -1;
 
 static void compute_default_paths(void)
 {
-    socket_path = qemu_get_local_state_pathname("run/qemu-pr-helper.sock");
-    pidfile = qemu_get_local_state_pathname("run/qemu-pr-helper.pid");
+    g_autofree char *state = qemu_get_local_state_dir();
+
+    socket_path = g_build_filename(state, "run", "qemu-pr-helper.sock", NULL);
+    pidfile = g_build_filename(state, "run", "qemu-pr-helper.pid", NULL);
 }
 
 static void usage(const char *name)
@@ -149,17 +151,27 @@ static int do_sgio_worker(void *opaque)
     io_hdr.dxferp = (char *)data->buf;
     io_hdr.dxfer_len = data->sz;
     ret = ioctl(data->fd, SG_IO, &io_hdr);
-    status = sg_io_sense_from_errno(ret < 0 ? errno : 0, &io_hdr,
-                                    &sense_code);
+
+    if (ret < 0) {
+        status = scsi_sense_from_errno(errno, &sense_code);
+        if (status == CHECK_CONDITION) {
+            scsi_build_sense(data->sense, sense_code);
+        }
+    } else if (io_hdr.host_status != SCSI_HOST_OK) {
+        status = scsi_sense_from_host_status(io_hdr.host_status, &sense_code);
+        if (status == CHECK_CONDITION) {
+            scsi_build_sense(data->sense, sense_code);
+        }
+    } else if (io_hdr.driver_status & SG_ERR_DRIVER_TIMEOUT) {
+        status = BUSY;
+    } else {
+        status = io_hdr.status;
+    }
+
     if (status == GOOD) {
         data->sz -= io_hdr.resid;
     } else {
         data->sz = 0;
-    }
-
-    if (status == CHECK_CONDITION &&
-        !(io_hdr.driver_status & SG_ERR_DRIVER_SENSE)) {
-        scsi_build_sense(data->sense, sense_code);
     }
 
     return status;
@@ -747,7 +759,7 @@ static void coroutine_fn prh_co_entry(void *opaque)
         goto out;
     }
 
-    while (atomic_read(&state) == RUNNING) {
+    while (qatomic_read(&state) == RUNNING) {
         PRHelperRequest req;
         PRHelperResponse resp;
         int sz;
@@ -816,7 +828,7 @@ static gboolean accept_client(QIOChannel *ioc, GIOCondition cond, gpointer opaqu
 
 static void termsig_handler(int signum)
 {
-    atomic_cmpxchg(&state, RUNNING, TERMINATE);
+    qatomic_cmpxchg(&state, RUNNING, TERMINATE);
     qemu_notify_event();
 }
 
@@ -884,7 +896,6 @@ int main(int argc, char **argv)
     int quiet = 0;
     int ch;
     Error *local_err = NULL;
-    char *trace_file = NULL;
     bool daemonize = false;
     bool pidfile_specified = false;
     bool socket_path_specified = false;
@@ -968,8 +979,7 @@ int main(int argc, char **argv)
             ++loglevel;
             break;
         case 'T':
-            g_free(trace_file);
-            trace_file = trace_opt_parse(optarg);
+            trace_opt_parse(optarg);
             break;
         case 'V':
             version(argv[0]);
@@ -992,8 +1002,8 @@ int main(int argc, char **argv)
     if (!trace_init_backends()) {
         exit(EXIT_FAILURE);
     }
-    trace_init_file(trace_file);
-    qemu_set_log(LOG_TRACE);
+    trace_init_file();
+    qemu_set_log(LOG_TRACE, &error_fatal);
 
 #ifdef CONFIG_MPATH
     dm_init();
@@ -1036,10 +1046,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (qemu_init_main_loop(&local_err)) {
-        error_report_err(local_err);
-        exit(EXIT_FAILURE);
-    }
+    qemu_init_main_loop(&error_fatal);
 
     server_watch = qio_channel_add_watch(QIO_CHANNEL(server_ioc),
                                          G_IO_IN,
@@ -1053,10 +1060,8 @@ int main(int argc, char **argv)
         }
     }
 
-    if ((daemonize || pidfile_specified) &&
-        !qemu_write_pidfile(pidfile, &local_err)) {
-        error_report_err(local_err);
-        exit(EXIT_FAILURE);
+    if (daemonize || pidfile_specified) {
+        qemu_write_pidfile(pidfile, &error_fatal);
     }
 
 #ifdef CONFIG_LIBCAP_NG

@@ -8,19 +8,17 @@
 
 #include "qemu/osdep.h"
 
-#include "virtio-pci.h"
+#include "hw/virtio/virtio-pci.h"
 #include "hw/qdev-properties.h"
 #include "hw/virtio/virtio-input.h"
 #include "qemu/module.h"
+#include "qom/object.h"
 
-typedef struct VirtIOInputPCI VirtIOInputPCI;
-typedef struct VirtIOInputHIDPCI VirtIOInputHIDPCI;
 
 /*
  * virtio-input-pci: This extends VirtioPCIProxy.
  */
-#define VIRTIO_INPUT_PCI(obj) \
-        OBJECT_CHECK(VirtIOInputPCI, (obj), TYPE_VIRTIO_INPUT_PCI)
+OBJECT_DECLARE_SIMPLE_TYPE(VirtIOInputPCI, VIRTIO_INPUT_PCI)
 
 struct VirtIOInputPCI {
     VirtIOPCIProxy parent_obj;
@@ -31,8 +29,7 @@ struct VirtIOInputPCI {
 #define TYPE_VIRTIO_KEYBOARD_PCI  "virtio-keyboard-pci"
 #define TYPE_VIRTIO_MOUSE_PCI     "virtio-mouse-pci"
 #define TYPE_VIRTIO_TABLET_PCI    "virtio-tablet-pci"
-#define VIRTIO_INPUT_HID_PCI(obj) \
-        OBJECT_CHECK(VirtIOInputHIDPCI, (obj), TYPE_VIRTIO_INPUT_HID_PCI)
+OBJECT_DECLARE_SIMPLE_TYPE(VirtIOInputHIDPCI, VIRTIO_INPUT_HID_PCI)
 
 struct VirtIOInputHIDPCI {
     VirtIOPCIProxy parent_obj;
@@ -49,9 +46,8 @@ static void virtio_input_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     VirtIOInputPCI *vinput = VIRTIO_INPUT_PCI(vpci_dev);
     DeviceState *vdev = DEVICE(&vinput->vdev);
 
-    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
     virtio_pci_force_virtio_1(vpci_dev);
-    object_property_set_bool(OBJECT(vdev), true, "realized", errp);
+    qdev_realize(vdev, BUS(&vpci_dev->bus), errp);
 }
 
 static void virtio_input_pci_class_init(ObjectClass *klass, void *data)

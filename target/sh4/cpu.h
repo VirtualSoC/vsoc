@@ -22,6 +22,7 @@
 
 #include "cpu-qom.h"
 #include "exec/cpu-defs.h"
+#include "qemu/cpu-float.h"
 
 /* CPU Subtypes */
 #define SH_CPU_SH7750  (1 << 0)
@@ -83,6 +84,7 @@
 #define DELAY_SLOT_RTE         (1 << 2)
 
 #define TB_FLAG_PENDING_MOVCA  (1 << 3)
+#define TB_FLAG_UNALIGN        (1 << 4)
 
 #define GUSA_SHIFT             4
 #ifdef CONFIG_USER_ONLY
@@ -129,7 +131,7 @@ typedef struct memory_content {
     struct memory_content *next;
 } memory_content;
 
-typedef struct CPUSH4State {
+typedef struct CPUArchState {
     uint32_t flags;		/* general execution flags */
     uint32_t gregs[24];		/* general registers */
     float32 fregs[32];		/* floating point registers */
@@ -160,7 +162,7 @@ typedef struct CPUSH4State {
     uint32_t pteh;		/* page table entry high register */
     uint32_t ptel;		/* page table entry low register */
     uint32_t ptea;		/* page table entry assistance register */
-    uint32_t ttb;		/* tranlation table base register */
+    uint32_t ttb;               /* translation table base register */
     uint32_t tea;		/* TLB exception address register */
     uint32_t tra;		/* TRAPA exception register */
     uint32_t expevt;		/* exception event register */
@@ -194,7 +196,7 @@ typedef struct CPUSH4State {
  *
  * A SuperH CPU.
  */
-struct SuperHCPU {
+struct ArchCPU {
     /*< private >*/
     CPUState parent_obj;
     /*< public >*/
@@ -204,25 +206,23 @@ struct SuperHCPU {
 };
 
 
-void superh_cpu_do_interrupt(CPUState *cpu);
-bool superh_cpu_exec_interrupt(CPUState *cpu, int int_req);
 void superh_cpu_dump_state(CPUState *cpu, FILE *f, int flags);
 hwaddr superh_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
 int superh_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
 int superh_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
-void superh_cpu_do_unaligned_access(CPUState *cpu, vaddr addr,
-                                    MMUAccessType access_type,
-                                    int mmu_idx, uintptr_t retaddr);
+G_NORETURN void superh_cpu_do_unaligned_access(CPUState *cpu, vaddr addr,
+                                               MMUAccessType access_type, int mmu_idx,
+                                               uintptr_t retaddr);
 
 void sh4_translate_init(void);
-int cpu_sh4_signal_handler(int host_signum, void *pinfo,
-                           void *puc);
+void sh4_cpu_list(void);
+
+#if !defined(CONFIG_USER_ONLY)
 bool superh_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                          MMUAccessType access_type, int mmu_idx,
                          bool probe, uintptr_t retaddr);
-
-void sh4_cpu_list(void);
-#if !defined(CONFIG_USER_ONLY)
+void superh_cpu_do_interrupt(CPUState *cpu);
+bool superh_cpu_exec_interrupt(CPUState *cpu, int int_req);
 void cpu_sh4_invalidate_tlb(CPUSH4State *s);
 uint32_t cpu_sh4_read_mmaped_itlb_addr(CPUSH4State *s,
                                        hwaddr addr);
@@ -250,7 +250,6 @@ void cpu_load_tlb(CPUSH4State * env);
 #define SUPERH_CPU_TYPE_NAME(model) model SUPERH_CPU_TYPE_SUFFIX
 #define CPU_RESOLVING_TYPE TYPE_SUPERH_CPU
 
-#define cpu_signal_handler cpu_sh4_signal_handler
 #define cpu_list sh4_cpu_list
 
 /* MMU modes definitions */
@@ -266,21 +265,7 @@ static inline int cpu_mmu_index (CPUSH4State *env, bool ifetch)
     }
 }
 
-typedef CPUSH4State CPUArchState;
-typedef SuperHCPU ArchCPU;
-
 #include "exec/cpu-all.h"
-
-/* Memory access type */
-enum {
-    /* Privilege */
-    ACCESS_PRIV = 0x01,
-    /* Direction */
-    ACCESS_WRITE = 0x02,
-    /* Type of instruction */
-    ACCESS_CODE = 0x10,
-    ACCESS_INT = 0x20
-};
 
 /* MMU control register */
 #define MMUCR    0x1F000010
@@ -387,6 +372,9 @@ static inline void cpu_get_tb_cpu_state(CPUSH4State *env, target_ulong *pc,
             | (env->sr & ((1u << SR_MD) | (1u << SR_RB)))      /* Bits 29-30 */
             | (env->sr & (1u << SR_FD))                        /* Bit 15 */
             | (env->movcal_backup ? TB_FLAG_PENDING_MOVCA : 0); /* Bit 3 */
+#ifdef CONFIG_USER_ONLY
+    *flags |= TB_FLAG_UNALIGN * !env_cpu(env)->prctl_unalign_sigbus;
+#endif
 }
 
 #endif /* SH4_CPU_H */

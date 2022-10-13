@@ -271,7 +271,6 @@ static const VMStateDescription vmstate_bcm2835_mbox = {
     .name = TYPE_BCM2835_MBOX,
     .version_id = 1,
     .minimum_version_id = 1,
-    .minimum_version_id_old = 1,
     .fields      = (VMStateField[]) {
         VMSTATE_BOOL_ARRAY(available, BCM2835MboxState, MBOX_CHAN_COUNT),
         VMSTATE_STRUCT_ARRAY(mbox, BCM2835MboxState, 2, 1,
@@ -308,15 +307,8 @@ static void bcm2835_mbox_realize(DeviceState *dev, Error **errp)
 {
     BCM2835MboxState *s = BCM2835_MBOX(dev);
     Object *obj;
-    Error *err = NULL;
 
-    obj = object_property_get_link(OBJECT(dev), "mbox-mr", &err);
-    if (obj == NULL) {
-        error_setg(errp, "%s: required mbox-mr link not found: %s",
-                   __func__, error_get_pretty(err));
-        return;
-    }
-
+    obj = object_property_get_link(OBJECT(dev), "mbox-mr", &error_abort);
     s->mbox_mr = MEMORY_REGION(obj);
     address_space_init(&s->mbox_as, s->mbox_mr, TYPE_BCM2835_MBOX "-memory");
     bcm2835_mbox_reset(dev);
@@ -331,7 +323,7 @@ static void bcm2835_mbox_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &vmstate_bcm2835_mbox;
 }
 
-static TypeInfo bcm2835_mbox_info = {
+static const TypeInfo bcm2835_mbox_info = {
     .name          = TYPE_BCM2835_MBOX,
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(BCM2835MboxState),

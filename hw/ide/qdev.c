@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,6 +26,7 @@
 #include "qemu/module.h"
 #include "hw/ide/internal.h"
 #include "hw/qdev-properties.h"
+#include "hw/qdev-properties-system.h"
 #include "sysemu/block-backend.h"
 #include "sysemu/blockdev.h"
 #include "hw/block/block.h"
@@ -67,10 +68,10 @@ static const TypeInfo ide_bus_info = {
     .class_init = ide_bus_class_init,
 };
 
-void ide_bus_new(IDEBus *idebus, size_t idebus_size, DeviceState *dev,
+void ide_bus_init(IDEBus *idebus, size_t idebus_size, DeviceState *dev,
                  int bus_id, int max_units)
 {
-    qbus_create_inplace(idebus, idebus_size, TYPE_IDE_BUS, dev, NULL);
+    qbus_init(idebus, idebus_size, TYPE_IDE_BUS, dev, NULL);
     idebus->bus_id = bus_id;
     idebus->max_units = max_units;
 }
@@ -127,11 +128,11 @@ IDEDevice *ide_create_drive(IDEBus *bus, int unit, DriveInfo *drive)
 {
     DeviceState *dev;
 
-    dev = qdev_create(&bus->qbus, drive->media_cd ? "ide-cd" : "ide-hd");
+    dev = qdev_new(drive->media_cd ? "ide-cd" : "ide-hd");
     qdev_prop_set_uint32(dev, "unit", unit);
-    qdev_prop_set_drive(dev, "drive", blk_by_legacy_dinfo(drive),
-                        &error_fatal);
-    qdev_init_nofail(dev);
+    qdev_prop_set_drive_err(dev, "drive", blk_by_legacy_dinfo(drive),
+                            &error_fatal);
+    qdev_realize_and_unref(dev, &bus->qbus, &error_fatal);
     return DO_UPCAST(IDEDevice, qdev, dev);
 }
 
@@ -187,7 +188,10 @@ static void ide_dev_initfn(IDEDevice *dev, IDEDriveKind kind, Error **errp)
         return;
     }
 
-    blkconf_blocksizes(&dev->conf);
+    if (!blkconf_blocksizes(&dev->conf, errp)) {
+        return;
+    }
+
     if (dev->conf.logical_block_size != 512) {
         error_setg(errp, "logical_block_size must be 512 for IDE");
         return;
@@ -242,9 +246,8 @@ static void ide_dev_set_bootindex(Object *obj, Visitor *v, const char *name,
     int32_t boot_index;
     Error *local_err = NULL;
 
-    visit_type_int32(v, name, &boot_index, &local_err);
-    if (local_err) {
-        goto out;
+    if (!visit_type_int32(v, name, &boot_index, errp)) {
+        return;
     }
     /* check whether bootindex is present in fw_boot_order list  */
     check_boot_index(boot_index, &local_err);
@@ -267,7 +270,7 @@ static void ide_dev_instance_init(Object *obj)
     object_property_add(obj, "bootindex", "int32",
                         ide_dev_get_bootindex,
                         ide_dev_set_bootindex, NULL, NULL);
-    object_property_set_int(obj, -1, "bootindex", NULL);
+    object_property_set_int(obj, "bootindex", -1, NULL);
 }
 
 static void ide_hd_realize(IDEDevice *dev, Error **errp)
@@ -278,20 +281,6 @@ static void ide_hd_realize(IDEDevice *dev, Error **errp)
 static void ide_cd_realize(IDEDevice *dev, Error **errp)
 {
     ide_dev_initfn(dev, IDE_CD, errp);
-}
-
-static void ide_drive_realize(IDEDevice *dev, Error **errp)
-{
-    DriveInfo *dinfo = NULL;
-
-    warn_report("'ide-drive' is deprecated, "
-                "please use 'ide-hd' or 'ide-cd' instead");
-
-    if (dev->conf.blk) {
-        dinfo = blk_legacy_dinfo(dev->conf.blk);
-    }
-
-    ide_dev_initfn(dev, dinfo && dinfo->media_cd ? IDE_CD : IDE_HD, errp);
 }
 
 #define DEFINE_IDE_DEV_PROPERTIES()                     \
@@ -352,29 +341,6 @@ static const TypeInfo ide_cd_info = {
     .class_init    = ide_cd_class_init,
 };
 
-static Property ide_drive_properties[] = {
-    DEFINE_IDE_DEV_PROPERTIES(),
-    DEFINE_PROP_END_OF_LIST(),
-};
-
-static void ide_drive_class_init(ObjectClass *klass, void *data)
-{
-    DeviceClass *dc = DEVICE_CLASS(klass);
-    IDEDeviceClass *k = IDE_DEVICE_CLASS(klass);
-
-    k->realize  = ide_drive_realize;
-    dc->fw_name = "drive";
-    dc->desc    = "virtual IDE disk or CD-ROM (legacy)";
-    device_class_set_props(dc, ide_drive_properties);
-}
-
-static const TypeInfo ide_drive_info = {
-    .name          = "ide-drive",
-    .parent        = TYPE_IDE_DEVICE,
-    .instance_size = sizeof(IDEDrive),
-    .class_init    = ide_drive_class_init,
-};
-
 static void ide_device_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *k = DEVICE_CLASS(klass);
@@ -399,7 +365,6 @@ static void ide_register_types(void)
     type_register_static(&ide_bus_info);
     type_register_static(&ide_hd_info);
     type_register_static(&ide_cd_info);
-    type_register_static(&ide_drive_info);
     type_register_static(&ide_device_type_info);
 }
 

@@ -15,13 +15,15 @@
 #include "qemu/osdep.h"
 #include "sysemu/numa.h"
 #include "hw/acpi/acpi.h"
+#include "hw/acpi/aml-build.h"
 #include "hw/firmware/smbios.h"
 #include "hw/i386/fw_cfg.h"
 #include "hw/timer/hpet.h"
 #include "hw/nvram/fw_cfg.h"
 #include "e820_memory_layout.h"
-#include "kvm_i386.h"
-#include "config-devices.h"
+#include "kvm/kvm_i386.h"
+#include "qapi/error.h"
+#include CONFIG_DEVICES
 
 struct hpet_fw_config hpet_cfg = {.count = UINT8_MAX};
 
@@ -77,7 +79,8 @@ void fw_cfg_build_smbios(MachineState *ms, FWCfgState *fw_cfg)
     }
     smbios_get_tables(ms, mem_array, array_count,
                       &smbios_tables, &smbios_tables_len,
-                      &smbios_anchor, &smbios_anchor_len);
+                      &smbios_anchor, &smbios_anchor_len,
+                      &error_fatal);
     g_free(mem_array);
 
     if (smbios_anchor) {
@@ -117,12 +120,12 @@ FWCfgState *fw_cfg_arch_create(MachineState *ms,
      * "etc/max-cpus" actually being apic_id_limit
      */
     fw_cfg_add_i16(fw_cfg, FW_CFG_MAX_CPUS, apic_id_limit);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
+    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, ms->ram_size);
 #ifdef CONFIG_ACPI
     fw_cfg_add_bytes(fw_cfg, FW_CFG_ACPI_TABLES,
                      acpi_tables, acpi_tables_len);
 #endif
-    fw_cfg_add_i32(fw_cfg, FW_CFG_IRQ0_OVERRIDE, kvm_allows_irq0_override());
+    fw_cfg_add_i32(fw_cfg, FW_CFG_IRQ0_OVERRIDE, 1);
 
     fw_cfg_add_bytes(fw_cfg, FW_CFG_E820_TABLE,
                      &e820_reserve, sizeof(e820_reserve));
@@ -156,7 +159,7 @@ void fw_cfg_build_feature_control(MachineState *ms, FWCfgState *fw_cfg)
 {
     X86CPU *cpu = X86_CPU(ms->possible_cpus->cpus[0].cpu);
     CPUX86State *env = &cpu->env;
-    uint32_t unused, ecx, edx;
+    uint32_t unused, ebx, ecx, edx;
     uint64_t feature_control_bits = 0;
     uint64_t *val;
 
@@ -171,6 +174,16 @@ void fw_cfg_build_feature_control(MachineState *ms, FWCfgState *fw_cfg)
         feature_control_bits |= FEATURE_CONTROL_LMCE;
     }
 
+    if (env->cpuid_level >= 7) {
+        cpu_x86_cpuid(env, 0x7, 0, &unused, &ebx, &ecx, &unused);
+        if (ebx & CPUID_7_0_EBX_SGX) {
+            feature_control_bits |= FEATURE_CONTROL_SGX;
+        }
+        if (ecx & CPUID_7_0_ECX_SGX_LC) {
+            feature_control_bits |= FEATURE_CONTROL_SGX_LC;
+        }
+    }
+
     if (!feature_control_bits) {
         return;
     }
@@ -178,4 +191,31 @@ void fw_cfg_build_feature_control(MachineState *ms, FWCfgState *fw_cfg)
     val = g_malloc(sizeof(*val));
     *val = cpu_to_le64(feature_control_bits | FEATURE_CONTROL_LOCKED);
     fw_cfg_add_file(fw_cfg, "etc/msr_feature_control", val, sizeof(*val));
+}
+
+void fw_cfg_add_acpi_dsdt(Aml *scope, FWCfgState *fw_cfg)
+{
+    /*
+     * when using port i/o, the 8-bit data register *always* overlaps
+     * with half of the 16-bit control register. Hence, the total size
+     * of the i/o region used is FW_CFG_CTL_SIZE; when using DMA, the
+     * DMA control register is located at FW_CFG_DMA_IO_BASE + 4
+     */
+    Object *obj = OBJECT(fw_cfg);
+    uint8_t io_size = object_property_get_bool(obj, "dma_enabled", NULL) ?
+        ROUND_UP(FW_CFG_CTL_SIZE, 4) + sizeof(dma_addr_t) :
+        FW_CFG_CTL_SIZE;
+    Aml *dev = aml_device("FWCF");
+    Aml *crs = aml_resource_template();
+
+    aml_append(dev, aml_name_decl("_HID", aml_string("QEMU0002")));
+
+    /* device present, functioning, decoding, not shown in UI */
+    aml_append(dev, aml_name_decl("_STA", aml_int(0xB)));
+
+    aml_append(crs,
+        aml_io(AML_DECODE16, FW_CFG_IO_BASE, FW_CFG_IO_BASE, 0x01, io_size));
+
+    aml_append(dev, aml_name_decl("_CRS", crs));
+    aml_append(scope, dev);
 }

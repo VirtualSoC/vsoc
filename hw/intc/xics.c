@@ -27,7 +27,6 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "cpu.h"
 #include "trace.h"
 #include "qemu/timer.h"
 #include "hw/ppc/xics.h"
@@ -302,23 +301,25 @@ void icp_reset(ICPState *icp)
 static void icp_realize(DeviceState *dev, Error **errp)
 {
     ICPState *icp = ICP(dev);
+    PowerPCCPU *cpu;
     CPUPPCState *env;
     Error *err = NULL;
 
     assert(icp->xics);
     assert(icp->cs);
 
-    env = &POWERPC_CPU(icp->cs)->env;
+    cpu = POWERPC_CPU(icp->cs);
+    env = &cpu->env;
     switch (PPC_INPUT(env)) {
     case PPC_FLAGS_INPUT_POWER7:
-        icp->output = env->irq_inputs[POWER7_INPUT_INT];
+        icp->output = qdev_get_gpio_in(DEVICE(cpu), POWER7_INPUT_INT);
         break;
     case PPC_FLAGS_INPUT_POWER9: /* For SPAPR xics emulation */
-        icp->output = env->irq_inputs[POWER9_INPUT_INT];
+        icp->output = qdev_get_gpio_in(DEVICE(cpu), POWER9_INPUT_INT);
         break;
 
     case PPC_FLAGS_INPUT_970:
-        icp->output = env->irq_inputs[PPC970_INPUT_INT];
+        icp->output = qdev_get_gpio_in(DEVICE(cpu), PPC970_INPUT_INT);
         break;
 
     default:
@@ -376,18 +377,15 @@ static const TypeInfo icp_info = {
 
 Object *icp_create(Object *cpu, const char *type, XICSFabric *xi, Error **errp)
 {
-    Error *local_err = NULL;
     Object *obj;
 
     obj = object_new(type);
     object_property_add_child(cpu, type, obj);
     object_unref(obj);
-    object_property_set_link(obj, OBJECT(xi), ICP_PROP_XICS, &error_abort);
-    object_property_set_link(obj, cpu, ICP_PROP_CPU, &error_abort);
-    object_property_set_bool(obj, true, "realized", &local_err);
-    if (local_err) {
+    object_property_set_link(obj, ICP_PROP_XICS, OBJECT(xi), &error_abort);
+    object_property_set_link(obj, ICP_PROP_CPU, cpu, &error_abort);
+    if (!qdev_realize(DEVICE(obj), NULL, errp)) {
         object_unparent(obj);
-        error_propagate(errp, local_err);
         obj = NULL;
     }
 
@@ -608,7 +606,7 @@ static void ics_realize(DeviceState *dev, Error **errp)
         error_setg(errp, "Number of interrupts needs to be greater 0");
         return;
     }
-    ics->irqs = g_malloc0(ics->nr_irqs * sizeof(ICSIRQState));
+    ics->irqs = g_new0(ICSIRQState, ics->nr_irqs);
 
     qemu_register_reset(ics_reset_handler, ics);
 }

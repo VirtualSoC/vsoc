@@ -15,14 +15,22 @@
 #include "qapi/error.h"
 #include "qemu/module.h"
 #include "virtio-ccw.h"
+#include "hw/virtio/virtio-balloon.h"
+
+#define TYPE_VIRTIO_BALLOON_CCW "virtio-balloon-ccw"
+OBJECT_DECLARE_SIMPLE_TYPE(VirtIOBalloonCcw, VIRTIO_BALLOON_CCW)
+
+struct VirtIOBalloonCcw {
+    VirtioCcwDevice parent_obj;
+    VirtIOBalloon vdev;
+};
 
 static void virtio_ccw_balloon_realize(VirtioCcwDevice *ccw_dev, Error **errp)
 {
     VirtIOBalloonCcw *dev = VIRTIO_BALLOON_CCW(ccw_dev);
     DeviceState *vdev = DEVICE(&dev->vdev);
 
-    qdev_set_parent_bus(vdev, BUS(&ccw_dev->bus));
-    object_property_set_bool(OBJECT(vdev), true, "realized", errp);
+    qdev_realize(vdev, BUS(&ccw_dev->bus), errp);
 }
 
 static void virtio_ccw_balloon_instance_init(Object *obj)

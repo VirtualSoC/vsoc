@@ -17,10 +17,12 @@
 #include "net/net.h"
 #include "net/tap.h"
 #include "net/vhost-user.h"
+#include "net/vhost-vdpa.h"
 
 #include "standard-headers/linux/vhost_types.h"
 #include "hw/virtio/virtio-net.h"
 #include "net/vhost_net.h"
+#include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
 
@@ -33,12 +35,6 @@
 #include "hw/virtio/vhost.h"
 #include "hw/virtio/virtio-bus.h"
 
-struct vhost_net {
-    struct vhost_dev dev;
-    struct vhost_virtqueue vqs[2];
-    int backend;
-    NetClientState *nc;
-};
 
 /* Features supported by host kernel. */
 static const int kernel_feature_bits[] = {
@@ -50,6 +46,7 @@ static const int kernel_feature_bits[] = {
     VIRTIO_NET_F_MTU,
     VIRTIO_F_IOMMU_PLATFORM,
     VIRTIO_F_RING_PACKED,
+    VIRTIO_NET_F_HASH_REPORT,
     VHOST_INVALID_FEATURE_BIT
 };
 
@@ -76,6 +73,8 @@ static const int user_feature_bits[] = {
     VIRTIO_NET_F_MTU,
     VIRTIO_F_IOMMU_PLATFORM,
     VIRTIO_F_RING_PACKED,
+    VIRTIO_NET_F_RSS,
+    VIRTIO_NET_F_HASH_REPORT,
 
     /* This bit implies RARP isn't sent by QEMU out of band */
     VIRTIO_NET_F_GUEST_ANNOUNCE,
@@ -96,6 +95,11 @@ static const int *vhost_net_get_feature_bits(struct vhost_net *net)
     case NET_CLIENT_DRIVER_VHOST_USER:
         feature_bits = user_feature_bits;
         break;
+#ifdef CONFIG_VHOST_NET_VDPA
+    case NET_CLIENT_DRIVER_VHOST_VDPA:
+        feature_bits = vdpa_feature_bits;
+        break;
+#endif
     default:
         error_report("Feature bits not defined for this type: %d",
                 net->nc->info->type);
@@ -109,6 +113,16 @@ uint64_t vhost_net_get_features(struct vhost_net *net, uint64_t features)
 {
     return vhost_get_features(&net->dev, vhost_net_get_feature_bits(net),
             features);
+}
+int vhost_net_get_config(struct vhost_net *net,  uint8_t *config,
+                         uint32_t config_len)
+{
+    return vhost_dev_get_config(&net->dev, config, config_len, NULL);
+}
+int vhost_net_set_config(struct vhost_net *net, const uint8_t *data,
+                         uint32_t offset, uint32_t size, uint32_t flags)
+{
+    return vhost_dev_set_config(&net->dev, data, offset, size, flags);
 }
 
 void vhost_net_ack_features(struct vhost_net *net, uint64_t features)
@@ -144,15 +158,16 @@ struct vhost_net *vhost_net_init(VhostNetOptions *options)
     bool backend_kernel = options->backend_type == VHOST_BACKEND_TYPE_KERNEL;
     struct vhost_net *net = g_new0(struct vhost_net, 1);
     uint64_t features = 0;
+    Error *local_err = NULL;
 
     if (!options->net_backend) {
         fprintf(stderr, "vhost-net requires net backend to be setup\n");
         goto fail;
     }
     net->nc = options->net_backend;
+    net->dev.nvqs = options->nvqs;
 
     net->dev.max_queues = 1;
-    net->dev.nvqs = 2;
     net->dev.vqs = net->vqs;
 
     if (backend_kernel) {
@@ -174,8 +189,10 @@ struct vhost_net *vhost_net_init(VhostNetOptions *options)
     }
 
     r = vhost_dev_init(&net->dev, options->opaque,
-                       options->backend_type, options->busyloop_timeout);
+                       options->backend_type, options->busyloop_timeout,
+                       &local_err);
     if (r < 0) {
+        error_report_err(local_err);
         goto fail;
     }
     if (backend_kernel) {
@@ -184,7 +201,7 @@ struct vhost_net *vhost_net_init(VhostNetOptions *options)
             net->dev.features &= ~(1ULL << VIRTIO_NET_F_MRG_RXBUF);
         }
         if (~net->dev.features & net->dev.backend_features) {
-            fprintf(stderr, "vhost lacks feature mask %" PRIu64
+            fprintf(stderr, "vhost lacks feature mask 0x%" PRIx64
                    " for backend\n",
                    (uint64_t)(~net->dev.features & net->dev.backend_features));
             goto fail;
@@ -196,7 +213,7 @@ struct vhost_net *vhost_net_init(VhostNetOptions *options)
     if (net->nc->info->type == NET_CLIENT_DRIVER_VHOST_USER) {
         features = vhost_user_get_acked_features(net->nc);
         if (~net->dev.features & features) {
-            fprintf(stderr, "vhost lacks feature mask %" PRIu64
+            fprintf(stderr, "vhost lacks feature mask 0x%" PRIx64
                     " for backend\n",
                     (uint64_t)(~net->dev.features & features));
             goto fail;
@@ -214,9 +231,11 @@ fail:
     return NULL;
 }
 
-static void vhost_net_set_vq_index(struct vhost_net *net, int vq_index)
+static void vhost_net_set_vq_index(struct vhost_net *net, int vq_index,
+                                   int vq_index_end)
 {
     net->dev.vq_index = vq_index;
+    net->dev.vq_index_end = vq_index_end;
 }
 
 static int vhost_net_start_one(struct vhost_net *net,
@@ -224,9 +243,6 @@ static int vhost_net_start_one(struct vhost_net *net,
 {
     struct vhost_vring_file file = { };
     int r;
-
-    net->dev.nvqs = 2;
-    net->dev.vqs = net->vqs;
 
     r = vhost_dev_enable_notifiers(&net->dev, dev);
     if (r < 0) {
@@ -301,23 +317,37 @@ static void vhost_net_stop_one(struct vhost_net *net,
 }
 
 int vhost_net_start(VirtIODevice *dev, NetClientState *ncs,
-                    int total_queues)
+                    int data_queue_pairs, int cvq)
 {
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(dev)));
     VirtioBusState *vbus = VIRTIO_BUS(qbus);
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(vbus);
-    int r, e, i;
+    int total_notifiers = data_queue_pairs * 2 + cvq;
+    VirtIONet *n = VIRTIO_NET(dev);
+    int nvhosts = data_queue_pairs + cvq;
+    struct vhost_net *net;
+    int r, e, i, index_end = data_queue_pairs * 2;
+    NetClientState *peer;
+
+    if (cvq) {
+        index_end += 1;
+    }
 
     if (!k->set_guest_notifiers) {
         error_report("binding does not support guest notifiers");
         return -ENOSYS;
     }
 
-    for (i = 0; i < total_queues; i++) {
-        struct vhost_net *net;
+    for (i = 0; i < nvhosts; i++) {
 
-        net = get_vhost_net(ncs[i].peer);
-        vhost_net_set_vq_index(net, i * 2);
+        if (i < data_queue_pairs) {
+            peer = qemu_get_peer(ncs, i);
+        } else { /* Control Virtqueue */
+            peer = qemu_get_peer(ncs, n->max_queue_pairs);
+        }
+
+        net = get_vhost_net(peer);
+        vhost_net_set_vq_index(net, i * 2, index_end);
 
         /* Suppress the masking guest notifiers on vhost user
          * because vhost user doesn't interrupt masking/unmasking
@@ -328,24 +358,30 @@ int vhost_net_start(VirtIODevice *dev, NetClientState *ncs,
         }
      }
 
-    r = k->set_guest_notifiers(qbus->parent, total_queues * 2, true);
+    r = k->set_guest_notifiers(qbus->parent, total_notifiers, true);
     if (r < 0) {
         error_report("Error binding guest notifier: %d", -r);
         goto err;
     }
 
-    for (i = 0; i < total_queues; i++) {
-        r = vhost_net_start_one(get_vhost_net(ncs[i].peer), dev);
+    for (i = 0; i < nvhosts; i++) {
+        if (i < data_queue_pairs) {
+            peer = qemu_get_peer(ncs, i);
+        } else {
+            peer = qemu_get_peer(ncs, n->max_queue_pairs);
+        }
+        r = vhost_net_start_one(get_vhost_net(peer), dev);
 
         if (r < 0) {
             goto err_start;
         }
 
-        if (ncs[i].peer->vring_enable) {
+        if (peer->vring_enable) {
             /* restore vring enable state */
-            r = vhost_set_vring_enable(ncs[i].peer, ncs[i].peer->vring_enable);
+            r = vhost_set_vring_enable(peer, peer->vring_enable);
 
             if (r < 0) {
+                vhost_net_stop_one(get_vhost_net(peer), dev);
                 goto err_start;
             }
         }
@@ -355,9 +391,11 @@ int vhost_net_start(VirtIODevice *dev, NetClientState *ncs,
 
 err_start:
     while (--i >= 0) {
-        vhost_net_stop_one(get_vhost_net(ncs[i].peer), dev);
+        peer = qemu_get_peer(ncs, i < data_queue_pairs ?
+                                  i : n->max_queue_pairs);
+        vhost_net_stop_one(get_vhost_net(peer), dev);
     }
-    e = k->set_guest_notifiers(qbus->parent, total_queues * 2, false);
+    e = k->set_guest_notifiers(qbus->parent, total_notifiers, false);
     if (e < 0) {
         fprintf(stderr, "vhost guest notifier cleanup failed: %d\n", e);
         fflush(stderr);
@@ -367,18 +405,27 @@ err:
 }
 
 void vhost_net_stop(VirtIODevice *dev, NetClientState *ncs,
-                    int total_queues)
+                    int data_queue_pairs, int cvq)
 {
     BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(dev)));
     VirtioBusState *vbus = VIRTIO_BUS(qbus);
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(vbus);
+    VirtIONet *n = VIRTIO_NET(dev);
+    NetClientState *peer;
+    int total_notifiers = data_queue_pairs * 2 + cvq;
+    int nvhosts = data_queue_pairs + cvq;
     int i, r;
 
-    for (i = 0; i < total_queues; i++) {
-        vhost_net_stop_one(get_vhost_net(ncs[i].peer), dev);
+    for (i = 0; i < nvhosts; i++) {
+        if (i < data_queue_pairs) {
+            peer = qemu_get_peer(ncs, i);
+        } else {
+            peer = qemu_get_peer(ncs, n->max_queue_pairs);
+        }
+        vhost_net_stop_one(get_vhost_net(peer), dev);
     }
 
-    r = k->set_guest_notifiers(qbus->parent, total_queues * 2, false);
+    r = k->set_guest_notifiers(qbus->parent, total_notifiers, false);
     if (r < 0) {
         fprintf(stderr, "vhost guest notifier cleanup failed: %d\n", r);
         fflush(stderr);
@@ -427,6 +474,12 @@ VHostNetState *get_vhost_net(NetClientState *nc)
 #ifdef CONFIG_VHOST_NET_USER
     case NET_CLIENT_DRIVER_VHOST_USER:
         vhost_net = vhost_user_get_vhost_net(nc);
+        assert(vhost_net);
+        break;
+#endif
+#ifdef CONFIG_VHOST_NET_VDPA
+    case NET_CLIENT_DRIVER_VHOST_VDPA:
+        vhost_net = vhost_vdpa_get_vhost_net(nc);
         assert(vhost_net);
         break;
 #endif

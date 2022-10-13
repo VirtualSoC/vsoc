@@ -24,7 +24,6 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qapi/error.h"
 #include "sysemu/block-backend.h"
 #include "qemu/error-report.h"
@@ -35,18 +34,9 @@
 #include "hw/i386/pc.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
-#include "sysemu/sysemu.h"
 #include "hw/block/flash.h"
 #include "sysemu/kvm.h"
-
-/*
- * We don't have a theoretically justifiable exact lower bound on the base
- * address of any flash mapping. In practice, the IO-APIC MMIO range is
- * [0xFEE00000..0xFEE01000] -- see IO_APIC_DEFAULT_ADDRESS --, leaving free
- * only 18MB-4KB below 4G. For now, restrict the cumulative mapping to 8MB in
- * size.
- */
-#define FLASH_SIZE_LIMIT (8 * MiB)
+#include "sev.h"
 
 #define FLASH_SECTOR_SIZE 4096
 
@@ -85,7 +75,7 @@ static PFlashCFI01 *pc_pflash_create(PCMachineState *pcms,
                                      const char *name,
                                      const char *alias_prop_name)
 {
-    DeviceState *dev = qdev_create(NULL, TYPE_PFLASH_CFI01);
+    DeviceState *dev = qdev_new(TYPE_PFLASH_CFI01);
 
     qdev_prop_set_uint64(dev, "sector-length", FLASH_SECTOR_SIZE);
     qdev_prop_set_uint8(dev, "width", 1);
@@ -93,6 +83,11 @@ static PFlashCFI01 *pc_pflash_create(PCMachineState *pcms,
     object_property_add_child(OBJECT(pcms), name, OBJECT(dev));
     object_property_add_alias(OBJECT(pcms), alias_prop_name,
                               OBJECT(dev), "drive");
+    /*
+     * The returned reference is tied to the child property and
+     * will be removed with object_unparent.
+     */
+    object_unref(OBJECT(dev));
     return PFLASH_CFI01(dev);
 }
 
@@ -108,7 +103,7 @@ void pc_system_flash_create(PCMachineState *pcms)
     }
 }
 
-static void pc_system_flash_cleanup_unused(PCMachineState *pcms)
+void pc_system_flash_cleanup_unused(PCMachineState *pcms)
 {
     char *prop_name;
     int i;
@@ -135,7 +130,7 @@ static void pc_system_flash_cleanup_unused(PCMachineState *pcms)
  * Stop at the first pcms->flash[0] lacking a block backend.
  * Set each flash's size from its block backend.  Fatal error if the
  * size isn't a non-zero multiple of 4KiB, or the total size exceeds
- * FLASH_SIZE_LIMIT.
+ * pcms->max_fw_size.
  *
  * If pcms->flash[0] has a block backend, its memory is passed to
  * pc_isa_bios_init().  Merging several flash devices for isa-bios is
@@ -151,7 +146,7 @@ static void pc_system_flash_map(PCMachineState *pcms,
     PFlashCFI01 *system_flash;
     MemoryRegion *flash_mem;
     void *flash_ptr;
-    int ret, flash_size;
+    int flash_size;
 
     assert(PC_MACHINE_GET_CLASS(pcms)->pci_enabled);
 
@@ -177,17 +172,17 @@ static void pc_system_flash_map(PCMachineState *pcms,
         }
         if ((hwaddr)size != size
             || total_size > HWADDR_MAX - size
-            || total_size + size > FLASH_SIZE_LIMIT) {
+            || total_size + size > pcms->max_fw_size) {
             error_report("combined size of system firmware exceeds "
                          "%" PRIu64 " bytes",
-                         FLASH_SIZE_LIMIT);
+                         pcms->max_fw_size);
             exit(1);
         }
 
         total_size += size;
         qdev_prop_set_uint32(DEVICE(system_flash), "num-blocks",
                              size / FLASH_SECTOR_SIZE);
-        qdev_init_nofail(DEVICE(system_flash));
+        sysbus_realize_and_unref(SYS_BUS_DEVICE(system_flash), &error_fatal);
         sysbus_mmio_map(SYS_BUS_DEVICE(system_flash), 0,
                         0x100000000ULL - total_size);
 
@@ -196,14 +191,10 @@ static void pc_system_flash_map(PCMachineState *pcms,
             pc_isa_bios_init(rom_memory, flash_mem, size);
 
             /* Encrypt the pflash boot ROM */
-            if (kvm_memcrypt_enabled()) {
+            if (sev_enabled()) {
                 flash_ptr = memory_region_get_ram_ptr(flash_mem);
                 flash_size = memory_region_size(flash_mem);
-                ret = kvm_memcrypt_encrypt_data(flash_ptr, flash_size);
-                if (ret) {
-                    error_report("failed to encrypt pflash rom");
-                    exit(1);
-                }
+                x86_firmware_configure(flash_ptr, flash_size);
             }
         }
     }
@@ -217,7 +208,7 @@ void pc_system_firmware_init(PCMachineState *pcms,
     BlockBackend *pflash_blk[ARRAY_SIZE(pcms->flash)];
 
     if (!pcmc->pci_enabled) {
-        x86_bios_rom_init(rom_memory, true);
+        x86_bios_rom_init(MACHINE(pcms), "bios.bin", rom_memory, true);
         return;
     }
 
@@ -238,7 +229,7 @@ void pc_system_firmware_init(PCMachineState *pcms,
 
     if (!pflash_blk[0]) {
         /* Machine property pflash0 not set, use ROM mode */
-        x86_bios_rom_init(rom_memory, false);
+        x86_bios_rom_init(MACHINE(pcms), "bios.bin", rom_memory, false);
     } else {
         if (kvm_enabled() && !kvm_readonly_mem_enabled()) {
             /*
@@ -254,4 +245,25 @@ void pc_system_firmware_init(PCMachineState *pcms,
     }
 
     pc_system_flash_cleanup_unused(pcms);
+}
+
+void x86_firmware_configure(void *ptr, int size)
+{
+    int ret;
+
+    /*
+     * OVMF places a GUIDed structures in the flash, so
+     * search for them
+     */
+    pc_system_parse_ovmf_flash(ptr, size);
+
+    if (sev_enabled()) {
+        ret = sev_es_save_reset_vector(ptr, size);
+        if (ret) {
+            error_report("failed to locate and/or save reset vector");
+            exit(1);
+        }
+
+        sev_encrypt_flash(ptr, size, &error_fatal);
+    }
 }

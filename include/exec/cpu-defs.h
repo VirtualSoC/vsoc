@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,9 +25,6 @@
 
 #include "qemu/host-utils.h"
 #include "qemu/thread.h"
-#ifdef CONFIG_TCG
-#include "tcg-target.h"
-#endif
 #ifndef CONFIG_USER_ONLY
 #include "exec/hwaddr.h"
 #endif
@@ -102,8 +99,13 @@ typedef uint64_t target_ulong;
  * Skylake's Level-2 STLB has 16 1G entries.
  * Also, make sure we do not size the TLB past the guest's address space.
  */
-#  define CPU_TLB_DYN_MAX_BITS                                  \
+#  ifdef TARGET_PAGE_BITS_VARY
+#   define CPU_TLB_DYN_MAX_BITS                                  \
     MIN(22, TARGET_VIRT_ADDR_SPACE_BITS - TARGET_PAGE_BITS)
+#  else
+#   define CPU_TLB_DYN_MAX_BITS                                  \
+    MIN_CONST(22, TARGET_VIRT_ADDR_SPACE_BITS - TARGET_PAGE_BITS)
+#  endif
 # endif
 
 typedef struct CPUTLBEntry {

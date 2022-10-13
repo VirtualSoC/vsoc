@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# group: auto quick
 #
 # Test case for connecting to a non-existing NBD export name
 #
@@ -19,7 +20,7 @@
 #
 
 # creator
-owner=mreitz@redhat.com
+owner=hreitz@redhat.com
 
 seq="$(basename $0)"
 echo "QA output created by $seq"
@@ -58,6 +59,10 @@ _send_qemu_cmd $QEMU_HANDLE \
 $QEMU_IO_PROG -f raw -c quit \
     "nbd+unix:///no_such_export?socket=$SOCK_DIR/nbd" 2>&1 \
     | _filter_qemu_io | _filter_nbd
+# Likewise, with longest possible name permitted in NBD protocol
+$QEMU_IO_PROG -f raw -c quit \
+    "nbd+unix:///$(printf %4096d 1 | tr ' ' a)?socket=$SOCK_DIR/nbd" 2>&1 \
+    | _filter_qemu_io | _filter_nbd | sed 's/aaaa*aa/aa--aa/'
 
 _send_qemu_cmd $QEMU_HANDLE \
     "{ 'execute': 'quit' }" \

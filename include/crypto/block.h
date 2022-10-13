@@ -29,24 +29,24 @@ typedef struct QCryptoBlock QCryptoBlock;
 /* See also QCryptoBlockFormat, QCryptoBlockCreateOptions
  * and QCryptoBlockOpenOptions in qapi/crypto.json */
 
-typedef ssize_t (*QCryptoBlockReadFunc)(QCryptoBlock *block,
-                                        size_t offset,
-                                        uint8_t *buf,
-                                        size_t buflen,
-                                        void *opaque,
-                                        Error **errp);
+typedef int (*QCryptoBlockReadFunc)(QCryptoBlock *block,
+                                    size_t offset,
+                                    uint8_t *buf,
+                                    size_t buflen,
+                                    void *opaque,
+                                    Error **errp);
 
-typedef ssize_t (*QCryptoBlockInitFunc)(QCryptoBlock *block,
-                                        size_t headerlen,
-                                        void *opaque,
-                                        Error **errp);
+typedef int (*QCryptoBlockInitFunc)(QCryptoBlock *block,
+                                    size_t headerlen,
+                                    void *opaque,
+                                    Error **errp);
 
-typedef ssize_t (*QCryptoBlockWriteFunc)(QCryptoBlock *block,
-                                         size_t offset,
-                                         const uint8_t *buf,
-                                         size_t buflen,
-                                         void *opaque,
-                                         Error **errp);
+typedef int (*QCryptoBlockWriteFunc)(QCryptoBlock *block,
+                                     size_t offset,
+                                     const uint8_t *buf,
+                                     size_t buflen,
+                                     void *opaque,
+                                     Error **errp);
 
 /**
  * qcrypto_block_has_format:
@@ -143,6 +143,28 @@ QCryptoBlock *qcrypto_block_create(QCryptoBlockCreateOptions *options,
                                    QCryptoBlockWriteFunc writefunc,
                                    void *opaque,
                                    Error **errp);
+
+/**
+ * qcrypto_block_amend_options:
+ * @block: the block encryption object
+ *
+ * @readfunc: callback for reading data from the volume header
+ * @writefunc: callback for writing data to the volume header
+ * @opaque: data to pass to @readfunc and @writefunc
+ * @options: the new/amended encryption options
+ * @force: hint for the driver to allow unsafe operation
+ * @errp: error pointer
+ *
+ * Changes the crypto options of the encryption format
+ *
+ */
+int qcrypto_block_amend_options(QCryptoBlock *block,
+                                QCryptoBlockReadFunc readfunc,
+                                QCryptoBlockWriteFunc writefunc,
+                                void *opaque,
+                                QCryptoBlockAmendOptions *options,
+                                bool force,
+                                Error **errp);
 
 
 /**
@@ -289,7 +311,5 @@ uint64_t qcrypto_block_get_sector_size(QCryptoBlock *block);
 void qcrypto_block_free(QCryptoBlock *block);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(QCryptoBlock, qcrypto_block_free)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(QCryptoBlockCreateOptions,
-                              qapi_free_QCryptoBlockCreateOptions)
 
 #endif /* QCRYPTO_BLOCK_H */

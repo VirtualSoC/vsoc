@@ -23,17 +23,16 @@
  */
 
 #include "qemu/osdep.h"
+#include "qapi/error.h"
 #include "qemu/units.h"
 #include "qemu/log.h"
-#include "hw/mips/mips.h"
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_host.h"
-#include "hw/southbridge/piix.h"
 #include "migration/vmstate.h"
 #include "hw/intc/i8259.h"
 #include "hw/irq.h"
-#include "exec/address-spaces.h"
 #include "trace.h"
+#include "qom/object.h"
 
 #define GT_REGS                 (0x1000 >> 2)
 
@@ -229,10 +228,9 @@
 
 #define TYPE_GT64120_PCI_HOST_BRIDGE "gt64120"
 
-#define GT64120_PCI_HOST_BRIDGE(obj) \
-    OBJECT_CHECK(GT64120State, (obj), TYPE_GT64120_PCI_HOST_BRIDGE)
+OBJECT_DECLARE_SIMPLE_TYPE(GT64120State, GT64120_PCI_HOST_BRIDGE)
 
-typedef struct GT64120State {
+struct GT64120State {
     PCIHostState parent_obj;
 
     uint32_t regs[GT_REGS];
@@ -242,7 +240,7 @@ typedef struct GT64120State {
     PCI_MAPPING_ENTRY(ISD);
     MemoryRegion pci0_mem;
     AddressSpace pci0_mem_as;
-} GT64120State;
+};
 
 /* Adjust range to avoid touching space which isn't mappable via PCI */
 /*
@@ -384,13 +382,13 @@ static void gt64120_writel(void *opaque, hwaddr addr,
 {
     GT64120State *s = opaque;
     PCIHostState *phb = PCI_HOST_BRIDGE(s);
-    uint32_t saddr;
+    uint32_t saddr = addr >> 2;
 
+    trace_gt64120_write(addr, val);
     if (!(s->regs[GT_CPU] & 0x00001000)) {
         val = bswap32(val);
     }
 
-    saddr = (addr & 0xfff) >> 2;
     switch (saddr) {
 
     /* CPU Configuration */
@@ -463,7 +461,7 @@ static void gt64120_writel(void *opaque, hwaddr addr,
         /* Read-only registers, do nothing */
         qemu_log_mask(LOG_GUEST_ERROR,
                       "gt64120: Read-only register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
 
@@ -473,7 +471,7 @@ static void gt64120_writel(void *opaque, hwaddr addr,
         /* Read-only registers, do nothing */
         qemu_log_mask(LOG_GUEST_ERROR,
                       "gt64120: Read-only register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
 
@@ -515,7 +513,7 @@ static void gt64120_writel(void *opaque, hwaddr addr,
         /* Not implemented */
         qemu_log_mask(LOG_UNIMP,
                       "gt64120: Unimplemented device register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
 
@@ -528,7 +526,7 @@ static void gt64120_writel(void *opaque, hwaddr addr,
         /* Read-only registers, do nothing */
         qemu_log_mask(LOG_GUEST_ERROR,
                       "gt64120: Read-only register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
 
@@ -565,7 +563,7 @@ static void gt64120_writel(void *opaque, hwaddr addr,
         /* Not implemented */
         qemu_log_mask(LOG_UNIMP,
                       "gt64120: Unimplemented DMA register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
 
@@ -578,7 +576,7 @@ static void gt64120_writel(void *opaque, hwaddr addr,
         /* Not implemented */
         qemu_log_mask(LOG_UNIMP,
                       "gt64120: Unimplemented timer register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
 
@@ -621,8 +619,8 @@ static void gt64120_writel(void *opaque, hwaddr addr,
     case GT_PCI1_CFGDATA:
         /* not implemented */
         qemu_log_mask(LOG_UNIMP,
-                      "gt64120: Unimplemented timer register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "gt64120: Unimplemented PCI register write "
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
     case GT_PCI0_CFGADDR:
@@ -642,19 +640,19 @@ static void gt64120_writel(void *opaque, hwaddr addr,
         /* not really implemented */
         s->regs[saddr] = ~(~(s->regs[saddr]) | ~(val & 0xfffffffe));
         s->regs[saddr] |= !!(s->regs[saddr] & 0xfffffffe);
-        trace_gt64120_write("INTRCAUSE", size, val);
+        trace_gt64120_write_intreg("INTRCAUSE", size, val);
         break;
     case GT_INTRMASK:
         s->regs[saddr] = val & 0x3c3ffffe;
-        trace_gt64120_write("INTRMASK", size, val);
+        trace_gt64120_write_intreg("INTRMASK", size, val);
         break;
     case GT_PCI0_ICMASK:
         s->regs[saddr] = val & 0x03fffffe;
-        trace_gt64120_write("ICMASK", size, val);
+        trace_gt64120_write_intreg("ICMASK", size, val);
         break;
     case GT_PCI0_SERR0MASK:
         s->regs[saddr] = val & 0x0000003f;
-        trace_gt64120_write("SERR0MASK", size, val);
+        trace_gt64120_write_intreg("SERR0MASK", size, val);
         break;
 
     /* Reserved when only PCI_0 is configured. */
@@ -682,7 +680,7 @@ static void gt64120_writel(void *opaque, hwaddr addr,
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "gt64120: Illegal register write "
-                      "reg:0x03%x size:%u value:0x%0*" PRIx64 "\n",
+                      "reg:0x%03x size:%u value:0x%0*" PRIx64 "\n",
                       saddr << 2, size, size << 1, val);
         break;
     }
@@ -694,9 +692,8 @@ static uint64_t gt64120_readl(void *opaque,
     GT64120State *s = opaque;
     PCIHostState *phb = PCI_HOST_BRIDGE(s);
     uint32_t val;
-    uint32_t saddr;
+    uint32_t saddr = addr >> 2;
 
-    saddr = (addr & 0xfff) >> 2;
     switch (saddr) {
 
     /* CPU Configuration */
@@ -930,19 +927,19 @@ static uint64_t gt64120_readl(void *opaque,
     /* Interrupts */
     case GT_INTRCAUSE:
         val = s->regs[saddr];
-        trace_gt64120_read("INTRCAUSE", size, val);
+        trace_gt64120_read_intreg("INTRCAUSE", size, val);
         break;
     case GT_INTRMASK:
         val = s->regs[saddr];
-        trace_gt64120_read("INTRMASK", size, val);
+        trace_gt64120_read_intreg("INTRMASK", size, val);
         break;
     case GT_PCI0_ICMASK:
         val = s->regs[saddr];
-        trace_gt64120_read("ICMASK", size, val);
+        trace_gt64120_read_intreg("ICMASK", size, val);
         break;
     case GT_PCI0_SERR0MASK:
         val = s->regs[saddr];
-        trace_gt64120_read("SERR0MASK", size, val);
+        trace_gt64120_read_intreg("SERR0MASK", size, val);
         break;
 
     /* Reserved when only PCI_0 is configured. */
@@ -959,7 +956,7 @@ static uint64_t gt64120_readl(void *opaque,
         val = s->regs[saddr];
         qemu_log_mask(LOG_GUEST_ERROR,
                       "gt64120: Illegal register read "
-                      "reg:0x03%x size:%u value:0x%0*x\n",
+                      "reg:0x%03x size:%u value:0x%0*x\n",
                       saddr << 2, size, size << 1, val);
         break;
     }
@@ -967,6 +964,7 @@ static uint64_t gt64120_readl(void *opaque,
     if (!(s->regs[GT_CPU] & 0x00001000)) {
         val = bswap32(val);
     }
+    trace_gt64120_read(addr, val);
 
     return val;
 }
@@ -975,57 +973,11 @@ static const MemoryRegionOps isd_mem_ops = {
     .read = gt64120_readl,
     .write = gt64120_writel,
     .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
 };
-
-static int gt64120_pci_map_irq(PCIDevice *pci_dev, int irq_num)
-{
-    int slot;
-
-    slot = (pci_dev->devfn >> 3);
-
-    switch (slot) {
-    /* PIIX4 USB */
-    case 10:
-        return 3;
-    /* AMD 79C973 Ethernet */
-    case 11:
-        return 1;
-    /* Crystal 4281 Sound */
-    case 12:
-        return 2;
-    /* PCI slot 1 to 4 */
-    case 18 ... 21:
-        return ((slot - 18) + irq_num) & 0x03;
-    /* Unknown device, don't do any translation */
-    default:
-        return irq_num;
-    }
-}
-
-static int pci_irq_levels[4];
-
-static void gt64120_pci_set_irq(void *opaque, int irq_num, int level)
-{
-    int i, pic_irq, pic_level;
-    qemu_irq *pic = opaque;
-
-    pci_irq_levels[irq_num] = level;
-
-    /* now we change the pic irq level according to the piix irq mappings */
-    /* XXX: optimize */
-    pic_irq = piix4_dev->config[PIIX_PIRQCA + irq_num];
-    if (pic_irq < 16) {
-        /* The pic level is the logical OR of all the PCI irqs mapped to it. */
-        pic_level = 0;
-        for (i = 0; i < 4; i++) {
-            if (pic_irq == piix4_dev->config[PIIX_PIRQCA + i]) {
-                pic_level |= pci_irq_levels[i];
-            }
-        }
-        qemu_set_irq(pic[pic_irq], pic_level);
-    }
-}
-
 
 static void gt64120_reset(DeviceState *dev)
 {
@@ -1034,7 +986,7 @@ static void gt64120_reset(DeviceState *dev)
     /* FIXME: Malta specific hw assumptions ahead */
 
     /* CPU Configuration */
-#ifdef TARGET_WORDS_BIGENDIAN
+#if TARGET_BIG_ENDIAN
     s->regs[GT_CPU]           = 0x00000000;
 #else
     s->regs[GT_CPU]           = 0x00001000;
@@ -1145,7 +1097,7 @@ static void gt64120_reset(DeviceState *dev)
     s->regs[GT_TC_CONTROL]    = 0x00000000;
 
     /* PCI Internal */
-#ifdef TARGET_WORDS_BIGENDIAN
+#if TARGET_BIG_ENDIAN
     s->regs[GT_PCI0_CMD]      = 0x00000000;
 #else
     s->regs[GT_PCI0_CMD]      = 0x00010001;
@@ -1166,7 +1118,7 @@ static void gt64120_reset(DeviceState *dev)
     s->regs[GT_PCI0_SSCS10_BAR] = 0x00000000;
     s->regs[GT_PCI0_SSCS32_BAR] = 0x01000000;
     s->regs[GT_PCI0_SCS3BT_BAR] = 0x1f000000;
-#ifdef TARGET_WORDS_BIGENDIAN
+#if TARGET_BIG_ENDIAN
     s->regs[GT_PCI1_CMD]      = 0x00000000;
 #else
     s->regs[GT_PCI1_CMD]      = 0x00010001;
@@ -1195,29 +1147,21 @@ static void gt64120_reset(DeviceState *dev)
     gt64120_pci_mapping(s);
 }
 
-PCIBus *gt64120_register(qemu_irq *pic)
+static void gt64120_realize(DeviceState *dev, Error **errp)
 {
-    GT64120State *d;
-    PCIHostState *phb;
-    DeviceState *dev;
+    GT64120State *s = GT64120_PCI_HOST_BRIDGE(dev);
+    PCIHostState *phb = PCI_HOST_BRIDGE(dev);
 
-    dev = qdev_create(NULL, TYPE_GT64120_PCI_HOST_BRIDGE);
-    d = GT64120_PCI_HOST_BRIDGE(dev);
-    phb = PCI_HOST_BRIDGE(dev);
-    memory_region_init(&d->pci0_mem, OBJECT(dev), "pci0-mem", 4 * GiB);
-    address_space_init(&d->pci0_mem_as, &d->pci0_mem, "pci0-mem");
-    phb->bus = pci_register_root_bus(dev, "pci",
-                                     gt64120_pci_set_irq, gt64120_pci_map_irq,
-                                     pic,
-                                     &d->pci0_mem,
-                                     get_system_io(),
-                                     PCI_DEVFN(18, 0), 4, TYPE_PCI_BUS);
-    qdev_init_nofail(dev);
-    memory_region_init_io(&d->ISD_mem, OBJECT(dev), &isd_mem_ops, d,
-                          "isd-mem", 0x1000);
+    memory_region_init_io(&s->ISD_mem, OBJECT(dev), &isd_mem_ops, s,
+                          "gt64120-isd", 0x1000);
+    memory_region_init(&s->pci0_mem, OBJECT(dev), "pci0-mem", 4 * GiB);
+    address_space_init(&s->pci0_mem_as, &s->pci0_mem, "pci0-mem");
+    phb->bus = pci_root_bus_new(dev, "pci",
+                                &s->pci0_mem,
+                                get_system_io(),
+                                PCI_DEVFN(18, 0), TYPE_PCI_BUS);
 
     pci_create_simple(phb->bus, PCI_DEVFN(0, 0), "gt64120_pci");
-    return phb->bus;
 }
 
 static void gt64120_pci_realize(PCIDevice *d, Error **errp)
@@ -1269,6 +1213,7 @@ static void gt64120_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
+    dc->realize = gt64120_realize;
     dc->reset = gt64120_reset;
     dc->vmsd = &vmstate_gt64120;
 }

@@ -30,6 +30,10 @@
 #include <windows.h>
 #include <ws2tcpip.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if defined(_WIN64)
 /* On w64, setjmp is implemented by _setjmp which needs a second parameter.
  * If this parameter is NULL, longjump does no stack unwinding.
@@ -48,18 +52,20 @@
 #define siglongjmp(env, val) longjmp(env, val)
 
 /* Missing POSIX functions. Don't use MinGW-w64 macros. */
-#ifndef CONFIG_LOCALTIME_R
+#ifndef _POSIX_THREAD_SAFE_FUNCTIONS
 #undef gmtime_r
 struct tm *gmtime_r(const time_t *timep, struct tm *result);
 #undef localtime_r
 struct tm *localtime_r(const time_t *timep, struct tm *result);
-#endif /* CONFIG_LOCALTIME_R */
+#endif /* _POSIX_THREAD_SAFE_FUNCTIONS */
 
 static inline void os_setup_signal_handling(void) {}
 static inline void os_daemonize(void) {}
 static inline void os_setup_post(void) {}
-void os_set_line_buffering(void);
 static inline void os_set_proc_name(const char *dummy) {}
+static inline int os_parse_cmd_args(int index, const char *optarg) { return -1; }
+void os_set_line_buffering(void);
+void os_setup_early_signal_handling(void);
 
 int getpagesize(void);
 
@@ -67,11 +73,13 @@ int getpagesize(void);
 # define EPROTONOSUPPORT EINVAL
 #endif
 
-typedef struct {
-    long tv_sec;
-    long tv_usec;
-} qemu_timeval;
-int qemu_gettimeofday(qemu_timeval *tp);
+static inline int os_set_daemonize(bool d)
+{
+    if (d) {
+        return -ENOTSUP;
+    }
+    return 0;
+}
 
 static inline bool is_daemonized(void)
 {
@@ -101,20 +109,22 @@ static inline char *realpath(const char *path, char *resolved_path)
     return resolved_path;
 }
 
-/* ??? Mingw appears to export _lock_file and _unlock_file as the functions
- * with which to lock a stdio handle.  But something is wrong in the markup,
- * either in the header or the library, such that we get undefined references
- * to "_imp___lock_file" etc when linking.  Since we seem to have no other
- * alternative, and the usage within the logging functions isn't critical,
- * ignore FILE locking.
+/*
+ * Older versions of MinGW do not import _lock_file and _unlock_file properly.
+ * This was fixed for v6.0.0 with commit b48e3ac8969d.
  */
-
 static inline void qemu_flockfile(FILE *f)
 {
+#ifdef HAVE__LOCK_FILE
+    _lock_file(f);
+#endif
 }
 
 static inline void qemu_funlockfile(FILE *f)
 {
+#ifdef HAVE__LOCK_FILE
+    _unlock_file(f);
+#endif
 }
 
 /* We wrap all the sockets functions so that we can
@@ -193,5 +203,9 @@ ssize_t qemu_recv_wrap(int sockfd, void *buf, size_t len, int flags);
 #define recvfrom qemu_recvfrom_wrap
 ssize_t qemu_recvfrom_wrap(int sockfd, void *buf, size_t len, int flags,
                            struct sockaddr *addr, socklen_t *addrlen);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

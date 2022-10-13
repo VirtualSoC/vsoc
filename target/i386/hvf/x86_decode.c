@@ -5,7 +5,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,6 @@
 
 #include "qemu/osdep.h"
 
-#include "qemu-common.h"
 #include "panic.h"
 #include "x86_decode.h"
 #include "vmx.h"
@@ -29,8 +28,7 @@
 
 static void decode_invalid(CPUX86State *env, struct x86_decode *decode)
 {
-    printf("%llx: failed to decode instruction ", env->hvf_emul->fetch_rip -
-           decode->len);
+    printf("%llx: failed to decode instruction ", env->eip);
     for (int i = 0; i < decode->opcode_len; i++) {
         printf("%x ", decode->opcode[i]);
     }
@@ -75,7 +73,7 @@ static inline uint64_t decode_bytes(CPUX86State *env, struct x86_decode *decode,
         VM_PANIC_EX("%s invalid size %d\n", __func__, size);
         break;
     }
-    target_ulong va  = linear_rip(env_cpu(env), RIP(env)) + decode->len;
+    target_ulong va  = linear_rip(env_cpu(env), env->eip) + decode->len;
     vmx_read_mem(env_cpu(env), &val, va, size);
     decode->len += size;
     
@@ -698,15 +696,13 @@ static void decode_db_4(CPUX86State *env, struct x86_decode *decode)
 
 
 #define RFLAGS_MASK_NONE    0
-#define RFLAGS_MASK_OSZAPC  (RFLAGS_OF | RFLAGS_SF | RFLAGS_ZF | RFLAGS_AF | \
-                             RFLAGS_PF | RFLAGS_CF)
-#define RFLAGS_MASK_LAHF    (RFLAGS_SF | RFLAGS_ZF | RFLAGS_AF | RFLAGS_PF | \
-                             RFLAGS_CF)
-#define RFLAGS_MASK_CF      (RFLAGS_CF)
-#define RFLAGS_MASK_IF      (RFLAGS_IF)
-#define RFLAGS_MASK_TF      (RFLAGS_TF)
-#define RFLAGS_MASK_DF      (RFLAGS_DF)
-#define RFLAGS_MASK_ZF      (RFLAGS_ZF)
+#define RFLAGS_MASK_OSZAPC  (CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C)
+#define RFLAGS_MASK_LAHF    (CC_S | CC_Z | CC_A | CC_P | CC_C)
+#define RFLAGS_MASK_CF      (CC_C)
+#define RFLAGS_MASK_IF      (IF_MASK)
+#define RFLAGS_MASK_TF      (TF_MASK)
+#define RFLAGS_MASK_DF      (DF_MASK)
+#define RFLAGS_MASK_ZF      (CC_Z)
 
 struct decode_tbl _1op_inst[] = {
     {0x0, X86_DECODE_CMD_ADD, 1, true, decode_modrm_rm, decode_modrm_reg, NULL,
@@ -1771,7 +1767,7 @@ void calc_modrm_operand32(CPUX86State *env, struct x86_decode *decode,
         ptr += get_sib_val(env, decode, &seg);
     } else if (!decode->modrm.mod && 5 == decode->modrm.rm) {
         if (x86_is_long_mode(env_cpu(env))) {
-            ptr += RIP(env) + decode->len;
+            ptr += env->eip + decode->len;
         } else {
             ptr = decode->displacement;
         }
@@ -1807,7 +1803,7 @@ void calc_modrm_operand64(CPUX86State *env, struct x86_decode *decode,
     if (4 == rm) {
         ptr = get_sib_val(env, decode, &seg) + offset;
     } else if (0 == mod && 5 == rm) {
-        ptr = RIP(env) + decode->len + (int32_t) offset;
+        ptr = env->eip + decode->len + (int32_t) offset;
     } else {
         ptr = get_reg_val(env, src, decode->rex.rex, decode->rex.b, 8) +
               (int64_t) offset;

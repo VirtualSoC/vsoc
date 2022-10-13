@@ -7,18 +7,19 @@
  */
 
 #include "qemu/osdep.h"
+#include "qapi/error.h"
 #include "qemu/module.h"
 #include "qemu/log.h"
 #include "cpu.h"
-#include "hw/hw.h"
 #include "hw/irq.h"
 #include "hw/sysbus.h"
 #include "hw/m68k/mcf.h"
+#include "qom/object.h"
 
 #define TYPE_MCF_INTC "mcf-intc"
-#define MCF_INTC(obj) OBJECT_CHECK(mcf_intc_state, (obj), TYPE_MCF_INTC)
+OBJECT_DECLARE_SIMPLE_TYPE(mcf_intc_state, MCF_INTC)
 
-typedef struct {
+struct mcf_intc_state {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
@@ -29,7 +30,7 @@ typedef struct {
     uint8_t icr[64];
     M68kCPU *cpu;
     int active_vector;
-} mcf_intc_state;
+};
 
 static void mcf_intc_update(mcf_intc_state *s)
 {
@@ -204,8 +205,8 @@ qemu_irq *mcf_intc_init(MemoryRegion *sysmem,
     DeviceState  *dev;
     mcf_intc_state *s;
 
-    dev = qdev_create(NULL, TYPE_MCF_INTC);
-    qdev_init_nofail(dev);
+    dev = qdev_new(TYPE_MCF_INTC);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
 
     s = MCF_INTC(dev);
     s->cpu = cpu;

@@ -8,20 +8,21 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
 #include "qemu/timer.h"
 #include "qemu/bcd.h"
 #include "hw/i2c/i2c.h"
+#include "qom/object.h"
+#include "sysemu/rtc.h"
 
 #define TYPE_M41T80 "m41t80"
-#define M41T80(obj) OBJECT_CHECK(M41t80State, (obj), TYPE_M41T80)
+OBJECT_DECLARE_SIMPLE_TYPE(M41t80State, M41T80)
 
-typedef struct M41t80State {
+struct M41t80State {
     I2CSlave parent_obj;
     int8_t addr;
-} M41t80State;
+};
 
 static void m41t80_realize(DeviceState *dev, Error **errp)
 {
@@ -46,7 +47,7 @@ static uint8_t m41t80_recv(I2CSlave *i2c)
 {
     M41t80State *s = M41T80(i2c);
     struct tm now;
-    qemu_timeval tv;
+    int64_t rt;
 
     if (s->addr < 0) {
         s->addr = 0;
@@ -56,8 +57,8 @@ static uint8_t m41t80_recv(I2CSlave *i2c)
     }
     switch (s->addr++) {
     case 0:
-        qemu_gettimeofday(&tv);
-        return to_bcd(tv.tv_usec / 10000);
+        rt = g_get_real_time();
+        return to_bcd((rt % G_USEC_PER_SEC) / 10000);
     case 1:
         return to_bcd(now.tm_sec);
     case 2:

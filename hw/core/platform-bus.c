@@ -8,7 +8,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -22,6 +22,7 @@
 #include "qemu/osdep.h"
 #include "hw/platform-bus.h"
 #include "hw/qdev-properties.h"
+#include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/module.h"
 
@@ -63,9 +64,8 @@ hwaddr platform_bus_get_mmio_addr(PlatformBusDevice *pbus, SysBusDevice *sbdev,
         return -1;
     }
 
-    parent_mr = object_property_get_link(OBJECT(sbdev_mr), "container", NULL);
-
-    assert(parent_mr);
+    parent_mr = object_property_get_link(OBJECT(sbdev_mr), "container",
+                                         &error_abort);
     if (parent_mr != pbus_mr_obj) {
         /* MMIO region is not mapped on platform bus */
         return -1;

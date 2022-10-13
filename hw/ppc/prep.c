@@ -24,29 +24,24 @@
  */
 
 #include "qemu/osdep.h"
-#include "cpu.h"
 #include "hw/rtc/m48t59.h"
 #include "hw/char/serial.h"
 #include "hw/block/fdc.h"
 #include "net/net.h"
-#include "sysemu/sysemu.h"
 #include "hw/isa/isa.h"
 #include "hw/pci/pci.h"
 #include "hw/pci/pci_host.h"
 #include "hw/ppc/ppc.h"
 #include "hw/boards.h"
+#include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"
-#include "hw/irq.h"
 #include "hw/loader.h"
 #include "hw/rtc/mc146818rtc.h"
 #include "hw/isa/pc87312.h"
 #include "hw/qdev-properties.h"
-#include "sysemu/arch_init.h"
 #include "sysemu/kvm.h"
-#include "sysemu/qtest.h"
 #include "sysemu/reset.h"
-#include "exec/address-spaces.h"
 #include "trace.h"
 #include "elf.h"
 #include "qemu/units.h"
@@ -236,6 +231,7 @@ static int prep_set_cmos_checksum(DeviceState *dev, void *opaque)
 
 static void ibm_40p_init(MachineState *machine)
 {
+    const char *bios_name = machine->firmware ?: "openbios-ppc";
     CPUPPCState *env = NULL;
     uint16_t cmos_checksum;
     PowerPCCPU *cpu;
@@ -243,6 +239,7 @@ static void ibm_40p_init(MachineState *machine)
     SysBusDevice *pcihost, *s;
     Nvram *m48t59 = NULL;
     PCIBus *pci_bus;
+    ISADevice *isa_dev;
     ISABus *isa_bus;
     void *fw_cfg;
     int i;
@@ -258,25 +255,17 @@ static void ibm_40p_init(MachineState *machine)
         exit(1);
     }
 
-    if (env->flags & POWERPC_FLAG_RTC_CLK) {
-        /* POWER / PowerPC 601 RTC clock frequency is 7.8125 MHz */
-        cpu_ppc_tb_init(env, 7812500UL);
-    } else {
-        /* Set time-base frequency to 100 Mhz */
-        cpu_ppc_tb_init(env, 100UL * 1000UL * 1000UL);
-    }
+    /* Set time-base frequency to 100 Mhz */
+    cpu_ppc_tb_init(env, 100UL * 1000UL * 1000UL);
     qemu_register_reset(ppc_prep_reset, cpu);
 
     /* PCI host */
-    dev = qdev_create(NULL, "raven-pcihost");
-    if (!bios_name) {
-        bios_name = "openbios-ppc";
-    }
+    dev = qdev_new("raven-pcihost");
     qdev_prop_set_string(dev, "bios-name", bios_name);
     qdev_prop_set_uint32(dev, "elf-machine", PPC_ELF_MACHINE);
     pcihost = SYS_BUS_DEVICE(dev);
     object_property_add_child(qdev_get_machine(), "raven", OBJECT(dev));
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(pcihost, &error_fatal);
     pci_bus = PCI_BUS(qdev_get_child_bus(dev, "pci.0"));
     if (!pci_bus) {
         error_report("could not create PCI host controller");
@@ -286,19 +275,21 @@ static void ibm_40p_init(MachineState *machine)
     /* PCI -> ISA bridge */
     i82378_dev = DEVICE(pci_create_simple(pci_bus, PCI_DEVFN(11, 0), "i82378"));
     qdev_connect_gpio_out(i82378_dev, 0,
-                          cpu->env.irq_inputs[PPC6xx_INPUT_INT]);
+                          qdev_get_gpio_in(DEVICE(cpu), PPC6xx_INPUT_INT));
     sysbus_connect_irq(pcihost, 0, qdev_get_gpio_in(i82378_dev, 15));
     isa_bus = ISA_BUS(qdev_get_child_bus(i82378_dev, "isa.0"));
 
     /* Memory controller */
-    dev = DEVICE(isa_create(isa_bus, "rs6000-mc"));
+    isa_dev = isa_new("rs6000-mc");
+    dev = DEVICE(isa_dev);
     qdev_prop_set_uint32(dev, "ram-size", machine->ram_size);
-    qdev_init_nofail(dev);
+    isa_realize_and_unref(isa_dev, isa_bus, &error_fatal);
 
     /* RTC */
-    dev = DEVICE(isa_create(isa_bus, TYPE_MC146818_RTC));
+    isa_dev = isa_new(TYPE_MC146818_RTC);
+    dev = DEVICE(isa_dev);
     qdev_prop_set_int32(dev, "base_year", 1900);
-    qdev_init_nofail(dev);
+    isa_realize_and_unref(isa_dev, isa_bus, &error_fatal);
 
     /* initialize CMOS checksums */
     cmos_checksum = 0x6aa9;
@@ -309,19 +300,22 @@ static void ibm_40p_init(MachineState *machine)
     if (defaults_enabled()) {
         m48t59 = NVRAM(isa_create_simple(isa_bus, "isa-m48t59"));
 
-        dev = DEVICE(isa_create(isa_bus, "cs4231a"));
+        isa_dev = isa_new("cs4231a");
+        dev = DEVICE(isa_dev);
         qdev_prop_set_uint32(dev, "iobase", 0x830);
         qdev_prop_set_uint32(dev, "irq", 10);
-        qdev_init_nofail(dev);
+        isa_realize_and_unref(isa_dev, isa_bus, &error_fatal);
 
-        dev = DEVICE(isa_create(isa_bus, "pc87312"));
+        isa_dev = isa_new("pc87312");
+        dev = DEVICE(isa_dev);
         qdev_prop_set_uint32(dev, "config", 12);
-        qdev_init_nofail(dev);
+        isa_realize_and_unref(isa_dev, isa_bus, &error_fatal);
 
-        dev = DEVICE(isa_create(isa_bus, "prep-systemio"));
+        isa_dev = isa_new("prep-systemio");
+        dev = DEVICE(isa_dev);
         qdev_prop_set_uint32(dev, "ibm-planar-id", 0xfc);
         qdev_prop_set_uint32(dev, "equipment", 0xc0);
-        qdev_init_nofail(dev);
+        isa_realize_and_unref(isa_dev, isa_bus, &error_fatal);
 
         dev = DEVICE(pci_create_simple(pci_bus, PCI_DEVFN(1, 0),
                                        "lsi53c810"));
@@ -338,14 +332,14 @@ static void ibm_40p_init(MachineState *machine)
     }
 
     /* Prepare firmware configuration for OpenBIOS */
-    dev = qdev_create(NULL, TYPE_FW_CFG_MEM);
+    dev = qdev_new(TYPE_FW_CFG_MEM);
     fw_cfg = FW_CFG(dev);
     qdev_prop_set_uint32(dev, "data_width", 1);
     qdev_prop_set_bit(dev, "dma_enabled", false);
     object_property_add_child(OBJECT(qdev_get_machine()), TYPE_FW_CFG,
                               OBJECT(fw_cfg));
-    qdev_init_nofail(dev);
     s = SYS_BUS_DEVICE(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
     sysbus_mmio_map(s, 0, CFG_ADDR);
     sysbus_mmio_map(s, 1, CFG_ADDR + 2);
 
@@ -387,7 +381,7 @@ static void ibm_40p_init(MachineState *machine)
         }
         boot_device = 'm';
     } else {
-        boot_device = machine->boot_order[0];
+        boot_device = machine->boot_config.order[0];
     }
 
     fw_cfg_add_i16(fw_cfg, FW_CFG_MAX_CPUS, (uint16_t)machine->smp.max_cpus);
@@ -415,7 +409,7 @@ static void ibm_40p_init(MachineState *machine)
 
     /* Prepare firmware configuration for Open Hack'Ware */
     if (m48t59) {
-        PPC_NVRAM_set_params(m48t59, NVRAM_SIZE, "PREP", ram_size,
+        PPC_NVRAM_set_params(m48t59, NVRAM_SIZE, "PREP", machine->ram_size,
                              boot_device,
                              kernel_base, kernel_size,
                              machine->kernel_cmdline,

@@ -143,6 +143,7 @@
 #include "sysemu/kvm.h"
 #include "hw/sysbus.h"
 #include "hw/ppc/xive_regs.h"
+#include "qom/object.h"
 
 /*
  * XIVE Notifier (Interface between Source and Router)
@@ -153,22 +154,21 @@ typedef struct XiveNotifier XiveNotifier;
 #define TYPE_XIVE_NOTIFIER "xive-notifier"
 #define XIVE_NOTIFIER(obj)                                     \
     INTERFACE_CHECK(XiveNotifier, (obj), TYPE_XIVE_NOTIFIER)
-#define XIVE_NOTIFIER_CLASS(klass)                                     \
-    OBJECT_CLASS_CHECK(XiveNotifierClass, (klass), TYPE_XIVE_NOTIFIER)
-#define XIVE_NOTIFIER_GET_CLASS(obj)                                   \
-    OBJECT_GET_CLASS(XiveNotifierClass, (obj), TYPE_XIVE_NOTIFIER)
+typedef struct XiveNotifierClass XiveNotifierClass;
+DECLARE_CLASS_CHECKERS(XiveNotifierClass, XIVE_NOTIFIER,
+                       TYPE_XIVE_NOTIFIER)
 
-typedef struct XiveNotifierClass {
+struct XiveNotifierClass {
     InterfaceClass parent;
-    void (*notify)(XiveNotifier *xn, uint32_t lisn);
-} XiveNotifierClass;
+    void (*notify)(XiveNotifier *xn, uint32_t lisn, bool pq_checked);
+};
 
 /*
  * XIVE Interrupt Source
  */
 
 #define TYPE_XIVE_SOURCE "xive-source"
-#define XIVE_SOURCE(obj) OBJECT_CHECK(XiveSource, (obj), TYPE_XIVE_SOURCE)
+OBJECT_DECLARE_SIMPLE_TYPE(XiveSource, XIVE_SOURCE)
 
 /*
  * XIVE Interrupt Source characteristics, which define how the ESB are
@@ -176,8 +176,9 @@ typedef struct XiveNotifierClass {
  */
 #define XIVE_SRC_H_INT_ESB     0x1 /* ESB managed with hcall H_INT_ESB */
 #define XIVE_SRC_STORE_EOI     0x2 /* Store EOI supported */
+#define XIVE_SRC_PQ_DISABLE    0x4 /* Disable check on the PQ state bits */
 
-typedef struct XiveSource {
+struct XiveSource {
     DeviceState parent;
 
     /* IRQs */
@@ -191,13 +192,14 @@ typedef struct XiveSource {
     uint64_t        esb_flags;
     uint32_t        esb_shift;
     MemoryRegion    esb_mmio;
+    MemoryRegion    esb_mmio_emulated;
 
     /* KVM support */
     void            *esb_mmap;
     MemoryRegion    esb_mmio_kvm;
 
     XiveNotifier    *xive;
-} XiveSource;
+};
 
 /*
  * ESB MMIO setting. Can be one page, for both source triggering and
@@ -213,6 +215,11 @@ static inline bool xive_source_esb_has_2page(XiveSource *xsrc)
 {
     return xsrc->esb_shift == XIVE_ESB_64K_2PAGE ||
         xsrc->esb_shift == XIVE_ESB_4K_2PAGE;
+}
+
+static inline size_t xive_source_esb_len(XiveSource *xsrc)
+{
+    return (1ull << xsrc->esb_shift) * xsrc->nr_irqs;
 }
 
 /* The trigger page is always the first/even page */
@@ -255,6 +262,10 @@ static inline hwaddr xive_source_esb_mgmt(XiveSource *xsrc, int srcno)
 #define XIVE_ESB_QUEUED       (XIVE_ESB_VAL_P | XIVE_ESB_VAL_Q)
 #define XIVE_ESB_OFF          XIVE_ESB_VAL_Q
 
+bool xive_esb_trigger(uint8_t *pq);
+bool xive_esb_eoi(uint8_t *pq);
+uint8_t xive_esb_set(uint8_t *pq, uint8_t value);
+
 /*
  * "magic" Event State Buffer (ESB) MMIO offsets.
  *
@@ -268,6 +279,7 @@ static inline hwaddr xive_source_esb_mgmt(XiveSource *xsrc, int srcno)
 #define XIVE_ESB_STORE_EOI      0x400 /* Store */
 #define XIVE_ESB_LOAD_EOI       0x000 /* Load */
 #define XIVE_ESB_GET            0x800 /* Load */
+#define XIVE_ESB_INJECT         0x800 /* Store */
 #define XIVE_ESB_SET_PQ_00      0xc00 /* Load */
 #define XIVE_ESB_SET_PQ_01      0xd00 /* Load */
 #define XIVE_ESB_SET_PQ_10      0xe00 /* Load */
@@ -275,6 +287,30 @@ static inline hwaddr xive_source_esb_mgmt(XiveSource *xsrc, int srcno)
 
 uint8_t xive_source_esb_get(XiveSource *xsrc, uint32_t srcno);
 uint8_t xive_source_esb_set(XiveSource *xsrc, uint32_t srcno, uint8_t pq);
+
+/*
+ * Source status helpers
+ */
+static inline void xive_source_set_status(XiveSource *xsrc, uint32_t srcno,
+                                          uint8_t status, bool enable)
+{
+    if (enable) {
+        xsrc->status[srcno] |= status;
+    } else {
+        xsrc->status[srcno] &= ~status;
+    }
+}
+
+static inline void xive_source_set_asserted(XiveSource *xsrc, uint32_t srcno,
+                                            bool enable)
+{
+    xive_source_set_status(xsrc, srcno, XIVE_STATUS_ASSERTED, enable);
+}
+
+static inline bool xive_source_is_asserted(XiveSource *xsrc, uint32_t srcno)
+{
+    return xsrc->status[srcno] & XIVE_STATUS_ASSERTED;
+}
 
 void xive_source_pic_print_info(XiveSource *xsrc, uint32_t offset,
                                 Monitor *mon);
@@ -298,7 +334,7 @@ void xive_source_set_irq(void *opaque, int srcno, int val);
  */
 
 #define TYPE_XIVE_TCTX "xive-tctx"
-#define XIVE_TCTX(obj) OBJECT_CHECK(XiveTCTX, (obj), TYPE_XIVE_TCTX)
+OBJECT_DECLARE_SIMPLE_TYPE(XiveTCTX, XIVE_TCTX)
 
 /*
  * XIVE Thread interrupt Management register rings :
@@ -313,7 +349,7 @@ void xive_source_set_irq(void *opaque, int srcno, int val);
 
 typedef struct XivePresenter XivePresenter;
 
-typedef struct XiveTCTX {
+struct XiveTCTX {
     DeviceState parent_obj;
 
     CPUState    *cs;
@@ -323,33 +359,38 @@ typedef struct XiveTCTX {
     uint8_t     regs[XIVE_TM_RING_COUNT * XIVE_TM_RING_SIZE];
 
     XivePresenter *xptr;
-} XiveTCTX;
+};
+
+static inline uint32_t xive_tctx_word2(uint8_t *ring)
+{
+    return *((uint32_t *) &ring[TM_WORD2]);
+}
 
 /*
  * XIVE Router
  */
 typedef struct XiveFabric XiveFabric;
 
-typedef struct XiveRouter {
+struct XiveRouter {
     SysBusDevice    parent;
 
     XiveFabric *xfb;
-} XiveRouter;
+};
 
 #define TYPE_XIVE_ROUTER "xive-router"
-#define XIVE_ROUTER(obj)                                \
-    OBJECT_CHECK(XiveRouter, (obj), TYPE_XIVE_ROUTER)
-#define XIVE_ROUTER_CLASS(klass)                                        \
-    OBJECT_CLASS_CHECK(XiveRouterClass, (klass), TYPE_XIVE_ROUTER)
-#define XIVE_ROUTER_GET_CLASS(obj)                              \
-    OBJECT_GET_CLASS(XiveRouterClass, (obj), TYPE_XIVE_ROUTER)
+OBJECT_DECLARE_TYPE(XiveRouter, XiveRouterClass,
+                    XIVE_ROUTER)
 
-typedef struct XiveRouterClass {
+struct XiveRouterClass {
     SysBusDeviceClass parent;
 
     /* XIVE table accessors */
     int (*get_eas)(XiveRouter *xrtr, uint8_t eas_blk, uint32_t eas_idx,
                    XiveEAS *eas);
+    int (*get_pq)(XiveRouter *xrtr, uint8_t eas_blk, uint32_t eas_idx,
+                  uint8_t *pq);
+    int (*set_pq)(XiveRouter *xrtr, uint8_t eas_blk, uint32_t eas_idx,
+                  uint8_t *pq);
     int (*get_end)(XiveRouter *xrtr, uint8_t end_blk, uint32_t end_idx,
                    XiveEND *end);
     int (*write_end)(XiveRouter *xrtr, uint8_t end_blk, uint32_t end_idx,
@@ -359,7 +400,7 @@ typedef struct XiveRouterClass {
     int (*write_nvt)(XiveRouter *xrtr, uint8_t nvt_blk, uint32_t nvt_idx,
                      XiveNVT *nvt, uint8_t word_number);
     uint8_t (*get_block_id)(XiveRouter *xrtr);
-} XiveRouterClass;
+};
 
 int xive_router_get_eas(XiveRouter *xrtr, uint8_t eas_blk, uint32_t eas_idx,
                         XiveEAS *eas);
@@ -371,7 +412,7 @@ int xive_router_get_nvt(XiveRouter *xrtr, uint8_t nvt_blk, uint32_t nvt_idx,
                         XiveNVT *nvt);
 int xive_router_write_nvt(XiveRouter *xrtr, uint8_t nvt_blk, uint32_t nvt_idx,
                           XiveNVT *nvt, uint8_t word_number);
-void xive_router_notify(XiveNotifier *xn, uint32_t lisn);
+void xive_router_notify(XiveNotifier *xn, uint32_t lisn, bool pq_checked);
 
 /*
  * XIVE Presenter
@@ -385,23 +426,27 @@ typedef struct XiveTCTXMatch {
 #define TYPE_XIVE_PRESENTER "xive-presenter"
 #define XIVE_PRESENTER(obj)                                     \
     INTERFACE_CHECK(XivePresenter, (obj), TYPE_XIVE_PRESENTER)
-#define XIVE_PRESENTER_CLASS(klass)                                     \
-    OBJECT_CLASS_CHECK(XivePresenterClass, (klass), TYPE_XIVE_PRESENTER)
-#define XIVE_PRESENTER_GET_CLASS(obj)                                   \
-    OBJECT_GET_CLASS(XivePresenterClass, (obj), TYPE_XIVE_PRESENTER)
+typedef struct XivePresenterClass XivePresenterClass;
+DECLARE_CLASS_CHECKERS(XivePresenterClass, XIVE_PRESENTER,
+                       TYPE_XIVE_PRESENTER)
 
-typedef struct XivePresenterClass {
+struct XivePresenterClass {
     InterfaceClass parent;
     int (*match_nvt)(XivePresenter *xptr, uint8_t format,
                      uint8_t nvt_blk, uint32_t nvt_idx,
                      bool cam_ignore, uint8_t priority,
                      uint32_t logic_serv, XiveTCTXMatch *match);
-} XivePresenterClass;
+    bool (*in_kernel)(const XivePresenter *xptr);
+};
 
 int xive_presenter_tctx_match(XivePresenter *xptr, XiveTCTX *tctx,
                               uint8_t format,
                               uint8_t nvt_blk, uint32_t nvt_idx,
                               bool cam_ignore, uint32_t logic_serv);
+bool xive_presenter_notify(XiveFabric *xfb, uint8_t format,
+                           uint8_t nvt_blk, uint32_t nvt_idx,
+                           bool cam_ignore, uint8_t priority,
+                           uint32_t logic_serv);
 
 /*
  * XIVE Fabric (Interface between Interrupt Controller and Machine)
@@ -410,28 +455,26 @@ int xive_presenter_tctx_match(XivePresenter *xptr, XiveTCTX *tctx,
 #define TYPE_XIVE_FABRIC "xive-fabric"
 #define XIVE_FABRIC(obj)                                     \
     INTERFACE_CHECK(XiveFabric, (obj), TYPE_XIVE_FABRIC)
-#define XIVE_FABRIC_CLASS(klass)                                     \
-    OBJECT_CLASS_CHECK(XiveFabricClass, (klass), TYPE_XIVE_FABRIC)
-#define XIVE_FABRIC_GET_CLASS(obj)                                   \
-    OBJECT_GET_CLASS(XiveFabricClass, (obj), TYPE_XIVE_FABRIC)
+typedef struct XiveFabricClass XiveFabricClass;
+DECLARE_CLASS_CHECKERS(XiveFabricClass, XIVE_FABRIC,
+                       TYPE_XIVE_FABRIC)
 
-typedef struct XiveFabricClass {
+struct XiveFabricClass {
     InterfaceClass parent;
     int (*match_nvt)(XiveFabric *xfb, uint8_t format,
                      uint8_t nvt_blk, uint32_t nvt_idx,
                      bool cam_ignore, uint8_t priority,
                      uint32_t logic_serv, XiveTCTXMatch *match);
-} XiveFabricClass;
+};
 
 /*
  * XIVE END ESBs
  */
 
 #define TYPE_XIVE_END_SOURCE "xive-end-source"
-#define XIVE_END_SOURCE(obj) \
-    OBJECT_CHECK(XiveENDSource, (obj), TYPE_XIVE_END_SOURCE)
+OBJECT_DECLARE_SIMPLE_TYPE(XiveENDSource, XIVE_END_SOURCE)
 
-typedef struct XiveENDSource {
+struct XiveENDSource {
     DeviceState parent;
 
     uint32_t        nr_ends;
@@ -441,7 +484,7 @@ typedef struct XiveENDSource {
     MemoryRegion    esb_mmio;
 
     XiveRouter      *xrtr;
-} XiveENDSource;
+};
 
 /*
  * For legacy compatibility, the exceptions define up to 256 different
@@ -449,6 +492,17 @@ typedef struct XiveENDSource {
  * and the least favored level 0xFF.
  */
 #define XIVE_PRIORITY_MAX  7
+
+/*
+ * Convert a priority number to an Interrupt Pending Buffer (IPB)
+ * register, which indicates a pending interrupt at the priority
+ * corresponding to the bit number
+ */
+static inline uint8_t xive_priority_to_ipb(uint8_t priority)
+{
+    return priority > XIVE_PRIORITY_MAX ?
+        0 : 1 << (XIVE_PRIORITY_MAX - priority);
+}
 
 /*
  * XIVE Thread Interrupt Management Aera (TIMA)
@@ -473,6 +527,7 @@ Object *xive_tctx_create(Object *cpu, XivePresenter *xptr, Error **errp);
 void xive_tctx_reset(XiveTCTX *tctx);
 void xive_tctx_destroy(XiveTCTX *tctx);
 void xive_tctx_ipb_update(XiveTCTX *tctx, uint8_t ring, uint8_t ipb);
+void xive_tctx_reset_os_signal(XiveTCTX *tctx);
 
 /*
  * KVM XIVE device helpers
@@ -480,9 +535,9 @@ void xive_tctx_ipb_update(XiveTCTX *tctx, uint8_t ring, uint8_t ipb);
 
 int kvmppc_xive_source_reset_one(XiveSource *xsrc, int srcno, Error **errp);
 void kvmppc_xive_source_set_irq(void *opaque, int srcno, int val);
-void kvmppc_xive_cpu_connect(XiveTCTX *tctx, Error **errp);
-void kvmppc_xive_cpu_synchronize_state(XiveTCTX *tctx, Error **errp);
-void kvmppc_xive_cpu_get_state(XiveTCTX *tctx, Error **errp);
-void kvmppc_xive_cpu_set_state(XiveTCTX *tctx, Error **errp);
+int kvmppc_xive_cpu_connect(XiveTCTX *tctx, Error **errp);
+int kvmppc_xive_cpu_synchronize_state(XiveTCTX *tctx, Error **errp);
+int kvmppc_xive_cpu_get_state(XiveTCTX *tctx, Error **errp);
+int kvmppc_xive_cpu_set_state(XiveTCTX *tctx, Error **errp);
 
 #endif /* PPC_XIVE_H */

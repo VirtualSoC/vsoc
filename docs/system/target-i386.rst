@@ -1,16 +1,35 @@
 .. _QEMU-PC-System-emulator:
 
-x86 (PC) System emulator
-------------------------
+x86 System emulator
+-------------------
 
 .. _pcsys_005fdevices:
 
-Peripherals
-~~~~~~~~~~~
+Board-specific documentation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. include:: target-i386-desc.rst.inc
+..
+   This table of contents should be kept sorted alphabetically
+   by the title text of each file, which isn't the same ordering
+   as an alphabetical sort by filename.
 
-.. include:: cpu-models-x86.rst.inc
+.. toctree::
+   :maxdepth: 1
+
+   i386/microvm
+   i386/pc
+
+Architectural features
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. toctree::
+   :maxdepth: 1
+
+   i386/cpu
+   i386/hyperv
+   i386/kvm-pv
+   i386/sgx
+   i386/amd-memory-encryption
 
 .. _pcsys_005freq:
 

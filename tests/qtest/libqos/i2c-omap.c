@@ -7,11 +7,11 @@
  * See the COPYING file in the top-level directory.
  */
 #include "qemu/osdep.h"
-#include "libqos/i2c.h"
+#include "i2c.h"
 
 
 #include "qemu/bswap.h"
-#include "libqtest.h"
+#include "../libqtest.h"
 
 enum OMAPI2CRegisters {
     OMAP_I2C_REV  = 0x00,

@@ -18,7 +18,7 @@
 #include "trace.h"
 #include "net/eth.h"
 
-typedef struct TULIPState {
+struct TULIPState {
     PCIDevice dev;
     MemoryRegion io;
     MemoryRegion memory;
@@ -44,7 +44,7 @@ typedef struct TULIPState {
 
     uint32_t rx_status;
     uint8_t filter[16][6];
-} TULIPState;
+};
 
 static const VMStateDescription vmstate_pci_tulip = {
     .name = "tulip",
@@ -70,32 +70,36 @@ static const VMStateDescription vmstate_pci_tulip = {
 static void tulip_desc_read(TULIPState *s, hwaddr p,
         struct tulip_descriptor *desc)
 {
+    const MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+
     if (s->csr[0] & CSR0_DBO) {
-        desc->status = ldl_be_pci_dma(&s->dev, p);
-        desc->control = ldl_be_pci_dma(&s->dev, p + 4);
-        desc->buf_addr1 = ldl_be_pci_dma(&s->dev, p + 8);
-        desc->buf_addr2 = ldl_be_pci_dma(&s->dev, p + 12);
+        ldl_be_pci_dma(&s->dev, p, &desc->status, attrs);
+        ldl_be_pci_dma(&s->dev, p + 4, &desc->control, attrs);
+        ldl_be_pci_dma(&s->dev, p + 8, &desc->buf_addr1, attrs);
+        ldl_be_pci_dma(&s->dev, p + 12, &desc->buf_addr2, attrs);
     } else {
-        desc->status = ldl_le_pci_dma(&s->dev, p);
-        desc->control = ldl_le_pci_dma(&s->dev, p + 4);
-        desc->buf_addr1 = ldl_le_pci_dma(&s->dev, p + 8);
-        desc->buf_addr2 = ldl_le_pci_dma(&s->dev, p + 12);
+        ldl_le_pci_dma(&s->dev, p, &desc->status, attrs);
+        ldl_le_pci_dma(&s->dev, p + 4, &desc->control, attrs);
+        ldl_le_pci_dma(&s->dev, p + 8, &desc->buf_addr1, attrs);
+        ldl_le_pci_dma(&s->dev, p + 12, &desc->buf_addr2, attrs);
     }
 }
 
 static void tulip_desc_write(TULIPState *s, hwaddr p,
         struct tulip_descriptor *desc)
 {
+    const MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+
     if (s->csr[0] & CSR0_DBO) {
-        stl_be_pci_dma(&s->dev, p, desc->status);
-        stl_be_pci_dma(&s->dev, p + 4, desc->control);
-        stl_be_pci_dma(&s->dev, p + 8, desc->buf_addr1);
-        stl_be_pci_dma(&s->dev, p + 12, desc->buf_addr2);
+        stl_be_pci_dma(&s->dev, p, desc->status, attrs);
+        stl_be_pci_dma(&s->dev, p + 4, desc->control, attrs);
+        stl_be_pci_dma(&s->dev, p + 8, desc->buf_addr1, attrs);
+        stl_be_pci_dma(&s->dev, p + 12, desc->buf_addr2, attrs);
     } else {
-        stl_le_pci_dma(&s->dev, p, desc->status);
-        stl_le_pci_dma(&s->dev, p + 4, desc->control);
-        stl_le_pci_dma(&s->dev, p + 8, desc->buf_addr1);
-        stl_le_pci_dma(&s->dev, p + 12, desc->buf_addr2);
+        stl_le_pci_dma(&s->dev, p, desc->status, attrs);
+        stl_le_pci_dma(&s->dev, p + 4, desc->control, attrs);
+        stl_le_pci_dma(&s->dev, p + 8, desc->buf_addr1, attrs);
+        stl_le_pci_dma(&s->dev, p + 12, desc->buf_addr2, attrs);
     }
 }
 
@@ -171,9 +175,6 @@ static void tulip_copy_rx_bytes(TULIPState *s, struct tulip_descriptor *desc)
             len = s->rx_frame_len;
         }
 
-        if (s->rx_frame_len + len > sizeof(s->rx_frame)) {
-            return;
-        }
         pci_dma_write(&s->dev, desc->buf_addr1, s->rx_frame +
             (s->rx_frame_size - s->rx_frame_len), len);
         s->rx_frame_len -= len;
@@ -186,9 +187,6 @@ static void tulip_copy_rx_bytes(TULIPState *s, struct tulip_descriptor *desc)
             len = s->rx_frame_len;
         }
 
-        if (s->rx_frame_len + len > sizeof(s->rx_frame)) {
-            return;
-        }
         pci_dma_write(&s->dev, desc->buf_addr2, s->rx_frame +
             (s->rx_frame_size - s->rx_frame_len), len);
         s->rx_frame_len -= len;
@@ -584,6 +582,9 @@ static int tulip_copy_tx_buffers(TULIPState *s, struct tulip_descriptor *desc)
     int len2 = (desc->control >> TDES1_BUF2_SIZE_SHIFT) & TDES1_BUF2_SIZE_MASK;
 
     if (s->tx_frame_len + len1 > sizeof(s->tx_frame)) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: descriptor overflow (ofs: %u, len:%d, size:%zu)\n",
+                      __func__, s->tx_frame_len, len1, sizeof(s->tx_frame));
         return -1;
     }
     if (len1) {
@@ -593,6 +594,9 @@ static int tulip_copy_tx_buffers(TULIPState *s, struct tulip_descriptor *desc)
     }
 
     if (s->tx_frame_len + len2 > sizeof(s->tx_frame)) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: descriptor overflow (ofs: %u, len:%d, size:%zu)\n",
+                      __func__, s->tx_frame_len, len2, sizeof(s->tx_frame));
         return -1;
     }
     if (len2) {
@@ -963,6 +967,8 @@ static void pci_tulip_realize(PCIDevice *pci_dev, Error **errp)
     pci_conf = s->dev.config;
     pci_conf[PCI_INTERRUPT_PIN] = 1; /* interrupt pin A */
 
+    qemu_macaddr_default_if_unset(&s->c.macaddr);
+
     s->eeprom = eeprom93xx_new(&pci_dev->qdev, 64);
     tulip_fill_eeprom(s);
 
@@ -976,8 +982,6 @@ static void pci_tulip_realize(PCIDevice *pci_dev, Error **errp)
     pci_register_bar(&s->dev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->memory);
 
     s->irq = pci_allocate_irq(&s->dev);
-
-    qemu_macaddr_default_if_unset(&s->c.macaddr);
 
     s->nic = qemu_new_nic(&net_tulip_info, &s->c,
                           object_get_typename(OBJECT(pci_dev)),

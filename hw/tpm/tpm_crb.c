@@ -24,13 +24,14 @@
 #include "hw/acpi/tpm.h"
 #include "migration/vmstate.h"
 #include "sysemu/tpm_backend.h"
+#include "sysemu/tpm_util.h"
 #include "sysemu/reset.h"
-#include "tpm_int.h"
-#include "tpm_util.h"
+#include "tpm_prop.h"
 #include "tpm_ppi.h"
 #include "trace.h"
+#include "qom/object.h"
 
-typedef struct CRBState {
+struct CRBState {
     DeviceState parent_obj;
 
     TPMBackend *tpmbe;
@@ -43,9 +44,11 @@ typedef struct CRBState {
 
     bool ppi_enabled;
     TPMPPI ppi;
-} CRBState;
+};
+typedef struct CRBState CRBState;
 
-#define CRB(obj) OBJECT_CHECK(CRBState, (obj), TYPE_TPM_CRB)
+DECLARE_INSTANCE_CHECKER(CRBState, CRB,
+                         TYPE_TPM_CRB)
 
 #define CRB_INTF_TYPE_CRB_ACTIVE 0b1
 #define CRB_INTF_VERSION_CRB 0b1
@@ -194,6 +197,7 @@ static void tpm_crb_request_completed(TPMIf *ti, int ret)
         ARRAY_FIELD_DP32(s->regs, CRB_CTRL_STS,
                          tpmSts, 1); /* fatal error */
     }
+    memory_region_set_dirty(&s->cmdmem, 0, CRB_CTRL_CMD_SIZE);
 }
 
 static enum TPMVersion tpm_crb_get_version(TPMIf *ti)

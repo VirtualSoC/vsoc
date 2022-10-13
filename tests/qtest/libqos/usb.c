@@ -12,9 +12,9 @@
  * See the COPYING file in the top-level directory.
  */
 #include "qemu/osdep.h"
-#include "libqtest.h"
+#include "../libqtest.h"
 #include "hw/usb/uhci-regs.h"
-#include "libqos/usb.h"
+#include "usb.h"
 
 void qusb_pci_init_one(QPCIBus *pcibus, struct qhc *hc, uint32_t devfn, int bar)
 {

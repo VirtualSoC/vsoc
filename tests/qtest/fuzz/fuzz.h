@@ -11,10 +11,9 @@
  *
  */
 
-#ifndef FUZZER_H_
-#define FUZZER_H_
+#ifndef QTEST_FUZZ_H
+#define QTEST_FUZZ_H
 
-#include "qemu/osdep.h"
 #include "qemu/units.h"
 #include "qapi/error.h"
 
@@ -50,10 +49,10 @@ typedef struct FuzzTarget {
 
 
     /*
-     * returns the arg-list that is passed to qemu/softmmu init()
-     * Cannot be NULL
+     * Returns the arguments that are passed to qemu/softmmu init(). Freed by
+     * the caller.
      */
-    const char* (*get_init_cmdline)(struct FuzzTarget *);
+    GString *(*get_init_cmdline)(struct FuzzTarget *);
 
     /*
      * will run once, prior to running qemu/softmmu init.
@@ -77,10 +76,37 @@ typedef struct FuzzTarget {
      */
     void(*fuzz)(QTestState *, const unsigned char *, size_t);
 
+    /*
+     * The fuzzer can specify a "Custom Crossover" function for combining two
+     * inputs from the corpus. This function is sometimes called by libfuzzer
+     * when mutating inputs.
+     *
+     * data1: location of first input
+     * size1: length of first input
+     * data1: location of second input
+     * size1: length of second input
+     * out: where to place the resulting, mutated input
+     * max_out_size: the maximum length of the input that can be placed in out
+     * seed: the seed that should be used to make mutations deterministic, when
+     *       needed
+     *
+     * See libfuzzer's LLVMFuzzerCustomCrossOver API for more info.
+     *
+     * Can be NULL
+     */
+    size_t(*crossover)(const uint8_t *data1, size_t size1,
+                       const uint8_t *data2, size_t size2,
+                       uint8_t *out, size_t max_out_size,
+                       unsigned int seed);
+
+    void *opaque;
 } FuzzTarget;
 
 void flush_events(QTestState *);
 void reboot(QTestState *);
+
+/* Use the QTest ASCII protocol or call address_space API directly?*/
+void fuzz_qtest_set_serialize(bool option);
 
 /*
  * makes a copy of *target and adds it to the target-list.
@@ -88,8 +114,11 @@ void reboot(QTestState *);
  */
 void fuzz_add_target(const FuzzTarget *target);
 
+size_t LLVMFuzzerCustomCrossOver(const uint8_t *data1, size_t size1,
+                                 const uint8_t *data2, size_t size2,
+                                 uint8_t *out, size_t max_out_size,
+                                 unsigned int seed);
 int LLVMFuzzerTestOneInput(const unsigned char *Data, size_t Size);
 int LLVMFuzzerInitialize(int *argc, char ***argv, char ***envp);
 
 #endif
-

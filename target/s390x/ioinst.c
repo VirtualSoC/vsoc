@@ -12,7 +12,7 @@
 #include "qemu/osdep.h"
 
 #include "cpu.h"
-#include "internal.h"
+#include "s390x-internal.h"
 #include "hw/s390x/ioinst.h"
 #include "trace.h"
 #include "hw/s390x/s390-pci-bus.h"
@@ -119,6 +119,12 @@ static int ioinst_schib_valid(SCHIB *schib)
     }
     /* Disallow extended measurements for now. */
     if (be32_to_cpu(schib->pmcw.chars) & PMCW_CHARS_MASK_XMWME) {
+        return 0;
+    }
+    /* for MB format 1 bits 26-31 of word 11 must be 0 */
+    /* MBA uses words 10 and 11, it means align on 2**6 */
+    if ((be32_to_cpu(schib->pmcw.chars) & PMCW_CHARS_MASK_MBFC) &&
+        (be64_to_cpu(schib->mba) & 0x03fUL)) {
         return 0;
     }
     return 1;
@@ -278,7 +284,7 @@ void ioinst_handle_stsch(S390CPU *cpu, uint64_t reg1, uint32_t ipb,
         g_assert(!s390_is_pv());
         /*
          * As operand exceptions have a lower priority than access exceptions,
-         * we check whether the memory area is writeable (injecting the
+         * we check whether the memory area is writable (injecting the
          * access execption if it is not) first.
          */
         if (!s390_cpu_virt_mem_check_write(cpu, addr, ar, sizeof(schib))) {
@@ -292,8 +298,7 @@ void ioinst_handle_stsch(S390CPU *cpu, uint64_t reg1, uint32_t ipb,
     sch = css_find_subch(m, cssid, ssid, schid);
     if (sch) {
         if (css_subch_visible(sch)) {
-            css_do_stsch(sch, &schib);
-            cc = 0;
+            cc = css_do_stsch(sch, &schib);
         } else {
             /* Indicate no more subchannels in this css/ss */
             cc = 3;

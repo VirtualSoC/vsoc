@@ -17,7 +17,9 @@
 #include "qemu/cutils.h"
 #include "qemu/module.h"
 #include "qemu/option.h"
+#include "qemu/memalign.h"
 #include "block/block_int.h"
+#include "block/coroutines.h"
 #include "block/qdict.h"
 #include "qapi/error.h"
 #include "qapi/qapi-events-block.h"
@@ -28,6 +30,8 @@
 #include "crypto/hash.h"
 
 #define HASH_LENGTH 32
+
+#define INDEXSTR_LEN 32
 
 #define QUORUM_OPT_VOTE_THRESHOLD "vote-threshold"
 #define QUORUM_OPT_BLKVERIFY      "blkverify"
@@ -660,8 +664,8 @@ static int read_fifo_child(QuorumAIOCB *acb)
     return ret;
 }
 
-static int quorum_co_preadv(BlockDriverState *bs, uint64_t offset,
-                            uint64_t bytes, QEMUIOVector *qiov, int flags)
+static int quorum_co_preadv(BlockDriverState *bs, int64_t offset, int64_t bytes,
+                            QEMUIOVector *qiov, BdrvRequestFlags flags)
 {
     BDRVQuorumState *s = bs->opaque;
     QuorumAIOCB *acb = quorum_aio_get(bs, qiov, offset, bytes, flags);
@@ -689,8 +693,13 @@ static void write_quorum_entry(void *opaque)
     QuorumChildRequest *sacb = &acb->qcrs[i];
 
     sacb->bs = s->children[i]->bs;
-    sacb->ret = bdrv_co_pwritev(s->children[i], acb->offset, acb->bytes,
-                                acb->qiov, acb->flags);
+    if (acb->flags & BDRV_REQ_ZERO_WRITE) {
+        sacb->ret = bdrv_co_pwrite_zeroes(s->children[i], acb->offset,
+                                          acb->bytes, acb->flags);
+    } else {
+        sacb->ret = bdrv_co_pwritev(s->children[i], acb->offset, acb->bytes,
+                                    acb->qiov, acb->flags);
+    }
     if (sacb->ret == 0) {
         acb->success_count++;
     } else {
@@ -706,8 +715,9 @@ static void write_quorum_entry(void *opaque)
     }
 }
 
-static int quorum_co_pwritev(BlockDriverState *bs, uint64_t offset,
-                             uint64_t bytes, QEMUIOVector *qiov, int flags)
+static int quorum_co_pwritev(BlockDriverState *bs, int64_t offset,
+                             int64_t bytes, QEMUIOVector *qiov,
+                             BdrvRequestFlags flags)
 {
     BDRVQuorumState *s = bs->opaque;
     QuorumAIOCB *acb = quorum_aio_get(bs, qiov, offset, bytes, flags);
@@ -734,6 +744,14 @@ static int quorum_co_pwritev(BlockDriverState *bs, uint64_t offset,
     quorum_aio_finalize(acb);
 
     return ret;
+}
+
+static int quorum_co_pwrite_zeroes(BlockDriverState *bs, int64_t offset,
+                                   int64_t bytes, BdrvRequestFlags flags)
+
+{
+    return quorum_co_pwritev(bs, offset, bytes, NULL,
+                             flags | BDRV_REQ_ZERO_WRITE);
 }
 
 static int64_t quorum_getlength(BlockDriverState *bs)
@@ -854,7 +872,7 @@ static int quorum_valid_threshold(int threshold, int num_children, Error **errp)
 
     if (threshold < 1) {
         error_setg(errp, QERR_INVALID_PARAMETER_VALUE,
-                   "vote-threshold", "value >= 1");
+                   "vote-threshold", "a value >= 1");
         return -ERANGE;
     }
 
@@ -894,11 +912,25 @@ static QemuOptsList quorum_runtime_opts = {
     },
 };
 
+static void quorum_refresh_flags(BlockDriverState *bs)
+{
+    BDRVQuorumState *s = bs->opaque;
+    int i;
+
+    bs->supported_zero_flags =
+        BDRV_REQ_FUA | BDRV_REQ_MAY_UNMAP | BDRV_REQ_NO_FALLBACK;
+
+    for (i = 0; i < s->num_children; i++) {
+        bs->supported_zero_flags &= s->children[i]->bs->supported_zero_flags;
+    }
+
+    bs->supported_zero_flags |= BDRV_REQ_WRITE_UNCHANGED;
+}
+
 static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
                        Error **errp)
 {
     BDRVQuorumState *s = bs->opaque;
-    Error *local_err = NULL;
     QemuOpts *opts = NULL;
     const char *pattern_str;
     bool *opened;
@@ -910,27 +942,25 @@ static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
     /* count how many different children are present */
     s->num_children = qdict_array_entries(options, "children.");
     if (s->num_children < 0) {
-        error_setg(&local_err, "Option children is not a valid array");
+        error_setg(errp, "Option children is not a valid array");
         ret = -EINVAL;
         goto exit;
     }
     if (s->num_children < 1) {
-        error_setg(&local_err,
-                   "Number of provided children must be 1 or more");
+        error_setg(errp, "Number of provided children must be 1 or more");
         ret = -EINVAL;
         goto exit;
     }
 
     opts = qemu_opts_create(&quorum_runtime_opts, NULL, 0, &error_abort);
-    qemu_opts_absorb_qdict(opts, options, &local_err);
-    if (local_err) {
+    if (!qemu_opts_absorb_qdict(opts, options, errp)) {
         ret = -EINVAL;
         goto exit;
     }
 
     s->threshold = qemu_opt_get_number(opts, QUORUM_OPT_VOTE_THRESHOLD, 0);
     /* and validate it against s->num_children */
-    ret = quorum_valid_threshold(s->threshold, s->num_children, &local_err);
+    ret = quorum_valid_threshold(s->threshold, s->num_children, errp);
     if (ret < 0) {
         goto exit;
     }
@@ -943,7 +973,7 @@ static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
                               -EINVAL, NULL);
     }
     if (ret < 0) {
-        error_setg(&local_err, "Please set read-pattern as fifo or quorum");
+        error_setg(errp, "Please set read-pattern as fifo or quorum");
         goto exit;
     }
     s->read_pattern = ret;
@@ -951,7 +981,7 @@ static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
     if (s->read_pattern == QUORUM_READ_PATTERN_QUORUM) {
         s->is_blkverify = qemu_opt_get_bool(opts, QUORUM_OPT_BLKVERIFY, false);
         if (s->is_blkverify && (s->num_children != 2 || s->threshold != 2)) {
-            error_setg(&local_err, "blkverify=on can only be set if there are "
+            error_setg(errp, "blkverify=on can only be set if there are "
                        "exactly two files and vote-threshold is 2");
             ret = -EINVAL;
             goto exit;
@@ -960,7 +990,7 @@ static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
         s->rewrite_corrupted = qemu_opt_get_bool(opts, QUORUM_OPT_REWRITE,
                                                  false);
         if (s->rewrite_corrupted && s->is_blkverify) {
-            error_setg(&local_err,
+            error_setg(errp,
                        "rewrite-corrupted=on cannot be used with blkverify=on");
             ret = -EINVAL;
             goto exit;
@@ -972,14 +1002,14 @@ static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
     opened = g_new0(bool, s->num_children);
 
     for (i = 0; i < s->num_children; i++) {
-        char indexstr[32];
-        ret = snprintf(indexstr, 32, "children.%d", i);
-        assert(ret < 32);
+        char indexstr[INDEXSTR_LEN];
+        ret = snprintf(indexstr, INDEXSTR_LEN, "children.%d", i);
+        assert(ret < INDEXSTR_LEN);
 
         s->children[i] = bdrv_open_child(NULL, options, indexstr, bs,
                                          &child_of_bds, BDRV_CHILD_DATA, false,
-                                         &local_err);
-        if (local_err) {
+                                         errp);
+        if (!s->children[i]) {
             ret = -EINVAL;
             goto close_exit;
         }
@@ -989,6 +1019,7 @@ static int quorum_open(BlockDriverState *bs, QDict *options, int flags,
     s->next_child_index = s->num_children;
 
     bs->supported_write_flags = BDRV_REQ_WRITE_UNCHANGED;
+    quorum_refresh_flags(bs);
 
     g_free(opened);
     goto exit;
@@ -1005,8 +1036,6 @@ close_exit:
     g_free(opened);
 exit:
     qemu_opts_del(opts);
-    /* propagate error */
-    error_propagate(errp, local_err);
     return ret;
 }
 
@@ -1027,7 +1056,7 @@ static void quorum_add_child(BlockDriverState *bs, BlockDriverState *child_bs,
 {
     BDRVQuorumState *s = bs->opaque;
     BdrvChild *child;
-    char indexstr[32];
+    char indexstr[INDEXSTR_LEN];
     int ret;
 
     if (s->is_blkverify) {
@@ -1042,8 +1071,8 @@ static void quorum_add_child(BlockDriverState *bs, BlockDriverState *child_bs,
         return;
     }
 
-    ret = snprintf(indexstr, 32, "children.%u", s->next_child_index);
-    if (ret < 0 || ret >= 32) {
+    ret = snprintf(indexstr, INDEXSTR_LEN, "children.%u", s->next_child_index);
+    if (ret < 0 || ret >= INDEXSTR_LEN) {
         error_setg(errp, "cannot generate child name");
         return;
     }
@@ -1062,6 +1091,7 @@ static void quorum_add_child(BlockDriverState *bs, BlockDriverState *child_bs,
     }
     s->children = g_renew(BdrvChild *, s->children, s->num_children + 1);
     s->children[s->num_children++] = child;
+    quorum_refresh_flags(bs);
 
 out:
     bdrv_drained_end(bs);
@@ -1071,6 +1101,7 @@ static void quorum_del_child(BlockDriverState *bs, BdrvChild *child,
                              Error **errp)
 {
     BDRVQuorumState *s = bs->opaque;
+    char indexstr[INDEXSTR_LEN];
     int i;
 
     for (i = 0; i < s->num_children; i++) {
@@ -1092,6 +1123,11 @@ static void quorum_del_child(BlockDriverState *bs, BdrvChild *child,
     /* We know now that num_children > threshold, so blkverify must be false */
     assert(!s->is_blkverify);
 
+    snprintf(indexstr, INDEXSTR_LEN, "children.%u", s->next_child_index - 1);
+    if (!strncmp(child->name, indexstr, INDEXSTR_LEN)) {
+        s->next_child_index--;
+    }
+
     bdrv_drained_begin(bs);
 
     /* We can safely remove this child now */
@@ -1100,6 +1136,7 @@ static void quorum_del_child(BlockDriverState *bs, BdrvChild *child,
     s->children = g_renew(BdrvChild *, s->children, --s->num_children);
     bdrv_unref_child(bs, child);
 
+    quorum_refresh_flags(bs);
     bdrv_drained_end(bs);
 }
 
@@ -1158,7 +1195,12 @@ static void quorum_child_perm(BlockDriverState *bs, BdrvChild *c,
                               uint64_t perm, uint64_t shared,
                               uint64_t *nperm, uint64_t *nshared)
 {
+    BDRVQuorumState *s = bs->opaque;
+
     *nperm = perm & DEFAULT_PERM_PASSTHROUGH;
+    if (s->rewrite_corrupted) {
+        *nperm |= BLK_PERM_WRITE;
+    }
 
     /*
      * We cannot share RESIZE or WRITE, as this would make the
@@ -1167,6 +1209,56 @@ static void quorum_child_perm(BlockDriverState *bs, BdrvChild *c,
     *nshared = (shared & (BLK_PERM_CONSISTENT_READ |
                           BLK_PERM_WRITE_UNCHANGED))
              | DEFAULT_PERM_UNCHANGED;
+}
+
+/*
+ * Each one of the children can report different status flags even
+ * when they contain the same data, so what this function does is
+ * return BDRV_BLOCK_ZERO if *all* children agree that a certain
+ * region contains zeroes, and BDRV_BLOCK_DATA otherwise.
+ */
+static int coroutine_fn quorum_co_block_status(BlockDriverState *bs,
+                                               bool want_zero,
+                                               int64_t offset, int64_t count,
+                                               int64_t *pnum, int64_t *map,
+                                               BlockDriverState **file)
+{
+    BDRVQuorumState *s = bs->opaque;
+    int i, ret;
+    int64_t pnum_zero = count;
+    int64_t pnum_data = 0;
+
+    for (i = 0; i < s->num_children; i++) {
+        int64_t bytes;
+        ret = bdrv_co_common_block_status_above(s->children[i]->bs, NULL, false,
+                                                want_zero, offset, count,
+                                                &bytes, NULL, NULL, NULL);
+        if (ret < 0) {
+            quorum_report_bad(QUORUM_OP_TYPE_READ, offset, count,
+                              s->children[i]->bs->node_name, ret);
+            pnum_data = count;
+            break;
+        }
+        /*
+         * Even if all children agree about whether there are zeroes
+         * or not at @offset they might disagree on the size, so use
+         * the smallest when reporting BDRV_BLOCK_ZERO and the largest
+         * when reporting BDRV_BLOCK_DATA.
+         */
+        if (ret & BDRV_BLOCK_ZERO) {
+            pnum_zero = MIN(pnum_zero, bytes);
+        } else {
+            pnum_data = MAX(pnum_data, bytes);
+        }
+    }
+
+    if (pnum_data) {
+        *pnum = pnum_data;
+        return BDRV_BLOCK_DATA;
+    } else {
+        *pnum = pnum_zero;
+        return BDRV_BLOCK_ZERO;
+    }
 }
 
 static const char *const quorum_strong_runtime_opts[] = {
@@ -1187,13 +1279,15 @@ static BlockDriver bdrv_quorum = {
     .bdrv_close                         = quorum_close,
     .bdrv_gather_child_options          = quorum_gather_child_options,
     .bdrv_dirname                       = quorum_dirname,
+    .bdrv_co_block_status               = quorum_co_block_status,
 
-    .bdrv_co_flush_to_disk              = quorum_co_flush,
+    .bdrv_co_flush                      = quorum_co_flush,
 
     .bdrv_getlength                     = quorum_getlength,
 
     .bdrv_co_preadv                     = quorum_co_preadv,
     .bdrv_co_pwritev                    = quorum_co_pwritev,
+    .bdrv_co_pwrite_zeroes              = quorum_co_pwrite_zeroes,
 
     .bdrv_add_child                     = quorum_add_child,
     .bdrv_del_child                     = quorum_del_child,

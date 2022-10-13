@@ -27,6 +27,8 @@
 
 #include "hw/qdev-properties.h"
 #include "hw/isa/isa.h"
+#include "qapi/error.h"
+#include "qom/object.h"
 
 #define PIT_FREQ 1193182
 
@@ -38,12 +40,7 @@ typedef struct PITChannelInfo {
 } PITChannelInfo;
 
 #define TYPE_PIT_COMMON "pit-common"
-#define PIT_COMMON(obj) \
-     OBJECT_CHECK(PITCommonState, (obj), TYPE_PIT_COMMON)
-#define PIT_COMMON_CLASS(klass) \
-     OBJECT_CLASS_CHECK(PITCommonClass, (klass), TYPE_PIT_COMMON)
-#define PIT_COMMON_GET_CLASS(obj) \
-     OBJECT_GET_CLASS(PITCommonClass, (obj), TYPE_PIT_COMMON)
+OBJECT_DECLARE_TYPE(PITCommonState, PITCommonClass, PIT_COMMON)
 
 #define TYPE_I8254 "isa-pit"
 #define TYPE_KVM_I8254 "kvm-pit"
@@ -54,10 +51,10 @@ static inline ISADevice *i8254_pit_init(ISABus *bus, int base, int isa_irq,
     DeviceState *dev;
     ISADevice *d;
 
-    d = isa_create(bus, TYPE_I8254);
+    d = isa_new(TYPE_I8254);
     dev = DEVICE(d);
     qdev_prop_set_uint32(dev, "iobase", base);
-    qdev_init_nofail(dev);
+    isa_realize_and_unref(d, bus, &error_fatal);
     qdev_connect_gpio_out(dev, 0,
                           isa_irq >= 0 ? isa_get_irq(d, isa_irq) : alt_irq);
 
@@ -69,10 +66,10 @@ static inline ISADevice *kvm_pit_init(ISABus *bus, int base)
     DeviceState *dev;
     ISADevice *d;
 
-    d = isa_create(bus, TYPE_KVM_I8254);
+    d = isa_new(TYPE_KVM_I8254);
     dev = DEVICE(d);
     qdev_prop_set_uint32(dev, "iobase", base);
-    qdev_init_nofail(dev);
+    isa_realize_and_unref(d, bus, &error_fatal);
 
     return d;
 }

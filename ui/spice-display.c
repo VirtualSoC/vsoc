@@ -388,7 +388,7 @@ void qemu_spice_display_switch(SimpleSpiceDisplay *ssd,
     SimpleSpiceUpdate *update;
     bool need_destroy;
 
-    if (surface && ssd->surface &&
+    if (ssd->surface &&
         surface_width(surface) == pixman_image_get_width(ssd->surface) &&
         surface_height(surface) == pixman_image_get_height(ssd->surface) &&
         surface_format(surface) == pixman_image_get_format(ssd->surface)) {
@@ -410,8 +410,8 @@ void qemu_spice_display_switch(SimpleSpiceDisplay *ssd,
 
     /* full mode switch */
     trace_qemu_spice_display_surface(ssd->qxl.id,
-                                     surface ? surface_width(surface)  : 0,
-                                     surface ? surface_height(surface) : 0,
+                                     surface_width(surface),
+                                     surface_height(surface),
                                      false);
 
     memset(&ssd->dirty, 0, sizeof(ssd->dirty));
@@ -500,10 +500,17 @@ void qemu_spice_display_refresh(SimpleSpiceDisplay *ssd)
 
 /* spice display interface callbacks */
 
+#if SPICE_HAS_ATTACHED_WORKER
+static void interface_attached_worker(QXLInstance *sin)
+{
+    /* nothing to do */
+}
+#else
 static void interface_attach_worker(QXLInstance *sin, QXLWorker *qxl_worker)
 {
     /* nothing to do */
 }
+#endif
 
 static void interface_set_compression_level(QXLInstance *sin, int level)
 {
@@ -560,6 +567,10 @@ static void interface_release_resource(QXLInstance *sin,
     SimpleSpiceUpdate *update;
     SimpleSpiceCursor *cursor;
     QXLCommandExt *ext;
+
+    if (!rext.info) {
+        return;
+    }
 
     ext = (void *)(intptr_t)(rext.info->id);
     switch (ext->cmd.type) {
@@ -672,34 +683,23 @@ static int interface_client_monitors_config(QXLInstance *sin,
         return 1;
     }
 
-    memset(&info, 0, sizeof(info));
+    info = *dpy_get_ui_info(ssd->dcl.con);
 
-    if (mc->num_of_monitors == 1) {
-        /*
-         * New spice-server version which filters the list of monitors
-         * to only include those that belong to our display channel.
-         *
-         * single-head configuration (where filtering doesn't matter)
-         * takes this code path too.
-         */
-        info.width  = mc->monitors[0].width;
-        info.height = mc->monitors[0].height;
-    } else {
-        /*
-         * Old spice-server which gives us all monitors, so we have to
-         * figure ourself which entry we need.  Array index is the
-         * channel_id, which is the qemu console index, see
-         * qemu_spice_add_display_interface().
-         */
-        head = qemu_console_get_index(ssd->dcl.con);
-        if (mc->num_of_monitors > head) {
-            info.width  = mc->monitors[head].width;
-            info.height = mc->monitors[head].height;
+    head = qemu_console_get_index(ssd->dcl.con);
+    if (mc->num_of_monitors > head) {
+        info.width  = mc->monitors[head].width;
+        info.height = mc->monitors[head].height;
+#if SPICE_SERVER_VERSION >= 0x000e04 /* release 0.14.4 */
+        if (mc->flags & VD_AGENT_CONFIG_MONITORS_FLAG_PHYSICAL_SIZE) {
+            VDAgentMonitorMM *mm = (void *)&mc->monitors[mc->num_of_monitors];
+            info.width_mm = mm[head].width;
+            info.height_mm = mm[head].height;
         }
+#endif
     }
 
     trace_qemu_spice_ui_info(ssd->qxl.id, info.width, info.height);
-    dpy_set_ui_info(ssd->dcl.con, &info);
+    dpy_set_ui_info(ssd->dcl.con, &info, false);
     return 1;
 }
 
@@ -709,7 +709,11 @@ static const QXLInterface dpy_interface = {
     .base.major_version      = SPICE_INTERFACE_QXL_MAJOR,
     .base.minor_version      = SPICE_INTERFACE_QXL_MINOR,
 
+#if SPICE_HAS_ATTACHED_WORKER
+    .attached_worker         = interface_attached_worker,
+#else
     .attache_worker          = interface_attach_worker,
+#endif
     .set_compression_level   = interface_set_compression_level,
 #if SPICE_NEEDS_SET_MM_TIME
     .set_mm_time             = interface_set_mm_time,
@@ -856,6 +860,7 @@ static void spice_gl_refresh(DisplayChangeListener *dcl)
     graphic_hw_update(dcl->con);
     if (ssd->gl_updates && ssd->have_surface) {
         qemu_spice_gl_block(ssd, true);
+        glFlush();
         cookie = (uintptr_t)qxl_cookie_new(QXL_COOKIE_TYPE_GL_DRAW_DONE, 0);
         spice_qxl_gl_draw_async(&ssd->qxl, 0, 0,
                                 surface_width(ssd->ds),
@@ -914,12 +919,12 @@ static void spice_gl_switch(DisplayChangeListener *dcl,
     }
 }
 
-static QEMUGLContext qemu_spice_gl_create_context(DisplayChangeListener *dcl,
+static QEMUGLContext qemu_spice_gl_create_context(DisplayGLCtx *dgc,
                                                   QEMUGLParams *params)
 {
     eglMakeCurrent(qemu_egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE,
                    qemu_egl_rn_ctx);
-    return qemu_egl_create_context(dcl, params);
+    return qemu_egl_create_context(dgc, params);
 }
 
 static void qemu_spice_gl_scanout_disable(DisplayChangeListener *dcl)
@@ -1097,6 +1102,7 @@ static void qemu_spice_gl_update(DisplayChangeListener *dcl,
 
     trace_qemu_spice_gl_update(ssd->qxl.id, w, h, x, y);
     qemu_spice_gl_block(ssd, true);
+    glFlush();
     cookie = (uintptr_t)qxl_cookie_new(QXL_COOKIE_TYPE_GL_DRAW_DONE, 0);
     spice_qxl_gl_draw_async(&ssd->qxl, x, y, w, h, cookie);
 }
@@ -1110,11 +1116,6 @@ static const DisplayChangeListenerOps display_listener_gl_ops = {
     .dpy_mouse_set           = display_mouse_set,
     .dpy_cursor_define       = display_mouse_define,
 
-    .dpy_gl_ctx_create       = qemu_spice_gl_create_context,
-    .dpy_gl_ctx_destroy      = qemu_egl_destroy_context,
-    .dpy_gl_ctx_make_current = qemu_egl_make_context_current,
-    .dpy_gl_ctx_get_current  = qemu_egl_get_current_context,
-
     .dpy_gl_scanout_disable  = qemu_spice_gl_scanout_disable,
     .dpy_gl_scanout_texture  = qemu_spice_gl_scanout_texture,
     .dpy_gl_scanout_dmabuf   = qemu_spice_gl_scanout_dmabuf,
@@ -1122,6 +1123,20 @@ static const DisplayChangeListenerOps display_listener_gl_ops = {
     .dpy_gl_cursor_position  = qemu_spice_gl_cursor_position,
     .dpy_gl_release_dmabuf   = qemu_spice_gl_release_dmabuf,
     .dpy_gl_update           = qemu_spice_gl_update,
+};
+
+static bool
+qemu_spice_is_compatible_dcl(DisplayGLCtx *dgc,
+                             DisplayChangeListener *dcl)
+{
+    return dcl->ops == &display_listener_gl_ops;
+}
+
+static const DisplayGLCtxOps gl_ctx_ops = {
+    .dpy_gl_ctx_is_compatible_dcl = qemu_spice_is_compatible_dcl,
+    .dpy_gl_ctx_create       = qemu_spice_gl_create_context,
+    .dpy_gl_ctx_destroy      = qemu_egl_destroy_context,
+    .dpy_gl_ctx_make_current = qemu_egl_make_context_current,
 };
 
 #endif /* HAVE_SPICE_GL */
@@ -1136,6 +1151,7 @@ static void qemu_spice_display_init_one(QemuConsole *con)
 #ifdef HAVE_SPICE_GL
     if (spice_opengl) {
         ssd->dcl.ops = &display_listener_gl_ops;
+        ssd->dgc.ops = &gl_ctx_ops;
         ssd->gl_unblock_bh = qemu_bh_new(qemu_spice_gl_unblock_bh, ssd);
         ssd->gl_unblock_timer = timer_new_ms(QEMU_CLOCK_REALTIME,
                                              qemu_spice_gl_block_timer, ssd);
@@ -1150,17 +1166,23 @@ static void qemu_spice_display_init_one(QemuConsole *con)
     qemu_spice_add_display_interface(&ssd->qxl, con);
 
 #if SPICE_SERVER_VERSION >= 0x000e02 /* release 0.14.2 */
+    Error *err = NULL;
     char device_address[256] = "";
-    if (qemu_spice_fill_device_address(con, device_address, 256)) {
+    if (qemu_console_fill_device_address(con, device_address, 256, &err)) {
         spice_qxl_set_device_info(&ssd->qxl,
                                   device_address,
                                   qemu_console_get_head(con),
                                   1);
+    } else {
+        error_report_err(err);
     }
 #endif
 
     qemu_spice_create_host_memslot(ssd);
 
+    if (spice_opengl) {
+        qemu_console_set_display_gl_ctx(con, &ssd->dgc);
+    }
     register_displaychangelistener(&ssd->dcl);
 }
 
@@ -1199,4 +1221,6 @@ void qemu_spice_display_init(void)
         }
         qemu_spice_display_init_one(con);
     }
+
+    qemu_spice_display_init_done();
 }

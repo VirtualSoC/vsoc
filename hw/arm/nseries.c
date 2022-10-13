@@ -24,6 +24,7 @@
 #include "chardev/char.h"
 #include "qemu/cutils.h"
 #include "qemu/bswap.h"
+#include "qemu/hw-version.h"
 #include "sysemu/reset.h"
 #include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
@@ -34,16 +35,16 @@
 #include "hw/boards.h"
 #include "hw/i2c/i2c.h"
 #include "hw/display/blizzard.h"
+#include "hw/input/lm832x.h"
 #include "hw/input/tsc2xxx.h"
 #include "hw/misc/cbus.h"
-#include "hw/misc/tmp105.h"
+#include "hw/sensor/tmp105.h"
 #include "hw/qdev-properties.h"
 #include "hw/block/flash.h"
 #include "hw/hw.h"
 #include "hw/loader.h"
 #include "hw/sysbus.h"
 #include "qemu/log.h"
-#include "exec/address-spaces.h"
 
 /* Nokia N8x0 support */
 struct n800_s {
@@ -174,7 +175,7 @@ static void n8x0_nand_setup(struct n800_s *s)
     char *otp_region;
     DriveInfo *dinfo;
 
-    s->nand = qdev_create(NULL, "onenand");
+    s->nand = qdev_new("onenand");
     qdev_prop_set_uint16(s->nand, "manufacturer_id", NAND_MFR_SAMSUNG);
     /* Either 0x40 or 0x48 are OK for the device ID */
     qdev_prop_set_uint16(s->nand, "device_id", 0x48);
@@ -182,10 +183,10 @@ static void n8x0_nand_setup(struct n800_s *s)
     qdev_prop_set_int32(s->nand, "shift", 1);
     dinfo = drive_get(IF_MTD, 0, 0);
     if (dinfo) {
-        qdev_prop_set_drive(s->nand, "drive", blk_by_legacy_dinfo(dinfo),
-                            &error_fatal);
+        qdev_prop_set_drive_err(s->nand, "drive", blk_by_legacy_dinfo(dinfo),
+                                &error_fatal);
     }
-    qdev_init_nofail(s->nand);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(s->nand), &error_fatal);
     sysbus_connect_irq(SYS_BUS_DEVICE(s->nand), 0,
                        qdev_get_gpio_in(s->mpu->gpio, N8X0_ONENAND_GPIO));
     omap_gpmc_attach(s->mpu->gpmc, N8X0_ONENAND_CS,
@@ -215,7 +216,7 @@ static void n8x0_i2c_setup(struct n800_s *s)
     I2CBus *i2c = omap_i2c_bus(s->mpu->i2c[0]);
 
     /* Attach a menelaus PM chip */
-    dev = i2c_create_slave(i2c, "twl92230", N8X0_MENELAUS_ADDR);
+    dev = DEVICE(i2c_slave_create_simple(i2c, "twl92230", N8X0_MENELAUS_ADDR));
     qdev_connect_gpio_out(dev, 3,
                           qdev_get_gpio_in(s->mpu->ih[0],
                                            OMAP_INT_24XX_SYS_NIRQ));
@@ -224,7 +225,7 @@ static void n8x0_i2c_setup(struct n800_s *s)
     qemu_register_powerdown_notifier(&n8x0_system_powerdown_notifier);
 
     /* Attach a TMP105 PM chip (A0 wired to ground) */
-    dev = i2c_create_slave(i2c, TYPE_TMP105, N8X0_TMP105_ADDR);
+    dev = DEVICE(i2c_slave_create_simple(i2c, TYPE_TMP105, N8X0_TMP105_ADDR));
     qdev_connect_gpio_out(dev, 0, tmp_irq);
 }
 
@@ -416,8 +417,8 @@ static void n810_kbd_setup(struct n800_s *s)
 
     /* Attach the LM8322 keyboard to the I2C bus,
      * should happen in n8x0_i2c_setup and s->kbd be initialised here.  */
-    s->kbd = i2c_create_slave(omap_i2c_bus(s->mpu->i2c[0]),
-                           "lm8323", N810_LM8323_ADDR);
+    s->kbd = DEVICE(i2c_slave_create_simple(omap_i2c_bus(s->mpu->i2c[0]),
+                                            TYPE_LM8323, N810_LM8323_ADDR));
     qdev_connect_gpio_out(s->kbd, 0, kbd_irq);
 }
 
@@ -692,7 +693,7 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
     default:
     bad_cmd:
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: unknown command %02x\n", __func__, s->cmd);
+                      "%s: unknown command 0x%02x\n", __func__, s->cmd);
         break;
     }
 
@@ -789,22 +790,12 @@ static void n8x0_cbus_setup(struct n800_s *s)
     cbus_attach(cbus, s->tahvo = tahvo_init(tahvo_irq, 1));
 }
 
-static void n8x0_uart_setup(struct n800_s *s)
-{
-    Chardev *radio = qemu_chr_new("bt-dummy-uart", "null", NULL);
-    /*
-     * Note: We used to connect N8X0_BT_RESET_GPIO and N8X0_BT_WKUP_GPIO
-     * here, but this code has been removed with the bluetooth backend.
-     */
-    omap_uart_attach(s->mpu->uart[BT_UART], radio);
-}
-
 static void n8x0_usb_setup(struct n800_s *s)
 {
     SysBusDevice *dev;
-    s->usb = qdev_create(NULL, "tusb6010");
+    s->usb = qdev_new("tusb6010");
     dev = SYS_BUS_DEVICE(s->usb);
-    qdev_init_nofail(s->usb);
+    sysbus_realize_and_unref(dev, &error_fatal);
     sysbus_connect_irq(dev, 0,
                        qdev_get_gpio_in(s->mpu->gpio, N8X0_TUSB_INT_GPIO));
     /* Using the NOR interface */
@@ -1318,6 +1309,7 @@ static void n8x0_init(MachineState *machine,
         g_free(sz);
         exit(EXIT_FAILURE);
     }
+    binfo->ram_size = machine->ram_size;
 
     memory_region_add_subregion(get_system_memory(), OMAP2_Q2_BASE,
                                 machine->ram);
@@ -1361,7 +1353,6 @@ static void n8x0_init(MachineState *machine,
     n8x0_spi_setup(s);
     n8x0_dss_setup(s);
     n8x0_cbus_setup(s);
-    n8x0_uart_setup(s);
     if (machine_usb(machine)) {
         n8x0_usb_setup(s);
     }
@@ -1374,12 +1365,13 @@ static void n8x0_init(MachineState *machine,
     }
 
     if (option_rom[0].name &&
-        (machine->boot_order[0] == 'n' || !machine->kernel_filename)) {
+        (machine->boot_config.order[0] == 'n' || !machine->kernel_filename)) {
         uint8_t *nolo_tags = g_new(uint8_t, 0x10000);
         /* No, wait, better start at the ROM.  */
         s->mpu->cpu->env.regs[15] = OMAP2_Q2_BASE + 0x400000;
 
-        /* This is intended for loading the `secondary.bin' program from
+        /*
+         * This is intended for loading the `secondary.bin' program from
          * Nokia images (the NOLO bootloader).  The entry point seems
          * to be at OMAP2_Q2_BASE + 0x400000.
          *
@@ -1387,9 +1379,15 @@ static void n8x0_init(MachineState *machine,
          * for them the entry point needs to be set to OMAP2_SRAM_BASE.
          *
          * The code above is for loading the `zImage' file from Nokia
-         * images.  */
-        load_image_targphys(option_rom[0].name, OMAP2_Q2_BASE + 0x400000,
-                            machine->ram_size - 0x400000);
+         * images.
+         */
+        if (load_image_targphys(option_rom[0].name,
+                                OMAP2_Q2_BASE + 0x400000,
+                                machine->ram_size - 0x400000) < 0) {
+            error_report("Failed to load secondary bootloader %s",
+                         option_rom[0].name);
+            exit(EXIT_FAILURE);
+        }
 
         n800_setup_nolo_tags(nolo_tags);
         cpu_physical_memory_write(OMAP2_SRAM_BASE, nolo_tags, 0x10000);

@@ -26,7 +26,6 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
 #include "hw/sysbus.h"
@@ -38,6 +37,8 @@
 #include "hw/irq.h"
 
 #include "hw/arm/exynos4210.h"
+#include "qom/object.h"
+#include "sysemu/rtc.h"
 
 #define DEBUG_RTC 0
 
@@ -84,10 +85,9 @@
 #define     RTC_BASE_FREQ       32768
 
 #define TYPE_EXYNOS4210_RTC "exynos4210.rtc"
-#define EXYNOS4210_RTC(obj) \
-    OBJECT_CHECK(Exynos4210RTCState, (obj), TYPE_EXYNOS4210_RTC)
+OBJECT_DECLARE_SIMPLE_TYPE(Exynos4210RTCState, EXYNOS4210_RTC)
 
-typedef struct Exynos4210RTCState {
+struct Exynos4210RTCState {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
@@ -113,7 +113,7 @@ typedef struct Exynos4210RTCState {
     qemu_irq        alm_irq;    /* alarm irq */
 
     struct tm   current_tm;     /* current time */
-} Exynos4210RTCState;
+};
 
 #define TICCKSEL(value) ((value & (0x0F << 4)) >> 4)
 
@@ -564,14 +564,14 @@ static void exynos4210_rtc_init(Object *obj)
     Exynos4210RTCState *s = EXYNOS4210_RTC(obj);
     SysBusDevice *dev = SYS_BUS_DEVICE(obj);
 
-    s->ptimer = ptimer_init(exynos4210_rtc_tick, s, PTIMER_POLICY_DEFAULT);
+    s->ptimer = ptimer_init(exynos4210_rtc_tick, s, PTIMER_POLICY_LEGACY);
     ptimer_transaction_begin(s->ptimer);
     ptimer_set_freq(s->ptimer, RTC_BASE_FREQ);
     exynos4210_rtc_update_freq(s, 0);
     ptimer_transaction_commit(s->ptimer);
 
     s->ptimer_1Hz = ptimer_init(exynos4210_rtc_1Hz_tick,
-                                s, PTIMER_POLICY_DEFAULT);
+                                s, PTIMER_POLICY_LEGACY);
     ptimer_transaction_begin(s->ptimer_1Hz);
     ptimer_set_freq(s->ptimer_1Hz, RTC_BASE_FREQ);
     ptimer_transaction_commit(s->ptimer_1Hz);
@@ -582,6 +582,14 @@ static void exynos4210_rtc_init(Object *obj)
     memory_region_init_io(&s->iomem, obj, &exynos4210_rtc_ops, s,
                           "exynos4210-rtc", EXYNOS4210_RTC_REG_MEM_SIZE);
     sysbus_init_mmio(dev, &s->iomem);
+}
+
+static void exynos4210_rtc_finalize(Object *obj)
+{
+    Exynos4210RTCState *s = EXYNOS4210_RTC(obj);
+
+    ptimer_free(s->ptimer);
+    ptimer_free(s->ptimer_1Hz);
 }
 
 static void exynos4210_rtc_class_init(ObjectClass *klass, void *data)
@@ -597,6 +605,7 @@ static const TypeInfo exynos4210_rtc_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(Exynos4210RTCState),
     .instance_init = exynos4210_rtc_init,
+    .instance_finalize = exynos4210_rtc_finalize,
     .class_init    = exynos4210_rtc_class_init,
 };
 

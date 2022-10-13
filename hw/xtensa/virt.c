@@ -27,16 +27,13 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
-#include "cpu.h"
 #include "sysemu/reset.h"
-#include "sysemu/sysemu.h"
 #include "hw/boards.h"
 #include "hw/loader.h"
 #include "hw/pci-host/gpex.h"
 #include "net/net.h"
 #include "elf.h"
 #include "exec/memory.h"
-#include "exec/address-spaces.h"
 #include "qemu/error-report.h"
 #include "xtensa_memory.h"
 #include "xtensa_sim.h"
@@ -62,8 +59,8 @@ static void create_pcie(CPUXtensaState *env, int irq_base, hwaddr addr_base)
     qemu_irq *extints;
     int i;
 
-    dev = qdev_create(NULL, TYPE_GPEX_HOST);
-    qdev_init_nofail(dev);
+    dev = qdev_new(TYPE_GPEX_HOST);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
 
     /* Map only the first size_ecam bytes of ECAM space. */
     ecam_alias = g_new0(MemoryRegion, 1);

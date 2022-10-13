@@ -26,6 +26,7 @@
 #include "hw/irq.h"
 #include "hw/ptimer.h"
 #include "hw/qdev-properties.h"
+#include "qom/object.h"
 
 #define R_STATUS      0
 #define R_CONTROL     1
@@ -44,17 +45,16 @@
 #define CONTROL_STOP  0x0008
 
 #define TYPE_ALTERA_TIMER "ALTR.timer"
-#define ALTERA_TIMER(obj) \
-    OBJECT_CHECK(AlteraTimer, (obj), TYPE_ALTERA_TIMER)
+OBJECT_DECLARE_SIMPLE_TYPE(AlteraTimer, ALTERA_TIMER)
 
-typedef struct AlteraTimer {
+struct AlteraTimer {
     SysBusDevice  busdev;
     MemoryRegion  mmio;
     qemu_irq      irq;
     uint32_t      freq_hz;
     ptimer_state *ptimer;
     uint32_t      regs[R_MAX];
-} AlteraTimer;
+};
 
 static int timer_irq_state(AlteraTimer *t)
 {
@@ -185,7 +185,7 @@ static void altera_timer_realize(DeviceState *dev, Error **errp)
         return;
     }
 
-    t->ptimer = ptimer_init(timer_hit, t, PTIMER_POLICY_DEFAULT);
+    t->ptimer = ptimer_init(timer_hit, t, PTIMER_POLICY_LEGACY);
     ptimer_transaction_begin(t->ptimer);
     ptimer_set_freq(t->ptimer, t->freq_hz);
     ptimer_transaction_commit(t->ptimer);

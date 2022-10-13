@@ -24,6 +24,7 @@
 #include "hw/ppc/xive_regs.h"
 #include "hw/qdev-properties.h"
 #include "hw/ppc/ppc.h"
+#include "trace.h"
 
 #include <libfdt.h>
 
@@ -64,26 +65,6 @@ static const XiveVstInfo vst_infos[] = {
 #define xive_error(xive, fmt, ...)                                      \
     qemu_log_mask(LOG_GUEST_ERROR, "XIVE[%x] - " fmt "\n",              \
                   (xive)->chip->chip_id, ## __VA_ARGS__);
-
-/*
- * QEMU version of the GETFIELD/SETFIELD macros
- *
- * TODO: It might be better to use the existing extract64() and
- * deposit64() but this means that all the register definitions will
- * change and become incompatible with the ones found in skiboot.
- *
- * Keep it as it is for now until we find a common ground.
- */
-static inline uint64_t GETFIELD(uint64_t mask, uint64_t word)
-{
-    return (word & mask) >> ctz64(mask);
-}
-
-static inline uint64_t SETFIELD(uint64_t mask, uint64_t word,
-                                uint64_t value)
-{
-    return (word & ~mask) | ((value << ctz64(mask)) & mask);
-}
 
 /*
  * When PC_TCTXT_CHIPID_OVERRIDE is configured, the PC_TCTXT_CHIPID
@@ -171,7 +152,12 @@ static uint64_t pnv_xive_vst_addr_indirect(PnvXive *xive, uint32_t type,
 
     /* Get the page size of the indirect table. */
     vsd_addr = vsd & VSD_ADDRESS_MASK;
-    vsd = ldq_be_dma(&address_space_memory, vsd_addr);
+    if (ldq_be_dma(&address_space_memory, vsd_addr, &vsd,
+                    MEMTXATTRS_UNSPECIFIED)) {
+        xive_error(xive, "VST: failed to access %s entry %x @0x%" PRIx64,
+                   info->name, idx, vsd_addr);
+        return 0;
+    }
 
     if (!(vsd & VSD_ADDRESS_MASK)) {
 #ifdef XIVE_DEBUG
@@ -194,7 +180,12 @@ static uint64_t pnv_xive_vst_addr_indirect(PnvXive *xive, uint32_t type,
     /* Load the VSD we are looking for, if not already done */
     if (vsd_idx) {
         vsd_addr = vsd_addr + vsd_idx * XIVE_VSD_SIZE;
-        vsd = ldq_be_dma(&address_space_memory, vsd_addr);
+        if (ldq_be_dma(&address_space_memory, vsd_addr, &vsd,
+                       MEMTXATTRS_UNSPECIFIED)) {
+            xive_error(xive, "VST: failed to access %s entry %x @0x%"
+                       PRIx64, info->name, vsd_idx, vsd_addr);
+            return 0;
+        }
 
         if (!(vsd & VSD_ADDRESS_MASK)) {
 #ifdef XIVE_DEBUG
@@ -392,6 +383,34 @@ static int pnv_xive_get_eas(XiveRouter *xrtr, uint8_t blk, uint32_t idx,
     return pnv_xive_vst_read(xive, VST_TSEL_IVT, blk, idx, eas);
 }
 
+static int pnv_xive_get_pq(XiveRouter *xrtr, uint8_t blk, uint32_t idx,
+                           uint8_t *pq)
+{
+    PnvXive *xive = PNV_XIVE(xrtr);
+
+    if (pnv_xive_block_id(xive) != blk) {
+        xive_error(xive, "VST: EAS %x is remote !?", XIVE_EAS(blk, idx));
+        return -1;
+    }
+
+    *pq = xive_source_esb_get(&xive->ipi_source, idx);
+    return 0;
+}
+
+static int pnv_xive_set_pq(XiveRouter *xrtr, uint8_t blk, uint32_t idx,
+                           uint8_t *pq)
+{
+    PnvXive *xive = PNV_XIVE(xrtr);
+
+    if (pnv_xive_block_id(xive) != blk) {
+        xive_error(xive, "VST: EAS %x is remote !?", XIVE_EAS(blk, idx));
+        return -1;
+    }
+
+    *pq = xive_source_esb_set(&xive->ipi_source, idx, *pq);
+    return 0;
+}
+
 /*
  * One bit per thread id. The first register PC_THREAD_EN_REG0 covers
  * the first cores 0-15 (normal) of the chip or 0-7 (fused). The
@@ -488,12 +507,12 @@ static PnvXive *pnv_xive_tm_get_xive(PowerPCCPU *cpu)
  * event notification to the Router. This is required on a multichip
  * system.
  */
-static void pnv_xive_notify(XiveNotifier *xn, uint32_t srcno)
+static void pnv_xive_notify(XiveNotifier *xn, uint32_t srcno, bool pq_checked)
 {
     PnvXive *xive = PNV_XIVE(xn);
     uint8_t blk = pnv_xive_block_id(xive);
 
-    xive_router_notify(xn, XIVE_EAS(blk, srcno));
+    xive_router_notify(xn, XIVE_EAS(blk, srcno), pq_checked);
 }
 
 /*
@@ -541,7 +560,12 @@ static uint64_t pnv_xive_vst_per_subpage(PnvXive *xive, uint32_t type)
 
     /* Get the page size of the indirect table. */
     vsd_addr = vsd & VSD_ADDRESS_MASK;
-    vsd = ldq_be_dma(&address_space_memory, vsd_addr);
+    if (ldq_be_dma(&address_space_memory, vsd_addr, &vsd,
+                   MEMTXATTRS_UNSPECIFIED)) {
+        xive_error(xive, "VST: failed to access %s entry @0x%" PRIx64,
+                   info->name, vsd_addr);
+        return 0;
+    }
 
     if (!(vsd & VSD_ADDRESS_MASK)) {
 #ifdef XIVE_DEBUG
@@ -1319,6 +1343,8 @@ static void pnv_xive_ic_hw_trigger(PnvXive *xive, hwaddr addr, uint64_t val)
     uint8_t blk;
     uint32_t idx;
 
+    trace_pnv_xive_ic_hw_trigger(addr, val);
+
     if (val & XIVE_TRIGGER_END) {
         xive_error(xive, "IC: END trigger at @0x%"HWADDR_PRIx" data 0x%"PRIx64,
                    addr, val);
@@ -1333,7 +1359,8 @@ static void pnv_xive_ic_hw_trigger(PnvXive *xive, hwaddr addr, uint64_t val)
     blk = XIVE_EAS_BLOCK(val);
     idx = XIVE_EAS_INDEX(val);
 
-    xive_router_notify(XIVE_NOTIFIER(xive), XIVE_EAS(blk, idx));
+    xive_router_notify(XIVE_NOTIFIER(xive), XIVE_EAS(blk, idx),
+                       !!(val & XIVE_TRIGGER_PQ));
 }
 
 static void pnv_xive_ic_notify_write(void *opaque, hwaddr addr, uint64_t val,
@@ -1796,11 +1823,9 @@ static void pnv_xive_init(Object *obj)
     PnvXive *xive = PNV_XIVE(obj);
 
     object_initialize_child(obj, "ipi_source", &xive->ipi_source,
-                            sizeof(xive->ipi_source), TYPE_XIVE_SOURCE,
-                            &error_abort, NULL);
+                            TYPE_XIVE_SOURCE);
     object_initialize_child(obj, "end_source", &xive->end_source,
-                            sizeof(xive->end_source), TYPE_XIVE_END_SOURCE,
-                            &error_abort, NULL);
+                            TYPE_XIVE_END_SOURCE);
 }
 
 /*
@@ -1831,23 +1856,18 @@ static void pnv_xive_realize(DeviceState *dev, Error **errp)
      * resized dynamically when the controller is configured by the FW
      * to limit accesses to resources not provisioned.
      */
-    object_property_set_int(OBJECT(xsrc), PNV_XIVE_NR_IRQS, "nr-irqs",
+    object_property_set_int(OBJECT(xsrc), "nr-irqs", PNV_XIVE_NR_IRQS,
                             &error_fatal);
-    object_property_set_link(OBJECT(xsrc), OBJECT(xive), "xive",
-                             &error_abort);
-    object_property_set_bool(OBJECT(xsrc), true, "realized", &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
+    object_property_set_link(OBJECT(xsrc), "xive", OBJECT(xive), &error_abort);
+    if (!qdev_realize(DEVICE(xsrc), NULL, errp)) {
         return;
     }
 
-    object_property_set_int(OBJECT(end_xsrc), PNV_XIVE_NR_ENDS, "nr-ends",
+    object_property_set_int(OBJECT(end_xsrc), "nr-ends", PNV_XIVE_NR_ENDS,
                             &error_fatal);
-    object_property_set_link(OBJECT(end_xsrc), OBJECT(xive), "xive",
+    object_property_set_link(OBJECT(end_xsrc), "xive", OBJECT(xive),
                              &error_abort);
-    object_property_set_bool(OBJECT(end_xsrc), true, "realized", &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
+    if (!qdev_realize(DEVICE(end_xsrc), NULL, errp)) {
         return;
     }
 
@@ -1960,6 +1980,8 @@ static void pnv_xive_class_init(ObjectClass *klass, void *data)
     device_class_set_props(dc, pnv_xive_properties);
 
     xrc->get_eas = pnv_xive_get_eas;
+    xrc->get_pq = pnv_xive_get_pq;
+    xrc->set_pq = pnv_xive_set_pq;
     xrc->get_end = pnv_xive_get_end;
     xrc->write_end = pnv_xive_write_end;
     xrc->get_nvt = pnv_xive_get_nvt;

@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -27,16 +27,14 @@ typedef struct PnvXScomInterface PnvXScomInterface;
 #define TYPE_PNV_XSCOM_INTERFACE "pnv-xscom-interface"
 #define PNV_XSCOM_INTERFACE(obj) \
     INTERFACE_CHECK(PnvXScomInterface, (obj), TYPE_PNV_XSCOM_INTERFACE)
-#define PNV_XSCOM_INTERFACE_CLASS(klass)                \
-    OBJECT_CLASS_CHECK(PnvXScomInterfaceClass, (klass), \
+typedef struct PnvXScomInterfaceClass PnvXScomInterfaceClass;
+DECLARE_CLASS_CHECKERS(PnvXScomInterfaceClass, PNV_XSCOM_INTERFACE,
                        TYPE_PNV_XSCOM_INTERFACE)
-#define PNV_XSCOM_INTERFACE_GET_CLASS(obj) \
-     OBJECT_GET_CLASS(PnvXScomInterfaceClass, (obj), TYPE_PNV_XSCOM_INTERFACE)
 
-typedef struct PnvXScomInterfaceClass {
+struct PnvXScomInterfaceClass {
     InterfaceClass parent;
     int (*dt_xscom)(PnvXScomInterface *dev, void *fdt, int offset);
-} PnvXScomInterfaceClass;
+};
 
 /*
  * Layout of the XSCOM PCB addresses of EX core 1 (POWER 8)
@@ -133,6 +131,21 @@ typedef struct PnvXScomInterfaceClass {
 #define PNV10_XSCOM_PSIHB_BASE     0x3011D00
 #define PNV10_XSCOM_PSIHB_SIZE     0x100
 
+#define PNV10_XSCOM_OCC_BASE       PNV9_XSCOM_OCC_BASE
+#define PNV10_XSCOM_OCC_SIZE       PNV9_XSCOM_OCC_SIZE
+
+#define PNV10_XSCOM_PBA_BASE       0x01010CDA
+#define PNV10_XSCOM_PBA_SIZE       0x40
+
+#define PNV10_XSCOM_XIVE2_BASE     0x2010800
+#define PNV10_XSCOM_XIVE2_SIZE     0x400
+
+#define PNV10_XSCOM_PEC_NEST_BASE  0x3011800 /* index goes downwards ... */
+#define PNV10_XSCOM_PEC_NEST_SIZE  0x100
+
+#define PNV10_XSCOM_PEC_PCI_BASE   0x8010800 /* index goes upwards ... */
+#define PNV10_XSCOM_PEC_PCI_SIZE   0x200
+
 void pnv_xscom_realize(PnvChip *chip, uint64_t size, Error **errp);
 int pnv_dt_xscom(PnvChip *chip, void *fdt, int root_offset,
                  uint64_t xscom_base, uint64_t xscom_size,
@@ -141,7 +154,7 @@ int pnv_dt_xscom(PnvChip *chip, void *fdt, int root_offset,
 void pnv_xscom_add_subregion(PnvChip *chip, hwaddr offset,
                              MemoryRegion *mr);
 void pnv_xscom_region_init(MemoryRegion *mr,
-                           struct Object *owner,
+                           Object *owner,
                            const MemoryRegionOps *ops,
                            void *opaque,
                            const char *name,

@@ -14,7 +14,6 @@
 #include <linux/vfio.h>
 #include <sys/ioctl.h>
 
-#include "sysemu/sysemu.h"
 #include "hw/display/edid.h"
 #include "ui/console.h"
 #include "qapi/error.h"
@@ -107,14 +106,14 @@ err:
     return;
 }
 
-static int vfio_display_edid_ui_info(void *opaque, uint32_t idx,
-                                     QemuUIInfo *info)
+static void vfio_display_edid_ui_info(void *opaque, uint32_t idx,
+                                      QemuUIInfo *info)
 {
     VFIOPCIDevice *vdev = opaque;
     VFIODisplay *dpy = vdev->dpy;
 
     if (!dpy->edid_regs) {
-        return 0;
+        return;
     }
 
     if (info->width && info->height) {
@@ -122,8 +121,6 @@ static int vfio_display_edid_ui_info(void *opaque, uint32_t idx,
     } else {
         vfio_display_edid_update(vdev, false, 0, 0);
     }
-
-    return 0;
 }
 
 static void vfio_display_edid_init(VFIOPCIDevice *vdev)
@@ -186,7 +183,6 @@ static void vfio_display_edid_exit(VFIODisplay *dpy)
 
     g_free(dpy->edid_regs);
     g_free(dpy->edid_blob);
-    timer_del(dpy->edid_link_timer);
     timer_free(dpy->edid_link_timer);
 }
 
@@ -336,7 +332,13 @@ static void vfio_display_dmabuf_update(void *opaque)
     }
 }
 
+static int vfio_display_get_flags(void *opaque)
+{
+    return GRAPHIC_FLAGS_GL | GRAPHIC_FLAGS_DMABUF;
+}
+
 static const GraphicHwOps vfio_display_dmabuf_ops = {
+    .get_flags  = vfio_display_get_flags,
     .gfx_update = vfio_display_dmabuf_update,
     .ui_info    = vfio_display_edid_ui_info,
 };
@@ -405,6 +407,7 @@ static void vfio_display_region_update(void *opaque)
     if (!plane.drm_format || !plane.size) {
         if (dpy->ramfb) {
             ramfb_display_update(dpy->con, dpy->ramfb);
+            dpy->region.surface = NULL;
         }
         return;
     }

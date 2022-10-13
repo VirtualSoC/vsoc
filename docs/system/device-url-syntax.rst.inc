@@ -15,7 +15,7 @@ These are specified using a special URL syntax.
    'iqn.2008-11.org.linux-kvm[:<name>]' but this can also be set from
    the command line or a configuration file.
 
-   Since version Qemu 2.4 it is possible to specify a iSCSI request
+   Since version QEMU 2.4 it is possible to specify a iSCSI request
    timeout to detect stalled requests and force a reestablishment of the
    session. The timeout is specified in seconds. The default is 0 which
    means no timeout. Libiscsi 1.15.0 or greater is required for this
@@ -25,8 +25,8 @@ These are specified using a special URL syntax.
 
    .. parsed-literal::
 
-      |qemu_system| -iscsi initiator-name=iqn.2001-04.com.example:my-initiator \
-                       -cdrom iscsi://192.0.2.1/iqn.2001-04.com.example/2 \
+      |qemu_system| -iscsi initiator-name=iqn.2001-04.com.example:my-initiator \\
+                       -cdrom iscsi://192.0.2.1/iqn.2001-04.com.example/2 \\
                        -drive file=iscsi://192.0.2.1/iqn.2001-04.com.example/1
 
    Example (CHAP username/password via URL):
@@ -39,8 +39,8 @@ These are specified using a special URL syntax.
 
    .. parsed-literal::
 
-      LIBISCSI_CHAP_USERNAME="user" \
-      LIBISCSI_CHAP_PASSWORD="password" \
+      LIBISCSI_CHAP_USERNAME="user" \\
+      LIBISCSI_CHAP_PASSWORD="password" \\
       |qemu_system| -drive file=iscsi://192.0.2.1/iqn.2001-04.com.example/1
 
 ``NBD``
@@ -84,24 +84,6 @@ These are specified using a special URL syntax.
 
    Currently authentication must be done using ssh-agent. Other
    authentication methods may be supported in future.
-
-``Sheepdog``
-   Sheepdog is a distributed storage system for QEMU. QEMU supports
-   using either local sheepdog devices or remote networked devices.
-
-   Syntax for specifying a sheepdog device
-
-   ::
-
-      sheepdog[+tcp|+unix]://[host:port]/vdiname[?socket=path][#snapid|#tag]
-
-   Example
-
-   .. parsed-literal::
-
-      |qemu_system| --drive file=sheepdog://192.0.2.1:30000/MyVirtualMachine
-
-   See also https://sheepdog.github.io/sheepdog/.
 
 ``GlusterFS``
    GlusterFS is a user space distributed file system. QEMU supports the

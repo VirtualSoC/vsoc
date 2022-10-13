@@ -286,7 +286,8 @@ static void handle_sdl(Audiodev *dev)
 {
     /* SDL is output only */
     get_samples_to_usecs("QEMU_SDL_SAMPLES", &dev->u.sdl.out->buffer_length,
-                         &dev->u.sdl.out->has_buffer_length, dev->u.sdl.out);
+        &dev->u.sdl.out->has_buffer_length,
+        qapi_AudiodevSdlPerDirectionOptions_base(dev->u.sdl.out));
 }
 
 /* wav */
@@ -327,8 +328,8 @@ static void handle_per_direction(
 
 static AudiodevListEntry *legacy_opt(const char *drvname)
 {
-    AudiodevListEntry *e = g_malloc0(sizeof(AudiodevListEntry));
-    e->dev = g_malloc0(sizeof(Audiodev));
+    AudiodevListEntry *e = g_new0(AudiodevListEntry, 1);
+    e->dev = g_new0(Audiodev, 1);
     e->dev->id = g_strdup(drvname);
     e->dev->driver = qapi_enum_parse(
         &AudiodevDriver_lookup, drvname, -1, &error_abort);
@@ -421,11 +422,12 @@ typedef struct {
     GList *path;
 } LegacyPrintVisitor;
 
-static void lv_start_struct(Visitor *v, const char *name, void **obj,
+static bool lv_start_struct(Visitor *v, const char *name, void **obj,
                             size_t size, Error **errp)
 {
     LegacyPrintVisitor *lv = (LegacyPrintVisitor *) v;
     lv->path = g_list_append(lv->path, g_strdup(name));
+    return true;
 }
 
 static void lv_end_struct(Visitor *v, void **obj)
@@ -453,27 +455,30 @@ static void lv_print_key(Visitor *v, const char *name)
     printf("%s=", name);
 }
 
-static void lv_type_int64(Visitor *v, const char *name, int64_t *obj,
+static bool lv_type_int64(Visitor *v, const char *name, int64_t *obj,
                           Error **errp)
 {
     lv_print_key(v, name);
     printf("%" PRIi64, *obj);
+    return true;
 }
 
-static void lv_type_uint64(Visitor *v, const char *name, uint64_t *obj,
+static bool lv_type_uint64(Visitor *v, const char *name, uint64_t *obj,
                            Error **errp)
 {
     lv_print_key(v, name);
     printf("%" PRIu64, *obj);
+    return true;
 }
 
-static void lv_type_bool(Visitor *v, const char *name, bool *obj, Error **errp)
+static bool lv_type_bool(Visitor *v, const char *name, bool *obj, Error **errp)
 {
     lv_print_key(v, name);
     printf("%s", *obj ? "on" : "off");
+    return true;
 }
 
-static void lv_type_str(Visitor *v, const char *name, char **obj, Error **errp)
+static bool lv_type_str(Visitor *v, const char *name, char **obj, Error **errp)
 {
     const char *str = *obj;
     lv_print_key(v, name);
@@ -484,6 +489,7 @@ static void lv_type_str(Visitor *v, const char *name, char **obj, Error **errp)
         }
         putchar(*str++);
     }
+    return true;
 }
 
 static void lv_complete(Visitor *v, void *opaque)
@@ -502,7 +508,7 @@ static void lv_free(Visitor *v)
 
 static Visitor *legacy_visitor_new(void)
 {
-    LegacyPrintVisitor *lv = g_malloc0(sizeof(LegacyPrintVisitor));
+    LegacyPrintVisitor *lv = g_new0(LegacyPrintVisitor, 1);
 
     lv->visitor.start_struct = lv_start_struct;
     lv->visitor.end_struct = lv_end_struct;

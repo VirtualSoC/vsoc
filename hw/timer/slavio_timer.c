@@ -31,6 +31,7 @@
 #include "migration/vmstate.h"
 #include "trace.h"
 #include "qemu/module.h"
+#include "qom/object.h"
 
 /*
  * Registers of hardware timer in sun4m.
@@ -59,16 +60,15 @@ typedef struct CPUTimerState {
 } CPUTimerState;
 
 #define TYPE_SLAVIO_TIMER "slavio_timer"
-#define SLAVIO_TIMER(obj) \
-    OBJECT_CHECK(SLAVIO_TIMERState, (obj), TYPE_SLAVIO_TIMER)
+OBJECT_DECLARE_SIMPLE_TYPE(SLAVIO_TIMERState, SLAVIO_TIMER)
 
-typedef struct SLAVIO_TIMERState {
+struct SLAVIO_TIMERState {
     SysBusDevice parent_obj;
 
     uint32_t num_cpus;
     uint32_t cputimer_mode;
     CPUTimerState cputimer[MAX_CPUS + 1];
-} SLAVIO_TIMERState;
+};
 
 typedef struct TimerContext {
     MemoryRegion iomem;
@@ -332,6 +332,10 @@ static const MemoryRegionOps slavio_timer_mem_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
     .valid = {
         .min_access_size = 4,
+        .max_access_size = 8,
+    },
+    .impl = {
+        .min_access_size = 4,
         .max_access_size = 4,
     },
 };
@@ -396,12 +400,12 @@ static void slavio_timer_init(Object *obj)
         uint64_t size;
         char timer_name[20];
 
-        tc = g_malloc0(sizeof(TimerContext));
+        tc = g_new0(TimerContext, 1);
         tc->s = s;
         tc->timer_index = i;
 
         s->cputimer[i].timer = ptimer_init(slavio_timer_irq, tc,
-                                           PTIMER_POLICY_DEFAULT);
+                                           PTIMER_POLICY_LEGACY);
         ptimer_transaction_begin(s->cputimer[i].timer);
         ptimer_set_period(s->cputimer[i].timer, TIMER_PERIOD);
         ptimer_transaction_commit(s->cputimer[i].timer);

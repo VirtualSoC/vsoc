@@ -18,13 +18,12 @@
 #include "qapi/qmp/qerror.h"
 #include "qemu/base64.h"
 #include "qemu/cutils.h"
-#include "qemu/atomic.h"
 #include "commands-common.h"
 
 /* Maximum captured guest-exec out_data/err_data - 16MB */
-#define GUEST_EXEC_MAX_OUTPUT (16*1024*1024)
+#define GUEST_EXEC_MAX_OUTPUT (16 * 1024 * 1024)
 /* Allocation and I/O buffer for reading guest-exec out_data/err_data - 4KB */
-#define GUEST_EXEC_IO_SIZE (4*1024)
+#define GUEST_EXEC_IO_SIZE (4 * 1024)
 /*
  * Maximum file size to read - 48MB
  *
@@ -66,17 +65,13 @@ static void qmp_command_info(const QmpCommand *cmd, void *opaque)
 {
     GuestAgentInfo *info = opaque;
     GuestAgentCommandInfo *cmd_info;
-    GuestAgentCommandInfoList *cmd_info_list;
 
     cmd_info = g_new0(GuestAgentCommandInfo, 1);
     cmd_info->name = g_strdup(qmp_command_name(cmd));
     cmd_info->enabled = qmp_command_is_enabled(cmd);
     cmd_info->success_response = qmp_has_success_response(cmd);
 
-    cmd_info_list = g_new0(GuestAgentCommandInfoList, 1);
-    cmd_info_list->value = cmd_info;
-    cmd_info_list->next = info->supported_commands;
-    info->supported_commands = cmd_info_list;
+    QAPI_LIST_PREPEND(info->supported_commands, cmd_info);
 }
 
 struct GuestAgentInfo *qmp_guest_info(Error **errp)
@@ -166,13 +161,12 @@ GuestExecStatus *qmp_guest_exec_status(int64_t pid, Error **errp)
 
     ges = g_new0(GuestExecStatus, 1);
 
-    bool finished = atomic_mb_read(&gei->finished);
+    bool finished = gei->finished;
 
     /* need to wait till output channels are closed
      * to be sure we captured all output at this point */
     if (gei->has_output) {
-        finished = finished && atomic_mb_read(&gei->out.closed);
-        finished = finished && atomic_mb_read(&gei->err.closed);
+        finished &= gei->out.closed && gei->err.closed;
     }
 
     ges->exited = finished;
@@ -248,7 +242,7 @@ static char **guest_exec_get_args(const strList *entry, bool log)
 
     str = g_malloc(str_size);
     *str = 0;
-    args = g_malloc(count * sizeof(char *));
+    args = g_new(char *, count);
     for (it = entry; it != NULL; it = it->next) {
         args[i++] = it->value;
         pstrcat(str, str_size, it->value);
@@ -274,7 +268,7 @@ static void guest_exec_child_watch(GPid pid, gint status, gpointer data)
             (int32_t)gpid_to_int64(pid), (uint32_t)status);
 
     gei->status = status;
-    atomic_mb_set(&gei->finished, true);
+    gei->finished = true;
 
     g_spawn_close_pid(pid);
 }
@@ -330,7 +324,7 @@ static gboolean guest_exec_input_watch(GIOChannel *ch,
 done:
     g_io_channel_shutdown(ch, true, NULL);
     g_io_channel_unref(ch);
-    atomic_mb_set(&p->closed, true);
+    p->closed = true;
     g_free(p->data);
 
     return false;
@@ -384,7 +378,7 @@ static gboolean guest_exec_output_watch(GIOChannel *ch,
 close:
     g_io_channel_shutdown(ch, true, NULL);
     g_io_channel_unref(ch);
-    atomic_mb_set(&p->closed, true);
+    p->closed = true;
     return false;
 }
 
@@ -406,7 +400,7 @@ GuestExec *qmp_guest_exec(const char *path,
     GIOChannel *in_ch, *out_ch, *err_ch;
     GSpawnFlags flags;
     bool has_output = (has_capture_output && capture_output);
-    uint8_t *input = NULL;
+    g_autofree uint8_t *input = NULL;
     size_t ninput = 0;
 
     arglist.value = (char *)path;
@@ -445,7 +439,7 @@ GuestExec *qmp_guest_exec(const char *path,
     g_child_watch_add(pid, guest_exec_child_watch, gei);
 
     if (has_input_data) {
-        gei->in.data = input;
+        gei->in.data = g_steal_pointer(&input);
         gei->in.size = ninput;
 #ifdef G_OS_WIN32
         in_ch = g_io_channel_win32_new_fd(in_fd);
@@ -515,11 +509,20 @@ int ga_parse_whence(GuestFileWhence *whence, Error **errp)
 GuestHostName *qmp_guest_get_host_name(Error **errp)
 {
     GuestHostName *result = NULL;
-    gchar const *hostname = g_get_host_name();
-    if (hostname != NULL) {
-        result = g_new0(GuestHostName, 1);
-        result->host_name = g_strdup(hostname);
+    g_autofree char *hostname = qga_get_host_name(errp);
+
+    /*
+     * We want to avoid using g_get_host_name() because that
+     * caches the result and we wouldn't reflect changes in the
+     * host name.
+     */
+
+    if (!hostname) {
+        hostname = g_strdup("localhost");
     }
+
+    result = g_new0(GuestHostName, 1);
+    result->host_name = g_steal_pointer(&hostname);
     return result;
 }
 
@@ -579,4 +582,9 @@ GuestFileRead *qmp_guest_file_read(int64_t handle, bool has_count,
     }
 
     return read_data;
+}
+
+int64_t qmp_guest_get_time(Error **errp)
+{
+    return g_get_real_time() * 1000;
 }

@@ -232,7 +232,7 @@ static void mss_timer_init(Object *obj)
     for (i = 0; i < NUM_TIMERS; i++) {
         struct Msf2Timer *st = &t->timers[i];
 
-        st->ptimer = ptimer_init(timer_hit, st, PTIMER_POLICY_DEFAULT);
+        st->ptimer = ptimer_init(timer_hit, st, PTIMER_POLICY_LEGACY);
         ptimer_transaction_begin(st->ptimer);
         ptimer_set_freq(st->ptimer, t->freq_hz);
         ptimer_transaction_commit(st->ptimer);
@@ -242,6 +242,18 @@ static void mss_timer_init(Object *obj)
     memory_region_init_io(&t->mmio, OBJECT(t), &timer_ops, t, TYPE_MSS_TIMER,
                           NUM_TIMERS * R_TIM1_MAX * 4);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &t->mmio);
+}
+
+static void mss_timer_finalize(Object *obj)
+{
+    MSSTimerState *t = MSS_TIMER(obj);
+    int i;
+
+    for (i = 0; i < NUM_TIMERS; i++) {
+        struct Msf2Timer *st = &t->timers[i];
+
+        ptimer_free(st->ptimer);
+    }
 }
 
 static const VMStateDescription vmstate_timers = {
@@ -287,6 +299,7 @@ static const TypeInfo mss_timer_info = {
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(MSSTimerState),
     .instance_init = mss_timer_init,
+    .instance_finalize = mss_timer_finalize,
     .class_init    = mss_timer_class_init,
 };
 

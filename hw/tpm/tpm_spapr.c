@@ -20,17 +20,19 @@
 #include "migration/vmstate.h"
 
 #include "sysemu/tpm_backend.h"
-#include "tpm_int.h"
-#include "tpm_util.h"
+#include "sysemu/tpm_util.h"
+#include "tpm_prop.h"
 
 #include "hw/ppc/spapr.h"
 #include "hw/ppc/spapr_vio.h"
 #include "trace.h"
+#include "qom/object.h"
 
 #define DEBUG_SPAPR 0
 
-#define VIO_SPAPR_VTPM(obj) \
-     OBJECT_CHECK(SpaprTpmState, (obj), TYPE_TPM_SPAPR)
+typedef struct SpaprTpmState SpaprTpmState;
+DECLARE_INSTANCE_CHECKER(SpaprTpmState, VIO_SPAPR_VTPM,
+                         TYPE_TPM_SPAPR)
 
 typedef struct TpmCrq {
     uint8_t valid;  /* 0x80: cmd; 0xc0: init crq */
@@ -64,7 +66,7 @@ typedef struct TpmCrq {
 
 #define TPM_SPAPR_BUFFER_MAX                 4096
 
-typedef struct {
+struct SpaprTpmState {
     SpaprVioDevice vdev;
 
     TpmCrq crq; /* track single TPM command */
@@ -84,16 +86,14 @@ typedef struct {
     TPMVersion be_tpm_version;
 
     size_t be_buffer_size;
-} SpaprTpmState;
+};
 
 /*
  * Send a request to the TPM.
  */
 static void tpm_spapr_tpm_send(SpaprTpmState *s)
 {
-    if (trace_event_get_state_backends(TRACE_TPM_SPAPR_SHOW_BUFFER)) {
-        tpm_util_show_buffer(s->buffer, s->be_buffer_size, "To TPM");
-    }
+    tpm_util_show_buffer(s->buffer, s->be_buffer_size, "To TPM");
 
     s->state = SPAPR_VTPM_STATE_EXECUTION;
     s->cmd = (TPMBackendCmd) {
@@ -253,9 +253,7 @@ static void tpm_spapr_request_completed(TPMIf *ti, int ret)
     rc = spapr_vio_dma_write(&s->vdev, be32_to_cpu(crq->data),
                              s->buffer, len);
 
-    if (trace_event_get_state_backends(TRACE_TPM_SPAPR_SHOW_BUFFER)) {
-        tpm_util_show_buffer(s->buffer, len, "From TPM");
-    }
+    tpm_util_show_buffer(s->buffer, len, "From TPM");
 
     crq->valid = SPAPR_VTPM_MSG_RESULT;
     if (rc == H_SUCCESS) {
@@ -306,7 +304,10 @@ static void tpm_spapr_reset(SpaprVioDevice *dev)
                             TPM_SPAPR_BUFFER_MAX);
 
     tpm_backend_reset(s->be_driver);
-    tpm_spapr_do_startup_tpm(s, s->be_buffer_size);
+
+    if (tpm_spapr_do_startup_tpm(s, s->be_buffer_size) < 0) {
+        exit(1);
+    }
 }
 
 static enum TPMVersion tpm_spapr_get_version(TPMIf *ti)

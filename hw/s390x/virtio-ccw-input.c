@@ -1,5 +1,5 @@
 /*
- * virtio ccw scsi implementation
+ * virtio ccw input implementation
  *
  * Copyright 2012, 2015 IBM Corp.
  *
@@ -14,14 +14,33 @@
 #include "qapi/error.h"
 #include "qemu/module.h"
 #include "virtio-ccw.h"
+#include "hw/virtio/virtio-input.h"
+
+#define TYPE_VIRTIO_INPUT_CCW "virtio-input-ccw"
+OBJECT_DECLARE_SIMPLE_TYPE(VirtIOInputCcw, VIRTIO_INPUT_CCW)
+
+struct VirtIOInputCcw {
+    VirtioCcwDevice parent_obj;
+    VirtIOInput vdev;
+};
+
+#define TYPE_VIRTIO_INPUT_HID_CCW "virtio-input-hid-ccw"
+#define TYPE_VIRTIO_KEYBOARD_CCW "virtio-keyboard-ccw"
+#define TYPE_VIRTIO_MOUSE_CCW "virtio-mouse-ccw"
+#define TYPE_VIRTIO_TABLET_CCW "virtio-tablet-ccw"
+OBJECT_DECLARE_SIMPLE_TYPE(VirtIOInputHIDCcw, VIRTIO_INPUT_HID_CCW)
+
+struct VirtIOInputHIDCcw {
+    VirtioCcwDevice parent_obj;
+    VirtIOInputHID vdev;
+};
 
 static void virtio_ccw_input_realize(VirtioCcwDevice *ccw_dev, Error **errp)
 {
     VirtIOInputCcw *dev = VIRTIO_INPUT_CCW(ccw_dev);
     DeviceState *vdev = DEVICE(&dev->vdev);
 
-    qdev_set_parent_bus(vdev, BUS(&ccw_dev->bus));
-    object_property_set_bool(OBJECT(vdev), true, "realized", errp);
+    qdev_realize(vdev, BUS(&ccw_dev->bus), errp);
 }
 
 static Property virtio_ccw_input_properties[] = {

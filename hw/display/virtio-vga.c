@@ -5,6 +5,7 @@
 #include "qapi/error.h"
 #include "qemu/module.h"
 #include "virtio-vga.h"
+#include "qom/object.h"
 
 static void virtio_vga_base_invalidate_display(void *opaque)
 {
@@ -12,7 +13,7 @@ static void virtio_vga_base_invalidate_display(void *opaque)
     VirtIOGPUBase *g = vvga->vgpu;
 
     if (g->enable) {
-        virtio_gpu_ops.invalidate(g);
+        g->hw_ops->invalidate(g);
     } else {
         vvga->vga.hw_ops->invalidate(&vvga->vga);
     }
@@ -24,7 +25,7 @@ static void virtio_vga_base_update_display(void *opaque)
     VirtIOGPUBase *g = vvga->vgpu;
 
     if (g->enable) {
-        virtio_gpu_ops.gfx_update(g);
+        g->hw_ops->gfx_update(g);
     } else {
         vvga->vga.hw_ops->gfx_update(&vvga->vga);
     }
@@ -36,8 +37,8 @@ static void virtio_vga_base_text_update(void *opaque, console_ch_t *chardata)
     VirtIOGPUBase *g = vvga->vgpu;
 
     if (g->enable) {
-        if (virtio_gpu_ops.text_update) {
-            virtio_gpu_ops.text_update(g, chardata);
+        if (g->hw_ops->text_update) {
+            g->hw_ops->text_update(g, chardata);
         }
     } else {
         if (vvga->vga.hw_ops->text_update) {
@@ -46,15 +47,14 @@ static void virtio_vga_base_text_update(void *opaque, console_ch_t *chardata)
     }
 }
 
-static int virtio_vga_base_ui_info(void *opaque, uint32_t idx, QemuUIInfo *info)
+static void virtio_vga_base_ui_info(void *opaque, uint32_t idx, QemuUIInfo *info)
 {
     VirtIOVGABase *vvga = opaque;
     VirtIOGPUBase *g = vvga->vgpu;
 
-    if (virtio_gpu_ops.ui_info) {
-        return virtio_gpu_ops.ui_info(g, idx, info);
+    if (g->hw_ops->ui_info) {
+        g->hw_ops->ui_info(g, idx, info);
     }
-    return -1;
 }
 
 static void virtio_vga_base_gl_block(void *opaque, bool block)
@@ -62,12 +62,21 @@ static void virtio_vga_base_gl_block(void *opaque, bool block)
     VirtIOVGABase *vvga = opaque;
     VirtIOGPUBase *g = vvga->vgpu;
 
-    if (virtio_gpu_ops.gl_block) {
-        virtio_gpu_ops.gl_block(g, block);
+    if (g->hw_ops->gl_block) {
+        g->hw_ops->gl_block(g, block);
     }
 }
 
+static int virtio_vga_base_get_flags(void *opaque)
+{
+    VirtIOVGABase *vvga = opaque;
+    VirtIOGPUBase *g = vvga->vgpu;
+
+    return g->hw_ops->get_flags(g);
+}
+
 static const GraphicHwOps virtio_vga_base_ops = {
+    .get_flags = virtio_vga_base_get_flags,
     .invalidate = virtio_vga_base_invalidate_display,
     .gfx_update = virtio_vga_base_update_display,
     .text_update = virtio_vga_base_text_update,
@@ -93,13 +102,14 @@ static void virtio_vga_base_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     VirtIOVGABase *vvga = VIRTIO_VGA_BASE(vpci_dev);
     VirtIOGPUBase *g = vvga->vgpu;
     VGACommonState *vga = &vvga->vga;
-    Error *err = NULL;
     uint32_t offset;
     int i;
 
     /* init vga compat bits */
     vga->vram_size_mb = 8;
-    vga_common_init(vga, OBJECT(vpci_dev));
+    if (!vga_common_init(vga, OBJECT(vpci_dev), errp)) {
+        return;
+    }
     vga_init(vga, OBJECT(vpci_dev), pci_address_space(&vpci_dev->pci_dev),
              pci_address_space_io(&vpci_dev->pci_dev), true);
     pci_register_bar(&vpci_dev->pci_dev, 0,
@@ -137,11 +147,8 @@ static void virtio_vga_base_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     vpci_dev->common.offset = offset;
 
     /* init virtio bits */
-    qdev_set_parent_bus(DEVICE(g), BUS(&vpci_dev->bus));
     virtio_pci_force_virtio_1(vpci_dev);
-    object_property_set_bool(OBJECT(g), true, "realized", &err);
-    if (err) {
-        error_propagate(errp, err);
+    if (!qdev_realize(DEVICE(g), BUS(&vpci_dev->bus), errp)) {
         return;
     }
 
@@ -153,9 +160,8 @@ static void virtio_vga_base_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     graphic_console_set_hwops(vga->con, &virtio_vga_base_ops, vvga);
 
     for (i = 0; i < g->conf.max_outputs; i++) {
-        object_property_set_link(OBJECT(g->scanout[i].con),
-                                 OBJECT(vpci_dev),
-                                 "device", errp);
+        object_property_set_link(OBJECT(g->scanout[i].con), "device",
+                                 OBJECT(vpci_dev), &error_abort);
     }
 }
 
@@ -170,6 +176,20 @@ static void virtio_vga_base_reset(DeviceState *dev)
     /* reset vga */
     vga_common_reset(&vvga->vga);
     vga_dirty_log_start(&vvga->vga);
+}
+
+static bool virtio_vga_get_big_endian_fb(Object *obj, Error **errp)
+{
+    VirtIOVGABase *d = VIRTIO_VGA_BASE(obj);
+
+    return d->vga.big_endian_fb;
+}
+
+static void virtio_vga_set_big_endian_fb(Object *obj, bool value, Error **errp)
+{
+    VirtIOVGABase *d = VIRTIO_VGA_BASE(obj);
+
+    d->vga.big_endian_fb = value;
 }
 
 static Property virtio_vga_base_properties[] = {
@@ -194,27 +214,35 @@ static void virtio_vga_base_class_init(ObjectClass *klass, void *data)
     k->realize = virtio_vga_base_realize;
     pcidev_k->romfile = "vgabios-virtio.bin";
     pcidev_k->class_id = PCI_CLASS_DISPLAY_VGA;
+
+    /* Expose framebuffer byteorder via QOM */
+    object_class_property_add_bool(klass, "big-endian-framebuffer",
+                                   virtio_vga_get_big_endian_fb,
+                                   virtio_vga_set_big_endian_fb);
 }
 
-static TypeInfo virtio_vga_base_info = {
+static const TypeInfo virtio_vga_base_info = {
     .name          = TYPE_VIRTIO_VGA_BASE,
     .parent        = TYPE_VIRTIO_PCI,
-    .instance_size = sizeof(struct VirtIOVGABase),
-    .class_size    = sizeof(struct VirtIOVGABaseClass),
+    .instance_size = sizeof(VirtIOVGABase),
+    .class_size    = sizeof(VirtIOVGABaseClass),
     .class_init    = virtio_vga_base_class_init,
     .abstract      = true,
 };
+module_obj(TYPE_VIRTIO_VGA_BASE);
+module_kconfig(VIRTIO_VGA);
 
 #define TYPE_VIRTIO_VGA "virtio-vga"
 
-#define VIRTIO_VGA(obj)                             \
-    OBJECT_CHECK(VirtIOVGA, (obj), TYPE_VIRTIO_VGA)
+typedef struct VirtIOVGA VirtIOVGA;
+DECLARE_INSTANCE_CHECKER(VirtIOVGA, VIRTIO_VGA,
+                         TYPE_VIRTIO_VGA)
 
-typedef struct VirtIOVGA {
+struct VirtIOVGA {
     VirtIOVGABase parent_obj;
 
     VirtIOGPU     vdev;
-} VirtIOVGA;
+};
 
 static void virtio_vga_inst_initfn(Object *obj)
 {
@@ -229,9 +257,10 @@ static void virtio_vga_inst_initfn(Object *obj)
 static VirtioPCIDeviceTypeInfo virtio_vga_info = {
     .generic_name  = TYPE_VIRTIO_VGA,
     .parent        = TYPE_VIRTIO_VGA_BASE,
-    .instance_size = sizeof(struct VirtIOVGA),
+    .instance_size = sizeof(VirtIOVGA),
     .instance_init = virtio_vga_inst_initfn,
 };
+module_obj(TYPE_VIRTIO_VGA);
 
 static void virtio_vga_register_types(void)
 {

@@ -8,9 +8,11 @@
 #include "hw/mem/pc-dimm.h"
 #include "hw/ppc/spapr_ovec.h"
 #include "hw/ppc/spapr_irq.h"
+#include "qom/object.h"
 #include "hw/ppc/spapr_xive.h"  /* For SpaprXive */
 #include "hw/ppc/xics.h"        /* For ICSState */
 #include "hw/ppc/spapr_tpm_proxy.h"
+#include "hw/ppc/vof.h"
 
 struct SpaprVioBus;
 struct SpaprPhbState;
@@ -27,10 +29,8 @@ typedef struct SpaprPendingHpt SpaprPendingHpt;
 
 #define TYPE_SPAPR_RTC "spapr-rtc"
 
-#define SPAPR_RTC(obj)                                  \
-    OBJECT_CHECK(SpaprRtcState, (obj), TYPE_SPAPR_RTC)
+OBJECT_DECLARE_SIMPLE_TYPE(SpaprRtcState, SPAPR_RTC)
 
-typedef struct SpaprRtcState SpaprRtcState;
 struct SpaprRtcState {
     /*< private >*/
     DeviceState parent_obj;
@@ -38,15 +38,9 @@ struct SpaprRtcState {
 };
 
 typedef struct SpaprDimmState SpaprDimmState;
-typedef struct SpaprMachineClass SpaprMachineClass;
 
 #define TYPE_SPAPR_MACHINE      "spapr-machine"
-#define SPAPR_MACHINE(obj) \
-    OBJECT_CHECK(SpaprMachineState, (obj), TYPE_SPAPR_MACHINE)
-#define SPAPR_MACHINE_GET_CLASS(obj) \
-    OBJECT_GET_CLASS(SpaprMachineClass, obj, TYPE_SPAPR_MACHINE)
-#define SPAPR_MACHINE_CLASS(klass) \
-    OBJECT_CLASS_CHECK(SpaprMachineClass, klass, TYPE_SPAPR_MACHINE)
+OBJECT_DECLARE_TYPE(SpaprMachineState, SpaprMachineClass, SPAPR_MACHINE)
 
 typedef enum {
     SPAPR_RESIZE_HPT_DEFAULT = 0,
@@ -81,8 +75,10 @@ typedef enum {
 #define SPAPR_CAP_CCF_ASSIST            0x09
 /* Implements PAPR FWNMI option */
 #define SPAPR_CAP_FWNMI                 0x0A
+/* Support H_RPT_INVALIDATE */
+#define SPAPR_CAP_RPT_INVALIDATE        0x0B
 /* Num Caps */
-#define SPAPR_CAP_NUM                   (SPAPR_CAP_FWNMI + 1)
+#define SPAPR_CAP_NUM                   (SPAPR_CAP_RPT_INVALIDATE + 1)
 
 /*
  * Capability Values
@@ -102,7 +98,32 @@ typedef enum {
 #define SPAPR_CAP_FIXED_CCD             0x03
 #define SPAPR_CAP_FIXED_NA              0x10 /* Lets leave a bit of a gap... */
 
-#define FDT_MAX_SIZE                    0x100000
+#define FDT_MAX_SIZE                    0x200000
+
+/* Max number of GPUs per system */
+#define NVGPU_MAX_NUM              6
+
+/* Max number of NUMA nodes */
+#define NUMA_NODES_MAX_NUM         (MAX_NODES + NVGPU_MAX_NUM)
+
+/*
+ * NUMA FORM1 macros. FORM1_DIST_REF_POINTS was taken from
+ * MAX_DISTANCE_REF_POINTS in arch/powerpc/mm/numa.h from Linux
+ * kernel source. It represents the amount of associativity domains
+ * for non-CPU resources.
+ *
+ * FORM1_NUMA_ASSOC_SIZE is the base array size of an ibm,associativity
+ * array for any non-CPU resource.
+ */
+#define FORM1_DIST_REF_POINTS            4
+#define FORM1_NUMA_ASSOC_SIZE            (FORM1_DIST_REF_POINTS + 1)
+
+/*
+ * FORM2 NUMA affinity has a single associativity domain, giving
+ * us a assoc size of 2.
+ */
+#define FORM2_DIST_REF_POINTS            1
+#define FORM2_NUMA_ASSOC_SIZE            (FORM2_DIST_REF_POINTS + 1)
 
 typedef struct SpaprCapabilities SpaprCapabilities;
 struct SpaprCapabilities {
@@ -129,9 +150,12 @@ struct SpaprMachineClass {
     bool linux_pci_probe;
     bool smp_threads_vsmt; /* set VSMT to smp_threads by default */
     hwaddr rma_limit;          /* clamp the RMA to this size */
+    bool pre_5_1_assoc_refpoints;
+    bool pre_5_2_numa_associativity;
+    bool pre_6_2_numa_affinity;
 
-    void (*phb_placement)(SpaprMachineState *spapr, uint32_t index,
-                          uint64_t *buid, hwaddr *pio, 
+    bool (*phb_placement)(SpaprMachineState *spapr, uint32_t index,
+                          uint64_t *buid, hwaddr *pio,
                           hwaddr *mmio32, hwaddr *mmio64,
                           unsigned n_dma, uint32_t *liobns, hwaddr *nv2gpa,
                           hwaddr *nv2atsd, Error **errp);
@@ -139,6 +163,21 @@ struct SpaprMachineClass {
     SpaprCapabilities default_caps;
     SpaprIrq *irq;
 };
+
+#define WDT_MAX_WATCHDOGS       4      /* Maximum number of watchdog devices */
+
+#define TYPE_SPAPR_WDT "spapr-wdt"
+OBJECT_DECLARE_SIMPLE_TYPE(SpaprWatchdog, SPAPR_WDT)
+
+typedef struct SpaprWatchdog {
+    /*< private >*/
+    DeviceState parent_obj;
+    /*< public >*/
+
+    QEMUTimer timer;
+    uint8_t action;         /* One of PSERIES_WDTF_ACTION_xxx */
+    uint8_t leave_others;   /* leaveOtherWatchdogsRunningOnTimeout */
+} SpaprWatchdog;
 
 /**
  * SpaprMachineState:
@@ -155,7 +194,7 @@ struct SpaprMachineState {
     SpaprResizeHpt resize_hpt;
     void *htab;
     uint32_t htab_shift;
-    uint64_t patb_entry; /* Process tbl registed in H_REGISTER_PROCESS_TABLE */
+    uint64_t patb_entry; /* Process tbl registed in H_REGISTER_PROC_TBL */
     SpaprPendingHpt *pending_hpt; /* in-progress resize */
 
     hwaddr rma_size;
@@ -167,10 +206,14 @@ struct SpaprMachineState {
     uint64_t kernel_addr;
     uint32_t initrd_base;
     long initrd_size;
+    Vof *vof;
     uint64_t rtc_offset; /* Now used only during incoming migration */
     struct PPCTimebase tb;
-    bool has_graphics;
+    bool want_stdout_path;
     uint32_t vsmt;       /* Virtual SMT mode (KVM's "core stride") */
+
+    /* Nested HV support (TCG only) */
+    uint64_t nested_ptcr;
 
     Notifier epow_notifier;
     QTAILQ_HEAD(, SpaprEventLogEntry) pending_events;
@@ -210,6 +253,9 @@ struct SpaprMachineState {
     int fwnmi_machine_check_interlock;
     QemuCond fwnmi_machine_check_interlock_cond;
 
+    /* Set by -boot */
+    char *boot_device;
+
     /*< public >*/
     char *kvm_type;
     char *host_model;
@@ -229,7 +275,12 @@ struct SpaprMachineState {
     unsigned gpu_numa_id;
     SpaprTpmProxy *tpm_proxy;
 
+    uint32_t FORM1_assoc_array[NUMA_NODES_MAX_NUM][FORM1_NUMA_ASSOC_SIZE];
+    uint32_t FORM2_assoc_array[NUMA_NODES_MAX_NUM][FORM2_NUMA_ASSOC_SIZE];
+
     Error *fwnmi_migration_blocker;
+
+    SpaprWatchdog wds[WDT_MAX_WATCHDOGS];
 };
 
 #define H_SUCCESS         0
@@ -310,6 +361,8 @@ struct SpaprMachineState {
 #define H_P7              -60
 #define H_P8              -61
 #define H_P9              -62
+#define H_NOOP            -63
+#define H_UNSUPPORTED     -67
 #define H_OVERLAP         -68
 #define H_UNSUPPORTED_FLAG -256
 #define H_MULTI_THREADS_ACTIVE -9005
@@ -348,7 +401,7 @@ struct SpaprMachineState {
 
 /* Values for 2nd argument to H_SET_MODE */
 #define H_SET_MODE_RESOURCE_SET_CIABR           1
-#define H_SET_MODE_RESOURCE_SET_DAWR            2
+#define H_SET_MODE_RESOURCE_SET_DAWR0           2
 #define H_SET_MODE_RESOURCE_ADDR_TRANS_MODE     3
 #define H_SET_MODE_RESOURCE_LE                  4
 
@@ -380,10 +433,13 @@ struct SpaprMachineState {
 #define H_CPU_CHAR_THR_RECONF_TRIG              PPC_BIT(6)
 #define H_CPU_CHAR_CACHE_COUNT_DIS              PPC_BIT(7)
 #define H_CPU_CHAR_BCCTR_FLUSH_ASSIST           PPC_BIT(9)
+
 #define H_CPU_BEHAV_FAVOUR_SECURITY             PPC_BIT(0)
 #define H_CPU_BEHAV_L1D_FLUSH_PR                PPC_BIT(1)
 #define H_CPU_BEHAV_BNDS_CHK_SPEC_BAR           PPC_BIT(2)
 #define H_CPU_BEHAV_FLUSH_COUNT_CACHE           PPC_BIT(5)
+#define H_CPU_BEHAV_NO_L1D_FLUSH_ENTRY          PPC_BIT(7)
+#define H_CPU_BEHAV_NO_L1D_FLUSH_UACCESS        PPC_BIT(8)
 
 /* Each control block has to be on a 4K boundary */
 #define H_CB_ALIGNMENT     4096
@@ -523,8 +579,12 @@ struct SpaprMachineState {
 #define H_SCM_BIND_MEM          0x3EC
 #define H_SCM_UNBIND_MEM        0x3F0
 #define H_SCM_UNBIND_ALL        0x3FC
+#define H_SCM_HEALTH            0x400
+#define H_RPT_INVALIDATE        0x448
+#define H_SCM_FLUSH             0x44C
+#define H_WATCHDOG              0x45C
 
-#define MAX_HCALL_OPCODE        H_SCM_UNBIND_ALL
+#define MAX_HCALL_OPCODE        H_WATCHDOG
 
 /* The hcalls above are standardized in PAPR and implemented by pHyp
  * as well.
@@ -539,7 +599,16 @@ struct SpaprMachineState {
 /* Client Architecture support */
 #define KVMPPC_H_CAS            (KVMPPC_HCALL_BASE + 0x2)
 #define KVMPPC_H_UPDATE_DT      (KVMPPC_HCALL_BASE + 0x3)
-#define KVMPPC_HCALL_MAX        KVMPPC_H_UPDATE_DT
+/* 0x4 was used for KVMPPC_H_UPDATE_PHANDLE in SLOF */
+#define KVMPPC_H_VOF_CLIENT     (KVMPPC_HCALL_BASE + 0x5)
+
+/* Platform-specific hcalls used for nested HV KVM */
+#define KVMPPC_H_SET_PARTITION_TABLE   (KVMPPC_HCALL_BASE + 0x800)
+#define KVMPPC_H_ENTER_NESTED          (KVMPPC_HCALL_BASE + 0x804)
+#define KVMPPC_H_TLB_INVALIDATE        (KVMPPC_HCALL_BASE + 0x808)
+#define KVMPPC_H_COPY_TOFROM_GUEST     (KVMPPC_HCALL_BASE + 0x80C)
+
+#define KVMPPC_HCALL_MAX        KVMPPC_H_COPY_TOFROM_GUEST
 
 /*
  * The hcall range 0xEF00 to 0xEF80 is reserved for use in facilitating
@@ -549,6 +618,65 @@ struct SpaprMachineState {
 #define SVM_H_TPM_COMM              0xEF10
 #define SVM_HCALL_MAX               SVM_H_TPM_COMM
 
+/*
+ * Register state for entering a nested guest with H_ENTER_NESTED.
+ * New member must be added at the end.
+ */
+struct kvmppc_hv_guest_state {
+    uint64_t version;      /* version of this structure layout, must be first */
+    uint32_t lpid;
+    uint32_t vcpu_token;
+    /* These registers are hypervisor privileged (at least for writing) */
+    uint64_t lpcr;
+    uint64_t pcr;
+    uint64_t amor;
+    uint64_t dpdes;
+    uint64_t hfscr;
+    int64_t tb_offset;
+    uint64_t dawr0;
+    uint64_t dawrx0;
+    uint64_t ciabr;
+    uint64_t hdec_expiry;
+    uint64_t purr;
+    uint64_t spurr;
+    uint64_t ic;
+    uint64_t vtb;
+    uint64_t hdar;
+    uint64_t hdsisr;
+    uint64_t heir;
+    uint64_t asdr;
+    /* These are OS privileged but need to be set late in guest entry */
+    uint64_t srr0;
+    uint64_t srr1;
+    uint64_t sprg[4];
+    uint64_t pidr;
+    uint64_t cfar;
+    uint64_t ppr;
+    /* Version 1 ends here */
+    uint64_t dawr1;
+    uint64_t dawrx1;
+    /* Version 2 ends here */
+};
+
+/* Latest version of hv_guest_state structure */
+#define HV_GUEST_STATE_VERSION  2
+
+/* Linux 64-bit powerpc pt_regs struct, used by nested HV */
+struct kvmppc_pt_regs {
+    uint64_t gpr[32];
+    uint64_t nip;
+    uint64_t msr;
+    uint64_t orig_gpr3;    /* Used for restarting system calls */
+    uint64_t ctr;
+    uint64_t link;
+    uint64_t xer;
+    uint64_t ccr;
+    uint64_t softe;        /* Soft enabled/disabled */
+    uint64_t trap;         /* Reason for being here */
+    uint64_t dar;          /* Fault registers */
+    uint64_t dsisr;        /* on 4xx/Book-E used for ESR */
+    uint64_t result;       /* Result of a system call */
+};
 
 typedef struct SpaprDeviceTreeUpdateHeader {
     uint32_t version_id;
@@ -567,10 +695,14 @@ void spapr_register_hypercall(target_ulong opcode, spapr_hcall_fn fn);
 target_ulong spapr_hypercall(PowerPCCPU *cpu, target_ulong opcode,
                              target_ulong *args);
 
-target_ulong do_client_architecture_support(PowerPCCPU *cpu,
-                                            SpaprMachineState *spapr,
-                                            target_ulong addr,
-                                            target_ulong fdt_bufsize);
+void spapr_exit_nested(PowerPCCPU *cpu, int excp);
+
+target_ulong softmmu_resize_hpt_prepare(PowerPCCPU *cpu, SpaprMachineState *spapr,
+                                         target_ulong shift);
+target_ulong softmmu_resize_hpt_commit(PowerPCCPU *cpu, SpaprMachineState *spapr,
+                                        target_ulong flags, target_ulong shift);
+bool is_ram_address(SpaprMachineState *spapr, hwaddr addr);
+void push_sregs_to_kvm_pr(SpaprMachineState *spapr);
 
 /* Virtual Processor Area structure constants */
 #define VPA_MIN_SIZE           640
@@ -632,6 +764,7 @@ target_ulong do_client_architecture_support(PowerPCCPU *cpu,
 #define RTAS_DDW_PGSIZE_128M     0x20
 #define RTAS_DDW_PGSIZE_256M     0x40
 #define RTAS_DDW_PGSIZE_16G      0x80
+#define RTAS_DDW_PGSIZE_2M       0x100
 
 /* RTAS tokens */
 #define RTAS_TOKEN_BASE      0x2000
@@ -750,7 +883,7 @@ void spapr_load_rtas(SpaprMachineState *spapr, void *fdt, hwaddr addr);
 #define SPAPR_IS_PCI_LIOBN(liobn)   (!!((liobn) & 0x80000000))
 #define SPAPR_PCI_DMA_WINDOW_NUM(liobn) ((liobn) & 0xff)
 
-#define RTAS_SIZE               2048
+#define RTAS_MIN_SIZE           20 /* hv_rtas_size in SLOF */
 #define RTAS_ERROR_LOG_MAX      2048
 
 /* Offset from rtas-base where error log is placed */
@@ -768,15 +901,13 @@ static inline void spapr_dt_irq(uint32_t *intspec, int irq, bool is_lsi)
     intspec[1] = is_lsi ? cpu_to_be32(1) : 0;
 }
 
-typedef struct SpaprTceTable SpaprTceTable;
 
 #define TYPE_SPAPR_TCE_TABLE "spapr-tce-table"
-#define SPAPR_TCE_TABLE(obj) \
-    OBJECT_CHECK(SpaprTceTable, (obj), TYPE_SPAPR_TCE_TABLE)
+OBJECT_DECLARE_SIMPLE_TYPE(SpaprTceTable, SPAPR_TCE_TABLE)
 
 #define TYPE_SPAPR_IOMMU_MEMORY_REGION "spapr-iommu-memory-region"
-#define SPAPR_IOMMU_MEMORY_REGION(obj) \
-        OBJECT_CHECK(IOMMUMemoryRegion, (obj), TYPE_SPAPR_IOMMU_MEMORY_REGION)
+DECLARE_INSTANCE_CHECKER(IOMMUMemoryRegion, SPAPR_IOMMU_MEMORY_REGION,
+                         TYPE_SPAPR_IOMMU_MEMORY_REGION)
 
 struct SpaprTceTable {
     DeviceState parent;
@@ -790,6 +921,7 @@ struct SpaprTceTable {
     bool bypass;
     bool need_vfio;
     bool skipping_replay;
+    bool def_win;
     int fd;
     MemoryRegion root;
     IOMMUMemoryRegion iommu;
@@ -812,6 +944,7 @@ void spapr_dt_events(SpaprMachineState *sm, void *fdt);
 void close_htab_fd(SpaprMachineState *spapr);
 void spapr_setup_hpt(SpaprMachineState *spapr);
 void spapr_free_hpt(SpaprMachineState *spapr);
+void spapr_check_mmu_mode(bool guest_radix);
 SpaprTceTable *spapr_tce_new_table(DeviceState *owner, uint32_t liobn);
 void spapr_tce_table_enable(SpaprTceTable *tcet,
                             uint32_t page_shift, uint64_t bus_offset,
@@ -824,7 +957,7 @@ int spapr_dma_dt(void *fdt, int node_off, const char *propname,
                  uint32_t liobn, uint64_t window, uint32_t size);
 int spapr_tcet_dma_dt(void *fdt, int node_off, const char *propname,
                       SpaprTceTable *tcet);
-void spapr_pci_switch_vga(bool big_endian);
+void spapr_pci_switch_vga(SpaprMachineState *spapr, bool big_endian);
 void spapr_hotplug_req_add_by_index(SpaprDrc *drc);
 void spapr_hotplug_req_remove_by_index(SpaprDrc *drc);
 void spapr_hotplug_req_add_by_count(SpaprDrcType drc_type,
@@ -836,10 +969,10 @@ void spapr_hotplug_req_add_by_count_indexed(SpaprDrcType drc_type,
 void spapr_hotplug_req_remove_by_count_indexed(SpaprDrcType drc_type,
                                                uint32_t count, uint32_t index);
 int spapr_hpt_shift_for_ramsize(uint64_t ramsize);
-void spapr_reallocate_hpt(SpaprMachineState *spapr, int shift,
-                          Error **errp);
+int spapr_reallocate_hpt(SpaprMachineState *spapr, int shift, Error **errp);
 void spapr_clear_pending_events(SpaprMachineState *spapr);
 void spapr_clear_pending_hotplug_events(SpaprMachineState *spapr);
+void spapr_memory_unplug_rollback(SpaprMachineState *spapr, DeviceState *dev);
 int spapr_max_server_number(SpaprMachineState *spapr);
 void spapr_store_hpte(PowerPCCPU *cpu, hwaddr ptex,
                       uint64_t pte0, uint64_t pte1);
@@ -893,7 +1026,7 @@ void spapr_do_system_reset_on_cpu(CPUState *cs, run_on_cpu_data arg);
 #define HTAB_SIZE(spapr)        (1ULL << ((spapr)->htab_shift))
 
 int spapr_get_vcpu_id(PowerPCCPU *cpu);
-void spapr_set_vcpu_id(PowerPCCPU *cpu, int cpu_index, Error **errp);
+bool spapr_set_vcpu_id(PowerPCCPU *cpu, int cpu_index, Error **errp);
 PowerPCCPU *spapr_find_cpu(int vcpu_id);
 
 int spapr_caps_pre_load(void *opaque);
@@ -913,6 +1046,8 @@ extern const VMStateDescription vmstate_spapr_cap_nested_kvm_hv;
 extern const VMStateDescription vmstate_spapr_cap_large_decr;
 extern const VMStateDescription vmstate_spapr_cap_ccf_assist;
 extern const VMStateDescription vmstate_spapr_cap_fwnmi;
+extern const VMStateDescription vmstate_spapr_cap_rpt_invalidate;
+extern const VMStateDescription vmstate_spapr_wdt;
 
 static inline uint8_t spapr_get_cap(SpaprMachineState *spapr, int cap)
 {
@@ -925,7 +1060,7 @@ void spapr_caps_cpu_apply(SpaprMachineState *spapr, PowerPCCPU *cpu);
 void spapr_caps_add_properties(SpaprMachineClass *smc);
 int spapr_caps_post_migration(SpaprMachineState *spapr);
 
-void spapr_check_pagesize(SpaprMachineState *spapr, hwaddr pagesize,
+bool spapr_check_pagesize(SpaprMachineState *spapr, hwaddr pagesize,
                           Error **errp);
 /*
  * XIVE definitions
@@ -936,4 +1071,20 @@ void spapr_check_pagesize(SpaprMachineState *spapr, hwaddr pagesize,
 
 void spapr_set_all_lpcrs(target_ulong value, target_ulong mask);
 hwaddr spapr_get_rtas_addr(void);
+bool spapr_memory_hot_unplug_supported(SpaprMachineState *spapr);
+
+void spapr_vof_reset(SpaprMachineState *spapr, void *fdt, Error **errp);
+void spapr_vof_quiesce(MachineState *ms);
+bool spapr_vof_setprop(MachineState *ms, const char *path, const char *propname,
+                       void *val, int vallen);
+target_ulong spapr_h_vof_client(PowerPCCPU *cpu, SpaprMachineState *spapr,
+                                target_ulong opcode, target_ulong *args);
+target_ulong spapr_vof_client_architecture_support(MachineState *ms,
+                                                   CPUState *cs,
+                                                   target_ulong ovec_addr);
+void spapr_vof_client_dt_finalize(SpaprMachineState *spapr, void *fdt);
+
+/* H_WATCHDOG */
+void spapr_watchdog_init(SpaprMachineState *spapr);
+
 #endif /* HW_SPAPR_H */

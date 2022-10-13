@@ -1,4 +1,5 @@
 # -*- Mode: Python -*-
+# vim: filetype=python
 #
 
 ##
@@ -16,7 +17,9 @@
 #
 # Since: 1.5
 ##
-{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ] }
+{ 'enum': 'TpmModel', 'data': [ 'tpm-tis', 'tpm-crb', 'tpm-spapr' ],
+  'if': 'CONFIG_TPM' }
+
 ##
 # @query-tpm-models:
 #
@@ -32,7 +35,8 @@
 # <- { "return": [ "tpm-tis", "tpm-crb", "tpm-spapr" ] }
 #
 ##
-{ 'command': 'query-tpm-models', 'returns': ['TpmModel'] }
+{ 'command': 'query-tpm-models', 'returns': ['TpmModel'],
+  'if': 'CONFIG_TPM' }
 
 ##
 # @TpmType:
@@ -45,7 +49,8 @@
 #
 # Since: 1.5
 ##
-{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ] }
+{ 'enum': 'TpmType', 'data': [ 'passthrough', 'emulator' ],
+  'if': 'CONFIG_TPM' }
 
 ##
 # @query-tpm-types:
@@ -62,7 +67,8 @@
 # <- { "return": [ "passthrough", "emulator" ] }
 #
 ##
-{ 'command': 'query-tpm-types', 'returns': ['TpmType'] }
+{ 'command': 'query-tpm-types', 'returns': ['TpmType'],
+  'if': 'CONFIG_TPM' }
 
 ##
 # @TPMPassthroughOptions:
@@ -78,7 +84,8 @@
 ##
 { 'struct': 'TPMPassthroughOptions',
   'data': { '*path': 'str',
-            '*cancel-path': 'str' } }
+            '*cancel-path': 'str' },
+  'if': 'CONFIG_TPM' }
 
 ##
 # @TPMEmulatorOptions:
@@ -89,7 +96,26 @@
 #
 # Since: 2.11
 ##
-{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' } }
+{ 'struct': 'TPMEmulatorOptions', 'data': { 'chardev' : 'str' },
+  'if': 'CONFIG_TPM' }
+
+##
+# @TPMPassthroughOptionsWrapper:
+#
+# Since: 1.5
+##
+{ 'struct': 'TPMPassthroughOptionsWrapper',
+  'data': { 'data': 'TPMPassthroughOptions' },
+  'if': 'CONFIG_TPM' }
+
+##
+# @TPMEmulatorOptionsWrapper:
+#
+# Since: 2.11
+##
+{ 'struct': 'TPMEmulatorOptionsWrapper',
+  'data': { 'data': 'TPMEmulatorOptions' },
+  'if': 'CONFIG_TPM' }
 
 ##
 # @TpmTypeOptions:
@@ -102,8 +128,11 @@
 # Since: 1.5
 ##
 { 'union': 'TpmTypeOptions',
-   'data': { 'passthrough' : 'TPMPassthroughOptions',
-             'emulator': 'TPMEmulatorOptions' } }
+  'base': { 'type': 'TpmType' },
+  'discriminator': 'type',
+  'data': { 'passthrough' : 'TPMPassthroughOptionsWrapper',
+            'emulator': 'TPMEmulatorOptionsWrapper' },
+  'if': 'CONFIG_TPM' }
 
 ##
 # @TPMInfo:
@@ -121,7 +150,8 @@
 { 'struct': 'TPMInfo',
   'data': {'id': 'str',
            'model': 'TpmModel',
-           'options': 'TpmTypeOptions' } }
+           'options': 'TpmTypeOptions' },
+  'if': 'CONFIG_TPM' }
 
 ##
 # @query-tpm:
@@ -151,4 +181,5 @@
 #    }
 #
 ##
-{ 'command': 'query-tpm', 'returns': ['TPMInfo'] }
+{ 'command': 'query-tpm', 'returns': ['TPMInfo'],
+  'if': 'CONFIG_TPM' }

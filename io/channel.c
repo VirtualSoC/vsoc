@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -72,18 +72,32 @@ ssize_t qio_channel_writev_full(QIOChannel *ioc,
                                 size_t niov,
                                 int *fds,
                                 size_t nfds,
+                                int flags,
                                 Error **errp)
 {
     QIOChannelClass *klass = QIO_CHANNEL_GET_CLASS(ioc);
 
-    if ((fds || nfds) &&
-        !qio_channel_has_feature(ioc, QIO_CHANNEL_FEATURE_FD_PASS)) {
+    if (fds || nfds) {
+        if (!qio_channel_has_feature(ioc, QIO_CHANNEL_FEATURE_FD_PASS)) {
+            error_setg_errno(errp, EINVAL,
+                             "Channel does not support file descriptor passing");
+            return -1;
+        }
+        if (flags & QIO_CHANNEL_WRITE_FLAG_ZERO_COPY) {
+            error_setg_errno(errp, EINVAL,
+                             "Zero Copy does not support file descriptor passing");
+            return -1;
+        }
+    }
+
+    if ((flags & QIO_CHANNEL_WRITE_FLAG_ZERO_COPY) &&
+        !qio_channel_has_feature(ioc, QIO_CHANNEL_FEATURE_WRITE_ZERO_COPY)) {
         error_setg_errno(errp, EINVAL,
-                         "Channel does not support file descriptor passing");
+                         "Requested Zero Copy feature is not available");
         return -1;
     }
 
-    return klass->io_writev(ioc, iov, niov, fds, nfds, errp);
+    return klass->io_writev(ioc, iov, niov, fds, nfds, flags, errp);
 }
 
 
@@ -92,19 +106,47 @@ int qio_channel_readv_all_eof(QIOChannel *ioc,
                               size_t niov,
                               Error **errp)
 {
+    return qio_channel_readv_full_all_eof(ioc, iov, niov, NULL, NULL, errp);
+}
+
+int qio_channel_readv_all(QIOChannel *ioc,
+                          const struct iovec *iov,
+                          size_t niov,
+                          Error **errp)
+{
+    return qio_channel_readv_full_all(ioc, iov, niov, NULL, NULL, errp);
+}
+
+int qio_channel_readv_full_all_eof(QIOChannel *ioc,
+                                   const struct iovec *iov,
+                                   size_t niov,
+                                   int **fds, size_t *nfds,
+                                   Error **errp)
+{
     int ret = -1;
     struct iovec *local_iov = g_new(struct iovec, niov);
     struct iovec *local_iov_head = local_iov;
     unsigned int nlocal_iov = niov;
+    int **local_fds = fds;
+    size_t *local_nfds = nfds;
     bool partial = false;
+
+    if (nfds) {
+        *nfds = 0;
+    }
+
+    if (fds) {
+        *fds = NULL;
+    }
 
     nlocal_iov = iov_copy(local_iov, nlocal_iov,
                           iov, niov,
                           0, iov_size(iov, niov));
 
-    while (nlocal_iov > 0) {
+    while ((nlocal_iov > 0) || local_fds) {
         ssize_t len;
-        len = qio_channel_readv(ioc, local_iov, nlocal_iov, errp);
+        len = qio_channel_readv_full(ioc, local_iov, nlocal_iov, local_fds,
+                                     local_nfds, errp);
         if (len == QIO_CHANNEL_ERR_BLOCK) {
             if (qemu_in_coroutine()) {
                 qio_channel_yield(ioc, G_IO_IN);
@@ -112,20 +154,50 @@ int qio_channel_readv_all_eof(QIOChannel *ioc,
                 qio_channel_wait(ioc, G_IO_IN);
             }
             continue;
-        } else if (len < 0) {
-            goto cleanup;
-        } else if (len == 0) {
-            if (partial) {
-                error_setg(errp,
-                           "Unexpected end-of-file before all bytes were read");
-            } else {
+        }
+
+        if (len == 0) {
+            if (local_nfds && *local_nfds) {
+                /*
+                 * Got some FDs, but no data yet. This isn't an EOF
+                 * scenario (yet), so carry on to try to read data
+                 * on next loop iteration
+                 */
+                goto next_iter;
+            } else if (!partial) {
+                /* No fds and no data - EOF before any data read */
                 ret = 0;
+                goto cleanup;
+            } else {
+                len = -1;
+                error_setg(errp,
+                           "Unexpected end-of-file before all data were read");
+                /* Fallthrough into len < 0 handling */
+            }
+        }
+
+        if (len < 0) {
+            /* Close any FDs we previously received */
+            if (nfds && fds) {
+                size_t i;
+                for (i = 0; i < (*nfds); i++) {
+                    close((*fds)[i]);
+                }
+                g_free(*fds);
+                *fds = NULL;
+                *nfds = 0;
             }
             goto cleanup;
         }
 
+        if (nlocal_iov) {
+            iov_discard_front(&local_iov, &nlocal_iov, len);
+        }
+
+next_iter:
         partial = true;
-        iov_discard_front(&local_iov, &nlocal_iov, len);
+        local_fds = NULL;
+        local_nfds = NULL;
     }
 
     ret = 1;
@@ -135,20 +207,22 @@ int qio_channel_readv_all_eof(QIOChannel *ioc,
     return ret;
 }
 
-int qio_channel_readv_all(QIOChannel *ioc,
-                          const struct iovec *iov,
-                          size_t niov,
-                          Error **errp)
+int qio_channel_readv_full_all(QIOChannel *ioc,
+                               const struct iovec *iov,
+                               size_t niov,
+                               int **fds, size_t *nfds,
+                               Error **errp)
 {
-    int ret = qio_channel_readv_all_eof(ioc, iov, niov, errp);
+    int ret = qio_channel_readv_full_all_eof(ioc, iov, niov, fds, nfds, errp);
 
     if (ret == 0) {
-        ret = -1;
-        error_setg(errp,
-                   "Unexpected end-of-file before all bytes were read");
-    } else if (ret == 1) {
-        ret = 0;
+        error_setg(errp, "Unexpected end-of-file before all data were read");
+        return -1;
     }
+    if (ret == 1) {
+        return 0;
+    }
+
     return ret;
 }
 
@@ -156,6 +230,15 @@ int qio_channel_writev_all(QIOChannel *ioc,
                            const struct iovec *iov,
                            size_t niov,
                            Error **errp)
+{
+    return qio_channel_writev_full_all(ioc, iov, niov, NULL, 0, 0, errp);
+}
+
+int qio_channel_writev_full_all(QIOChannel *ioc,
+                                const struct iovec *iov,
+                                size_t niov,
+                                int *fds, size_t nfds,
+                                int flags, Error **errp)
 {
     int ret = -1;
     struct iovec *local_iov = g_new(struct iovec, niov);
@@ -168,7 +251,10 @@ int qio_channel_writev_all(QIOChannel *ioc,
 
     while (nlocal_iov > 0) {
         ssize_t len;
-        len = qio_channel_writev(ioc, local_iov, nlocal_iov, errp);
+
+        len = qio_channel_writev_full(ioc, local_iov, nlocal_iov, fds,
+                                            nfds, flags, errp);
+
         if (len == QIO_CHANNEL_ERR_BLOCK) {
             if (qemu_in_coroutine()) {
                 qio_channel_yield(ioc, G_IO_OUT);
@@ -182,6 +268,9 @@ int qio_channel_writev_all(QIOChannel *ioc,
         }
 
         iov_discard_front(&local_iov, &nlocal_iov, len);
+
+        fds = NULL;
+        nfds = 0;
     }
 
     ret = 0;
@@ -204,7 +293,7 @@ ssize_t qio_channel_writev(QIOChannel *ioc,
                            size_t niov,
                            Error **errp)
 {
-    return qio_channel_writev_full(ioc, iov, niov, NULL, 0, errp);
+    return qio_channel_writev_full(ioc, iov, niov, NULL, 0, 0, errp);
 }
 
 
@@ -224,7 +313,7 @@ ssize_t qio_channel_write(QIOChannel *ioc,
                           Error **errp)
 {
     struct iovec iov = { .iov_base = (char *)buf, .iov_len = buflen };
-    return qio_channel_writev_full(ioc, &iov, 1, NULL, 0, errp);
+    return qio_channel_writev_full(ioc, &iov, 1, NULL, 0, 0, errp);
 }
 
 
@@ -398,6 +487,19 @@ off_t qio_channel_io_seek(QIOChannel *ioc,
     }
 
     return klass->io_seek(ioc, offset, whence, errp);
+}
+
+int qio_channel_flush(QIOChannel *ioc,
+                                Error **errp)
+{
+    QIOChannelClass *klass = QIO_CHANNEL_GET_CLASS(ioc);
+
+    if (!klass->io_flush ||
+        !qio_channel_has_feature(ioc, QIO_CHANNEL_FEATURE_WRITE_ZERO_COPY)) {
+        return 0;
+    }
+
+    return klass->io_flush(ioc, errp);
 }
 
 

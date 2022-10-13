@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# group: rw backing auto quick
 #
 # Merge backing file into test image when converting the image
 #
@@ -66,7 +67,7 @@ echo "Creating test image with backing file"
 echo
 
 TEST_IMG="$TEST_IMG_SAVE.orig"
-_make_test_img -b "$TEST_IMG_SAVE.base" 6G
+_make_test_img -b "$TEST_IMG_SAVE.base" -F $IMGFMT 6G
 
 echo "Filling test image"
 echo

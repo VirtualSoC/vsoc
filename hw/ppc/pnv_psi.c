@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,7 +26,6 @@
 #include "qapi/error.h"
 #include "monitor/monitor.h"
 
-#include "exec/address-spaces.h"
 
 #include "hw/ppc/fdt.h"
 #include "hw/ppc/pnv.h"
@@ -185,8 +184,7 @@ static void pnv_psi_set_irsn(PnvPsi *psi, uint64_t val)
 /*
  * FSP and PSI interrupts are muxed under the same number.
  */
-static const uint32_t xivr_regs[] = {
-    [PSIHB_IRQ_PSI]       = PSIHB_XSCOM_XIVR_FSP,
+static const uint32_t xivr_regs[PSI_NUM_INTERRUPTS] = {
     [PSIHB_IRQ_FSP]       = PSIHB_XSCOM_XIVR_FSP,
     [PSIHB_IRQ_OCC]       = PSIHB_XSCOM_XIVR_OCC,
     [PSIHB_IRQ_FSI]       = PSIHB_XSCOM_XIVR_FSI,
@@ -195,8 +193,7 @@ static const uint32_t xivr_regs[] = {
     [PSIHB_IRQ_EXTERNAL]  = PSIHB_XSCOM_XIVR_EXT,
 };
 
-static const uint32_t stat_regs[] = {
-    [PSIHB_IRQ_PSI]       = PSIHB_XSCOM_CR,
+static const uint32_t stat_regs[PSI_NUM_INTERRUPTS] = {
     [PSIHB_IRQ_FSP]       = PSIHB_XSCOM_CR,
     [PSIHB_IRQ_OCC]       = PSIHB_XSCOM_IRQ_STAT,
     [PSIHB_IRQ_FSI]       = PSIHB_XSCOM_IRQ_STAT,
@@ -205,8 +202,7 @@ static const uint32_t stat_regs[] = {
     [PSIHB_IRQ_EXTERNAL]  = PSIHB_XSCOM_IRQ_STAT,
 };
 
-static const uint64_t stat_bits[] = {
-    [PSIHB_IRQ_PSI]       = PSIHB_CR_PSI_IRQ,
+static const uint64_t stat_bits[PSI_NUM_INTERRUPTS] = {
     [PSIHB_IRQ_FSP]       = PSIHB_CR_FSP_IRQ,
     [PSIHB_IRQ_OCC]       = PSIHB_IRQ_STAT_OCC,
     [PSIHB_IRQ_FSI]       = PSIHB_IRQ_STAT_FSI,
@@ -215,22 +211,13 @@ static const uint64_t stat_bits[] = {
     [PSIHB_IRQ_EXTERNAL]  = PSIHB_IRQ_STAT_EXT,
 };
 
-void pnv_psi_irq_set(PnvPsi *psi, int irq, bool state)
+static void pnv_psi_power8_set_irq(void *opaque, int irq, int state)
 {
-    PNV_PSI_GET_CLASS(psi)->irq_set(psi, irq, state);
-}
-
-static void pnv_psi_power8_irq_set(PnvPsi *psi, int irq, bool state)
-{
+    PnvPsi *psi = opaque;
     uint32_t xivr_reg;
     uint32_t stat_reg;
     uint32_t src;
     bool masked;
-
-    if (irq > PSIHB_IRQ_EXTERNAL) {
-        qemu_log_mask(LOG_GUEST_ERROR, "PSI: Unsupported irq %d\n", irq);
-        return;
-    }
 
     xivr_reg = xivr_regs[irq];
     stat_reg = stat_regs[irq];
@@ -466,7 +453,7 @@ static void pnv_psi_reset(DeviceState *dev)
 
 static void pnv_psi_reset_handler(void *dev)
 {
-    device_legacy_reset(DEVICE(dev));
+    device_cold_reset(DEVICE(dev));
 }
 
 static void pnv_psi_realize(DeviceState *dev, Error **errp)
@@ -483,8 +470,7 @@ static void pnv_psi_power8_instance_init(Object *obj)
 {
     Pnv8Psi *psi8 = PNV8_PSI(obj);
 
-    object_initialize_child(obj, "ics-psi",  &psi8->ics, sizeof(psi8->ics),
-                            TYPE_ICS, &error_abort, NULL);
+    object_initialize_child(obj, "ics-psi", &psi8->ics, TYPE_ICS);
     object_property_add_alias(obj, ICS_PROP_XICS, OBJECT(&psi8->ics),
                               ICS_PROP_XICS);
 }
@@ -502,24 +488,22 @@ static void pnv_psi_power8_realize(DeviceState *dev, Error **errp)
 {
     PnvPsi *psi = PNV_PSI(dev);
     ICSState *ics = &PNV8_PSI(psi)->ics;
-    Error *err = NULL;
     unsigned int i;
 
     /* Create PSI interrupt control source */
-    object_property_set_int(OBJECT(ics), PSI_NUM_INTERRUPTS, "nr-irqs", &err);
-    if (err) {
-        error_propagate(errp, err);
+    if (!object_property_set_int(OBJECT(ics), "nr-irqs", PSI_NUM_INTERRUPTS,
+                                 errp)) {
         return;
     }
-    object_property_set_bool(OBJECT(ics), true, "realized",  &err);
-    if (err) {
-        error_propagate(errp, err);
+    if (!qdev_realize(DEVICE(ics), NULL, errp)) {
         return;
     }
 
     for (i = 0; i < ics->nr_irqs; i++) {
         ics_set_irq_type(ics, i, true);
     }
+
+    qdev_init_gpio_in(dev, pnv_psi_power8_set_irq, ics->nr_irqs);
 
     psi->qirqs = qemu_allocate_irqs(ics_set_irq, ics, ics->nr_irqs);
 
@@ -582,7 +566,6 @@ static void pnv_psi_power8_class_init(ObjectClass *klass, void *data)
     ppc->xscom_pcba = PNV_XSCOM_PSIHB_BASE;
     ppc->xscom_size = PNV_XSCOM_PSIHB_SIZE;
     ppc->bar_mask   = PSIHB_BAR_MASK;
-    ppc->irq_set    = pnv_psi_power8_irq_set;
     ppc->compat     = compat;
     ppc->compat_size = sizeof(compat);
 }
@@ -607,7 +590,6 @@ static const TypeInfo pnv_psi_power8_info = {
 #define   PSIHB9_IRQ_METHOD             PPC_BIT(0)
 #define   PSIHB9_IRQ_RESET              PPC_BIT(1)
 #define PSIHB9_ESB_CI_BASE              0x60
-#define   PSIHB9_ESB_CI_64K             PPC_BIT(1)
 #define   PSIHB9_ESB_CI_ADDR_MASK       PPC_BITMASK(8, 47)
 #define   PSIHB9_ESB_CI_VALID           PPC_BIT(63)
 #define PSIHB9_ESB_NOTIF_ADDR           0x68
@@ -652,7 +634,15 @@ static const TypeInfo pnv_psi_power8_info = {
 #define   PSIHB9_IRQ_STAT_DIO           PPC_BIT(12)
 #define   PSIHB9_IRQ_STAT_PSU           PPC_BIT(13)
 
-static void pnv_psi_notify(XiveNotifier *xf, uint32_t srcno)
+/* P10 register extensions */
+
+#define PSIHB10_CR                       PSIHB9_CR
+#define    PSIHB10_CR_STORE_EOI          PPC_BIT(12)
+
+#define PSIHB10_ESB_CI_BASE              PSIHB9_ESB_CI_BASE
+#define   PSIHB10_ESB_CI_64K             PPC_BIT(1)
+
+static void pnv_psi_notify(XiveNotifier *xf, uint32_t srcno, bool pq_checked)
 {
     PnvPsi *psi = PNV_PSI(xf);
     uint64_t notif_port = psi->regs[PSIHB_REG(PSIHB9_ESB_NOTIF_ADDR)];
@@ -661,8 +651,12 @@ static void pnv_psi_notify(XiveNotifier *xf, uint32_t srcno)
 
     uint32_t offset =
         (psi->regs[PSIHB_REG(PSIHB9_IVT_OFFSET)] >> PSIHB9_IVT_OFF_SHIFT);
-    uint64_t data = XIVE_TRIGGER_PQ | offset | srcno;
+    uint64_t data = offset | srcno;
     MemTxResult result;
+
+    if (pq_checked) {
+        data |= XIVE_TRIGGER_PQ;
+    }
 
     if (!valid) {
         return;
@@ -710,26 +704,38 @@ static void pnv_psi_p9_mmio_write(void *opaque, hwaddr addr,
 
     switch (addr) {
     case PSIHB9_CR:
+        if (val & PSIHB10_CR_STORE_EOI) {
+            psi9->source.esb_flags |= XIVE_SRC_STORE_EOI;
+        } else {
+            psi9->source.esb_flags &= ~XIVE_SRC_STORE_EOI;
+        }
+        break;
+
     case PSIHB9_SEMR:
         /* FSP stuff */
         break;
     case PSIHB9_INTERRUPT_CONTROL:
         if (val & PSIHB9_IRQ_RESET) {
-            device_legacy_reset(DEVICE(&psi9->source));
+            device_cold_reset(DEVICE(&psi9->source));
         }
         psi->regs[reg] = val;
         break;
 
     case PSIHB9_ESB_CI_BASE:
+        if (val & PSIHB10_ESB_CI_64K) {
+            psi9->source.esb_shift = XIVE_ESB_64K;
+        } else {
+            psi9->source.esb_shift = XIVE_ESB_4K;
+        }
         if (!(val & PSIHB9_ESB_CI_VALID)) {
             if (psi->regs[reg] & PSIHB9_ESB_CI_VALID) {
                 memory_region_del_subregion(sysmem, &psi9->source.esb_mmio);
             }
         } else {
             if (!(psi->regs[reg] & PSIHB9_ESB_CI_VALID)) {
-                memory_region_add_subregion(sysmem,
-                                        val & ~PSIHB9_ESB_CI_VALID,
-                                        &psi9->source.esb_mmio);
+                hwaddr addr = val & ~(PSIHB9_ESB_CI_VALID | PSIHB10_ESB_CI_64K);
+                memory_region_add_subregion(sysmem, addr,
+                                            &psi9->source.esb_mmio);
             }
         }
         psi->regs[reg] = val;
@@ -797,14 +803,10 @@ static const MemoryRegionOps pnv_psi_p9_xscom_ops = {
     }
 };
 
-static void pnv_psi_power9_irq_set(PnvPsi *psi, int irq, bool state)
+static void pnv_psi_power9_set_irq(void *opaque, int irq, int state)
 {
+    PnvPsi *psi = opaque;
     uint64_t irq_method = psi->regs[PSIHB_REG(PSIHB9_INTERRUPT_CONTROL)];
-
-    if (irq > PSIHB9_NUM_IRQS) {
-        qemu_log_mask(LOG_GUEST_ERROR, "PSI: Unsupported irq %d\n", irq);
-        return;
-    }
 
     if (irq_method & PSIHB9_IRQ_METHOD) {
         qemu_log_mask(LOG_GUEST_ERROR, "PSI: LSI IRQ method no supported\n");
@@ -836,26 +838,20 @@ static void pnv_psi_power9_instance_init(Object *obj)
 {
     Pnv9Psi *psi = PNV9_PSI(obj);
 
-    object_initialize_child(obj, "source", &psi->source, sizeof(psi->source),
-                            TYPE_XIVE_SOURCE, &error_abort, NULL);
+    object_initialize_child(obj, "source", &psi->source, TYPE_XIVE_SOURCE);
+    object_property_add_alias(obj, "shift", OBJECT(&psi->source), "shift");
 }
 
 static void pnv_psi_power9_realize(DeviceState *dev, Error **errp)
 {
     PnvPsi *psi = PNV_PSI(dev);
     XiveSource *xsrc = &PNV9_PSI(psi)->source;
-    Error *local_err = NULL;
     int i;
 
-    /* This is the only device with 4k ESB pages */
-    object_property_set_int(OBJECT(xsrc), XIVE_ESB_4K, "shift",
+    object_property_set_int(OBJECT(xsrc), "nr-irqs", PSIHB9_NUM_IRQS,
                             &error_fatal);
-    object_property_set_int(OBJECT(xsrc), PSIHB9_NUM_IRQS, "nr-irqs",
-                            &error_fatal);
-    object_property_set_link(OBJECT(xsrc), OBJECT(psi), "xive", &error_abort);
-    object_property_set_bool(OBJECT(xsrc), true, "realized", &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
+    object_property_set_link(OBJECT(xsrc), "xive", OBJECT(psi), &error_abort);
+    if (!qdev_realize(DEVICE(xsrc), NULL, errp)) {
         return;
     }
 
@@ -864,6 +860,8 @@ static void pnv_psi_power9_realize(DeviceState *dev, Error **errp)
     }
 
     psi->qirqs = qemu_allocate_irqs(xive_source_set_irq, xsrc, xsrc->nr_irqs);
+
+    qdev_init_gpio_in(dev, pnv_psi_power9_set_irq, xsrc->nr_irqs);
 
     /* XSCOM region for PSI registers */
     pnv_xscom_region_init(&psi->xscom_regs, OBJECT(dev), &pnv_psi_p9_xscom_ops,
@@ -890,7 +888,6 @@ static void pnv_psi_power9_class_init(ObjectClass *klass, void *data)
     ppc->xscom_pcba = PNV9_XSCOM_PSIHB_BASE;
     ppc->xscom_size = PNV9_XSCOM_PSIHB_SIZE;
     ppc->bar_mask   = PSIHB9_BAR_MASK;
-    ppc->irq_set    = pnv_psi_power9_irq_set;
     ppc->compat     = compat;
     ppc->compat_size = sizeof(compat);
 
@@ -939,11 +936,12 @@ static void pnv_psi_class_init(ObjectClass *klass, void *data)
     dc->desc = "PowerNV PSI Controller";
     device_class_set_props(dc, pnv_psi_properties);
     dc->reset = pnv_psi_reset;
+    dc->user_creatable = false;
 }
 
 static const TypeInfo pnv_psi_info = {
     .name          = TYPE_PNV_PSI,
-    .parent        = TYPE_SYS_BUS_DEVICE,
+    .parent        = TYPE_DEVICE,
     .instance_size = sizeof(PnvPsi),
     .class_init    = pnv_psi_class_init,
     .class_size    = sizeof(PnvPsiClass),

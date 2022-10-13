@@ -1,4 +1,5 @@
 # -*- Mode: Python -*-
+# vim: filetype=python
 #
 # This work is licensed under the terms of the GNU GPL, version 2 or later.
 # See the COPYING file in the top-level directory.
@@ -82,7 +83,7 @@
 # Example:
 #
 # -> { "execute": "dump-guest-memory",
-#      "arguments": { "protocol": "fd:dump" } }
+#      "arguments": { "paging": false, "protocol": "fd:dump" } }
 # <- { "return": {} }
 #
 ##
@@ -160,9 +161,10 @@
 #
 # Example:
 #
-# { "event": "DUMP_COMPLETED",
-#   "data": {"result": {"total": 1090650112, "status": "completed",
-#                       "completed": 1090650112} } }
+# <- { "event": "DUMP_COMPLETED",
+#      "data": { "result": { "total": 1090650112, "status": "completed",
+#                            "completed": 1090650112 } },
+#      "timestamp": { "seconds": 1648244171, "microseconds": 950316 } }
 #
 ##
 { 'event': 'DUMP_COMPLETED' ,
@@ -184,8 +186,8 @@
 #
 # Returns the available formats for dump-guest-memory
 #
-# Returns:  A @DumpGuestMemoryCapability object listing available formats for
-#           dump-guest-memory
+# Returns: A @DumpGuestMemoryCapability object listing available formats for
+#          dump-guest-memory
 #
 # Since: 2.0
 #

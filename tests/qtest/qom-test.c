@@ -9,7 +9,6 @@
 
 #include "qemu/osdep.h"
 
-#include "qemu-common.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qlist.h"
 #include "qemu/cutils.h"
@@ -80,11 +79,6 @@ static void test_machine(gconstpointer data)
 static void add_machine_test_case(const char *mname)
 {
     char *path;
-
-    /* Ignore blacklisted machines that have known problems */
-    if (!memcmp("xenfv", mname, 5) || g_str_equal("xenpv", mname)) {
-        return;
-    }
 
     path = g_strdup_printf("qom/%s", mname);
     qtest_add_data_func(path, g_strdup(mname), test_machine);

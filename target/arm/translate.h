@@ -21,7 +21,15 @@ typedef struct DisasContext {
     /* Thumb-2 conditional execution bits.  */
     int condexec_mask;
     int condexec_cond;
-    int thumb;
+    /* M-profile ECI/ICI exception-continuable instruction state */
+    int eci;
+    /*
+     * trans_ functions for insns which are continuable should set this true
+     * after decode (ie after any UNDEF checks)
+     */
+    bool eci_handled;
+    /* TCG op to rewind to if this turns out to be an invalid ECI state */
+    TCGOp *insn_eci_rewind;
     int sctlr_b;
     MemOp be_data;
 #if !defined(CONFIG_USER_ONLY)
@@ -30,12 +38,13 @@ typedef struct DisasContext {
     ARMMMUIdx mmu_idx; /* MMU index to use for normal loads/stores */
     uint8_t tbii;      /* TBI1|TBI0 for insns */
     uint8_t tbid;      /* TBI1|TBI0 for data */
+    uint8_t tcma;      /* TCMA1|TCMA0 for MTE */
     bool ns;        /* Use non-secure CPREG bank on access */
     int fp_excp_el; /* FP exception EL or 0 if enabled */
     int sve_excp_el; /* SVE exception EL or 0 if enabled */
-    int sve_len;     /* SVE vector length in bytes */
-    /* Flag indicating that exceptions from secure mode are routed to EL3. */
-    bool secure_routed_to_el3;
+    int sme_excp_el; /* SME exception EL or 0 if enabled */
+    int vl;          /* current vector length in bytes */
+    int svl;         /* current streaming vector length in bytes */
     bool vfp_enabled; /* FP enabled via FPSCR.EN */
     int vec_len;
     int vec_stride;
@@ -49,12 +58,11 @@ typedef struct DisasContext {
      * so that top level loop can generate correct syndrome information.
      */
     uint32_t svc_imm;
-    int aarch64;
     int current_el;
-    /* Debug target exception level for single-step exceptions */
-    int debug_target_el;
     GHashTable *cp_regs;
     uint64_t features; /* CPU features bits */
+    bool aarch64;
+    bool thumb;
     /* Because unallocated encodings generate different exception syndrome
      * information from traps due to FP being disabled, we can't do a single
      * "is fp access disabled" check at a high level in the decode tree.
@@ -63,6 +71,7 @@ typedef struct DisasContext {
      * that it is set at the point where we actually touch the FP regs.
      */
     bool fp_access_checked;
+    bool sve_access_checked;
     /* ARMv8 single-step state (this is distinct from the QEMU gdbstub
      * single-step support).
      */
@@ -77,15 +86,35 @@ typedef struct DisasContext {
     bool unpriv;
     /* True if v8.3-PAuth is active.  */
     bool pauth_active;
+    /* True if v8.5-MTE access to tags is enabled.  */
+    bool ata;
+    /* True if v8.5-MTE tag checks affect the PE; index with is_unpriv.  */
+    bool mte_active[2];
     /* True with v8.5-BTI and SCTLR_ELx.BT* set.  */
     bool bt;
     /* True if any CP15 access is trapped by HSTR_EL2 */
     bool hstr_active;
+    /* True if memory operations require alignment */
+    bool align_mem;
+    /* True if PSTATE.IL is set */
+    bool pstate_il;
+    /* True if PSTATE.SM is set. */
+    bool pstate_sm;
+    /* True if PSTATE.ZA is set. */
+    bool pstate_za;
+    /* True if non-streaming insns should raise an SME Streaming exception. */
+    bool sme_trap_nonstreaming;
+    /* True if the current instruction is non-streaming. */
+    bool is_nonstreaming;
+    /* True if MVE insns are definitely not predicated by VPR or LTPSIZE */
+    bool mve_no_pred;
     /*
      * >= 0, a copy of PSTATE.BTYPE, which will be 0 without v8.5-BTI.
      *  < 0, set by the current instruction.
      */
     int8_t btype;
+    /* A copy of cpu->dcz_blocksize. */
+    uint8_t dcz_blocksize;
     /* True if this page is guarded.  */
     bool guarded_page;
     /* Bottom two bits of XScale c15_cpar coprocessor access control reg */
@@ -108,6 +137,71 @@ extern TCGv_i32 cpu_NF, cpu_ZF, cpu_CF, cpu_VF;
 extern TCGv_i64 cpu_exclusive_addr;
 extern TCGv_i64 cpu_exclusive_val;
 
+/*
+ * Constant expanders for the decoders.
+ */
+
+static inline int negate(DisasContext *s, int x)
+{
+    return -x;
+}
+
+static inline int plus_1(DisasContext *s, int x)
+{
+    return x + 1;
+}
+
+static inline int plus_2(DisasContext *s, int x)
+{
+    return x + 2;
+}
+
+static inline int plus_12(DisasContext *s, int x)
+{
+    return x + 12;
+}
+
+static inline int times_2(DisasContext *s, int x)
+{
+    return x * 2;
+}
+
+static inline int times_4(DisasContext *s, int x)
+{
+    return x * 4;
+}
+
+static inline int times_2_plus_1(DisasContext *s, int x)
+{
+    return x * 2 + 1;
+}
+
+static inline int rsub_64(DisasContext *s, int x)
+{
+    return 64 - x;
+}
+
+static inline int rsub_32(DisasContext *s, int x)
+{
+    return 32 - x;
+}
+
+static inline int rsub_16(DisasContext *s, int x)
+{
+    return 16 - x;
+}
+
+static inline int rsub_8(DisasContext *s, int x)
+{
+    return 8 - x;
+}
+
+static inline int neon_3same_fp_size(DisasContext *s, int x)
+{
+    /* Convert 0==fp32, 1==fp16 into a MO_* value */
+    return MO_32 - x;
+}
+
 static inline int arm_dc_feature(DisasContext *dc, int feature)
 {
     return (dc->features & (1ULL << feature)) != 0;
@@ -116,20 +210,6 @@ static inline int arm_dc_feature(DisasContext *dc, int feature)
 static inline int get_mem_index(DisasContext *s)
 {
     return arm_to_core_mmu_idx(s->mmu_idx);
-}
-
-/* Function used to determine the target exception EL when otherwise not known
- * or default.
- */
-static inline int default_exception_el(DisasContext *s)
-{
-    /* If we are coming from secure EL0 in a system with a 32-bit EL3, then
-     * there is no secure EL1, so we route exceptions to EL3.  Otherwise,
-     * exceptions can only be routed to ELs above 1, so we target the higher of
-     * 1 or the current EL.
-     */
-    return (s->mmu_idx == ARMMMUIdx_SE10_0 && s->secure_routed_to_el3)
-            ? 3 : MAX(1, s->current_el);
 }
 
 static inline void disas_set_insn_syndrome(DisasContext *s, uint32_t syn)
@@ -148,7 +228,8 @@ static inline void disas_set_insn_syndrome(DisasContext *s, uint32_t syn)
 
 /* is_jmp field values */
 #define DISAS_JUMP      DISAS_TARGET_0 /* only pc was modified dynamically */
-#define DISAS_UPDATE    DISAS_TARGET_1 /* cpu state was modified dynamically */
+/* CPU state was modified dynamically; exit to main loop for interrupts. */
+#define DISAS_UPDATE_EXIT  DISAS_TARGET_1
 /* These instructions trap after executing, so the A32/T32 decoder must
  * defer them until after the conditional execution state has been updated.
  * WFI also needs special handling when single-stepping.
@@ -164,13 +245,16 @@ static inline void disas_set_insn_syndrome(DisasContext *s, uint32_t syn)
  * custom end-of-TB code)
  */
 #define DISAS_BX_EXCRET DISAS_TARGET_8
-/* For instructions which want an immediate exit to the main loop,
- * as opposed to attempting to use lookup_and_goto_ptr. Unlike
- * DISAS_UPDATE this doesn't write the PC on exiting the translation
- * loop so you need to ensure something (gen_a64_set_pc_im or runtime
- * helper) has done so before we reach return from cpu_tb_exec.
+/*
+ * For instructions which want an immediate exit to the main loop, as opposed
+ * to attempting to use lookup_and_goto_ptr.  Unlike DISAS_UPDATE_EXIT, this
+ * doesn't write the PC on exiting the translation loop so you need to ensure
+ * something (gen_a64_set_pc_im or runtime helper) has done so before we reach
+ * return from cpu_tb_exec.
  */
 #define DISAS_EXIT      DISAS_TARGET_9
+/* CPU state was modified dynamically; no need to exit, but do not chain. */
+#define DISAS_UPDATE_NOCHAIN  DISAS_TARGET_10
 
 #ifdef TARGET_AARCH64
 void a64_translate_init(void);
@@ -190,6 +274,11 @@ void arm_test_cc(DisasCompare *cmp, int cc);
 void arm_free_cc(DisasCompare *cmp);
 void arm_jump_cc(DisasCompare *cmp, TCGLabel *label);
 void arm_gen_test_cc(int cc, TCGLabel *label);
+MemOp pow2_align(unsigned i);
+void unallocated_encoding(DisasContext *s);
+void gen_exception_insn_el(DisasContext *s, uint64_t pc, int excp,
+                           uint32_t syn, uint32_t target_el);
+void gen_exception_insn(DisasContext *s, uint64_t pc, int excp, uint32_t syn);
 
 /* Return state of Alternate Half-precision flag, caller frees result */
 static inline TCGv_i32 get_ahp_flag(void)
@@ -238,33 +327,12 @@ static inline void gen_ss_advance(DisasContext *s)
     }
 }
 
-static inline void gen_exception(int excp, uint32_t syndrome,
-                                 uint32_t target_el)
-{
-    TCGv_i32 tcg_excp = tcg_const_i32(excp);
-    TCGv_i32 tcg_syn = tcg_const_i32(syndrome);
-    TCGv_i32 tcg_el = tcg_const_i32(target_el);
-
-    gen_helper_exception_with_syndrome(cpu_env, tcg_excp,
-                                       tcg_syn, tcg_el);
-
-    tcg_temp_free_i32(tcg_el);
-    tcg_temp_free_i32(tcg_syn);
-    tcg_temp_free_i32(tcg_excp);
-}
-
 /* Generate an architectural singlestep exception */
 static inline void gen_swstep_exception(DisasContext *s, int isv, int ex)
 {
-    bool same_el = (s->debug_target_el == s->current_el);
-
-    /*
-     * If singlestep is targeting a lower EL than the current one,
-     * then s->ss_active must be false and we can never get here.
-     */
-    assert(s->debug_target_el >= s->current_el);
-
-    gen_exception(EXCP_UDEF, syn_swstep(same_el, isv, ex), s->debug_target_el);
+    /* Fill in the same_el field of the syndrome in the helper. */
+    uint32_t syn = syn_swstep(false, isv, ex);
+    gen_helper_exception_swstep(cpu_env, tcg_constant_i32(syn));
 }
 
 /*
@@ -363,20 +431,151 @@ typedef void GVecGen4Fn(unsigned, uint32_t, uint32_t, uint32_t,
                         uint32_t, uint32_t, uint32_t);
 
 /* Function prototype for gen_ functions for calling Neon helpers */
+typedef void NeonGenOneOpFn(TCGv_i32, TCGv_i32);
 typedef void NeonGenOneOpEnvFn(TCGv_i32, TCGv_ptr, TCGv_i32);
 typedef void NeonGenTwoOpFn(TCGv_i32, TCGv_i32, TCGv_i32);
 typedef void NeonGenTwoOpEnvFn(TCGv_i32, TCGv_ptr, TCGv_i32, TCGv_i32);
+typedef void NeonGenThreeOpEnvFn(TCGv_i32, TCGv_env, TCGv_i32,
+                                 TCGv_i32, TCGv_i32);
 typedef void NeonGenTwo64OpFn(TCGv_i64, TCGv_i64, TCGv_i64);
 typedef void NeonGenTwo64OpEnvFn(TCGv_i64, TCGv_ptr, TCGv_i64, TCGv_i64);
 typedef void NeonGenNarrowFn(TCGv_i32, TCGv_i64);
 typedef void NeonGenNarrowEnvFn(TCGv_i32, TCGv_ptr, TCGv_i64);
 typedef void NeonGenWidenFn(TCGv_i64, TCGv_i32);
-typedef void NeonGenTwoSingleOPFn(TCGv_i32, TCGv_i32, TCGv_i32, TCGv_ptr);
-typedef void NeonGenTwoDoubleOPFn(TCGv_i64, TCGv_i64, TCGv_i64, TCGv_ptr);
-typedef void NeonGenOneOpFn(TCGv_i64, TCGv_i64);
+typedef void NeonGenTwoOpWidenFn(TCGv_i64, TCGv_i32, TCGv_i32);
+typedef void NeonGenOneSingleOpFn(TCGv_i32, TCGv_i32, TCGv_ptr);
+typedef void NeonGenTwoSingleOpFn(TCGv_i32, TCGv_i32, TCGv_i32, TCGv_ptr);
+typedef void NeonGenTwoDoubleOpFn(TCGv_i64, TCGv_i64, TCGv_i64, TCGv_ptr);
+typedef void NeonGenOne64OpFn(TCGv_i64, TCGv_i64);
 typedef void CryptoTwoOpFn(TCGv_ptr, TCGv_ptr);
 typedef void CryptoThreeOpIntFn(TCGv_ptr, TCGv_ptr, TCGv_i32);
 typedef void CryptoThreeOpFn(TCGv_ptr, TCGv_ptr, TCGv_ptr);
 typedef void AtomicThreeOpFn(TCGv_i64, TCGv_i64, TCGv_i64, TCGArg, MemOp);
+typedef void WideShiftImmFn(TCGv_i64, TCGv_i64, int64_t shift);
+typedef void WideShiftFn(TCGv_i64, TCGv_ptr, TCGv_i64, TCGv_i32);
+typedef void ShiftImmFn(TCGv_i32, TCGv_i32, int32_t shift);
+typedef void ShiftFn(TCGv_i32, TCGv_ptr, TCGv_i32, TCGv_i32);
+
+/**
+ * arm_tbflags_from_tb:
+ * @tb: the TranslationBlock
+ *
+ * Extract the flag values from @tb.
+ */
+static inline CPUARMTBFlags arm_tbflags_from_tb(const TranslationBlock *tb)
+{
+    return (CPUARMTBFlags){ tb->flags, tb->cs_base };
+}
+
+/*
+ * Enum for argument to fpstatus_ptr().
+ */
+typedef enum ARMFPStatusFlavour {
+    FPST_FPCR,
+    FPST_FPCR_F16,
+    FPST_STD,
+    FPST_STD_F16,
+} ARMFPStatusFlavour;
+
+/**
+ * fpstatus_ptr: return TCGv_ptr to the specified fp_status field
+ *
+ * We have multiple softfloat float_status fields in the Arm CPU state struct
+ * (see the comment in cpu.h for details). Return a TCGv_ptr which has
+ * been set up to point to the requested field in the CPU state struct.
+ * The options are:
+ *
+ * FPST_FPCR
+ *   for non-FP16 operations controlled by the FPCR
+ * FPST_FPCR_F16
+ *   for operations controlled by the FPCR where FPCR.FZ16 is to be used
+ * FPST_STD
+ *   for A32/T32 Neon operations using the "standard FPSCR value"
+ * FPST_STD_F16
+ *   as FPST_STD, but where FPCR.FZ16 is to be used
+ */
+static inline TCGv_ptr fpstatus_ptr(ARMFPStatusFlavour flavour)
+{
+    TCGv_ptr statusptr = tcg_temp_new_ptr();
+    int offset;
+
+    switch (flavour) {
+    case FPST_FPCR:
+        offset = offsetof(CPUARMState, vfp.fp_status);
+        break;
+    case FPST_FPCR_F16:
+        offset = offsetof(CPUARMState, vfp.fp_status_f16);
+        break;
+    case FPST_STD:
+        offset = offsetof(CPUARMState, vfp.standard_fp_status);
+        break;
+    case FPST_STD_F16:
+        offset = offsetof(CPUARMState, vfp.standard_fp_status_f16);
+        break;
+    default:
+        g_assert_not_reached();
+    }
+    tcg_gen_addi_ptr(statusptr, cpu_env, offset);
+    return statusptr;
+}
+
+/**
+ * finalize_memop:
+ * @s: DisasContext
+ * @opc: size+sign+align of the memory operation
+ *
+ * Build the complete MemOp for a memory operation, including alignment
+ * and endianness.
+ *
+ * If (op & MO_AMASK) then the operation already contains the required
+ * alignment, e.g. for AccType_ATOMIC.  Otherwise, this an optionally
+ * unaligned operation, e.g. for AccType_NORMAL.
+ *
+ * In the latter case, there are configuration bits that require alignment,
+ * and this is applied here.  Note that there is no way to indicate that
+ * no alignment should ever be enforced; this must be handled manually.
+ */
+static inline MemOp finalize_memop(DisasContext *s, MemOp opc)
+{
+    if (s->align_mem && !(opc & MO_AMASK)) {
+        opc |= MO_ALIGN;
+    }
+    return opc | s->be_data;
+}
+
+/**
+ * asimd_imm_const: Expand an encoded SIMD constant value
+ *
+ * Expand a SIMD constant value. This is essentially the pseudocode
+ * AdvSIMDExpandImm, except that we also perform the boolean NOT needed for
+ * VMVN and VBIC (when cmode < 14 && op == 1).
+ *
+ * The combination cmode == 15 op == 1 is a reserved encoding for AArch32;
+ * callers must catch this; we return the 64-bit constant value defined
+ * for AArch64.
+ *
+ * cmode = 2,3,4,5,6,7,10,11,12,13 imm=0 was UNPREDICTABLE in v7A but
+ * is either not unpredictable or merely CONSTRAINED UNPREDICTABLE in v8A;
+ * we produce an immediate constant value of 0 in these cases.
+ */
+uint64_t asimd_imm_const(uint32_t imm, int cmode, int op);
+
+/*
+ * Helpers for implementing sets of trans_* functions.
+ * Defer the implementation of NAME to FUNC, with optional extra arguments.
+ */
+#define TRANS(NAME, FUNC, ...) \
+    static bool trans_##NAME(DisasContext *s, arg_##NAME *a) \
+    { return FUNC(s, __VA_ARGS__); }
+#define TRANS_FEAT(NAME, FEAT, FUNC, ...) \
+    static bool trans_##NAME(DisasContext *s, arg_##NAME *a) \
+    { return dc_isar_feature(FEAT, s) && FUNC(s, __VA_ARGS__); }
+
+#define TRANS_FEAT_NONSTREAMING(NAME, FEAT, FUNC, ...)            \
+    static bool trans_##NAME(DisasContext *s, arg_##NAME *a)      \
+    {                                                             \
+        s->is_nonstreaming = true;                                \
+        return dc_isar_feature(FEAT, s) && FUNC(s, __VA_ARGS__);  \
+    }
 
 #endif /* TARGET_ARM_TRANSLATE_H */

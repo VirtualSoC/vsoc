@@ -11,20 +11,22 @@
 
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
+#include "qapi/error.h"
 #include "qemu/module.h"
 #include "qemu/timer.h"
 #include "hw/rtc/sun4v-rtc.h"
 #include "trace.h"
+#include "qom/object.h"
 
 
 #define TYPE_SUN4V_RTC "sun4v_rtc"
-#define SUN4V_RTC(obj) OBJECT_CHECK(Sun4vRtc, (obj), TYPE_SUN4V_RTC)
+OBJECT_DECLARE_SIMPLE_TYPE(Sun4vRtc, SUN4V_RTC)
 
-typedef struct Sun4vRtc {
+struct Sun4vRtc {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
-} Sun4vRtc;
+};
 
 static uint64_t sun4v_rtc_read(void *opaque, hwaddr addr,
                                 unsigned size)
@@ -55,10 +57,10 @@ void sun4v_rtc_init(hwaddr addr)
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_create(NULL, TYPE_SUN4V_RTC);
+    dev = qdev_new(TYPE_SUN4V_RTC);
     s = SYS_BUS_DEVICE(dev);
 
-    qdev_init_nofail(dev);
+    sysbus_realize_and_unref(s, &error_fatal);
 
     sysbus_mmio_map(s, 0, addr);
 }

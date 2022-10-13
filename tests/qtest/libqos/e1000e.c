@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,14 +17,14 @@
  */
 
 #include "qemu/osdep.h"
-#include "libqtest.h"
-#include "libqos/pci-pc.h"
+#include "../libqtest.h"
+#include "pci-pc.h"
 #include "qemu/sockets.h"
 #include "qemu/iov.h"
 #include "qemu/module.h"
 #include "qemu/bitops.h"
-#include "libqos/malloc.h"
-#include "libqos/qgraph.h"
+#include "malloc.h"
+#include "qgraph.h"
 #include "e1000e.h"
 
 #define E1000E_IMS      (0x00d0)

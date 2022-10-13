@@ -15,17 +15,6 @@
 #include "hw/acpi/tco.h"
 #include "trace.h"
 
-//#define DEBUG
-
-#ifdef DEBUG
-#define TCO_DEBUG(fmt, ...)                                     \
-    do {                                                        \
-        fprintf(stderr, "%s "fmt, __func__, ## __VA_ARGS__);    \
-    } while (0)
-#else
-#define TCO_DEBUG(fmt, ...) do { } while (0)
-#endif
-
 enum {
     TCO_RLD_DEFAULT         = 0x0000,
     TCO_DAT_IN_DEFAULT      = 0x00,
@@ -250,7 +239,6 @@ const VMStateDescription vmstate_tco_io_sts = {
     .name = "tco io device status",
     .version_id = 1,
     .minimum_version_id = 1,
-    .minimum_version_id_old = 1,
     .fields      = (VMStateField[]) {
         VMSTATE_UINT16(tco.rld, TCOIORegs),
         VMSTATE_UINT8(tco.din, TCOIORegs),

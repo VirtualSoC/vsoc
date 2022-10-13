@@ -17,7 +17,7 @@
 #define IVSHMEM_SERVER_DEFAULT_PID_FILE       "/var/run/ivshmem-server.pid"
 #define IVSHMEM_SERVER_DEFAULT_UNIX_SOCK_PATH "/tmp/ivshmem_socket"
 #define IVSHMEM_SERVER_DEFAULT_SHM_PATH       "ivshmem"
-#define IVSHMEM_SERVER_DEFAULT_SHM_SIZE       (4*1024*1024)
+#define IVSHMEM_SERVER_DEFAULT_SHM_SIZE       (4 * 1024 * 1024)
 #define IVSHMEM_SERVER_DEFAULT_N_VECTORS      1
 
 /* used to quit on signal SIGTERM */
@@ -103,8 +103,8 @@ ivshmem_server_parse_args(IvshmemServerArgs *args, int argc, char *argv[])
             break;
 
         case 'l': /* shm size */
-            parse_option_size("shm_size", optarg, &args->shm_size, &err);
-            if (err) {
+            if (!parse_option_size("shm_size", optarg, &args->shm_size,
+                                   &err)) {
                 error_report_err(err);
                 ivshmem_server_help(argv[0]);
                 exit(1);

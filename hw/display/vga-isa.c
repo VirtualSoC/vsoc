@@ -32,17 +32,18 @@
 #include "qemu/timer.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
+#include "qom/object.h"
 
 #define TYPE_ISA_VGA "isa-vga"
-#define ISA_VGA(obj) OBJECT_CHECK(ISAVGAState, (obj), TYPE_ISA_VGA)
+OBJECT_DECLARE_SIMPLE_TYPE(ISAVGAState, ISA_VGA)
 
-typedef struct ISAVGAState {
+struct ISAVGAState {
     ISADevice parent_obj;
 
     struct VGACommonState state;
     PortioList portio_vga;
     PortioList portio_vbe;
-} ISAVGAState;
+};
 
 static void vga_isa_reset(DeviceState *dev)
 {
@@ -61,7 +62,10 @@ static void vga_isa_realizefn(DeviceState *dev, Error **errp)
     const MemoryRegionPortio *vga_ports, *vbe_ports;
 
     s->global_vmstate = true;
-    vga_common_init(s, OBJECT(dev));
+    if (!vga_common_init(s, OBJECT(dev), errp)) {
+        return;
+    }
+
     s->legacy_address_space = isa_address_space(isadev);
     vga_io_memory = vga_init_io(s, OBJECT(dev), &vga_ports, &vbe_ports);
     isa_register_portio_list(isadev, &d->portio_vga,

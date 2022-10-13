@@ -20,7 +20,8 @@
 #include "hw/qdev-properties.h"
 #include "hw/virtio/virtio-serial.h"
 #include "qemu/module.h"
-#include "virtio-pci.h"
+#include "hw/virtio/virtio-pci.h"
+#include "qom/object.h"
 
 typedef struct VirtIOSerialPCI VirtIOSerialPCI;
 
@@ -28,8 +29,8 @@ typedef struct VirtIOSerialPCI VirtIOSerialPCI;
  * virtio-serial-pci: This extends VirtioPCIProxy.
  */
 #define TYPE_VIRTIO_SERIAL_PCI "virtio-serial-pci-base"
-#define VIRTIO_SERIAL_PCI(obj) \
-        OBJECT_CHECK(VirtIOSerialPCI, (obj), TYPE_VIRTIO_SERIAL_PCI)
+DECLARE_INSTANCE_CHECKER(VirtIOSerialPCI, VIRTIO_SERIAL_PCI,
+                         TYPE_VIRTIO_SERIAL_PCI)
 
 struct VirtIOSerialPCI {
     VirtIOPCIProxy parent_obj;
@@ -65,8 +66,7 @@ static void virtio_serial_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
         g_free(bus_name);
     }
 
-    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
-    object_property_set_bool(OBJECT(vdev), true, "realized", errp);
+    qdev_realize(vdev, BUS(&vpci_dev->bus), errp);
 }
 
 static Property virtio_serial_pci_properties[] = {

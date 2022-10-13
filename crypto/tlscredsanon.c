@@ -29,6 +29,8 @@
 
 #ifdef CONFIG_GNUTLS
 
+#include <gnutls/gnutls.h>
+
 
 static int
 qcrypto_tls_creds_anon_load(QCryptoTLSCredsAnon *creds,
@@ -117,17 +119,11 @@ qcrypto_tls_creds_anon_unload(QCryptoTLSCredsAnon *creds G_GNUC_UNUSED)
 
 
 static void
-qcrypto_tls_creds_anon_prop_set_loaded(Object *obj,
-                                       bool value,
-                                       Error **errp)
+qcrypto_tls_creds_anon_complete(UserCreatable *uc, Error **errp)
 {
-    QCryptoTLSCredsAnon *creds = QCRYPTO_TLS_CREDS_ANON(obj);
+    QCryptoTLSCredsAnon *creds = QCRYPTO_TLS_CREDS_ANON(uc);
 
-    if (value) {
-        qcrypto_tls_creds_anon_load(creds, errp);
-    } else {
-        qcrypto_tls_creds_anon_unload(creds);
-    }
+    qcrypto_tls_creds_anon_load(creds, errp);
 }
 
 
@@ -163,13 +159,6 @@ qcrypto_tls_creds_anon_prop_get_loaded(Object *obj G_GNUC_UNUSED,
 
 
 static void
-qcrypto_tls_creds_anon_complete(UserCreatable *uc, Error **errp)
-{
-    object_property_set_bool(OBJECT(uc), true, "loaded", errp);
-}
-
-
-static void
 qcrypto_tls_creds_anon_finalize(Object *obj)
 {
     QCryptoTLSCredsAnon *creds = QCRYPTO_TLS_CREDS_ANON(obj);
@@ -187,7 +176,7 @@ qcrypto_tls_creds_anon_class_init(ObjectClass *oc, void *data)
 
     object_class_property_add_bool(oc, "loaded",
                                    qcrypto_tls_creds_anon_prop_get_loaded,
-                                   qcrypto_tls_creds_anon_prop_set_loaded);
+                                   NULL);
 }
 
 

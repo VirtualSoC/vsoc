@@ -71,7 +71,7 @@
  * QW word 2 contains the valid bit at the top and other fields
  * depending on the QW.
  */
-#define TM_WORD2                0x8
+#define   TM_WORD2              0x8
 #define   TM_QW0W2_VU           PPC_BIT32(0)
 #define   TM_QW0W2_LOGIC_SERV   PPC_BITMASK32(1, 31) /* XX 2,31 ? */
 #define   TM_QW1W2_VO           PPC_BIT32(0)
@@ -236,6 +236,8 @@ typedef struct XiveEND {
     (be32_to_cpu((end)->w0) & END_W0_UNCOND_ESCALATE)
 #define xive_end_is_silent_escalation(end)              \
     (be32_to_cpu((end)->w0) & END_W0_SILENT_ESCALATE)
+#define xive_end_is_firmware(end)              \
+    (be32_to_cpu((end)->w0) & END_W0_FIRMWARE)
 
 static inline uint64_t xive_end_qaddr(XiveEND *end)
 {

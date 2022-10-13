@@ -5,7 +5,7 @@
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
- * License version 2 as published by the Free Software Foundation.
+ * License version 2.1 as published by the Free Software Foundation.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,10 +19,7 @@
 #include "qemu/osdep.h"
 #include "qemu/units.h"
 #include "qapi/error.h"
-#include "qemu-common.h"
 #include "exec/memory.h"
-#include "exec/address-spaces.h"
-#include "sysemu/sysemu.h"
 #include "qemu/main-loop.h"
 
 #include "tests/qtest/libqtest.h"
@@ -66,11 +63,11 @@ void *qos_allocate_objects(QTestState *qts, QGuestAllocator **p_alloc)
     return allocate_objects(qts, current_path + 1, p_alloc);
 }
 
-static const char *qos_build_main_args(void)
+static GString *qos_build_main_args(void)
 {
     char **path = fuzz_path_vec;
     QOSGraphNode *test_node;
-    GString *cmd_line = g_string_new(path[0]);
+    GString *cmd_line;
     void *test_arg;
 
     if (!path) {
@@ -79,6 +76,7 @@ static const char *qos_build_main_args(void)
     }
 
     /* Before test */
+    cmd_line = g_string_new(path[0]);
     current_path = path;
     test_node = qos_graph_get_node(path[(g_strv_length(path) - 1)]);
     test_arg = test_node->u.test.arg;
@@ -88,7 +86,7 @@ static const char *qos_build_main_args(void)
     /* Prepend the arguments that we need */
     g_string_prepend(cmd_line,
             TARGET_NAME " -display none -machine accel=qtest -m 64 ");
-    return cmd_line->str;
+    return cmd_line;
 }
 
 /*
@@ -189,7 +187,7 @@ static void walk_path(QOSGraphNode *orig_path, int len)
     g_free(path_str);
 }
 
-static const char *qos_get_cmdline(FuzzTarget *t)
+static GString *qos_get_cmdline(FuzzTarget *t)
 {
     /*
      * Set a global variable that we use to identify the qos_path for our

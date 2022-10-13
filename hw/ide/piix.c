@@ -26,6 +26,7 @@
 #include "qemu/osdep.h"
 #include "hw/pci/pci.h"
 #include "migration/vmstate.h"
+#include "qapi/error.h"
 #include "qemu/module.h"
 #include "sysemu/block-backend.h"
 #include "sysemu/blockdev.h"
@@ -123,7 +124,8 @@ static void piix_ide_reset(DeviceState *dev)
     pci_conf[0x20] = 0x01; /* BMIBA: 20-23h */
 }
 
-static void pci_piix_init_ports(PCIIDEState *d) {
+static int pci_piix_init_ports(PCIIDEState *d)
+{
     static const struct {
         int iobase;
         int iobase2;
@@ -132,24 +134,30 @@ static void pci_piix_init_ports(PCIIDEState *d) {
         {0x1f0, 0x3f6, 14},
         {0x170, 0x376, 15},
     };
-    int i;
+    int i, ret;
 
     for (i = 0; i < 2; i++) {
-        ide_bus_new(&d->bus[i], sizeof(d->bus[i]), DEVICE(d), i, 2);
-        ide_init_ioport(&d->bus[i], NULL, port_info[i].iobase,
-                        port_info[i].iobase2);
+        ide_bus_init(&d->bus[i], sizeof(d->bus[i]), DEVICE(d), i, 2);
+        ret = ide_init_ioport(&d->bus[i], NULL, port_info[i].iobase,
+                              port_info[i].iobase2);
+        if (ret) {
+            return ret;
+        }
         ide_init2(&d->bus[i], isa_get_irq(NULL, port_info[i].isairq));
 
         bmdma_init(&d->bus[i], &d->bmdma[i], d);
         d->bmdma[i].bus = &d->bus[i];
         ide_register_restart_cb(&d->bus[i]);
     }
+
+    return 0;
 }
 
 static void pci_piix_ide_realize(PCIDevice *dev, Error **errp)
 {
     PCIIDEState *d = PCI_IDE(dev);
     uint8_t *pci_conf = dev->config;
+    int rc;
 
     pci_conf[PCI_CLASS_PROG] = 0x80; // legacy ATA mode
 
@@ -158,43 +166,11 @@ static void pci_piix_ide_realize(PCIDevice *dev, Error **errp)
 
     vmstate_register(VMSTATE_IF(dev), 0, &vmstate_ide_pci, d);
 
-    pci_piix_init_ports(d);
-}
-
-int pci_piix3_xen_ide_unplug(DeviceState *dev, bool aux)
-{
-    PCIIDEState *pci_ide;
-    DriveInfo *di;
-    int i;
-    IDEDevice *idedev;
-
-    pci_ide = PCI_IDE(dev);
-
-    for (i = aux ? 1 : 0; i < 4; i++) {
-        di = drive_get_by_index(IF_IDE, i);
-        if (di != NULL && !di->media_cd) {
-            BlockBackend *blk = blk_by_legacy_dinfo(di);
-            DeviceState *ds = blk_get_attached_dev(blk);
-
-            blk_drain(blk);
-            blk_flush(blk);
-
-            if (ds) {
-                blk_detach_dev(blk, ds);
-            }
-            pci_ide->bus[di->bus].ifs[di->unit].blk = NULL;
-            if (!(i % 2)) {
-                idedev = pci_ide->bus[di->bus].master;
-            } else {
-                idedev = pci_ide->bus[di->bus].slave;
-            }
-            idedev->conf.blk = NULL;
-            monitor_remove_blk(blk);
-            blk_unref(blk);
-        }
+    rc = pci_piix_init_ports(d);
+    if (rc) {
+        error_setg_errno(errp, -rc, "Failed to realize %s",
+                         object_get_typename(OBJECT(dev)));
     }
-    qdev_reset_all(dev);
-    return 0;
 }
 
 static void pci_piix_ide_exitfn(PCIDevice *dev)
@@ -230,12 +206,6 @@ static const TypeInfo piix3_ide_info = {
     .class_init    = piix3_ide_class_init,
 };
 
-static const TypeInfo piix3_ide_xen_info = {
-    .name          = "piix3-ide-xen",
-    .parent        = TYPE_PCI_IDE,
-    .class_init    = piix3_ide_class_init,
-};
-
 /* NOTE: for the PIIX4, the IRQs and IOports are hardcoded */
 static void piix4_ide_class_init(ObjectClass *klass, void *data)
 {
@@ -261,7 +231,6 @@ static const TypeInfo piix4_ide_info = {
 static void piix_ide_register_types(void)
 {
     type_register_static(&piix3_ide_info);
-    type_register_static(&piix3_ide_xen_info);
     type_register_static(&piix4_ide_info);
 }
 

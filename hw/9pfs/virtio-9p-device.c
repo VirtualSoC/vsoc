@@ -11,6 +11,11 @@
  *
  */
 
+/*
+ * Not so fast! You might want to read the 9p developer docs first:
+ * https://wiki.qemu.org/Documentation/9p
+ */
+
 #include "qemu/osdep.h"
 #include "hw/virtio/virtio.h"
 #include "qemu/sockets.h"
@@ -21,6 +26,7 @@
 #include "hw/virtio/virtio-access.h"
 #include "qemu/iov.h"
 #include "qemu/module.h"
+#include "sysemu/qtest.h"
 
 static void virtio_9p_push_and_notify(V9fsPDU *pdu)
 {
@@ -199,13 +205,18 @@ static void virtio_9p_device_realize(DeviceState *dev, Error **errp)
     VirtIODevice *vdev = VIRTIO_DEVICE(dev);
     V9fsVirtioState *v = VIRTIO_9P(dev);
     V9fsState *s = &v->state;
+    FsDriverEntry *fse = get_fsdev_fsentry(s->fsconf.fsdev_id);
+
+    if (qtest_enabled() && fse) {
+        fse->export_flags |= V9FS_NO_PERF_WARN;
+    }
 
     if (v9fs_device_realize_common(s, &virtio_9p_transport, errp)) {
         return;
     }
 
     v->config_size = sizeof(struct virtio_9p_config) + strlen(s->fsconf.tag);
-    virtio_init(vdev, "virtio-9p", VIRTIO_ID_9P, v->config_size);
+    virtio_init(vdev, VIRTIO_ID_9P, v->config_size);
     v->vq = virtio_add_queue(vdev, MAX_REQ, handle_9p_output);
 }
 

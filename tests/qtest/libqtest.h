@@ -19,19 +19,20 @@
 
 #include "qapi/qmp/qobject.h"
 #include "qapi/qmp/qdict.h"
+#include "libqmp.h"
 
 typedef struct QTestState QTestState;
 
 /**
  * qtest_initf:
- * @fmt...: Format for creating other arguments to pass to QEMU, formatted
+ * @fmt: Format for creating other arguments to pass to QEMU, formatted
  * like sprintf().
  *
  * Convenience wrapper around qtest_init().
  *
  * Returns: #QTestState instance.
  */
-QTestState *qtest_initf(const char *fmt, ...) GCC_FMT_ATTR(1, 2);
+QTestState *qtest_initf(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
 
 /**
  * qtest_vinitf:
@@ -43,7 +44,7 @@ QTestState *qtest_initf(const char *fmt, ...) GCC_FMT_ATTR(1, 2);
  *
  * Returns: #QTestState instance.
  */
-QTestState *qtest_vinitf(const char *fmt, va_list ap) GCC_FMT_ATTR(1, 0);
+QTestState *qtest_vinitf(const char *fmt, va_list ap) G_GNUC_PRINTF(1, 0);
 
 /**
  * qtest_init:
@@ -75,6 +76,17 @@ QTestState *qtest_init_without_qmp_handshake(const char *extra_args);
 QTestState *qtest_init_with_serial(const char *extra_args, int *sock_fd);
 
 /**
+ * qtest_kill_qemu:
+ * @s: #QTestState instance to operate on.
+ *
+ * Kill the QEMU process and wait for it to terminate. It is safe to call this
+ * function multiple times. Normally qtest_quit() is used instead because it
+ * also frees QTestState. Use qtest_kill_qemu() when you just want to kill QEMU
+ * and qtest_quit() will be called later.
+ */
+void qtest_kill_qemu(QTestState *s);
+
+/**
  * qtest_quit:
  * @s: #QTestState instance to operate on.
  *
@@ -87,50 +99,58 @@ void qtest_quit(QTestState *s);
  * @s: #QTestState instance to operate on.
  * @fds: array of file descriptors
  * @fds_num: number of elements in @fds
- * @fmt...: QMP message to send to qemu, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * @fmt: QMP message to send to qemu, formatted like
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  *
  * Sends a QMP message to QEMU with fds and returns the response.
  */
 QDict *qtest_qmp_fds(QTestState *s, int *fds, size_t fds_num,
                      const char *fmt, ...)
-    GCC_FMT_ATTR(4, 5);
+    G_GNUC_PRINTF(4, 5);
 
 /**
  * qtest_qmp:
  * @s: #QTestState instance to operate on.
- * @fmt...: QMP message to send to qemu, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * @fmt: QMP message to send to qemu, formatted like
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  *
  * Sends a QMP message to QEMU and returns the response.
  */
 QDict *qtest_qmp(QTestState *s, const char *fmt, ...)
-    GCC_FMT_ATTR(2, 3);
+    G_GNUC_PRINTF(2, 3);
 
 /**
  * qtest_qmp_send:
  * @s: #QTestState instance to operate on.
- * @fmt...: QMP message to send to qemu, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * @fmt: QMP message to send to qemu, formatted like
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  *
  * Sends a QMP message to QEMU and leaves the response in the stream.
  */
 void qtest_qmp_send(QTestState *s, const char *fmt, ...)
-    GCC_FMT_ATTR(2, 3);
+    G_GNUC_PRINTF(2, 3);
 
 /**
  * qtest_qmp_send_raw:
  * @s: #QTestState instance to operate on.
- * @fmt...: text to send, formatted like sprintf()
+ * @fmt: text to send, formatted like sprintf()
  *
  * Sends text to the QMP monitor verbatim.  Need not be valid JSON;
  * this is useful for negative tests.
  */
 void qtest_qmp_send_raw(QTestState *s, const char *fmt, ...)
-    GCC_FMT_ATTR(2, 3);
+    G_GNUC_PRINTF(2, 3);
+
+/**
+ * qtest_socket_server:
+ * @socket_path: the UNIX domain socket path
+ *
+ * Create and return a listen socket file descriptor, or abort on failure.
+ */
+int qtest_socket_server(const char *socket_path);
 
 /**
  * qtest_vqmp_fds:
@@ -138,7 +158,7 @@ void qtest_qmp_send_raw(QTestState *s, const char *fmt, ...)
  * @fds: array of file descriptors
  * @fds_num: number of elements in @fds
  * @fmt: QMP message to send to QEMU, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  * @ap: QMP message arguments
  *
@@ -146,20 +166,20 @@ void qtest_qmp_send_raw(QTestState *s, const char *fmt, ...)
  */
 QDict *qtest_vqmp_fds(QTestState *s, int *fds, size_t fds_num,
                       const char *fmt, va_list ap)
-    GCC_FMT_ATTR(4, 0);
+    G_GNUC_PRINTF(4, 0);
 
 /**
  * qtest_vqmp:
  * @s: #QTestState instance to operate on.
  * @fmt: QMP message to send to QEMU, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  * @ap: QMP message arguments
  *
  * Sends a QMP message to QEMU and returns the response.
  */
 QDict *qtest_vqmp(QTestState *s, const char *fmt, va_list ap)
-    GCC_FMT_ATTR(2, 0);
+    G_GNUC_PRINTF(2, 0);
 
 /**
  * qtest_qmp_vsend_fds:
@@ -167,7 +187,7 @@ QDict *qtest_vqmp(QTestState *s, const char *fmt, va_list ap)
  * @fds: array of file descriptors
  * @fds_num: number of elements in @fds
  * @fmt: QMP message to send to QEMU, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  * @ap: QMP message arguments
  *
@@ -175,33 +195,43 @@ QDict *qtest_vqmp(QTestState *s, const char *fmt, va_list ap)
  */
 void qtest_qmp_vsend_fds(QTestState *s, int *fds, size_t fds_num,
                          const char *fmt, va_list ap)
-    GCC_FMT_ATTR(4, 0);
+    G_GNUC_PRINTF(4, 0);
 
 /**
  * qtest_qmp_vsend:
  * @s: #QTestState instance to operate on.
  * @fmt: QMP message to send to QEMU, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  * @ap: QMP message arguments
  *
  * Sends a QMP message to QEMU and leaves the response in the stream.
  */
 void qtest_qmp_vsend(QTestState *s, const char *fmt, va_list ap)
-    GCC_FMT_ATTR(2, 0);
+    G_GNUC_PRINTF(2, 0);
 
 /**
- * qtest_receive:
+ * qtest_qmp_receive_dict:
  * @s: #QTestState instance to operate on.
  *
  * Reads a QMP message from QEMU and returns the response.
+ */
+QDict *qtest_qmp_receive_dict(QTestState *s);
+
+/**
+ * qtest_qmp_receive:
+ * @s: #QTestState instance to operate on.
+ *
+ * Reads a QMP message from QEMU and returns the response.
+ * Buffers all the events received meanwhile, until a
+ * call to qtest_qmp_eventwait
  */
 QDict *qtest_qmp_receive(QTestState *s);
 
 /**
  * qtest_qmp_eventwait:
  * @s: #QTestState instance to operate on.
- * @s: #event event to wait for.
+ * @event: event to wait for.
  *
  * Continuously polls for QMP responses until it receives the desired event.
  */
@@ -210,7 +240,7 @@ void qtest_qmp_eventwait(QTestState *s, const char *event);
 /**
  * qtest_qmp_eventwait_ref:
  * @s: #QTestState instance to operate on.
- * @s: #event event to wait for.
+ * @event: event to wait for.
  *
  * Continuously polls for QMP responses until it receives the desired event.
  * Returns a copy of the event for further investigation.
@@ -218,33 +248,29 @@ void qtest_qmp_eventwait(QTestState *s, const char *event);
 QDict *qtest_qmp_eventwait_ref(QTestState *s, const char *event);
 
 /**
- * qtest_qmp_receive_success:
- * @s: #QTestState instance to operate on
- * @event_cb: Event callback
- * @opaque: Argument for @event_cb
+ * qtest_qmp_event_ref:
+ * @s: #QTestState instance to operate on.
+ * @event: event to return.
  *
- * Poll QMP messages until a command success response is received.
- * If @event_cb, call it for each event received, passing @opaque,
- * the event's name and data.
- * Return the success response's "return" member.
+ * Removes non-matching events from the buffer that was set by
+ * qtest_qmp_receive, until an event bearing the given name is found,
+ * and returns it.
+ * If no event matches, clears the buffer and returns NULL.
+ *
  */
-QDict *qtest_qmp_receive_success(QTestState *s,
-                                 void (*event_cb)(void *opaque,
-                                                  const char *name,
-                                                  QDict *data),
-                                 void *opaque);
+QDict *qtest_qmp_event_ref(QTestState *s, const char *event);
 
 /**
  * qtest_hmp:
  * @s: #QTestState instance to operate on.
- * @fmt...: HMP command to send to QEMU, formats arguments like sprintf().
+ * @fmt: HMP command to send to QEMU, formats arguments like sprintf().
  *
  * Send HMP command to QEMU via QMP's human-monitor-command.
  * QMP events are discarded.
  *
  * Returns: the command's output.  The caller should g_free() it.
  */
-char *qtest_hmp(QTestState *s, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
+char *qtest_hmp(QTestState *s, const char *fmt, ...) G_GNUC_PRINTF(2, 3);
 
 /**
  * qtest_hmpv:
@@ -258,7 +284,7 @@ char *qtest_hmp(QTestState *s, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
  * Returns: the command's output.  The caller should g_free() it.
  */
 char *qtest_vhmp(QTestState *s, const char *fmt, va_list ap)
-    GCC_FMT_ATTR(2, 0);
+    G_GNUC_PRINTF(2, 0);
 
 void qtest_module_load(QTestState *s, const char *prefix, const char *libname);
 
@@ -564,6 +590,14 @@ bool qtest_big_endian(QTestState *s);
 const char *qtest_get_arch(void);
 
 /**
+ * qtest_has_accel:
+ * @accel_name: Accelerator name to check for.
+ *
+ * Returns: true if the accelerator is built in.
+ */
+bool qtest_has_accel(const char *accel_name);
+
+/**
  * qtest_add_func:
  * @str: Test case path.
  * @fn: Test case function
@@ -624,30 +658,38 @@ void qtest_add_data_func_full(const char *str, void *data,
         g_free(path); \
     } while (0)
 
+/**
+ * qtest_add_abrt_handler:
+ * @fn: Handler function
+ * @data: Argument that is passed to the handler
+ *
+ * Add a handler function that is invoked on SIGABRT. This can be used to
+ * terminate processes and perform other cleanup. The handler can be removed
+ * with qtest_remove_abrt_handler().
+ */
 void qtest_add_abrt_handler(GHookFunc fn, const void *data);
+
+/**
+ * qtest_remove_abrt_handler:
+ * @data: Argument previously passed to qtest_add_abrt_handler()
+ *
+ * Remove an abrt handler that was previously added with
+ * qtest_add_abrt_handler().
+ */
+void qtest_remove_abrt_handler(void *data);
 
 /**
  * qtest_qmp_assert_success:
  * @qts: QTestState instance to operate on
- * @fmt...: QMP message to send to qemu, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * @fmt: QMP message to send to qemu, formatted like
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  *
  * Sends a QMP message to QEMU and asserts that a 'return' key is present in
  * the response.
  */
 void qtest_qmp_assert_success(QTestState *qts, const char *fmt, ...)
-    GCC_FMT_ATTR(2, 3);
-
-QDict *qmp_fd_receive(int fd);
-void qmp_fd_vsend_fds(int fd, int *fds, size_t fds_num,
-                      const char *fmt, va_list ap) GCC_FMT_ATTR(4, 0);
-void qmp_fd_vsend(int fd, const char *fmt, va_list ap) GCC_FMT_ATTR(2, 0);
-void qmp_fd_send(int fd, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
-void qmp_fd_send_raw(int fd, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
-void qmp_fd_vsend_raw(int fd, const char *fmt, va_list ap) GCC_FMT_ATTR(2, 0);
-QDict *qmp_fdv(int fd, const char *fmt, va_list ap) GCC_FMT_ATTR(2, 0);
-QDict *qmp_fd(int fd, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
+    G_GNUC_PRINTF(2, 3);
 
 /**
  * qtest_cb_for_every_machine:
@@ -658,6 +700,22 @@ QDict *qmp_fd(int fd, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
  */
 void qtest_cb_for_every_machine(void (*cb)(const char *machine),
                                 bool skip_old_versioned);
+
+/**
+ * qtest_has_machine:
+ * @machine: The machine to look for
+ *
+ * Returns: true if the machine is available in the target binary.
+ */
+bool qtest_has_machine(const char *machine);
+
+/**
+ * qtest_has_device:
+ * @device: The device to look for
+ *
+ * Returns: true if the device is available in the target binary.
+ */
+bool qtest_has_device(const char *device);
 
 /**
  * qtest_qmp_device_add_qdict:
@@ -676,14 +734,24 @@ void qtest_qmp_device_add_qdict(QTestState *qts, const char *drv,
  * @qts: QTestState instance to operate on
  * @driver: Name of the device that should be added
  * @id: Identification string
- * @fmt...: QMP message to send to qemu, formatted like
- * qobject_from_jsonf_nofail().  See parse_escape() for what's
+ * @fmt: QMP message to send to qemu, formatted like
+ * qobject_from_jsonf_nofail().  See parse_interpolation() for what's
  * supported after '%'.
  *
  * Generic hot-plugging test via the device_add QMP command.
  */
 void qtest_qmp_device_add(QTestState *qts, const char *driver, const char *id,
-                          const char *fmt, ...) GCC_FMT_ATTR(4, 5);
+                          const char *fmt, ...) G_GNUC_PRINTF(4, 5);
+
+/**
+ * qtest_qmp_add_client:
+ * @qts: QTestState instance to operate on
+ * @protocol: the protocol to add to
+ * @fd: the client file-descriptor
+ *
+ * Call QMP ``getfd`` followed by ``add_client`` with the given @fd.
+ */
+void qtest_qmp_add_client(QTestState *qts, const char *protocol, int fd);
 
 /**
  * qtest_qmp_device_del:
@@ -693,24 +761,6 @@ void qtest_qmp_device_add(QTestState *qts, const char *driver, const char *id,
  * Generic hot-unplugging test via the device_del QMP command.
  */
 void qtest_qmp_device_del(QTestState *qts, const char *id);
-
-/**
- * qmp_rsp_is_err:
- * @rsp: QMP response to check for error
- *
- * Test @rsp for error and discard @rsp.
- * Returns 'true' if there is error in @rsp and 'false' otherwise.
- */
-bool qmp_rsp_is_err(QDict *rsp);
-
-/**
- * qmp_assert_error_class:
- * @rsp: QMP response to check for error
- * @class: an error class
- *
- * Assert the response has the given error class and discard @rsp.
- */
-void qmp_assert_error_class(QDict *rsp, const char *class);
 
 /**
  * qtest_probe_child:
@@ -733,4 +783,26 @@ QTestState *qtest_inproc_init(QTestState **s, bool log, const char* arch,
                     void (*send)(void*, const char*));
 
 void qtest_client_inproc_recv(void *opaque, const char *str);
+
+/**
+ * qtest_qom_set_bool:
+ * @s: QTestState instance to operate on.
+ * @path: Path to the property being set.
+ * @property: Property being set.
+ * @value: Value to set the property.
+ *
+ * Set the property with passed in value.
+ */
+void qtest_qom_set_bool(QTestState *s, const char *path, const char *property,
+                         bool value);
+
+/**
+ * qtest_qom_get_bool:
+ * @s: QTestState instance to operate on.
+ * @path: Path to the property being retrieved.
+ * @property: Property from where the value is being retrieved.
+ *
+ * Returns: Value retrieved from property.
+ */
+bool qtest_qom_get_bool(QTestState *s, const char *path, const char *property);
 #endif

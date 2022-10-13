@@ -18,6 +18,7 @@
 #include "qemu/osdep.h"
 #include "hw/pci/pci.h"
 #include "hw/qdev-properties.h"
+#include "hw/qdev-properties-system.h"
 #include "migration/vmstate.h"
 #include "hw/pci/msix.h"
 #include "net/net.h"
@@ -73,11 +74,6 @@ struct rocker {
     QLIST_ENTRY(rocker) next;
 };
 
-#define TYPE_ROCKER "rocker"
-
-#define ROCKER(obj) \
-    OBJECT_CHECK(Rocker, (obj), TYPE_ROCKER)
-
 static QLIST_HEAD(, rocker) rockers;
 
 Rocker *rocker_find(const char *name)
@@ -132,13 +128,7 @@ RockerPortList *qmp_query_rocker_ports(const char *name, Error **errp)
     }
 
     for (i = r->fp_ports - 1; i >= 0; i--) {
-        RockerPortList *info = g_malloc0(sizeof(*info));
-        info->value = g_malloc0(sizeof(*info->value));
-        struct fp_port *port = r->fp_port[i];
-
-        fp_port_get_info(port, info);
-        info->next = list;
-        list = info;
+        QAPI_LIST_PREPEND(list, fp_port_get_info(r->fp_port[i]));
     }
 
     return list;
@@ -1020,7 +1010,7 @@ static uint64_t rocker_port_phys_link_status(Rocker *r)
         FpPort *port = r->fp_port[i];
 
         if (fp_port_get_link_up(port)) {
-            status |= 1 << (i + 1);
+            status |= 1ULL << (i + 1);
         }
     }
     return status;
@@ -1035,7 +1025,7 @@ static uint64_t rocker_port_phys_enable_read(Rocker *r)
         FpPort *port = r->fp_port[i];
 
         if (fp_port_enabled(port)) {
-            ret |= 1 << (i + 1);
+            ret |= 1ULL << (i + 1);
         }
     }
     return ret;

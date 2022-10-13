@@ -37,35 +37,28 @@
 
 #include "qemu/osdep.h"
 #include "qemu/timer.h"
+#include "qemu-version.h"
+#include "qemu/help-texts.h"
 #include "fuse_virtio.h"
 #include "fuse_log.h"
 #include "fuse_lowlevel.h"
-#include <assert.h>
+#include "standard-headers/linux/fuse.h"
 #include <cap-ng.h>
 #include <dirent.h>
-#include <errno.h>
-#include <glib.h>
-#include <inttypes.h>
-#include <limits.h>
 #include <pthread.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/file.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/xattr.h>
 #include <syslog.h>
-#include <unistd.h>
+#include <grp.h>
 
+#include "qemu/cutils.h"
 #include "passthrough_helpers.h"
-#include "seccomp.h"
+#include "passthrough_seccomp.h"
 
 /* Keep track of inode posix locks for each owner. */
 struct lo_inode_plock {
@@ -93,6 +86,7 @@ struct lo_map {
 struct lo_key {
     ino_t ino;
     dev_t dev;
+    uint64_t mnt_id;
 };
 
 struct lo_inode {
@@ -110,7 +104,7 @@ struct lo_inode {
      * This counter keeps the inode alive during the FUSE session.
      * Incremented when the FUSE inode number is sent in a reply
      * (FUSE_LOOKUP, FUSE_READDIRPLUS, etc).  Decremented when an inode is
-     * released by requests like FUSE_FORGET, FUSE_RMDIR, FUSE_RENAME, etc.
+     * released by a FUSE_FORGET request.
      *
      * Note that this value is untrusted because the client can manipulate
      * it arbitrarily using FUSE_FORGET requests.
@@ -129,6 +123,7 @@ struct lo_inode {
 struct lo_cred {
     uid_t euid;
     gid_t egid;
+    mode_t umask;
 };
 
 enum {
@@ -137,30 +132,65 @@ enum {
     CACHE_ALWAYS,
 };
 
+enum {
+    SANDBOX_NAMESPACE,
+    SANDBOX_CHROOT,
+};
+
+typedef struct xattr_map_entry {
+    char *key;
+    char *prepend;
+    unsigned int flags;
+} XattrMapEntry;
+
 struct lo_data {
     pthread_mutex_t mutex;
+    int sandbox;
     int debug;
     int writeback;
     int flock;
     int posix_lock;
     int xattr;
+    char *xattrmap;
+    char *xattr_security_capability;
     char *source;
+    char *modcaps;
     double timeout;
     int cache;
     int timeout_set;
     int readdirplus_set;
     int readdirplus_clear;
+    int allow_direct_io;
+    int announce_submounts;
+    bool use_statx;
     struct lo_inode root;
     GHashTable *inodes; /* protected by lo->mutex */
     struct lo_map ino_map; /* protected by lo->mutex */
     struct lo_map dirp_map; /* protected by lo->mutex */
     struct lo_map fd_map; /* protected by lo->mutex */
+    XattrMapEntry *xattr_map_list;
+    size_t xattr_map_nentries;
 
     /* An O_PATH file descriptor to /proc/self/fd/ */
     int proc_self_fd;
+    /* An O_PATH file descriptor to /proc/self/task/ */
+    int proc_self_task;
+    int user_killpriv_v2, killpriv_v2;
+    /* If set, virtiofsd is responsible for setting umask during creation */
+    bool change_umask;
+    int user_posix_acl, posix_acl;
+    /* Keeps track if /proc/<pid>/attr/fscreate should be used or not */
+    bool use_fscreate;
+    int user_security_label;
 };
 
 static const struct fuse_opt lo_opts[] = {
+    { "sandbox=namespace",
+      offsetof(struct lo_data, sandbox),
+      SANDBOX_NAMESPACE },
+    { "sandbox=chroot",
+      offsetof(struct lo_data, sandbox),
+      SANDBOX_CHROOT },
     { "writeback", offsetof(struct lo_data, writeback), 1 },
     { "no_writeback", offsetof(struct lo_data, writeback), 0 },
     { "source=%s", offsetof(struct lo_data, source), 0 },
@@ -170,6 +200,8 @@ static const struct fuse_opt lo_opts[] = {
     { "no_posix_lock", offsetof(struct lo_data, posix_lock), 0 },
     { "xattr", offsetof(struct lo_data, xattr), 1 },
     { "no_xattr", offsetof(struct lo_data, xattr), 0 },
+    { "xattrmap=%s", offsetof(struct lo_data, xattrmap), 0 },
+    { "modcaps=%s", offsetof(struct lo_data, modcaps), 0 },
     { "timeout=%lf", offsetof(struct lo_data, timeout), 0 },
     { "timeout=", offsetof(struct lo_data, timeout_set), 1 },
     { "cache=none", offsetof(struct lo_data, cache), CACHE_NONE },
@@ -177,6 +209,15 @@ static const struct fuse_opt lo_opts[] = {
     { "cache=always", offsetof(struct lo_data, cache), CACHE_ALWAYS },
     { "readdirplus", offsetof(struct lo_data, readdirplus_set), 1 },
     { "no_readdirplus", offsetof(struct lo_data, readdirplus_clear), 1 },
+    { "allow_direct_io", offsetof(struct lo_data, allow_direct_io), 1 },
+    { "no_allow_direct_io", offsetof(struct lo_data, allow_direct_io), 0 },
+    { "announce_submounts", offsetof(struct lo_data, announce_submounts), 1 },
+    { "killpriv_v2", offsetof(struct lo_data, user_killpriv_v2), 1 },
+    { "no_killpriv_v2", offsetof(struct lo_data, user_killpriv_v2), 0 },
+    { "posix_acl", offsetof(struct lo_data, user_posix_acl), 1 },
+    { "no_posix_acl", offsetof(struct lo_data, user_posix_acl), 0 },
+    { "security_label", offsetof(struct lo_data, user_security_label), 1 },
+    { "no_security_label", offsetof(struct lo_data, user_security_label), 0 },
     FUSE_OPT_END
 };
 static bool use_syslog = false;
@@ -191,27 +232,104 @@ static struct {
 /* That we loaded cap-ng in the current thread from the saved */
 static __thread bool cap_loaded = 0;
 
-static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st);
+static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st,
+                                uint64_t mnt_id);
+static int xattr_map_client(const struct lo_data *lo, const char *client_name,
+                            char **out_name);
 
-static int is_dot_or_dotdot(const char *name)
+#define FCHDIR_NOFAIL(fd) do {                         \
+        int fchdir_res = fchdir(fd);                   \
+        assert(fchdir_res == 0);                       \
+    } while (0)
+
+static bool is_dot_or_dotdot(const char *name)
 {
     return name[0] == '.' &&
            (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
 }
 
 /* Is `path` a single path component that is not "." or ".."? */
-static int is_safe_path_component(const char *path)
+static bool is_safe_path_component(const char *path)
 {
     if (strchr(path, '/')) {
-        return 0;
+        return false;
     }
 
     return !is_dot_or_dotdot(path);
 }
 
+static bool is_empty(const char *name)
+{
+    return name[0] == '\0';
+}
+
 static struct lo_data *lo_data(fuse_req_t req)
 {
     return (struct lo_data *)fuse_req_userdata(req);
+}
+
+/*
+ * Tries to figure out if /proc/<pid>/attr/fscreate is usable or not. With
+ * selinux=0, read from fscreate returns -EINVAL.
+ *
+ * TODO: Link with libselinux and use is_selinux_enabled() instead down
+ * the line. It probably will be more reliable indicator.
+ */
+static bool is_fscreate_usable(struct lo_data *lo)
+{
+    char procname[64];
+    int fscreate_fd;
+    size_t bytes_read;
+
+    sprintf(procname, "%ld/attr/fscreate", syscall(SYS_gettid));
+    fscreate_fd = openat(lo->proc_self_task, procname, O_RDWR);
+    if (fscreate_fd == -1) {
+        return false;
+    }
+
+    bytes_read = read(fscreate_fd, procname, 64);
+    close(fscreate_fd);
+    if (bytes_read == -1) {
+        return false;
+    }
+    return true;
+}
+
+/* Helpers to set/reset fscreate */
+static int open_set_proc_fscreate(struct lo_data *lo, const void *ctx,
+                                  size_t ctxlen, int *fd)
+{
+    char procname[64];
+    int fscreate_fd, err = 0;
+    size_t written;
+
+    sprintf(procname, "%ld/attr/fscreate", syscall(SYS_gettid));
+    fscreate_fd = openat(lo->proc_self_task, procname, O_WRONLY);
+    err = fscreate_fd == -1 ? errno : 0;
+    if (err) {
+        return err;
+    }
+
+    written = write(fscreate_fd, ctx, ctxlen);
+    err = written == -1 ? errno : 0;
+    if (err) {
+        goto out;
+    }
+
+    *fd = fscreate_fd;
+    return 0;
+out:
+    close(fscreate_fd);
+    return err;
+}
+
+static void close_reset_proc_fscreate(int fd)
+{
+    if ((write(fd, NULL, 0)) == -1) {
+        fuse_log(FUSE_LOG_WARNING, "Failed to reset fscreate. err=%d\n", errno);
+    }
+    close(fd);
+    return;
 }
 
 /*
@@ -331,6 +449,37 @@ out:
     return ret;
 }
 
+/*
+ * The host kernel normally drops security.capability xattr's on
+ * any write, however if we're remapping xattr names we need to drop
+ * whatever the clients security.capability is actually stored as.
+ */
+static int drop_security_capability(const struct lo_data *lo, int fd)
+{
+    if (!lo->xattr_security_capability) {
+        /* We didn't remap the name, let the host kernel do it */
+        return 0;
+    }
+    if (!fremovexattr(fd, lo->xattr_security_capability)) {
+        /* All good */
+        return 0;
+    }
+
+    switch (errno) {
+    case ENODATA:
+        /* Attribute didn't exist, that's fine */
+        return 0;
+
+    case ENOTSUP:
+        /* FS didn't support attribute anyway, also fine */
+        return 0;
+
+    default:
+        /* Hmm other error */
+        return errno;
+    }
+}
+
 static void lo_map_init(struct lo_map *map)
 {
     map->elems = NULL;
@@ -340,7 +489,7 @@ static void lo_map_init(struct lo_map *map)
 
 static void lo_map_destroy(struct lo_map *map)
 {
-    free(map->elems);
+    g_free(map->elems);
 }
 
 static int lo_map_grow(struct lo_map *map, size_t new_nelems)
@@ -352,7 +501,7 @@ static int lo_map_grow(struct lo_map *map, size_t new_nelems)
         return 1;
     }
 
-    new_elems = realloc(map->elems, sizeof(map->elems[0]) * new_nelems);
+    new_elems = g_try_realloc_n(map->elems, new_nelems, sizeof(map->elems[0]));
     if (!new_elems) {
         return 0;
     }
@@ -437,17 +586,17 @@ static void lo_map_remove(struct lo_map *map, size_t key)
 }
 
 /* Assumes lo->mutex is held */
-static ssize_t lo_add_fd_mapping(fuse_req_t req, int fd)
+static ssize_t lo_add_fd_mapping(struct lo_data *lo, int fd)
 {
     struct lo_map_elem *elem;
 
-    elem = lo_map_alloc_elem(&lo_data(req)->fd_map);
+    elem = lo_map_alloc_elem(&lo->fd_map);
     if (!elem) {
         return -1;
     }
 
     elem->fd = fd;
-    return elem - lo_data(req)->fd_map.elems;
+    return elem - lo->fd_map.elems;
 }
 
 /* Assumes lo->mutex is held */
@@ -533,6 +682,38 @@ static int lo_fd(fuse_req_t req, fuse_ino_t ino)
     return fd;
 }
 
+/*
+ * Open a file descriptor for an inode. Returns -EBADF if the inode is not a
+ * regular file or a directory.
+ *
+ * Use this helper function instead of raw openat(2) to prevent security issues
+ * when a malicious client opens special files such as block device nodes.
+ * Symlink inodes are also rejected since symlinks must already have been
+ * traversed on the client side.
+ */
+static int lo_inode_open(struct lo_data *lo, struct lo_inode *inode,
+                         int open_flags)
+{
+    g_autofree char *fd_str = g_strdup_printf("%d", inode->fd);
+    int fd;
+
+    if (!S_ISREG(inode->filetype) && !S_ISDIR(inode->filetype)) {
+        return -EBADF;
+    }
+
+    /*
+     * The file is a symlink so O_NOFOLLOW must be ignored. We checked earlier
+     * that the inode is not a special file but if an external process races
+     * with us then symlinks are traversed here. It is not possible to escape
+     * the shared directory since it is mounted as "/" though.
+     */
+    fd = openat(lo->proc_self_fd, fd_str, open_flags & ~O_NOFOLLOW);
+    if (fd < 0) {
+        return -errno;
+    }
+    return fd;
+}
+
 static void lo_init(void *userdata, struct fuse_conn_info *conn)
 {
     struct lo_data *lo = (struct lo_data *)userdata;
@@ -569,6 +750,68 @@ static void lo_init(void *userdata, struct fuse_conn_info *conn)
         lo->readdirplus_clear) {
         fuse_log(FUSE_LOG_DEBUG, "lo_init: disabling readdirplus\n");
         conn->want &= ~FUSE_CAP_READDIRPLUS;
+    }
+
+    if (!(conn->capable & FUSE_CAP_SUBMOUNTS) && lo->announce_submounts) {
+        fuse_log(FUSE_LOG_WARNING, "lo_init: Cannot announce submounts, client "
+                 "does not support it\n");
+        lo->announce_submounts = false;
+    }
+
+    if (lo->user_killpriv_v2 == 1) {
+        /*
+         * User explicitly asked for this option. Enable it unconditionally.
+         * If connection does not have this capability, it should fail
+         * in fuse_lowlevel.c
+         */
+        fuse_log(FUSE_LOG_DEBUG, "lo_init: enabling killpriv_v2\n");
+        conn->want |= FUSE_CAP_HANDLE_KILLPRIV_V2;
+        lo->killpriv_v2 = 1;
+    } else {
+        /*
+         * Either user specified to disable killpriv_v2, or did not
+         * specify anything. Disable killpriv_v2 in both the cases.
+         */
+        fuse_log(FUSE_LOG_DEBUG, "lo_init: disabling killpriv_v2\n");
+        conn->want &= ~FUSE_CAP_HANDLE_KILLPRIV_V2;
+        lo->killpriv_v2 = 0;
+    }
+
+    if (lo->user_posix_acl == 1) {
+        /*
+         * User explicitly asked for this option. Enable it unconditionally.
+         * If connection does not have this capability, print error message
+         * now. It will fail later in fuse_lowlevel.c
+         */
+        if (!(conn->capable & FUSE_CAP_POSIX_ACL) ||
+            !(conn->capable & FUSE_CAP_DONT_MASK) ||
+            !(conn->capable & FUSE_CAP_SETXATTR_EXT)) {
+            fuse_log(FUSE_LOG_ERR, "lo_init: Can not enable posix acl."
+                     " kernel does not support FUSE_POSIX_ACL, FUSE_DONT_MASK"
+                     " or FUSE_SETXATTR_EXT capability.\n");
+        } else {
+            fuse_log(FUSE_LOG_DEBUG, "lo_init: enabling posix acl\n");
+        }
+
+        conn->want |= FUSE_CAP_POSIX_ACL | FUSE_CAP_DONT_MASK |
+                      FUSE_CAP_SETXATTR_EXT;
+        lo->change_umask = true;
+        lo->posix_acl = true;
+    } else {
+        /* User either did not specify anything or wants it disabled */
+        fuse_log(FUSE_LOG_DEBUG, "lo_init: disabling posix_acl\n");
+        conn->want &= ~FUSE_CAP_POSIX_ACL;
+    }
+
+    if (lo->user_security_label == 1) {
+        if (!(conn->capable & FUSE_CAP_SECURITY_CTX)) {
+            fuse_log(FUSE_LOG_ERR, "lo_init: Can not enable security label."
+                     " kernel does not support FUSE_SECURITY_CTX capability.\n");
+        }
+        conn->want |= FUSE_CAP_SECURITY_CTX;
+    } else {
+        fuse_log(FUSE_LOG_DEBUG, "lo_init: disabling security label\n");
+        conn->want &= ~FUSE_CAP_SECURITY_CTX;
     }
 }
 
@@ -615,7 +858,7 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
     struct lo_inode *inode;
     int ifd;
     int res;
-    int fd;
+    int fd = -1;
 
     inode = lo_inode(req, ino);
     if (!inode) {
@@ -638,6 +881,7 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
             res = fchmodat(lo->proc_self_fd, procname, attr->st_mode, 0);
         }
         if (res == -1) {
+            saverr = errno;
             goto out_err;
         }
     }
@@ -645,29 +889,62 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
         uid_t uid = (valid & FUSE_SET_ATTR_UID) ? attr->st_uid : (uid_t)-1;
         gid_t gid = (valid & FUSE_SET_ATTR_GID) ? attr->st_gid : (gid_t)-1;
 
+        saverr = drop_security_capability(lo, ifd);
+        if (saverr) {
+            goto out_err;
+        }
+
         res = fchownat(ifd, "", uid, gid, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
         if (res == -1) {
+            saverr = errno;
             goto out_err;
         }
     }
     if (valid & FUSE_SET_ATTR_SIZE) {
         int truncfd;
+        bool kill_suidgid;
+        bool cap_fsetid_dropped = false;
 
+        kill_suidgid = lo->killpriv_v2 && (valid & FUSE_SET_ATTR_KILL_SUIDGID);
         if (fi) {
             truncfd = fd;
         } else {
-            sprintf(procname, "%i", ifd);
-            truncfd = openat(lo->proc_self_fd, procname, O_RDWR);
+            truncfd = lo_inode_open(lo, inode, O_RDWR);
             if (truncfd < 0) {
+                saverr = -truncfd;
+                goto out_err;
+            }
+        }
+
+        saverr = drop_security_capability(lo, truncfd);
+        if (saverr) {
+            if (!fi) {
+                close(truncfd);
+            }
+            goto out_err;
+        }
+
+        if (kill_suidgid) {
+            res = drop_effective_cap("FSETID", &cap_fsetid_dropped);
+            if (res != 0) {
+                saverr = res;
+                if (!fi) {
+                    close(truncfd);
+                }
                 goto out_err;
             }
         }
 
         res = ftruncate(truncfd, attr->st_size);
+        saverr = res == -1 ? errno : 0;
+
+        if (cap_fsetid_dropped) {
+            if (gain_effective_cap("FSETID")) {
+                fuse_log(FUSE_LOG_ERR, "Failed to gain CAP_FSETID\n");
+            }
+        }
         if (!fi) {
-            saverr = errno;
             close(truncfd);
-            errno = saverr;
         }
         if (res == -1) {
             goto out_err;
@@ -700,6 +977,7 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
             res = utimensat(lo->proc_self_fd, procname, tv, 0);
         }
         if (res == -1) {
+            saverr = errno;
             goto out_err;
         }
     }
@@ -708,17 +986,18 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
     return lo_getattr(req, ino, fi);
 
 out_err:
-    saverr = errno;
     lo_inode_put(lo, &inode);
     fuse_reply_err(req, saverr);
 }
 
-static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st)
+static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st,
+                                uint64_t mnt_id)
 {
     struct lo_inode *p;
     struct lo_key key = {
         .ino = st->st_ino,
         .dev = st->st_dev,
+        .mnt_id = mnt_id,
     };
 
     pthread_mutex_lock(&lo->mutex);
@@ -746,19 +1025,80 @@ static void posix_locks_value_destroy(gpointer data)
     free(plock);
 }
 
+static int do_statx(struct lo_data *lo, int dirfd, const char *pathname,
+                    struct stat *statbuf, int flags, uint64_t *mnt_id)
+{
+    int res;
+
+#if defined(CONFIG_STATX) && defined(CONFIG_STATX_MNT_ID)
+    if (lo->use_statx) {
+        struct statx statxbuf;
+
+        res = statx(dirfd, pathname, flags, STATX_BASIC_STATS | STATX_MNT_ID,
+                    &statxbuf);
+        if (!res) {
+            memset(statbuf, 0, sizeof(*statbuf));
+            statbuf->st_dev = makedev(statxbuf.stx_dev_major,
+                                      statxbuf.stx_dev_minor);
+            statbuf->st_ino = statxbuf.stx_ino;
+            statbuf->st_mode = statxbuf.stx_mode;
+            statbuf->st_nlink = statxbuf.stx_nlink;
+            statbuf->st_uid = statxbuf.stx_uid;
+            statbuf->st_gid = statxbuf.stx_gid;
+            statbuf->st_rdev = makedev(statxbuf.stx_rdev_major,
+                                       statxbuf.stx_rdev_minor);
+            statbuf->st_size = statxbuf.stx_size;
+            statbuf->st_blksize = statxbuf.stx_blksize;
+            statbuf->st_blocks = statxbuf.stx_blocks;
+            statbuf->st_atim.tv_sec = statxbuf.stx_atime.tv_sec;
+            statbuf->st_atim.tv_nsec = statxbuf.stx_atime.tv_nsec;
+            statbuf->st_mtim.tv_sec = statxbuf.stx_mtime.tv_sec;
+            statbuf->st_mtim.tv_nsec = statxbuf.stx_mtime.tv_nsec;
+            statbuf->st_ctim.tv_sec = statxbuf.stx_ctime.tv_sec;
+            statbuf->st_ctim.tv_nsec = statxbuf.stx_ctime.tv_nsec;
+
+            if (statxbuf.stx_mask & STATX_MNT_ID) {
+                *mnt_id = statxbuf.stx_mnt_id;
+            } else {
+                *mnt_id = 0;
+            }
+            return 0;
+        } else if (errno != ENOSYS) {
+            return -1;
+        }
+        lo->use_statx = false;
+        /* fallback */
+    }
+#endif
+    res = fstatat(dirfd, pathname, statbuf, flags);
+    if (res == -1) {
+        return -1;
+    }
+    *mnt_id = 0;
+
+    return 0;
+}
+
 /*
- * Increments nlookup and caller must release refcount using
- * lo_inode_put(&parent).
+ * Increments nlookup on the inode on success. unref_inode_lolocked() must be
+ * called eventually to decrement nlookup again. If inodep is non-NULL, the
+ * inode pointer is stored and the caller must call lo_inode_put().
  */
 static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
-                        struct fuse_entry_param *e)
+                        struct fuse_entry_param *e,
+                        struct lo_inode **inodep)
 {
     int newfd;
     int res;
     int saverr;
+    uint64_t mnt_id;
     struct lo_data *lo = lo_data(req);
     struct lo_inode *inode = NULL;
     struct lo_inode *dir = lo_inode(req, parent);
+
+    if (inodep) {
+        *inodep = NULL; /* in case there is an error */
+    }
 
     /*
      * name_to_handle_at() and open_by_handle_at() can reach here with fuse
@@ -783,12 +1123,18 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
         goto out_err;
     }
 
-    res = fstatat(newfd, "", &e->attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    res = do_statx(lo, newfd, "", &e->attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW,
+                   &mnt_id);
     if (res == -1) {
         goto out_err;
     }
 
-    inode = lo_find(lo, &e->attr);
+    if (S_ISDIR(e->attr.st_mode) && lo->announce_submounts &&
+        (e->attr.st_dev != dir->key.dev || mnt_id != dir->key.mnt_id)) {
+        e->attr_flags |= FUSE_ATTR_SUBMOUNT;
+    }
+
+    inode = lo_find(lo, &e->attr, mnt_id);
     if (inode) {
         close(newfd);
     } else {
@@ -810,17 +1156,26 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
         inode->fd = newfd;
         inode->key.ino = e->attr.st_ino;
         inode->key.dev = e->attr.st_dev;
-        pthread_mutex_init(&inode->plock_mutex, NULL);
-        inode->posix_locks = g_hash_table_new_full(
-            g_direct_hash, g_direct_equal, NULL, posix_locks_value_destroy);
-
+        inode->key.mnt_id = mnt_id;
+        if (lo->posix_lock) {
+            pthread_mutex_init(&inode->plock_mutex, NULL);
+            inode->posix_locks = g_hash_table_new_full(
+                g_direct_hash, g_direct_equal, NULL, posix_locks_value_destroy);
+        }
         pthread_mutex_lock(&lo->mutex);
         inode->fuse_ino = lo_add_inode_mapping(req, inode);
         g_hash_table_insert(lo->inodes, &inode->key, inode);
         pthread_mutex_unlock(&lo->mutex);
     }
     e->ino = inode->fuse_ino;
-    lo_inode_put(lo, &inode);
+
+    /* Transfer ownership of inode pointer to caller or drop it */
+    if (inodep) {
+        *inodep = inode;
+    } else {
+        lo_inode_put(lo, &inode);
+    }
+
     lo_inode_put(lo, &dir);
 
     fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n", (unsigned long long)parent,
@@ -846,6 +1201,11 @@ static void lo_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
     fuse_log(FUSE_LOG_DEBUG, "lo_lookup(parent=%" PRIu64 ", name=%s)\n", parent,
              name);
 
+    if (is_empty(name)) {
+        fuse_reply_err(req, ENOENT);
+        return;
+    }
+
     /*
      * Don't use is_safe_path_component(), allow "." and ".." for NFS export
      * support.
@@ -855,7 +1215,7 @@ static void lo_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
         return;
     }
 
-    err = lo_do_lookup(req, parent, name, &e);
+    err = lo_do_lookup(req, parent, name, &e, NULL);
     if (err) {
         fuse_reply_err(req, err);
     } else {
@@ -880,12 +1240,37 @@ static void lo_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 #define OURSYS_setresuid SYS_setresuid
 #endif
 
+static void drop_supplementary_groups(void)
+{
+    int ret;
+
+    ret = getgroups(0, NULL);
+    if (ret == -1) {
+        fuse_log(FUSE_LOG_ERR, "getgroups() failed with error=%d:%s\n",
+                 errno, strerror(errno));
+        exit(1);
+    }
+
+    if (!ret) {
+        return;
+    }
+
+    /* Drop all supplementary groups. We should not need it */
+    ret = setgroups(0, NULL);
+    if (ret == -1) {
+        fuse_log(FUSE_LOG_ERR, "setgroups() failed with error=%d:%s\n",
+                 errno, strerror(errno));
+        exit(1);
+    }
+}
+
 /*
  * Change to uid/gid of caller so that file is created with
  * ownership of caller.
  * TODO: What about selinux context?
  */
-static int lo_change_cred(fuse_req_t req, struct lo_cred *old)
+static int lo_change_cred(fuse_req_t req, struct lo_cred *old,
+                          bool change_umask)
 {
     int res;
 
@@ -905,11 +1290,14 @@ static int lo_change_cred(fuse_req_t req, struct lo_cred *old)
         return errno_save;
     }
 
+    if (change_umask) {
+        old->umask = umask(req->ctx.umask);
+    }
     return 0;
 }
 
 /* Regain Privileges */
-static void lo_restore_cred(struct lo_cred *old)
+static void lo_restore_cred(struct lo_cred *old, bool restore_umask)
 {
     int res;
 
@@ -924,18 +1312,158 @@ static void lo_restore_cred(struct lo_cred *old)
         fuse_log(FUSE_LOG_ERR, "setegid(%u): %m\n", old->egid);
         exit(1);
     }
+
+    if (restore_umask)
+        umask(old->umask);
+}
+
+/*
+ * A helper to change cred and drop capability. Returns 0 on success and
+ * errno on error
+ */
+static int lo_drop_cap_change_cred(fuse_req_t req, struct lo_cred *old,
+                                   bool change_umask, const char *cap_name,
+                                   bool *cap_dropped)
+{
+    int ret;
+    bool __cap_dropped;
+
+    assert(cap_name);
+
+    ret = drop_effective_cap(cap_name, &__cap_dropped);
+    if (ret) {
+        return ret;
+    }
+
+    ret = lo_change_cred(req, old, change_umask);
+    if (ret) {
+        if (__cap_dropped) {
+            if (gain_effective_cap(cap_name)) {
+                fuse_log(FUSE_LOG_ERR, "Failed to gain CAP_%s\n", cap_name);
+            }
+        }
+    }
+
+    if (cap_dropped) {
+        *cap_dropped = __cap_dropped;
+    }
+    return ret;
+}
+
+static void lo_restore_cred_gain_cap(struct lo_cred *old, bool restore_umask,
+                                     const char *cap_name)
+{
+    assert(cap_name);
+
+    lo_restore_cred(old, restore_umask);
+
+    if (gain_effective_cap(cap_name)) {
+        fuse_log(FUSE_LOG_ERR, "Failed to gain CAP_%s\n", cap_name);
+    }
+}
+
+static int do_mknod_symlink_secctx(fuse_req_t req, struct lo_inode *dir,
+                                   const char *name, const char *secctx_name)
+{
+    int path_fd, err;
+    char procname[64];
+    struct lo_data *lo = lo_data(req);
+
+    if (!req->secctx.ctxlen) {
+        return 0;
+    }
+
+    /* Open newly created element with O_PATH */
+    path_fd = openat(dir->fd, name, O_PATH | O_NOFOLLOW);
+    err = path_fd == -1 ? errno : 0;
+    if (err) {
+        return err;
+    }
+    sprintf(procname, "%i", path_fd);
+    FCHDIR_NOFAIL(lo->proc_self_fd);
+    /* Set security context. This is not atomic w.r.t file creation */
+    err = setxattr(procname, secctx_name, req->secctx.ctx, req->secctx.ctxlen,
+                   0);
+    if (err) {
+        err = errno;
+    }
+    FCHDIR_NOFAIL(lo->root.fd);
+    close(path_fd);
+    return err;
+}
+
+static int do_mknod_symlink(fuse_req_t req, struct lo_inode *dir,
+                            const char *name, mode_t mode, dev_t rdev,
+                            const char *link)
+{
+    int err, fscreate_fd = -1;
+    const char *secctx_name = req->secctx.name;
+    struct lo_cred old = {};
+    struct lo_data *lo = lo_data(req);
+    char *mapped_name = NULL;
+    bool secctx_enabled = req->secctx.ctxlen;
+    bool do_fscreate = false;
+
+    if (secctx_enabled && lo->xattrmap) {
+        err = xattr_map_client(lo, req->secctx.name, &mapped_name);
+        if (err < 0) {
+            return -err;
+        }
+        secctx_name = mapped_name;
+    }
+
+    /*
+     * If security xattr has not been remapped and selinux is enabled on
+     * host, set fscreate and no need to do a setxattr() after file creation
+     */
+    if (secctx_enabled && !mapped_name && lo->use_fscreate) {
+        do_fscreate = true;
+        err = open_set_proc_fscreate(lo, req->secctx.ctx, req->secctx.ctxlen,
+                                     &fscreate_fd);
+        if (err) {
+            goto out;
+        }
+    }
+
+    err = lo_change_cred(req, &old, lo->change_umask && !S_ISLNK(mode));
+    if (err) {
+        goto out;
+    }
+
+    err = mknod_wrapper(dir->fd, name, link, mode, rdev);
+    err = err == -1 ? errno : 0;
+    lo_restore_cred(&old, lo->change_umask && !S_ISLNK(mode));
+    if (err) {
+        goto out;
+    }
+
+    if (!do_fscreate) {
+        err = do_mknod_symlink_secctx(req, dir, name, secctx_name);
+        if (err) {
+            unlinkat(dir->fd, name, S_ISDIR(mode) ? AT_REMOVEDIR : 0);
+        }
+    }
+out:
+    if (fscreate_fd != -1) {
+        close_reset_proc_fscreate(fscreate_fd);
+    }
+    g_free(mapped_name);
+    return err;
 }
 
 static void lo_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
                              const char *name, mode_t mode, dev_t rdev,
                              const char *link)
 {
-    int res;
     int saverr;
     struct lo_data *lo = lo_data(req);
     struct lo_inode *dir;
     struct fuse_entry_param e;
-    struct lo_cred old = {};
+
+    if (is_empty(name)) {
+        fuse_reply_err(req, ENOENT);
+        return;
+    }
 
     if (!is_safe_path_component(name)) {
         fuse_reply_err(req, EINVAL);
@@ -948,22 +1476,12 @@ static void lo_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
         return;
     }
 
-    saverr = lo_change_cred(req, &old);
+    saverr = do_mknod_symlink(req, dir, name, mode, rdev, link);
     if (saverr) {
         goto out;
     }
 
-    res = mknod_wrapper(dir->fd, name, link, mode, rdev);
-
-    saverr = errno;
-
-    lo_restore_cred(&old);
-
-    if (res == -1) {
-        goto out;
-    }
-
-    saverr = lo_do_lookup(req, parent, name, &e);
+    saverr = lo_do_lookup(req, parent, name, &e, NULL);
     if (saverr) {
         goto out;
     }
@@ -1008,6 +1526,11 @@ static void lo_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
     struct fuse_entry_param e;
     char procname[64];
     int saverr;
+
+    if (is_empty(name)) {
+        fuse_reply_err(req, ENOENT);
+        return;
+    }
 
     if (!is_safe_path_component(name)) {
         fuse_reply_err(req, EINVAL);
@@ -1062,15 +1585,22 @@ static struct lo_inode *lookup_name(fuse_req_t req, fuse_ino_t parent,
                                     const char *name)
 {
     int res;
+    uint64_t mnt_id;
     struct stat attr;
+    struct lo_data *lo = lo_data(req);
+    struct lo_inode *dir = lo_inode(req, parent);
 
-    res = fstatat(lo_fd(req, parent), name, &attr,
-                  AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    if (!dir) {
+        return NULL;
+    }
+
+    res = do_statx(lo, dir->fd, name, &attr, AT_SYMLINK_NOFOLLOW, &mnt_id);
+    lo_inode_put(lo, &dir);
     if (res == -1) {
         return NULL;
     }
 
-    return lo_find(lo_data(req), &attr);
+    return lo_find(lo, &attr, mnt_id);
 }
 
 static void lo_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
@@ -1078,6 +1608,11 @@ static void lo_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
     int res;
     struct lo_inode *inode;
     struct lo_data *lo = lo_data(req);
+
+    if (is_empty(name)) {
+        fuse_reply_err(req, ENOENT);
+        return;
+    }
 
     if (!is_safe_path_component(name)) {
         fuse_reply_err(req, EINVAL);
@@ -1107,6 +1642,11 @@ static void lo_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
     struct lo_inode *oldinode = NULL;
     struct lo_inode *newinode = NULL;
     struct lo_data *lo = lo_data(req);
+
+    if (is_empty(name) || is_empty(newname)) {
+        fuse_reply_err(req, ENOENT);
+        return;
+    }
 
     if (!is_safe_path_component(name) || !is_safe_path_component(newname)) {
         fuse_reply_err(req, EINVAL);
@@ -1161,6 +1701,11 @@ static void lo_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
     struct lo_inode *inode;
     struct lo_data *lo = lo_data(req);
 
+    if (is_empty(name)) {
+        fuse_reply_err(req, ENOENT);
+        return;
+    }
+
     if (!is_safe_path_component(name)) {
         fuse_reply_err(req, EINVAL);
         return;
@@ -1191,12 +1736,13 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
     if (!inode->nlookup) {
         lo_map_remove(&lo->ino_map, inode->fuse_ino);
         g_hash_table_remove(lo->inodes, &inode->key);
-        if (g_hash_table_size(inode->posix_locks)) {
-            fuse_log(FUSE_LOG_WARNING, "Hash table is not empty\n");
+        if (lo->posix_lock) {
+            if (g_hash_table_size(inode->posix_locks)) {
+                fuse_log(FUSE_LOG_WARNING, "Hash table is not empty\n");
+            }
+            g_hash_table_destroy(inode->posix_locks);
+            pthread_mutex_destroy(&inode->plock_mutex);
         }
-        g_hash_table_destroy(inode->posix_locks);
-        pthread_mutex_destroy(&inode->plock_mutex);
-
         /* Drop our refcount from lo_do_lookup() */
         lo_inode_put(lo, &inode);
     }
@@ -1371,7 +1917,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
     struct lo_data *lo = lo_data(req);
     struct lo_dirp *d = NULL;
     struct lo_inode *dinode;
-    char *buf = NULL;
+    g_autofree char *buf = NULL;
     char *p;
     size_t rem = size;
     int err = EBADF;
@@ -1387,7 +1933,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
     }
 
     err = ENOMEM;
-    buf = calloc(1, size);
+    buf = g_try_malloc0(size);
     if (!buf) {
         goto error;
     }
@@ -1432,7 +1978,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
         if (plus) {
             if (!is_dot_or_dotdot(name)) {
-                err = lo_do_lookup(req, ino, name, &e);
+                err = lo_do_lookup(req, ino, name, &e, NULL);
                 if (err) {
                     goto error;
                 }
@@ -1473,7 +2019,6 @@ error:
     } else {
         fuse_reply_buf(req, buf, size - rem);
     }
-    free(buf);
 }
 
 static void lo_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
@@ -1514,7 +2059,8 @@ static void lo_releasedir(fuse_req_t req, fuse_ino_t ino,
     fuse_reply_err(req, 0);
 }
 
-static void update_open_flags(int writeback, struct fuse_file_info *fi)
+static void update_open_flags(int writeback, int allow_direct_io,
+                              struct fuse_file_info *fi)
 {
     /*
      * With writeback cache, kernel may send read requests even
@@ -1539,24 +2085,273 @@ static void update_open_flags(int writeback, struct fuse_file_info *fi)
 
     /*
      * O_DIRECT in guest should not necessarily mean bypassing page
-     * cache on host as well. If somebody needs that behavior, it
-     * probably should be a configuration knob in daemon.
+     * cache on host as well. Therefore, we discard it by default
+     * ('-o no_allow_direct_io'). If somebody needs that behavior,
+     * the '-o allow_direct_io' option should be set.
      */
-    fi->flags &= ~O_DIRECT;
+    if (!allow_direct_io) {
+        fi->flags &= ~O_DIRECT;
+    }
+}
+
+/*
+ * Open a regular file, set up an fd mapping, and fill out the struct
+ * fuse_file_info for it. If existing_fd is not negative, use that fd instead
+ * opening a new one. Takes ownership of existing_fd.
+ *
+ * Returns 0 on success or a positive errno.
+ */
+static int lo_do_open(struct lo_data *lo, struct lo_inode *inode,
+                      int existing_fd, struct fuse_file_info *fi)
+{
+    ssize_t fh;
+    int fd = existing_fd;
+    int err;
+    bool cap_fsetid_dropped = false;
+    bool kill_suidgid = lo->killpriv_v2 && fi->kill_priv;
+
+    update_open_flags(lo->writeback, lo->allow_direct_io, fi);
+
+    if (fd < 0) {
+        if (kill_suidgid) {
+            err = drop_effective_cap("FSETID", &cap_fsetid_dropped);
+            if (err) {
+                return err;
+            }
+        }
+
+        fd = lo_inode_open(lo, inode, fi->flags);
+
+        if (cap_fsetid_dropped) {
+            if (gain_effective_cap("FSETID")) {
+                fuse_log(FUSE_LOG_ERR, "Failed to gain CAP_FSETID\n");
+            }
+        }
+        if (fd < 0) {
+            return -fd;
+        }
+        if (fi->flags & (O_TRUNC)) {
+            int err = drop_security_capability(lo, fd);
+            if (err) {
+                close(fd);
+                return err;
+            }
+        }
+    }
+
+    pthread_mutex_lock(&lo->mutex);
+    fh = lo_add_fd_mapping(lo, fd);
+    pthread_mutex_unlock(&lo->mutex);
+    if (fh == -1) {
+        close(fd);
+        return ENOMEM;
+    }
+
+    fi->fh = fh;
+    if (lo->cache == CACHE_NONE) {
+        fi->direct_io = 1;
+    } else if (lo->cache == CACHE_ALWAYS) {
+        fi->keep_cache = 1;
+    }
+    return 0;
+}
+
+static int do_create_nosecctx(fuse_req_t req, struct lo_inode *parent_inode,
+                               const char *name, mode_t mode,
+                               struct fuse_file_info *fi, int *open_fd,
+                              bool tmpfile)
+{
+    int err, fd;
+    struct lo_cred old = {};
+    struct lo_data *lo = lo_data(req);
+    int flags;
+
+    if (tmpfile) {
+        flags = fi->flags | O_TMPFILE;
+        /*
+         * Don't use O_EXCL as we want to link file later. Also reset O_CREAT
+         * otherwise openat() returns -EINVAL.
+         */
+        flags &= ~(O_CREAT | O_EXCL);
+
+        /* O_TMPFILE needs either O_RDWR or O_WRONLY */
+        if ((flags & O_ACCMODE) == O_RDONLY) {
+            flags |= O_RDWR;
+        }
+    } else {
+        flags = fi->flags | O_CREAT | O_EXCL;
+    }
+
+    err = lo_change_cred(req, &old, lo->change_umask);
+    if (err) {
+        return err;
+    }
+
+    /* Try to create a new file but don't open existing files */
+    fd = openat(parent_inode->fd, name, flags, mode);
+    err = fd == -1 ? errno : 0;
+    lo_restore_cred(&old, lo->change_umask);
+    if (!err) {
+        *open_fd = fd;
+    }
+    return err;
+}
+
+static int do_create_secctx_fscreate(fuse_req_t req,
+                                     struct lo_inode *parent_inode,
+                                     const char *name, mode_t mode,
+                                     struct fuse_file_info *fi, int *open_fd)
+{
+    int err = 0, fd = -1, fscreate_fd = -1;
+    struct lo_data *lo = lo_data(req);
+
+    err = open_set_proc_fscreate(lo, req->secctx.ctx, req->secctx.ctxlen,
+                                 &fscreate_fd);
+    if (err) {
+        return err;
+    }
+
+    err = do_create_nosecctx(req, parent_inode, name, mode, fi, &fd, false);
+
+    close_reset_proc_fscreate(fscreate_fd);
+    if (!err) {
+        *open_fd = fd;
+    }
+    return err;
+}
+
+static int do_create_secctx_tmpfile(fuse_req_t req,
+                                    struct lo_inode *parent_inode,
+                                    const char *name, mode_t mode,
+                                    struct fuse_file_info *fi,
+                                    const char *secctx_name, int *open_fd)
+{
+    int err, fd = -1;
+    struct lo_data *lo = lo_data(req);
+    char procname[64];
+
+    err = do_create_nosecctx(req, parent_inode, ".", mode, fi, &fd, true);
+    if (err) {
+        return err;
+    }
+
+    err = fsetxattr(fd, secctx_name, req->secctx.ctx, req->secctx.ctxlen, 0);
+    if (err) {
+        err = errno;
+        goto out;
+    }
+
+    /* Security context set on file. Link it in place */
+    sprintf(procname, "%d", fd);
+    FCHDIR_NOFAIL(lo->proc_self_fd);
+    err = linkat(AT_FDCWD, procname, parent_inode->fd, name,
+                 AT_SYMLINK_FOLLOW);
+    err = err == -1 ? errno : 0;
+    FCHDIR_NOFAIL(lo->root.fd);
+
+out:
+    if (!err) {
+        *open_fd = fd;
+    } else if (fd != -1) {
+        close(fd);
+    }
+    return err;
+}
+
+static int do_create_secctx_noatomic(fuse_req_t req,
+                                     struct lo_inode *parent_inode,
+                                     const char *name, mode_t mode,
+                                     struct fuse_file_info *fi,
+                                     const char *secctx_name, int *open_fd)
+{
+    int err = 0, fd = -1;
+
+    err = do_create_nosecctx(req, parent_inode, name, mode, fi, &fd, false);
+    if (err) {
+        goto out;
+    }
+
+    /* Set security context. This is not atomic w.r.t file creation */
+    err = fsetxattr(fd, secctx_name, req->secctx.ctx, req->secctx.ctxlen, 0);
+    err = err == -1 ? errno : 0;
+out:
+    if (!err) {
+        *open_fd = fd;
+    } else {
+        if (fd != -1) {
+            close(fd);
+            unlinkat(parent_inode->fd, name, 0);
+        }
+    }
+    return err;
+}
+
+static int do_lo_create(fuse_req_t req, struct lo_inode *parent_inode,
+                        const char *name, mode_t mode,
+                        struct fuse_file_info *fi, int *open_fd)
+{
+    struct lo_data *lo = lo_data(req);
+    char *mapped_name = NULL;
+    int err;
+    const char *ctxname = req->secctx.name;
+    bool secctx_enabled = req->secctx.ctxlen;
+
+    if (secctx_enabled && lo->xattrmap) {
+        err = xattr_map_client(lo, req->secctx.name, &mapped_name);
+        if (err < 0) {
+            return -err;
+        }
+
+        ctxname = mapped_name;
+    }
+
+    if (secctx_enabled) {
+        /*
+         * If security.selinux has not been remapped and selinux is enabled,
+         * use fscreate to set context before file creation. If not, use
+         * tmpfile method for regular files. Otherwise fallback to
+         * non-atomic method of file creation and xattr setting.
+         */
+        if (!mapped_name && lo->use_fscreate) {
+            err = do_create_secctx_fscreate(req, parent_inode, name, mode, fi,
+                                            open_fd);
+            goto out;
+        } else if (S_ISREG(mode)) {
+            err = do_create_secctx_tmpfile(req, parent_inode, name, mode, fi,
+                                           ctxname, open_fd);
+            /*
+             * If filesystem does not support O_TMPFILE, fallback to non-atomic
+             * method.
+             */
+            if (!err || err != EOPNOTSUPP) {
+                goto out;
+            }
+        }
+
+        err = do_create_secctx_noatomic(req, parent_inode, name, mode, fi,
+                                        ctxname, open_fd);
+    } else {
+        err = do_create_nosecctx(req, parent_inode, name, mode, fi, open_fd,
+                                 false);
+    }
+
+out:
+    g_free(mapped_name);
+    return err;
 }
 
 static void lo_create(fuse_req_t req, fuse_ino_t parent, const char *name,
                       mode_t mode, struct fuse_file_info *fi)
 {
-    int fd;
+    int fd = -1;
     struct lo_data *lo = lo_data(req);
     struct lo_inode *parent_inode;
+    struct lo_inode *inode = NULL;
     struct fuse_entry_param e;
     int err;
-    struct lo_cred old = {};
 
-    fuse_log(FUSE_LOG_DEBUG, "lo_create(parent=%" PRIu64 ", name=%s)\n", parent,
-             name);
+    fuse_log(FUSE_LOG_DEBUG, "lo_create(parent=%" PRIu64 ", name=%s)"
+             " kill_priv=%d\n", parent, name, fi->kill_priv);
 
     if (!is_safe_path_component(name)) {
         fuse_reply_err(req, EINVAL);
@@ -1569,43 +2364,36 @@ static void lo_create(fuse_req_t req, fuse_ino_t parent, const char *name,
         return;
     }
 
-    err = lo_change_cred(req, &old);
+    update_open_flags(lo->writeback, lo->allow_direct_io, fi);
+
+    err = do_lo_create(req, parent_inode, name, mode, fi, &fd);
+
+    /* Ignore the error if file exists and O_EXCL was not given */
+    if (err && (err != EEXIST || (fi->flags & O_EXCL))) {
+        goto out;
+    }
+
+    err = lo_do_lookup(req, parent, name, &e, &inode);
     if (err) {
         goto out;
     }
 
-    update_open_flags(lo->writeback, fi);
-
-    fd = openat(parent_inode->fd, name, (fi->flags | O_CREAT) & ~O_NOFOLLOW,
-                mode);
-    err = fd == -1 ? errno : 0;
-    lo_restore_cred(&old);
-
-    if (!err) {
-        ssize_t fh;
-
-        pthread_mutex_lock(&lo->mutex);
-        fh = lo_add_fd_mapping(req, fd);
-        pthread_mutex_unlock(&lo->mutex);
-        if (fh == -1) {
-            close(fd);
-            err = ENOMEM;
-            goto out;
-        }
-
-        fi->fh = fh;
-        err = lo_do_lookup(req, parent, name, &e);
-    }
-    if (lo->cache == CACHE_NONE) {
-        fi->direct_io = 1;
-    } else if (lo->cache == CACHE_ALWAYS) {
-        fi->keep_cache = 1;
+    err = lo_do_open(lo, inode, fd, fi);
+    fd = -1; /* lo_do_open() takes ownership of fd */
+    if (err) {
+        /* Undo lo_do_lookup() nlookup ref */
+        unref_inode_lolocked(lo, inode, 1);
     }
 
 out:
+    lo_inode_put(lo, &inode);
     lo_inode_put(lo, &parent_inode);
 
     if (err) {
+        if (fd >= 0) {
+            close(fd);
+        }
+
         fuse_reply_err(req, err);
     } else {
         fuse_reply_create(req, &e, fi);
@@ -1619,7 +2407,6 @@ static struct lo_inode_plock *lookup_create_plock_ctx(struct lo_data *lo,
                                                       pid_t pid, int *err)
 {
     struct lo_inode_plock *plock;
-    char procname[64];
     int fd;
 
     plock =
@@ -1636,12 +2423,10 @@ static struct lo_inode_plock *lookup_create_plock_ctx(struct lo_data *lo,
     }
 
     /* Open another instance of file which can be used for ofd locks. */
-    sprintf(procname, "%i", inode->fd);
-
     /* TODO: What if file is not writable? */
-    fd = openat(lo->proc_self_fd, procname, O_RDWR);
-    if (fd == -1) {
-        *err = errno;
+    fd = lo_inode_open(lo, inode, O_RDWR);
+    if (fd < 0) {
+        *err = -fd;
         free(plock);
         return NULL;
     }
@@ -1663,10 +2448,15 @@ static void lo_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
 
     fuse_log(FUSE_LOG_DEBUG,
              "lo_getlk(ino=%" PRIu64 ", flags=%d)"
-             " owner=0x%lx, l_type=%d l_start=0x%lx"
-             " l_len=0x%lx\n",
-             ino, fi->flags, fi->lock_owner, lock->l_type, lock->l_start,
-             lock->l_len);
+             " owner=0x%" PRIx64 ", l_type=%d l_start=0x%" PRIx64
+             " l_len=0x%" PRIx64 "\n",
+             ino, fi->flags, fi->lock_owner, lock->l_type,
+             (uint64_t)lock->l_start, (uint64_t)lock->l_len);
+
+    if (!lo->posix_lock) {
+        fuse_reply_err(req, ENOSYS);
+        return;
+    }
 
     inode = lo_inode(req, ino);
     if (!inode) {
@@ -1708,10 +2498,15 @@ static void lo_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
 
     fuse_log(FUSE_LOG_DEBUG,
              "lo_setlk(ino=%" PRIu64 ", flags=%d)"
-             " cmd=%d pid=%d owner=0x%lx sleep=%d l_whence=%d"
-             " l_start=0x%lx l_len=0x%lx\n",
+             " cmd=%d pid=%d owner=0x%" PRIx64 " sleep=%d l_whence=%d"
+             " l_start=0x%" PRIx64 " l_len=0x%" PRIx64 "\n",
              ino, fi->flags, lock->l_type, lock->l_pid, fi->lock_owner, sleep,
-             lock->l_whence, lock->l_start, lock->l_len);
+             lock->l_whence, (uint64_t)lock->l_start, (uint64_t)lock->l_len);
+
+    if (!lo->posix_lock) {
+        fuse_reply_err(req, ENOSYS);
+        return;
+    }
 
     if (sleep) {
         fuse_reply_err(req, EOPNOTSUPP);
@@ -1776,38 +2571,25 @@ static void lo_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
 
 static void lo_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
-    int fd;
-    ssize_t fh;
-    char buf[64];
     struct lo_data *lo = lo_data(req);
+    struct lo_inode *inode = lo_inode(req, ino);
+    int err;
 
-    fuse_log(FUSE_LOG_DEBUG, "lo_open(ino=%" PRIu64 ", flags=%d)\n", ino,
-             fi->flags);
+    fuse_log(FUSE_LOG_DEBUG, "lo_open(ino=%" PRIu64 ", flags=%d, kill_priv=%d)"
+             "\n", ino, fi->flags, fi->kill_priv);
 
-    update_open_flags(lo->writeback, fi);
-
-    sprintf(buf, "%i", lo_fd(req, ino));
-    fd = openat(lo->proc_self_fd, buf, fi->flags & ~O_NOFOLLOW);
-    if (fd == -1) {
-        return (void)fuse_reply_err(req, errno);
-    }
-
-    pthread_mutex_lock(&lo->mutex);
-    fh = lo_add_fd_mapping(req, fd);
-    pthread_mutex_unlock(&lo->mutex);
-    if (fh == -1) {
-        close(fd);
-        fuse_reply_err(req, ENOMEM);
+    if (!inode) {
+        fuse_reply_err(req, EBADF);
         return;
     }
 
-    fi->fh = fh;
-    if (lo->cache == CACHE_NONE) {
-        fi->direct_io = 1;
-    } else if (lo->cache == CACHE_ALWAYS) {
-        fi->keep_cache = 1;
+    err = lo_do_open(lo, inode, -1, fi);
+    lo_inode_put(lo, &inode);
+    if (err) {
+        fuse_reply_err(req, err);
+    } else {
+        fuse_reply_open(req, fi);
     }
-    fuse_reply_open(req, fi);
 }
 
 static void lo_release(fuse_req_t req, fuse_ino_t ino,
@@ -1837,6 +2619,7 @@ static void lo_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
     int res;
     (void)ino;
     struct lo_inode *inode;
+    struct lo_data *lo = lo_data(req);
 
     inode = lo_inode(req, ino);
     if (!inode) {
@@ -1844,52 +2627,61 @@ static void lo_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
         return;
     }
 
-    /* An fd is going away. Cleanup associated posix locks */
-    pthread_mutex_lock(&inode->plock_mutex);
-    g_hash_table_remove(inode->posix_locks, GUINT_TO_POINTER(fi->lock_owner));
-    pthread_mutex_unlock(&inode->plock_mutex);
+    if (!S_ISREG(inode->filetype)) {
+        lo_inode_put(lo, &inode);
+        fuse_reply_err(req, EBADF);
+        return;
+    }
 
+    /* An fd is going away. Cleanup associated posix locks */
+    if (lo->posix_lock) {
+        pthread_mutex_lock(&inode->plock_mutex);
+        g_hash_table_remove(inode->posix_locks,
+            GUINT_TO_POINTER(fi->lock_owner));
+        pthread_mutex_unlock(&inode->plock_mutex);
+    }
     res = close(dup(lo_fi_fd(req, fi)));
-    lo_inode_put(lo_data(req), &inode);
+    lo_inode_put(lo, &inode);
     fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
 static void lo_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
                      struct fuse_file_info *fi)
 {
+    struct lo_inode *inode = lo_inode(req, ino);
+    struct lo_data *lo = lo_data(req);
     int res;
     int fd;
-    char *buf;
 
     fuse_log(FUSE_LOG_DEBUG, "lo_fsync(ino=%" PRIu64 ", fi=0x%p)\n", ino,
              (void *)fi);
 
+    if (!inode) {
+        fuse_reply_err(req, EBADF);
+        return;
+    }
+
     if (!fi) {
-        struct lo_data *lo = lo_data(req);
-
-        res = asprintf(&buf, "%i", lo_fd(req, ino));
-        if (res == -1) {
-            return (void)fuse_reply_err(req, errno);
-        }
-
-        fd = openat(lo->proc_self_fd, buf, O_RDWR);
-        free(buf);
-        if (fd == -1) {
-            return (void)fuse_reply_err(req, errno);
+        fd = lo_inode_open(lo, inode, O_RDWR);
+        if (fd < 0) {
+            res = -fd;
+            goto out;
         }
     } else {
         fd = lo_fi_fd(req, fi);
     }
 
     if (datasync) {
-        res = fdatasync(fd);
+        res = fdatasync(fd) == -1 ? errno : 0;
     } else {
-        res = fsync(fd);
+        res = fsync(fd) == -1 ? errno : 0;
     }
     if (!fi) {
         close(fd);
     }
-    fuse_reply_err(req, res == -1 ? errno : 0);
+out:
+    lo_inode_put(lo, &inode);
+    fuse_reply_err(req, res);
 }
 
 static void lo_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset,
@@ -1923,12 +2715,20 @@ static void lo_write_buf(fuse_req_t req, fuse_ino_t ino,
     out_buf.buf[0].pos = off;
 
     fuse_log(FUSE_LOG_DEBUG,
-             "lo_write_buf(ino=%" PRIu64 ", size=%zd, off=%lu)\n", ino,
-             out_buf.buf[0].size, (unsigned long)off);
+             "lo_write_buf(ino=%" PRIu64 ", size=%zd, off=%lu kill_priv=%d)\n",
+             ino, out_buf.buf[0].size, (unsigned long)off, fi->kill_priv);
+
+    res = drop_security_capability(lo_data(req), out_buf.buf[0].fd);
+    if (res) {
+        fuse_reply_err(req, res);
+        return;
+    }
 
     /*
      * If kill_priv is set, drop CAP_FSETID which should lead to kernel
-     * clearing setuid/setgid on file.
+     * clearing setuid/setgid on file. Note, for WRITE, we need to do
+     * this even if killpriv_v2 is not enabled. fuse direct write path
+     * relies on this.
      */
     if (fi->kill_priv) {
         res = drop_effective_cap("FSETID", &cap_fsetid_dropped);
@@ -1996,25 +2796,485 @@ static void lo_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
     int res;
     (void)ino;
 
+    if (!(op & LOCK_NB)) {
+        /*
+         * Blocking flock can deadlock as there is only one thread
+         * serving the queue.
+         */
+        fuse_reply_err(req, EOPNOTSUPP);
+        return;
+    }
+
     res = flock(lo_fi_fd(req, fi), op);
 
     fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+/* types */
+/*
+ * Exit; process attribute unmodified if matched.
+ * An empty key applies to all.
+ */
+#define XATTR_MAP_FLAG_OK      (1 <<  0)
+/*
+ * The attribute is unwanted;
+ * EPERM on write, hidden on read.
+ */
+#define XATTR_MAP_FLAG_BAD     (1 <<  1)
+/*
+ * For attr that start with 'key' prepend 'prepend'
+ * 'key' may be empty to prepend for all attrs
+ * key is defined from set/remove point of view.
+ * Automatically reversed on read
+ */
+#define XATTR_MAP_FLAG_PREFIX  (1 <<  2)
+/*
+ * The attribute is unsupported;
+ * ENOTSUP on write, hidden on read.
+ */
+#define XATTR_MAP_FLAG_UNSUPPORTED     (1 <<  3)
+
+/* scopes */
+/* Apply rule to get/set/remove */
+#define XATTR_MAP_FLAG_CLIENT  (1 << 16)
+/* Apply rule to list */
+#define XATTR_MAP_FLAG_SERVER  (1 << 17)
+/* Apply rule to all */
+#define XATTR_MAP_FLAG_ALL   (XATTR_MAP_FLAG_SERVER | XATTR_MAP_FLAG_CLIENT)
+
+static void add_xattrmap_entry(struct lo_data *lo,
+                               const XattrMapEntry *new_entry)
+{
+    XattrMapEntry *res = g_realloc_n(lo->xattr_map_list,
+                                     lo->xattr_map_nentries + 1,
+                                     sizeof(XattrMapEntry));
+    res[lo->xattr_map_nentries++] = *new_entry;
+
+    lo->xattr_map_list = res;
+}
+
+static void free_xattrmap(struct lo_data *lo)
+{
+    XattrMapEntry *map = lo->xattr_map_list;
+    size_t i;
+
+    if (!map) {
+        return;
+    }
+
+    for (i = 0; i < lo->xattr_map_nentries; i++) {
+        g_free(map[i].key);
+        g_free(map[i].prepend);
+    };
+
+    g_free(map);
+    lo->xattr_map_list = NULL;
+    lo->xattr_map_nentries = -1;
+}
+
+/*
+ * Handle the 'map' type, which is sugar for a set of commands
+ * for the common case of prefixing a subset or everything,
+ * and allowing anything not prefixed through.
+ * It must be the last entry in the stream, although there
+ * can be other entries before it.
+ * The form is:
+ *    :map:key:prefix:
+ *
+ * key maybe empty in which case all entries are prefixed.
+ */
+static void parse_xattrmap_map(struct lo_data *lo,
+                               const char *rule, char sep)
+{
+    const char *tmp;
+    char *key;
+    char *prefix;
+    XattrMapEntry tmp_entry;
+
+    if (*rule != sep) {
+        fuse_log(FUSE_LOG_ERR,
+                 "%s: Expecting '%c' after 'map' keyword, found '%c'\n",
+                 __func__, sep, *rule);
+        exit(1);
+    }
+
+    rule++;
+
+    /* At start of 'key' field */
+    tmp = strchr(rule, sep);
+    if (!tmp) {
+        fuse_log(FUSE_LOG_ERR,
+                 "%s: Missing '%c' at end of key field in map rule\n",
+                 __func__, sep);
+        exit(1);
+    }
+
+    key = g_strndup(rule, tmp - rule);
+    rule = tmp + 1;
+
+    /* At start of prefix field */
+    tmp = strchr(rule, sep);
+    if (!tmp) {
+        fuse_log(FUSE_LOG_ERR,
+                 "%s: Missing '%c' at end of prefix field in map rule\n",
+                 __func__, sep);
+        exit(1);
+    }
+
+    prefix = g_strndup(rule, tmp - rule);
+    rule = tmp + 1;
+
+    /*
+     * This should be the end of the string, we don't allow
+     * any more commands after 'map'.
+     */
+    if (*rule) {
+        fuse_log(FUSE_LOG_ERR,
+                 "%s: Expecting end of command after map, found '%c'\n",
+                 __func__, *rule);
+        exit(1);
+    }
+
+    /* 1st: Prefix matches/everything */
+    tmp_entry.flags = XATTR_MAP_FLAG_PREFIX | XATTR_MAP_FLAG_ALL;
+    tmp_entry.key = g_strdup(key);
+    tmp_entry.prepend = g_strdup(prefix);
+    add_xattrmap_entry(lo, &tmp_entry);
+
+    if (!*key) {
+        /* Prefix all case */
+
+        /* 2nd: Hide any non-prefixed entries on the host */
+        tmp_entry.flags = XATTR_MAP_FLAG_BAD | XATTR_MAP_FLAG_ALL;
+        tmp_entry.key = g_strdup("");
+        tmp_entry.prepend = g_strdup("");
+        add_xattrmap_entry(lo, &tmp_entry);
+    } else {
+        /* Prefix matching case */
+
+        /* 2nd: Hide non-prefixed but matching entries on the host */
+        tmp_entry.flags = XATTR_MAP_FLAG_BAD | XATTR_MAP_FLAG_SERVER;
+        tmp_entry.key = g_strdup(""); /* Not used */
+        tmp_entry.prepend = g_strdup(key);
+        add_xattrmap_entry(lo, &tmp_entry);
+
+        /* 3rd: Stop the client accessing prefixed attributes directly */
+        tmp_entry.flags = XATTR_MAP_FLAG_BAD | XATTR_MAP_FLAG_CLIENT;
+        tmp_entry.key = g_strdup(prefix);
+        tmp_entry.prepend = g_strdup(""); /* Not used */
+        add_xattrmap_entry(lo, &tmp_entry);
+
+        /* 4th: Everything else is OK */
+        tmp_entry.flags = XATTR_MAP_FLAG_OK | XATTR_MAP_FLAG_ALL;
+        tmp_entry.key = g_strdup("");
+        tmp_entry.prepend = g_strdup("");
+        add_xattrmap_entry(lo, &tmp_entry);
+    }
+
+    g_free(key);
+    g_free(prefix);
+}
+
+static void parse_xattrmap(struct lo_data *lo)
+{
+    const char *map = lo->xattrmap;
+    const char *tmp;
+    int ret;
+
+    lo->xattr_map_nentries = 0;
+    while (*map) {
+        XattrMapEntry tmp_entry;
+        char sep;
+
+        if (isspace(*map)) {
+            map++;
+            continue;
+        }
+        /* The separator is the first non-space of the rule */
+        sep = *map++;
+        if (!sep) {
+            break;
+        }
+
+        tmp_entry.flags = 0;
+        /* Start of 'type' */
+        if (strstart(map, "prefix", &map)) {
+            tmp_entry.flags |= XATTR_MAP_FLAG_PREFIX;
+        } else if (strstart(map, "ok", &map)) {
+            tmp_entry.flags |= XATTR_MAP_FLAG_OK;
+        } else if (strstart(map, "bad", &map)) {
+            tmp_entry.flags |= XATTR_MAP_FLAG_BAD;
+        } else if (strstart(map, "unsupported", &map)) {
+            tmp_entry.flags |= XATTR_MAP_FLAG_UNSUPPORTED;
+        } else if (strstart(map, "map", &map)) {
+            /*
+             * map is sugar that adds a number of rules, and must be
+             * the last entry.
+             */
+            parse_xattrmap_map(lo, map, sep);
+            break;
+        } else {
+            fuse_log(FUSE_LOG_ERR,
+                     "%s: Unexpected type;"
+                     "Expecting 'prefix', 'ok', 'bad', 'unsupported' or 'map'"
+                     " in rule %zu\n", __func__, lo->xattr_map_nentries);
+            exit(1);
+        }
+
+        if (*map++ != sep) {
+            fuse_log(FUSE_LOG_ERR,
+                     "%s: Missing '%c' at end of type field of rule %zu\n",
+                     __func__, sep, lo->xattr_map_nentries);
+            exit(1);
+        }
+
+        /* Start of 'scope' */
+        if (strstart(map, "client", &map)) {
+            tmp_entry.flags |= XATTR_MAP_FLAG_CLIENT;
+        } else if (strstart(map, "server", &map)) {
+            tmp_entry.flags |= XATTR_MAP_FLAG_SERVER;
+        } else if (strstart(map, "all", &map)) {
+            tmp_entry.flags |= XATTR_MAP_FLAG_ALL;
+        } else {
+            fuse_log(FUSE_LOG_ERR,
+                     "%s: Unexpected scope;"
+                     " Expecting 'client', 'server', or 'all', in rule %zu\n",
+                     __func__, lo->xattr_map_nentries);
+            exit(1);
+        }
+
+        if (*map++ != sep) {
+            fuse_log(FUSE_LOG_ERR,
+                     "%s: Expecting '%c' found '%c'"
+                     " after scope in rule %zu\n",
+                     __func__, sep, *map, lo->xattr_map_nentries);
+            exit(1);
+        }
+
+        /* At start of 'key' field */
+        tmp = strchr(map, sep);
+        if (!tmp) {
+            fuse_log(FUSE_LOG_ERR,
+                     "%s: Missing '%c' at end of key field of rule %zu",
+                     __func__, sep, lo->xattr_map_nentries);
+            exit(1);
+        }
+        tmp_entry.key = g_strndup(map, tmp - map);
+        map = tmp + 1;
+
+        /* At start of 'prepend' field */
+        tmp = strchr(map, sep);
+        if (!tmp) {
+            fuse_log(FUSE_LOG_ERR,
+                     "%s: Missing '%c' at end of prepend field of rule %zu",
+                     __func__, sep, lo->xattr_map_nentries);
+            exit(1);
+        }
+        tmp_entry.prepend = g_strndup(map, tmp - map);
+        map = tmp + 1;
+
+        add_xattrmap_entry(lo, &tmp_entry);
+        /* End of rule - go around again for another rule */
+    }
+
+    if (!lo->xattr_map_nentries) {
+        fuse_log(FUSE_LOG_ERR, "Empty xattr map\n");
+        exit(1);
+    }
+
+    ret = xattr_map_client(lo, "security.capability",
+                           &lo->xattr_security_capability);
+    if (ret) {
+        fuse_log(FUSE_LOG_ERR, "Failed to map security.capability: %s\n",
+                strerror(ret));
+        exit(1);
+    }
+    if (!lo->xattr_security_capability ||
+        !strcmp(lo->xattr_security_capability, "security.capability")) {
+        /* 1-1 mapping, don't need to do anything */
+        free(lo->xattr_security_capability);
+        lo->xattr_security_capability = NULL;
+    }
+}
+
+/*
+ * For use with getxattr/setxattr/removexattr, where the client
+ * gives us a name and we may need to choose a different one.
+ * Allocates a buffer for the result placing it in *out_name.
+ *   If there's no change then *out_name is not set.
+ * Returns 0 on success
+ * Can return -EPERM to indicate we block a given attribute
+ *   (in which case out_name is not allocated)
+ * Can return -ENOMEM to indicate out_name couldn't be allocated.
+ */
+static int xattr_map_client(const struct lo_data *lo, const char *client_name,
+                            char **out_name)
+{
+    size_t i;
+    for (i = 0; i < lo->xattr_map_nentries; i++) {
+        const XattrMapEntry *cur_entry = lo->xattr_map_list + i;
+
+        if ((cur_entry->flags & XATTR_MAP_FLAG_CLIENT) &&
+            (strstart(client_name, cur_entry->key, NULL))) {
+            if (cur_entry->flags & XATTR_MAP_FLAG_BAD) {
+                return -EPERM;
+            }
+            if (cur_entry->flags & XATTR_MAP_FLAG_UNSUPPORTED) {
+                return -ENOTSUP;
+            }
+            if (cur_entry->flags & XATTR_MAP_FLAG_OK) {
+                /* Unmodified name */
+                return 0;
+            }
+            if (cur_entry->flags & XATTR_MAP_FLAG_PREFIX) {
+                *out_name = g_try_malloc(strlen(client_name) +
+                                         strlen(cur_entry->prepend) + 1);
+                if (!*out_name) {
+                    return -ENOMEM;
+                }
+                sprintf(*out_name, "%s%s", cur_entry->prepend, client_name);
+                return 0;
+            }
+        }
+    }
+
+    return -EPERM;
+}
+
+/*
+ * For use with listxattr where the server fs gives us a name and we may need
+ * to sanitize this for the client.
+ * Returns a pointer to the result in *out_name
+ *   This is always the original string or the current string with some prefix
+ *   removed; no reallocation is done.
+ * Returns 0 on success
+ * Can return -ENODATA to indicate the name should be dropped from the list.
+ */
+static int xattr_map_server(const struct lo_data *lo, const char *server_name,
+                            const char **out_name)
+{
+    size_t i;
+    const char *end;
+
+    for (i = 0; i < lo->xattr_map_nentries; i++) {
+        const XattrMapEntry *cur_entry = lo->xattr_map_list + i;
+
+        if ((cur_entry->flags & XATTR_MAP_FLAG_SERVER) &&
+            (strstart(server_name, cur_entry->prepend, &end))) {
+            if (cur_entry->flags & XATTR_MAP_FLAG_BAD ||
+                cur_entry->flags & XATTR_MAP_FLAG_UNSUPPORTED) {
+                return -ENODATA;
+            }
+            if (cur_entry->flags & XATTR_MAP_FLAG_OK) {
+                *out_name = server_name;
+                return 0;
+            }
+            if (cur_entry->flags & XATTR_MAP_FLAG_PREFIX) {
+                /* Remove prefix */
+                *out_name = end;
+                return 0;
+            }
+        }
+    }
+
+    return -ENODATA;
+}
+
+static bool block_xattr(struct lo_data *lo, const char *name)
+{
+    /*
+     * If user explicitly enabled posix_acl or did not provide any option,
+     * do not block acl. Otherwise block system.posix_acl_access and
+     * system.posix_acl_default xattrs.
+     */
+    if (lo->user_posix_acl) {
+        return false;
+    }
+    if (!strcmp(name, "system.posix_acl_access") ||
+        !strcmp(name, "system.posix_acl_default"))
+            return true;
+
+    return false;
+}
+
+/*
+ * Returns number of bytes in xattr_list after filtering on success. This
+ * could be zero as well if nothing is left after filtering.
+ *
+ * Returns negative error code on failure.
+ * xattr_list is modified in place.
+ */
+static int remove_blocked_xattrs(struct lo_data *lo, char *xattr_list,
+                                 unsigned in_size)
+{
+    size_t out_index, in_index;
+
+    /*
+     * As of now we only filter out acl xattrs. If acls are enabled or
+     * they have not been explicitly disabled, there is nothing to
+     * filter.
+     */
+    if (lo->user_posix_acl) {
+        return in_size;
+    }
+
+    out_index = 0;
+    in_index = 0;
+    while (in_index < in_size) {
+        char *in_ptr = xattr_list + in_index;
+
+        /* Length of current attribute name */
+        size_t in_len = strlen(xattr_list + in_index) + 1;
+
+        if (!block_xattr(lo, in_ptr)) {
+            if (in_index != out_index) {
+                memmove(xattr_list + out_index, xattr_list + in_index, in_len);
+            }
+            out_index += in_len;
+        }
+        in_index += in_len;
+     }
+    return out_index;
+}
+
+static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *in_name,
                         size_t size)
 {
     struct lo_data *lo = lo_data(req);
-    char *value = NULL;
+    g_autofree char *value = NULL;
     char procname[64];
+    const char *name;
+    char *mapped_name;
     struct lo_inode *inode;
     ssize_t ret;
     int saverr;
     int fd = -1;
 
+    if (block_xattr(lo, in_name)) {
+        fuse_reply_err(req, EOPNOTSUPP);
+        return;
+    }
+
+    mapped_name = NULL;
+    name = in_name;
+    if (lo->xattrmap) {
+        ret = xattr_map_client(lo, in_name, &mapped_name);
+        if (ret < 0) {
+            if (ret == -EPERM) {
+                ret = -ENODATA;
+            }
+            fuse_reply_err(req, -ret);
+            return;
+        }
+        if (mapped_name) {
+            name = mapped_name;
+        }
+    }
+
     inode = lo_inode(req, ino);
     if (!inode) {
         fuse_reply_err(req, EBADF);
+        g_free(mapped_name);
         return;
     }
 
@@ -2027,7 +3287,7 @@ static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
              ino, name, size);
 
     if (size) {
-        value = malloc(size);
+        value = g_try_malloc(size);
         if (!value) {
             goto out_err;
         }
@@ -2046,15 +3306,17 @@ static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
             goto out_err;
         }
         ret = fgetxattr(fd, name, value, size);
+        saverr = ret == -1 ? errno : 0;
     } else {
         /* fchdir should not fail here */
-        assert(fchdir(lo->proc_self_fd) == 0);
+        FCHDIR_NOFAIL(lo->proc_self_fd);
         ret = getxattr(procname, name, value, size);
-        assert(fchdir(lo->root.fd) == 0);
+        saverr = ret == -1 ? errno : 0;
+        FCHDIR_NOFAIL(lo->root.fd);
     }
 
     if (ret == -1) {
-        goto out_err;
+        goto out;
     }
     if (size) {
         saverr = 0;
@@ -2066,8 +3328,6 @@ static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
         fuse_reply_xattr(req, ret);
     }
 out_free:
-    free(value);
-
     if (fd >= 0) {
         close(fd);
     }
@@ -2079,13 +3339,14 @@ out_err:
     saverr = errno;
 out:
     fuse_reply_err(req, saverr);
+    g_free(mapped_name);
     goto out_free;
 }
 
 static void lo_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
 {
     struct lo_data *lo = lo_data(req);
-    char *value = NULL;
+    g_autofree char *value = NULL;
     char procname[64];
     struct lo_inode *inode;
     ssize_t ret;
@@ -2107,7 +3368,7 @@ static void lo_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
              size);
 
     if (size) {
-        value = malloc(size);
+        value = g_try_malloc(size);
         if (!value) {
             goto out_err;
         }
@@ -2120,28 +3381,86 @@ static void lo_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
             goto out_err;
         }
         ret = flistxattr(fd, value, size);
+        saverr = ret == -1 ? errno : 0;
     } else {
         /* fchdir should not fail here */
-        assert(fchdir(lo->proc_self_fd) == 0);
+        FCHDIR_NOFAIL(lo->proc_self_fd);
         ret = listxattr(procname, value, size);
-        assert(fchdir(lo->root.fd) == 0);
+        saverr = ret == -1 ? errno : 0;
+        FCHDIR_NOFAIL(lo->root.fd);
     }
 
     if (ret == -1) {
-        goto out_err;
+        goto out;
     }
     if (size) {
         saverr = 0;
         if (ret == 0) {
             goto out;
         }
+
+        if (lo->xattr_map_list) {
+            /*
+             * Map the names back, some attributes might be dropped,
+             * some shortened, but not increased, so we shouldn't
+             * run out of room.
+             */
+            size_t out_index, in_index;
+            out_index = 0;
+            in_index = 0;
+            while (in_index < ret) {
+                const char *map_out;
+                char *in_ptr = value + in_index;
+                /* Length of current attribute name */
+                size_t in_len = strlen(value + in_index) + 1;
+
+                int mapret = xattr_map_server(lo, in_ptr, &map_out);
+                if (mapret != -ENODATA && mapret != 0) {
+                    /* Shouldn't happen */
+                    saverr = -mapret;
+                    goto out;
+                }
+                if (mapret == 0) {
+                    /* Either unchanged, or truncated */
+                    size_t out_len;
+                    if (map_out != in_ptr) {
+                        /* +1 copies the NIL */
+                        out_len = strlen(map_out) + 1;
+                    } else {
+                        /* No change */
+                        out_len = in_len;
+                    }
+                    /*
+                     * Move result along, may still be needed for an unchanged
+                     * entry if a previous entry was changed.
+                     */
+                    memmove(value + out_index, map_out, out_len);
+
+                    out_index += out_len;
+                }
+                in_index += in_len;
+            }
+            ret = out_index;
+            if (ret == 0) {
+                goto out;
+            }
+        }
+
+        ret = remove_blocked_xattrs(lo, value, ret);
+        if (ret <= 0) {
+            saverr = -ret;
+            goto out;
+        }
         fuse_reply_buf(req, value, ret);
     } else {
+        /*
+         * xattrmap only ever shortens the result,
+         * so we don't need to do anything clever with the
+         * allocation length here.
+         */
         fuse_reply_xattr(req, ret);
     }
 out_free:
-    free(value);
-
     if (fd >= 0) {
         close(fd);
     }
@@ -2156,19 +3475,44 @@ out:
     goto out_free;
 }
 
-static void lo_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
-                        const char *value, size_t size, int flags)
+static void lo_setxattr(fuse_req_t req, fuse_ino_t ino, const char *in_name,
+                        const char *value, size_t size, int flags,
+                        uint32_t extra_flags)
 {
     char procname[64];
+    const char *name;
+    char *mapped_name;
     struct lo_data *lo = lo_data(req);
     struct lo_inode *inode;
     ssize_t ret;
     int saverr;
     int fd = -1;
+    bool switched_creds = false;
+    bool cap_fsetid_dropped = false;
+    struct lo_cred old = {};
+
+    if (block_xattr(lo, in_name)) {
+        fuse_reply_err(req, EOPNOTSUPP);
+        return;
+    }
+
+    mapped_name = NULL;
+    name = in_name;
+    if (lo->xattrmap) {
+        ret = xattr_map_client(lo, in_name, &mapped_name);
+        if (ret < 0) {
+            fuse_reply_err(req, -ret);
+            return;
+        }
+        if (mapped_name) {
+            name = mapped_name;
+        }
+    }
 
     inode = lo_inode(req, ino);
     if (!inode) {
         fuse_reply_err(req, EBADF);
+        g_free(mapped_name);
         return;
     }
 
@@ -2181,6 +3525,26 @@ static void lo_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
              ", name=%s value=%s size=%zd)\n", ino, name, value, size);
 
     sprintf(procname, "%i", inode->fd);
+    /*
+     * If we are setting posix access acl and if SGID needs to be
+     * cleared, then switch to caller's gid and drop CAP_FSETID
+     * and that should make sure host kernel clears SGID.
+     *
+     * This probably will not work when we support idmapped mounts.
+     * In that case we will need to find a non-root gid and switch
+     * to it. (Instead of gid in request). Fix it when we support
+     * idmapped mounts.
+     */
+    if (lo->posix_acl && !strcmp(name, "system.posix_acl_access")
+        && (extra_flags & FUSE_SETXATTR_ACL_KILL_SGID)) {
+        ret = lo_drop_cap_change_cred(req, &old, false, "FSETID",
+                                      &cap_fsetid_dropped);
+        if (ret) {
+            saverr = ret;
+            goto out;
+        }
+        switched_creds = true;
+    }
     if (S_ISREG(inode->filetype) || S_ISDIR(inode->filetype)) {
         fd = openat(lo->proc_self_fd, procname, O_RDONLY);
         if (fd < 0) {
@@ -2188,14 +3552,20 @@ static void lo_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
             goto out;
         }
         ret = fsetxattr(fd, name, value, size, flags);
+        saverr = ret == -1 ? errno : 0;
     } else {
         /* fchdir should not fail here */
-        assert(fchdir(lo->proc_self_fd) == 0);
+        FCHDIR_NOFAIL(lo->proc_self_fd);
         ret = setxattr(procname, name, value, size, flags);
-        assert(fchdir(lo->root.fd) == 0);
+        saverr = ret == -1 ? errno : 0;
+        FCHDIR_NOFAIL(lo->root.fd);
     }
-
-    saverr = ret == -1 ? errno : 0;
+    if (switched_creds) {
+        if (cap_fsetid_dropped)
+            lo_restore_cred_gain_cap(&old, false, "FSETID");
+        else
+            lo_restore_cred(&old, false);
+    }
 
 out:
     if (fd >= 0) {
@@ -2203,21 +3573,43 @@ out:
     }
 
     lo_inode_put(lo, &inode);
+    g_free(mapped_name);
     fuse_reply_err(req, saverr);
 }
 
-static void lo_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name)
+static void lo_removexattr(fuse_req_t req, fuse_ino_t ino, const char *in_name)
 {
     char procname[64];
+    const char *name;
+    char *mapped_name;
     struct lo_data *lo = lo_data(req);
     struct lo_inode *inode;
     ssize_t ret;
     int saverr;
     int fd = -1;
 
+    if (block_xattr(lo, in_name)) {
+        fuse_reply_err(req, EOPNOTSUPP);
+        return;
+    }
+
+    mapped_name = NULL;
+    name = in_name;
+    if (lo->xattrmap) {
+        ret = xattr_map_client(lo, in_name, &mapped_name);
+        if (ret < 0) {
+            fuse_reply_err(req, -ret);
+            return;
+        }
+        if (mapped_name) {
+            name = mapped_name;
+        }
+    }
+
     inode = lo_inode(req, ino);
     if (!inode) {
         fuse_reply_err(req, EBADF);
+        g_free(mapped_name);
         return;
     }
 
@@ -2237,14 +3629,14 @@ static void lo_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name)
             goto out;
         }
         ret = fremovexattr(fd, name);
+        saverr = ret == -1 ? errno : 0;
     } else {
         /* fchdir should not fail here */
-        assert(fchdir(lo->proc_self_fd) == 0);
+        FCHDIR_NOFAIL(lo->proc_self_fd);
         ret = removexattr(procname, name);
-        assert(fchdir(lo->root.fd) == 0);
+        saverr = ret == -1 ? errno : 0;
+        FCHDIR_NOFAIL(lo->root.fd);
     }
-
-    saverr = ret == -1 ? errno : 0;
 
 out:
     if (fd >= 0) {
@@ -2252,6 +3644,7 @@ out:
     }
 
     lo_inode_put(lo, &inode);
+    g_free(mapped_name);
     fuse_reply_err(req, saverr);
 }
 
@@ -2269,9 +3662,10 @@ static void lo_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in,
 
     fuse_log(FUSE_LOG_DEBUG,
              "lo_copy_file_range(ino=%" PRIu64 "/fd=%d, "
-             "off=%lu, ino=%" PRIu64 "/fd=%d, "
-             "off=%lu, size=%zd, flags=0x%x)\n",
-             ino_in, in_fd, off_in, ino_out, out_fd, off_out, len, flags);
+             "off=%ju, ino=%" PRIu64 "/fd=%d, "
+             "off=%ju, size=%zd, flags=0x%x)\n",
+             ino_in, in_fd, (intmax_t)off_in,
+             ino_out, out_fd, (intmax_t)off_out, len, flags);
 
     res = copy_file_range(in_fd, &off_in, out_fd, &off_out, len, flags);
     if (res < 0) {
@@ -2294,6 +3688,49 @@ static void lo_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
     } else {
         fuse_reply_err(req, errno);
     }
+}
+
+static int lo_do_syncfs(struct lo_data *lo, struct lo_inode *inode)
+{
+    int fd, ret = 0;
+
+    fuse_log(FUSE_LOG_DEBUG, "lo_do_syncfs(ino=%" PRIu64 ")\n",
+             inode->fuse_ino);
+
+    fd = lo_inode_open(lo, inode, O_RDONLY);
+    if (fd < 0) {
+        return -fd;
+    }
+
+    if (syncfs(fd) < 0) {
+        ret = errno;
+    }
+
+    close(fd);
+    return ret;
+}
+
+static void lo_syncfs(fuse_req_t req, fuse_ino_t ino)
+{
+    struct lo_data *lo = lo_data(req);
+    struct lo_inode *inode = lo_inode(req, ino);
+    int err;
+
+    if (!inode) {
+        fuse_reply_err(req, EBADF);
+        return;
+    }
+
+    err = lo_do_syncfs(lo, inode);
+    lo_inode_put(lo, &inode);
+
+    /*
+     * If submounts aren't announced, the client only sends a request to
+     * sync the root inode. TODO: Track submounts internally and iterate
+     * over them as well.
+     */
+
+    fuse_reply_err(req, err);
 }
 
 static void lo_destroy(void *userdata)
@@ -2356,6 +3793,7 @@ static struct fuse_lowlevel_ops lo_oper = {
     .copy_file_range = lo_copy_file_range,
 #endif
     .lseek = lo_lseek,
+    .syncfs = lo_syncfs,
     .destroy = lo_destroy,
 };
 
@@ -2384,8 +3822,6 @@ static void setup_wait_parent_capabilities(void)
 static void setup_namespaces(struct lo_data *lo, struct fuse_session *se)
 {
     pid_t child;
-    char template[] = "virtiofsd-XXXXXX";
-    char *tmpdir;
 
     /*
      * Create a new pid namespace for *child* processes.  We'll have to
@@ -2449,32 +3885,31 @@ static void setup_namespaces(struct lo_data *lo, struct fuse_session *se)
         exit(1);
     }
 
-    tmpdir = mkdtemp(template);
-    if (!tmpdir) {
-        fuse_log(FUSE_LOG_ERR, "tmpdir(%s): %m\n", template);
+    /* Get the /proc/self/task descriptor */
+    lo->proc_self_task = open("/proc/self/task/", O_PATH);
+    if (lo->proc_self_task == -1) {
+        fuse_log(FUSE_LOG_ERR, "open(/proc/self/task, O_PATH): %m\n");
         exit(1);
     }
 
-    if (mount("/proc/self/fd", tmpdir, NULL, MS_BIND, NULL) < 0) {
-        fuse_log(FUSE_LOG_ERR, "mount(/proc/self/fd, %s, MS_BIND): %m\n",
-                 tmpdir);
+    lo->use_fscreate = is_fscreate_usable(lo);
+
+    /*
+     * We only need /proc/self/fd. Prevent ".." from accessing parent
+     * directories of /proc/self/fd by bind-mounting it over /proc. Since / was
+     * previously remounted with MS_REC | MS_SLAVE this mount change only
+     * affects our process.
+     */
+    if (mount("/proc/self/fd", "/proc", NULL, MS_BIND, NULL) < 0) {
+        fuse_log(FUSE_LOG_ERR, "mount(/proc/self/fd, MS_BIND): %m\n");
         exit(1);
     }
 
-    /* Now we can get our /proc/self/fd directory file descriptor */
-    lo->proc_self_fd = open(tmpdir, O_PATH);
+    /* Get the /proc (actually /proc/self/fd, see above) file descriptor */
+    lo->proc_self_fd = open("/proc", O_PATH);
     if (lo->proc_self_fd == -1) {
-        fuse_log(FUSE_LOG_ERR, "open(%s, O_PATH): %m\n", tmpdir);
+        fuse_log(FUSE_LOG_ERR, "open(/proc, O_PATH): %m\n");
         exit(1);
-    }
-
-    if (umount2(tmpdir, MNT_DETACH) < 0) {
-        fuse_log(FUSE_LOG_ERR, "umount2(%s, MNT_DETACH): %m\n", tmpdir);
-        exit(1);
-    }
-
-    if (rmdir(tmpdir) < 0) {
-        fuse_log(FUSE_LOG_ERR, "rmdir(%s): %m\n", tmpdir);
     }
 }
 
@@ -2569,16 +4004,18 @@ static void setup_mounts(const char *source)
 }
 
 /*
- * Only keep whitelisted capabilities that are needed for file system operation
+ * Only keep capabilities in allowlist that are needed for file system operation
+ * The (possibly NULL) modcaps_in string passed in is free'd before exit.
  */
-static void setup_capabilities(void)
+static void setup_capabilities(char *modcaps_in)
 {
+    char *modcaps = modcaps_in;
     pthread_mutex_lock(&cap.mutex);
     capng_restore_state(&cap.saved);
 
     /*
-     * Whitelist file system-related capabilities that are needed for a file
-     * server to act like root.  Drop everything else like networking and
+     * Add to allowlist file system-related capabilities that are needed for a
+     * file server to act like root.  Drop everything else like networking and
      * sysadmin capabilities.
      *
      * Exclusions:
@@ -2589,20 +4026,119 @@ static void setup_capabilities(void)
      */
     capng_setpid(syscall(SYS_gettid));
     capng_clear(CAPNG_SELECT_BOTH);
-    capng_updatev(CAPNG_ADD, CAPNG_PERMITTED | CAPNG_EFFECTIVE,
+    if (capng_updatev(CAPNG_ADD, CAPNG_PERMITTED | CAPNG_EFFECTIVE,
             CAP_CHOWN,
             CAP_DAC_OVERRIDE,
-            CAP_DAC_READ_SEARCH,
             CAP_FOWNER,
             CAP_FSETID,
             CAP_SETGID,
             CAP_SETUID,
             CAP_MKNOD,
-            CAP_SETFCAP);
-    capng_apply(CAPNG_SELECT_BOTH);
+            CAP_SETFCAP,
+            -1)) {
+        fuse_log(FUSE_LOG_ERR, "%s: capng_updatev failed\n", __func__);
+        exit(1);
+    }
+
+    /*
+     * The modcaps option is a colon separated list of caps,
+     * each preceded by either + or -.
+     */
+    while (modcaps) {
+        capng_act_t action;
+        int cap;
+
+        char *next = strchr(modcaps, ':');
+        if (next) {
+            *next = '\0';
+            next++;
+        }
+
+        switch (modcaps[0]) {
+        case '+':
+            action = CAPNG_ADD;
+            break;
+
+        case '-':
+            action = CAPNG_DROP;
+            break;
+
+        default:
+            fuse_log(FUSE_LOG_ERR,
+                     "%s: Expecting '+'/'-' in modcaps but found '%c'\n",
+                     __func__, modcaps[0]);
+            exit(1);
+        }
+        cap = capng_name_to_capability(modcaps + 1);
+        if (cap < 0) {
+            fuse_log(FUSE_LOG_ERR, "%s: Unknown capability '%s'\n", __func__,
+                     modcaps);
+            exit(1);
+        }
+        if (capng_update(action, CAPNG_PERMITTED | CAPNG_EFFECTIVE, cap)) {
+            fuse_log(FUSE_LOG_ERR, "%s: capng_update failed for '%s'\n",
+                     __func__, modcaps);
+            exit(1);
+        }
+
+        modcaps = next;
+    }
+    g_free(modcaps_in);
+
+    if (capng_apply(CAPNG_SELECT_BOTH)) {
+        fuse_log(FUSE_LOG_ERR, "%s: capng_apply failed\n", __func__);
+        exit(1);
+    }
 
     cap.saved = capng_save_state();
+    if (!cap.saved) {
+        fuse_log(FUSE_LOG_ERR, "%s: capng_save_state failed\n", __func__);
+        exit(1);
+    }
     pthread_mutex_unlock(&cap.mutex);
+}
+
+/*
+ * Use chroot as a weaker sandbox for environments where the process is
+ * launched without CAP_SYS_ADMIN.
+ */
+static void setup_chroot(struct lo_data *lo)
+{
+    lo->proc_self_fd = open("/proc/self/fd", O_PATH);
+    if (lo->proc_self_fd == -1) {
+        fuse_log(FUSE_LOG_ERR, "open(\"/proc/self/fd\", O_PATH): %m\n");
+        exit(1);
+    }
+
+    lo->proc_self_task = open("/proc/self/task", O_PATH);
+    if (lo->proc_self_fd == -1) {
+        fuse_log(FUSE_LOG_ERR, "open(\"/proc/self/task\", O_PATH): %m\n");
+        exit(1);
+    }
+
+    lo->use_fscreate = is_fscreate_usable(lo);
+
+    /*
+     * Make the shared directory the file system root so that FUSE_OPEN
+     * (lo_open()) cannot escape the shared directory by opening a symlink.
+     *
+     * The chroot(2) syscall is later disabled by seccomp and the
+     * CAP_SYS_CHROOT capability is dropped so that tampering with the chroot
+     * is not possible.
+     *
+     * However, it's still possible to escape the chroot via lo->proc_self_fd
+     * but that requires first gaining control of the process.
+     */
+    if (chroot(lo->source) != 0) {
+        fuse_log(FUSE_LOG_ERR, "chroot(\"%s\"): %m\n", lo->source);
+        exit(1);
+    }
+
+    /* Move into the chroot */
+    if (chdir("/") != 0) {
+        fuse_log(FUSE_LOG_ERR, "chdir(\"/\"): %m\n");
+        exit(1);
+    }
 }
 
 /*
@@ -2612,10 +4148,15 @@ static void setup_capabilities(void)
 static void setup_sandbox(struct lo_data *lo, struct fuse_session *se,
                           bool enable_syslog)
 {
-    setup_namespaces(lo, se);
-    setup_mounts(lo->source);
+    if (lo->sandbox == SANDBOX_NAMESPACE) {
+        setup_namespaces(lo, se);
+        setup_mounts(lo->source);
+    } else {
+        setup_chroot(lo);
+    }
+
     setup_seccomp(enable_syslog);
-    setup_capabilities();
+    setup_capabilities(g_strdup(lo->modcaps));
 }
 
 /* Set the maximum number of open file descriptors */
@@ -2650,12 +4191,15 @@ static void log_func(enum fuse_log_level level, const char *fmt, va_list ap)
     }
 
     if (current_log_level == FUSE_LOG_DEBUG) {
-        if (!use_syslog) {
-            localfmt = g_strdup_printf("[%" PRId64 "] [ID: %08ld] %s",
-                                       get_clock(), syscall(__NR_gettid), fmt);
-        } else {
+        if (use_syslog) {
+            /* no timestamp needed */
             localfmt = g_strdup_printf("[ID: %08ld] %s", syscall(__NR_gettid),
                                        fmt);
+        } else {
+            g_autoptr(GDateTime) now = g_date_time_new_now_utc();
+            g_autofree char *nowstr = g_date_time_format(now, "%Y-%m-%d %H:%M:%S.%f%z");
+            localfmt = g_strdup_printf("[%s] [ID: %08ld] %s",
+                                       nowstr, syscall(__NR_gettid), fmt);
         }
         fmt = localfmt;
     }
@@ -2698,6 +4242,7 @@ static void setup_root(struct lo_data *lo, struct lo_inode *root)
 {
     int fd, res;
     struct stat stat;
+    uint64_t mnt_id;
 
     fd = open("/", O_PATH);
     if (fd == -1) {
@@ -2705,7 +4250,8 @@ static void setup_root(struct lo_data *lo, struct lo_inode *root)
         exit(1);
     }
 
-    res = fstatat(fd, "", &stat, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    res = do_statx(lo, fd, "", &stat, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW,
+                   &mnt_id);
     if (res == -1) {
         fuse_log(FUSE_LOG_ERR, "fstatat(%s): %m\n", lo->source);
         exit(1);
@@ -2715,15 +4261,21 @@ static void setup_root(struct lo_data *lo, struct lo_inode *root)
     root->fd = fd;
     root->key.ino = stat.st_ino;
     root->key.dev = stat.st_dev;
+    root->key.mnt_id = mnt_id;
     root->nlookup = 2;
     g_atomic_int_set(&root->refcount, 2);
+    if (lo->posix_lock) {
+        pthread_mutex_init(&root->plock_mutex, NULL);
+        root->posix_locks = g_hash_table_new_full(
+            g_direct_hash, g_direct_equal, NULL, posix_locks_value_destroy);
+    }
 }
 
 static guint lo_key_hash(gconstpointer key)
 {
     const struct lo_key *lkey = key;
 
-    return (guint)lkey->ino + (guint)lkey->dev;
+    return (guint)lkey->ino + (guint)lkey->dev + (guint)lkey->mnt_id;
 }
 
 static gboolean lo_key_equal(gconstpointer a, gconstpointer b)
@@ -2731,13 +4283,17 @@ static gboolean lo_key_equal(gconstpointer a, gconstpointer b)
     const struct lo_key *la = a;
     const struct lo_key *lb = b;
 
-    return la->ino == lb->ino && la->dev == lb->dev;
+    return la->ino == lb->ino && la->dev == lb->dev && la->mnt_id == lb->mnt_id;
 }
 
 static void fuse_lo_data_cleanup(struct lo_data *lo)
 {
     if (lo->inodes) {
         g_hash_table_destroy(lo->inodes);
+    }
+
+    if (lo->root.posix_locks) {
+        g_hash_table_destroy(lo->root.posix_locks);
     }
     lo_map_destroy(&lo->fd_map);
     lo_map_destroy(&lo->dirp_map);
@@ -2747,11 +4303,23 @@ static void fuse_lo_data_cleanup(struct lo_data *lo)
         close(lo->proc_self_fd);
     }
 
+    if (lo->proc_self_task >= 0) {
+        close(lo->proc_self_task);
+    }
+
     if (lo->root.fd >= 0) {
         close(lo->root.fd);
     }
 
+    free(lo->xattrmap);
+    free_xattrmap(lo);
+    free(lo->xattr_security_capability);
     free(lo->source);
+}
+
+static void qemu_version(void)
+{
+    printf("virtiofsd version " QEMU_FULL_VERSION "\n" QEMU_COPYRIGHT "\n");
 }
 
 int main(int argc, char *argv[])
@@ -2760,16 +4328,30 @@ int main(int argc, char *argv[])
     struct fuse_session *se;
     struct fuse_cmdline_opts opts;
     struct lo_data lo = {
+        .sandbox = SANDBOX_NAMESPACE,
         .debug = 0,
         .writeback = 0,
-        .posix_lock = 1,
+        .posix_lock = 0,
+        .allow_direct_io = 0,
         .proc_self_fd = -1,
+        .proc_self_task = -1,
+        .user_killpriv_v2 = -1,
+        .user_posix_acl = -1,
+        .user_security_label = -1,
     };
     struct lo_map_elem *root_elem;
+    struct lo_map_elem *reserve_elem;
     int ret = -1;
+
+    /* Initialize time conversion information for localtime_r(). */
+    tzset();
 
     /* Don't mask creation mode, kernel already did that */
     umask(0);
+
+    qemu_init_exec_dir(argv[0]);
+
+    drop_supplementary_groups();
 
     pthread_mutex_init(&lo.mutex, NULL);
     lo.inodes = g_hash_table_new(lo_key_hash, lo_key_equal);
@@ -2783,8 +4365,17 @@ int main(int argc, char *argv[])
      * [1] Root inode
      */
     lo_map_init(&lo.ino_map);
-    lo_map_reserve(&lo.ino_map, 0)->in_use = false;
+    reserve_elem = lo_map_reserve(&lo.ino_map, 0);
+    if (!reserve_elem) {
+        fuse_log(FUSE_LOG_ERR, "failed to alloc reserve_elem.\n");
+        goto err_out1;
+    }
+    reserve_elem->in_use = false;
     root_elem = lo_map_reserve(&lo.ino_map, lo.root.fuse_ino);
+    if (!root_elem) {
+        fuse_log(FUSE_LOG_ERR, "failed to alloc root_elem.\n");
+        goto err_out1;
+    }
     root_elem->inode = &lo.root;
 
     lo_map_init(&lo.dirp_map);
@@ -2807,6 +4398,7 @@ int main(int argc, char *argv[])
         ret = 0;
         goto err_out1;
     } else if (opts.show_version) {
+        qemu_version();
         fuse_lowlevel_version();
         ret = 0;
         goto err_out1;
@@ -2820,12 +4412,11 @@ int main(int argc, char *argv[])
         goto err_out1;
     }
 
-    /*
-     * log_level is 0 if not configured via cmd options (0 is LOG_EMERG,
-     * and we don't use this log level).
-     */
     if (opts.log_level != 0) {
         current_log_level = opts.log_level;
+    } else {
+        /* default log level is INFO */
+        current_log_level = FUSE_LOG_INFO;
     }
     lo.debug = opts.debug;
     if (lo.debug) {
@@ -2847,7 +4438,17 @@ int main(int argc, char *argv[])
         }
     } else {
         lo.source = strdup("/");
+        if (!lo.source) {
+            fuse_log(FUSE_LOG_ERR, "failed to strdup source\n");
+            goto err_out1;
+        }
     }
+
+    if (lo.xattrmap) {
+        lo.xattr = 1;
+        parse_xattrmap(&lo);
+    }
+
     if (!lo.timeout_set) {
         switch (lo.cache) {
         case CACHE_NONE:
@@ -2866,6 +4467,14 @@ int main(int argc, char *argv[])
         fuse_log(FUSE_LOG_ERR, "timeout is negative (%lf)\n", lo.timeout);
         exit(1);
     }
+
+    if (lo.user_posix_acl == 1 && !lo.xattr) {
+        fuse_log(FUSE_LOG_ERR, "Can't enable posix ACLs. xattrs are disabled."
+                 "\n");
+        exit(1);
+    }
+
+    lo.use_statx = true;
 
     se = fuse_session_new(&args, &lo_oper, sizeof(lo_oper), &lo);
     if (se == NULL) {

@@ -28,17 +28,18 @@
 #include "qemu/module.h"
 
 #include "hw/i386/ich9.h"
+#include "qom/object.h"
+#include "hw/acpi/acpi_aml_interface.h"
 
-#define ICH9_SMB_DEVICE(obj) \
-     OBJECT_CHECK(ICH9SMBState, (obj), TYPE_ICH9_SMB_DEVICE)
+OBJECT_DECLARE_SIMPLE_TYPE(ICH9SMBState, ICH9_SMB_DEVICE)
 
-typedef struct ICH9SMBState {
+struct ICH9SMBState {
     PCIDevice dev;
 
     bool irq_enabled;
 
     PMSMBus smb;
-} ICH9SMBState;
+};
 
 static bool ich9_vmstate_need_smbus(void *opaque, int version_id)
 {
@@ -94,10 +95,22 @@ static void ich9_smbus_realize(PCIDevice *d, Error **errp)
                      &s->smb.io);
 }
 
+static void build_ich9_smb_aml(AcpiDevAmlIf *adev, Aml *scope)
+{
+    BusChild *kid;
+    ICH9SMBState *s = ICH9_SMB_DEVICE(adev);
+    BusState *bus = BUS(s->smb.smbus);
+
+    QTAILQ_FOREACH(kid, &bus->children, sibling) {
+            call_dev_aml_func(DEVICE(kid->child), scope);
+    }
+}
+
 static void ich9_smb_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+    AcpiDevAmlIfClass *adevc = ACPI_DEV_AML_IF_CLASS(klass);
 
     k->vendor_id = PCI_VENDOR_ID_INTEL;
     k->device_id = PCI_DEVICE_ID_INTEL_ICH9_6;
@@ -112,6 +125,7 @@ static void ich9_smb_class_init(ObjectClass *klass, void *data)
      * pc_q35_init()
      */
     dc->user_creatable = false;
+    adevc->build_dev_aml = build_ich9_smb_aml;
 }
 
 static void ich9_smb_set_irq(PMSMBus *pmsmb, bool enabled)
@@ -143,6 +157,7 @@ static const TypeInfo ich9_smb_info = {
     .class_init = ich9_smb_class_init,
     .interfaces = (InterfaceInfo[]) {
         { INTERFACE_CONVENTIONAL_PCI_DEVICE },
+        { TYPE_ACPI_DEV_AML_IF },
         { },
     },
 };

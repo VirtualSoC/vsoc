@@ -12,7 +12,6 @@
  */
 #include "qemu/osdep.h"
 #include "boot-sector.h"
-#include "qemu-common.h"
 #include "libqtest.h"
 
 #define LOW(x) ((x) & 0xff)
@@ -138,6 +137,7 @@ void boot_sector_test(QTestState *qts)
     uint8_t signature_low;
     uint8_t signature_high;
     uint16_t signature;
+    QDict *qrsp, *qret;
     int i;
 
     /* Wait at most 600 seconds (test is slow with TCI and --enable-debug) */
@@ -155,6 +155,14 @@ void boot_sector_test(QTestState *qts)
         if (signature == SIGNATURE) {
             break;
         }
+
+        /* check that guest is still in "running" state and did not panic */
+        qrsp = qtest_qmp(qts, "{ 'execute': 'query-status' }");
+        qret = qdict_get_qdict(qrsp, "return");
+        g_assert_nonnull(qret);
+        g_assert_cmpstr(qdict_get_try_str(qret, "status"), ==, "running");
+        qobject_unref(qrsp);
+
         g_usleep(TEST_DELAY);
     }
 

@@ -179,7 +179,7 @@ static inline coroutine_fn void qemu_co_mutex_assert_locked(CoMutex *mutex)
      * because the condition will be false no matter whether we read NULL or
      * the pointer for any other coroutine.
      */
-    assert(atomic_read(&mutex->locked) &&
+    assert(qatomic_read(&mutex->locked) &&
            mutex->holder == qemu_coroutine_self());
 }
 
@@ -208,13 +208,17 @@ void qemu_co_queue_init(CoQueue *queue);
 void coroutine_fn qemu_co_queue_wait_impl(CoQueue *queue, QemuLockable *lock);
 
 /**
- * Removes the next coroutine from the CoQueue, and wake it up.
+ * Removes the next coroutine from the CoQueue, and queue it to run after
+ * the currently-running coroutine yields.
  * Returns true if a coroutine was removed, false if the queue is empty.
+ * Used from coroutine context, use qemu_co_enter_next outside.
  */
 bool coroutine_fn qemu_co_queue_next(CoQueue *queue);
 
 /**
- * Empties the CoQueue; all coroutines are woken up.
+ * Empties the CoQueue and queues the coroutine to run after
+ * the currently-running coroutine yields.
+ * Used from coroutine context, use qemu_co_enter_all outside.
  */
 void coroutine_fn qemu_co_queue_restart_all(CoQueue *queue);
 
@@ -232,16 +236,33 @@ void coroutine_fn qemu_co_queue_restart_all(CoQueue *queue);
 bool qemu_co_enter_next_impl(CoQueue *queue, QemuLockable *lock);
 
 /**
+ * Empties the CoQueue, waking the waiting coroutine one at a time.  Unlike
+ * qemu_co_queue_all, this function releases the lock during aio_co_wake
+ * because it is meant to be used outside coroutine context; in that case, the
+ * coroutine is entered immediately, before qemu_co_enter_all returns.
+ *
+ * If used in coroutine context, qemu_co_enter_all is equivalent to
+ * qemu_co_queue_all.
+ */
+#define qemu_co_enter_all(queue, lock) \
+    qemu_co_enter_all_impl(queue, QEMU_MAKE_LOCKABLE(lock))
+void qemu_co_enter_all_impl(CoQueue *queue, QemuLockable *lock);
+
+/**
  * Checks if the CoQueue is empty.
  */
 bool qemu_co_queue_empty(CoQueue *queue);
 
 
+typedef struct CoRwTicket CoRwTicket;
 typedef struct CoRwlock {
-    int pending_writer;
-    int reader;
     CoMutex mutex;
-    CoQueue queue;
+
+    /* Number of readers, or -1 if owned for writing.  */
+    int owners;
+
+    /* Waiting coroutines.  */
+    QSIMPLEQ_HEAD(, CoRwTicket) tickets;
 } CoRwlock;
 
 /**
@@ -260,10 +281,9 @@ void qemu_co_rwlock_rdlock(CoRwlock *lock);
 /**
  * Write Locks the CoRwlock from a reader.  This is a bit more efficient than
  * @qemu_co_rwlock_unlock followed by a separate @qemu_co_rwlock_wrlock.
- * However, if the lock cannot be upgraded immediately, control is transferred
- * to the caller of the current coroutine.  Also, @qemu_co_rwlock_upgrade
- * only overrides CoRwlock fairness if there are no concurrent readers, so
- * another writer might run while @qemu_co_rwlock_upgrade blocks.
+ * Note that if the lock cannot be upgraded immediately, control is transferred
+ * to the caller of the current coroutine; another writer might run while
+ * @qemu_co_rwlock_upgrade blocks.
  */
 void qemu_co_rwlock_upgrade(CoRwlock *lock);
 
@@ -288,21 +308,41 @@ void qemu_co_rwlock_wrlock(CoRwlock *lock);
  */
 void qemu_co_rwlock_unlock(CoRwlock *lock);
 
-typedef struct QemuCoSleepState QemuCoSleepState;
+typedef struct QemuCoSleep {
+    Coroutine *to_wake;
+} QemuCoSleep;
 
 /**
- * Yield the coroutine for a given duration. During this yield, @sleep_state
- * (if not NULL) is set to an opaque pointer, which may be used for
- * qemu_co_sleep_wake(). Be careful, the pointer is set back to zero when the
- * timer fires. Don't save the obtained value to other variables and don't call
- * qemu_co_sleep_wake from another aio context.
+ * Yield the coroutine for a given duration. Initializes @w so that,
+ * during this yield, it can be passed to qemu_co_sleep_wake() to
+ * terminate the sleep.
  */
-void coroutine_fn qemu_co_sleep_ns_wakeable(QEMUClockType type, int64_t ns,
-                                            QemuCoSleepState **sleep_state);
+void coroutine_fn qemu_co_sleep_ns_wakeable(QemuCoSleep *w,
+                                            QEMUClockType type, int64_t ns);
+
+/**
+ * Yield the coroutine until the next call to qemu_co_sleep_wake.
+ */
+void coroutine_fn qemu_co_sleep(QemuCoSleep *w);
+
 static inline void coroutine_fn qemu_co_sleep_ns(QEMUClockType type, int64_t ns)
 {
-    qemu_co_sleep_ns_wakeable(type, ns, NULL);
+    QemuCoSleep w = { 0 };
+    qemu_co_sleep_ns_wakeable(&w, type, ns);
 }
+
+typedef void CleanupFunc(void *opaque);
+/**
+ * Run entry in a coroutine and start timer. Wait for entry to finish or for
+ * timer to elapse, what happen first. If entry finished, return 0, if timer
+ * elapsed earlier, return -ETIMEDOUT.
+ *
+ * Be careful, entry execution is not canceled, user should handle it somehow.
+ * If @clean is provided, it's called after coroutine finish if timeout
+ * happened.
+ */
+int coroutine_fn qemu_co_timeout(CoroutineEntry *entry, void *opaque,
+                                 uint64_t timeout_ns, CleanupFunc clean);
 
 /**
  * Wake a coroutine if it is sleeping in qemu_co_sleep_ns. The timer will be
@@ -310,7 +350,7 @@ static inline void coroutine_fn qemu_co_sleep_ns(QEMUClockType type, int64_t ns)
  * qemu_co_sleep_ns() and should be checked to be non-NULL before calling
  * qemu_co_sleep_wake().
  */
-void qemu_co_sleep_wake(QemuCoSleepState *sleep_state);
+void qemu_co_sleep_wake(QemuCoSleep *w);
 
 /**
  * Yield until a file descriptor becomes readable
@@ -319,6 +359,39 @@ void qemu_co_sleep_wake(QemuCoSleepState *sleep_state);
  */
 void coroutine_fn yield_until_fd_readable(int fd);
 
+/**
+ * Increase coroutine pool size
+ */
+void qemu_coroutine_inc_pool_size(unsigned int additional_pool_size);
+
+/**
+ * Decrease coroutine pool size
+ */
+void qemu_coroutine_dec_pool_size(unsigned int additional_pool_size);
+
 #include "qemu/lockable.h"
+
+/**
+ * Sends a (part of) iovec down a socket, yielding when the socket is full, or
+ * Receives data into a (part of) iovec from a socket,
+ * yielding when there is no data in the socket.
+ * The same interface as qemu_sendv_recvv(), with added yielding.
+ * XXX should mark these as coroutine_fn
+ */
+ssize_t qemu_co_sendv_recvv(int sockfd, struct iovec *iov, unsigned iov_cnt,
+                            size_t offset, size_t bytes, bool do_send);
+#define qemu_co_recvv(sockfd, iov, iov_cnt, offset, bytes) \
+  qemu_co_sendv_recvv(sockfd, iov, iov_cnt, offset, bytes, false)
+#define qemu_co_sendv(sockfd, iov, iov_cnt, offset, bytes) \
+  qemu_co_sendv_recvv(sockfd, iov, iov_cnt, offset, bytes, true)
+
+/**
+ * The same as above, but with just a single buffer
+ */
+ssize_t qemu_co_send_recv(int sockfd, void *buf, size_t bytes, bool do_send);
+#define qemu_co_recv(sockfd, buf, bytes) \
+  qemu_co_send_recv(sockfd, buf, bytes, false)
+#define qemu_co_send(sockfd, buf, bytes) \
+  qemu_co_send_recv(sockfd, buf, bytes, true)
 
 #endif /* QEMU_COROUTINE_H */

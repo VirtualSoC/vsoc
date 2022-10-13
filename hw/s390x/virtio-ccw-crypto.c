@@ -14,23 +14,24 @@
 #include "qapi/error.h"
 #include "qemu/module.h"
 #include "virtio-ccw.h"
+#include "hw/virtio/virtio-crypto.h"
+
+#define TYPE_VIRTIO_CRYPTO_CCW "virtio-crypto-ccw"
+OBJECT_DECLARE_SIMPLE_TYPE(VirtIOCryptoCcw, VIRTIO_CRYPTO_CCW)
+
+struct VirtIOCryptoCcw {
+    VirtioCcwDevice parent_obj;
+    VirtIOCrypto vdev;
+};
 
 static void virtio_ccw_crypto_realize(VirtioCcwDevice *ccw_dev, Error **errp)
 {
     VirtIOCryptoCcw *dev = VIRTIO_CRYPTO_CCW(ccw_dev);
     DeviceState *vdev = DEVICE(&dev->vdev);
-    Error *err = NULL;
 
-    qdev_set_parent_bus(vdev, BUS(&ccw_dev->bus));
-    object_property_set_bool(OBJECT(vdev), true, "realized", &err);
-    if (err) {
-        error_propagate(errp, err);
+    if (!qdev_realize(vdev, BUS(&ccw_dev->bus), errp)) {
         return;
     }
-
-    object_property_set_link(OBJECT(vdev),
-                             OBJECT(dev->vdev.conf.cryptodev), "cryptodev",
-                             NULL);
 }
 
 static void virtio_ccw_crypto_instance_init(Object *obj)
