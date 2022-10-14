@@ -9,8 +9,8 @@
  * 
  */
 
-#include "express-gpu/glv1.h"
-#include "express-gpu/glv3_status.h"
+#include "hw/express-gpu/glv1.h"
+#include "hw/express-gpu/glv3_status.h"
 
 // static GLuint draw_texi_vao = 0;
 static GLuint draw_texi_program = 0;

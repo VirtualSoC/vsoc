@@ -1,5 +1,5 @@
-#include "express-gpu/egl_display.h"
-#include "express-gpu/egl_config.h"
+#include "hw/express-gpu/egl_display.h"
+#include "hw/express-gpu/egl_config.h"
 #include <GLFW/glfw3.h>
 
 const unsigned int config_attrs[NUM_ATTRS] = {

@@ -10,9 +10,9 @@
  */
 
 // #define STD_DEBUG_LOG
-#include "direct-express/express_log.h"
+#include "hw/direct-express/express_log.h"
 
-#include "direct-express/express_device_common.h"
+#include "hw/direct-express/express_device_common.h"
 
 #define LOG_DIR "log//call"
 

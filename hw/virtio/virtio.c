@@ -1525,7 +1525,11 @@ static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
         max = desc.len / sizeof(VRingDesc);
         i = 0;
         vring_split_desc_read(vdev, &desc, desc_cache, i);
-        if(max>VIRTQUEUE_MAX_SIZE){
+        if(max > VIRTQUEUE_MAX_SIZE && max <= VIRTQUEUE_MAX_SIZE * 64){
+            now_virtqueue_max_size=max+10;
+            addr=g_alloca(now_virtqueue_max_size*sizeof(hwaddr));
+            iov=g_alloca(now_virtqueue_max_size*sizeof(struct iovec));
+        }else if(max > VIRTQUEUE_MAX_SIZE * 64){
             now_virtqueue_max_size=max+10;
             addr=g_malloc(now_virtqueue_max_size*sizeof(hwaddr));
             iov=g_malloc(now_virtqueue_max_size*sizeof(struct iovec));
@@ -1585,7 +1589,7 @@ static void *virtqueue_split_pop(VirtQueue *vq, size_t sz)
     trace_virtqueue_pop(vq, elem, elem->in_num, elem->out_num);
 done:
     address_space_cache_destroy(&indirect_desc_cache);
-    if(max>VIRTQUEUE_MAX_SIZE){
+    if(max > VIRTQUEUE_MAX_SIZE * 64){
         g_free(addr);
         g_free(iov);
     }
@@ -1664,7 +1668,11 @@ static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
         max = desc.len / sizeof(VRingPackedDesc);
         i = 0;
         vring_packed_desc_read(vdev, &desc, desc_cache, i, false);
-        if(max>VIRTQUEUE_MAX_SIZE){
+        if(max > VIRTQUEUE_MAX_SIZE && max <= VIRTQUEUE_MAX_SIZE * 64){
+            now_virtqueue_max_size=max+10;
+            addr=g_alloca(now_virtqueue_max_size*sizeof(hwaddr));
+            iov=g_alloca(now_virtqueue_max_size*sizeof(struct iovec));
+        }else if(max > VIRTQUEUE_MAX_SIZE * 64){
             now_virtqueue_max_size=max+10;
             addr=g_malloc(now_virtqueue_max_size*sizeof(hwaddr));
             iov=g_malloc(now_virtqueue_max_size*sizeof(struct iovec));
@@ -1731,7 +1739,7 @@ static void *virtqueue_packed_pop(VirtQueue *vq, size_t sz)
     trace_virtqueue_pop(vq, elem, elem->in_num, elem->out_num);
 done:
     address_space_cache_destroy(&indirect_desc_cache);
-    if(max>VIRTQUEUE_MAX_SIZE){
+    if(max > VIRTQUEUE_MAX_SIZE * 64){
         g_free(addr);
         g_free(iov);
     }

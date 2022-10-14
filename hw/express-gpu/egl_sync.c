@@ -1,5 +1,5 @@
-#include "express-gpu/egl_sync.h"
-#include "express-gpu/glv3_resource.h"
+#include "hw/express-gpu/egl_sync.h"
+#include "hw/express-gpu/glv3_resource.h"
 
 EGLBoolean d_eglWaitGL(void *context)
 {

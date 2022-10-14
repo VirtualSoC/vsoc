@@ -1,6 +1,6 @@
 #define STD_DEBUG_LOG
 
-#include "express-gpu/glv3_resource.h"
+#include "hw/express-gpu/glv3_resource.h"
 
 /**
  * @brief 创建一个host这端的id映射关系，映射关系为guest id到host id，方便查找真正的host id

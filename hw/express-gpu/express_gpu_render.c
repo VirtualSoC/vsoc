@@ -13,21 +13,21 @@
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 
-#include "express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_render.h"
 
-#include "direct-express/direct_express.h"
-#include "direct-express/express_log.h"
+#include "hw/direct-express/direct_express.h"
+#include "hw/direct-express/express_log.h"
 
-#include "express-gpu/egl_context.h"
-#include "express-gpu/glv3_context.h"
-#include "express-gpu/glv1.h"
-#include "express-gpu/gl_helper.h"
+#include "hw/express-gpu/egl_context.h"
+#include "hw/express-gpu/glv3_context.h"
+#include "hw/express-gpu/glv1.h"
+#include "hw/express-gpu/gl_helper.h"
 
 #include "ui/console.h"
 #include "ui/input.h"
 #include "sysemu/runstate.h"
 
-#include "express-gpu/sdl_control.h"
+#include "hw/express-gpu/sdl_control.h"
 
 // HWND draw_native_window;
 
@@ -86,10 +86,10 @@ static gint64 gen_frame_time_avg_1s = 0;
 // static int force_gsync = 0;
 
 #define EVENT_QUEUE_LOCK                                   \
-    while (atomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
+    while (qatomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
         ;
 
-#define EVENT_QUEUE_UNLOCK atomic_cmpxchg(&(event_queue_lock), 1, 0);
+#define EVENT_QUEUE_UNLOCK qatomic_cmpxchg(&(event_queue_lock), 1, 0);
 
 // static void *opengl_render_hwnd = NULL;
 

@@ -1,7 +1,7 @@
 config DIRECT_EXPRESS
     bool
     default y
-    depends on PCI && VIRTIO
+    depends on PCI && VIRTIO && DIRECT_EXPRESS_PCI
 
 config DIRECT_EXPRESS_PCI
     bool

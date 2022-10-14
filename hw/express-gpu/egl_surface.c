@@ -11,12 +11,12 @@
 
 #define STD_DEBUG_LOG
 // #define TIMER_LOG
-#include "express-gpu/egl_surface.h"
-#include "express-gpu/egl_display.h"
+#include "hw/express-gpu/egl_surface.h"
+#include "hw/express-gpu/egl_display.h"
 
-#include "express-gpu/express_gpu_render.h"
-#include "express-gpu/offscreen_render_thread.h"
-#include "express-gpu/glv3_resource.h"
+#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/glv3_resource.h"
 
 // EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, int stride, int width, int height);
 // void connect_fbo_texture(Graphic_Buffer *gbuffer, int index, int new);

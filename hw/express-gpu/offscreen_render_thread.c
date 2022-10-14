@@ -10,22 +10,22 @@
  */
 
 #define STD_DEBUG_LOG
-#include "direct-express/direct_express_distribute.h"
+#include "hw/direct-express/direct_express_distribute.h"
 
-#include "direct-express/express_log.h"
+#include "hw/direct-express/express_log.h"
 
-#include "express-gpu/glv3_context.h"
-#include "express-gpu/offscreen_render_thread.h"
-#include "express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/glv3_context.h"
+#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/express_gpu_render.h"
 
-#include "express-gpu/glv3_trans.h"
-#include "express-gpu/egl_trans.h"
-#include "express-gpu/test_trans.h"
+#include "hw/express-gpu/glv3_trans.h"
+#include "hw/express-gpu/egl_trans.h"
+#include "hw/express-gpu/test_trans.h"
 
 #include "qemu/atomic.h"
 
-// #include "express-gpu/egl_surface.h"
-// #include "express-gpu/egl_context.h"
+// #include "hw/express-gpu/egl_surface.h"
+// #include "hw/express-gpu/egl_context.h"
 
 //用于保存draw线程信息的hash表，方便分发到相应的线程
 static GHashTable *render_thread_contexts = NULL;
@@ -377,7 +377,7 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
 
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
         }
-        atomic_inc(&(process->thread_cnt));
+        qatomic_inc(&(process->thread_cnt));
         // process->thread_cnt += 1;
         thread_context->process_context = process;
         g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(unique_id), (gpointer)context);
@@ -404,7 +404,7 @@ void render_context_init(Thread_Context *context)
 
     express_printf("render context init!\n");
     //这个render线程只能创建一次，且其他线程必须等待该线程运行成功
-    if (atomic_cmpxchg(&native_render_run, 0, 1) == 0)
+    if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
         express_printf("create native window\n");
         qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->direct_express_device, QEMU_THREAD_DETACHED);
@@ -571,7 +571,7 @@ void render_context_destroy(Thread_Context *context)
 
     // process_context->thread_cnt -= 1;
     express_printf("process %llx destroy cnt %d\n", process_context, process_context->thread_cnt);
-    if (atomic_dec_fetch(&(process_context->thread_cnt)) == 0)
+    if (qatomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
         express_printf("process %llx destroy everything\n", process_context);
         g_hash_table_destroy(process_context->context_map);

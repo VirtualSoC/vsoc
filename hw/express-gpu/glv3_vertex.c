@@ -1,7 +1,7 @@
 #define STD_DEBUG_LOG
 // #define STD_DEBUG_LOG_GLOBAL_ON
-#include "express-gpu/glv3_vertex.h"
-#include "express-gpu/glv3_status.h"
+#include "hw/express-gpu/glv3_vertex.h"
+#include "hw/express-gpu/glv3_status.h"
 
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer)

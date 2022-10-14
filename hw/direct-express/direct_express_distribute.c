@@ -10,10 +10,10 @@
  */
 // #define STD_DEBUG_LOG
 
-#include "direct-express/direct_express_distribute.h"
-#include "direct-express/express_handle_thread.h"
-#include "direct-express/express_log.h"
-#include "direct-express/express_device_common.h"
+#include "hw/direct-express/direct_express_distribute.h"
+#include "hw/direct-express/express_handle_thread.h"
+#include "hw/direct-express/express_log.h"
+#include "hw/direct-express/express_device_common.h"
 // #include <EGL/eglplatform.h>
 
 // #define express_printf null_printf
@@ -834,7 +834,7 @@ void distribute_wait(void)
 #endif
 }
 
-// #include "express-gpu/express_gpu_render.h"
+// #include "hw/express-gpu/express_gpu_render.h"
 
 int push_cnt = 0;
 /**
@@ -886,7 +886,7 @@ void *call_distribute_thread(void *opaque)
 
     // return;
 #ifdef DISTRIBUTE_WHEN_VM_EXIT
-    while(atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0);
+    while(qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0);
 #endif
     while (e->thread_run && !direct_express_should_stop)
     {
@@ -978,7 +978,7 @@ void *call_distribute_thread(void *opaque)
             pop_cnt = 0;
 
 #ifdef DISTRIBUTE_WHEN_VM_EXIT
-            atomic_set(&atomic_distribute_thread_running, 0);
+            qatomic_set(&atomic_distribute_thread_running, 0);
 #endif
             //休眠采用可以被其他线程打断的休眠，主要是被处理线程打断，打断的目的也是为了减小延迟
             distribute_wait();
@@ -988,25 +988,25 @@ void *call_distribute_thread(void *opaque)
             }
 
 #ifdef DISTRIBUTE_WHEN_VM_EXIT
-            if(atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) == 1)
+            if(qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) == 1)
             {
                 //人家在跑着，我得告诉他我准备好了，他得赶紧结束
-                if(atomic_cmpxchg(&atomic_distribute_thread_running, 1, 2) == 1)
+                if(qatomic_cmpxchg(&atomic_distribute_thread_running, 1, 2) == 1)
                 {
                     int cnt_lock = 0;
-                    while(atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0)
+                    while(qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0)
                     {
                         cnt_lock++;
                         // if(cnt_lock%100 == 0)
                         // {
-                        //     printf("lock %d %d\n",cnt_lock,atomic_read(&atomic_distribute_thread_running));
+                        //     printf("lock %d %d\n",cnt_lock,qatomic_read(&atomic_distribute_thread_running));
                         // }
                     }
                 }
                 else
                 {
                     // 还没设置2表示我准备好了，结果人家就结束了，当然是接着继续运行了
-                    // printf("lock fail %d\n",atomic_read(&atomic_distribute_thread_running));
+                    // printf("lock fail %d\n",qatomic_read(&atomic_distribute_thread_running));
                 }
             }
 #endif
@@ -1154,7 +1154,7 @@ void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *re
 //             Direct_Express_Draw_Call *out_call = call_recycle_header->next;
 //             call_recycle_header->next = out_call->next;
 //             //更新tail，假如tail就是刚才出队的节点，则tail=header
-//             atomic_cmpxchg(&call_recycle_tail, out_call, call_recycle_header);
+//             qatomic_cmpxchg(&call_recycle_tail, out_call, call_recycle_header);
 //             express_printf("recycle one %s\n",(char *)out_call->elem_tail->para);
 //             release_call(out_call);
 //             release_cnt+=1;
@@ -1384,9 +1384,9 @@ void push_free_callback(Direct_Express_Call *call, int notify)
         {
             t = (t + 1) % (CALL_BUF_SIZE + 2);
         }
-    } while (atomic_cmpxchg(&(call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)]), NULL, call) != NULL);
+    } while (qatomic_cmpxchg(&(call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)]), NULL, call) != NULL);
 
-    atomic_cmpxchg(&call_recycle_queue_tail, origin_tail, (t + 1) % (CALL_BUF_SIZE + 2));
+    qatomic_cmpxchg(&call_recycle_queue_tail, origin_tail, (t + 1) % (CALL_BUF_SIZE + 2));
 
     // Direct_Express_Call *tail=NULL;
     // Direct_Express_Call *next = NULL;
@@ -1400,16 +1400,16 @@ void push_free_callback(Direct_Express_Call *call, int notify)
     //     }
 
     //     if(next!=NULL){
-    //         atomic_cmpxchg(&call_recycle_tail, tail, next);
+    //         qatomic_cmpxchg(&call_recycle_tail, tail, next);
     //         continue;
     //     }
 
-    //     if(atomic_cmpxchg(&(call_recycle_tail->next), next, call)==next){
+    //     if(qatomic_cmpxchg(&(call_recycle_tail->next), next, call)==next){
     //         break;
     //     }
 
     // }
-    // atomic_cmpxchg(&(call_recycle_tail), tail, call);
+    // qatomic_cmpxchg(&(call_recycle_tail), tail, call);
 
     // Direct_Express_Call *origin_tail=call_recycle_tail;
     // Direct_Express_Call *t = origin_tail;
@@ -1420,9 +1420,9 @@ void push_free_callback(Direct_Express_Call *call, int notify)
     //     {
     //         t = t->next;
     //     }
-    // } while (atomic_cmpxchg(&(t->next), NULL, call) != NULL);
+    // } while (qatomic_cmpxchg(&(t->next), NULL, call) != NULL);
 
-    // atomic_cmpxchg(&call_recycle_tail, origin_tail, call);
+    // qatomic_cmpxchg(&call_recycle_tail, origin_tail, call);
 
     if (notify)
     {

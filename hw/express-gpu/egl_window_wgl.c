@@ -1,5 +1,5 @@
-#include "express-gpu/egl_window.h"
-#include "direct-express/express_log.h"
+#include "hw/express-gpu/egl_window.h"
+#include "hw/direct-express/express_log.h"
 
 #include <glib.h>
 

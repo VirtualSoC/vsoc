@@ -1,6 +1,6 @@
 #define STD_DEBUG_LOG
 
-#include "express-gpu/glv3_mem.h"
+#include "hw/express-gpu/glv3_mem.h"
 
 GLuint get_guest_buffer_binding_id(void *context, GLenum target);
 

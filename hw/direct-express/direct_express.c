@@ -9,10 +9,10 @@
  * 
  */
 // #define STD_DEBUG_LOG
-#include "direct-express/direct_express.h"
+#include "hw/direct-express/direct_express.h"
 
-#include "direct-express/direct_express_distribute.h"
-#include "direct-express/express_log.h"
+#include "hw/direct-express/direct_express_distribute.h"
+#include "hw/direct-express/express_log.h"
 
 // #define express_printf null_printf
 
@@ -42,7 +42,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
     else
     {
 #ifdef DISTRIBUTE_WHEN_VM_EXIT
-        int running_flag = atomic_cmpxchg(&atomic_distribute_thread_running, 0, 1);
+        int running_flag = qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1);
         if(running_flag == 0)
         {
             //没有在处理环上数据，那我就来处理
@@ -62,7 +62,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
             while(pop_flag != 0 || recycle_flag != 0)
             {
                 //一旦分发线程跑起来了，就赶紧回虚拟机里去，避免长时间操作，影响vCPU运行，进而造成间歇性卡顿
-                if(atomic_read(&atomic_distribute_thread_running) == 2)
+                if(qatomic_read(&atomic_distribute_thread_running) == 2)
                 {
                     running_flag = 1;
                     break;
@@ -94,7 +94,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
                 // printf("other thread continue\n");
             }
 
-            atomic_set(&atomic_distribute_thread_running, 0);
+            qatomic_set(&atomic_distribute_thread_running, 0);
 
         }
         else
@@ -141,7 +141,7 @@ static void direct_express_realize(DeviceState *qdev, Error **errp)
     Direct_Express *g = DIRECT_EXPRESS(qdev);
 
     //初始化使用virtio的gpu设备
-    virtio_init(VIRTIO_DEVICE(g), "direct-express", DIRECT_EXPRESS_DEVICE_ID, 0);
+    virtio_init(VIRTIO_DEVICE(g), DIRECT_EXPRESS_DEVICE_ID, 0);
 
     //为该设备添加1024大小的queue，并且设置收到queue返回消息后的回调函数
     //最大为1024大小，也就是不弄indirect table的话最大只有1024个页，

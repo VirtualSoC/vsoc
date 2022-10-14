@@ -1,7 +1,7 @@
 #define STD_DEBUG_LOG
 
-#include "express-gpu/egl_context.h"
-#include "express-gpu/glv3_context.h"
+#include "hw/express-gpu/egl_context.h"
+#include "hw/express-gpu/glv3_context.h"
 
 EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
 {

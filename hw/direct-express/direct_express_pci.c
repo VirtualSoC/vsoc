@@ -10,8 +10,8 @@
  */
 // #define STD_DEBUG_LOG
 
-#include "direct-express/direct_express_pci.h"
-#include "direct-express/express_log.h"
+#include "hw/direct-express/direct_express_pci.h"
+#include "hw/direct-express/express_log.h"
 //
 static Property direct_express_pci_base_properties[] = {
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 2),
@@ -37,9 +37,9 @@ static void direct_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     DeviceState *vdev = DEVICE(e);
     Error *local_error = NULL;
 
-    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
+    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus), NULL);
     virtio_pci_force_virtio_1(vpci_dev);
-    object_property_set_bool(OBJECT(vdev), true, "realized", &local_error);
+    object_property_set_bool(OBJECT(vdev), "realized", true, &local_error);
 
     if (local_error)
     {

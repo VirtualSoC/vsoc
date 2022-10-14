@@ -578,6 +578,7 @@ static void handle_windowevent(SDL_Event *ev)
     case SDL_WINDOWEVENT_FOCUS_GAINED:
         win32_kbd_set_grab(gui_grab);
         // if (qemu_console_is_graphic(scon->dcl.con)) {
+            // 这个hook输出会导致调试输入艰难，因为他会截获输入
         //     win32_kbd_set_window(sdl2_win32_get_hwnd(scon));
         // }
         /* fall through */

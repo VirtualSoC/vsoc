@@ -15,19 +15,19 @@
 #define STD_DEBUG_LOG
 
 
-#include "express-gpu/glv3_trans.h"
-#include "express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/glv3_trans.h"
+#include "hw/express-gpu/offscreen_render_thread.h"
 
-#include "express-gpu/glv3_mem.h"
-#include "express-gpu/glv3_texture.h"
-#include "express-gpu/glv3_vertex.h"
-#include "express-gpu/glv3_resource.h"
-#include "express-gpu/glv3_status.h"
+#include "hw/express-gpu/glv3_mem.h"
+#include "hw/express-gpu/glv3_texture.h"
+#include "hw/express-gpu/glv3_vertex.h"
+#include "hw/express-gpu/glv3_resource.h"
+#include "hw/express-gpu/glv3_status.h"
 
-#include "express-gpu/glv3_context.h"
-#include "express-gpu/gl_helper.h"
+#include "hw/express-gpu/glv3_context.h"
+#include "hw/express-gpu/gl_helper.h"
 
-#include "express-gpu/glv1.h"
+#include "hw/express-gpu/glv1.h"
 
 // 1. guest端需要同步的函数
 //  1.1

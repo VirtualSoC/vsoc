@@ -12,9 +12,9 @@
 // #define STD_DEBUG_LOG
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
-#include "direct-express/express_handle_thread.h"
+#include "hw/direct-express/express_handle_thread.h"
 
-#include "direct-express/express_log.h"
+#include "hw/direct-express/express_log.h"
 // #define express_printf null_printf
 
 Direct_Express_Call *call_pop(Thread_Context *context);

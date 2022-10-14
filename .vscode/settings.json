@@ -120,7 +120,16 @@
         "trace.h": "c",
         "gl_helper.h": "c",
         "glv3_program.h": "c",
-        "glv3_status.h": "c"
+        "glv3_status.h": "c",
+        "qapi-types-block-core.h": "c",
+        "qapi-types-crypto.h": "c",
+        "qapi-types-common.h": "c",
+        "qapi-visit-block-core.h": "c",
+        "qdev-properties.h": "c",
+        "kconfig": "cpp",
+        "virtio.h": "c",
+        "*.idef": "c",
+        "semaphore": "c"
     },
     "cmake.configureOnOpen": false
 }

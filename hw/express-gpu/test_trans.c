@@ -1,8 +1,8 @@
 
 // #define STD_DEBUG_LOG
 // #define EGL_EGLEXT_PROTOTYPES
-#include "express-gpu/test_trans.h"
-#include "direct-express/express_log.h"
+#include "hw/express-gpu/test_trans.h"
+#include "hw/direct-express/express_log.h"
 
 char *copy_large_buf = NULL;
 size_t buf_len = 0;

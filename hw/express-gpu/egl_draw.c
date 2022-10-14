@@ -1,10 +1,10 @@
 #define STD_DEBUG_LOG
 
-#include "express-gpu/egl_draw.h"
-#include "express-gpu/egl_surface.h"
-#include "express-gpu/egl_context.h"
-#include "express-gpu/glv3_context.h"
-#include "express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/egl_draw.h"
+#include "hw/express-gpu/egl_surface.h"
+#include "hw/express-gpu/egl_context.h"
+#include "hw/express-gpu/glv3_context.h"
+#include "hw/express-gpu/express_gpu_render.h"
 
 #ifdef ENABLE_OPENGL_DEBUG
 static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)

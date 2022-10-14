@@ -9,14 +9,14 @@
  * 
  */
 
-#include "express-gpu/egl_trans.h"
+#include "hw/express-gpu/egl_trans.h"
 
-#include "express-gpu/egl_config.h"
-#include "express-gpu/egl_context.h"
-#include "express-gpu/egl_draw.h"
-#include "express-gpu/egl_surface.h"
-#include "express-gpu/egl_sync.h"
-#include "express-gpu/test_trans.h"
+#include "hw/express-gpu/egl_config.h"
+#include "hw/express-gpu/egl_context.h"
+#include "hw/express-gpu/egl_draw.h"
+#include "hw/express-gpu/egl_surface.h"
+#include "hw/express-gpu/egl_sync.h"
+#include "hw/express-gpu/test_trans.h"
 
 void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
 {

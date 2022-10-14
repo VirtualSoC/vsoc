@@ -1,11 +1,11 @@
 #define STD_DEBUG_LOG
 // #define TIMER_LOG
-#include "express-gpu/glv3_context.h"
-#include "express-gpu/glv3_resource.h"
+#include "hw/express-gpu/glv3_context.h"
+#include "hw/express-gpu/glv3_resource.h"
 
 #include "glad/glad.h"
-#include "express-gpu/egl_window.h"
-#include "express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/egl_window.h"
+#include "hw/express-gpu/offscreen_render_thread.h"
 
 
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用

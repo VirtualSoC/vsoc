@@ -3,17 +3,17 @@
 
 
 
-#include "express-gpu/glv3_texture.h"
-#include "express-gpu/glv3_status.h"
-#include "express-gpu/glv3_resource.h"
+#include "hw/express-gpu/glv3_texture.h"
+#include "hw/express-gpu/glv3_status.h"
+#include "hw/express-gpu/glv3_resource.h"
 
-#include "express-gpu/offscreen_render_thread.h"
-
-
+#include "hw/express-gpu/offscreen_render_thread.h"
 
 
 
-#include "direct-express/express_log.h"
+
+
+#include "hw/direct-express/express_log.h"
 
 void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, int end_loc);
 

@@ -1,4 +1,4 @@
-#include "express-gpu/egl_display.h"
+#include "hw/express-gpu/egl_display.h"
 
 Egl_Display *default_egl_display;
 
