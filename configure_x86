@@ -2,4 +2,4 @@
 #
 # qemu configure script (c) 2003 Fabrice Bellard
 #
-./configure --cross-prefix=x86_64-w64-mingw32- --prefix=C:/QEMU --disable-gtk --enable-sdl  --enable-whpx  --target-list=x86_64-softmmu --disable-werror
+./configure --cross-prefix=x86_64-w64-mingw32- --prefix=C:/QEMU --disable-gtk --enable-sdl  --enable-whpx  --target-list=x86_64-softmmu

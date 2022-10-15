@@ -5,7 +5,7 @@
 #include "hw/express-gpu/express_gpu_render.h"
 #include "hw/express-gpu/offscreen_render_thread.h"
 
-#include "hw/express-gpu/egl_define.h"
+// #include "hw/express-gpu/egl_define.h"
 
 
 EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy);

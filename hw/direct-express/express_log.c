@@ -158,10 +158,7 @@ char *get_now_time(void)
  */
 static void call_printf(Thread_Context *context, Direct_Express_Call *call)
 {
-    // static int print_cnt=0;
-    // express_printf("enter call express_printf");
 
-    // int para_num=1;
     Call_Para all_para[1];
     if (get_para_from_call(call, all_para, 1) != 1)
     {
@@ -174,45 +171,20 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
     unsigned long thread_id = call->thread_id;
     // unsigned long process_id=call->process_id;
 
-    // get_process_mess(call,&fun_id,&process_id,&thread_id,&num_free);
     static int64_t count = 0;
     count++;
     express_printf("log count %lld\n", count);
     if (fun_id == 1)
     {
-        // print_cnt++;
         gint64 t_int = g_get_real_time();
-        // GDateTime *t=g_date_time_new_from_unix_utc((gint64)t_int/1000000);
-        // gchar *t_s1=g_date_time_format(t,"%F %T");
-        // g_date_time_unref(t);
-        // t=g_date_time_new_from_unix_utc((gint64)call->get_time/1000000);
-        // gchar *t_s2=g_date_time_format(t,"%F %T");
         if (all_para[0].data_len < LOG_FILE_SIZE - 256)
         {
             //写入的数据不能太多
             if (all_para[0].data_len + loc > LOG_FILE_SIZE - 256 || t_int - t_last > 1000000)
             {
 
-                // express_printf("start write\n");
                 call_printf_flush();
-
-                // char file_name[100];
-                // sprintf(file_name, "%s_%.16s.log", LOG_DIR, get_now_time());
-
-                // for (int i = 0; file_name[i] != 0; i++)
-                // {
-                //     if (file_name[i] == ':')
-                //         file_name[i] = '-';
-                // }
-
-                // FILE *fd = fopen(file_name, "a+");
-
-                // print_buf[loc] = '\n';
-                // print_buf[loc + 1] = '\n';
-                // fwrite(print_buf, sizeof(char), loc + 2, fd);
-                // fclose(fd);
-                // memset(print_buf, 0, LOG_FILE_SIZE);
-                // express_printf("write once %d\n",loc);
+                
                 loc = 0;
                 t_last = t_int;
             }
@@ -229,8 +201,6 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
             // t_last = t_int;
         }
 
-        // g_free(t_s1);
-        // g_date_time_unref(t);
     }
     else if (fun_id == 2)
     {
@@ -263,11 +233,7 @@ static void call_printf(Thread_Context *context, Direct_Express_Call *call)
     }
 
     //注意在处理完成之后要主动调用下callback函数用以回收数据
-    // if(FUN_NEED_SPEED(call->id)){
     call->callback(call, 1);
-    // }else{
-    //     call->callback(call, 0);
-    // }
     return;
 }
 
@@ -294,15 +260,10 @@ void call_printf_flush(void)
         fd = fopen(file_name, "a+");
     }
 
-    
-    // FILE *fd = fopen(file_name, "a+");
     print_buf[loc] = '\n';
     print_buf[loc + 1] = '\n';
     fwrite(print_buf, sizeof(char), loc + 2, fd);
-    // fclose(fd);
     fflush(fd);
-    // memset(print_buf, 0, LOG_FILE_SIZE);
-    // express_printf("write once %d\n",loc);
     loc = 0;
 }
 
@@ -313,7 +274,7 @@ void call_printf_flush(void)
 
 unsigned int updateCRC32(unsigned char ch, unsigned int crc)
 {
-      return UPDC32(ch, crc);
+    return UPDC32(ch, crc);
 }
 
 

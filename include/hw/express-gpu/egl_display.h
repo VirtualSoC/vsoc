@@ -34,7 +34,7 @@ extern Egl_Display *default_egl_display;
 void init_display(Egl_Display **display);
 void init_configs(Egl_Display *display);
 EGLBoolean add_config(Egl_Display *display, eglConfig *config);
-void add_window_independent_config(Egl_Display *display, EGLint attr_enum, EGLint *vals, EGLint val_size);
+void add_window_independent_config(Egl_Display *display, EGLint attr_enum, const EGLint *vals, EGLint val_size);
 void add_simple_config(Egl_Display *display);
 
 #endif

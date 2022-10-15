@@ -67,8 +67,8 @@ source tricore/Kconfig
 source xtensa/Kconfig
 
 
-source express-gpu/Kconfig
 source direct-express/Kconfig
+source express-gpu/Kconfig
 
 
 

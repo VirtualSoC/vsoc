@@ -73,9 +73,6 @@ typedef struct Direct_Express_Queue_Elem
     //数据的长度
     size_t len;
 
-    //数据的类型
-    int type;
-
     struct Direct_Express_Queue_Elem *next;
 } Direct_Express_Queue_Elem;
 
@@ -246,7 +243,6 @@ void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *re
 
 Thread_Context *thread_context_create(uint64_t thread_id, uint64_t type_id, uint64_t len, Express_Device_Info *info);
 
-void mark_call_return(Direct_Express_Call *call, int loc);
 
 int get_para_from_call(Direct_Express_Call *call, Call_Para *call_para, unsigned long para_num);
 

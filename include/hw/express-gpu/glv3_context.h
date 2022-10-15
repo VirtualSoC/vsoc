@@ -247,9 +247,9 @@ typedef struct Guest_Host_Map
 
 } Guest_Host_Map;
 
-extern GHashTable *program_is_external_map;
+// extern GHashTable *program_is_external_map;
 // extern GHashTable *to_external_texture_id_map;
-extern GHashTable *program_data_map;
+// extern GHashTable *program_data_map;
 
 
 

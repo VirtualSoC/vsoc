@@ -32,7 +32,7 @@ typedef BOOL(WINAPI *PFN_wglChoosePixelFormat)(HDC, const int *piAttribList, con
 
 
 void egl_init(void *dpy, void *father_context);
-void *egl_createContext();
+void *egl_createContext(void);
 void egl_makeCurrent(void *context);
 void egl_destroyContext(void *context);
 

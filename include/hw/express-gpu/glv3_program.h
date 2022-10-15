@@ -29,7 +29,7 @@ void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryForma
 
 void d_glGetProgramData(void *context, GLuint program, int buf_len, void *program_data);
 
-void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string);
+void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, GLchar **string);
 
 
 

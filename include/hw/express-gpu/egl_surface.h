@@ -2,7 +2,6 @@
 #define EGL_SURFACE_H
 
 #include "hw/direct-express/direct_express_distribute.h"
-#include "hw/express-gpu/egl_define.h"
 #include "hw/express-gpu/egl_config.h"
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>

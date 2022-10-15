@@ -129,7 +129,8 @@
         "kconfig": "cpp",
         "virtio.h": "c",
         "*.idef": "c",
-        "semaphore": "c"
+        "semaphore": "c",
+        "eglext.h": "c"
     },
     "cmake.configureOnOpen": false
 }

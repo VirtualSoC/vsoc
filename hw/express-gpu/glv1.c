@@ -35,7 +35,7 @@ void d_glTexEnvx_special(void *context, GLenum target, GLenum pname, GLfixed par
 void d_glTexParameterx_special(void *context, GLenum target, GLenum pname, GLint param)
 {
 
-    if(host_opengl_version >= 45 && DSA_enable != 0)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         GLuint bind_texture = get_guest_binding_texture(context, target);
         glTextureParameteri(bind_texture, pname, param);
@@ -98,7 +98,7 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
         1, 2, 3  // second triangle
     };
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         if(opengl_context->draw_texi_vao == 0)
         {
@@ -156,7 +156,7 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
 
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&pre_vbo);
 
-        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &pre_vao);
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint *)&pre_vao);
 
         glUseProgram(draw_texi_program);
 
@@ -176,7 +176,7 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
             
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
             glEnableVertexAttribArray(0);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 12*sizeof(float));
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (const void *)(12*sizeof(float)));
             glEnableVertexAttribArray(1);
         }
 
@@ -209,12 +209,12 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
 
 }
 
-void prepare_draw_texi()
+void prepare_draw_texi(void)
 {
     if (draw_texi_program == 0)
     {
         //数组取地址不是字符串指针的指针，所以这里不要用数组
-        char *vShaderCode = "#version 300 es\n"
+        const char *vShaderCode = "#version 300 es\n"
                             "layout(location = 0) in vec3 a_pos;\n"
                             "layout(location = 1) in vec2 atex_coord;\n"
                             "out vec2 tex_coord;\n"
@@ -224,7 +224,7 @@ void prepare_draw_texi()
                             "    tex_coord = atex_coord;\n"
                             "}\n";
 
-        char *fShaderCode = "#version 300 es\n"
+        const char *fShaderCode = "#version 300 es\n"
                             "precision mediump float;\n"
                             "out vec4 frag_color;\n"
                             "in vec2 tex_coord;\n"

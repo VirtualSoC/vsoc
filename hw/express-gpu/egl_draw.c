@@ -108,7 +108,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
 
-    express_printf("make current guest draw %llx read %llx context %llx\n",draw, read, ctx);
+    express_printf("make current guest draw %llx read %llx context %llx\n",(uint64_t)draw, read, ctx);
 
     if( thread_context->render_double_buffer_draw == real_surface_draw &&  thread_context->render_double_buffer_read == real_surface_read)
     {
@@ -370,7 +370,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 
     if(real_surface != thread_context->render_double_buffer_draw)
     {
-        printf("error! real_surface != thread_context->render_double_buffer_draw %llx %llx\n", real_surface, thread_context->render_double_buffer_draw);
+        printf("error! real_surface != thread_context->render_double_buffer_draw %llx %llx\n", (uint64_t)real_surface, (uint64_t)thread_context->render_double_buffer_draw);
     }
 
     egl_surface_swap_buffer(context, real_surface, gbuffer_id, width, height, hal_format);
@@ -417,23 +417,23 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 // }
 
 
-void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
+void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
-    Process_Context *process_context = thread_context->process_context;
+    // Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = thread_context->opengl_context;
 
-    Window_Buffer *draw_surface = thread_context->render_double_buffer_draw;
+    // Window_Buffer *draw_surface = thread_context->render_double_buffer_draw;
 
     // glFlush();
     // glFinish();
 
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map((uint64_t)gbuffer_id);
 
-    if(gbuffer_id == NULL || gbuffer == NULL)
+    if(gbuffer_id == 0 || gbuffer == NULL)
     {
         //不可能不在自己进程下
-        printf("error! context %llx queuebuffer id %llx not exist!\n",opengl_context, gbuffer_id);
+        printf("error! context %llx queuebuffer id %llx not exist!\n",(uint64_t)opengl_context, (uint64_t)gbuffer_id);
         return;
     }
 
@@ -442,7 +442,7 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
     // egl_image->host_has_data = 1;
     // ATOMIC_UNLOCK(egl_image->display_texture_is_use);
     // ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
-    express_printf("#%llx context queue buffer %llx\n", opengl_context, gbuffer_id);
+    express_printf("#%llx context queue buffer %llx\n", (uint64_t)opengl_context, gbuffer_id);
 
     if (gbuffer->sampler_num > 1)
     {
@@ -556,7 +556,7 @@ void d_eglQueueBuffer(void *context, EGLImage gbuffer_id, int is_composer)
 
 
 
-EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, uint64_t gbuffer_id, int width, int height, int hal_format, int64_t *ret_invoke_time, int64_t *swap_time)
+EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, uint64_t gbuffer_id, int width, int height, int hal_format, Guest_Mem *ret_invoke_time, Guest_Mem *swap_time)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
@@ -660,7 +660,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
         double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);
-        printf("%llx surface draw %.2lfHz\n", real_surface, hz);
+        printf("%llx surface draw %.2lfHz\n", (uint64_t)real_surface, hz);
         real_surface->now_screen_hz = 0;
 
         real_surface->last_calc_time = now_time;

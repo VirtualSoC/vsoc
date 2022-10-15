@@ -15,7 +15,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
     unsigned char *map_pointer = NULL;
     // glDeleteBuffers(1, &(point_data->buffer_object[index]));
     // glGenBuffers(1, &(point_data->buffer_object[index]));
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         //@todo 扩大提前申请的量级
 
@@ -163,7 +163,7 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(bound_buffer->buffer_status);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
@@ -173,7 +173,7 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
         express_printf("d_glVertexAttribPointer_without_bound vao %d %d obj %d index %u size %d type %x normalized %d stride %d offset %u length %d\n",status->guest_vao,status->host_vao, 
                 point_data->buffer_object[index], index, size, type, normalized, stride, offset, length);  
 
-        glVertexArrayVertexAttribOffsetEXT(status->guest_vao, point_data->buffer_object[index], index, size, type, normalized, stride, loc);
+        glVertexArrayVertexAttribOffsetEXT(status->guest_vao, point_data->buffer_object[index], index, size, type, normalized, stride, (GLintptr)loc);
         
     }
     else
@@ -189,7 +189,7 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
         express_printf("d_glVertexAttribPointer_without_bound index %u size %d type %x normalized %d stride %d offset %u length %d origin vbo %d\n",index, size, type, normalized, stride, offset, length, vbo);  
-        glVertexAttribPointer(index, size, type, normalized, stride, loc);
+        glVertexAttribPointer(index, size, type, normalized, stride, (void *)(uint64_t)loc);
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
     }
@@ -202,7 +202,7 @@ void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint s
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(bound_buffer->buffer_status);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
@@ -211,7 +211,7 @@ void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint s
 
         Attrib_Point *point_data = bound_buffer->attrib_point;
 
-        glVertexArrayVertexAttribIOffsetEXT(status->guest_vao, point_data->buffer_object[index], index, size, type, stride, loc);
+        glVertexArrayVertexAttribIOffsetEXT(status->guest_vao, point_data->buffer_object[index], index, size, type, stride, (GLintptr)loc);
         
     }
     else
@@ -226,7 +226,7 @@ void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint s
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
 
-        glVertexAttribIPointer(index, size, type, stride, loc);
+        glVertexAttribIPointer(index, size, type, stride, (const void *)(uint64_t)loc);
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
     }
@@ -240,12 +240,12 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
     Attrib_Point *point_data = bound_buffer->attrib_point;
     Buffer_Status *status = &(bound_buffer->buffer_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         express_printf("pointer offset vao %d %d obj %d  index %u size %d type %x stride %d offset %u real offset %d\n",
         status->guest_vao,status->host_vao, point_data->buffer_object[index], index, size, type, stride, offset, offset + point_data->buffer_loc[index_father]);
 
-        glVertexArrayVertexAttribOffsetEXT(status->guest_vao, point_data->buffer_object[index_father], index, size, type, normalized, stride, offset + point_data->buffer_loc[index_father]);
+        glVertexArrayVertexAttribOffsetEXT(status->guest_vao, point_data->buffer_object[index_father], index, size, type, normalized, stride, (GLintptr)(offset + point_data->buffer_loc[index_father]));
 
     }
     else
@@ -260,7 +260,7 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
 
         express_printf("pointer offset %lld\n", offset + point_data->buffer_loc[index_father]);
-        glVertexAttribPointer(index, size, type, normalized, stride, offset + point_data->buffer_loc[index_father]);
+        glVertexAttribPointer(index, size, type, normalized, stride, (const void *)(offset + point_data->buffer_loc[index_father]));
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
     }
@@ -279,10 +279,10 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
 
     Buffer_Status *status = &(bound_buffer->buffer_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
-        glVertexArrayVertexAttribIOffsetEXT(status->guest_vao, point_data->buffer_object[index_father], index, size, type, stride, offset + point_data->buffer_loc[index_father]);
+        glVertexArrayVertexAttribIOffsetEXT(status->guest_vao, point_data->buffer_object[index_father], index, size, type, stride, (GLintptr)(offset + point_data->buffer_loc[index_father]));
 
     }
     else
@@ -298,7 +298,7 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
 
         express_printf("pointer offset %lld\n", offset + point_data->buffer_loc[index_father]);
 
-        glVertexAttribIPointer(index, size, type, stride, offset + point_data->buffer_loc[index_father]);
+        glVertexAttribIPointer(index, size, type, stride, (const void *)(offset + point_data->buffer_loc[index_father]));
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
     }
@@ -308,7 +308,7 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
 
 void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLintptr pointer)
 {
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
@@ -324,7 +324,7 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
 #endif
-        express_printf("%llx d_glVertexAttribPointer_with_bound index %u size %d type %x normalized %d stride %d pointer %llx ebo %d vbo %d\n",context,index, size, type, normalized, stride, pointer, ebo, vbo);  
+        express_printf("%llx d_glVertexAttribPointer_with_bound index %u size %d type %x normalized %d stride %d pointer %llx ebo %d vbo %d\n",(uint64_t)context,index, size, type, normalized, stride, pointer, ebo, vbo);  
 
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)pointer);
     }
@@ -333,7 +333,7 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
 
 void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr pointer)
 {
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
@@ -349,7 +349,7 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
 #endif
-        express_printf("%llx d_glVertexAttribIPointer_with_bound index %u size %d type %x stride %d pointer %llx ebo %d vbo %d\n",context,index, size, type, stride, pointer, ebo, vbo);  
+        express_printf("%llx d_glVertexAttribIPointer_with_bound index %u size %d type %x stride %d pointer %llx ebo %d vbo %d\n",(uint64_t)context,index, size, type, stride, pointer, ebo, vbo);  
 
         glVertexAttribIPointer(index, size, type, stride, (void *)pointer);
     }
@@ -363,8 +363,8 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
 void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
 {
     //反正array draw的时候还会传divisor，所以这里就不用保存了
-    express_printf("%llx glVertexAttribDivisor %u %u\n",context, index, divisor);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    express_printf("%llx glVertexAttribDivisor %u %u\n",(uint64_t)context, index, divisor);
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
@@ -387,8 +387,8 @@ void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
 void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
 {
     //这个enable和disable不需要设置本地状态，因为guest在发送顶点数据的时候会告知是否enable
-    express_printf("%llx glDisableVertexAttribArray %u\n",context, index);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    express_printf("%llx glDisableVertexAttribArray %u\n",(uint64_t)context, index);
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
@@ -404,8 +404,8 @@ void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
 void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
 {
     //这个enable和disable不需要设置本地状态，因为guest在发送顶点数据的时候会告知是否enable
-    express_printf("%llx glEnableVertexAttribArray %u\n",context, index);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    express_printf("%llx glEnableVertexAttribArray %u\n",(uint64_t)context, index);
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
@@ -428,8 +428,8 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 #ifdef STD_DEBUG_LOG_GLOBAL_ON
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &cu_vao);
 #endif
-    express_printf("%llx glDrawArrays mode %x first %d count %d vao %d\n",context, mode, first, count, cu_vao);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    express_printf("%llx glDrawArrays mode %x first %d count %d vao %d\n",(uint64_t)context, mode, first, count, cu_vao);
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
         if(opengl_context->is_using_external_program == 1)
@@ -490,7 +490,7 @@ void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLs
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
         if(opengl_context->is_using_external_program == 1)
@@ -539,7 +539,7 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
         // buffer_binding_status_sync(context, GL_ELEMENT_ARRAY_BUFFER);
@@ -604,9 +604,9 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
     unsigned char *map_pointer = NULL;
     // glDeleteBuffers(1, &(point_data->indices_buffer_object));
     // glGenBuffers(1, &(point_data->indices_buffer_object));
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
-        Buffer_Status *status = &(bound_buffer->buffer_status);
+        // Buffer_Status *status = &(bound_buffer->buffer_status);
 
         if (length > point_data->indices_buffer_len)
         {
@@ -754,13 +754,13 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
 
     vao_binding_status_sync(context);
     
-    GLint buffer_loc = set_indices_data(context, indices, len);
+    GLint buffer_loc = set_indices_data(context, (void *)indices, len);
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         if(opengl_context->is_using_external_program == 1)
@@ -776,7 +776,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
             texture_unit_status_sync(context, -1);
         }
 
-        glDrawElements(mode, count, type, buffer_loc);
+        glDrawElements(mode, count, type, (const void *)(uint64_t)buffer_loc);
     }
     else
     {
@@ -813,7 +813,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
         // g_free(map_pointer);
 
 
-        glDrawElements(mode, count, type, buffer_loc);
+        glDrawElements(mode, count, type,  (const void *)(uint64_t)buffer_loc);
 
         if(opengl_context->is_using_external_program == 1)
         {
@@ -844,12 +844,12 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
 
     vao_binding_status_sync(context);
 
-    GLint buffer_loc = set_indices_data(context, indices, len);
+    GLint buffer_loc = set_indices_data(context, (void *)indices, len);
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         if(opengl_context->is_using_external_program == 1)
@@ -865,7 +865,7 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
             texture_unit_status_sync(context, -1);
         }
 
-        glDrawElementsInstanced(mode, count, type, buffer_loc, instancecount);
+        glDrawElementsInstanced(mode, count, type, (const void *)(uint64_t)buffer_loc, instancecount);
     }
     else
     {
@@ -877,7 +877,7 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
 
         }
         
-        glDrawElementsInstanced(mode, count, type, buffer_loc, instancecount);
+        glDrawElementsInstanced(mode, count, type, (const void *)(uint64_t)buffer_loc, instancecount);
 
         if(opengl_context->is_using_external_program == 1)
         {
@@ -914,7 +914,7 @@ void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei co
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
         // buffer_binding_status_sync(context, GL_ELEMENT_ARRAY_BUFFER);
@@ -966,7 +966,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
         // buffer_binding_status_sync(context, GL_ELEMENT_ARRAY_BUFFER);
@@ -1011,11 +1011,11 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
 
     vao_binding_status_sync(context);
 
-    GLint buffer_loc = set_indices_data(context, indices, len);
+    GLint buffer_loc = set_indices_data(context, (void *)indices, len);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         if(opengl_context->is_using_external_program == 1)
@@ -1031,7 +1031,7 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
             texture_unit_status_sync(context, -1);
         }
 
-        glDrawRangeElements(mode, start, end, count, type, buffer_loc);
+        glDrawRangeElements(mode, start, end, count, type, (const void *)(uint64_t)buffer_loc);
     }
     else
     {
@@ -1042,7 +1042,7 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
             // printf("use external texture %d\n", opengl_context->current_texture_external);
 
         }
-        glDrawRangeElements(mode, start, end, count, type, buffer_loc);
+        glDrawRangeElements(mode, start, end, count, type, (const void *)(uint64_t)buffer_loc);
         if(opengl_context->is_using_external_program == 1)
         {
             glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
@@ -1076,7 +1076,7 @@ void d_glDrawArraysIndirect_with_bound(void *context, GLenum mode, GLintptr indi
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
 
@@ -1121,7 +1121,7 @@ void d_glDrawArraysIndirect_without_bound(void *context, GLenum mode, const void
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
         vao_binding_status_sync(context);
@@ -1165,7 +1165,7 @@ void d_glDrawElementsIndirect_with_bound(void *context, GLenum mode, GLenum type
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
 
@@ -1211,7 +1211,7 @@ void d_glDrawElementsIndirect_without_bound(void *context, GLenum mode, GLenum t
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
 

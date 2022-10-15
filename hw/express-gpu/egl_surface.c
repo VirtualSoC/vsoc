@@ -20,6 +20,8 @@
 
 // EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, int stride, int width, int height);
 // void connect_fbo_texture(Graphic_Buffer *gbuffer, int index, int new);
+Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height, int surface_type);
+
 
 void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
@@ -33,11 +35,11 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     Opengl_Context *opengl_context = (Opengl_Context *)(thread_context->opengl_context);
 
 
-    Process_Context *process_context = thread_context->process_context;
+    // Process_Context *process_context = thread_context->process_context;
 
     Graphic_Buffer *now_draw_gbuffer = surface->gbuffer;
 
-    express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n",surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
+    express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n",(uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
 
 
     Graphic_Buffer *next_draw_gbuffer = NULL;
@@ -47,7 +49,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
         next_draw_gbuffer = get_gbuffer_from_global_map(gbuffer_id);
         if(next_draw_gbuffer == NULL)
         {
-            express_printf("create gbuffer_id %llx when surface %llx swapbuffer context %llx width %d height %d\n",gbuffer_id, surface, opengl_context, width, height);
+            express_printf("create gbuffer_id %llx when surface %llx swapbuffer context %llx width %d height %d\n",gbuffer_id, surface, (uint64_t)opengl_context, width, height);
             next_draw_gbuffer = create_gbuffer_from_hal(width, height, hal_format, surface, gbuffer_id);
 
             express_printf("create gbuffer when swapbuffer gbuffer %llx gbuffer\n", gbuffer_id, next_draw_gbuffer);
@@ -156,7 +158,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
             config->sample_buffers_num = 0;
         }
     }
-    EGLint need_sampler = config->sample_buffers_num;
+    // EGLint need_sampler = config->sample_buffers_num;
     EGLint sampler_num = config->samples_per_pixel;
 
     // express_printf("rgba %d %d %d %d ds %d %d MSAA %dX\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, sampler_num);
@@ -513,7 +515,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    eglConfig *now_eglconfig = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GUINT_TO_POINTER(config));
+    // eglConfig *now_eglconfig = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GUINT_TO_POINTER(config));
 
     int i = 0;
     int width = 0;
@@ -731,7 +733,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     GLuint pre_rbo = 0;
     GLuint pre_unpack_buffer = 0;
 
-    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLuint *)&pre_vbo);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint *)&pre_vbo);
     glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&pre_texture);
     glGetIntegerv(GL_RENDERBUFFER_BINDING, (GLint *)&pre_rbo);
 
@@ -1151,7 +1153,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         }
         else
         {
-            printf("cancel gbuffer delete %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
+            printf("cancel gbuffer delete %llx ptr %llx\n", gbuffer->gbuffer_id, (uint64_t)gbuffer);
 
             ATOMIC_LOCK(gbuffer->is_lock);
             gbuffer->is_using = 1;
@@ -1171,7 +1173,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         if(share_opengl_context == NULL)
         {
             printf("error! glCreateImage with null share_context\n");
-            return;
+            return 0;
         }
 
         //gbuffer_id直接截取后面4个字节就是share的texture

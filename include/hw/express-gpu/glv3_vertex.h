@@ -41,7 +41,7 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
 
 // void d_glGenVertexArrays_origin(void *context, GLsizei n, GLuint *arrays);
 // void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *arrays);
-void d_glBindVertexArray_special(void *context, GLuint array);
+// void d_glBindVertexArray_special(void *context, GLuint array);
 
 void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor);
 

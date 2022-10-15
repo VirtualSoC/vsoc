@@ -55,9 +55,6 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
             //我先处理着，但是分发线程也得赶紧醒来接着我处理
             wake_up_distribute();
 
-            
-            // distribute_wait();
-            // printf("trying handle     ");
 
             while(pop_flag != 0 || recycle_flag != 0)
             {
@@ -146,8 +143,8 @@ static void direct_express_realize(DeviceState *qdev, Error **errp)
     //为该设备添加1024大小的queue，并且设置收到queue返回消息后的回调函数
     //最大为1024大小，也就是不弄indirect table的话最大只有1024个页，
     //弄indirect table时单个空间最大可以放一个额外的1024大小的table，
-    //一个参数占用一个空间，因此单个参数的数据被限制在1024个不连续页面
-    //需要未来进行修复 @todo
+    //一个参数占用一个空间，因此单个参数的数据被限制在1024*1024个不连续页面，
+    //当然实际限制一次数据传输在256Mb左右
     virtio_add_queue(vdev, 1024, direct_express_handle_cb);
 
     g->data_queue = virtio_get_queue(vdev, 0);
@@ -156,10 +153,6 @@ static void direct_express_realize(DeviceState *qdev, Error **errp)
 
     virtio_add_feature(&vdev->host_features, VIRTIO_RING_F_INDIRECT_DESC);
 
-    //    qemu_mutex_init(&edu->thr_mutex);
-    //    qemu_cond_init(&edu->thr_cond);
-    //    qemu_thread_create(&g->gpu_thread, "gpu", gpu_thread,
-    //                       edu, QEMU_THREAD_JOINABLE);
     express_printf("express gpu realized\n");
 }
 

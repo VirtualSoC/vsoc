@@ -21,13 +21,13 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
     {
         if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
-            // printf("conetxt %llx bind 0 framebuffer draw %u\n",context, draw_fbo0);
+            // printf("conetxt %llx bind 0 framebuffer draw %u\n",(uint64_t)context, draw_fbo0);
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_fbo0);
         }
         if (target == GL_READ_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
-            // printf("conetxt %llx bind 0 framebuffer read %u\n",context, read_fbo0);
+            // printf("conetxt %llx bind 0 framebuffer read %u\n",(uint64_t)context, read_fbo0);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, read_fbo0);
         }
     }
@@ -35,7 +35,7 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
     {
         glBindFramebuffer(target, framebuffer);
         // GLenum status = glCheckFramebufferStatus(target) ;
-        // printf("conetxt %llx bind framebuffer %u status %x\n",context, framebuffer, status);
+        // printf("conetxt %llx bind framebuffer %u status %x\n",(uint64_t)context, framebuffer, status);
     }
 
     // glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
@@ -66,7 +66,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         // }
         status->guest_element_array_buffer = buffer;
         // opengl_context->bound_buffer_status.attrib_point->element_array_buffer = buffer;
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             if(buffer == 0)
             {
@@ -174,7 +174,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         break;
     }
 
-    express_printf("context %llx glBindBuffer target %x buffer %d guest %d\n",context, target, buffer, guest_buffer);
+    express_printf("context %llx glBindBuffer target %x buffer %d guest %d\n",(uint64_t)context, target, buffer, guest_buffer);
 
     // if((host_opengl_version < 45 || DSA_enable == 0) || is_init == 0)
     if(host_opengl_version < 45 || DSA_enable == 0)
@@ -216,7 +216,7 @@ void d_glBindBufferRange_special(void *context, GLenum target,GLuint index, GLui
         break;
     }
 
-    express_printf("context %llx glBindBufferRange target %x buffer %d\n",context, target, buffer);
+    express_printf("context %llx glBindBufferRange target %x buffer %d\n",(uint64_t)context, target, buffer);
 
     glBindBufferRange(target, index, buffer, offset, size);
 
@@ -252,7 +252,7 @@ void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLui
         break;
     }
 
-    express_printf("context %llx glBindBufferBase target %x buffer %d\n",context, target, buffer);
+    express_printf("context %llx glBindBufferBase target %x buffer %d\n",(uint64_t)context, target, buffer);
     glBindBufferBase(target, index, buffer);
 
 }
@@ -436,7 +436,7 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
     //     real_opengl_context->view_w = width;
     //     real_opengl_context->view_h = height;
     //     glViewport(x, real_opengl_context->view_h - height, width, height);
-    //     printf("context %llx glViewport change y %d w %d h %d\n", context, real_opengl_context->view_y, width, height);
+    //     printf("context %llx glViewport change y %d w %d h %d\n", (uint64_t)context, real_opengl_context->view_y, width, height);
 
     //     return;
     // }
@@ -446,7 +446,7 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
     real_opengl_context->view_w = width;
     real_opengl_context->view_h = height;
 
-    express_printf("context %llx glViewport w %d h %d\n", context, width, height);
+    express_printf("context %llx glViewport w %d h %d\n", (uint64_t)context, width, height);
     glViewport(x, y, width, height);
     return;
 }
@@ -536,7 +536,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     host_share_texture = gbuffer->data_texture;
 
     //原来的texture直接删除掉，假设原来的texture不会再被正常使用——不确定@todo
-    int origin_texture = (int)set_share_texture(opengl_context, texture, host_share_texture);
+    unsigned int origin_texture = (int)set_share_texture(opengl_context, texture, host_share_texture);
     if(origin_texture > 0)
     {
         glDeleteTextures(1, &origin_texture);
@@ -596,7 +596,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
-    express_printf("context %llx target %x texture %u guest %d current %d\n", opengl_context,target, texture, guest_texture, status->guest_current_active_texture);
+    express_printf("context %llx target %x texture %u guest %d current %d\n", (uint64_t)opengl_context,target, texture, guest_texture, status->guest_current_active_texture);
     
     
     if(is_init == 0)
@@ -697,7 +697,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         {
             // GLuint a = 0;
             // glGetIntegerv(GL_ACTIVE_TEXTURE, &a);
-            // printf("context %llx bind texuture %d active %d\n", context, texture, a-GL_TEXTURE0);
+            // printf("context %llx bind texuture %d active %d\n", (uint64_t)context, texture, a-GL_TEXTURE0);
             glBindTexture(target, texture);
         }
         else
@@ -842,12 +842,6 @@ void texture_binding_status_sync(void *context, GLenum target)
 }
 
 
-// #define CHANGE_TEXTURE_UNIT_WITH_TYPE(status, type, compare_id) {   \
-//     if(status->guest_current_texture_##type == compare_id)                   \
-//     {                                                               \
-//         status->host_current_texture_##type = compare_id;                    \
-//     }                                                               \
-// }
 
 #define CHANGE_TEXTURE_UNIT_WITH_TYPE(status, type, index) {   \
     if(status->guest_current_texture_##type != status->host_current_texture_##type)                   \
@@ -974,7 +968,7 @@ void d_glActiveTexture_special(void *context, GLenum texture)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
-    if (texture - GL_TEXTURE0 >= 0 && texture - GL_TEXTURE0 < preload_static_context_value->max_combined_texture_image_units)
+    if ((int)texture - GL_TEXTURE0 >= 0 && texture - GL_TEXTURE0 < preload_static_context_value->max_combined_texture_image_units)
     {
 
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
@@ -994,7 +988,7 @@ void d_glActiveTexture_special(void *context, GLenum texture)
         // GLuint ac = 0;
         // glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
         // glGetIntegerv(GL_ACTIVE_TEXTURE, &ac);
-        // printf("context %llx active texture %d tex %u active %d\n", context, status->host_current_active_texture, tex, ac-GL_TEXTURE0);
+        // printf("context %llx active texture %d tex %u active %d\n", (uint64_t)context, status->host_current_active_texture, tex, ac-GL_TEXTURE0);
     }
 
     // glActiveTexture(texture);
@@ -1091,7 +1085,7 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
     Attrib_Point *pre_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(pre_vao));
 
-    express_printf("context %llx bind vao host %d guest %d pre %d\n",context, now_vao, array, pre_vao);
+    express_printf("context %llx bind vao host %d guest %d pre %d\n",(uint64_t)context, now_vao, array, pre_vao);
 
     if (now_point == NULL)
     {
@@ -1136,12 +1130,12 @@ void vao_binding_status_sync(void *context)
 
     Buffer_Status *status = &(bound_buffer->buffer_status);
 
-    Attrib_Point *point_data = bound_buffer->attrib_point;
+    // Attrib_Point *point_data = bound_buffer->attrib_point;
 
 
     if(status->host_vao != status->guest_vao)
     {
-        express_printf("#%llx vao_binding_status_sync bind vao %d pre %d ebo %d\n", opengl_context, status->guest_vao, status->host_vao, status->guest_vao_ebo);
+        express_printf("#%llx vao_binding_status_sync bind vao %d pre %d ebo %d\n", (uint64_t)opengl_context, status->guest_vao, status->host_vao, status->guest_vao_ebo);
         glBindVertexArray(status->guest_vao);
 
         status->host_vao = status->guest_vao;

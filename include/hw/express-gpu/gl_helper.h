@@ -7,6 +7,7 @@
 
 
 
+typedef int (*Dying_Function)(void *data);
 
 typedef struct Dying_List_Node{
     void *data;
@@ -41,7 +42,11 @@ size_t gl_sizeof(GLenum type);
 
 size_t gl_pname_size(GLenum pname);
 
-typedef int (*Dying_Function)(void *data);
+void prepare_interger_value(Static_Context_Values *s_values);
+
+GLuint load_shader(GLenum type, const char *shaderSrc);
+
+int main_window_opengl_prepare(GLuint *program, GLuint *VAO);
 
 Dying_List *dying_list_append(Dying_List *list, void *data);
 

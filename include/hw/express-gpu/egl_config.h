@@ -53,7 +53,7 @@ typedef struct
 #define NUM_STENCILE_VAL 2
 #define NUM_SAMPLE_VAL 4
 // 仿照EGL的attribute表，[ENUM1, VALUE1, ENUM2, VALUE2, ...]，以GLFW_DONT_CARE结尾
-typedef struct {int64_t hints[HINTS_LEN]} GLFWHints;
+typedef struct {int64_t hints[HINTS_LEN];} GLFWHints;
 
 extern const unsigned int config_attrs[NUM_ATTRS];
 extern const int64_t config_hints[NUM_HINTS];

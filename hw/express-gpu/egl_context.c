@@ -59,12 +59,12 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
     Opengl_Context *opengl_context = opengl_context_create(real_share_context, independ_mode);
     for(int i =0; attrib_list[i]!=EGL_NONE;i+=2)
     {
-        express_printf("eglcontext %llx attrib_list %x %x\n",opengl_context,attrib_list[i],attrib_list[i+1]);
+        express_printf("eglcontext %llx attrib_list %x %x\n",(uint64_t)opengl_context,attrib_list[i],attrib_list[i+1]);
     }
 
 
     //todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
-    express_printf("#%llx context create share %llx\n",opengl_context,real_share_context);
+    express_printf("#%llx context create share %llx\n",(uint64_t)opengl_context,real_share_context);
     express_printf("context create guest %lx host %lx\n", guest_context, opengl_context);
 
     opengl_context->guest_context = guest_context;

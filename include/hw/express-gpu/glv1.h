@@ -16,6 +16,6 @@ void d_glShadeModel_special(void *context, GLenum mode);
 
 void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint width, GLint height, GLfloat left_x, GLfloat right_x, GLfloat bottom_y, GLfloat top_y);
 
-void prepare_draw_texi();
+void prepare_draw_texi(void);
 
 #endif

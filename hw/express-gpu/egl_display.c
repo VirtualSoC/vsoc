@@ -34,7 +34,7 @@ EGLBoolean add_config(Egl_Display *display, eglConfig *config)
  * @param vals 需要添加的属性值数组
  * @param val_size 属性值数组的长度
  */
-void add_window_independent_config(Egl_Display *display, EGLint attr_enum, EGLint *vals, EGLint val_size)
+void add_window_independent_config(Egl_Display *display, EGLint attr_enum, const EGLint *vals, EGLint val_size)
 {
     int config_set_size = g_hash_table_size(display->egl_config_set);
     for (int i = 0; i < config_set_size; i++)

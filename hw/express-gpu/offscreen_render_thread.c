@@ -42,6 +42,8 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call);
 
 void render_context_destroy(Thread_Context *context);
 
+void remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf);
+
 void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call);
 
 void release_call_special(Direct_Express_Call *call, int notify);
@@ -100,7 +102,7 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 #ifdef ENABLE_OPENGL_DEBUG
         GLenum error_code = glGetError();
         if(error_code!=GL_NO_ERROR){
-            printf("#fun_id %llu context %llx get error %lx\n",fun_id, render_context->opengl_context, error_code);
+            printf("#fun_id %llu context %llx get error %x\n",fun_id, (uint64_t)render_context->opengl_context, error_code);
         }
 #endif
     }
@@ -471,7 +473,7 @@ static void gbuffer_map_destroy(gpointer data)
 {
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
     // EGL_Image *real_image = (EGL_Image *)data;
-    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n",gbuffer->gbuffer_id, gbuffer->usage_type, gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
+    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n",gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
     // PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
     // send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
 

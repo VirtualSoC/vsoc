@@ -23,6 +23,7 @@
 #include "hw/express-gpu/glv3_vertex.h"
 #include "hw/express-gpu/glv3_resource.h"
 #include "hw/express-gpu/glv3_status.h"
+#include "hw/express-gpu/glv3_program.h"
 
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/gl_helper.h"
@@ -65,11 +66,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)r_context;
     Opengl_Context *opengl_context = render_context->opengl_context;
-    Process_Context *process_context = render_context->process_context;
+    // Process_Context *process_context = render_context->process_context;
     uint64_t fun_id=GET_FUN_ID(call->id);
 
-    if (opengl_context == NULL && call->id != FUNID_glGetStaticValues && call->id != FUNID_glBindEGLImage &&
-     call->id != FUNID_glReadGraphicBuffer && call->id != FUNID_glGraphicBufferData && call->id != FUNID_glSync)
+    if (unlikely(opengl_context == NULL && call->id != FUNID_glGetStaticValues && call->id != FUNID_glBindEGLImage &&
+     call->id != FUNID_glReadGraphicBuffer && call->id != FUNID_glGraphicBufferData && call->id != FUNID_glSync))
     {
         printf("invoke func id %llu with null context\n",fun_id);
         call->callback(call, 0);
@@ -77,13 +78,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     }
 
     Window_Buffer *draw_surface = render_context->render_double_buffer_draw;
-    if(draw_surface != NULL)
+    if(likely(draw_surface != NULL))
     {
-        if(draw_surface->frame_start_time == 0)
+        if(unlikely(draw_surface->frame_start_time == 0))
         {
             draw_surface->frame_start_time = g_get_real_time();
         }
-        if(draw_surface->type == WINDOW_SURFACE && draw_surface->gbuffer != NULL && draw_surface->gbuffer->is_writing == 0)
+        if(unlikely(draw_surface->type == WINDOW_SURFACE && draw_surface->gbuffer != NULL && draw_surface->gbuffer->is_writing == 0))
         {
             draw_surface->gbuffer->is_writing = 1;
 #ifdef _WIN32
@@ -122,7 +123,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint64 timeout;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClientWaitSync)
+        if (unlikely(para_num < PARA_NUM_MIN_glClientWaitSync))
         {
             break;
         }
@@ -131,14 +132,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -165,7 +166,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -178,24 +179,24 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum *ret_ptr = (GLenum *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLenum);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
             break;
         }
 
-        GLenum ret = glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), flags, timeout);
+        GLenum ret = glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), flags, timeout);
         *ret_ptr = ret;
 
-        express_printf("glClientWaitSync context %llx guest %u host %llu ret %x\n",opengl_context, (unsigned int)sync,
-            (GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), ret);
+        express_printf("glClientWaitSync context %llx guest %u host %llu ret %x\n",(uint64_t)opengl_context, (unsigned int)(uint64_t)sync,
+            (GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), ret);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -217,7 +218,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint b;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestInt1)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestInt1))
         {
             break;
         }
@@ -226,14 +227,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -257,7 +258,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -270,9 +271,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -284,7 +285,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -306,7 +307,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint b;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestInt2)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestInt2))
         {
             break;
         }
@@ -315,14 +316,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -346,7 +347,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -359,9 +360,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLuint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -373,7 +374,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -395,7 +396,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint64 b;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestInt3)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestInt3))
         {
             break;
         }
@@ -404,14 +405,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -435,7 +436,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -448,9 +449,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint64 *ret_ptr = (GLint64 *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint64);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -462,7 +463,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -484,7 +485,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint64 b;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestInt4)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestInt4))
         {
             break;
         }
@@ -493,14 +494,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -524,7 +525,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -537,9 +538,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint64 *ret_ptr = (GLuint64 *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLuint64);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -551,7 +552,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -573,7 +574,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint b;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestInt5)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestInt5))
         {
             break;
         }
@@ -582,14 +583,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -613,7 +614,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -626,9 +627,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *ret_ptr = (GLfloat *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLfloat);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -640,7 +641,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -662,7 +663,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint b;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestInt6)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestInt6))
         {
             break;
         }
@@ -671,14 +672,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -702,7 +703,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -715,9 +716,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLdouble *ret_ptr = (GLdouble *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLdouble);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -729,7 +730,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -747,65 +748,65 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "110" */
 
         /* Define variables */
-        GLint a;
+    //     GLint a;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestPointer1)
-        {
-            break;
-        }
+    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    //     if (unlikely(para_num < PARA_NUM_MIN_glTestPointer1))
+    //     {
+    //         break;
+    //     }
 
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
+    //     size_t temp_len = 0;
+    //     unsigned char *temp = NULL;
 
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
+    //     temp_len = all_para[0].data_len;
+    //     if (unlikely(temp_len < 4 * 1))
+    //     {
+    //         break;
+    //     }
 
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
+    //     int null_flag = 0;
+    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+    //     if (unlikely(temp == NULL))
+    //     {
+    //         if (temp_len != 0 && null_flag == 0)
+    //         {
+    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+    //         }
+    //         else
+    //         {
+    //             break;
+    //         }
+    //     }
 
-        unsigned int temp_loc = 0;
+    //     unsigned int temp_loc = 0;
 
-        a = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
+    //     a = *(GLint *)(temp + temp_loc);
+    //     temp_loc += 4;
 
-        int b_flag = 0;
-        int b_null_flag = 0;
-        GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
+    //     int b_flag = 0;
+    //     int b_null_flag = 0;
+    //     GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
 
-        if (b == NULL && b_null_flag == 0)
-        {
-            b = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, b, 0, all_para[1].data_len);
+    //     if (b == NULL && b_null_flag == 0)
+    //     {
+    //         b = g_malloc(all_para[1].data_len);
+    //         guest_write(all_para[1].data, b, 0, all_para[1].data_len);
 
-            b_flag = 1;
-        }
-        else
-        {
-            b_flag = 0;
-        }
+    //         b_flag = 1;
+    //     }
+    //     else
+    //     {
+    //         b_flag = 0;
+    //     }
 
-        glTestPointer1(a, b);
+    //     glTestPointer1(a, b);
 
-        if (b_flag == 1)
-        {
-            g_free(b);
-        }
+    //     if (b_flag == 1)
+    //     {
+    //         g_free(b);
+    //     }
     }
     break;
 
@@ -821,97 +822,97 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         /* TODO: More than one ptr, should check mannually */
         /* Define variables */
-        GLint a;
+        // GLint a;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestPointer2)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glTestPointer2))
+        // {
+        //     break;
+        // }
 
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
+        // size_t temp_len = 0;
+        // unsigned char *temp = NULL;
 
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
+        // temp_len = all_para[0].data_len;
+        // if (unlikely(temp_len < 4 * 1))
+        // {
+        //     break;
+        // }
 
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
+        // int null_flag = 0;
+        // temp = get_direct_ptr(all_para[0].data, &null_flag);
+        // if (unlikely(temp == NULL))
+        // {
+        //     if (temp_len != 0 && null_flag == 0)
+        //     {
+        //         temp = g_malloc(temp_len);no_ptr_buf=temp;
+        //         guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //     }
+        //     else
+        //     {
+        //         break;
+        //     }
+        // }
 
-        unsigned int temp_loc = 0;
+        // unsigned int temp_loc = 0;
 
-        a = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
+        // a = *(GLint *)(temp + temp_loc);
+        // temp_loc += 4;
 
-        int b_flag = 0;
-        int b_null_flag = 0;
-        GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
+        // int b_flag = 0;
+        // int b_null_flag = 0;
+        // GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
 
-        if (b == NULL && b_null_flag == 0)
-        {
-            b = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, b, 0, all_para[1].data_len);
+        // if (b == NULL && b_null_flag == 0)
+        // {
+        //     b = g_malloc(all_para[1].data_len);
+        //     guest_write(all_para[1].data, b, 0, all_para[1].data_len);
 
-            b_flag = 1;
-        }
-        else
-        {
-            b_flag = 0;
-        }
-        int out_buf_len = all_para[2].data_len;
+        //     b_flag = 1;
+        // }
+        // else
+        // {
+        //     b_flag = 0;
+        // }
+        // int out_buf_len = all_para[2].data_len;
 
-        unsigned char *ret_buf = NULL;
+        // unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        int out_buf_loc = 0;
+        // if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        // {
+        //     ret_buf = g_malloc(out_buf_len);
+        // }
+        // else
+        // {
+        //     ret_buf = ret_local_buf;
+        // }
+        // int out_buf_loc = 0;
 
-        GLint *c = (GLint *)(ret_buf + out_buf_loc);
-        out_buf_loc += sizeof(GLint) * 10;
+        // GLint *c = (GLint *)(ret_buf + out_buf_loc);
+        // out_buf_loc += sizeof(GLint) * 10;
 
-        if (out_buf_loc > out_buf_len)
-        {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
-            {
-                g_free(ret_buf);
-            }
-            break;
-        }
+        // if (unlikely(out_buf_loc > out_buf_len))
+        // {
+        //     if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        //     {
+        //         g_free(ret_buf);
+        //     }
+        //     break;
+        // }
 
-        glTestPointer2(a, b, c);
+        // glTestPointer2(a, b, c);
 
-        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+        // guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
-        if (b_flag == 1)
-        {
-            g_free(b);
-        }
+        // if (b_flag == 1)
+        // {
+        //     g_free(b);
+        // }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
+        // if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        // {
+        //     g_free(ret_buf);
+        // }
     }
     break;
 
@@ -927,101 +928,101 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         /* TODO: More than one ptr, should check mannually */
         /* Define variables */
-        GLint a;
+        // GLint a;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestPointer4)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glTestPointer4))
+        // {
+        //     break;
+        // }
 
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
+        // size_t temp_len = 0;
+        // unsigned char *temp = NULL;
 
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
+        // temp_len = all_para[0].data_len;
+        // if (unlikely(temp_len < 4 * 1))
+        // {
+        //     break;
+        // }
 
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
+        // int null_flag = 0;
+        // temp = get_direct_ptr(all_para[0].data, &null_flag);
+        // if (unlikely(temp == NULL))
+        // {
+        //     if (temp_len != 0 && null_flag == 0)
+        //     {
+        //         temp = g_malloc(temp_len);no_ptr_buf=temp;
+        //         guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //     }
+        //     else
+        //     {
+        //         break;
+        //     }
+        // }
 
-        unsigned int temp_loc = 0;
+        // unsigned int temp_loc = 0;
 
-        a = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
+        // a = *(GLint *)(temp + temp_loc);
+        // temp_loc += 4;
 
-        int b_flag = 0;
-        int b_null_flag = 0;
-        GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
+        // int b_flag = 0;
+        // int b_null_flag = 0;
+        // GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
 
-        if (b == NULL && b_null_flag == 0)
-        {
-            b = g_malloc(all_para[1].data_len);
-            guest_write(all_para[1].data, b, 0, all_para[1].data_len);
+        // if (b == NULL && b_null_flag == 0)
+        // {
+        //     b = g_malloc(all_para[1].data_len);
+        //     guest_write(all_para[1].data, b, 0, all_para[1].data_len);
 
-            b_flag = 1;
-        }
-        else
-        {
-            b_flag = 0;
-        }
-        int out_buf_len = all_para[2].data_len;
+        //     b_flag = 1;
+        // }
+        // else
+        // {
+        //     b_flag = 0;
+        // }
+        // int out_buf_len = all_para[2].data_len;
 
-        unsigned char *ret_buf = NULL;
+        // unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        int out_buf_loc = 0;
+        // if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        // {
+        //     ret_buf = g_malloc(out_buf_len);
+        // }
+        // else
+        // {
+        //     ret_buf = ret_local_buf;
+        // }
+        // int out_buf_loc = 0;
 
-        GLint *c = (GLint *)(ret_buf + out_buf_loc);
-        out_buf_loc += sizeof(GLint) * 1000;
+        // GLint *c = (GLint *)(ret_buf + out_buf_loc);
+        // out_buf_loc += sizeof(GLint) * 1000;
 
-        GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
-        out_buf_loc += sizeof(GLint);
+        // GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
+        // out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
-        {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
-            {
-                g_free(ret_buf);
-            }
-            break;
-        }
+        // if (unlikely(out_buf_loc > out_buf_len))
+        // {
+        //     if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        //     {
+        //         g_free(ret_buf);
+        //     }
+        //     break;
+        // }
 
-        GLint ret = glTestPointer4(a, b, c);
-        *ret_ptr = ret;
+        // GLint ret = glTestPointer4(a, b, c);
+        // *ret_ptr = ret;
 
-        guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
+        // guest_read(all_para[2].data, ret_buf, 0, out_buf_len);
 
-        if (b_flag == 1)
-        {
-            g_free(b);
-        }
+        // if (b_flag == 1)
+        // {
+        //     g_free(b);
+        // }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
-        {
-            g_free(ret_buf);
-        }
+        // if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        // {
+        //     g_free(ret_buf);
+        // }
     }
     break;
 
@@ -1042,7 +1043,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestString)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestString))
         {
             break;
         }
@@ -1051,14 +1052,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1106,7 +1107,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1119,16 +1120,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *char_buf = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += buf_len;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
             break;
         }
 
-        glTestString(a, count, strings, buf_len, char_buf);
+        glTestString(a, count, (const GLchar *const *)strings, buf_len, char_buf);
 
         guest_read(all_para[1 + count].data, ret_buf, 0, out_buf_len);
 
@@ -1143,7 +1144,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         g_free(strings);
         g_free(strings_flag);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1165,13 +1166,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint buffer;
+        // GLuint buffer;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsBuffer)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsBuffer))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1186,13 +1187,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLenum cap;
+        // GLenum cap;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsEnabled)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsEnabled))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1207,13 +1208,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint framebuffer;
+        // GLuint framebuffer;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsFramebuffer)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsFramebuffer))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1228,13 +1229,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint program;
+        // GLuint program;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsProgram)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsProgram))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1249,13 +1250,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint renderbuffer;
+        // GLuint renderbuffer;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsRenderbuffer)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsRenderbuffer))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1270,13 +1271,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint shader;
+        // GLuint shader;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsShader)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsShader))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1291,13 +1292,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint texture;
+        // GLuint texture;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsTexture)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsTexture))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1312,13 +1313,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint id;
+        // GLuint id;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsQuery)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsQuery))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1333,13 +1334,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint array;
+        // GLuint array;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsVertexArray)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsVertexArray))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1354,13 +1355,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint sampler;
+        // GLuint sampler;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsSampler)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsSampler))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1375,13 +1376,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLuint id;
+        // GLuint id;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsTransformFeedback)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsTransformFeedback))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1396,13 +1397,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "111" */
 
         /* Define variables */
-        GLsync sync;
+        // GLsync sync;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glIsSync)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glIsSync))
+        // {
+        //     break;
+        // }
     }
     break;
 
@@ -1423,7 +1424,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetError)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetError))
         {
             break;
         }
@@ -1432,7 +1433,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1445,9 +1446,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum *ret_ptr = (GLenum *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLenum);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -1459,7 +1460,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1480,7 +1481,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum name;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetString_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetString_special))
         {
             break;
         }
@@ -1489,14 +1490,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1517,7 +1518,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1530,9 +1531,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLubyte *buffer = (GLubyte *)(ret_buf + out_buf_loc);
         out_buf_loc += 1024;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -1543,7 +1544,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1565,7 +1566,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetStringi_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetStringi_special))
         {
             break;
         }
@@ -1574,14 +1575,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1605,7 +1606,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1618,9 +1619,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLubyte *buffer = (GLubyte *)(ret_buf + out_buf_loc);
         out_buf_loc += 1024;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -1631,7 +1632,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1652,7 +1653,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum target;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCheckFramebufferStatus)
+        if (unlikely(para_num < PARA_NUM_MIN_glCheckFramebufferStatus))
         {
             break;
         }
@@ -1661,14 +1662,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1689,7 +1690,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1702,9 +1703,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum *ret_ptr = (GLenum *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLenum);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -1716,7 +1717,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1737,7 +1738,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glQueryMatrixxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glQueryMatrixxOES))
         {
             break;
         }
@@ -1746,7 +1747,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1765,9 +1766,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLbitfield *ret_ptr = (GLbitfield *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLbitfield);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -1779,7 +1780,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1802,7 +1803,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetFramebufferAttachmentParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetFramebufferAttachmentParameteriv))
         {
             break;
         }
@@ -1811,14 +1812,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1845,7 +1846,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1858,9 +1859,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -1871,7 +1872,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1894,7 +1895,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramInfoLog)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramInfoLog))
         {
             break;
         }
@@ -1903,14 +1904,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1934,7 +1935,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -1950,9 +1951,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *infoLog = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -1963,7 +1964,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -1985,7 +1986,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetRenderbufferParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetRenderbufferParameteriv))
         {
             break;
         }
@@ -1994,14 +1995,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2025,7 +2026,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2038,9 +2039,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2051,7 +2052,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2074,7 +2075,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetShaderInfoLog)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetShaderInfoLog))
         {
             break;
         }
@@ -2083,14 +2084,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2114,7 +2115,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2130,9 +2131,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *infoLog = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2143,7 +2144,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2166,7 +2167,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum precisiontype;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetShaderPrecisionFormat)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetShaderPrecisionFormat))
         {
             break;
         }
@@ -2175,14 +2176,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2206,7 +2207,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2222,9 +2223,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *precision = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2235,7 +2236,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2258,7 +2259,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetShaderSource)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetShaderSource))
         {
             break;
         }
@@ -2267,14 +2268,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2298,7 +2299,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if ((out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2314,9 +2315,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *source = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2327,7 +2328,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if ((out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2349,7 +2350,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTexParameterfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTexParameterfv))
         {
             break;
         }
@@ -2358,14 +2359,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2389,7 +2390,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2402,9 +2403,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2442,7 +2443,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2464,7 +2465,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTexParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTexParameteriv))
         {
             break;
         }
@@ -2473,14 +2474,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2504,7 +2505,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2517,9 +2518,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2560,7 +2561,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2582,7 +2583,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetQueryiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetQueryiv))
         {
             break;
         }
@@ -2591,14 +2592,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2622,7 +2623,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2635,9 +2636,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2648,7 +2649,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2670,7 +2671,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetQueryObjectuiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetQueryObjectuiv))
         {
             break;
         }
@@ -2679,14 +2680,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2710,7 +2711,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2723,9 +2724,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *params = (GLuint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLuint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2733,7 +2734,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
 
         glGetQueryObjectuiv((GLuint)get_host_query_id(opengl_context, (unsigned int)id), pname, params);
-        // printf("glGetQueryObjectuiv %llx %d -> %d r_context %llx\n",opengl_context, id, (GLuint)get_host_query_id(opengl_context, (unsigned int)id), r_context);
+        // printf("glGetQueryObjectuiv %llx %d -> %d r_context %llx\n",(uint64_t)opengl_context, id, (GLuint)get_host_query_id(opengl_context, (unsigned int)id), r_context);
 
         // if(glGetError()!=GL_NO_ERROR)
         // {
@@ -2742,7 +2743,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2766,7 +2767,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTransformFeedbackVarying)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTransformFeedbackVarying))
         {
             break;
         }
@@ -2775,14 +2776,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2809,7 +2810,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2831,9 +2832,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2844,7 +2845,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2868,7 +2869,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetActiveUniformsiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetActiveUniformsiv))
         {
             break;
         }
@@ -2877,14 +2878,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2927,7 +2928,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -2940,9 +2941,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += uniformCount * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -2958,7 +2959,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(uniformIndices);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -2981,7 +2982,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetActiveUniformBlockiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetActiveUniformBlockiv))
         {
             break;
         }
@@ -2990,14 +2991,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3024,7 +3025,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3037,9 +3038,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         //out_buf_loc+=gl_get_uniform_block_para_size(context,program,uniformBlockIndex,pname)*sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3050,7 +3051,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3074,7 +3075,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetActiveUniformBlockName)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetActiveUniformBlockName))
         {
             break;
         }
@@ -3083,14 +3084,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3117,7 +3118,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3133,9 +3134,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *uniformBlockName = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3146,7 +3147,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3168,7 +3169,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetSamplerParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetSamplerParameteriv))
         {
             break;
         }
@@ -3177,14 +3178,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3208,7 +3209,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3221,9 +3222,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3234,7 +3235,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3256,7 +3257,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetSamplerParameterfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetSamplerParameterfv))
         {
             break;
         }
@@ -3265,14 +3266,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3296,7 +3297,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3309,9 +3310,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3322,7 +3323,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3345,7 +3346,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramBinary)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramBinary))
         {
             break;
         }
@@ -3354,14 +3355,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3385,7 +3386,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (likely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3404,9 +3405,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         void *binary = (void *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3418,7 +3419,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         express_printf("glGetProgramBinary len %u format %lld\n",*length,*binaryFormat);
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (likely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3442,7 +3443,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetInternalformativ)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetInternalformativ))
         {
             break;
         }
@@ -3451,14 +3452,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3488,7 +3489,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3501,9 +3502,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += count * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3514,7 +3515,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3535,7 +3536,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum plane;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetClipPlanexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetClipPlanexOES))
         {
             break;
         }
@@ -3544,14 +3545,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3572,7 +3573,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3585,9 +3586,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed *equation = (GLfixed *)(ret_buf + out_buf_loc);
         out_buf_loc += 4 * sizeof(GLfixed);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3598,7 +3599,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3619,7 +3620,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetFixedvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetFixedvOES))
         {
             break;
         }
@@ -3628,14 +3629,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3656,7 +3657,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3669,9 +3670,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3682,7 +3683,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3704,7 +3705,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTexEnvxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTexEnvxvOES))
         {
             break;
         }
@@ -3713,14 +3714,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3744,7 +3745,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3757,9 +3758,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3777,7 +3778,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3799,7 +3800,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTexParameterxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTexParameterxvOES))
         {
             break;
         }
@@ -3808,14 +3809,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3839,7 +3840,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3852,9 +3853,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3889,7 +3890,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3911,7 +3912,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetLightxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetLightxvOES))
         {
             break;
         }
@@ -3920,14 +3921,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -3951,7 +3952,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -3964,9 +3965,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -3977,7 +3978,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -3999,7 +4000,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetMaterialxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetMaterialxvOES))
         {
             break;
         }
@@ -4008,14 +4009,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4039,7 +4040,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4052,9 +4053,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4065,7 +4066,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4087,7 +4088,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTexGenxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTexGenxvOES))
         {
             break;
         }
@@ -4096,14 +4097,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4127,7 +4128,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4140,9 +4141,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed *params = (GLfixed *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfixed);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4153,7 +4154,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4175,7 +4176,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetFramebufferParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetFramebufferParameteriv))
         {
             break;
         }
@@ -4184,14 +4185,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4215,7 +4216,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4228,9 +4229,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4241,7 +4242,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4264,7 +4265,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramInterfaceiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramInterfaceiv))
         {
             break;
         }
@@ -4273,14 +4274,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4307,7 +4308,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4320,9 +4321,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4333,7 +4334,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4358,7 +4359,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramResourceName)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramResourceName))
         {
             break;
         }
@@ -4367,14 +4368,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4404,7 +4405,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4420,9 +4421,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4433,7 +4434,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4459,7 +4460,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramResourceiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramResourceiv))
         {
             break;
         }
@@ -4468,14 +4469,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4524,7 +4525,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4540,9 +4541,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4558,7 +4559,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(props);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4580,7 +4581,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramPipelineiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramPipelineiv))
         {
             break;
         }
@@ -4589,14 +4590,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4620,7 +4621,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4633,9 +4634,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4646,7 +4647,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4669,7 +4670,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramPipelineInfoLog)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramPipelineInfoLog))
         {
             break;
         }
@@ -4678,14 +4679,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4709,7 +4710,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4725,9 +4726,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *infoLog = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4738,7 +4739,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4760,7 +4761,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetMultisamplefv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetMultisamplefv))
         {
             break;
         }
@@ -4769,14 +4770,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4800,7 +4801,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4813,9 +4814,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *val = (GLfloat *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4826,7 +4827,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4849,7 +4850,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTexLevelParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTexLevelParameteriv))
         {
             break;
         }
@@ -4858,14 +4859,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4892,7 +4893,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -4905,9 +4906,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -4925,7 +4926,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -4948,7 +4949,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetTexLevelParameterfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetTexLevelParameterfv))
         {
             break;
         }
@@ -4957,14 +4958,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -4991,7 +4992,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5004,9 +5005,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5025,7 +5026,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5049,7 +5050,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetSynciv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetSynciv))
         {
             break;
         }
@@ -5058,14 +5059,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5092,7 +5093,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5108,20 +5109,20 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *values = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
             break;
         }
 
-        glGetSynciv((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), pname, bufSize, length, values);
+        glGetSynciv((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), pname, bufSize, length, values);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5142,7 +5143,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetAttribLocation)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetAttribLocation))
         {
             break;
         }
@@ -5151,14 +5152,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5195,7 +5196,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5208,9 +5209,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5227,7 +5228,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(name);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5248,7 +5249,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformLocation)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetUniformLocation))
         {
             break;
         }
@@ -5257,14 +5258,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5301,7 +5302,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5314,9 +5315,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5333,7 +5334,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(name);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5354,7 +5355,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetFragDataLocation)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetFragDataLocation))
         {
             break;
         }
@@ -5363,14 +5364,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5407,7 +5408,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5420,9 +5421,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5439,7 +5440,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(name);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5460,7 +5461,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformBlockIndex)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetUniformBlockIndex))
         {
             break;
         }
@@ -5469,14 +5470,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5513,7 +5514,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5526,9 +5527,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLuint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5545,7 +5546,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(uniformBlockName);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5567,7 +5568,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum programInterface;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramResourceIndex)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramResourceIndex))
         {
             break;
         }
@@ -5576,14 +5577,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5623,7 +5624,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5636,9 +5637,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *ret_ptr = (GLuint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLuint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5655,7 +5656,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(name);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5677,7 +5678,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum programInterface;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramResourceLocation)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramResourceLocation))
         {
             break;
         }
@@ -5686,14 +5687,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5733,7 +5734,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5746,9 +5747,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *ret_ptr = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5765,7 +5766,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             g_free(name);
         }
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5789,7 +5790,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetActiveAttrib)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetActiveAttrib))
         {
             break;
         }
@@ -5798,14 +5799,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5832,7 +5833,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5854,9 +5855,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5867,7 +5868,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5891,7 +5892,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei bufSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetActiveUniform)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetActiveUniform))
         {
             break;
         }
@@ -5900,14 +5901,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -5934,7 +5935,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -5956,9 +5957,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLchar *name = (GLchar *)(ret_buf + out_buf_loc);
         out_buf_loc += bufSize;
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -5969,7 +5970,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -5992,7 +5993,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei maxCount;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetAttachedShaders)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetAttachedShaders))
         {
             break;
         }
@@ -6001,14 +6002,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6032,7 +6033,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6048,9 +6049,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *shaders = (GLuint *)(ret_buf + out_buf_loc);
         out_buf_loc += maxCount * sizeof(GLuint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6061,7 +6062,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6083,7 +6084,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramiv))
         {
             break;
         }
@@ -6092,14 +6093,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6123,7 +6124,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6136,9 +6137,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6149,7 +6150,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6171,7 +6172,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetShaderiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetShaderiv))
         {
             break;
         }
@@ -6180,14 +6181,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6211,7 +6212,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6224,9 +6225,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6237,7 +6238,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6259,7 +6260,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint location;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetUniformfv))
         {
             break;
         }
@@ -6268,14 +6269,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6299,7 +6300,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6312,9 +6313,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
         //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6325,7 +6326,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6347,7 +6348,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint location;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetUniformiv))
         {
             break;
         }
@@ -6356,14 +6357,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6387,7 +6388,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6400,9 +6401,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6413,7 +6414,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6435,7 +6436,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint location;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformuiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetUniformuiv))
         {
             break;
         }
@@ -6444,14 +6445,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6475,7 +6476,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6488,9 +6489,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *params = (GLuint *)(ret_buf + out_buf_loc);
         //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6501,7 +6502,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6524,7 +6525,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei uniformCount;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetUniformIndices)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetUniformIndices))
         {
             break;
         }
@@ -6533,14 +6534,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6585,7 +6586,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6598,16 +6599,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *uniformIndices = (GLuint *)(ret_buf + out_buf_loc);
         out_buf_loc += uniformCount * sizeof(GLuint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
             break;
         }
 
-        glGetUniformIndices((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformCount, uniformNames, uniformIndices);
+        glGetUniformIndices((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformCount, (const GLchar * const*)uniformNames, uniformIndices);
 
         guest_read(all_para[1 + uniformCount].data, ret_buf, 0, out_buf_len);
 
@@ -6622,7 +6623,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         g_free(uniformNames);
         g_free(uniformNames_flag);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6644,7 +6645,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetVertexAttribfv))
         {
             break;
         }
@@ -6653,14 +6654,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6684,7 +6685,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6697,9 +6698,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6710,7 +6711,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6732,7 +6733,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetVertexAttribiv))
         {
             break;
         }
@@ -6741,14 +6742,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6772,7 +6773,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6785,9 +6786,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6798,7 +6799,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6820,7 +6821,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetVertexAttribIiv))
         {
             break;
         }
@@ -6829,14 +6830,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6860,7 +6861,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6873,9 +6874,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6886,7 +6887,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6908,7 +6909,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetVertexAttribIuiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetVertexAttribIuiv))
         {
             break;
         }
@@ -6917,14 +6918,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -6948,7 +6949,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -6961,9 +6962,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint *params = (GLuint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLuint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -6974,7 +6975,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -6996,7 +6997,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBufferParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetBufferParameteriv))
         {
             break;
         }
@@ -7005,14 +7006,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7036,7 +7037,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7049,9 +7050,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -7071,7 +7072,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7093,7 +7094,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBufferParameteri64v)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetBufferParameteri64v))
         {
             break;
         }
@@ -7102,14 +7103,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7133,7 +7134,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7146,9 +7147,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint64 *params = (GLint64 *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint64);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -7168,7 +7169,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7189,7 +7190,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBooleanv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetBooleanv))
         {
             break;
         }
@@ -7198,14 +7199,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7226,7 +7227,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7239,9 +7240,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean *data = (GLboolean *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLboolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -7252,7 +7253,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7274,7 +7275,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetBooleani_v)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetBooleani_v))
         {
             break;
         }
@@ -7283,14 +7284,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7314,7 +7315,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7327,16 +7328,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean *data = (GLboolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLboolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             printf("@todo! glGetBooleani_v target %x index %x with dsa\n",target,index);
         }
@@ -7345,7 +7346,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7366,7 +7367,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetFloatv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetFloatv))
         {
             break;
         }
@@ -7375,14 +7376,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7403,7 +7404,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7416,9 +7417,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat *data = (GLfloat *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLfloat);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -7429,7 +7430,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7450,7 +7451,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetIntegerv)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetIntegerv))
         {
             break;
         }
@@ -7459,14 +7460,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7487,7 +7488,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7500,9 +7501,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *data = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -7513,7 +7514,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7535,7 +7536,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetIntegeri_v)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetIntegeri_v))
         {
             break;
         }
@@ -7544,14 +7545,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7575,7 +7576,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7588,16 +7589,16 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint *data = (GLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             printf("@todo! glGetIntegeri_v target %x index %x with dsa\n",target,index);
         }
@@ -7606,7 +7607,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7627,7 +7628,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetInteger64v)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetInteger64v))
         {
             break;
         }
@@ -7636,14 +7637,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7664,7 +7665,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7677,9 +7678,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint64 *data = (GLint64 *)(ret_buf + out_buf_loc);
         out_buf_loc += gl_pname_size(pname) * sizeof(GLint64);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -7690,7 +7691,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7712,7 +7713,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetInteger64i_v)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetInteger64i_v))
         {
             break;
         }
@@ -7721,14 +7722,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7752,7 +7753,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -7765,15 +7766,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint64 *data = (GLint64 *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(GLint64);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
             break;
         }
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             printf("@todo! glGetInteger64i_v target %x index %x with dsa\n",target,index);
         }
@@ -7781,7 +7782,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -7809,7 +7810,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLbitfield access;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMapBufferRange_read)
+        if (unlikely(para_num < PARA_NUM_MIN_glMapBufferRange_read))
         {
             break;
         }
@@ -7818,14 +7819,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7878,7 +7879,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReadPixels_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glReadPixels_without_bound))
         {
             break;
         }
@@ -7887,14 +7888,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -7948,50 +7949,50 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         /* TODO: More than one ptr, should check mannually */
         /* Define variables */
-        GLint a;
+        // GLint a;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestPointer3)
-        {
-            break;
-        }
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // if (unlikely(para_num < PARA_NUM_MIN_glTestPointer3))
+        // {
+        //     break;
+        // }
 
-        size_t temp_len = 0;
-        unsigned char *temp = NULL;
+        // size_t temp_len = 0;
+        // unsigned char *temp = NULL;
 
-        temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
-        {
-            break;
-        }
+        // temp_len = all_para[0].data_len;
+        // if (unlikely(temp_len < 4 * 1))
+        // {
+        //     break;
+        // }
 
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
+        // int null_flag = 0;
+        // temp = get_direct_ptr(all_para[0].data, &null_flag);
+        // if (unlikely(temp == NULL))
+        // {
+        //     if (temp_len != 0 && null_flag == 0)
+        //     {
+        //         temp = g_malloc(temp_len);no_ptr_buf=temp;
+        //         guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //     }
+        //     else
+        //     {
+        //         break;
+        //     }
+        // }
 
-        unsigned int temp_loc = 0;
+        // unsigned int temp_loc = 0;
 
-        a = *(GLint *)(temp + temp_loc);
-        temp_loc += 4;
+        // a = *(GLint *)(temp + temp_loc);
+        // temp_loc += 4;
 
-        void *b = all_para[1].data;
+        // void *b = all_para[1].data;
 
-        GLint *c = all_para[2].data;
+        // GLint *c = all_para[2].data;
 
-        GLint ret = d_glTestPointer3(opengl_context, a, b, c);
+        // GLint ret = d_glTestPointer3(opengl_context, a, b, c);
 
-        guest_read(all_para[3].data, &ret, 0, sizeof(GLint));
+        // guest_read(all_para[3].data, &ret, 0, sizeof(GLint));
     }
     break;
 
@@ -8012,7 +8013,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFlush)
+        if (unlikely(para_num < PARA_NUM_MIN_glFlush))
         {
             break;
         }
@@ -8034,7 +8035,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFinish)
+        if (unlikely(para_num < PARA_NUM_MIN_glFinish))
         {
             break;
         }
@@ -8058,7 +8059,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint id;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBeginQuery)
+        if (unlikely(para_num < PARA_NUM_MIN_glBeginQuery))
         {
             break;
         }
@@ -8067,14 +8068,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8095,13 +8096,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         id = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
         glBeginQuery(target, (GLuint)get_host_query_id(opengl_context, (unsigned int)id));
-        // printf("glBeginQuery %llx %d -> %d target %llx r_context %llx\n", opengl_context, id, (GLuint)get_host_query_id(opengl_context, (unsigned int)id), target, r_context);
+        // printf("glBeginQuery %llx %d -> %d target %llx r_context %llx\n", (uint64_t)opengl_context, id, (GLuint)get_host_query_id(opengl_context, (unsigned int)id), target, r_context);
     }
     break;
 
@@ -8119,7 +8120,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum target;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glEndQuery)
+        if (unlikely(para_num < PARA_NUM_MIN_glEndQuery))
         {
             break;
         }
@@ -8128,14 +8129,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8153,7 +8154,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         target = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8181,7 +8182,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glViewport)
+        if (unlikely(para_num < PARA_NUM_MIN_glViewport))
         {
             break;
         }
@@ -8190,14 +8191,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8224,7 +8225,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8251,7 +8252,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexStorage2D)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexStorage2D))
         {
             break;
         }
@@ -8260,14 +8261,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8297,12 +8298,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureStorage2D(bind_texture, levels, internalformat, width, height);
@@ -8334,7 +8335,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei depth;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexStorage3D)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexStorage3D))
         {
             break;
         }
@@ -8343,14 +8344,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8383,12 +8384,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         depth = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureStorage3D(bind_texture, levels, internalformat, width, height, depth);
@@ -8423,7 +8424,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr pixels;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexImage2D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexImage2D_with_bound))
         {
             break;
         }
@@ -8432,14 +8433,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (unlikely(temp_len < 40 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8481,7 +8482,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pixels = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8512,7 +8513,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr pixels;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexSubImage2D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexSubImage2D_with_bound))
         {
             break;
         }
@@ -8521,14 +8522,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (unlikely(temp_len < 40 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8570,7 +8571,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pixels = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8602,7 +8603,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr pixels;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexImage3D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexImage3D_with_bound))
         {
             break;
         }
@@ -8611,14 +8612,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 44 * 1)
+        if (unlikely(temp_len < 44 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8663,7 +8664,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pixels = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8696,7 +8697,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr pixels;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexSubImage3D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexSubImage3D_with_bound))
         {
             break;
         }
@@ -8705,14 +8706,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 48 * 1)
+        if (unlikely(temp_len < 48 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8760,7 +8761,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pixels = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8789,7 +8790,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr pixels;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReadPixels_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glReadPixels_with_bound))
         {
             break;
         }
@@ -8798,14 +8799,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8841,7 +8842,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pixels = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8871,7 +8872,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr data;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexImage2D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexImage2D_with_bound))
         {
             break;
         }
@@ -8880,14 +8881,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
+        if (unlikely(temp_len < 36 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -8926,7 +8927,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         data = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -8957,7 +8958,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr data;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage2D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexSubImage2D_with_bound))
         {
             break;
         }
@@ -8966,14 +8967,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (unlikely(temp_len < 40 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9015,7 +9016,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         data = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9046,7 +9047,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr data;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexImage3D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexImage3D_with_bound))
         {
             break;
         }
@@ -9055,14 +9056,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (unlikely(temp_len < 40 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9104,7 +9105,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         data = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9137,7 +9138,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr data;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage3D_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexSubImage3D_with_bound))
         {
             break;
         }
@@ -9146,14 +9147,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 48 * 1)
+        if (unlikely(temp_len < 48 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9201,7 +9202,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         data = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9231,7 +9232,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint border;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCopyTexImage2D)
+        if (unlikely(para_num < PARA_NUM_MIN_glCopyTexImage2D))
         {
             break;
         }
@@ -9240,14 +9241,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9286,12 +9287,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         border = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             if(glCopyTextureImage2DEXT == NULL)
@@ -9329,7 +9330,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCopyTexSubImage2D)
+        if (unlikely(para_num < PARA_NUM_MIN_glCopyTexSubImage2D))
         {
             break;
         }
@@ -9338,14 +9339,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9384,12 +9385,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glCopyTextureSubImage2D(bind_texture, level, xoffset, yoffset, x, y, width, height);
@@ -9424,7 +9425,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCopyTexSubImage3D)
+        if (unlikely(para_num < PARA_NUM_MIN_glCopyTexSubImage3D))
         {
             break;
         }
@@ -9433,14 +9434,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
+        if (unlikely(temp_len < 36 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9482,12 +9483,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glCopyTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, x, y, width, height);
@@ -9518,7 +9519,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr pointer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribPointer_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribPointer_with_bound))
         {
             break;
         }
@@ -9527,14 +9528,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9567,7 +9568,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pointer = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9596,7 +9597,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr offset;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribPointer_offset)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribPointer_offset))
         {
             break;
         }
@@ -9605,14 +9606,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9648,7 +9649,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         offset = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9674,7 +9675,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLbitfield access;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMapBufferRange_write)
+        if (unlikely(para_num < PARA_NUM_MIN_glMapBufferRange_write))
         {
             break;
         }
@@ -9683,14 +9684,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9717,7 +9718,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         access = *(GLbitfield *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9740,7 +9741,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum target;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUnmapBuffer_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glUnmapBuffer_special))
         {
             break;
         }
@@ -9749,14 +9750,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9774,7 +9775,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         target = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9799,7 +9800,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint64 timeout;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glWaitSync)
+        if (unlikely(para_num < PARA_NUM_MIN_glWaitSync))
         {
             break;
         }
@@ -9808,14 +9809,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9839,14 +9840,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         timeout = *(GLuint64 *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        express_printf("glWaitSync context %llx guest %u host %llu timeout %llu\n",opengl_context, (unsigned int)sync,
-            (GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), timeout);
-        glWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), flags, timeout);
-        // glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)sync), GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+        express_printf("glWaitSync context %llx guest %u host %llu timeout %llu\n",(uint64_t)opengl_context, (unsigned int)(uint64_t)sync,
+            (GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), timeout);
+        glWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), flags, timeout);
+        // glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
 
     }
     break;
@@ -9868,7 +9869,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei length;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glShaderBinary)
+        if (unlikely(para_num < PARA_NUM_MIN_glShaderBinary))
         {
             break;
         }
@@ -9877,14 +9878,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9914,7 +9915,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const void *binary = (const void *)(temp + temp_loc);
         temp_loc += length;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -9939,7 +9940,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei length;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramBinary_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramBinary_special))
         {
             break;
         }
@@ -9948,14 +9949,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -9984,7 +9985,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10001,7 +10002,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             printf("error! glProgramBinary program_data_len != 4 %d\n", out_buf_len);
             break;
         }
-        express_printf("context %llx program binary %u host %u\n",opengl_context, program,
+        express_printf("context %llx program binary %u host %u\n",(uint64_t)opengl_context, program,
             (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glProgramBinary_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), binaryFormat, binary, length, program_data_len);
 
@@ -10025,7 +10026,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawBuffers)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawBuffers))
         {
             break;
         }
@@ -10034,14 +10035,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10062,7 +10063,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLenum *bufs = (const GLenum *)(temp + temp_loc);
         temp_loc += n * sizeof(GLenum);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10087,7 +10088,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawArrays_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawArrays_origin))
         {
             break;
         }
@@ -10096,14 +10097,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10127,7 +10128,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         count = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10153,7 +10154,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei instancecount;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawArraysInstanced_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawArraysInstanced_origin))
         {
             break;
         }
@@ -10162,14 +10163,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10196,7 +10197,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         instancecount = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10223,7 +10224,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei instancecount;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElementsInstanced_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawElementsInstanced_with_bound))
         {
             break;
         }
@@ -10232,14 +10233,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10269,7 +10270,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         instancecount = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10295,7 +10296,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizeiptr indices;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElements_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawElements_with_bound))
         {
             break;
         }
@@ -10304,14 +10305,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10338,7 +10339,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         indices = *(GLsizeiptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10366,7 +10367,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizeiptr indices;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawRangeElements_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawRangeElements_with_bound))
         {
             break;
         }
@@ -10375,14 +10376,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10415,7 +10416,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         indices = *(GLsizeiptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10441,7 +10442,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLdouble d;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTestIntAsyn)
+        if (unlikely(para_num < PARA_NUM_MIN_glTestIntAsyn))
         {
             break;
         }
@@ -10450,14 +10451,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10484,7 +10485,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         d = *(GLdouble *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10509,7 +10510,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLdouble c;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPrintfAsyn)
+        if (unlikely(para_num < PARA_NUM_MIN_glPrintfAsyn))
         {
             break;
         }
@@ -10518,14 +10519,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10552,7 +10553,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLchar *out_string = (const GLchar *)(temp + temp_loc);
         temp_loc += strlen(out_string) + 1;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10576,7 +10577,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLeglImageOES imageSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glEGLImageTargetTexture2DOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glEGLImageTargetTexture2DOES))
         {
             break;
         }
@@ -10585,14 +10586,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10613,7 +10614,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         imageSize = *(GLeglImageOES *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10637,7 +10638,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLeglImageOES image;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glEGLImageTargetRenderbufferStorageOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glEGLImageTargetRenderbufferStorageOES))
         {
             break;
         }
@@ -10646,14 +10647,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10674,7 +10675,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         image = *(GLeglImageOES *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10701,7 +10702,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenBuffers)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenBuffers))
         {
             break;
         }
@@ -10710,14 +10711,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10738,7 +10739,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *buffers = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10761,7 +10762,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenRenderbuffers)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenRenderbuffers))
         {
             break;
         }
@@ -10770,14 +10771,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10798,7 +10799,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *renderbuffers = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10821,7 +10822,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenTextures)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenTextures))
         {
             break;
         }
@@ -10830,14 +10831,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10858,7 +10859,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *textures = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10881,7 +10882,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenSamplers)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenSamplers))
         {
             break;
         }
@@ -10890,14 +10891,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10918,7 +10919,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *samplers = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10941,7 +10942,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCreateProgram)
+        if (unlikely(para_num < PARA_NUM_MIN_glCreateProgram))
         {
             break;
         }
@@ -10950,14 +10951,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -10975,7 +10976,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -10999,7 +11000,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint shader;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCreateShader)
+        if (unlikely(para_num < PARA_NUM_MIN_glCreateShader))
         {
             break;
         }
@@ -11008,14 +11009,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11036,7 +11037,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         shader = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11061,7 +11062,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsync sync;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFenceSync)
+        if (unlikely(para_num < PARA_NUM_MIN_glFenceSync))
         {
             break;
         }
@@ -11070,14 +11071,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11101,7 +11102,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         sync = *(GLsync *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11126,7 +11127,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCreateShaderProgramv_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glCreateShaderProgramv_special))
         {
             break;
         }
@@ -11135,14 +11136,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11174,7 +11175,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             temp_loc += strlen(strings[i]) + 1;
         }
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11193,7 +11194,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        d_glCreateShaderProgramv_special(opengl_context, type, count, strings, program, program_data_len);
+        d_glCreateShaderProgramv_special(opengl_context, type, count, (const GLchar * const*)strings, program, program_data_len);
 
         guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
 
@@ -11217,7 +11218,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenFramebuffers)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenFramebuffers))
         {
             break;
         }
@@ -11226,14 +11227,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11254,7 +11255,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *framebuffers = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11277,7 +11278,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenProgramPipelines)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenProgramPipelines))
         {
             break;
         }
@@ -11286,14 +11287,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11314,7 +11315,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *pipelines = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11337,7 +11338,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenTransformFeedbacks)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenTransformFeedbacks))
         {
             break;
         }
@@ -11346,14 +11347,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11374,7 +11375,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *ids = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11397,7 +11398,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenVertexArrays)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenVertexArrays))
         {
             break;
         }
@@ -11406,14 +11407,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11434,7 +11435,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *arrays = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11457,7 +11458,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenQueries)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenQueries))
         {
             break;
         }
@@ -11466,14 +11467,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11494,7 +11495,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *ids = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11517,7 +11518,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteBuffers_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteBuffers_origin))
         {
             break;
         }
@@ -11526,14 +11527,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11554,7 +11555,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *buffers = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11577,7 +11578,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteRenderbuffers)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteRenderbuffers))
         {
             break;
         }
@@ -11586,14 +11587,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11614,7 +11615,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *renderbuffers = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11637,7 +11638,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteTextures)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteTextures))
         {
             break;
         }
@@ -11646,14 +11647,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11674,7 +11675,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *textures = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11697,7 +11698,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteSamplers)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteSamplers))
         {
             break;
         }
@@ -11706,14 +11707,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11734,7 +11735,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *samplers = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11757,7 +11758,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteProgram_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteProgram_origin))
         {
             break;
         }
@@ -11766,14 +11767,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11791,7 +11792,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11814,7 +11815,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint shader;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteShader)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteShader))
         {
             break;
         }
@@ -11823,14 +11824,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11848,7 +11849,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         shader = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11871,7 +11872,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsync sync;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteSync)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteSync))
         {
             break;
         }
@@ -11880,14 +11881,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11905,7 +11906,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         sync = *(GLsync *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11928,7 +11929,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteFramebuffers)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteFramebuffers))
         {
             break;
         }
@@ -11937,14 +11938,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -11965,7 +11966,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *framebuffers = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -11988,7 +11989,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteProgramPipelines)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteProgramPipelines))
         {
             break;
         }
@@ -11997,14 +11998,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12025,7 +12026,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *pipelines = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12048,7 +12049,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteTransformFeedbacks)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteTransformFeedbacks))
         {
             break;
         }
@@ -12057,14 +12058,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12085,7 +12086,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *ids = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12108,7 +12109,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteVertexArrays_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteVertexArrays_origin))
         {
             break;
         }
@@ -12117,14 +12118,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12145,7 +12146,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *arrays = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12168,7 +12169,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei n;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDeleteQueries)
+        if (unlikely(para_num < PARA_NUM_MIN_glDeleteQueries))
         {
             break;
         }
@@ -12177,14 +12178,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12205,7 +12206,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *ids = (const GLuint *)(temp + temp_loc);
         temp_loc += n * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12232,7 +12233,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLinkProgram_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glLinkProgram_special))
         {
             break;
         }
@@ -12241,14 +12242,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12268,7 +12269,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12287,7 +12288,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        express_printf("context %llx link program %u host %u\n",opengl_context, program,
+        express_printf("context %llx link program %u host %u\n",(uint64_t)opengl_context, program,
             (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glLinkProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), program_data_len);
 
@@ -12311,7 +12312,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPixelStorei_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glPixelStorei_origin))
         {
             break;
         }
@@ -12320,14 +12321,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12348,7 +12349,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12371,7 +12372,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDisableVertexAttribArray_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glDisableVertexAttribArray_origin))
         {
             break;
         }
@@ -12380,14 +12381,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12405,7 +12406,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         index = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12428,7 +12429,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glEnableVertexAttribArray_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glEnableVertexAttribArray_origin))
         {
             break;
         }
@@ -12437,14 +12438,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12462,7 +12463,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         index = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12485,7 +12486,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum src;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReadBuffer_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glReadBuffer_special))
         {
             break;
         }
@@ -12494,14 +12495,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12519,7 +12520,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         src = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12543,7 +12544,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint divisor;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribDivisor_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribDivisor_origin))
         {
             break;
         }
@@ -12552,14 +12553,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12580,7 +12581,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         divisor = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12605,7 +12606,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glShaderSource_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glShaderSource_special))
         {
             break;
         }
@@ -12614,14 +12615,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12642,10 +12643,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         count = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        const GLint *length = (const GLint *)(temp + temp_loc);
+        GLint *length = (GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint);
 
-        GLchar **string = g_malloc(count * sizeof(const GLchar *));
+        GLchar **string = g_malloc(count * sizeof(GLchar *));
 
         for (int i = 0; i < count; i++)
         {
@@ -12653,7 +12654,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             temp_loc += length[i];
         }
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12682,7 +12683,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr pointer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribIPointer_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribIPointer_with_bound))
         {
             break;
         }
@@ -12691,14 +12692,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12728,7 +12729,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pointer = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12756,7 +12757,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr offset;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribIPointer_offset)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribIPointer_offset))
         {
             break;
         }
@@ -12765,14 +12766,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12805,7 +12806,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         offset = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12828,7 +12829,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint array;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindVertexArray_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindVertexArray_special))
         {
             break;
         }
@@ -12837,14 +12838,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12862,11 +12863,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         array = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        express_printf("context %llx bind vertexArray guest %u host %u\n",opengl_context,array,(GLuint)get_host_array_id(opengl_context, (unsigned int)array));
+        express_printf("context %llx bind vertexArray guest %u host %u\n",(uint64_t)opengl_context,array,(GLuint)get_host_array_id(opengl_context, (unsigned int)array));
         d_glBindVertexArray_special(opengl_context, array);
     }
     break;
@@ -12886,7 +12887,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint buffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindBuffer_origin)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindBuffer_origin))
         {
             break;
         }
@@ -12895,14 +12896,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12923,7 +12924,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         buffer = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -12946,7 +12947,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum primitiveMode;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBeginTransformFeedback)
+        if (unlikely(para_num < PARA_NUM_MIN_glBeginTransformFeedback))
         {
             break;
         }
@@ -12955,14 +12956,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -12980,7 +12981,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         primitiveMode = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13002,7 +13003,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glEndTransformFeedback)
+        if (unlikely(para_num < PARA_NUM_MIN_glEndTransformFeedback))
         {
             break;
         }
@@ -13024,7 +13025,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPauseTransformFeedback)
+        if (unlikely(para_num < PARA_NUM_MIN_glPauseTransformFeedback))
         {
             break;
         }
@@ -13046,7 +13047,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glResumeTransformFeedback)
+        if (unlikely(para_num < PARA_NUM_MIN_glResumeTransformFeedback))
         {
             break;
         }
@@ -13073,7 +13074,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizeiptr size;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindBufferRange)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindBufferRange))
         {
             break;
         }
@@ -13082,14 +13083,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13119,7 +13120,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         size = *(GLsizeiptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13147,7 +13148,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint buffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindBufferBase)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindBufferBase))
         {
             break;
         }
@@ -13156,14 +13157,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13187,7 +13188,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         buffer = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13211,7 +13212,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint texture;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindTexture)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindTexture))
         {
             break;
         }
@@ -13220,14 +13221,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13248,7 +13249,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         texture = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13256,7 +13257,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         // glGetIntegerv(GL_TEXTURE_BINDING_2D,&pre_texture);
         // static int cnt = 0;
         // cnt ++;
-        // printf("context %llx cnt %d bindtexture target %x guest %u host %u pre %u\n",opengl_context,cnt,target,texture,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),pre_texture);
+        // printf("context %llx cnt %d bindtexture target %x guest %u host %u pre %u\n",(uint64_t)opengl_context,cnt,target,texture,(GLuint)get_host_texture_id(opengl_context, (unsigned int)texture),pre_texture);
         d_glBindTexture_special(opengl_context, target, texture);
     }
     break;
@@ -13276,7 +13277,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint renderbuffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindRenderbuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindRenderbuffer))
         {
             break;
         }
@@ -13285,14 +13286,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13313,7 +13314,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         renderbuffer = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13337,7 +13338,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint sampler;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindSampler)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindSampler))
         {
             break;
         }
@@ -13346,14 +13347,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13374,7 +13375,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         sampler = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13398,7 +13399,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint framebuffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindFramebuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindFramebuffer))
         {
             break;
         }
@@ -13407,14 +13408,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13435,11 +13436,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         framebuffer = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        // printf("context %llx glBindFramebuffer %x guest %d host %d\n",opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
+        // printf("context %llx glBindFramebuffer %x guest %d host %d\n",(uint64_t)opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
         d_glBindFramebuffer_special(opengl_context, target, (GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
     }
     break;
@@ -13458,7 +13459,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint pipeline;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindProgramPipeline)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindProgramPipeline))
         {
             break;
         }
@@ -13467,14 +13468,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13492,7 +13493,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pipeline = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13516,7 +13517,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint feedback_id;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindTransformFeedback)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindTransformFeedback))
         {
             break;
         }
@@ -13525,14 +13526,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13553,7 +13554,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         feedback_id = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13574,7 +13575,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         EGLContext share_ctx;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindEGLImage)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindEGLImage))
         {
             break;
         }
@@ -13583,14 +13584,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < (28) * 1)
+        if (unlikely(temp_len < (28) * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13620,7 +13621,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         share_ctx = *(EGLContext *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13644,7 +13645,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum texture;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glActiveTexture)
+        if (unlikely(para_num < PARA_NUM_MIN_glActiveTexture))
         {
             break;
         }
@@ -13653,14 +13654,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13678,11 +13679,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         texture = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        //printf("context %llx ActiveTexture %d\n",opengl_context, texture-GL_TEXTURE0);
+        //printf("context %llx ActiveTexture %d\n",(uint64_t)opengl_context, texture-GL_TEXTURE0);
         d_glActiveTexture_special(opengl_context, texture);
     }
     break;
@@ -13702,7 +13703,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint shader;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glAttachShader)
+        if (unlikely(para_num < PARA_NUM_MIN_glAttachShader))
         {
             break;
         }
@@ -13711,14 +13712,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13739,7 +13740,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         shader = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13766,7 +13767,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat alpha;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlendColor)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlendColor))
         {
             break;
         }
@@ -13775,14 +13776,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13809,7 +13810,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         alpha = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13832,7 +13833,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum mode;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlendEquation)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlendEquation))
         {
             break;
         }
@@ -13841,14 +13842,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13866,7 +13867,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mode = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13890,7 +13891,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum modeAlpha;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlendEquationSeparate)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlendEquationSeparate))
         {
             break;
         }
@@ -13899,14 +13900,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13927,7 +13928,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         modeAlpha = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -13951,7 +13952,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum dfactor;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlendFunc)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlendFunc))
         {
             break;
         }
@@ -13960,14 +13961,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -13988,7 +13989,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         dfactor = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14014,7 +14015,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum dfactorAlpha;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlendFuncSeparate)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlendFuncSeparate))
         {
             break;
         }
@@ -14023,14 +14024,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14057,7 +14058,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         dfactorAlpha = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14080,7 +14081,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLbitfield mask;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClear)
+        if (unlikely(para_num < PARA_NUM_MIN_glClear))
         {
             break;
         }
@@ -14089,14 +14090,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14114,7 +14115,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mask = *(GLbitfield *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14140,7 +14141,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat alpha;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearColor)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearColor))
         {
             break;
         }
@@ -14149,14 +14150,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14183,7 +14184,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         alpha = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14206,7 +14207,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat d;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearDepthf)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearDepthf))
         {
             break;
         }
@@ -14215,14 +14216,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14240,7 +14241,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         d = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14263,7 +14264,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint s;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearStencil)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearStencil))
         {
             break;
         }
@@ -14272,14 +14273,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14297,7 +14298,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         s = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14323,7 +14324,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean alpha;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glColorMask)
+        if (unlikely(para_num < PARA_NUM_MIN_glColorMask))
         {
             break;
         }
@@ -14332,14 +14333,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14366,7 +14367,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         alpha = *(GLboolean *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14389,7 +14390,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint shader;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompileShader)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompileShader))
         {
             break;
         }
@@ -14398,14 +14399,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14423,7 +14424,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         shader = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14446,7 +14447,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum mode;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCullFace)
+        if (unlikely(para_num < PARA_NUM_MIN_glCullFace))
         {
             break;
         }
@@ -14455,14 +14456,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14480,7 +14481,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mode = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14503,7 +14504,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum func;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDepthFunc)
+        if (unlikely(para_num < PARA_NUM_MIN_glDepthFunc))
         {
             break;
         }
@@ -14512,14 +14513,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14537,7 +14538,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         func = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14560,7 +14561,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean flag;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDepthMask)
+        if (unlikely(para_num < PARA_NUM_MIN_glDepthMask))
         {
             break;
         }
@@ -14569,14 +14570,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14594,7 +14595,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         flag = *(GLboolean *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14618,7 +14619,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat f;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDepthRangef)
+        if (unlikely(para_num < PARA_NUM_MIN_glDepthRangef))
         {
             break;
         }
@@ -14627,14 +14628,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14655,7 +14656,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         f = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14679,7 +14680,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint shader;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDetachShader)
+        if (unlikely(para_num < PARA_NUM_MIN_glDetachShader))
         {
             break;
         }
@@ -14688,14 +14689,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14716,7 +14717,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         shader = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14739,7 +14740,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum cap;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDisable)
+        if (unlikely(para_num < PARA_NUM_MIN_glDisable))
         {
             break;
         }
@@ -14748,14 +14749,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14773,7 +14774,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         cap = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14799,7 +14800,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum cap;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glEnable)
+        if (unlikely(para_num < PARA_NUM_MIN_glEnable))
         {
             break;
         }
@@ -14808,14 +14809,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14833,7 +14834,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         cap = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14864,7 +14865,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint renderbuffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFramebufferRenderbuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glFramebufferRenderbuffer))
         {
             break;
         }
@@ -14873,14 +14874,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14907,7 +14908,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         renderbuffer = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -14934,7 +14935,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint level;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFramebufferTexture2D)
+        if (unlikely(para_num < PARA_NUM_MIN_glFramebufferTexture2D))
         {
             break;
         }
@@ -14943,14 +14944,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -14980,13 +14981,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         level = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
         // GLuint t;
         // glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
-        // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
+        // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",(uint64_t)opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
         d_glFramebufferTexture2D_special(opengl_context, target, attachment, textarget, texture, level);
         // glFramebufferTexture2D(target, attachment, textarget, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
     }
@@ -15006,7 +15007,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum mode;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFrontFace)
+        if (unlikely(para_num < PARA_NUM_MIN_glFrontFace))
         {
             break;
         }
@@ -15015,14 +15016,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15040,7 +15041,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mode = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15063,7 +15064,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum target;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGenerateMipmap)
+        if (unlikely(para_num < PARA_NUM_MIN_glGenerateMipmap))
         {
             break;
         }
@@ -15072,14 +15073,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15097,12 +15098,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         target = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glGenerateTextureMipmap(bind_texture);
@@ -15131,7 +15132,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum mode;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glHint)
+        if (unlikely(para_num < PARA_NUM_MIN_glHint))
         {
             break;
         }
@@ -15140,14 +15141,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15168,7 +15169,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mode = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15191,7 +15192,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat width;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLineWidth)
+        if (unlikely(para_num < PARA_NUM_MIN_glLineWidth))
         {
             break;
         }
@@ -15200,14 +15201,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15225,7 +15226,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         width = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15249,7 +15250,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat units;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPolygonOffset)
+        if (unlikely(para_num < PARA_NUM_MIN_glPolygonOffset))
         {
             break;
         }
@@ -15258,14 +15259,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15286,7 +15287,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         units = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15308,7 +15309,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReleaseShaderCompiler)
+        if (unlikely(para_num < PARA_NUM_MIN_glReleaseShaderCompiler))
         {
             break;
         }
@@ -15334,7 +15335,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glRenderbufferStorage)
+        if (unlikely(para_num < PARA_NUM_MIN_glRenderbufferStorage))
         {
             break;
         }
@@ -15343,14 +15344,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15377,7 +15378,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15401,7 +15402,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean invert;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSampleCoverage)
+        if (unlikely(para_num < PARA_NUM_MIN_glSampleCoverage))
         {
             break;
         }
@@ -15410,14 +15411,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15438,7 +15439,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         invert = *(GLboolean *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15464,7 +15465,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glScissor)
+        if (unlikely(para_num < PARA_NUM_MIN_glScissor))
         {
             break;
         }
@@ -15473,14 +15474,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15507,7 +15508,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15532,7 +15533,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint mask;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glStencilFunc)
+        if (unlikely(para_num < PARA_NUM_MIN_glStencilFunc))
         {
             break;
         }
@@ -15541,14 +15542,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15572,7 +15573,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mask = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15598,7 +15599,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint mask;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glStencilFuncSeparate)
+        if (unlikely(para_num < PARA_NUM_MIN_glStencilFuncSeparate))
         {
             break;
         }
@@ -15607,14 +15608,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15641,7 +15642,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mask = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15664,7 +15665,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint mask;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glStencilMask)
+        if (unlikely(para_num < PARA_NUM_MIN_glStencilMask))
         {
             break;
         }
@@ -15673,14 +15674,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15698,7 +15699,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mask = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15722,7 +15723,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint mask;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glStencilMaskSeparate)
+        if (unlikely(para_num < PARA_NUM_MIN_glStencilMaskSeparate))
         {
             break;
         }
@@ -15731,14 +15732,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15759,7 +15760,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mask = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15784,7 +15785,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum zpass;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glStencilOp)
+        if (unlikely(para_num < PARA_NUM_MIN_glStencilOp))
         {
             break;
         }
@@ -15793,14 +15794,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15824,7 +15825,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         zpass = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15850,7 +15851,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum dppass;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glStencilOpSeparate)
+        if (unlikely(para_num < PARA_NUM_MIN_glStencilOpSeparate))
         {
             break;
         }
@@ -15859,14 +15860,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15893,7 +15894,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         dppass = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -15918,7 +15919,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexParameterf)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexParameterf))
         {
             break;
         }
@@ -15927,14 +15928,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -15958,12 +15959,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameterf(bind_texture, pname, param);
@@ -16011,7 +16012,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexParameteri)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexParameteri))
         {
             break;
         }
@@ -16020,14 +16021,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16051,12 +16052,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameteri(bind_texture, pname, param);
@@ -16101,7 +16102,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v0;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform1f)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform1f))
         {
             break;
         }
@@ -16110,14 +16111,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16138,7 +16139,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v0 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16162,7 +16163,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v0;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform1i)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform1i))
         {
             break;
         }
@@ -16171,14 +16172,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16199,7 +16200,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v0 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16224,7 +16225,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v1;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform2f)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform2f))
         {
             break;
         }
@@ -16233,14 +16234,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16264,7 +16265,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v1 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16289,7 +16290,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v1;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform2i)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform2i))
         {
             break;
         }
@@ -16298,14 +16299,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16329,7 +16330,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v1 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16355,7 +16356,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v2;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform3f)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform3f))
         {
             break;
         }
@@ -16364,14 +16365,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16398,7 +16399,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v2 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16424,7 +16425,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v2;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform3i)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform3i))
         {
             break;
         }
@@ -16433,14 +16434,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16467,7 +16468,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v2 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16494,7 +16495,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v3;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform4f)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform4f))
         {
             break;
         }
@@ -16503,14 +16504,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16540,7 +16541,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v3 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16567,7 +16568,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v3;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform4i)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform4i))
         {
             break;
         }
@@ -16576,14 +16577,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16613,7 +16614,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v3 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16636,7 +16637,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUseProgram)
+        if (unlikely(para_num < PARA_NUM_MIN_glUseProgram))
         {
             break;
         }
@@ -16645,14 +16646,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16670,12 +16671,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        express_printf("context %llx use program guest %u host %u\n",opengl_context, program, 
+        express_printf("context %llx use program guest %u host %u\n",(uint64_t)opengl_context, program, 
             (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glUseProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
@@ -16695,7 +16696,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glValidateProgram)
+        if (unlikely(para_num < PARA_NUM_MIN_glValidateProgram))
         {
             break;
         }
@@ -16704,14 +16705,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16729,7 +16730,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16753,7 +16754,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat x;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib1f)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib1f))
         {
             break;
         }
@@ -16762,14 +16763,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16790,7 +16791,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         x = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16815,7 +16816,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat y;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib2f)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib2f))
         {
             break;
         }
@@ -16824,14 +16825,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16855,7 +16856,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         y = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16881,7 +16882,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat z;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib3f)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib3f))
         {
             break;
         }
@@ -16890,14 +16891,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16924,7 +16925,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         z = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -16951,7 +16952,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat w;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib4f)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib4f))
         {
             break;
         }
@@ -16960,14 +16961,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -16997,7 +16998,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         w = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17029,7 +17030,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum filter;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlitFramebuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlitFramebuffer))
         {
             break;
         }
@@ -17038,14 +17039,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (unlikely(temp_len < 40 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17090,7 +17091,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         filter = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17117,7 +17118,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glRenderbufferStorageMultisample)
+        if (unlikely(para_num < PARA_NUM_MIN_glRenderbufferStorageMultisample))
         {
             break;
         }
@@ -17126,14 +17127,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17163,7 +17164,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17190,7 +17191,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint layer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFramebufferTextureLayer)
+        if (unlikely(para_num < PARA_NUM_MIN_glFramebufferTextureLayer))
         {
             break;
         }
@@ -17199,14 +17200,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17236,7 +17237,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         layer = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17263,7 +17264,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint w;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribI4i)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribI4i))
         {
             break;
         }
@@ -17272,14 +17273,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17309,7 +17310,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         w = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17336,7 +17337,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint w;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribI4ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribI4ui))
         {
             break;
         }
@@ -17345,14 +17346,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17382,7 +17383,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         w = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17406,7 +17407,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v0;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform1ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform1ui))
         {
             break;
         }
@@ -17415,14 +17416,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17443,7 +17444,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v0 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17468,7 +17469,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v1;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform2ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform2ui))
         {
             break;
         }
@@ -17477,14 +17478,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17508,7 +17509,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v1 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17534,7 +17535,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v2;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform3ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform3ui))
         {
             break;
         }
@@ -17543,14 +17544,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17577,7 +17578,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v2 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17604,7 +17605,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v3;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform4ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform4ui))
         {
             break;
         }
@@ -17613,14 +17614,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17650,7 +17651,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v3 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17676,7 +17677,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint stencil;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearBufferfi)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearBufferfi))
         {
             break;
         }
@@ -17685,14 +17686,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17719,7 +17720,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         stencil = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17746,7 +17747,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizeiptr size;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCopyBufferSubData)
+        if (unlikely(para_num < PARA_NUM_MIN_glCopyBufferSubData))
         {
             break;
         }
@@ -17755,14 +17756,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17792,11 +17793,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         size = *(GLsizeiptr *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_buffer1 = get_guest_binding_texture(opengl_context, readTarget);
             GLuint bind_buffer2 = get_guest_binding_texture(opengl_context, writeTarget);
@@ -17825,7 +17826,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint uniformBlockBinding;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformBlockBinding)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformBlockBinding))
         {
             break;
         }
@@ -17834,14 +17835,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17865,7 +17866,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         uniformBlockBinding = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17890,7 +17891,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSamplerParameteri)
+        if (unlikely(para_num < PARA_NUM_MIN_glSamplerParameteri))
         {
             break;
         }
@@ -17899,14 +17900,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17930,7 +17931,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -17955,7 +17956,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSamplerParameterf)
+        if (unlikely(para_num < PARA_NUM_MIN_glSamplerParameterf))
         {
             break;
         }
@@ -17964,14 +17965,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -17995,7 +17996,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18020,7 +18021,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint value;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramParameteri)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramParameteri))
         {
             break;
         }
@@ -18029,14 +18030,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18060,7 +18061,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         value = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18084,7 +18085,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed ref;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glAlphaFuncxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glAlphaFuncxOES))
         {
             break;
         }
@@ -18093,14 +18094,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18121,7 +18122,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         ref = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18147,7 +18148,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed alpha;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearColorxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearColorxOES))
         {
             break;
         }
@@ -18156,14 +18157,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18190,7 +18191,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         alpha = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18213,7 +18214,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed depth;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearDepthxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearDepthxOES))
         {
             break;
         }
@@ -18222,14 +18223,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18247,7 +18248,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         depth = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18273,7 +18274,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed alpha;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glColor4xOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glColor4xOES))
         {
             break;
         }
@@ -18282,14 +18283,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18316,7 +18317,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         alpha = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18340,7 +18341,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed f;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDepthRangexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glDepthRangexOES))
         {
             break;
         }
@@ -18349,14 +18350,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18377,7 +18378,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         f = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18401,7 +18402,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFogxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glFogxOES))
         {
             break;
         }
@@ -18410,14 +18411,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18438,7 +18439,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18466,7 +18467,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed f;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFrustumxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glFrustumxOES))
         {
             break;
         }
@@ -18475,14 +18476,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18515,7 +18516,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         f = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18539,7 +18540,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLightModelxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glLightModelxOES))
         {
             break;
         }
@@ -18548,14 +18549,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18576,7 +18577,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18601,7 +18602,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLightxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glLightxOES))
         {
             break;
         }
@@ -18610,14 +18611,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18641,7 +18642,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18664,7 +18665,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed width;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLineWidthxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glLineWidthxOES))
         {
             break;
         }
@@ -18673,14 +18674,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18698,7 +18699,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         width = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18723,7 +18724,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMaterialxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glMaterialxOES))
         {
             break;
         }
@@ -18732,14 +18733,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18763,7 +18764,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18790,7 +18791,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed q;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMultiTexCoord4xOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glMultiTexCoord4xOES))
         {
             break;
         }
@@ -18799,14 +18800,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18836,7 +18837,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         q = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18861,7 +18862,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed nz;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glNormal3xOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glNormal3xOES))
         {
             break;
         }
@@ -18870,14 +18871,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18901,7 +18902,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         nz = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -18929,7 +18930,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed f;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glOrthoxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glOrthoxOES))
         {
             break;
         }
@@ -18938,14 +18939,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -18978,7 +18979,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         f = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19001,7 +19002,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed size;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPointSizexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glPointSizexOES))
         {
             break;
         }
@@ -19010,14 +19011,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19035,7 +19036,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         size = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19059,7 +19060,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed units;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPolygonOffsetxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glPolygonOffsetxOES))
         {
             break;
         }
@@ -19068,14 +19069,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19096,7 +19097,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         units = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19122,7 +19123,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed z;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glRotatexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glRotatexOES))
         {
             break;
         }
@@ -19131,14 +19132,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19165,7 +19166,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         z = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19190,7 +19191,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed z;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glScalexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glScalexOES))
         {
             break;
         }
@@ -19199,14 +19200,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19230,7 +19231,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         z = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19255,7 +19256,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexEnvxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexEnvxOES))
         {
             break;
         }
@@ -19264,14 +19265,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19295,7 +19296,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19320,7 +19321,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed z;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTranslatexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glTranslatexOES))
         {
             break;
         }
@@ -19329,14 +19330,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19360,7 +19361,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         z = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19384,7 +19385,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPointParameterxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glPointParameterxOES))
         {
             break;
         }
@@ -19393,14 +19394,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19421,7 +19422,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19445,7 +19446,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean invert;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSampleCoveragexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glSampleCoveragexOES))
         {
             break;
         }
@@ -19454,14 +19455,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19482,7 +19483,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         invert = *(GLboolean *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19507,7 +19508,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexGenxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexGenxOES))
         {
             break;
         }
@@ -19516,14 +19517,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19547,7 +19548,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19570,7 +19571,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLclampf depth;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearDepthfOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearDepthfOES))
         {
             break;
         }
@@ -19579,14 +19580,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19604,7 +19605,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         depth = *(GLclampf *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19628,7 +19629,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLclampf f;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDepthRangefOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glDepthRangefOES))
         {
             break;
         }
@@ -19637,14 +19638,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19665,7 +19666,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         f = *(GLclampf *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19693,7 +19694,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat f;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFrustumfOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glFrustumfOES))
         {
             break;
         }
@@ -19702,14 +19703,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19742,7 +19743,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         f = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19770,7 +19771,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat f;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glOrthofOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glOrthofOES))
         {
             break;
         }
@@ -19779,14 +19780,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19819,7 +19820,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         f = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19846,7 +19847,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glRenderbufferStorageMultisampleEXT)
+        if (unlikely(para_num < PARA_NUM_MIN_glRenderbufferStorageMultisampleEXT))
         {
             break;
         }
@@ -19855,14 +19856,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19892,7 +19893,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         height = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19917,7 +19918,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUseProgramStages)
+        if (unlikely(para_num < PARA_NUM_MIN_glUseProgramStages))
         {
             break;
         }
@@ -19926,14 +19927,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -19957,7 +19958,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -19981,7 +19982,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint program;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glActiveShaderProgram)
+        if (unlikely(para_num < PARA_NUM_MIN_glActiveShaderProgram))
         {
             break;
         }
@@ -19990,14 +19991,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20018,7 +20019,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20043,7 +20044,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v0;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform1i)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform1i))
         {
             break;
         }
@@ -20052,14 +20053,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20083,7 +20084,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v0 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20109,7 +20110,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v1;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform2i)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform2i))
         {
             break;
         }
@@ -20118,14 +20119,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20152,7 +20153,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v1 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20179,7 +20180,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v2;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform3i)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform3i))
         {
             break;
         }
@@ -20188,14 +20189,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20225,7 +20226,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v2 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20253,7 +20254,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint v3;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform4i)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform4i))
         {
             break;
         }
@@ -20262,14 +20263,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20302,7 +20303,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v3 = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20327,7 +20328,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v0;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform1ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform1ui))
         {
             break;
         }
@@ -20336,14 +20337,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20367,7 +20368,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v0 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20393,7 +20394,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v1;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform2ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform2ui))
         {
             break;
         }
@@ -20402,14 +20403,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20436,7 +20437,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v1 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20463,7 +20464,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v2;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform3ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform3ui))
         {
             break;
         }
@@ -20472,14 +20473,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20509,7 +20510,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v2 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20537,7 +20538,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint v3;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform4ui)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform4ui))
         {
             break;
         }
@@ -20546,14 +20547,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20586,7 +20587,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v3 = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20611,7 +20612,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v0;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform1f)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform1f))
         {
             break;
         }
@@ -20620,14 +20621,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20651,7 +20652,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v0 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20677,7 +20678,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v1;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform2f)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform2f))
         {
             break;
         }
@@ -20686,14 +20687,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20720,7 +20721,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v1 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20747,7 +20748,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v2;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform3f)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform3f))
         {
             break;
         }
@@ -20756,14 +20757,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20793,7 +20794,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v2 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20821,7 +20822,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat v3;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform4f)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform4f))
         {
             break;
         }
@@ -20830,14 +20831,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20870,7 +20871,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         v3 = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -20895,7 +20896,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum bufferMode;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTransformFeedbackVaryings)
+        if (unlikely(para_num < PARA_NUM_MIN_glTransformFeedbackVaryings))
         {
             break;
         }
@@ -20904,14 +20905,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -20935,7 +20936,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         bufferMode = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
 
-        GLchar **varyings = g_malloc(count * sizeof(const GLchar *));
+        GLchar **varyings = g_malloc(count * sizeof(GLchar *));
 
         for (int i = 0; i < count; i++)
         {
@@ -20943,12 +20944,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             temp_loc += strlen(varyings[i]) + 1;
         }
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        glTransformFeedbackVaryings((GLuint)get_host_program_id(opengl_context, (unsigned int)program), count, varyings, bufferMode);
+        glTransformFeedbackVaryings((GLuint)get_host_program_id(opengl_context, (unsigned int)program), count, (const GLchar * const*)varyings, bufferMode);
 
         g_free(varyings);
     }
@@ -20969,7 +20970,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexParameterfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexParameterfv))
         {
             break;
         }
@@ -20978,14 +20979,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21009,12 +21010,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *params = (const GLfloat *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfloat);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameterfv(bind_texture, pname, params);
@@ -21060,7 +21061,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexParameteriv))
         {
             break;
         }
@@ -21069,14 +21070,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21100,12 +21101,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *params = (const GLint *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameteriv(bind_texture, pname, params);
@@ -21153,7 +21154,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform1fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform1fv))
         {
             break;
         }
@@ -21162,14 +21163,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21193,7 +21194,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 1;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21217,7 +21218,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform1iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform1iv))
         {
             break;
         }
@@ -21226,14 +21227,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21257,7 +21258,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint) * 1;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21281,7 +21282,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform2fv))
         {
             break;
         }
@@ -21290,14 +21291,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21321,7 +21322,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 2;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21345,7 +21346,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform2iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform2iv))
         {
             break;
         }
@@ -21354,14 +21355,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21385,7 +21386,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint) * 2;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21409,7 +21410,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform3fv))
         {
             break;
         }
@@ -21418,14 +21419,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21449,7 +21450,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 3;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21473,7 +21474,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform3iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform3iv))
         {
             break;
         }
@@ -21482,14 +21483,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21513,7 +21514,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint) * 3;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21537,7 +21538,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform4fv))
         {
             break;
         }
@@ -21546,14 +21547,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21577,7 +21578,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21601,7 +21602,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform4iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform4iv))
         {
             break;
         }
@@ -21610,14 +21611,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21641,7 +21642,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21664,7 +21665,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib1fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib1fv))
         {
             break;
         }
@@ -21673,14 +21674,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21701,7 +21702,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *v = (const GLfloat *)(temp + temp_loc);
         temp_loc += sizeof(GLfloat) * 1;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21724,7 +21725,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib2fv))
         {
             break;
         }
@@ -21733,14 +21734,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21761,7 +21762,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *v = (const GLfloat *)(temp + temp_loc);
         temp_loc += sizeof(GLfloat) * 2;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21784,7 +21785,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib3fv))
         {
             break;
         }
@@ -21793,14 +21794,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21821,7 +21822,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *v = (const GLfloat *)(temp + temp_loc);
         temp_loc += sizeof(GLfloat) * 3;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21844,7 +21845,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttrib4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttrib4fv))
         {
             break;
         }
@@ -21853,14 +21854,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21881,7 +21882,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *v = (const GLfloat *)(temp + temp_loc);
         temp_loc += sizeof(GLfloat) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21906,7 +21907,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix2fv))
         {
             break;
         }
@@ -21915,14 +21916,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -21949,7 +21950,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -21974,7 +21975,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix3fv))
         {
             break;
         }
@@ -21983,14 +21984,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22017,7 +22018,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 9;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22042,7 +22043,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix4fv))
         {
             break;
         }
@@ -22051,14 +22052,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22085,7 +22086,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 16;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22110,7 +22111,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix2x3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix2x3fv))
         {
             break;
         }
@@ -22119,14 +22120,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22153,7 +22154,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 6;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22178,7 +22179,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix3x2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix3x2fv))
         {
             break;
         }
@@ -22187,14 +22188,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22221,7 +22222,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 6;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22246,7 +22247,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix2x4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix2x4fv))
         {
             break;
         }
@@ -22255,14 +22256,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22289,7 +22290,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22314,7 +22315,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix4x2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix4x2fv))
         {
             break;
         }
@@ -22323,14 +22324,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22357,7 +22358,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22382,7 +22383,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix3x4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix3x4fv))
         {
             break;
         }
@@ -22391,14 +22392,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22425,7 +22426,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 12;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22450,7 +22451,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniformMatrix4x3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniformMatrix4x3fv))
         {
             break;
         }
@@ -22459,14 +22460,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22493,7 +22494,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 12;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22516,7 +22517,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribI4iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribI4iv))
         {
             break;
         }
@@ -22525,14 +22526,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22553,7 +22554,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *v = (const GLint *)(temp + temp_loc);
         temp_loc += sizeof(GLint) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22576,7 +22577,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribI4uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribI4uiv))
         {
             break;
         }
@@ -22585,14 +22586,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22613,7 +22614,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *v = (const GLuint *)(temp + temp_loc);
         temp_loc += sizeof(GLuint) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22637,7 +22638,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform1uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform1uiv))
         {
             break;
         }
@@ -22646,14 +22647,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22677,7 +22678,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint) * 1;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22701,7 +22702,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform2uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform2uiv))
         {
             break;
         }
@@ -22710,14 +22711,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22741,7 +22742,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint) * 2;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22765,7 +22766,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform3uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform3uiv))
         {
             break;
         }
@@ -22774,14 +22775,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22805,7 +22806,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint) * 3;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22829,7 +22830,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glUniform4uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glUniform4uiv))
         {
             break;
         }
@@ -22838,14 +22839,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22869,7 +22870,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22893,7 +22894,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint drawbuffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearBufferiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearBufferiv))
         {
             break;
         }
@@ -22902,14 +22903,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22933,7 +22934,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += (buffer == GL_COLOR ? 4 * sizeof(GLint) : 1 * sizeof(GLint));
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -22957,7 +22958,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint drawbuffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearBufferuiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearBufferuiv))
         {
             break;
         }
@@ -22966,14 +22967,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -22997,7 +22998,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += (buffer == GL_COLOR ? 4 * sizeof(GLuint) : 1 * sizeof(GLuint));
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23021,7 +23022,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint drawbuffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClearBufferfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glClearBufferfv))
         {
             break;
         }
@@ -23030,14 +23031,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23061,7 +23062,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += (buffer == GL_COLOR ? 4 * sizeof(GLfloat) : 1 * sizeof(GLfloat));
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23085,7 +23086,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSamplerParameteriv)
+        if (unlikely(para_num < PARA_NUM_MIN_glSamplerParameteriv))
         {
             break;
         }
@@ -23094,14 +23095,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23125,7 +23126,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *param = (const GLint *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23149,7 +23150,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSamplerParameterfv)
+        if (unlikely(para_num < PARA_NUM_MIN_glSamplerParameterfv))
         {
             break;
         }
@@ -23158,14 +23159,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23189,7 +23190,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *param = (const GLfloat *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfloat);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23213,7 +23214,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei numAttachments;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glInvalidateFramebuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glInvalidateFramebuffer))
         {
             break;
         }
@@ -23222,14 +23223,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23250,10 +23251,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         numAttachments = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        GLenum *attachments = (const GLenum *)(temp + temp_loc);
+        GLenum *attachments = (GLenum *)(temp + temp_loc);
         temp_loc += numAttachments * sizeof(GLenum);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23297,7 +23298,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei height;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glInvalidateSubFramebuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glInvalidateSubFramebuffer))
         {
             break;
         }
@@ -23306,14 +23307,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23349,7 +23350,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLenum *attachments = (const GLenum *)(temp + temp_loc);
         temp_loc += numAttachments * sizeof(GLenum);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23372,7 +23373,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum plane;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClipPlanexOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glClipPlanexOES))
         {
             break;
         }
@@ -23381,14 +23382,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23409,7 +23410,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *equation = (const GLfixed *)(temp + temp_loc);
         temp_loc += sizeof(GLfixed) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23432,7 +23433,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFogxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glFogxvOES))
         {
             break;
         }
@@ -23441,14 +23442,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23469,7 +23470,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *param = (const GLfixed *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23492,7 +23493,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLightModelxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glLightModelxvOES))
         {
             break;
         }
@@ -23501,14 +23502,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23529,7 +23530,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *param = (const GLfixed *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23553,7 +23554,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLightxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glLightxvOES))
         {
             break;
         }
@@ -23562,14 +23563,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23593,7 +23594,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *params = (const GLfixed *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23615,7 +23616,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glLoadMatrixxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glLoadMatrixxOES))
         {
             break;
         }
@@ -23624,14 +23625,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 0 * 1)
-        {
-            break;
-        }
+        // if (unlikely(temp_len < 0 * 1))
+        // {
+        //     break;
+        // }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23649,7 +23650,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *m = (const GLfixed *)(temp + temp_loc);
         temp_loc += 16 * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23673,7 +23674,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMaterialxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glMaterialxvOES))
         {
             break;
         }
@@ -23682,14 +23683,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23713,7 +23714,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *param = (const GLfixed *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23735,7 +23736,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMultMatrixxOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glMultMatrixxOES))
         {
             break;
         }
@@ -23744,14 +23745,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 0 * 1)
-        {
-            break;
-        }
+        // if (unlikely(temp_len < 0 * 1))
+        // {
+        //     break;
+        // }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23769,7 +23770,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *m = (const GLfixed *)(temp + temp_loc);
         temp_loc += 16 * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23792,7 +23793,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPointParameterxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glPointParameterxvOES))
         {
             break;
         }
@@ -23801,14 +23802,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23829,7 +23830,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *params = (const GLfixed *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23853,7 +23854,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexEnvxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexEnvxvOES))
         {
             break;
         }
@@ -23862,14 +23863,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23893,7 +23894,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *params = (const GLfixed *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23916,7 +23917,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum plane;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glClipPlanefOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glClipPlanefOES))
         {
             break;
         }
@@ -23925,14 +23926,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -23953,7 +23954,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *equation = (const GLfloat *)(temp + temp_loc);
         temp_loc += sizeof(GLfloat) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -23977,7 +23978,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum pname;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexGenxvOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexGenxvOES))
         {
             break;
         }
@@ -23986,14 +23987,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24017,7 +24018,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfixed *params = (const GLfixed *)(temp + temp_loc);
         temp_loc += gl_pname_size(pname) * sizeof(GLfixed);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24042,7 +24043,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform1iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform1iv))
         {
             break;
         }
@@ -24051,14 +24052,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24085,7 +24086,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24110,7 +24111,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform2iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform2iv))
         {
             break;
         }
@@ -24119,14 +24120,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24153,7 +24154,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint) * 2;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24178,7 +24179,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform3iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform3iv))
         {
             break;
         }
@@ -24187,14 +24188,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24221,7 +24222,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint) * 3;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24246,7 +24247,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform4iv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform4iv))
         {
             break;
         }
@@ -24255,14 +24256,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24289,7 +24290,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLint *value = (const GLint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLint) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24314,7 +24315,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform1uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform1uiv))
         {
             break;
         }
@@ -24323,14 +24324,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24357,7 +24358,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24382,7 +24383,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform2uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform2uiv))
         {
             break;
         }
@@ -24391,14 +24392,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24425,7 +24426,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint) * 2;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24450,7 +24451,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform3uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform3uiv))
         {
             break;
         }
@@ -24459,14 +24460,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24493,7 +24494,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint) * 3;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24518,7 +24519,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform4uiv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform4uiv))
         {
             break;
         }
@@ -24527,14 +24528,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24561,7 +24562,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLuint *value = (const GLuint *)(temp + temp_loc);
         temp_loc += count * sizeof(GLuint) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24586,7 +24587,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform1fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform1fv))
         {
             break;
         }
@@ -24595,14 +24596,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24629,7 +24630,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24654,7 +24655,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform2fv))
         {
             break;
         }
@@ -24663,14 +24664,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24697,7 +24698,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 2;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24722,7 +24723,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform3fv))
         {
             break;
         }
@@ -24731,14 +24732,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24765,7 +24766,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 3;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24790,7 +24791,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei count;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniform4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniform4fv))
         {
             break;
         }
@@ -24799,14 +24800,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24833,7 +24834,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24859,7 +24860,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix2fv))
         {
             break;
         }
@@ -24868,14 +24869,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24905,7 +24906,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -24931,7 +24932,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix3fv))
         {
             break;
         }
@@ -24940,14 +24941,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -24977,7 +24978,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 9;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25003,7 +25004,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix4fv))
         {
             break;
         }
@@ -25012,14 +25013,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25049,7 +25050,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 16;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25075,7 +25076,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix2x3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix2x3fv))
         {
             break;
         }
@@ -25084,14 +25085,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25121,7 +25122,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 6;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25147,7 +25148,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix3x2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix3x2fv))
         {
             break;
         }
@@ -25156,14 +25157,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25193,7 +25194,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 6;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25219,7 +25220,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix2x4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix2x4fv))
         {
             break;
         }
@@ -25228,14 +25229,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25265,7 +25266,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25291,7 +25292,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix4x2fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix4x2fv))
         {
             break;
         }
@@ -25300,14 +25301,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25337,7 +25338,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25363,7 +25364,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix3x4fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix3x4fv))
         {
             break;
         }
@@ -25372,14 +25373,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25409,7 +25410,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 12;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25435,7 +25436,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLboolean transpose;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glProgramUniformMatrix4x3fv)
+        if (unlikely(para_num < PARA_NUM_MIN_glProgramUniformMatrix4x3fv))
         {
             break;
         }
@@ -25444,14 +25445,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25481,7 +25482,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLfloat *value = (const GLfloat *)(temp + temp_loc);
         temp_loc += count * sizeof(GLfloat) * 12;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25505,7 +25506,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint index;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindAttribLocation)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindAttribLocation))
         {
             break;
         }
@@ -25514,14 +25515,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25545,7 +25546,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const GLchar *name = (const GLchar *)(temp + temp_loc);
         temp_loc += strlen(name) + 1;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25570,7 +25571,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexEnvf)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexEnvf))
         {
             break;
         }
@@ -25579,14 +25580,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25610,7 +25611,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfloat *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25635,7 +25636,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexEnvi)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexEnvi))
         {
             break;
         }
@@ -25644,14 +25645,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25675,7 +25676,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25700,7 +25701,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfixed param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexEnvx)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexEnvx))
         {
             break;
         }
@@ -25709,14 +25710,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25740,7 +25741,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLfixed *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25765,7 +25766,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexParameterx)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexParameterx))
         {
             break;
         }
@@ -25774,14 +25775,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25805,7 +25806,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25828,7 +25829,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum mode;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glShadeModel)
+        if (unlikely(para_num < PARA_NUM_MIN_glShadeModel))
         {
             break;
         }
@@ -25837,14 +25838,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25862,7 +25863,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         mode = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25893,7 +25894,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLfloat top_y;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawTexiOES)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawTexiOES))
         {
             break;
         }
@@ -25902,14 +25903,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1 + 4 * sizeof(GLfloat))
+        if (unlikely(temp_len < 20 * 1 + 4 * sizeof(GLfloat)))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -25952,7 +25953,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += sizeof(GLfloat);
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -25984,7 +25985,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei length;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribIPointer_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribIPointer_without_bound))
         {
             break;
         }
@@ -25993,14 +25994,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26059,7 +26060,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint length;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribPointer_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribPointer_without_bound))
         {
             break;
         }
@@ -26068,14 +26069,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26133,7 +26134,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum type;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElements_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawElements_without_bound))
         {
             break;
         }
@@ -26142,14 +26143,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26196,7 +26197,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei instancecount;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElementsInstanced_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawElementsInstanced_without_bound))
         {
             break;
         }
@@ -26205,14 +26206,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26263,7 +26264,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum type;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawRangeElements_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawRangeElements_without_bound))
         {
             break;
         }
@@ -26272,14 +26273,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26331,7 +26332,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizeiptr length;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFlushMappedBufferRange_special)
+        if (unlikely(para_num < PARA_NUM_MIN_glFlushMappedBufferRange_special))
         {
             break;
         }
@@ -26340,14 +26341,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26393,7 +26394,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum usage;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBufferData_custom)
+        if (unlikely(para_num < PARA_NUM_MIN_glBufferData_custom))
         {
             break;
         }
@@ -26402,14 +26403,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26455,7 +26456,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizeiptr size;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBufferSubData_custom)
+        if (unlikely(para_num < PARA_NUM_MIN_glBufferSubData_custom))
         {
             break;
         }
@@ -26464,14 +26465,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26521,7 +26522,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei imageSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexImage2D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexImage2D_without_bound))
         {
             break;
         }
@@ -26530,14 +26531,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26600,7 +26601,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei imageSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage2D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexSubImage2D_without_bound))
         {
             break;
         }
@@ -26609,14 +26610,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26682,7 +26683,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei imageSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexImage3D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexImage3D_without_bound))
         {
             break;
         }
@@ -26691,14 +26692,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26766,7 +26767,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei imageSize;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glCompressedTexSubImage3D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glCompressedTexSubImage3D_without_bound))
         {
             break;
         }
@@ -26775,14 +26776,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (unlikely(temp_len < 40 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26855,7 +26856,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexImage2D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexImage2D_without_bound))
         {
             break;
         }
@@ -26864,14 +26865,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
+        if (unlikely(temp_len < 36 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -26942,7 +26943,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexImage3D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexImage3D_without_bound))
         {
             break;
         }
@@ -26951,14 +26952,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 40 * 1)
+        if (unlikely(temp_len < 40 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27031,7 +27032,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexSubImage2D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexSubImage2D_without_bound))
         {
             break;
         }
@@ -27040,14 +27041,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
+        if (unlikely(temp_len < 36 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27119,7 +27120,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexSubImage3D_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexSubImage3D_without_bound))
         {
             break;
         }
@@ -27128,14 +27129,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 44 * 1)
+        if (unlikely(temp_len < 44 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27203,7 +27204,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLint buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glPrintf)
+        if (unlikely(para_num < PARA_NUM_MIN_glPrintf))
         {
             break;
         }
@@ -27212,14 +27213,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27257,7 +27258,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         int stride;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGraphicBufferData)
+        if (unlikely(para_num < PARA_NUM_MIN_glGraphicBufferData))
         {
             break;
         }
@@ -27266,14 +27267,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < (36) * 1)
+        if (unlikely(temp_len < (36) * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (likely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27328,7 +27329,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         int stride;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glReadGraphicBuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glReadGraphicBuffer))
         {
             break;
         }
@@ -27337,14 +27338,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < (8*2+4*5) * 1)
+        if (unlikely(temp_len < (8*2+4*5) * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27393,26 +27394,28 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     {
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetStaticValues)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetStaticValues))
         {
             break;
         }
         
         int read_len = all_para[0].data_len;
 
-        if(read_len > sizeof(Static_Context_Values) + 512 * 100 + 400)
+        if(unlikely(read_len > sizeof(Static_Context_Values) + 512 * 100 + 400))
         {
             read_len = sizeof(Static_Context_Values) + 512 * 100 + 400;
         }
 
-        if (all_para[0].data_len != sizeof(Static_Context_Values) + 512 * 100 + 400)
+        if (unlikely(all_para[0].data_len != sizeof(Static_Context_Values) + 512 * 100 + 400))
         {
             printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal! host %lld guest %lld\n",sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
+            break;
         }
         guest_read(all_para[0].data, preload_static_context_value, 0, min(all_para[0].data_len,sizeof(Static_Context_Values) + 512 * 100 + 400));
 
 
     }
+    break;
 
 
     case FUNID_glGetProgramData:
@@ -27423,7 +27426,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         int buf_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glGetProgramData)
+        if (unlikely(para_num < PARA_NUM_MIN_glGetProgramData))
         {
             break;
         }
@@ -27434,14 +27437,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27502,7 +27505,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum format;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindImageTexture)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindImageTexture))
         {
             break;
         }
@@ -27511,14 +27514,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 25 * 1)
+        if (unlikely(temp_len < 25 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27556,7 +27559,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27574,7 +27577,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei stride;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindVertexBuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindVertexBuffer))
         {
             break;
         }
@@ -27583,14 +27586,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;   
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27618,7 +27621,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
         
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27637,7 +27640,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint relativeoffset;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribFormat)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribFormat))
         {
             break;
         }
@@ -27646,14 +27649,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 17 * 1)
+        if (unlikely(temp_len < 17 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27684,7 +27687,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27704,7 +27707,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint relativeoffset;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribIFormat)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribIFormat))
         {
             break;
         }
@@ -27713,14 +27716,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27748,7 +27751,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27765,7 +27768,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
  	    GLuint bindingindex;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexAttribBinding)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribBinding))
         {
             break;
         }
@@ -27774,14 +27777,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27803,7 +27806,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
         
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27821,7 +27824,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint num_groups_z;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDispatchCompute)
+        if (unlikely(para_num < PARA_NUM_MIN_glDispatchCompute))
         {
             break;
         }
@@ -27830,14 +27833,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27862,7 +27865,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27878,7 +27881,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr indirect;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDispatchComputeIndirect)
+        if (unlikely(para_num < PARA_NUM_MIN_glDispatchComputeIndirect))
         {
             break;
         }
@@ -27887,14 +27890,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27913,7 +27916,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 8;
 
 
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27929,7 +27932,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLbitfield barriers;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMemoryBarrier)
+        if (unlikely(para_num < PARA_NUM_MIN_glMemoryBarrier))
         {
             break;
         }
@@ -27938,14 +27941,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -27964,7 +27967,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -27982,7 +27985,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glMemoryBarrierByRegion)
+        if (unlikely(para_num < PARA_NUM_MIN_glMemoryBarrierByRegion))
         {
             break;
         }
@@ -27991,14 +27994,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28018,7 +28021,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28036,7 +28039,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
  	    GLint param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glFramebufferParameteri)
+        if (unlikely(para_num < PARA_NUM_MIN_glFramebufferParameteri))
         {
             break;
         }
@@ -28045,14 +28048,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28078,7 +28081,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28096,7 +28099,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
  	    GLbitfield mask;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glSampleMaski)
+        if (unlikely(para_num < PARA_NUM_MIN_glSampleMaski))
         {
             break;
         }
@@ -28105,14 +28108,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28134,7 +28137,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28157,7 +28160,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexStorage2DMultisample)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexStorage2DMultisample))
         {
             break;
         }
@@ -28166,14 +28169,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 21 * 1)
+        if (unlikely(temp_len < 21 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28207,12 +28210,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 1;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureStorage2DMultisample(bind_texture, samples, internalformat, width, height, fixedsamplelocations);
@@ -28233,7 +28236,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint pipeline;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glValidateProgramPipeline)
+        if (unlikely(para_num < PARA_NUM_MIN_glValidateProgramPipeline))
         {
             break;
         }
@@ -28242,14 +28245,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28269,7 +28272,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28288,7 +28291,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
  	    GLuint divisor;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glVertexBindingDivisor)
+        if (unlikely(para_num < PARA_NUM_MIN_glVertexBindingDivisor))
         {
             break;
         }
@@ -28297,14 +28300,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28326,7 +28329,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28346,7 +28349,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawArraysIndirect_with_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawArraysIndirect_with_bound))
         {
             break;
         }
@@ -28355,14 +28358,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28384,7 +28387,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 8;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28403,7 +28406,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
  	    void *indirect;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawArraysIndirect_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawArraysIndirect_without_bound))
         {
             break;
         }
@@ -28412,14 +28415,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28442,7 +28445,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28460,7 +28463,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLintptr indirect;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBindFramebuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glBindFramebuffer))
         {
             break;
         }
@@ -28469,14 +28472,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28501,7 +28504,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 8;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28519,7 +28522,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         void *indirect;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDrawElementsIndirect_without_bound)
+        if (unlikely(para_num < PARA_NUM_MIN_glDrawElementsIndirect_without_bound))
         {
             break;
         }
@@ -28528,14 +28531,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28560,11 +28563,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         indirect = (void *)(temp + temp_loc);
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        // printf("context %llx glBindFramebuffer %x guest %d host %d\n",opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
+        // printf("context %llx glBindFramebuffer %x guest %d host %d\n",(uint64_t)opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
         d_glDrawElementsIndirect_without_bound(opengl_context, mode, type, indirect);
     }
 
@@ -28579,7 +28582,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei numAttachments;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glDiscardFramebufferEXT)
+        if (unlikely(para_num < PARA_NUM_MIN_glDiscardFramebufferEXT))
         {
             break;
         }
@@ -28588,14 +28591,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28616,10 +28619,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         numAttachments = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
 
-        GLenum *attachments = (const GLenum *)(temp + temp_loc);
+        GLenum *attachments = (GLenum *)(temp + temp_loc);
         temp_loc += numAttachments * sizeof(GLenum);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28653,7 +28656,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint buffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexBuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexBuffer))
         {
             break;
         }
@@ -28662,14 +28665,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28694,12 +28697,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
         
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
             glTextureBuffer(bind_buffer, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
@@ -28724,7 +28727,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glTexBufferRange)
+        if (unlikely(para_num < PARA_NUM_MIN_glTexBufferRange))
         {
             break;
         }
@@ -28733,14 +28736,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28771,12 +28774,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 8;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        if(host_opengl_version >= 45 && DSA_enable != 0)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
             glTexBufferRange(bind_buffer, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
@@ -28800,7 +28803,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glColorMaski)
+        if (unlikely(para_num < PARA_NUM_MIN_glColorMaski))
         {
             break;
         }
@@ -28809,14 +28812,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28847,7 +28850,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 1;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28868,7 +28871,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlendFuncSeparatei)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlendFuncSeparatei))
         {
             break;
         }
@@ -28877,14 +28880,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28915,7 +28918,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28934,7 +28937,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_glBlendEquationSeparatei)
+        if (unlikely(para_num < PARA_NUM_MIN_glBlendEquationSeparatei))
         {
             break;
         }
@@ -28943,14 +28946,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -28975,7 +28978,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         temp_loc += 4;
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -28997,7 +29000,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
 
     //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (para_num < PARA_NUM_MIN_glBindSharedGLImage)
+    //     if (unlikely(para_num < PARA_NUM_MIN_glBindSharedGLImage))
     //     {
     //         break;
     //     }
@@ -29006,14 +29009,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     unsigned char *temp = NULL;
 
     //     temp_len = all_para[0].data_len;
-    //     if (temp_len < 4+4+8)
-    //     {
+    //     if (unlikely(temp_len < 4+4+8))
+//     {
     //         break;
     //     }
 
     //     int null_flag = 0;
     //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (temp == NULL)
+    //     if (unlikely(temp == NULL))
     //     {
     //         if (temp_len != 0 && null_flag == 0)
     //         {
@@ -29038,7 +29041,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     temp_loc += 8;
 
     //     /* Check length */
-    //     if (temp_len < temp_loc)
+    //     if (unlikely(temp_len < temp_loc))
     //     {
     //         break;
     //     }
@@ -29061,7 +29064,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     EGLContext share_ctx;
 
     //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (para_num < PARA_NUM_MIN_glFramebufferSharedTexture2D)
+    //     if (unlikely(para_num < PARA_NUM_MIN_glFramebufferSharedTexture2D))
     //     {
     //         break;
     //     }
@@ -29070,14 +29073,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     unsigned char *temp = NULL;
 
     //     temp_len = all_para[0].data_len;
-    //     if (temp_len < 20 * 1 + 8)
+    //     if (unlikely(temp_len < 20 * 1 + 8))
     //     {
     //         break;
     //     }
 
     //     int null_flag = 0;
     //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (temp == NULL)
+    //     if (unlikely(temp == NULL))
     //     {
     //         if (temp_len != 0 && null_flag == 0)
     //         {
@@ -29111,13 +29114,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     temp_loc += 8;
 
     //     /* Check length */
-    //     if (temp_len < temp_loc)
+    //     if (unlikely(temp_len < temp_loc))
     //     {
     //         break;
     //     }
     //     // GLuint t;
     //     // glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
-    //     // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
+    //     // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",(uint64_t)opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
     //     Opengl_Context *share_context = (Opengl_Context *)g_hash_table_lookup(render_context->process_context->context_map, GUINT_TO_POINTER(share_ctx));
         
         
@@ -29138,7 +29141,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     GLint level;
 
     //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (para_num < PARA_NUM_MIN_glFramebufferEGLImage)
+    //     if (unlikely(para_num < PARA_NUM_MIN_glFramebufferEGLImage))
     //     {
     //         break;
     //     }
@@ -29147,14 +29150,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     unsigned char *temp = NULL;
 
     //     temp_len = all_para[0].data_len;
-    //     if (temp_len < 24 * 1)
+    //     if (unlikely(temp_len < 24 * 1))
     //     {
     //         break;
     //     }
 
     //     int null_flag = 0;
     //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (temp == NULL)
+    //     if (unlikely(temp == NULL))
     //     {
     //         if (temp_len != 0 && null_flag == 0)
     //         {
@@ -29184,7 +29187,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     //     level = *(GLint *)(temp + temp_loc);
     //     temp_loc += 4;
     //     /* Check length */
-    //     if (temp_len < temp_loc)
+    //     if (unlikely(temp_len < temp_loc))
     //     {
     //         break;
     //     }

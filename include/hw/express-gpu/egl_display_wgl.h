@@ -30,7 +30,7 @@ typedef struct
 
 void init_wgl_extension(Egl_Display *display);
 void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPTOR *pfd, int id);
-HWND create_dummy_window();
+HWND create_dummy_window(void);
 LRESULT CALLBACK dummy_window_proc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_param);
 
 typedef struct

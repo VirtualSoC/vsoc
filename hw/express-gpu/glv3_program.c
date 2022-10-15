@@ -16,8 +16,8 @@ GHashTable *program_data_map = NULL;
 // GHashTable *to_external_texture_id_map = NULL;
 
 
-int memcpy_with_add_vec(char* dst, char* origin, char *fun, int len);
-void get_default_out(char *string, char *out);
+int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len);
+void get_default_out(const char *string, char *out);
 
 static void g_program_data_destroy(gpointer data)
 {
@@ -82,7 +82,7 @@ int init_program_data(GLuint program)
         glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCKS, &uniform_blocks_num);
         glGetProgramiv(program, GL_TRANSFORM_FEEDBACK_VARYINGS, &transform_feedback_varyings);
 
-        GLuint group_size[3] = {0, 0, 0};
+        GLint group_size[3] = {0, 0, 0};
 
         GLuint shader_ids[10];
         GLsizei shader_cnt = 0;
@@ -144,12 +144,12 @@ int init_program_data(GLuint program)
                 {
                     program_is_external_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
-                g_hash_table_insert(program_is_external_map, program, (gpointer)1);
+                g_hash_table_insert(program_is_external_map, GUINT_TO_POINTER(program), GINT_TO_POINTER(1));
                 has_image = 1;
                 continue;
             }
 
-            int_ptr = temp_ptr;
+            int_ptr = (int *)temp_ptr;
 
             *int_ptr = i - has_image;
             *(int_ptr + 1) = size;
@@ -169,7 +169,7 @@ int init_program_data(GLuint program)
 
             location = glGetAttribLocation(program, name_buf);
 
-            int_ptr = temp_ptr;
+            int_ptr = (int *)temp_ptr;
 
             *int_ptr = i;
             *(int_ptr + 1) = size;
@@ -186,7 +186,7 @@ int init_program_data(GLuint program)
         int uniform_block_active_uniforms;
         for (int i = 0; i < uniform_blocks_num; i++)
         {
-            int_ptr = temp_ptr;
+            int_ptr = (int *)temp_ptr;
             glGetActiveUniformBlockiv(program, i, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &uniform_block_active_uniforms);
             glGetActiveUniformBlockiv(program, i, GL_UNIFORM_BLOCK_DATA_SIZE, &size);
             glGetActiveUniformBlockName(program, i, name_len, NULL, name_buf);
@@ -239,7 +239,7 @@ void d_glUseProgram_special(void *context, GLuint program)
     int ret = 0;
     if (program_is_external_map != NULL)
     {
-        ret = g_hash_table_lookup(program_is_external_map, GUINT_TO_POINTER(program));
+        ret = (int)(uint64_t)g_hash_table_lookup(program_is_external_map, GUINT_TO_POINTER(program));
     }
 
     if (ret == 1)
@@ -284,7 +284,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     if (program_data_map == NULL || program == 0)
     {
 
-        printf("error! program_data_map %llx program %d", program_data_map, program);
+        printf("error! program_data_map %llx program %d", (uint64_t)program_data_map, program);
         return;
     }
 
@@ -296,7 +296,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
         return;
     }
 
-    express_printf("getProgramData len %d program %d map %llx\n", buf_len, program, program_data_map);
+    express_printf("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
     guest_read(guest_mem, save_program_data, 0, buf_len);
 
     //读取完成后直接删除就行了
@@ -305,12 +305,12 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     return;
 }
 
-void get_default_out(char *string, char *out)
+void get_default_out(const char *string, char *out)
 {
     out[0] = 0;
     int out_loc = 0;
-    char *out_name = NULL;
-    char *out_type = NULL;
+    const char *out_name = NULL;
+    const char *out_type = NULL;
     while (*string != ';')
         string++;
     string--;
@@ -349,7 +349,7 @@ void get_default_out(char *string, char *out)
     }
 }
 
-int memcpy_with_add_vec(char* dst, char* origin, char *fun, int len)
+int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len)
 {
     char* lessThan_loc = strstr(origin, fun);
     int fun_len = strlen(fun);
@@ -444,7 +444,7 @@ int memcpy_with_add_vec(char* dst, char* origin, char *fun, int len)
 }
 
 
-void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string)
+void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, GLchar **string)
 {
     static const char DEFAULT_VERSION[] = "#version 330\n";
     static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
@@ -612,7 +612,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         
         // memcpy(new_string1 + loc, string[0] + origin_loc, length[0] - origin_loc);
         // loc += length[0] - origin_loc;
-        loc += memcpy_with_add_vec(new_string1 + loc, string[0] + origin_loc, "lessThan(", length[0] - origin_loc);
+        loc += memcpy_with_add_vec(new_string1 + loc, (char *)(string[0] + origin_loc), "lessThan(", length[0] - origin_loc);
         new_string1[loc] = 0;
         length[0] = loc;
         string[0] = new_string1;
@@ -624,7 +624,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
     if (has_find_external == 1 && shader_type == GL_FRAGMENT_SHADER)
     {
-        char *out_loc = NULL;
+        const char *out_loc = NULL;
         for (int i = 0; i < count; i++)
         {
             out_loc = strstr(string[i], "out ");
@@ -683,8 +683,8 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         }
     }
 
-    glShaderSource(shader, count, string, length);
-    // printf("\ngl shader %d source after count %d context %llx:\n%s\n", shader, count, context, string[0]);
+    glShaderSource(shader, count, (const GLchar * const*)string, length);
+    // printf("\ngl shader %d source after count %d context %llx:\n%s\n", shader, count, (uint64_t)context, string[0]);
 
     if (new_string1 != NULL)
     {
@@ -697,7 +697,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 }
 
 static int GLSL_VERSION_SIZE = 7;
-static char *GLSL_VERSION[]={
+static const char *GLSL_VERSION[]={
     "430",
     "330",
     "300 es",

@@ -23,7 +23,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     Render_Thread_Context *egl_context = (Render_Thread_Context *)context;
 
     // Double_Buffer *egl_context = egl_context->render_double_buffer;
-    if (egl_context == NULL)
+    if (unlikely(egl_context == NULL))
     {
         call->callback(call, 0);
         return;
@@ -69,7 +69,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         int hal_format;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglMakeCurrent)
+        if (unlikely(para_num < PARA_NUM_MIN_eglMakeCurrent))
         {
             break;
         }
@@ -78,14 +78,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 52 * 1)
+        if (unlikely(temp_len < 52 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -128,7 +128,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -141,9 +141,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLBoolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -155,7 +155,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -181,7 +181,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         int hal_format;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglSwapBuffers_sync)
+        if (unlikely(para_num < PARA_NUM_MIN_eglSwapBuffers_sync))
         {
             break;
         }
@@ -190,14 +190,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
+        if (unlikely(temp_len < 36 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -234,7 +234,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -247,9 +247,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLBoolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -262,7 +262,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -282,7 +282,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglWaitGL)
+        if (unlikely(para_num < PARA_NUM_MIN_eglWaitGL))
         {
             break;
         }
@@ -291,7 +291,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -304,9 +304,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLBoolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -318,7 +318,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -339,7 +339,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint engine;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglWaitNative)
+        if (unlikely(para_num < PARA_NUM_MIN_eglWaitNative))
         {
             break;
         }
@@ -348,14 +348,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 4 * 1)
+        if (unlikely(temp_len < 4 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -376,7 +376,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -389,9 +389,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLBoolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -403,7 +403,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -423,7 +423,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglWaitClient)
+        if (unlikely(para_num < PARA_NUM_MIN_eglWaitClient))
         {
             break;
         }
@@ -432,7 +432,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -445,9 +445,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLBoolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -459,7 +459,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -483,7 +483,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLTime timeout;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglClientWaitSync)
+        if (unlikely(para_num < PARA_NUM_MIN_eglClientWaitSync))
         {
             break;
         }
@@ -492,14 +492,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 28 * 1)
+        if (unlikely(temp_len < 28 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -529,7 +529,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -542,9 +542,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -556,7 +556,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -579,7 +579,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint attribute;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglGetSyncAttrib)
+        if (unlikely(para_num < PARA_NUM_MIN_eglGetSyncAttrib))
         {
             break;
         }
@@ -588,14 +588,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -622,7 +622,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -638,9 +638,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLBoolean);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -652,7 +652,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -672,7 +672,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglGetEGLConfigParam)
+        if (unlikely(para_num < PARA_NUM_MIN_eglGetEGLConfigParam))
         {
             break;
         }
@@ -681,7 +681,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -697,9 +697,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -711,7 +711,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -733,7 +733,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint list_len;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglGetEGLConfigs)
+        if (unlikely(para_num < PARA_NUM_MIN_eglGetEGLConfigs))
         {
             break;
         }
@@ -742,14 +742,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -773,7 +773,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         unsigned char *ret_buf = NULL;
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             ret_buf = g_malloc(out_buf_len);
         }
@@ -789,9 +789,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint *ret_ptr = (EGLint *)(ret_buf + out_buf_loc);
         out_buf_loc += sizeof(EGLint);
 
-        if (out_buf_loc > out_buf_len)
+        if (unlikely(out_buf_loc > out_buf_len))
         {
-            if (out_buf_len > MAX_OUT_BUF_LEN)
+            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
             {
                 g_free(ret_buf);
             }
@@ -803,7 +803,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (out_buf_len > MAX_OUT_BUF_LEN)
+        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
             g_free(ret_buf);
         }
@@ -830,7 +830,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint config_size;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglChooseConfig)
+        if (unlikely(para_num < PARA_NUM_MIN_eglChooseConfig))
         {
             break;
         }
@@ -839,14 +839,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -870,7 +870,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
         temp_loc += get_attrib_list_len(attrib_list);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -895,7 +895,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSurface surface;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglCreatePbufferSurface)
+        if (unlikely(para_num < PARA_NUM_MIN_eglCreatePbufferSurface))
         {
             break;
         }
@@ -904,14 +904,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -938,7 +938,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
         temp_loc += get_attrib_list_len(attrib_list);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -964,7 +964,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSurface surface;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglCreateWindowSurface)
+        if (unlikely(para_num < PARA_NUM_MIN_eglCreateWindowSurface))
         {
             break;
         }
@@ -973,14 +973,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1010,7 +1010,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
         temp_loc += get_attrib_list_len(attrib_list);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1036,7 +1036,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLContext guest_egl_context;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglCreateContext)
+        if (unlikely(para_num < PARA_NUM_MIN_eglCreateContext))
         {
             break;
         }
@@ -1045,14 +1045,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 32 * 1)
+        if (unlikely(temp_len < 32 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1082,7 +1082,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
         temp_loc += get_attrib_list_len(attrib_list);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1106,7 +1106,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLContext ctx;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglDestroyContext)
+        if (unlikely(para_num < PARA_NUM_MIN_eglDestroyContext))
         {
             break;
         }
@@ -1115,14 +1115,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1143,7 +1143,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         ctx = *(EGLContext *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1167,7 +1167,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSurface surface;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglDestroySurface)
+        if (unlikely(para_num < PARA_NUM_MIN_eglDestroySurface))
         {
             break;
         }
@@ -1176,14 +1176,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1204,7 +1204,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         surface = *(EGLSurface *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1227,7 +1227,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLDisplay dpy;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglTerminate)
+        if (unlikely(para_num < PARA_NUM_MIN_eglTerminate))
         {
             break;
         }
@@ -1236,14 +1236,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1261,7 +1261,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         dpy = *(EGLDisplay *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1284,7 +1284,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSurface surface;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglIamComposer)
+        if (unlikely(para_num < PARA_NUM_MIN_eglIamComposer))
         {
             break;
         }
@@ -1293,14 +1293,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1318,7 +1318,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         surface = *(EGLSurface *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1344,7 +1344,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLDisplay guest_display;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglGetDisplay)
+        if (unlikely(para_num < PARA_NUM_MIN_eglGetDisplay))
         {
             break;
         }
@@ -1353,14 +1353,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1381,7 +1381,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         guest_display = *(EGLDisplay *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1406,7 +1406,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint buffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglBindTexImage)
+        if (unlikely(para_num < PARA_NUM_MIN_eglBindTexImage))
         {
             break;
         }
@@ -1415,14 +1415,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1446,7 +1446,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         buffer = *(EGLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1471,7 +1471,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint buffer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglReleaseTexImage)
+        if (unlikely(para_num < PARA_NUM_MIN_eglReleaseTexImage))
         {
             break;
         }
@@ -1480,14 +1480,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1511,7 +1511,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         buffer = *(EGLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1537,7 +1537,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint value;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglSurfaceAttrib)
+        if (unlikely(para_num < PARA_NUM_MIN_eglSurfaceAttrib))
         {
             break;
         }
@@ -1546,14 +1546,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 24 * 1)
+        if (unlikely(temp_len < 24 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1580,7 +1580,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         value = *(EGLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1604,7 +1604,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint interval;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglSwapInterval)
+        if (unlikely(para_num < PARA_NUM_MIN_eglSwapInterval))
         {
             break;
         }
@@ -1613,14 +1613,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1641,7 +1641,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         interval = *(EGLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1663,7 +1663,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         /* Define variables */
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglReleaseThread)
+        if (unlikely(para_num < PARA_NUM_MIN_eglReleaseThread))
         {
             break;
         }
@@ -1688,7 +1688,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSync sync;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglCreateSync)
+        if (unlikely(para_num < PARA_NUM_MIN_eglCreateSync))
         {
             break;
         }
@@ -1697,14 +1697,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1731,7 +1731,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
         temp_loc += get_attrib_list_len(attrib_list);;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1755,7 +1755,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLSync sync;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglDestroySync)
+        if (unlikely(para_num < PARA_NUM_MIN_eglDestroySync))
         {
             break;
         }
@@ -1764,14 +1764,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1792,7 +1792,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         sync = *(EGLSync *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1819,7 +1819,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLImage image;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglCreateImage)
+        if (unlikely(para_num < PARA_NUM_MIN_eglCreateImage))
         {
             break;
         }
@@ -1828,14 +1828,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 36 * 1)
+        if (unlikely(temp_len < 36 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1868,7 +1868,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
         temp_loc += get_attrib_list_len(attrib_list);
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1894,7 +1894,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLImage image;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglDestroyImage)
+        if (unlikely(para_num < PARA_NUM_MIN_eglDestroyImage))
         {
             break;
         }
@@ -1903,14 +1903,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 16 * 1)
+        if (unlikely(temp_len < 16 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1931,7 +1931,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         image = *(EGLImage *)(temp + temp_loc);
         temp_loc += 8;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -1956,7 +1956,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         EGLint flags;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglWaitSync)
+        if (unlikely(para_num < PARA_NUM_MIN_eglWaitSync))
         {
             break;
         }
@@ -1965,14 +1965,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 20 * 1)
+        if (unlikely(temp_len < 20 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -1996,7 +1996,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         flags = *(EGLint *)(temp + temp_loc);
         temp_loc += 4;
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -2010,11 +2010,11 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     {
 
         /* Define variables */
-        EGLImage gbuffer_id;
+        uint64_t gbuffer_id;
         int is_composer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglQueueBuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_eglQueueBuffer))
         {
             break;
         }
@@ -2023,14 +2023,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 12 * 1)
+        if (unlikely(temp_len < 12 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2052,7 +2052,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         temp_loc += sizeof(int);
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -2075,7 +2075,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         //     AHardwareBuffer buffer;
 
         //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        //     if (para_num < PARA_NUM_MIN_eglGetNativeClientBufferANDROID)
+        //     if (unlikely(para_num < PARA_NUM_MIN_eglGetNativeClientBufferANDROID))
         //     {
         //         break;
         //     }
@@ -2084,14 +2084,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         //     unsigned char *temp = NULL;
 
         //     temp_len = all_para[0].data_len;
-        //     if (temp_len < 8 * 1)
+        //     if (unlikely(temp_len < 8 * 1))
         //     {
         //         break;
         //     }
 
         //     int null_flag = 0;
         //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-        //     if (temp == NULL)
+        //     if (unlikely(temp == NULL))
         //     {
         //         if (temp_len != 0 && null_flag == 0)
         //         {
@@ -2109,7 +2109,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         //     buffer = *(AHardwareBuffer *)(temp + temp_loc);
         //     temp_loc += 8;
         //     /* Check length */
-        //     if (temp_len < temp_loc)
+        //     if (unlikely(temp_len < temp_loc))
         //     {
         //         break;
         //     }
@@ -2143,7 +2143,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         
         
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglSwapBuffers)
+        if (unlikely(para_num < PARA_NUM_MIN_eglSwapBuffers))
         {
             break;
         }
@@ -2152,14 +2152,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 44 * 1)
+        if (unlikely(temp_len < 44 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2195,9 +2195,9 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         hal_format = *(int *)(temp + temp_loc);
         temp_loc += 4;
 
-        int64_t *ret_invoke_time = all_para[1].data;
+        Guest_Mem *ret_invoke_time = all_para[1].data;
         // assert(surface>1000);
-        int64_t *swap_time = all_para[2].data;
+        Guest_Mem *swap_time = all_para[2].data;
 
         d_eglSwapBuffers(egl_context, dpy, surface, invoke_time,gbuffer_id, width, height, hal_format, ret_invoke_time, swap_time);
     }
@@ -2232,7 +2232,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         uint64_t gbuffer_id;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglQueueBuffer)
+        if (unlikely(para_num < PARA_NUM_MIN_eglQueueBuffer))
         {
             break;
         }
@@ -2241,14 +2241,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < sizeof(uint64_t) + sizeof(EGLSurface))
+        if (unlikely(temp_len < sizeof(uint64_t) + sizeof(EGLSurface)))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2269,7 +2269,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         temp_loc += sizeof(uint64_t);
 
         /* Check length */
-        if (temp_len < temp_loc)
+        if (unlikely(temp_len < temp_loc))
         {
             break;
         }
@@ -2283,7 +2283,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         uint64_t gbuffer_id;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        if (para_num < PARA_NUM_MIN_eglGetSyncAttrib)
+        if (unlikely(para_num < PARA_NUM_MIN_eglGetSyncAttrib))
         {
             break;
         }
@@ -2292,14 +2292,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (temp_len < 8 * 1)
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
 
         int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (temp == NULL)
+        if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
@@ -2318,7 +2318,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         temp_loc += 8;
 
         int out_buf_len = all_para[1].data_len;
-        if(out_buf_len != 4)
+        if(unlikely(out_buf_len != 4))
         {
             printf("error! get gbuffer type get >4 size\n");
             break;
@@ -2338,7 +2338,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     //     EGLImage image;
 
     //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (para_num < PARA_NUM_MIN_eglRemainImage)
+    //     if (unlikely(para_num < PARA_NUM_MIN_eglRemainImage))
     //     {
     //         break;
     //     }
@@ -2347,14 +2347,14 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     //     unsigned char *temp = NULL;
 
     //     temp_len = all_para[0].data_len;
-    //     if (temp_len < 8 * 1)
+    //     if (unlikely(temp_len < 8 * 1))
     //     {
     //         break;
     //     }
 
     //     int null_flag = 0;
     //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (temp == NULL)
+    //     if (unlikely(temp == NULL))
     //     {
     //         if (temp_len != 0 && null_flag == 0)
     //         {
@@ -2374,7 +2374,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
         
     //     /* Check length */
-    //     if (temp_len < temp_loc)
+    //     if (unlikely(temp_len < temp_loc))
     //     {
     //         break;
     //     }
@@ -2387,6 +2387,11 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
 
     default:
         break;
+    }
+
+    if(no_ptr_buf!=NULL)
+    {
+        g_free(no_ptr_buf);
     }
 
     //if(need_speed){

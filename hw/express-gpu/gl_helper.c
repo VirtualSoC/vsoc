@@ -796,6 +796,414 @@ size_t gl_pname_size(GLenum pname)
 }
 
 
+void prepare_interger_value(Static_Context_Values *s_values)
+{
+
+    s_values->implementation_color_read_type = 5121;
+    s_values->implementation_color_read_format = 6408;
+    s_values->max_array_texture_layers = 2048;
+    s_values->max_color_attachments = 8;
+    s_values->max_combined_uniform_blocks = 84;
+    s_values->max_draw_buffers = 16;
+    s_values->max_fragment_input_components = 128;
+    s_values->max_fragment_uniform_blocks = 14;
+    s_values->max_program_texel_offset = 7;
+    s_values->max_transform_feedback_interleaved_components = 128;
+    s_values->max_transform_feedback_separate_attribs = 4;
+    s_values->max_transform_feedback_separate_components = 4;
+    s_values->max_uniform_buffer_bindings = 84;
+    s_values->max_varying_components = 124;
+    s_values->max_varying_vectors = 31;
+    s_values->max_vertex_output_components = 128;
+    s_values->max_vertex_uniform_blocks = 14;
+    s_values->min_program_texel_offset = -8;
+    s_values->max_uniform_block_size = 65536;
+    s_values->aliased_point_size_range[0] = 1.0f;
+    s_values->aliased_point_size_range[1] = 2047.0f;
+
+    int temp_int_value[128];
+
+    glGetIntegerv(GL_NUM_EXTENSIONS, (GLint *)temp_int_value);
+    s_values->num_extensions = temp_int_value[0];
+
+    glGetIntegerv(GL_NUM_SHADER_BINARY_FORMATS, (GLint *)temp_int_value);
+    s_values->num_shader_binary_formats = temp_int_value[0];
+    glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, (GLint *)temp_int_value);
+    s_values->num_compressed_texture_formats = temp_int_value[0];
+    glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, (GLint *)temp_int_value);
+    s_values->num_program_binary_formats = temp_int_value[0];
+
+    int *temp_int_array = g_alloca(max(max(s_values->num_shader_binary_formats, s_values->num_compressed_texture_formats), s_values->num_program_binary_formats)*sizeof(int));
+
+    glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, (GLint *)temp_int_array);
+    memcpy(s_values->compressed_texture_formats, temp_int_array, max(s_values->num_compressed_texture_formats,128)*sizeof(int));
+    glGetIntegerv(GL_PROGRAM_BINARY_FORMATS, (GLint *)temp_int_array);
+    memcpy(s_values->program_binary_formats, temp_int_array, max(s_values->num_program_binary_formats,8)*sizeof(int));
+    glGetIntegerv(GL_SHADER_BINARY_FORMATS, (GLint *)temp_int_array);
+    memcpy(s_values->shader_binary_formats, temp_int_array, max(s_values->num_shader_binary_formats,8)*sizeof(int));
+    glGetIntegerv(GL_SUBPIXEL_BITS, (GLint *)temp_int_value);
+    s_values->subpixel_bits = temp_int_value[0];
+    glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, (GLint *)temp_int_value);
+    s_values->max_3d_texture_size = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->max_combined_texture_image_units = temp_int_value[0];
+    glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, (GLint *)temp_int_value);
+    s_values->max_cube_map_texture_size = temp_int_value[0];
+    glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, (GLint *)temp_int_value);
+    s_values->max_elements_vertices = temp_int_value[0];
+    glGetIntegerv(GL_MAX_ELEMENTS_INDICES, (GLint *)temp_int_value);
+    s_values->max_elements_indices = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_fragment_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, (GLint *)temp_int_value);
+    s_values->max_renderbuffer_size = temp_int_value[0];
+    glGetIntegerv(GL_MAX_SAMPLES, (GLint *)temp_int_value);
+    s_values->max_samples = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, (GLint *)temp_int_value);
+    s_values->max_texture_size = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, (GLint *)temp_int_value);
+    s_values->max_vertex_attribs = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_vertex_uniform_components = temp_int_value[0];
+
+
+    glGetIntegerv(GL_MAX_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->max_image_units = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, (GLint *)temp_int_value);
+    s_values->max_vertex_attrib_bindings = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_UNIFORM_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_computer_uniform_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->max_computer_texture_image_units = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_IMAGE_UNIFORMS, (GLint *)temp_int_value);
+    s_values->max_computer_image_uniforms = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE, (GLint *)temp_int_value);
+    s_values->max_computer_sharde_memory_size = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_computer_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_computer_atomic_counter_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_ATOMIC_COUNTERS, (GLint *)temp_int_value);
+    s_values->max_computer_atomic_counters = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_combined_compute_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, (GLint *)temp_int_value);
+    s_values->max_computer_work_group_invocations = temp_int_value[0];
+    
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, (GLint *)(temp_int_value));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, (GLint *)(temp_int_value+1));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, (GLint *)(temp_int_value+2));
+    memcpy(s_values->max_computer_work_group_count, temp_int_array, 3*sizeof(int));
+    
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, (GLint *)(temp_int_value));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, (GLint *)(temp_int_value+1));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, (GLint *)(temp_int_value+2));
+    memcpy(s_values->max_computer_work_group_size, temp_int_array, 3*sizeof(int));
+
+
+
+    glGetIntegerv(GL_MAX_UNIFORM_LOCATIONS, (GLint *)temp_int_value);
+    s_values->max_uniform_locations = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAMEBUFFER_WIDTH, (GLint *)temp_int_value);
+    s_values->max_framebuffer_width = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAMEBUFFER_HEIGHT, (GLint *)temp_int_value);
+    s_values->max_framebuffer_height = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAMEBUFFER_SAMPLES, (GLint *)temp_int_value);
+    s_values->max_framebuffer_samples = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_vertex_atomic_counter_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_fragment_atomic_counter_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_combined_atomic_counter_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_ATOMIC_COUNTERS, (GLint *)temp_int_value);
+    s_values->max_fragment_atomic_counters = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_ATOMIC_COUNTERS, (GLint *)temp_int_value);
+    s_values->max_combined_atomic_counters = temp_int_value[0];
+    glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_SIZE, (GLint *)temp_int_value);
+    s_values->max_atomic_counter_buffer_size = temp_int_value[0];
+    glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, (GLint *)temp_int_value);
+    s_values->max_atomic_counter_buffer_bindings = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_IMAGE_UNIFORMS, (GLint *)temp_int_value);
+    s_values->max_vertex_image_uniforms = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_IMAGE_UNIFORMS, (GLint *)temp_int_value);
+    s_values->max_fragment_image_uniforms = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_IMAGE_UNIFORMS, (GLint *)temp_int_value);
+    s_values->max_combined_image_uniforms = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_vertex_shader_storage_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_fragment_shader_storage_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMPUTE_SHADER_STORAGE_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_compute_shader_storage_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_SHADER_STORAGE_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_combined_shader_storage_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, (GLint *)temp_int_value);
+    s_values->max_shader_storage_buffer_bindings = temp_int_value[0];
+    glGetIntegerv(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, (GLint *)temp_int_value);
+    s_values->max_shader_storage_block_size = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_SHADER_OUTPUT_RESOURCES, (GLint *)temp_int_value);
+    s_values->max_combined_shader_output_resources = temp_int_value[0];
+    glGetIntegerv(GL_MIN_PROGRAM_TEXTURE_GATHER_OFFSET, (GLint *)temp_int_value);
+    s_values->min_program_texture_gather_offset = temp_int_value[0];
+    glGetIntegerv(GL_MAX_PROGRAM_TEXTURE_GATHER_OFFSET, (GLint *)temp_int_value);
+    s_values->max_program_texture_gather_offset = temp_int_value[0];
+    glGetIntegerv(GL_MAX_SAMPLE_MASK_WORDS, (GLint *)temp_int_value);
+    s_values->max_sample_mask_words = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, (GLint *)temp_int_value);
+    s_values->max_color_texture_samples = temp_int_value[0];
+    glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, (GLint *)temp_int_value);
+    s_values->max_depth_texture_samples = temp_int_value[0];
+    glGetIntegerv(GL_MAX_INTEGER_SAMPLES, (GLint *)temp_int_value);
+    s_values->max_integer_samples = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIB_RELATIVE_OFFSET, (GLint *)temp_int_value);
+    s_values->max_vertex_attrib_relative_offset = temp_int_value[0];
+    // glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, (GLint *)&(s_values->max_vertex_attrib_bindings));
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIB_STRIDE, (GLint *)temp_int_value);
+    s_values->max_vertex_attrib_stride = temp_int_value[0];
+
+
+
+    glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->max_vertex_texture_image_units = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, (GLint *)temp_int_value);
+    s_values->max_vertex_uniform_vectors = temp_int_value[0];
+    // s_values->max_vertex_uniform_vectors = 256;
+    glGetIntegerv(GL_MAX_VIEWPORT_DIMS, (GLint *)temp_int_value);
+    s_values->max_viewport_dims[0] = temp_int_value[0];
+    s_values->max_viewport_dims[1] = temp_int_value[1];
+
+    // glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, (GLint *)&(s_values->uniform_buffer_offset_alignment));
+    glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, (GLint *)temp_int_value);
+    s_values->max_array_texture_layers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COLOR_ATTACHMENTS, (GLint *)temp_int_value);
+    s_values->max_color_attachments = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_UNIFORM_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_combined_uniform_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_DRAW_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_draw_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_INPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_fragment_input_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_fragment_uniform_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_VECTORS, (GLint *)temp_int_value);
+    s_values->max_fragment_uniform_vectors = temp_int_value[0];
+    // s_values->max_fragment_uniform_vectors = 256;
+    glGetIntegerv(GL_MAX_PROGRAM_TEXEL_OFFSET, (GLint *)temp_int_value);
+    s_values->max_program_texel_offset = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS, (GLint *)temp_int_value);
+    s_values->max_transform_feedback_separate_attribs = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_transform_feedback_separate_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_transform_feedback_interleaved_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, (GLint *)temp_int_value);
+    s_values->max_uniform_buffer_bindings = temp_int_value[0];
+    // glGetIntegerv(GL_MAX_ATOMIC_COUNTER_BUFFER_BINDINGS, (GLint *)&(s_values->max_atomic_counter_buffer_bindings));
+    // glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, (GLint *)&(s_values->max_shader_storage_buffer_bindings));
+    glGetIntegerv(GL_MAX_VARYING_VECTORS, (GLint *)temp_int_value);
+    s_values->max_varying_vectors = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VARYING_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_varying_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_OUTPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_vertex_output_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_vertex_uniform_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MIN_PROGRAM_TEXEL_OFFSET, (GLint *)temp_int_value);
+    s_values->min_program_texel_offset = temp_int_value[0];
+    // glGetIntegerv(GL_SAMPLES, (GLint *)&(s_values->samples));
+    // glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, (GLint *)&(s_values->shader_storage_buffer_offset_alignment));
+    glGetIntegerv(GL_SUBPIXEL_BITS, (GLint *)temp_int_value);
+    s_values->subpixel_bits = temp_int_value[0];
+
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->texture_image_units = temp_int_value[0];
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, (GLint *)temp_int_value);
+    s_values->uniform_buffer_offset_alignment = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY, (GLint *)temp_int_value);
+    s_values->max_texture_anisotropy = temp_int_value[0];
+    // s_values->uniform_buffer_offset_alignment = 1;
+
+    GLfloat temp_float_value[2];
+    glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, temp_float_value);
+    s_values->aliased_line_width_range[0] = temp_float_value[0];
+    s_values->aliased_line_width_range[1] = temp_float_value[1];
+    glGetFloatv(GL_ALIASED_POINT_SIZE_RANGE, temp_float_value);
+    s_values->aliased_point_size_range[0] = temp_float_value[0];
+    s_values->aliased_point_size_range[1] = temp_float_value[1];
+    glGetFloatv(GL_MAX_TEXTURE_LOD_BIAS, temp_float_value);
+    s_values->max_texture_log_bias = temp_float_value[0];
+
+    GLint64 temp_int64_value;
+    glGetInteger64v(GL_MAX_ELEMENT_INDEX, &temp_int64_value);
+    s_values->max_element_index = temp_int64_value;
+    glGetInteger64v(GL_MAX_SERVER_WAIT_TIMEOUT, &temp_int64_value);
+    s_values->max_server_wait_timeout = temp_int64_value;
+    glGetInteger64v(GL_MAX_COMBINED_VERTEX_UNIFORM_COMPONENTS, &temp_int64_value);
+    s_values->max_combined_vertex_uniform_components = temp_int64_value;
+    glGetInteger64v(GL_MAX_COMBINED_FRAGMENT_UNIFORM_COMPONENTS, &temp_int64_value);
+    s_values->max_combined_fragment_uniform_components = temp_int64_value;
+    glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &temp_int64_value);
+    s_values->max_uniform_block_size = temp_int64_value;
+
+    return;
+}
+
+
+
+/**
+ * @brief 主窗口绘制时使用的着色器加载的代码
+ * 
+ * @param type 着色器类型
+ * @param shaderSrc 着色器源码
+ * @return GLuint 返回着色器编号，若为0则生成失败
+ */
+GLuint load_shader(GLenum type, const char *shaderSrc)
+{
+    GLuint shader;
+    GLint compiled;
+
+    shader = glCreateShader(type);
+
+    if (shader == 0)
+    {
+        //    express_printf("Shader==0\n");
+        return 0;
+    }
+
+    // Load the shader source
+    glShaderSource(shader, 1, &shaderSrc, NULL);
+
+    // Compile the shader
+    glCompileShader(shader);
+
+    // Check the compile status
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+
+    if (!compiled)
+    {
+        GLint infoLen = 0;
+
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLen);
+
+        if (infoLen > 1)
+        {
+            char *infoLog = malloc(sizeof(char) * infoLen);
+
+            glGetShaderInfoLog(shader, infoLen, NULL, infoLog);
+
+            free(infoLog);
+        }
+
+        glDeleteShader(shader);
+        //    express_printf("compiled==0\n");
+        return 0;
+    }
+
+    return shader;
+}
+
+/**
+ * @brief 窗口界面使用OpenGL渲染的前置操作，例如加载着色器，生成顶点等
+ * 
+ * @param program 返回值，填入生成的着色器ID
+ * @param VAO 返回值，填入生成的顶点数组ID 
+ * @return int 返回1表示准备成功，为0则说明准备失败
+ */
+int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
+{
+    char vShaderStr[] =
+        "#version 300 es\n"
+        "layout (location = 0) in vec2 position;\n"
+        "layout (location = 1) in vec2 texCoords;\n"
+        "uniform int need_reverse;\n"
+        "out vec2 TexCoords;\n"
+        "void main()\n"
+        "{\n"
+        "    if(need_reverse == 0)\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
+        "    }\n"
+        "    else\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "    }\n"
+        "    TexCoords = texCoords;\n"
+        "}\n";
+
+    char fShaderStr[] =
+        "#version 300 es\n"
+        "precision mediump float;                     \n"
+        "in vec2 TexCoords;\n"
+        "out vec4 color;\n"
+        "uniform sampler2D screenTexture;\n"
+        "void main(){\n"
+        "color = texture(screenTexture, TexCoords);\n"
+        "}\n";
+
+    GLuint programObject = glCreateProgram();
+    if (programObject == 0)
+    {
+        //express_printf("shit glCreateProgram2 %ld\n", GetLastError());
+        return 0;
+    }
+
+    GLuint vertexShader = load_shader(GL_VERTEX_SHADER, vShaderStr);
+    GLuint fragmentShader = load_shader(GL_FRAGMENT_SHADER, fShaderStr);
+    //express_printf("shader %d %d\n", vertexShader, fragmentShader);
+
+    glAttachShader(programObject, vertexShader);
+    glAttachShader(programObject, fragmentShader);
+
+    glLinkProgram(programObject);
+
+    GLint linked;
+    glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
+    if (!linked)
+    {
+        //express_printf("shit glGetProgramiv2 %ld\n", GetLastError());
+        return 0;
+    }
+
+    GLfloat quadVertices[] = {// Vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
+                              // Positions   // TexCoords
+                              -1.0f, 1.0f, 0.0f, 1.0f,
+                              -1.0f, -1.0f, 0.0f, 0.0f,
+                              1.0f, -1.0f, 1.0f, 0.0f,
+
+                              -1.0f, 1.0f, 0.0f, 1.0f,
+                              1.0f, -1.0f, 1.0f, 0.0f,
+                              1.0f, 1.0f, 1.0f, 1.0f};
+
+    GLuint quadVAO, quadVBO;
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)(2 * sizeof(GLfloat)));
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    *program = programObject;
+    *VAO = quadVAO;
+
+    //开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUseProgram(programObject);
+
+    glClearColor(0, 0, 0, 1);
+
+    return 1;
+}
+
+
+
 Dying_List *dying_list_append(Dying_List *list, void *data)
 {
     if(list == NULL)
@@ -957,62 +1365,62 @@ GLdouble glTestInt6(GLint a, GLuint b)
     return 3.1415926535;
 }
 
-void glTestPointer1(GLint a, const GLint *b)
-{
-    printf("glTestPointer1 %d ", a);
-    for (int i = 0; i < 10; i++)
-    {
-        printf("%d ", b[i]);
-    }
-    printf("\n");
-    fflush(stdout);
-    return;
-}
+// void glTestPointer1(GLint a, const GLint *b)
+// {
+//     printf("glTestPointer1 %d ", a);
+//     for (int i = 0; i < 10; i++)
+//     {
+//         printf("%d ", b[i]);
+//     }
+//     printf("\n");
+//     fflush(stdout);
+//     return;
+// }
 
-void glTestPointer2(GLint a, const GLint *b, GLint *c)
-{
-    printf("glTestPointer2 %d %d\n", a, *b);
-    for (int i = 0; i < 10; i++)
-    {
-        c[i] = b[i];
-    }
-    fflush(stdout);
-    return;
-}
+// void glTestPointer2(GLint a, const GLint *b, GLint *c)
+// {
+//     printf("glTestPointer2 %d %d\n", a, *b);
+//     for (int i = 0; i < 10; i++)
+//     {
+//         c[i] = b[i];
+//     }
+//     fflush(stdout);
+//     return;
+// }
 
-GLint glTestPointer4(GLint a, const GLint *b, GLint *c)
-{
-    printf("glTestPointer4 %d,%d\n", a, *b);
-    for (int i = 0; i < 1000; i++)
-    {
-        c[i] = b[i];
-    }
-    fflush(stdout);
-    return 12456687;
-}
+// GLint glTestPointer4(GLint a, const GLint *b, GLint *c)
+// {
+//     printf("glTestPointer4 %d,%d\n", a, *b);
+//     for (int i = 0; i < 1000; i++)
+//     {
+//         c[i] = b[i];
+//     }
+//     fflush(stdout);
+//     return 12456687;
+// }
 
-GLint d_glTestPointer3(void *context, GLint a, const GLint *b, GLint *c)
-{
+// GLint d_glTestPointer3(void *context, GLint a, const GLint *b, GLint *c)
+// {
 
-    int len;
-    char *temp = g_malloc(a * sizeof(int));
-    memset(temp, 0, a * sizeof(int));
-    printf("glTestPointer3 %d\n", a);
-    guest_write((Guest_Mem *)b, temp, 0, a * sizeof(int));
+//     int len;
+//     char *temp = g_malloc(a * sizeof(int));
+//     memset(temp, 0, a * sizeof(int));
+//     printf("glTestPointer3 %d\n", a);
+//     guest_write((Guest_Mem *)b, temp, 0, a * sizeof(int));
 
-    char *temp_s[100];
-    int loc = 0;
-    for (int i = a / 2; i < a / 2 + 10; i++)
-    {
-        loc += sprintf(temp_s + loc, "%d ", temp[i]);
-    }
-    printf("glTestPointer3 %s\n", temp_s);
+//     char *temp_s[100];
+//     int loc = 0;
+//     for (int i = a / 2; i < a / 2 + 10; i++)
+//     {
+//         loc += sprintf(temp_s + loc, "%d ", temp[i]);
+//     }
+//     printf("glTestPointer3 %s\n", temp_s);
 
-    guest_read((Guest_Mem *)c, temp, 0, a * sizeof(int));
+//     guest_read((Guest_Mem *)c, temp, 0, a * sizeof(int));
 
-    fflush(stdout);
-    return 12456687;
-}
+//     fflush(stdout);
+//     return 12456687;
+// }
 
 void glTestString(GLint a, GLint count, const GLchar *const *strings, GLint buf_len, GLchar *char_buf)
 {
@@ -1021,7 +1429,7 @@ void glTestString(GLint a, GLint count, const GLchar *const *strings, GLint buf_
     {
         printf("%s\n", strings[i]);
     }
-    char *t = "printf ok!";
+    const char *t = "printf ok!";
     memcpy(char_buf, t, strlen(t));
     fflush(stdout);
 }

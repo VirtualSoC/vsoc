@@ -13,7 +13,7 @@ Egl_Display_WGL default_wgl_display;
 void init_display(Egl_Display **display_point)
 {
     Egl_Display *display = (Egl_Display *)&default_wgl_display;
-    *display_point = &default_wgl_display;
+    *display_point = (Egl_Display *)&default_wgl_display;
 
     Egl_Display_WGL *wgl_display = (Egl_Display_WGL *)display;
     ZeroMemory(wgl_display, sizeof(Egl_Display_WGL));
@@ -172,7 +172,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
     Egl_Display_WGL *wgl_display = (Egl_Display_WGL *)display;
     if (wgl_display->wgl_ext == NULL)
     {
-        init_wgl_extension(wgl_display);
+        init_wgl_extension((Egl_Display *)wgl_display);
     }
 
     if (!wgl_display->wgl_ext->wglGetPixelFormatAttribivARB)
@@ -250,7 +250,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
  * 
  * @return HDC 创建的dummy window
  */
-HWND create_dummy_window()
+HWND create_dummy_window(void)
 {
     WNDCLASSEX wcx;
     wcx.cbSize = sizeof(wcx);                       // size of structure

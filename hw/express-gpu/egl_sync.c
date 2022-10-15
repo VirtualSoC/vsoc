@@ -22,7 +22,7 @@ EGLBoolean d_eglWaitClient(void *context)
     return EGL_TRUE;
 }
 
-EGLBoolean d_eglGetSyncAttrib(void *context, EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib *value)
+EGLBoolean d_eglGetSyncAttrib(void *context, EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLint *value)
 {
     unsigned int guest_sync_int = (unsigned int)(uint64_t)sync;
 
@@ -80,7 +80,7 @@ EGLBoolean d_eglGetSyncAttrib(void *context, EGLDisplay dpy, EGLSync sync, EGLin
     return EGL_TRUE;
 }
 
-void d_eglCreateSync(void *context, EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list, EGLSync guest_sync)
+void d_eglCreateSync(void *context, EGLDisplay dpy, EGLenum type, const EGLint *attrib_list, EGLSync guest_sync)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
 

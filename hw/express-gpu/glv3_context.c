@@ -2,6 +2,7 @@
 // #define TIMER_LOG
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_resource.h"
+#include "hw/express-gpu/glv3_program.h"
 
 #include "glad/glad.h"
 #include "hw/express-gpu/egl_window.h"
@@ -18,7 +19,7 @@ static void g_vao_point_data_destroy(gpointer data);
 
 
 
-static volatile GList *native_context_pool = NULL;
+static GList * volatile native_context_pool = NULL;
 static int native_context_pool_size = 0;
 static int native_context_pool_locker = 0;
 
@@ -222,13 +223,13 @@ void *get_native_opengl_context(int independ_mode)
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
             //等待window真正的建立起来
         int sleep_cnt = 0;
-        while (native_context == NULL || native_context == 0xffffff)
+        while (native_context == NULL || native_context == (void *)0xffffff)
         {
             g_usleep(1000);
             sleep_cnt += 1;
             if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
             {
-                printf("wait for window creating too long! ptr %llx\n", &native_context);
+                printf("wait for window creating too long! ptr %llx\n", (uint64_t)&native_context);
             }
         }
     }
@@ -370,7 +371,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
 // 不能在子线程中创建context，不然会为空
 //     opengl_context->window = egl_createContext();
 // #endif
-    // printf("send message create window opengl context %llx window_ptr %llx\n", opengl_context, &(opengl_context->window));
+    // printf("send message create window opengl context %llx window_ptr %llx\n", (uint64_t)opengl_context, &(opengl_context->window));
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)
@@ -443,7 +444,7 @@ void opengl_context_init(Opengl_Context *context)
         unsigned long long temp_host_vao = 0;
 
 
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCreateVertexArrays(1, &vao0);
             glCreateBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
@@ -469,7 +470,7 @@ void opengl_context_init(Opengl_Context *context)
 
         }
 
-        // printf("context %llx init vao %d\n",context, vao0);
+        // printf("context %llx init vao %d\n",(uint64_t)context, vao0);
         
         temp_host_vao = vao0;
         create_host_map_ids(map_status, 1, &temp_guest_vao, &temp_host_vao);
@@ -565,7 +566,7 @@ void opengl_context_destroy(Opengl_Context *context)
         egl_makeCurrent(opengl_context->window);
     }
 // #ifdef USE_GLFW_AS_WGL
-//     // printf("make current context %llx windows %llx\n",opengl_context,opengl_context->window);
+//     // printf("make current context %llx windows %llx\n",(uint64_t)opengl_context,opengl_context->window);
 //     glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
 // #else
 //     egl_makeCurrent(opengl_context->window);
@@ -616,7 +617,7 @@ void opengl_context_destroy(Opengl_Context *context)
     }
     else
     {
-        express_printf("context %llx windows %llx makecurrent null\n",opengl_context, opengl_context->window);
+        express_printf("context %llx windows %llx makecurrent null\n",(uint64_t)opengl_context, opengl_context->window);
         egl_makeCurrent(NULL);
     }
 // #ifdef USE_GLFW_AS_WGL
@@ -625,7 +626,7 @@ void opengl_context_destroy(Opengl_Context *context)
 // #endif
 //     glfwMakeContextCurrent(NULL);
 // #else
-//     express_printf("context %llx windows %llx makecurrent null\n",opengl_context, opengl_context->window);
+//     express_printf("context %llx windows %llx makecurrent null\n",(uint64_t)opengl_context, opengl_context->window);
 //     egl_makeCurrent(NULL);
 // #endif
     release_native_opengl_context(opengl_context->window, opengl_context->independ_mode);

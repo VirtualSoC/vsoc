@@ -12,7 +12,8 @@
 
 #include "hw/direct-express/direct_express_pci.h"
 #include "hw/direct-express/express_log.h"
-//
+#include "qapi/error.h"
+
 static Property direct_express_pci_base_properties[] = {
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 2),
     DEFINE_PROP_END_OF_LIST(),
@@ -26,7 +27,6 @@ static void direct_express_pci_instance_init(Object *obj)
     virtio_instance_init_common(obj, &dev->direct_express, sizeof(dev->direct_express),
                                 TYPE_DIRECT_EXPRESS);
 
-    //VIRTIO_GPU_PCI_BASE(obj)->vgpu = VIRTIO_GPU_BASE(&dev->vdev);
 }
 
 static void direct_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
@@ -37,21 +37,27 @@ static void direct_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     DeviceState *vdev = DEVICE(e);
     Error *local_error = NULL;
 
-    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus), NULL);
+    qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus), &local_error);
+    if (local_error)
+    {
+        error_propagate(errp, local_error);
+        return;
+    }
+
     virtio_pci_force_virtio_1(vpci_dev);
     object_property_set_bool(OBJECT(vdev), "realized", true, &local_error);
 
     if (local_error)
     {
-        // error_propagate(errp, local_error);
+        error_propagate(errp, local_error);
         return;
     }
 
-    //    for (i = 0; i < g->conf.max_outputs; i++) {
-    //        object_property_set_link(OBJECT(g->scanout[i].con),
-    //                                 OBJECT(vpci_dev),
-    //                                 "device", errp);
-    //    }
+    // for (i = 0; i < g->conf.max_outputs; i++) {
+    //     object_property_set_link(OBJECT(g->scanout[i].con),
+    //                             OBJECT(vpci_dev),
+    //                             "device", errp);
+    // }
 }
 
 static void direct_express_pci_class_init(ObjectClass *klass, void *data)
@@ -61,14 +67,12 @@ static void direct_express_pci_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *pcidev_k = PCI_DEVICE_CLASS(klass);
 
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
-    //    device_class_set_props(dc, my_gpu_pci_base_properties);
     device_class_set_props(dc, direct_express_pci_base_properties);
 
     dc->hotpluggable = false;
     k->realize = direct_express_pci_realize;
     pcidev_k->class_id = PCI_CLASS_DISPLAY_OTHER;
-    //    pcidev_k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
-    //    pcidev_k->device_id = 0x10e1;
+
     pcidev_k->revision = 0x1;
 }
 

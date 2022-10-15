@@ -28,7 +28,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
     Buffer_Status *status = &(bound_buffer->buffer_status);
     GLint asyn_texture = bound_buffer->asyn_unpack_texture_buffer;
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glNamedBufferData(asyn_texture, end_loc, NULL, GL_STREAM_DRAW);
         // express_printf("gl get error %x\n",glGetError());
@@ -53,7 +53,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
 
         // GLuint now_unpack = 0;
         // glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &now_unpack);
-        // printf("%llx prepare_unpack_texture now unpack %d asyn %d\n", context, now_unpack,asyn_texture);
+        // printf("%llx prepare_unpack_texture now unpack %d asyn %d\n", (uint64_t)context, now_unpack,asyn_texture);
         if(status->host_pixel_unpack_buffer !=  asyn_texture)
         {
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
@@ -166,14 +166,14 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
 
     GLuint bind_texture = get_guest_binding_texture(context, target);
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
 
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
@@ -186,7 +186,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
 
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, format, type, NULL);
         }
@@ -197,7 +197,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
         // GLuint now_unpack = 0;
         // glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &now_unpack);
-        // printf("%llx target %x teximage2d without null size %d %d len %d real %d now unpack %d\n",context,target, width,height,buf_len,guest_mem->all_len,now_unpack);
+        // printf("%llx target %x teximage2d without null size %d %d len %d real %d now unpack %d\n",(uint64_t)context,target, width,height,buf_len,guest_mem->all_len,now_unpack);
         return;
     }
 
@@ -213,7 +213,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     // glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &now_unpack);
     // GLuint now_texture= 0;
     // glGetIntegerv(GL_TEXTURE_BINDING_2D, &now_texture);
-    // printf("%llx target %x bindteture %d teximage2d without size %d %d len %d real %d format %x type %x now unpack %d now texture %d\n",context,target,bind_texture, width,height,buf_len,guest_mem->all_len, format, type, now_unpack, now_texture);
+    // printf("%llx target %x bindteture %d teximage2d without size %d %d len %d real %d format %x type %x now unpack %d now texture %d\n",(uint64_t)context,target,bind_texture, width,height,buf_len,guest_mem->all_len, format, type, now_unpack, now_texture);
 
     // GLubyte *temp_data=g_malloc(end_loc-start_loc);
     // guest_write(guest_mem,temp_data,start_loc,end_loc-start_loc);
@@ -224,7 +224,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     // express_printf("\n");
     
     //这时候是立即返回的，后续会进行dma传输
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, format, type, NULL);
     }
@@ -240,7 +240,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
@@ -251,11 +251,11 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
 
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, format, type, (void *)pixels);
     }
@@ -277,7 +277,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
 
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
@@ -294,7 +294,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
         }
         printf("error! glTexSubImage2D get NULL data! target %x level %d xoffset %d yoffset %d width %d height %d format %x type %x buf_len %d",
             target, level, xoffset, yoffset, (int)width, (int)height, format, type, buf_len);
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             //pixels=NULL
             
@@ -317,7 +317,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         if(target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
            target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
@@ -386,13 +386,13 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
     
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureSubImage2D(bind_texture, level, xoffset, yoffset, width, height, format, type, (void *)pixels);
     }
@@ -448,7 +448,7 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
     // Scatter_Data *s_data=guest_mem->scatter_data;
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
@@ -456,7 +456,7 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
@@ -471,7 +471,7 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
 
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glTextureImage3DEXT(bind_texture, target, level, internalformat, width, height, depth, border, format, type, NULL);
         }
@@ -493,7 +493,7 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
     //这时候是立即返回的，后续会进行dma传输
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureImage3DEXT(bind_texture, target, level, internalformat, width, height, depth, border, format, type, 0);
     }
@@ -512,18 +512,18 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
 void d_glTexImage3D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureImage3DEXT(bind_texture, target, level, internalformat, width, height, depth, border, format, type, (void *)pixels);
     }
@@ -546,7 +546,7 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
@@ -560,7 +560,7 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
 
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, width, height, depth, format, type, NULL);
         }
@@ -579,7 +579,7 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
     //这时候是立即返回的，后续会进行dma传输
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, width, height, depth, format, type, 0);
     }
@@ -597,12 +597,12 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
 void d_glTexSubImage3D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         GLuint bind_texture = get_guest_binding_texture(context, target);
         if(bind_texture == 0)
         {
-            printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+            printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
             return;
         }
         glTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, width, height, depth, format, type, (void *)pixels);
@@ -620,7 +620,7 @@ void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint 
     // Scatter_Data *s_data=guest_mem->scatter_data;
     // printf("compress texture format %x\n",internalformat);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
@@ -628,7 +628,7 @@ void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint 
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
     
@@ -642,7 +642,7 @@ void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint 
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
 
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCompressedTextureImage3DEXT(bind_texture, target, level, internalformat, width, height, depth, border, imageSize, NULL);
         }
@@ -656,7 +656,7 @@ void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint 
     // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
     prepare_unpack_texture(context, guest_mem, 0, imageSize);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glCompressedTextureImage3DEXT(bind_texture, target, level, internalformat, width, height, depth, border, imageSize, 0);
     }
@@ -677,7 +677,7 @@ void d_glCompressedTexImage3D_with_bound(void *context, GLenum target, GLint lev
 {
     // printf("compress texture format %x\n",internalformat);
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
@@ -685,11 +685,11 @@ void d_glCompressedTexImage3D_with_bound(void *context, GLenum target, GLint lev
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glCompressedTextureImage3DEXT(bind_texture, target, level, internalformat, width, height, depth, border, imageSize, (void *)data);
     }
@@ -708,7 +708,7 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
@@ -721,7 +721,7 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
             buffer_status->host_pixel_unpack_buffer = 0;
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCompressedTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, NULL);
         }
@@ -735,7 +735,7 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
     // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
     prepare_unpack_texture(context, guest_mem, 0, imageSize);
     
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glCompressedTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, 0);
     }
@@ -756,12 +756,12 @@ void d_glCompressedTexSubImage3D_with_bound(void *context, GLenum target, GLint 
 {
     
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         GLuint bind_texture = get_guest_binding_texture(context, target);
         if(bind_texture == 0)
         {
-            printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+            printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
             return;
         }
         glCompressedTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, (void *)data);
@@ -780,7 +780,7 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
     // printf("compress texture format %x\n",internalformat);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
@@ -788,7 +788,7 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
@@ -802,7 +802,7 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
 
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCompressedTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, imageSize, NULL);
         }
@@ -816,7 +816,7 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
     // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
     prepare_unpack_texture(context, guest_mem, 0, imageSize);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glCompressedTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, imageSize, 0);
     }
@@ -838,7 +838,7 @@ void d_glCompressedTexImage2D_with_bound(void *context, GLenum target, GLint lev
 {
     // printf("compress texture format %x\n",internalformat);
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(host_opengl_version >= 45 && DSA_enable == 1)
+    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     // {
     //     texture_binding_status_sync(context, target);
     // }
@@ -846,11 +846,11 @@ void d_glCompressedTexImage2D_with_bound(void *context, GLenum target, GLint lev
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glCompressedTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, imageSize, (void *)data);
     }
@@ -869,7 +869,7 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     if(bind_texture == 0)
     {
-        printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+        printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
         return;
     }
 
@@ -883,7 +883,7 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
             buffer_status->host_pixel_unpack_buffer = 0;
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         }
-        if(host_opengl_version >= 45 && DSA_enable == 1)
+        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCompressedTextureSubImage2D(bind_texture, level, xoffset, yoffset, width, height, format, imageSize, NULL);
         }
@@ -904,7 +904,7 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
     // {
     //     printf("glCompressedTexSubImage2D prepare error %x\n",error);
     // }
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         if(target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
            target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
@@ -967,12 +967,12 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
 void d_glCompressedTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr data)
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         GLuint bind_texture = get_guest_binding_texture(context, target);
         if(bind_texture == 0)
         {
-            printf("error! %s with texture 0 target %x\n",__FUNCTION__, context);
+            printf("error! %s with texture 0 target %llx\n",__FUNCTION__, (uint64_t)context);
             return;
         }
         
@@ -990,7 +990,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     Guest_Mem *guest_mem = (Guest_Mem *)pixels;
     // Scatter_Data *s_data=guest_mem->scatter_data;
 
-    if (guest_mem->all_len == 0)
+    if (unlikely(guest_mem->all_len == 0))
     {
         //pixels=NULL
         // glReadPixels(x, y, width, height, format, type, NULL);
@@ -1012,7 +1012,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     status->host_pixel_pack_buffer = asyn_texture;
 
     //因为曾经bind过texture，所以这里直接bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glNamedBufferData(asyn_texture, end_loc, NULL, GL_STREAM_READ);
     }
@@ -1024,7 +1024,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
 
     //注意，此句会阻塞，直到pixels全部下载下来
     GLubyte *map_pointer = NULL;
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
        map_pointer = glMapNamedBufferRange(asyn_texture, start_loc, end_loc - start_loc, GL_MAP_READ_BIT);
     }
@@ -1045,7 +1045,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
 
     guest_read(guest_mem, map_pointer, 0, end_loc - start_loc);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glUnmapNamedBuffer(asyn_texture);
     }
@@ -1063,7 +1063,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
 void d_glReadPixels_with_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_PACK_BUFFER);
-    GLuint pack = 0;
+    // GLuint pack = 0;
     // glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
     // printf("glReadPixels x %d y %d width %d height %d format %x type %x pixels %llx pack %d\n", x, y, (int)width, (int)height, format, type, pixels, pack);
     glReadPixels(x, y, width, height, format, type, (void *)pixels);
@@ -1180,7 +1180,7 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
 
     buffer_status->host_pixel_unpack_buffer = asyn_texture;
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
         glNamedBufferData(asyn_texture, row_byte_len * height, NULL, GL_STREAM_DRAW);
@@ -1192,7 +1192,7 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
     }
 
     GLubyte *map_pointer = NULL;
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
        map_pointer = glMapNamedBufferRange(asyn_texture, 0, row_byte_len * height, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
     }
@@ -1220,7 +1220,7 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
 
     //不能直接write，因为每一行有额外的填充
     // guest_write(guest_mem, map_pointer, 0, buf_len);
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glUnmapNamedBuffer(asyn_texture);
         //这时候是立即返回的，后续会进行dma传输
@@ -1239,7 +1239,7 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
         //注意，graphicdata调用前会调用bindEGLImage来绑定EGLImage对应的那个特殊纹理，所以这里不能使用缓存值
         // glBindTexture(GL_TEXTURE_2D, pre_texture);
         // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pre_unpack);
-        Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
+        // Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
         Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
 
         glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[texture_status->host_current_active_texture]);
@@ -1352,13 +1352,13 @@ void d_glReadGraphicBuffer(void *r_context, EGLContext ctx, uint64_t gbuffer_id,
     glBindBuffer(GL_PIXEL_PACK_BUFFER, temp_buffer);
     glBufferData(GL_PIXEL_PACK_BUFFER, row_byte_len * height, NULL, GL_STREAM_READ);
 
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glGetTextureImage(gbuffer->data_texture, 0, gbuffer->format, gbuffer->pixel_type, row_byte_len * gbuffer->height, 0);
     }
     else
     {
-        GLuint pre_texture = 0;
+        GLint pre_texture = 0;
         glGetIntegerv(GL_TEXTURE_BINDING_2D, &pre_texture);
 
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
@@ -1379,7 +1379,7 @@ void d_glReadGraphicBuffer(void *r_context, EGLContext ctx, uint64_t gbuffer_id,
 
     printf("glReadGraphicBuffer id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n", gbuffer->gbuffer_id, width, height, gbuffer->internal_format, gbuffer->format, row_byte_len, buf_len);
     GLubyte *map_pointer = NULL;
-    if(host_opengl_version >= 45 && DSA_enable == 1)
+    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
        map_pointer = glMapNamedBufferRange(temp_buffer, 0, row_byte_len * height, GL_MAP_READ_BIT);
     }
