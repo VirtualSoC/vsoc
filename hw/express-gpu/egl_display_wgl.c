@@ -7,7 +7,7 @@ Egl_Display_WGL default_wgl_display;
 
 /**
  * @brief 初始化Egl_Display
- * 
+ *
  * @param display_point 待初始化的Egl_Display
  */
 void init_display(Egl_Display **display_point)
@@ -30,7 +30,7 @@ void init_display(Egl_Display **display_point)
 
 /**
  * @brief 初始化EGL configuration并将所有可用configuration保存到全局的hash表中
- * 
+ *
  * @param display 待初始化的Egl_Display
  */
 void init_configs(Egl_Display *display)
@@ -85,14 +85,13 @@ void init_configs(Egl_Display *display)
     add_window_independent_config(display, EGL_STENCIL_SIZE, stencil_vals, NUM_STENCILE_VAL);
     add_window_independent_config(display, EGL_SAMPLES, sample_vals, NUM_SAMPLE_VAL);
 
-
     ReleaseDC(dummy_window, dummy_ctx);
     DestroyWindow(dummy_window);
 }
 
 /**
  * @brief 初始化WGL Extension
- * 
+ *
  * @param display 待初始化的Egl_Display
  */
 void init_wgl_extension(Egl_Display *display)
@@ -159,7 +158,7 @@ void init_wgl_extension(Egl_Display *display)
 
 /**
  * @brief 将PixelFormat解析为eglConfig
- * 
+ *
  * @param display 待初始化的Egl_Display
  * @param pfd PixelFormatDescriptor
  * @param id 第几个PixelFormat
@@ -247,7 +246,7 @@ void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPT
 
 /**
  * @brief 创建一个dummy window用于configuration初始化
- * 
+ *
  * @return HDC 创建的dummy window
  */
 HWND create_dummy_window(void)

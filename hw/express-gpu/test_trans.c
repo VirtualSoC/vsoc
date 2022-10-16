@@ -21,7 +21,7 @@ void test_no_copy(void *data, size_t len)
         copy_large_buf = g_malloc(buf_len);
     }
 
-    if(((Guest_Mem *)data)->num == 1)
+    if (((Guest_Mem *)data)->num == 1)
     {
         return;
     }
@@ -29,7 +29,6 @@ void test_no_copy(void *data, size_t len)
 
     return;
 }
-
 
 void test_copy(void *data, size_t len)
 {
@@ -62,7 +61,7 @@ void test_copy(void *data, size_t len)
 void test_decode_invoke(void *context, Direct_Express_Call *call)
 {
 
-    //Double_Buffer *egl_context = (render_context->render_double_buffer);
+    // Double_Buffer *egl_context = (render_context->render_double_buffer);
 
     Call_Para all_para[MAX_PARA_NUM];
 
@@ -115,7 +114,7 @@ void test_decode_invoke(void *context, Direct_Express_Call *call)
         break;
     }
 
-    //if(need_speed){
+    // if(need_speed){
     call->callback(call, 1);
     //}else{
     //    call->callback(call, 0);

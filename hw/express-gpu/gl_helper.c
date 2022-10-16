@@ -2,10 +2,10 @@
 
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
- * 
+ *
  * @param format 像素格式
  * @param type 像素类型
- * @return int 
+ * @return int
  */
 int pixel_size_calc(GLenum format, GLenum type)
 {
@@ -83,7 +83,7 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_RGBA_INTEGER:
             return sizeof(unsigned char) * 4;
         case GL_BGRA_EXT:
-            //case GL_BGRA8_EXT:
+            // case GL_BGRA8_EXT:
             return sizeof(unsigned char) * 4;
         }
         break;
@@ -247,9 +247,9 @@ int pixel_size_calc(GLenum format, GLenum type)
 
 /**
  * @brief opengl各种类型数据的sizeof函数
- * 
- * @param type 
- * @return size_t 
+ *
+ * @param type
+ * @return size_t
  */
 size_t gl_sizeof(GLenum type)
 {
@@ -795,7 +795,6 @@ size_t gl_pname_size(GLenum pname)
     return s;
 }
 
-
 void prepare_integer_value(Static_Context_Values *s_values)
 {
 
@@ -833,14 +832,14 @@ void prepare_integer_value(Static_Context_Values *s_values)
     glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, (GLint *)temp_int_value);
     s_values->num_program_binary_formats = temp_int_value[0];
 
-    int *temp_int_array = g_alloca(max(max(s_values->num_shader_binary_formats, s_values->num_compressed_texture_formats), s_values->num_program_binary_formats)*sizeof(int));
+    int *temp_int_array = g_alloca(max(max(s_values->num_shader_binary_formats, s_values->num_compressed_texture_formats), s_values->num_program_binary_formats) * sizeof(int));
 
     glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->compressed_texture_formats, temp_int_array, max(s_values->num_compressed_texture_formats,128)*sizeof(int));
+    memcpy(s_values->compressed_texture_formats, temp_int_array, max(s_values->num_compressed_texture_formats, 128) * sizeof(int));
     glGetIntegerv(GL_PROGRAM_BINARY_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->program_binary_formats, temp_int_array, max(s_values->num_program_binary_formats,8)*sizeof(int));
+    memcpy(s_values->program_binary_formats, temp_int_array, max(s_values->num_program_binary_formats, 8) * sizeof(int));
     glGetIntegerv(GL_SHADER_BINARY_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->shader_binary_formats, temp_int_array, max(s_values->num_shader_binary_formats,8)*sizeof(int));
+    memcpy(s_values->shader_binary_formats, temp_int_array, max(s_values->num_shader_binary_formats, 8) * sizeof(int));
     glGetIntegerv(GL_SUBPIXEL_BITS, (GLint *)temp_int_value);
     s_values->subpixel_bits = temp_int_value[0];
     glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, (GLint *)temp_int_value);
@@ -866,7 +865,6 @@ void prepare_integer_value(Static_Context_Values *s_values)
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
     s_values->max_vertex_uniform_components = temp_int_value[0];
 
-
     glGetIntegerv(GL_MAX_IMAGE_UNITS, (GLint *)temp_int_value);
     s_values->max_image_units = temp_int_value[0];
     glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, (GLint *)temp_int_value);
@@ -889,18 +887,16 @@ void prepare_integer_value(Static_Context_Values *s_values)
     s_values->max_combined_compute_uniform_components = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, (GLint *)temp_int_value);
     s_values->max_computer_work_group_invocations = temp_int_value[0];
-    
+
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, (GLint *)(temp_int_value));
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, (GLint *)(temp_int_value+1));
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, (GLint *)(temp_int_value+2));
-    memcpy(s_values->max_computer_work_group_count, temp_int_array, 3*sizeof(int));
-    
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, (GLint *)(temp_int_value + 1));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, (GLint *)(temp_int_value + 2));
+    memcpy(s_values->max_computer_work_group_count, temp_int_array, 3 * sizeof(int));
+
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, (GLint *)(temp_int_value));
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, (GLint *)(temp_int_value+1));
-    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, (GLint *)(temp_int_value+2));
-    memcpy(s_values->max_computer_work_group_size, temp_int_array, 3*sizeof(int));
-
-
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, (GLint *)(temp_int_value + 1));
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, (GLint *)(temp_int_value + 2));
+    memcpy(s_values->max_computer_work_group_size, temp_int_array, 3 * sizeof(int));
 
     glGetIntegerv(GL_MAX_UNIFORM_LOCATIONS, (GLint *)temp_int_value);
     s_values->max_uniform_locations = temp_int_value[0];
@@ -961,8 +957,6 @@ void prepare_integer_value(Static_Context_Values *s_values)
     // glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, (GLint *)&(s_values->max_vertex_attrib_bindings));
     glGetIntegerv(GL_MAX_VERTEX_ATTRIB_STRIDE, (GLint *)temp_int_value);
     s_values->max_vertex_attrib_stride = temp_int_value[0];
-
-
 
     glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
     s_values->max_vertex_texture_image_units = temp_int_value[0];
@@ -1049,11 +1043,9 @@ void prepare_integer_value(Static_Context_Values *s_values)
     return;
 }
 
-
-
 /**
  * @brief 主窗口绘制时使用的着色器加载的代码
- * 
+ *
  * @param type 着色器类型
  * @param shaderSrc 着色器源码
  * @return GLuint 返回着色器编号，若为0则生成失败
@@ -1105,9 +1097,9 @@ GLuint load_shader(GLenum type, const char *shaderSrc)
 
 /**
  * @brief 窗口界面使用OpenGL渲染的前置操作，例如加载着色器，生成顶点等
- * 
+ *
  * @param program 返回值，填入生成的着色器ID
- * @param VAO 返回值，填入生成的顶点数组ID 
+ * @param VAO 返回值，填入生成的顶点数组ID
  * @return int 返回1表示准备成功，为0则说明准备失败
  */
 int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
@@ -1144,13 +1136,13 @@ int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
     GLuint programObject = glCreateProgram();
     if (programObject == 0)
     {
-        //express_printf("shit glCreateProgram2 %ld\n", GetLastError());
+        // express_printf("shit glCreateProgram2 %ld\n", GetLastError());
         return 0;
     }
 
     GLuint vertexShader = load_shader(GL_VERTEX_SHADER, vShaderStr);
     GLuint fragmentShader = load_shader(GL_FRAGMENT_SHADER, fShaderStr);
-    //express_printf("shader %d %d\n", vertexShader, fragmentShader);
+    // express_printf("shader %d %d\n", vertexShader, fragmentShader);
 
     glAttachShader(programObject, vertexShader);
     glAttachShader(programObject, fragmentShader);
@@ -1161,7 +1153,7 @@ int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
     glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
     if (!linked)
     {
-        //express_printf("shit glGetProgramiv2 %ld\n", GetLastError());
+        // express_printf("shit glGetProgramiv2 %ld\n", GetLastError());
         return 0;
     }
 
@@ -1202,11 +1194,9 @@ int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
     return 1;
 }
 
-
-
 Dying_List *dying_list_append(Dying_List *list, void *data)
 {
-    if(list == NULL)
+    if (list == NULL)
     {
         list = (Dying_List *)g_malloc(sizeof(Dying_List));
         list->header = NULL;
@@ -1216,7 +1206,7 @@ Dying_List *dying_list_append(Dying_List *list, void *data)
     Dying_List_Node *node = g_malloc(sizeof(Dying_List_Node));
     node->data = data;
     node->next = NULL;
-    if(list->tail == NULL)
+    if (list->tail == NULL)
     {
         list->tail = node;
         list->header = node;
@@ -1234,15 +1224,15 @@ Dying_List *dying_list_append(Dying_List *list, void *data)
 
 Dying_List *dying_list_remove(Dying_List *list, void *data)
 {
-    if(list == NULL)
+    if (list == NULL)
     {
         return list;
     }
-    for(Dying_List_Node *node = list->header; node!=NULL;)
+    for (Dying_List_Node *node = list->header; node != NULL;)
     {
-        if(node->data == data)
+        if (node->data == data)
         {
-            if(node->prev == NULL)
+            if (node->prev == NULL)
             {
                 list->header = node->next;
             }
@@ -1250,7 +1240,7 @@ Dying_List *dying_list_remove(Dying_List *list, void *data)
             {
                 node->prev->next = node->next;
             }
-            if(node->next == NULL)
+            if (node->next == NULL)
             {
                 list->tail = node->prev;
             }
@@ -1270,20 +1260,19 @@ Dying_List *dying_list_remove(Dying_List *list, void *data)
         }
     }
     return list;
-
 }
 
 Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun)
 {
-    if(list == NULL)
+    if (list == NULL)
     {
         return list;
     }
-    for(Dying_List_Node *node = list->header; node != NULL;)
+    for (Dying_List_Node *node = list->header; node != NULL;)
     {
-        if(fun(node->data)==1)
+        if (fun(node->data) == 1)
         {
-            if(node->prev == NULL)
+            if (node->prev == NULL)
             {
                 list->header = node->next;
             }
@@ -1291,7 +1280,7 @@ Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun)
             {
                 node->prev->next = node->next;
             }
-            if(node->next == NULL)
+            if (node->next == NULL)
             {
                 list->tail = node->prev;
             }
@@ -1312,7 +1301,6 @@ Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun)
     return list;
 }
 
-
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d)
 {
     printf("glTestInt asyn %d,%u,%f,%lf\n", a, b, c, d);
@@ -1329,7 +1317,7 @@ void glPrintfAsyn(GLint a, GLuint size, GLdouble c, const GLchar *out_string)
 GLint glTestInt1(GLint a, GLuint b)
 {
     express_printf("glTestInt1 %d,%u\n", a, b);
-    //fflush(stdout);
+    // fflush(stdout);
     return 576634565;
 }
 GLuint glTestInt2(GLint a, GLuint b)

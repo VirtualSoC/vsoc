@@ -5,12 +5,12 @@
 
 /**
  * @brief 创建一个host这端的id映射关系，映射关系为guest id到host id，方便查找真正的host id
- * 
- * @param status 
- * @param n 
- * @param guest_ids 
- * @param host_ids 
- * @return int 
+ *
+ * @param status
+ * @param n
+ * @param guest_ids
+ * @param host_ids
+ * @return int
  */
 int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids, unsigned long long *host_ids)
 {
@@ -66,11 +66,10 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
         // printf("create texture id %d %d\n",(int)guest_ids[i],(int)host_ids[i]);
         status->resource_id_map[guest_ids[i]] = host_ids[i];
         status->resource_is_init[guest_ids[i]] = 0;
-        if(status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
+        if (status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
         {
             status->gbuffer_ptr_map[guest_ids[i]] = NULL;
         }
-
     }
     if (status->max_id < max_id)
     {
@@ -78,7 +77,6 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
     }
     return 1;
 }
-
 
 long long set_host_map_id(Resource_Map_Status *status, int guest_id, int host_id)
 {
@@ -92,7 +90,7 @@ long long set_host_map_id(Resource_Map_Status *status, int guest_id, int host_id
     //注意这里是设置为负值，表示来自共享的资源，这个共享通过EGLImage共享实现，因此不能随意删除，所以设置为负值
     status->resource_id_map[guest_id] = -host_id;
 
-    if(host_id == 0)
+    if (host_id == 0)
     {
         //假如是设置为空的话，那就再创建一个新的
         glGenTextures(1, (unsigned int *)&(host_id));
@@ -102,17 +100,16 @@ long long set_host_map_id(Resource_Map_Status *status, int guest_id, int host_id
     return origin_id;
 }
 
-
 /**
  * @brief 移除host这边的映射关系
- * 
- * @param status 
- * @param n 
- * @param guest_ids 
+ *
+ * @param status
+ * @param n
+ * @param guest_ids
  */
 void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids)
 {
-    if (n <= 0 || status->resource_id_map== NULL)
+    if (n <= 0 || status->resource_id_map == NULL)
     {
         return;
     }
@@ -129,7 +126,7 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
         }
         status->resource_id_map[guest_ids[i]] = 0;
         status->resource_is_init[guest_ids[i]] = 0;
-        if(status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
+        if (status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
         {
             status->gbuffer_ptr_map[guest_ids[i]] = NULL;
         }
@@ -159,10 +156,10 @@ void get_host_resource_ids(Resource_Map_Status *status, GLsizei n, const unsigne
 
 /**
  * @brief 用于decode调用后，第一时间根据guest id获取到host id
- * 
- * @param status 
- * @param id 
- * @return long long 
+ *
+ * @param status
+ * @param id
+ * @return long long
  */
 long long get_host_resource_id(Resource_Map_Status *status, unsigned int id)
 {
@@ -174,18 +171,17 @@ long long get_host_resource_id(Resource_Map_Status *status, unsigned int id)
     //只有请求单个id，也就是用这个id的时候，才一定能返回正数
     long long host_id = status->resource_id_map[id];
 
-    if(host_id < 0)
+    if (host_id < 0)
     {
         host_id = -host_id;
     }
 
-    if(host_id == 0 && id != 0)
+    if (host_id == 0 && id != 0)
     {
-        printf("error! cannot get id %d\n",id);
+        printf("error! cannot get id %d\n", id);
     }
     return host_id;
 }
-
 
 char set_host_resource_init(Resource_Map_Status *status, unsigned int id)
 {
@@ -195,7 +191,7 @@ char set_host_resource_init(Resource_Map_Status *status, unsigned int id)
     }
 
     char host_init = status->resource_is_init[id];
-    if(host_init != 0)
+    if (host_init != 0)
     {
         return host_init;
     }
@@ -238,14 +234,14 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
     if (!guest_has_resource_id(map_status, id))
     {
         unsigned int host_id;
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCreateBuffers(1, &host_id);
         }
         else
         {
             glGenBuffers(1, &host_id);
-        }    
+        }
         // printf("create buffer not in host %u guest %u\n",host_id,id);
         unsigned long long host_id_long = host_id;
         int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
@@ -258,7 +254,6 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
 
     return get_host_resource_id(map_status, id);
 }
-
 
 // char set_host_buffer_init(void *context, unsigned int id)
 // {
@@ -303,23 +298,20 @@ char set_host_texture_init(void *context, unsigned int id)
     if (!guest_has_resource_id(map_status, id))
     {
         return 0;
-        //texture不存在的话。不允许创建新的
-        // unsigned int host_id;
-        // glGenTextures(1, &host_id);
-        // printf("create buffer not in host %u guest %u\n",host_id,id);
-        // unsigned long long host_id_long = host_id;
-        // int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
-        // if (ret == 0)
-        // {
-        //     return 0;
-        // }
-
+        // texture不存在的话。不允许创建新的
+        //  unsigned int host_id;
+        //  glGenTextures(1, &host_id);
+        //  printf("create buffer not in host %u guest %u\n",host_id,id);
+        //  unsigned long long host_id_long = host_id;
+        //  int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
+        //  if (ret == 0)
+        //  {
+        //      return 0;
+        //  }
     }
 
     return set_host_resource_init(map_status, id);
 }
-
-
 
 unsigned long long get_host_renderbuffer_id(void *context, unsigned int id)
 {
@@ -372,7 +364,7 @@ unsigned long long get_host_sync_id(void *context, unsigned int id)
     Resource_Map_Status *map_status = resource_status->sync_resource;
 
     long long ret_id = get_host_resource_id(map_status, id);
-    if(opengl_context->share_context!=NULL && ret_id == 0)
+    if (opengl_context->share_context != NULL && ret_id == 0)
     {
         int sleep_cnt = 0;
         // while(sleep_cnt<100 && ret_id == 0)
@@ -381,7 +373,7 @@ unsigned long long get_host_sync_id(void *context, unsigned int id)
         //     usleep(1000);
         //     ret_id = get_host_resource_id(map_status, id);
         // }
-        express_printf("sleep %dms get sync id %u %lld context %llx share_context %llx map_status %llx share resource %llx\n",sleep_cnt, id, ret_id,(uint64_t)opengl_context,opengl_context->share_context, map_status, resource_status->share_resources);
+        express_printf("sleep %dms get sync id %u %lld context %llx share_context %llx map_status %llx share resource %llx\n", sleep_cnt, id, ret_id, (uint64_t)opengl_context, opengl_context->share_context, map_status, resource_status->share_resources);
     }
 
     return ret_id;
@@ -445,7 +437,7 @@ unsigned long long get_host_query_id(void *context, unsigned int id)
 void d_glGenBuffers(void *context, GLsizei n, const GLuint *buffers)
 {
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
-    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glCreateBuffers(n, host_buffers);
     }
@@ -514,7 +506,6 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
     g_free(host_buffers_long);
 }
 
-
 long long set_share_texture(void *context, GLuint texture, GLuint share_texture)
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
@@ -523,12 +514,11 @@ long long set_share_texture(void *context, GLuint texture, GLuint share_texture)
     return set_host_map_id(map_status, texture, share_texture);
 }
 
-
 Graphic_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
-    if(map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
+    if (map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
     {
         return NULL;
     }
@@ -542,12 +532,12 @@ void set_texture_gbuffer_ptr(void *context, GLuint texture, Graphic_Buffer *gbuf
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
-    if(map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
+    if (map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
     {
-        void **temp = g_malloc0(sizeof(void *)*map_status->map_size);
-        if(map_status->gbuffer_ptr_map != NULL)
+        void **temp = g_malloc0(sizeof(void *) * map_status->map_size);
+        if (map_status->gbuffer_ptr_map != NULL)
         {
-            memcpy(temp, map_status->gbuffer_ptr_map, map_status->gbuffer_map_max_size*sizeof(void *));
+            memcpy(temp, map_status->gbuffer_ptr_map, map_status->gbuffer_map_max_size * sizeof(void *));
             g_free(map_status->gbuffer_ptr_map);
         }
         map_status->gbuffer_ptr_map = (Graphic_Buffer **)temp;
@@ -556,10 +546,8 @@ void set_texture_gbuffer_ptr(void *context, GLuint texture, Graphic_Buffer *gbuf
     map_status->gbuffer_ptr_map[texture] = gbuffer;
     map_status->resource_is_init[texture] = 2;
 
-
     return;
 }
-
 
 void d_glGenSamplers(void *context, GLsizei count, const GLuint *samplers)
 {
@@ -585,7 +573,7 @@ void d_glCreateProgram(void *context, GLuint program)
 {
     GLuint host_program = glCreateProgram();
 
-    express_printf("context %llx create program %u host %u\n",(uint64_t)context, program,host_program);
+    express_printf("context %llx create program %u host %u\n", (uint64_t)context, program, host_program);
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->program_resource;
@@ -617,7 +605,7 @@ void d_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync syn
     unsigned long long host_sync_long = (unsigned long long)host_sync;
 
     GLuint sync_int = (GLuint)(uint64_t)sync;
-    express_printf("context %llx fence sync %d %lld map_status %llx share_resource %llx\n",(uint64_t)context,sync_int, host_sync, map_status, resource_status->share_resources);
+    express_printf("context %llx fence sync %d %lld map_status %llx share_resource %llx\n", (uint64_t)context, sync_int, host_sync, map_status, resource_status->share_resources);
 
     create_host_map_ids(map_status, 1, &sync_int, &host_sync_long);
 }
@@ -626,14 +614,13 @@ void d_glCreateShaderProgramv_special(void *context, GLenum type, GLsizei count,
 {
     GLuint host_program = glCreateShaderProgramv(type, count, strings);
 
-    if(host_program == 0)
+    if (host_program == 0)
     {
         *program_data_len = 0;
         return;
     }
-    
-    *program_data_len = init_program_data(host_program);
 
+    *program_data_len = init_program_data(host_program);
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->program_resource;
@@ -709,7 +696,7 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
 {
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
 
-    if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glCreateVertexArrays(n, host_buffers);
     }
@@ -717,7 +704,7 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
     {
         glGenVertexArrays(n, host_buffers);
     }
-    
+
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
     {
@@ -731,16 +718,13 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
 
     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
 
-
     for (int i = 0; i < n; i++)
     {
 
-
         Attrib_Point *point_data = g_malloc0(sizeof(Attrib_Point));
         // memset(point_data, 0, sizeof(Attrib_Point));
-        
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCreateBuffers(1, &(point_data->indices_buffer_object));
             glCreateBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object);
@@ -754,7 +738,7 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
             glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object);
         }
 
-        express_printf("%llx genVertexArray guest %d host %d\n",(uint64_t)context, arrays[i],host_buffers[i]);
+        express_printf("%llx genVertexArray guest %d host %d\n", (uint64_t)context, arrays[i], host_buffers[i]);
         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(host_buffers[i]), (gpointer)point_data);
     }
 
@@ -777,29 +761,29 @@ void d_glGenQueries(void *context, GLsizei n, const GLuint *ids)
     Resource_Map_Status *map_status = resource_status->query_resource;
 
     create_host_map_ids(map_status, n, ids, host_buffers_long);
- 
+
     g_free(host_buffers);
     g_free(host_buffers_long);
 }
 
-#define GL_BUFFER_STATUS_RESTORE(status, type, new_id)  { \
-    if(status->guest_##type == new_id)                 \
-        status->guest_##type = 0;                               \
-    if(status->host_##type == new_id)                  \
-        status->host_##type = 0;                                \
-}
+#define GL_BUFFER_STATUS_RESTORE(status, type, new_id) \
+    {                                                  \
+        if (status->guest_##type == new_id)            \
+            status->guest_##type = 0;                  \
+        if (status->host_##type == new_id)             \
+            status->host_##type = 0;                   \
+    }
 
 static void g_delete_check_vao_ebo(gpointer key, gpointer data, gpointer user_data)
 {
     GLuint buffer = (GLuint)(uint64_t)user_data;
     Attrib_Point *point = data;
-    if(point->element_array_buffer == buffer)
+    if (point->element_array_buffer == buffer)
     {
         point->element_array_buffer = 0;
     }
     return;
 }
-
 
 void d_glDeleteBuffers(void *context, GLsizei n, const GLuint *buffers)
 {
@@ -813,7 +797,7 @@ void d_glDeleteBuffers(void *context, GLsizei n, const GLuint *buffers)
 
     //@todo delete bind ebo
     glDeleteBuffers(n, host_buffers);
-    for(int i =0; i<n; i++)
+    for (int i = 0; i < n; i++)
     {
         g_hash_table_foreach(opengl_context->bound_buffer_status.vao_point_data, g_delete_check_vao_ebo, GINT_TO_POINTER(host_buffers[i]));
 
@@ -830,7 +814,6 @@ void d_glDeleteBuffers(void *context, GLsizei n, const GLuint *buffers)
         GL_BUFFER_STATUS_RESTORE(buffer_status, shader_storage_buffer, host_buffers[i]);
         GL_BUFFER_STATUS_RESTORE(buffer_status, texture_buffer, host_buffers[i]);
         GL_BUFFER_STATUS_RESTORE(buffer_status, vao_ebo, host_buffers[i]);
-
     }
 
     g_free(host_buffers);
@@ -851,19 +834,20 @@ void d_glDeleteRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffe
     remove_host_map_ids(map_status, n, renderbuffers);
 }
 
-#define GL_TEXTURE_STATUS_RESTORE(status, type, new_id)  {          \
-    for(int unit = 0; unit <= status->now_max_texture_unit; unit++) \
-    {     \
-        if(status->guest_##type[unit] == new_id)            \
-        {   \
-            status->guest_##type[unit] = 0;         \
-        }   \
-        if(status->host_##type[unit] == new_id) \
-        {   \
-            status->host_##type[unit] = 0;      \
-        }   \
-    }                \
-}
+#define GL_TEXTURE_STATUS_RESTORE(status, type, new_id)                  \
+    {                                                                    \
+        for (int unit = 0; unit <= status->now_max_texture_unit; unit++) \
+        {                                                                \
+            if (status->guest_##type[unit] == new_id)                    \
+            {                                                            \
+                status->guest_##type[unit] = 0;                          \
+            }                                                            \
+            if (status->host_##type[unit] == new_id)                     \
+            {                                                            \
+                status->host_##type[unit] = 0;                           \
+            }                                                            \
+        }                                                                \
+    }
 
 void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
 {
@@ -873,10 +857,8 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
 
     Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
 
-
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, textures, host_buffers);
-
 
     // for(int i = 0;i<n;i++)
     // {
@@ -884,7 +866,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     // }
 
     glDeleteTextures(n, host_buffers);
-    for(int i = 0; i < n; i++)
+    for (int i = 0; i < n; i++)
     {
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_2D, host_buffers[i]);
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_cube_map, host_buffers[i]);
@@ -896,7 +878,6 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_buffer, host_buffers[i]);
         // GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_unit, host_buffers[i]);
     }
-
 
     g_free(host_buffers);
 
@@ -931,11 +912,11 @@ void d_glDeleteProgram(void *context, GLuint program)
 
     GLuint host_program = (GLuint)get_host_resource_id(map_status, program);
 
-    if(program_is_external_map != NULL)
+    if (program_is_external_map != NULL)
     {
-        g_hash_table_remove(program_is_external_map,GUINT_TO_POINTER(host_program));
+        g_hash_table_remove(program_is_external_map, GUINT_TO_POINTER(host_program));
     }
-    if(program_data_map != NULL)
+    if (program_data_map != NULL)
     {
         g_hash_table_remove(program_data_map, GUINT_TO_POINTER(host_program));
     }
@@ -967,7 +948,7 @@ void d_glDeleteSync(void *context, GLsync sync)
 
     GLsync host_sync = (GLsync)get_host_resource_id(map_status, sync_int);
     glDeleteSync(host_sync);
-    express_printf("context %llx delete sync %u %lld map_status %llx\n",(uint64_t)context, sync, host_sync, map_status);
+    express_printf("context %llx delete sync %u %lld map_status %llx\n", (uint64_t)context, sync, host_sync, map_status);
     remove_host_map_ids(map_status, 1, &sync_int);
 }
 
@@ -1024,7 +1005,6 @@ void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
     glDeleteVertexArrays(n, host_buffers);
     g_free(host_buffers);
 
-
     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
 
     GLuint vao0 = ((Opengl_Context *)context)->vao0;
@@ -1046,17 +1026,16 @@ void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
             glBindVertexArray(vao0);
 
             bound_buffer->buffer_status.host_vao = vao0;
-            bound_buffer->buffer_status.guest_vao  = vao0;
+            bound_buffer->buffer_status.guest_vao = vao0;
             bound_buffer->buffer_status.host_vao_ebo = bound_buffer->attrib_point->element_array_buffer;
             bound_buffer->buffer_status.guest_vao_ebo = bound_buffer->attrib_point->element_array_buffer;
         }
-        express_printf("%llx deleteVertexArray guest %d host %d\n",(uint64_t)context, arrays[i],host_buffers[i]);
+        express_printf("%llx deleteVertexArray guest %d host %d\n", (uint64_t)context, arrays[i], host_buffers[i]);
 
         g_hash_table_remove(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
     }
-    
-    remove_host_map_ids(map_status, n, arrays);
 
+    remove_host_map_ids(map_status, n, arrays);
 }
 
 void d_glDeleteQueries(void *context, GLsizei n, const GLuint *ids)

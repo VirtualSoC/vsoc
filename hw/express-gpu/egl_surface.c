@@ -4,9 +4,9 @@
  * @brief surface决定到底绘制是个啥样的逻辑，swap时是个啥样的逻辑
  * @version 0.1
  * @date 2021-08-01
- * 
+ *
  * @copyright Copyright (c) 2021
- * 
+ *
  */
 
 #define STD_DEBUG_LOG
@@ -20,29 +20,26 @@
 
 Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height, int surface_type);
 
-
 void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)render_context;
     Opengl_Context *opengl_context = (Opengl_Context *)(thread_context->opengl_context);
 
-
     // Process_Context *process_context = thread_context->process_context;
 
     Graphic_Buffer *now_draw_gbuffer = surface->gbuffer;
 
-    express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n",(uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
-
+    express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
 
     Graphic_Buffer *next_draw_gbuffer = NULL;
 
-    if(surface->type == WINDOW_SURFACE)
+    if (surface->type == WINDOW_SURFACE)
     {
         next_draw_gbuffer = get_gbuffer_from_global_map(gbuffer_id);
-        if(next_draw_gbuffer == NULL)
+        if (next_draw_gbuffer == NULL)
         {
-            express_printf("create gbuffer_id %llx when surface %llx swapbuffer context %llx width %d height %d\n",gbuffer_id, surface, (uint64_t)opengl_context, width, height);
+            express_printf("create gbuffer_id %llx when surface %llx swapbuffer context %llx width %d height %d\n", gbuffer_id, surface, (uint64_t)opengl_context, width, height);
             next_draw_gbuffer = create_gbuffer_from_hal(width, height, hal_format, surface, gbuffer_id);
 
             express_printf("create gbuffer when swapbuffer gbuffer %llx gbuffer\n", gbuffer_id, next_draw_gbuffer);
@@ -54,18 +51,18 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
         {
             ATOMIC_LOCK(next_draw_gbuffer->is_lock);
             next_draw_gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
-            if(next_draw_gbuffer->is_using == 0 && next_draw_gbuffer->is_dying == 1)
+            if (next_draw_gbuffer->is_using == 0 && next_draw_gbuffer->is_dying == 1)
             {
                 next_draw_gbuffer->is_dying = 0;
                 send_message_to_main_window(MAIN_CANCEL_GBUFFER, next_draw_gbuffer);
             }
             ATOMIC_UNLOCK(next_draw_gbuffer->is_lock);
         }
-//         next_draw_gbuffer->is_writing = 1;
-// #ifdef _WIN32
-//         ResetEvent(next_draw_gbuffer->writing_ok_event);
-// #else
-// #endif
+        //         next_draw_gbuffer->is_writing = 1;
+        // #ifdef _WIN32
+        //         ResetEvent(next_draw_gbuffer->writing_ok_event);
+        // #else
+        // #endif
     }
     else
     {
@@ -73,8 +70,8 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     }
 
     connect_gbuffer_to_surface(next_draw_gbuffer, surface);
-    
-    GLenum attachments[]={GL_DEPTH_ATTACHMENT,GL_STENCIL_ATTACHMENT,GL_DEPTH_STENCIL_ATTACHMENT};
+
+    GLenum attachments[] = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMENT};
     glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 3, attachments);
 
     TIMER_START(sync)
@@ -84,7 +81,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
         // glClientWaitSync(next_draw_gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
         glWaitSync(next_draw_gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
 
-        if(next_draw_gbuffer->delete_sync != 0)
+        if (next_draw_gbuffer->delete_sync != 0)
         {
             glDeleteSync(next_draw_gbuffer->delete_sync);
         }
@@ -94,7 +91,6 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     TIMER_END(sync)
     TIMER_OUTPUT(sync, 100)
 
-
     surface->gbuffer = next_draw_gbuffer;
 
     if (surface->gbuffer->sampler_num > 1)
@@ -103,11 +99,10 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     }
     else
     {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER,  surface->gbuffer->data_fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->gbuffer->data_fbo);
     }
     return;
 }
-
 
 Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height, int surface_type)
 {
@@ -123,10 +118,9 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
 
     // surface->swap_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-    eglConfig *config = config_to_hints(eglconfig, &surface->window_hints);; 
+    eglConfig *config = config_to_hints(eglconfig, &surface->window_hints);
+    ;
     surface->config = config;
-
-
 
     EGLint internal_format = GL_RGB;
     EGLenum format = GL_RGB;
@@ -175,7 +169,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     // 16161616
     if (red_bits == 2 && green_bits == 2 && blue_bits == 2 && alpha_bits == 2)
     {
-        //2222
+        // 2222
         internal_format = GL_RGBA2;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
@@ -184,7 +178,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 3 && green_bits == 3 && blue_bits == 2 && alpha_bits == 0)
     {
-        //3320
+        // 3320
         internal_format = GL_R3_G3_B2;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
@@ -193,7 +187,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 0)
     {
-        //4440
+        // 4440
         internal_format = GL_RGB4;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
@@ -203,7 +197,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 4)
     {
-        //4444
+        // 4444
         internal_format = GL_RGBA4;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
@@ -212,7 +206,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 0)
     {
-        //5550
+        // 5550
         internal_format = GL_RGB5;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
@@ -221,7 +215,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 1)
     {
-        //5551
+        // 5551
         internal_format = GL_RGB5_A1;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
@@ -230,7 +224,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 5 && green_bits == 6 && blue_bits == 5 && alpha_bits == 0)
     {
-        //5650
+        // 5650
         internal_format = GL_RGB565;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
@@ -239,7 +233,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 8 && green_bits == 0 && blue_bits == 0 && alpha_bits == 0)
     {
-        //8000
+        // 8000
         internal_format = GL_R8;
         format = GL_RED;
         type = GL_UNSIGNED_BYTE;
@@ -248,7 +242,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 0 && alpha_bits == 0)
     {
-        //8800
+        // 8800
         internal_format = GL_RG8;
         format = GL_RG;
         type = GL_UNSIGNED_BYTE;
@@ -257,7 +251,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 0)
     {
-        //8880
+        // 8880
         internal_format = GL_RGB8;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
@@ -266,7 +260,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 8)
     {
-        //8888
+        // 8888
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
@@ -275,7 +269,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 0)
     {
-        //1010100
+        // 1010100
         internal_format = GL_RGB10;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
@@ -284,7 +278,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 2)
     {
-        //1010102
+        // 1010102
         internal_format = GL_RGB10_A2;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT_2_10_10_10_REV;
@@ -293,7 +287,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 0)
     {
-        //1212120
+        // 1212120
         internal_format = GL_RGB12;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
@@ -302,7 +296,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 12)
     {
-        //1212120
+        // 1212120
         internal_format = GL_RGBA12;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT;
@@ -311,7 +305,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 0)
     {
-        //1616160
+        // 1616160
         internal_format = GL_RGB16;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
@@ -320,7 +314,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
     else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 16)
     {
-        //1616160
+        // 1616160
         internal_format = GL_RGBA16;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT;
@@ -384,24 +378,22 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
 
     express_printf("create surface %llx\n", (uint64_t)surface);
 
-
     return surface;
 }
-
 
 void render_surface_init(Window_Buffer *surface)
 {
     int num = 1;
-    if(surface->type == WINDOW_SURFACE)
+    if (surface->type == WINDOW_SURFACE)
     {
         num = 3;
     }
-    if(surface->data_fbo[0] != 0)
+    if (surface->data_fbo[0] != 0)
     {
         return;
     }
     glGenFramebuffers(num, surface->data_fbo);
-    if(surface->sampler_num > 1)
+    if (surface->sampler_num > 1)
     {
         glGenFramebuffers(num, surface->sampler_fbo);
     }
@@ -410,11 +402,11 @@ void render_surface_init(Window_Buffer *surface)
 void render_surface_uninit(Window_Buffer *surface)
 {
     int num = 1;
-    if(surface->type == WINDOW_SURFACE)
+    if (surface->type == WINDOW_SURFACE)
     {
         num = 3;
     }
-    if(surface->data_fbo[0] == 0)
+    if (surface->data_fbo[0] == 0)
     {
         return;
     }
@@ -426,7 +418,7 @@ void render_surface_uninit(Window_Buffer *surface)
     surface->connect_texture[1] = 0;
     surface->connect_texture[2] = 0;
 
-    if(surface->sampler_num > 1)
+    if (surface->sampler_num > 1)
     {
         glDeleteFramebuffers(num, surface->sampler_fbo);
         surface->sampler_fbo[0] = 0;
@@ -435,10 +427,9 @@ void render_surface_uninit(Window_Buffer *surface)
     }
 }
 
-
 int render_surface_destroy(Window_Buffer *surface)
 {
-    if(surface->type == P_SURFACE && surface->gbuffer != NULL)
+    if (surface->type == P_SURFACE && surface->gbuffer != NULL)
     {
         send_message_to_main_window(MAIN_DESTROY_GBUFFER, surface->gbuffer);
     }
@@ -480,7 +471,7 @@ void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, 
             height = attrib_list[i + 1];
             break;
         default:
-            //todo 其他attrib属性的设置
+            // todo 其他attrib属性的设置
             break;
         }
         i += 2;
@@ -488,7 +479,7 @@ void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, 
 
     Window_Buffer *host_surface = render_surface_create(config, width, height, P_SURFACE);
     host_surface->guest_surface = guest_surface;
-    
+
     express_printf("pbuffer surface create host %llx guest %llx width %d height %d guest width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
 
     g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface), (gpointer)host_surface);
@@ -515,21 +506,19 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
             height = attrib_list[i + 1];
             break;
         default:
-            //todo 其他attrib属性的设置
-            printf("window_surface attrib_list %x %x\n", attrib_list[i], attrib_list[i+1]);
+            // todo 其他attrib属性的设置
+            printf("window_surface attrib_list %x %x\n", attrib_list[i], attrib_list[i + 1]);
             break;
         }
         i += 2;
     }
 
-    //windowSurface其实不需要宽和高
+    // windowSurface其实不需要宽和高
 
     Window_Buffer *host_surface = render_surface_create(config, width, height, WINDOW_SURFACE);
     host_surface->guest_surface = guest_surface;
     express_printf("surface create host %llx guest %llx width %d height %d guest width %d height %d\n", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
     g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface), (gpointer)host_surface);
-
-
 }
 
 EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface)
@@ -551,24 +540,23 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     return EGL_TRUE;
 }
 
-
 Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *t_context, EGLContext ctx, uint64_t gbuffer_id)
-{   
+{
     Render_Thread_Context *thread_context = (Render_Thread_Context *)t_context;
     Process_Context *process_context = thread_context->process_context;
 
     Opengl_Context *opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
-    if(opengl_context == NULL)
+    if (opengl_context == NULL)
     {
         printf("error! create gbuffer with null context\n");
         return NULL;
     }
 
-    if(opengl_context != thread_context->opengl_context)
+    if (opengl_context != thread_context->opengl_context)
     {
         //假如现在opengl不对
         printf("create gbuffer with different context!\n");
-        if(opengl_context->independ_mode == 1)
+        if (opengl_context->independ_mode == 1)
         {
             glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
         }
@@ -580,15 +568,15 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
 
     Graphic_Buffer *gbuffer = create_gbuffer_from_hal(width, height, hal_format, NULL, gbuffer_id);
 
-    if(opengl_context != thread_context->opengl_context)
+    if (opengl_context != thread_context->opengl_context)
     {
-        if(thread_context->opengl_context == NULL)
+        if (thread_context->opengl_context == NULL)
         {
             egl_makeCurrent(NULL);
         }
         else
         {
-            if(thread_context->opengl_context->independ_mode == 1)
+            if (thread_context->opengl_context->independ_mode == 1)
             {
                 glfwMakeContextCurrent((GLFWwindow *)NULL);
             }
@@ -602,7 +590,6 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
     return gbuffer;
 }
 
-
 Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id)
 {
 
@@ -612,7 +599,7 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
     int internal_format = GL_RGBA8;
     int depth_internal_format = 0;
     int stencil_internal_format = 0;
-    if(surface!=NULL)
+    if (surface != NULL)
     {
         sampler_num = surface->sampler_num;
         format = surface->format;
@@ -620,7 +607,7 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         internal_format = surface->internal_format;
         // row_byte_len = surface->row_byte_len;
         depth_internal_format = surface->depth_internal_format;
-        stencil_internal_format = surface->stencil_internal_format; 
+        stencil_internal_format = surface->stencil_internal_format;
     }
     if (hal_format == HAL_PIXEL_FORMAT_RGBA_8888 || hal_format == HAL_PIXEL_FORMAT_RGBX_8888)
     {
@@ -663,43 +650,40 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         printf("error! unknown EGLImage format %d!!!\n", hal_format);
     }
 
-    return create_gbuffer(width, height, sampler_num, 
-     format,
-     pixel_type,
-     internal_format,
-     depth_internal_format,
-     stencil_internal_format, 
-     gbuffer_id);
-
-
+    return create_gbuffer(width, height, sampler_num,
+                          format,
+                          pixel_type,
+                          internal_format,
+                          depth_internal_format,
+                          stencil_internal_format,
+                          gbuffer_id);
 }
-
 
 Graphic_Buffer *create_gbuffer_from_surface(Window_Buffer *surface)
 {
-    return create_gbuffer(surface->width, surface->height, surface->sampler_num, 
-     surface->format,
-     surface->pixel_type,
-     surface->internal_format,
-     surface->depth_internal_format,
-     surface->stencil_internal_format,
-     0);
+    return create_gbuffer(surface->width, surface->height, surface->sampler_num,
+                          surface->format,
+                          surface->pixel_type,
+                          surface->internal_format,
+                          surface->depth_internal_format,
+                          surface->stencil_internal_format,
+                          0);
 }
 
-
-Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num, 
-     int format,
-     int pixel_type,
-     int internal_format,
-     int depth_internal_format,
-     int stencil_internal_format,
-    uint64_t gbuffer_id)
+Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
+                               int format,
+                               int pixel_type,
+                               int internal_format,
+                               int depth_internal_format,
+                               int stencil_internal_format,
+                               uint64_t gbuffer_id)
 {
-    //creater_window等于空意味着底下各种资源之前都没申请过，因此需要申请
+    // creater_window等于空意味着底下各种资源之前都没申请过，因此需要申请
     Graphic_Buffer *gbuffer = g_malloc0(sizeof(Graphic_Buffer));
 
     gbuffer->writing_ok_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;;
+    gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
+    ;
     gbuffer->usage_type = GBUFFER_TYPE_WINDOW;
     gbuffer->gbuffer_id = gbuffer_id;
 
@@ -716,9 +700,8 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_draw);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_read);
-    
-    glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&pre_unpack_buffer);
 
+    glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&pre_unpack_buffer);
 
     glGenTextures(1, &(gbuffer->data_texture));
     glGenRenderbuffers(1, &(gbuffer->rbo_depth));
@@ -728,26 +711,26 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     {
         glGenRenderbuffers(1, &(gbuffer->sampler_rbo));
     }
-    
+
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 #ifdef ENABLE_OPENGL_DEBUG
-    GLenum error =glGetError();
-    if(error!=GL_NO_ERROR)
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR)
     {
-        printf("error when creating gbuffer1 init error %x\n",error);
+        printf("error when creating gbuffer1 init error %x\n", error);
     }
 #endif
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-    
+
     glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, pixel_type, NULL);
 
 #ifdef ENABLE_OPENGL_DEBUG
-    error =glGetError();
-    if(error!=GL_NO_ERROR)
+    error = glGetError();
+    if (error != GL_NO_ERROR)
     {
-        printf("error when creating gbuffer1 %x width %d height %d format %x pixel_type %x \n",error, width, height, format, pixel_type);
+        printf("error when creating gbuffer1 %x width %d height %d format %x pixel_type %x \n", error, width, height, format, pixel_type);
     }
 #endif
 
@@ -766,9 +749,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
         sampler_num = max_sampler_num;
     }
 
-    
-
-    if (sampler_num>1)
+    if (sampler_num > 1)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->sampler_rbo);
         glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampler_num, internal_format, width, height);
@@ -778,7 +759,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     {
         //这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_depth);
-        if (sampler_num>1)
+        if (sampler_num > 1)
         {
             glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampler_num, depth_internal_format, width, height);
         }
@@ -792,7 +773,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_stencil);
-        if (sampler_num>1)
+        if (sampler_num > 1)
         {
             glRenderbufferStorageMultisample(GL_RENDERBUFFER, sampler_num, stencil_internal_format, width, height);
         }
@@ -803,23 +784,18 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     }
 
 #ifdef ENABLE_OPENGL_DEBUG
-    error =glGetError();
-    if(error!=GL_NO_ERROR)
+    error = glGetError();
+    if (error != GL_NO_ERROR)
     {
-        printf("error when creating gbuffer2 %x\n",error);
+        printf("error when creating gbuffer2 %x\n", error);
     }
 #endif
-
-
 
     glBindTexture(GL_TEXTURE_2D, pre_texture);
     glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
     glBindRenderbuffer(GL_RENDERBUFFER, pre_rbo);
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pre_unpack_buffer);
-
-
-
 
     gbuffer->format = format;
     gbuffer->pixel_type = pixel_type;
@@ -835,13 +811,11 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     // printf("create gbuffer texture %d width %d height %d format %d\n", gbuffer->data_texture,gbuffer->width, gbuffer->height, gbuffer->format);
 
     return gbuffer;
-
 }
-
 
 void reverse_gbuffer(Graphic_Buffer *gbuffer)
 {
-    if(gbuffer->reverse_rbo == 0)
+    if (gbuffer->reverse_rbo == 0)
     {
         GLuint pre_rbo = 0;
 
@@ -852,7 +826,6 @@ void reverse_gbuffer(Graphic_Buffer *gbuffer)
         glRenderbufferStorage(GL_RENDERBUFFER, gbuffer->internal_format, gbuffer->width, gbuffer->height);
 
         glBindRenderbuffer(GL_RENDERBUFFER, pre_rbo);
-
     }
 
     GLuint pre_fbo_draw = 0;
@@ -861,8 +834,7 @@ void reverse_gbuffer(Graphic_Buffer *gbuffer)
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_draw);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_read);
 
-
-    //因为这种情况出现的太少了，因为普通应用根本没有权限自己建个bufferQueue，因此这里就直接创建一个临时的fbo，用完就丢弃了    
+    //因为这种情况出现的太少了，因为普通应用根本没有权限自己建个bufferQueue，因此这里就直接创建一个临时的fbo，用完就丢弃了
     GLuint temp_fbo;
     glGenFramebuffers(1, &temp_fbo);
 
@@ -882,10 +854,7 @@ void reverse_gbuffer(Graphic_Buffer *gbuffer)
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, pre_fbo_read);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pre_fbo_draw);
-
-
 }
-
 
 void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
 {
@@ -894,9 +863,9 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     gbuffer->sampler_fbo = surface->sampler_fbo[surface->now_fbo_loc];
     surface->gbuffer = gbuffer;
 
-    if(gbuffer->has_connected_fbo == 1 && gbuffer->data_texture == surface->connect_texture[surface->now_fbo_loc])
+    if (gbuffer->has_connected_fbo == 1 && gbuffer->data_texture == surface->connect_texture[surface->now_fbo_loc])
     {
-        if(surface->type == WINDOW_SURFACE)
+        if (surface->type == WINDOW_SURFACE)
         {
             surface->now_fbo_loc = (surface->now_fbo_loc + 1) % 3;
         }
@@ -904,7 +873,7 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     }
     // printf("connect surface %llx fbo %d to gbuffer %llx\n", surface, surface->data_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
 
-        // glEnable(GL_MULTISAMPLE);
+    // glEnable(GL_MULTISAMPLE);
 
     if (surface->sampler_num > 1)
     {
@@ -916,7 +885,6 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     {
         glDisable(GL_MULTISAMPLE);
     }
-
 
     glBindFramebuffer(GL_FRAMEBUFFER, surface->data_fbo[surface->now_fbo_loc]);
     //附加颜色缓冲区
@@ -942,7 +910,6 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_depth);
     }
 
-
     //附加模板缓冲区
     if (surface->stencil_internal_format != 0 && surface->depth_internal_format != GL_DEPTH24_STENCIL8)
     {
@@ -955,9 +922,7 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
         printf("foramt %x pixel_type %x internal_format %x depth_internal_format %x stencil_internal_format %x\n", surface->format, surface->pixel_type, surface->internal_format, surface->depth_internal_format, surface->stencil_internal_format);
     }
 
-
-
-    if(surface->type == WINDOW_SURFACE)
+    if (surface->type == WINDOW_SURFACE)
     {
         surface->now_fbo_loc = (surface->now_fbo_loc + 1) % 3;
     }
@@ -965,11 +930,10 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     return;
 }
 
-
 void destroy_gbuffer(Graphic_Buffer *gbuffer)
 {
     // printf("destroy gbuffer %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
-    if(gbuffer->data_texture!=0)
+    if (gbuffer->data_texture != 0)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));
     }
@@ -983,29 +947,29 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
     // {
     //     glDeleteFramebuffers(1, &(gbuffer->sampler_fbo));
     // }
-    if(gbuffer->sampler_rbo!=0)
+    if (gbuffer->sampler_rbo != 0)
     {
         glDeleteRenderbuffers(1, &(gbuffer->sampler_rbo));
     }
-    if(gbuffer->rbo_depth!=0)
+    if (gbuffer->rbo_depth != 0)
     {
         glDeleteRenderbuffers(1, &(gbuffer->rbo_depth));
     }
-    if(gbuffer->rbo_stencil!=0)
+    if (gbuffer->rbo_stencil != 0)
     {
         glDeleteRenderbuffers(1, &(gbuffer->rbo_stencil));
     }
-    
-    if(gbuffer->data_sync!=0)
+
+    if (gbuffer->data_sync != 0)
     {
         glDeleteSync(gbuffer->data_sync);
     }
 
-    if(gbuffer->delete_sync != 0)
+    if (gbuffer->delete_sync != 0)
     {
         glDeleteSync(gbuffer->delete_sync);
     }
-    
+
 #ifdef _WIN32
     CloseHandle(gbuffer->writing_ok_event);
 #else
@@ -1013,10 +977,7 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
 #endif
 
     g_free(gbuffer);
-
 }
-
-
 
 EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint value)
 {
@@ -1064,7 +1025,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         //     stride = attrib_list[i + 1];
         //     break;
         default:
-            //todo 其他attrib属性的设置
+            // todo 其他attrib属性的设置
             break;
         }
         i += 2;
@@ -1076,34 +1037,33 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
     uint64_t gbuffer_id = (uint64_t)guest_image;
 
-
     Graphic_Buffer *gbuffer = NULL;
 
-    if(target == EGL_NATIVE_BUFFER_ANDROID)
+    if (target == EGL_NATIVE_BUFFER_ANDROID)
     {
         int gbuffer_type = (int)get_global_gbuffer_type(gbuffer_id);
-        
-        if(gbuffer_type != GBUFFER_TYPE_NONE)
+
+        if (gbuffer_type != GBUFFER_TYPE_NONE)
         {
             gbuffer = get_gbuffer_from_global_map(gbuffer_id);
         }
 
-        if(gbuffer == NULL)
+        if (gbuffer == NULL)
         {
-            express_printf("create image with gbuffer id %llx width %d height %d format %d process_context %llx\n",gbuffer_id,width ,height,hal_format, process_context);
+            express_printf("create image with gbuffer id %llx width %d height %d format %d process_context %llx\n", gbuffer_id, width, height, hal_format, process_context);
             gbuffer = create_gbuffer_with_context(width, height, hal_format, thread_context, ctx, gbuffer_id);
 
             add_gbuffer_to_global(gbuffer);
-            if(gbuffer_type == GBUFFER_TYPE_NONE)
+            if (gbuffer_type == GBUFFER_TYPE_NONE)
             {
                 set_global_gbuffer_type(gbuffer_id, GBUFFER_TYPE_NATIVE);
                 gbuffer->usage_type = GBUFFER_TYPE_NATIVE;
             }
             else
             {
-                if(gbuffer_type != GBUFFER_TYPE_BITMAP_NEED_DATA)
+                if (gbuffer_type != GBUFFER_TYPE_BITMAP_NEED_DATA)
                 {
-                    printf("error! gbuffer NULL with gbuffer_type %d\n",gbuffer_type);
+                    printf("error! gbuffer NULL with gbuffer_type %d\n", gbuffer_type);
                 }
                 gbuffer->usage_type = GBUFFER_TYPE_BITMAP_NEED_DATA;
                 gbuffer->remain_life_time = MAX_BITMAP_LIFE_TIME;
@@ -1115,39 +1075,38 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
             ATOMIC_LOCK(gbuffer->is_lock);
             gbuffer->is_using = 1;
-            if(gbuffer->is_dying == 1)
+            if (gbuffer->is_dying == 1)
             {
                 gbuffer->is_dying = 0;
                 send_message_to_main_window(MAIN_CANCEL_GBUFFER, gbuffer);
             }
             ATOMIC_UNLOCK(gbuffer->is_lock);
-
         }
     }
     else
     {
         Opengl_Context *share_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
-        
-        if(share_opengl_context == NULL)
+
+        if (share_opengl_context == NULL)
         {
             printf("error! glCreateImage with null share_context\n");
             return 0;
         }
 
-        //gbuffer_id直接截取后面4个字节就是share的texture
+        // gbuffer_id直接截取后面4个字节就是share的texture
         GLuint host_share_texture = get_host_texture_id(share_opengl_context, (GLuint)gbuffer_id);
-        
+
         //之所以这里没有判断是否存在gbuffer，是因为作为texture的情况下，gbuffer一定不存在。即同一个进程下同一个id的EGLImage不会创建两次
         gbuffer = g_malloc0(sizeof(Graphic_Buffer));
         gbuffer->usage_type = GBUFFER_TYPE_TEXTURE;
         gbuffer->data_texture = host_share_texture;
         gbuffer->gbuffer_id = gbuffer_id;
-        
-        if(thread_context->opengl_context == NULL)
+
+        if (thread_context->opengl_context == NULL)
         {
             //假如现在opengl不对
             printf("create eglImage gbuffer with different context!\n");
-            if(share_opengl_context->independ_mode == 1)
+            if (share_opengl_context->independ_mode == 1)
             {
                 glfwMakeContextCurrent((GLFWwindow *)share_opengl_context->window);
             }
@@ -1159,9 +1118,9 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         // glFinish();
 
-        if(thread_context->opengl_context == NULL)
+        if (thread_context->opengl_context == NULL)
         {
-            if(share_opengl_context->independ_mode == 1)
+            if (share_opengl_context->independ_mode == 1)
             {
                 glfwMakeContextCurrent(NULL);
             }
@@ -1171,16 +1130,14 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
             }
         }
 
-        //texture类型的gbuffer不需要放到global表中，因为这个image只能在自己进程内共享
+        // texture类型的gbuffer不需要放到global表中，因为这个image只能在自己进程内共享
     }
     express_printf("createImage gbuffer %llx type %d ptr %llx\n", gbuffer_id, gbuffer->usage_type, gbuffer);
 
     g_hash_table_insert(process_context->gbuffer_map, (gpointer)(gbuffer_id), (gpointer)gbuffer);
 
     return 1;
-
 }
-
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 {
@@ -1191,10 +1148,10 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
 
     Process_Context *process_context = thread_context->process_context;
-    
+
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, (gpointer)(gbuffer_id));
 
-    if(gbuffer == NULL)
+    if (gbuffer == NULL)
     {
         printf("error! destroy eglimage with null!\n");
         return EGL_FALSE;
@@ -1202,7 +1159,6 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 
     express_printf("destroyImage gbuffer %llx type %d ptr %llx\n", gbuffer_id, gbuffer->usage_type, gbuffer);
     g_hash_table_remove(process_context->gbuffer_map, (gpointer)(gbuffer_id));
-
 
     return EGL_TRUE;
 }

@@ -7,7 +7,7 @@ EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
-    //If display_id is EGL_DEFAULT_DISPLAY, a default display is returned. Multiple calls made to eglGetDisplay with the same display_id will return the same EGLDisplay handle.
+    // If display_id is EGL_DEFAULT_DISPLAY, a default display is returned. Multiple calls made to eglGetDisplay with the same display_id will return the same EGLDisplay handle.
     //根据eglGetDisplay的描述来看，这个进程get的所有display都是相同的，所以应该不同线程的dpy是一样的，所以这里应该直接释放整个线程的资源
 
     //假如还在使用的话，下面两个都只是标记清理
@@ -22,7 +22,7 @@ EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
     // thread_context->render_double_buffer_read = NULL;
     // thread_context->render_double_buffer_draw = NULL;
 
-    express_printf("eglTerminate context %llx\n",(uint64_t) thread_context->opengl_context);
+    express_printf("eglTerminate context %llx\n", (uint64_t)thread_context->opengl_context);
     return GL_TRUE;
 }
 
@@ -44,10 +44,9 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
 
     int independ_mode = 0;
 
-
-    for(int i =0; attrib_list[i]!=EGL_NONE;i+=2)
+    for (int i = 0; attrib_list[i] != EGL_NONE; i += 2)
     {
-        if(attrib_list[i]==0xffffff && attrib_list[i+1]==0xffffff)
+        if (attrib_list[i] == 0xffffff && attrib_list[i + 1] == 0xffffff)
         {
             independ_mode = 1;
         }
@@ -57,14 +56,13 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
 #endif
 
     Opengl_Context *opengl_context = opengl_context_create(real_share_context, independ_mode);
-    for(int i =0; attrib_list[i]!=EGL_NONE;i+=2)
+    for (int i = 0; attrib_list[i] != EGL_NONE; i += 2)
     {
-        express_printf("eglcontext %llx attrib_list %x %x\n",(uint64_t)opengl_context,attrib_list[i],attrib_list[i+1]);
+        express_printf("eglcontext %llx attrib_list %x %x\n", (uint64_t)opengl_context, attrib_list[i], attrib_list[i + 1]);
     }
 
-
-    //todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
-    express_printf("#%llx context create share %llx\n",(uint64_t)opengl_context,(uint64_t)real_share_context);
+    // todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
+    express_printf("#%llx context create share %llx\n", (uint64_t)opengl_context, (uint64_t)real_share_context);
     express_printf("context create guest %llx host %llx\n", (uint64_t)guest_context, (uint64_t)opengl_context);
 
     opengl_context->guest_context = guest_context;
@@ -78,7 +76,6 @@ EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
-
 
     //这个context_map的销毁函数g_context_map_destroy里已经包含对context的处理了
     express_printf("context remove guest %llx\n", (uint64_t)ctx);

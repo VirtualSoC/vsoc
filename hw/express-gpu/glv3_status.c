@@ -7,9 +7,6 @@
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/offscreen_render_thread.h"
 
-
-
-
 void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
 {
     GLuint draw_fbo0 = ((Opengl_Context *)context)->draw_fbo0;
@@ -35,7 +32,6 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
         // GLenum status = glCheckFramebufferStatus(target) ;
         // printf("conetxt %llx bind framebuffer %u status %x\n",(uint64_t)context, framebuffer, status);
     }
-
 }
 
 void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
@@ -44,13 +40,12 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
 
     GLuint buffer = (GLuint)get_host_buffer_id(opengl_context, (unsigned int)guest_buffer);
-    
-    
+
     switch (target)
     {
     case GL_ARRAY_BUFFER:
         status->guest_array_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_array_buffer = buffer;
         }
@@ -62,12 +57,12 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         // }
         status->guest_element_array_buffer = buffer;
         // opengl_context->bound_buffer_status.attrib_point->element_array_buffer = buffer;
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            if(buffer == 0)
+            if (buffer == 0)
             {
                 Attrib_Point *point_data = opengl_context->bound_buffer_status.attrib_point;
-                if(status->guest_vao_ebo != point_data->indices_buffer_object)
+                if (status->guest_vao_ebo != point_data->indices_buffer_object)
                 {
                     status->guest_vao_ebo = point_data->indices_buffer_object;
                     glVertexArrayElementBuffer(status->guest_vao, point_data->indices_buffer_object);
@@ -75,7 +70,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
             }
             else
             {
-                if(status->guest_vao_ebo != buffer)
+                if (status->guest_vao_ebo != buffer)
                 {
                     status->guest_vao_ebo = buffer;
                     glVertexArrayElementBuffer(status->guest_vao, status->guest_vao_ebo);
@@ -83,84 +78,84 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
             }
         }
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_element_array_buffer = buffer;
         }
         break;
     case GL_COPY_READ_BUFFER:
         status->guest_copy_read_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_copy_read_buffer = buffer;
         }
         break;
     case GL_COPY_WRITE_BUFFER:
         status->guest_copy_write_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_copy_write_buffer = buffer;
         }
         break;
     case GL_PIXEL_PACK_BUFFER:
         status->guest_pixel_pack_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_pixel_pack_buffer = buffer;
         }
         break;
     case GL_PIXEL_UNPACK_BUFFER:
         status->guest_pixel_unpack_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_pixel_unpack_buffer = buffer;
         }
         break;
     case GL_TRANSFORM_FEEDBACK_BUFFER:
         status->guest_transform_feedback_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_transform_feedback_buffer = buffer;
         }
         break;
     case GL_UNIFORM_BUFFER:
         status->guest_uniform_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_uniform_buffer = buffer;
         }
         break;
     case GL_ATOMIC_COUNTER_BUFFER:
         status->guest_atomic_counter_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_atomic_counter_buffer = buffer;
         }
         break;
     case GL_DISPATCH_INDIRECT_BUFFER:
         status->guest_dispatch_indirect_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_dispatch_indirect_buffer = buffer;
         }
         break;
     case GL_DRAW_INDIRECT_BUFFER:
         status->guest_draw_indirect_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_draw_indirect_buffer = buffer;
         }
         break;
     case GL_SHADER_STORAGE_BUFFER:
         status->guest_shader_storage_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_shader_storage_buffer = buffer;
         }
         break;
     case GL_TEXTURE_BUFFER:
         status->guest_texture_buffer = buffer;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_texture_buffer = buffer;
         }
@@ -170,19 +165,17 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         break;
     }
 
-    express_printf("context %llx glBindBuffer target %x buffer %d guest %d\n",(uint64_t)context, target, buffer, guest_buffer);
+    express_printf("context %llx glBindBuffer target %x buffer %d guest %d\n", (uint64_t)context, target, buffer, guest_buffer);
 
     // if((host_opengl_version < 45 || DSA_enable == 0) || is_init == 0)
-    if(host_opengl_version < 45 || DSA_enable == 0)
+    if (host_opengl_version < 45 || DSA_enable == 0)
     // if(target != GL_ELEMENT_ARRAY_BUFFER)
     {
         glBindBuffer(target, buffer);
     }
-
 }
 
-
-void d_glBindBufferRange_special(void *context, GLenum target,GLuint index, GLuint guest_buffer, GLintptr offset, GLsizeiptr size)
+void d_glBindBufferRange_special(void *context, GLenum target, GLuint index, GLuint guest_buffer, GLintptr offset, GLsizeiptr size)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
@@ -212,10 +205,9 @@ void d_glBindBufferRange_special(void *context, GLenum target,GLuint index, GLui
         break;
     }
 
-    express_printf("context %llx glBindBufferRange target %x buffer %d\n",(uint64_t)context, target, buffer);
+    express_printf("context %llx glBindBufferRange target %x buffer %d\n", (uint64_t)context, target, buffer);
 
     glBindBufferRange(target, index, buffer, offset, size);
-
 }
 
 void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLuint guest_buffer)
@@ -224,7 +216,7 @@ void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLui
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
 
     GLuint buffer = (GLuint)get_host_buffer_id(opengl_context, (unsigned int)guest_buffer);
-    
+
     switch (target)
     {
     case GL_TRANSFORM_FEEDBACK_BUFFER:
@@ -248,12 +240,9 @@ void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLui
         break;
     }
 
-    express_printf("context %llx glBindBufferBase target %x buffer %d\n",(uint64_t)context, target, buffer);
+    express_printf("context %llx glBindBufferBase target %x buffer %d\n", (uint64_t)context, target, buffer);
     glBindBufferBase(target, index, buffer);
-
 }
-
-
 
 void buffer_binding_status_sync(void *context, GLenum target)
 {
@@ -266,7 +255,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
     switch (target)
     {
     case GL_ARRAY_BUFFER:
-        if(status->guest_array_buffer != status->host_array_buffer)
+        if (status->guest_array_buffer != status->host_array_buffer)
         {
             status->host_array_buffer = status->guest_array_buffer;
             new_buffer = status->host_array_buffer;
@@ -274,7 +263,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_ELEMENT_ARRAY_BUFFER:
-        if(status->guest_element_array_buffer != status->host_element_array_buffer)
+        if (status->guest_element_array_buffer != status->host_element_array_buffer)
         {
             status->host_element_array_buffer = status->guest_element_array_buffer;
             new_buffer = status->host_element_array_buffer;
@@ -283,7 +272,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         printf("@todo! buffer sync element array buffer (glDrawElements)!\n");
         break;
     case GL_COPY_READ_BUFFER:
-        if(status->guest_copy_read_buffer != status->host_copy_read_buffer)
+        if (status->guest_copy_read_buffer != status->host_copy_read_buffer)
         {
             status->host_copy_read_buffer = status->guest_copy_read_buffer;
             new_buffer = status->host_copy_read_buffer;
@@ -291,7 +280,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_COPY_WRITE_BUFFER:
-        if(status->guest_copy_write_buffer != status->host_copy_write_buffer)
+        if (status->guest_copy_write_buffer != status->host_copy_write_buffer)
         {
             status->host_copy_write_buffer = status->guest_copy_write_buffer;
             new_buffer = status->host_copy_write_buffer;
@@ -299,7 +288,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_PIXEL_PACK_BUFFER:
-        if(status->guest_pixel_pack_buffer != status->host_pixel_pack_buffer)
+        if (status->guest_pixel_pack_buffer != status->host_pixel_pack_buffer)
         {
             status->host_pixel_pack_buffer = status->guest_pixel_pack_buffer;
             new_buffer = status->host_pixel_pack_buffer;
@@ -307,7 +296,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_PIXEL_UNPACK_BUFFER:
-        if(status->guest_pixel_unpack_buffer != status->host_pixel_unpack_buffer)
+        if (status->guest_pixel_unpack_buffer != status->host_pixel_unpack_buffer)
         {
             status->host_pixel_unpack_buffer = status->guest_pixel_unpack_buffer;
             new_buffer = status->host_pixel_unpack_buffer;
@@ -315,7 +304,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TRANSFORM_FEEDBACK_BUFFER:
-        if(status->guest_transform_feedback_buffer != status->host_transform_feedback_buffer)
+        if (status->guest_transform_feedback_buffer != status->host_transform_feedback_buffer)
         {
             status->host_transform_feedback_buffer = status->guest_transform_feedback_buffer;
             new_buffer = status->host_transform_feedback_buffer;
@@ -323,7 +312,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_UNIFORM_BUFFER:
-        if(status->guest_uniform_buffer != status->host_uniform_buffer)
+        if (status->guest_uniform_buffer != status->host_uniform_buffer)
         {
             status->host_uniform_buffer = status->guest_uniform_buffer;
             new_buffer = status->host_uniform_buffer;
@@ -331,7 +320,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_ATOMIC_COUNTER_BUFFER:
-        if(status->guest_atomic_counter_buffer != status->host_atomic_counter_buffer)
+        if (status->guest_atomic_counter_buffer != status->host_atomic_counter_buffer)
         {
             status->host_atomic_counter_buffer = status->guest_atomic_counter_buffer;
             new_buffer = status->host_atomic_counter_buffer;
@@ -339,7 +328,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_DISPATCH_INDIRECT_BUFFER:
-        if(status->guest_dispatch_indirect_buffer != status->host_dispatch_indirect_buffer)
+        if (status->guest_dispatch_indirect_buffer != status->host_dispatch_indirect_buffer)
         {
             status->host_dispatch_indirect_buffer = status->guest_dispatch_indirect_buffer;
             new_buffer = status->host_dispatch_indirect_buffer;
@@ -347,7 +336,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_DRAW_INDIRECT_BUFFER:
-        if(status->guest_draw_indirect_buffer != status->host_draw_indirect_buffer)
+        if (status->guest_draw_indirect_buffer != status->host_draw_indirect_buffer)
         {
             status->host_draw_indirect_buffer = status->guest_draw_indirect_buffer;
             new_buffer = status->host_draw_indirect_buffer;
@@ -355,7 +344,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_SHADER_STORAGE_BUFFER:
-        if(status->guest_shader_storage_buffer != status->host_shader_storage_buffer)
+        if (status->guest_shader_storage_buffer != status->host_shader_storage_buffer)
         {
             status->host_shader_storage_buffer = status->guest_shader_storage_buffer;
             new_buffer = status->host_shader_storage_buffer;
@@ -363,7 +352,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TEXTURE_BUFFER:
-        if(status->guest_texture_buffer != status->host_texture_buffer)
+        if (status->guest_texture_buffer != status->host_texture_buffer)
         {
             status->host_texture_buffer = status->guest_texture_buffer;
             new_buffer = status->host_texture_buffer;
@@ -371,19 +360,17 @@ void buffer_binding_status_sync(void *context, GLenum target)
         }
         break;
     }
-    if(need_sync != 0)
+    if (need_sync != 0)
     {
         glBindBuffer(target, new_buffer);
     }
-
 }
-
 
 GLuint get_guest_binding_buffer(void *context, GLenum target)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-    
+
     switch (target)
     {
     case GL_ARRAY_BUFFER:
@@ -419,8 +406,6 @@ GLuint get_guest_binding_buffer(void *context, GLenum target)
     return 0;
 }
 
-
-
 void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height)
 {
     Opengl_Context *real_opengl_context = (Opengl_Context *)context;
@@ -453,16 +438,11 @@ void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES 
     return;
 }
 
-
-
-
-
-
 void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint texture, GLuint share_texture, EGLContext guest_share_ctx)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)t_context;
 
-    Process_Context *process_context = thread_context->process_context;   
+    Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = (Opengl_Context *)thread_context->opengl_context;
     uint64_t gbuffer_id = (uint64_t)image;
     Graphic_Buffer *gbuffer = NULL;
@@ -470,14 +450,14 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     GLuint host_share_texture;
 
     //调用这个函数的时候，前面肯定有glbindtexture，所以opengl_context肯定存在
-    if(opengl_context == NULL)
+    if (opengl_context == NULL)
     {
-        printf("error! opengl_context null when bindEGLImage image id %llx\n",gbuffer_id);
+        printf("error! opengl_context null when bindEGLImage image id %llx\n", gbuffer_id);
         return;
     }
 
     gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
-    if(gbuffer == NULL)
+    if (gbuffer == NULL)
     {
         printf("error! glBindEGLImage with NULL gbuffer when finding in process gbuffer_id %llx type %d\n", gbuffer_id, gbuffer->usage_type);
         return;
@@ -485,12 +465,12 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
 
     // printf("glBindEGLImage gbuffer %llx ptr %llx type %d target-texture(%d)\n",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
 
-    if(gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
+    if (gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
     {
         set_texture_gbuffer_ptr(opengl_context, texture, gbuffer);
         // printf("glBindEGLImage gbuffer_id %llx when write %d sync %d\n", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
-        if(target == GL_TEXTURE_2D)
+        if (target == GL_TEXTURE_2D)
         {
             status->current_2D_gbuffer = gbuffer;
         }
@@ -501,17 +481,17 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     }
 
     //假如应用帧数都是60帧，则基本不可能出现这种情况，因为queuebuffer的时延也就几毫秒
-    if(gbuffer->is_writing == 1)
+    if (gbuffer->is_writing == 1)
     {
 #ifdef _WIN32
         //不能因为等待导致掉帧或卡死
         //暂时允许掉一帧，因为理论上一帧过后肯定好了
-        int waiting_time = 1000/composer_refresh_HZ/4*6;
+        int waiting_time = 1000 / composer_refresh_HZ / 4 * 6;
         WaitForSingleObject(gbuffer->writing_ok_event, waiting_time);
-        express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n",gbuffer->is_writing);
-        if(gbuffer->is_writing == 1)
+        express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n", gbuffer->is_writing);
+        if (gbuffer->is_writing == 1)
         {
-            printf("waiting gbuffer(release writing) out of time %d\n",waiting_time);
+            printf("waiting gbuffer(release writing) out of time %d\n", waiting_time);
         }
 #else
 #endif
@@ -519,7 +499,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
 
     if (gbuffer->data_sync != 0)
     {
-        if(gbuffer->delete_sync != 0)
+        if (gbuffer->delete_sync != 0)
         {
             glDeleteSync(gbuffer->delete_sync);
         }
@@ -535,18 +515,17 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
 
     //原来的texture直接删除掉，假设原来的texture不会再被正常使用——不确定@todo
     unsigned int origin_texture = (int)set_share_texture(opengl_context, texture, host_share_texture);
-    if(origin_texture > 0)
+    if (origin_texture > 0)
     {
         glDeleteTextures(1, &origin_texture);
     }
 
-
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
-    switch(target)
+    switch (target)
     {
     case GL_TEXTURE_2D:
         status->guest_current_texture_2D[status->guest_current_active_texture] = host_share_texture;
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_current_texture_2D[status->guest_current_active_texture] = host_share_texture;
         }
@@ -554,12 +533,11 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     case GL_TEXTURE_EXTERNAL_OES:
         status->current_texture_external = host_share_texture;
         break;
-    
     }
 
-    if(target != GL_TEXTURE_EXTERNAL_OES)
+    if (target != GL_TEXTURE_EXTERNAL_OES)
     {
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             glBindTexture(target, host_share_texture);
         }
@@ -572,16 +550,10 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     return;
 }
 
-
-
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image)
 {
     //当前google没实现，所以暂时先不管
 }
-
-
-
-
 
 void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
 {
@@ -589,32 +561,30 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
 
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-
     GLuint texture = (GLuint)get_host_texture_id(opengl_context, (unsigned int)guest_texture);
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
-    express_printf("context %llx target %x texture %u guest %d current %d\n", (uint64_t)opengl_context,target, texture, guest_texture, status->guest_current_active_texture);
-    
-    
-    if(is_init == 0)
+    express_printf("context %llx target %x texture %u guest %d current %d\n", (uint64_t)opengl_context, target, texture, guest_texture, status->guest_current_active_texture);
+
+    if (is_init == 0)
     {
-        if(status->guest_current_active_texture != status->host_current_active_texture)
+        if (status->guest_current_active_texture != status->host_current_active_texture)
         {
             status->host_current_active_texture = status->guest_current_active_texture;
             glActiveTexture(status->guest_current_active_texture + GL_TEXTURE0);
         }
     }
 
-    switch(target)
+    switch (target)
     {
     case GL_TEXTURE_2D:
         status->guest_current_texture_2D[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_2D[status->host_current_active_texture] = texture;
         }
-        if(is_init == 2)
+        if (is_init == 2)
         {
             status->current_2D_gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
         }
@@ -625,56 +595,56 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         break;
     case GL_TEXTURE_2D_MULTISAMPLE:
         status->guest_current_texture_2D_multisample[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_2D_multisample[status->host_current_active_texture] = texture;
         }
         break;
     case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
         status->guest_current_texture_2D_multisample_array[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_2D_multisample_array[status->host_current_active_texture] = texture;
         }
         break;
     case GL_TEXTURE_3D:
         status->guest_current_texture_3D[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_3D[status->host_current_active_texture] = texture;
         }
         break;
     case GL_TEXTURE_2D_ARRAY:
         status->guest_current_texture_2D_array[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_2D_array[status->host_current_active_texture] = texture;
         }
         break;
     case GL_TEXTURE_CUBE_MAP:
         status->guest_current_texture_cube_map[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_cube_map[status->host_current_active_texture] = texture;
         }
         break;
     case GL_TEXTURE_CUBE_MAP_ARRAY:
         status->guest_current_texture_cube_map_array[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_cube_map_array[status->host_current_active_texture] = texture;
         }
         break;
     case GL_TEXTURE_BUFFER:
         status->guest_current_texture_buffer[status->guest_current_active_texture] = texture;
-        if(host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0 || is_init == 0)
         {
             status->host_current_texture_buffer[status->host_current_active_texture] = texture;
         }
         break;
     case GL_TEXTURE_EXTERNAL_OES:
         status->current_texture_external = texture;
-        if(is_init == 2)
+        if (is_init == 2)
         {
             status->current_external_gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
         }
@@ -684,14 +654,13 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         }
         break;
     default:
-        printf("error! glBindBuffer error target %x\n",target);
+        printf("error! glBindBuffer error target %x\n", target);
         break;
-    
     }
 
-    if(target != GL_TEXTURE_EXTERNAL_OES)
+    if (target != GL_TEXTURE_EXTERNAL_OES)
     {
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             // GLuint a = 0;
             // glGetIntegerv(GL_ACTIVE_TEXTURE, &a);
@@ -700,7 +669,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         }
         else
         {
-            if(is_init == 0)
+            if (is_init == 0)
             {
                 glBindTexture(target, texture);
             }
@@ -715,7 +684,6 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         }
     }
 
-
     // if (target == GL_TEXTURE_2D)
     // {
     //     opengl_context->current_texture_2D[opengl_context->current_active_texture] = texture;
@@ -726,7 +694,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
     //     opengl_context->current_texture_external = texture;
     //     return;
     // }
-    
+
     // glBindTexture(target, texture);
 }
 
@@ -738,24 +706,23 @@ void texture_binding_status_sync(void *context, GLenum target)
 
     GLuint current_active_texture = status->guest_current_active_texture;
 
-
-    if(current_active_texture != status->host_current_active_texture)
+    if (current_active_texture != status->host_current_active_texture)
     {
-        printf("active texture sync host %d guest %d\n",status->host_current_active_texture ,current_active_texture);
+        printf("active texture sync host %d guest %d\n", status->host_current_active_texture, current_active_texture);
         status->host_current_active_texture = current_active_texture;
         glActiveTexture(current_active_texture + GL_TEXTURE0);
     }
-    
+
     int need_sync = 0;
     GLuint new_texture = 0;
-    
+
     // GLuint temp=0;
-    switch(target)
+    switch (target)
     {
     case GL_TEXTURE_2D:
         // glGetIntegerv(GL_TEXTURE_BINDING_2D, &temp);
         // printf("sync texture current %d guest %d host %d real host %d\n",current_active_texture,status->guest_current_texture_2D[current_active_texture], status->host_current_texture_2D[current_active_texture], temp);
-        if(status->guest_current_texture_2D[current_active_texture] != status->host_current_texture_2D[current_active_texture])
+        if (status->guest_current_texture_2D[current_active_texture] != status->host_current_texture_2D[current_active_texture])
         {
             status->host_current_texture_2D[current_active_texture] = status->guest_current_texture_2D[current_active_texture];
             new_texture = status->guest_current_texture_2D[current_active_texture];
@@ -763,7 +730,7 @@ void texture_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TEXTURE_2D_MULTISAMPLE:
-        if(status->guest_current_texture_2D_multisample[current_active_texture] != status->host_current_texture_2D_multisample[current_active_texture])
+        if (status->guest_current_texture_2D_multisample[current_active_texture] != status->host_current_texture_2D_multisample[current_active_texture])
         {
             status->host_current_texture_2D_multisample[current_active_texture] = status->guest_current_texture_2D_multisample[current_active_texture];
             new_texture = status->guest_current_texture_2D_multisample[current_active_texture];
@@ -771,7 +738,7 @@ void texture_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
-        if(status->guest_current_texture_2D_multisample_array[current_active_texture] != status->host_current_texture_2D_multisample_array[current_active_texture])
+        if (status->guest_current_texture_2D_multisample_array[current_active_texture] != status->host_current_texture_2D_multisample_array[current_active_texture])
         {
             status->host_current_texture_2D_multisample_array[current_active_texture] = status->guest_current_texture_2D_multisample_array[current_active_texture];
             new_texture = status->guest_current_texture_2D_multisample_array[current_active_texture];
@@ -779,7 +746,7 @@ void texture_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TEXTURE_3D:
-        if(status->guest_current_texture_3D[current_active_texture] != status->host_current_texture_3D[current_active_texture])
+        if (status->guest_current_texture_3D[current_active_texture] != status->host_current_texture_3D[current_active_texture])
         {
             status->host_current_texture_3D[current_active_texture] = status->guest_current_texture_3D[current_active_texture];
             new_texture = status->guest_current_texture_3D[current_active_texture];
@@ -787,7 +754,7 @@ void texture_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TEXTURE_2D_ARRAY:
-        if(status->guest_current_texture_2D_array[current_active_texture] != status->host_current_texture_2D_array[current_active_texture])
+        if (status->guest_current_texture_2D_array[current_active_texture] != status->host_current_texture_2D_array[current_active_texture])
         {
             status->host_current_texture_2D_array[current_active_texture] = status->guest_current_texture_2D_array[current_active_texture];
             new_texture = status->guest_current_texture_2D_array[current_active_texture];
@@ -801,7 +768,7 @@ void texture_binding_status_sync(void *context, GLenum target)
     case GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
     case GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
     case GL_TEXTURE_CUBE_MAP:
-        if(status->guest_current_texture_cube_map[current_active_texture] != status->host_current_texture_cube_map[current_active_texture])
+        if (status->guest_current_texture_cube_map[current_active_texture] != status->host_current_texture_cube_map[current_active_texture])
         {
             target = GL_TEXTURE_CUBE_MAP;
             status->host_current_texture_cube_map[current_active_texture] = status->guest_current_texture_cube_map[current_active_texture];
@@ -810,7 +777,7 @@ void texture_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TEXTURE_CUBE_MAP_ARRAY:
-        if(status->guest_current_texture_cube_map_array[current_active_texture] != status->host_current_texture_cube_map_array[current_active_texture])
+        if (status->guest_current_texture_cube_map_array[current_active_texture] != status->host_current_texture_cube_map_array[current_active_texture])
         {
             status->host_current_texture_cube_map_array[current_active_texture] = status->guest_current_texture_cube_map_array[current_active_texture];
             new_texture = status->guest_current_texture_cube_map_array[current_active_texture];
@@ -818,7 +785,7 @@ void texture_binding_status_sync(void *context, GLenum target)
         }
         break;
     case GL_TEXTURE_BUFFER:
-        if(status->guest_current_texture_buffer[current_active_texture] != status->host_current_texture_buffer[current_active_texture])
+        if (status->guest_current_texture_buffer[current_active_texture] != status->host_current_texture_buffer[current_active_texture])
         {
             status->host_current_texture_buffer[current_active_texture] = status->guest_current_texture_buffer[current_active_texture];
             new_texture = status->guest_current_texture_buffer[current_active_texture];
@@ -832,24 +799,20 @@ void texture_binding_status_sync(void *context, GLenum target)
         break;
     }
 
-    if(need_sync != 0)
+    if (need_sync != 0)
     {
         glBindTexture(target, new_texture);
     }
-
 }
 
-
-
-#define CHANGE_TEXTURE_UNIT_WITH_TYPE(status, type, index) {   \
-    if(status->guest_current_texture_##type != status->host_current_texture_##type)                   \
-    {                                                               \
-        status->host_current_texture_##type = status->guest_current_texture_##type;                    \
-        glBindTextureUnit(index, status->guest_current_texture_##type);          \
-    }                                                               \
-}
-
-
+#define CHANGE_TEXTURE_UNIT_WITH_TYPE(status, type, index)                               \
+    {                                                                                    \
+        if (status->guest_current_texture_##type != status->host_current_texture_##type) \
+        {                                                                                \
+            status->host_current_texture_##type = status->guest_current_texture_##type;  \
+            glBindTextureUnit(index, status->guest_current_texture_##type);              \
+        }                                                                                \
+    }
 
 void texture_unit_status_sync(void *context, GLint index)
 {
@@ -857,16 +820,16 @@ void texture_unit_status_sync(void *context, GLint index)
 
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(index < 0)
+    if (index < 0)
     {
-        for(int i = 0; i <= status->now_max_texture_unit; i++)
+        for (int i = 0; i <= status->now_max_texture_unit; i++)
         {
-            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D[i], i);
+            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D [i], i);
             CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map[i], i);
-            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 3D[i], i);
-            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_array[i], i);
-            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample[i], i);
-            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array[i], i);
+            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 3D [i], i);
+            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_array [i], i);
+            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample [i], i);
+            CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array [i], i);
             CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map_array[i], i);
             CHANGE_TEXTURE_UNIT_WITH_TYPE(status, buffer[i], i);
 
@@ -889,12 +852,12 @@ void texture_unit_status_sync(void *context, GLint index)
     }
     else
     {
-        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D[index], index);
+        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D [index], index);
         CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map[index], index);
-        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 3D[index], index);
-        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_array[index], index);
-        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample[index], index);
-        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array[index], index);
+        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 3D [index], index);
+        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_array [index], index);
+        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample [index], index);
+        CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array [index], index);
         CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map_array[index], index);
         CHANGE_TEXTURE_UNIT_WITH_TYPE(status, buffer[index], index);
 
@@ -916,7 +879,6 @@ void texture_unit_status_sync(void *context, GLint index)
     }
 }
 
-
 GLuint get_guest_binding_texture(void *context, GLenum target)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
@@ -925,8 +887,7 @@ GLuint get_guest_binding_texture(void *context, GLenum target)
 
     GLuint current_active_texture = status->guest_current_active_texture;
 
-    
-    switch(target)
+    switch (target)
     {
     case GL_TEXTURE_2D:
         return status->guest_current_texture_2D[current_active_texture];
@@ -956,11 +917,9 @@ GLuint get_guest_binding_texture(void *context, GLenum target)
     default:
         break;
     }
-    printf("error! get_guest_binding_texture target %x\n",target);
+    printf("error! get_guest_binding_texture target %x\n", target);
     return 0;
 }
-
-
 
 void d_glActiveTexture_special(void *context, GLenum texture)
 {
@@ -972,15 +931,15 @@ void d_glActiveTexture_special(void *context, GLenum texture)
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         status->guest_current_active_texture = texture - GL_TEXTURE0;
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             status->host_current_active_texture = texture - GL_TEXTURE0;
             glActiveTexture(texture);
         }
-        
-        if(texture-GL_TEXTURE0 > status->now_max_texture_unit)
+
+        if (texture - GL_TEXTURE0 > status->now_max_texture_unit)
         {
-            status->now_max_texture_unit = texture-GL_TEXTURE0;
+            status->now_max_texture_unit = texture - GL_TEXTURE0;
         }
         // GLuint tex = 0;
         // GLuint ac = 0;
@@ -992,22 +951,18 @@ void d_glActiveTexture_special(void *context, GLenum texture)
     // glActiveTexture(texture);
 }
 
-
 void active_texture_sync(void *context)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    if(status->guest_current_active_texture != status->host_current_active_texture)
+    if (status->guest_current_active_texture != status->host_current_active_texture)
     {
         status->host_current_active_texture = status->guest_current_active_texture;
         glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
     }
-
 }
-
-
 
 void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 {
@@ -1049,18 +1004,14 @@ void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
     //     return;
     // }
     glPixelStorei(pname, param);
-    //express_printf("glPixelStorei %x %d\n",pname,param);
+    // express_printf("glPixelStorei %x %d\n",pname,param);
 
     return;
 }
 
-
-
-
 void d_glBindVertexArray_special(void *context, GLuint array)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
@@ -1074,25 +1025,24 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     GLuint pre_vao = status->guest_vao;
 
     GLuint now_vao = (GLuint)get_host_array_id(context, (unsigned int)array);
-    if(array == 0 && now_vao == 0)
+    if (array == 0 && now_vao == 0)
     {
         now_vao = opengl_context->vao0;
     }
 
-
     Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
     Attrib_Point *pre_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(pre_vao));
 
-    express_printf("context %llx bind vao host %d guest %d pre %d\n",(uint64_t)context, now_vao, array, pre_vao);
+    express_printf("context %llx bind vao host %d guest %d pre %d\n", (uint64_t)context, now_vao, array, pre_vao);
 
     if (now_point == NULL)
     {
         now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
-        printf("error! vao %d cannot find\n",now_vao);
+        printf("error! vao %d cannot find\n", now_vao);
         return;
     }
 
-    if(pre_point->element_array_buffer != status->guest_vao_ebo)
+    if (pre_point->element_array_buffer != status->guest_vao_ebo)
     {
         pre_point->element_array_buffer = status->guest_vao_ebo;
     }
@@ -1100,17 +1050,15 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     bound_buffer->attrib_point = now_point;
 
     status->guest_element_array_buffer = now_point->element_array_buffer;
-    
+
     status->guest_vao_ebo = now_point->element_array_buffer;
 
     status->guest_vao = now_vao;
 
-    if(host_opengl_version < 45 || DSA_enable == 0)
+    if (host_opengl_version < 45 || DSA_enable == 0)
     {
         glBindVertexArray(now_vao);
     }
-    
-
 }
 
 GLuint get_guest_binding_vao(void *context)
@@ -1130,8 +1078,7 @@ void vao_binding_status_sync(void *context)
 
     // Attrib_Point *point_data = bound_buffer->attrib_point;
 
-
-    if(status->host_vao != status->guest_vao)
+    if (status->host_vao != status->guest_vao)
     {
         express_printf("#%llx vao_binding_status_sync bind vao %d pre %d ebo %d\n", (uint64_t)opengl_context, status->guest_vao, status->host_vao, status->guest_vao_ebo);
         glBindVertexArray(status->guest_vao);
@@ -1143,4 +1090,3 @@ void vao_binding_status_sync(void *context)
         status->host_element_array_buffer = status->guest_vao_ebo;
     }
 }
-

@@ -7,15 +7,11 @@
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/offscreen_render_thread.h"
 
-
-
 GHashTable *program_is_external_map = NULL;
 
 GHashTable *program_data_map = NULL;
 
-
-
-int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len);
+int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len);
 void get_default_out(const char *string, char *out);
 
 static void g_program_data_destroy(gpointer data)
@@ -23,9 +19,6 @@ static void g_program_data_destroy(gpointer data)
     GLchar *program_data = (GLchar *)data;
     g_free(program_data);
 }
-
-
-
 
 int init_program_data(GLuint program)
 {
@@ -45,10 +38,9 @@ int init_program_data(GLuint program)
 
         printf("GL_INFO_LOG_LENGTH %d\n", infoLen);
 
-
         if (infoLen > 1)
         {
-            char* infoLog = (char*)malloc(sizeof(char) * infoLen);
+            char *infoLog = (char *)malloc(sizeof(char) * infoLen);
             glGetProgramInfoLog(program, infoLen, NULL, infoLog);
             printf("Error linking program:\n%s\n", infoLog);
             free(infoLog);
@@ -86,12 +78,12 @@ int init_program_data(GLuint program)
         GLuint shader_ids[10];
         GLsizei shader_cnt = 0;
         glGetAttachedShaders(program, 10, &shader_cnt, shader_ids);
-        if(shader_cnt == 1)
+        if (shader_cnt == 1)
         {
             //计算着色器是单独的一个
             GLint shader_type;
             glGetShaderiv(shader_ids[0], GL_SHADER_TYPE, &shader_type);
-            if(shader_type == GL_COMPUTE_SHADER)
+            if (shader_type == GL_COMPUTE_SHADER)
             {
                 glGetProgramiv(program, GL_COMPUTE_WORK_GROUP_SIZE, group_size);
                 // printf("computer shader size %d\n", shader_cnt);
@@ -122,7 +114,6 @@ int init_program_data(GLuint program)
         *(int_ptr + 7) = group_size[0];
         *(int_ptr + 8) = group_size[1];
         *(int_ptr + 9) = group_size[2];
-
 
         temp_ptr += 10 * sizeof(int);
 
@@ -219,8 +210,8 @@ int init_program_data(GLuint program)
         // assert(temp_ptr-program_data <= buf_len);
         g_free(name_buf);
 #ifdef ENABLE_OPENGL_DEBUG
-        GLenum error =glGetError();
-        if(error != GL_NO_ERROR)
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR)
         {
             printf("error when create program\n");
         }
@@ -228,8 +219,6 @@ int init_program_data(GLuint program)
         return buf_len;
     }
 }
-
-
 
 void d_glUseProgram_special(void *context, GLuint program)
 {
@@ -252,11 +241,7 @@ void d_glUseProgram_special(void *context, GLuint program)
     }
 
     glUseProgram(program);
-
-    
 }
-
-
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
 {
@@ -348,15 +333,15 @@ void get_default_out(const char *string, char *out)
     }
 }
 
-int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len)
+int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len)
 {
-    char* lessThan_loc = strstr(origin, fun);
+    char *lessThan_loc = strstr(origin, fun);
     int fun_len = strlen(fun);
-    char* next_line_loc = NULL;
-    char* split_line_loc = NULL;
-    char* split_k_loc = NULL;
+    char *next_line_loc = NULL;
+    char *split_line_loc = NULL;
+    char *split_k_loc = NULL;
 
-    char* vec_loc = NULL;
+    char *vec_loc = NULL;
     // char* vec_loc2 = NULL;
 
     int now_copy_len = 0;
@@ -373,9 +358,8 @@ int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len)
         vec_loc = strstr(lessThan_loc, "vec");
         // vec_loc2 = strstr(split_line_loc, "vec");
 
-
         if (vec_loc != NULL && split_line_loc != NULL && next_line_loc != NULL && vec_loc < next_line_loc && vec_loc[4] == '(')
-            // (vec_loc2 == vec_loc || vec_loc2 > next_line_loc || vec_loc2 == NULL) )
+        // (vec_loc2 == vec_loc || vec_loc2 > next_line_loc || vec_loc2 == NULL) )
         {
             char vec_type = *(vec_loc - 1);
             if (vec_type != 'b' && vec_type != 'i')
@@ -403,9 +387,8 @@ int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len)
             //     now_copy_len += next_line_loc - split_line_loc;
             //     origin_copy_len += next_line_loc - split_line_loc;
 
-
             // }
-            if(vec_loc > split_line_loc && split_k_loc > split_line_loc)
+            if (vec_loc > split_line_loc && split_k_loc > split_line_loc)
             {
                 dst[now_copy_len + 0] = vec_type;
                 dst[now_copy_len + 1] = 'v';
@@ -425,23 +408,20 @@ int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len)
                 memcpy(dst + now_copy_len, origin + origin_copy_len, next_line_loc - split_line_loc + 1);
                 now_copy_len += next_line_loc - split_line_loc + 1;
                 origin_copy_len += next_line_loc - split_line_loc + 1;
-
             }
-           
         }
         lessThan_loc = strstr(origin + origin_copy_len, fun);
     }
-    if(len-origin_copy_len < 0)
+    if (len - origin_copy_len < 0)
     {
-        printf("error! len %d origin %d\n origin:\n%s\nnow:%s\n",len,origin_copy_len,dst,origin);
+        printf("error! len %d origin %d\n origin:\n%s\nnow:%s\n", len, origin_copy_len, dst, origin);
     }
-    assert(len-origin_copy_len>=0);
+    assert(len - origin_copy_len >= 0);
     memcpy(dst + now_copy_len, origin + origin_copy_len, len - origin_copy_len);
     now_copy_len += len - origin_copy_len;
 
     return now_copy_len;
 }
-
 
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, GLchar **string)
 {
@@ -473,11 +453,11 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
             has_version = 1;
             char *enter_loc = strstr(string[i], "\n");
             char *es100_loc = strstr(string[i], "100");
-            if(es100_loc != NULL && es100_loc < enter_loc)
+            if (es100_loc != NULL && es100_loc < enter_loc)
             {
-                //version是100，改成330
-                es100_loc[0]='3';
-                es100_loc[1]='3';
+                // version是100，改成330
+                es100_loc[0] = '3';
+                es100_loc[1] = '3';
             }
             // char *enter_loc = strstr(string[i], "\n");
             // char *es310_loc = strstr(string[i], "310");
@@ -492,13 +472,12 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
             // }
         }
 
-        string_loc = strstr(string[i],"lessThan(");
-        while(string_loc!=NULL)
+        string_loc = strstr(string[i], "lessThan(");
+        while (string_loc != NULL)
         {
-            string_loc = strstr(string_loc + 9 , "lessThan(");
-            need_add_vec_num ++;
+            string_loc = strstr(string_loc + 9, "lessThan(");
+            need_add_vec_num++;
         }
-
 
         string_loc = strstr(string[i], "textureCube");
         if (string_loc != NULL && string_loc - string[i] <= length[i])
@@ -583,21 +562,21 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
     if (!has_version || has_texturecube || need_add_vec_num != 0)
     {
-        new_string1 = g_malloc(length[0] + sizeof(DEFAULT_VERSION) + sizeof(SHADOW_SAMPLER_EXTENSION) + need_add_vec_num*10);
+        new_string1 = g_malloc(length[0] + sizeof(DEFAULT_VERSION) + sizeof(SHADOW_SAMPLER_EXTENSION) + need_add_vec_num * 10);
         int loc = 0;
         int origin_loc = 0;
-        if(!has_version)
+        if (!has_version)
         {
             memcpy(new_string1, DEFAULT_VERSION, sizeof(DEFAULT_VERSION) - 1);
             loc += sizeof(DEFAULT_VERSION) - 1;
         }
         else
         {
-            for(int i = 0;i < length[0]; i++)
+            for (int i = 0; i < length[0]; i++)
             {
-                new_string1[i]=string[0][i];
-                loc+=1;
-                if(new_string1[i]=='\n')
+                new_string1[i] = string[0][i];
+                loc += 1;
+                if (new_string1[i] == '\n')
                 {
                     break;
                 }
@@ -609,7 +588,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
             memcpy(new_string1 + loc, SHADOW_SAMPLER_EXTENSION, sizeof(SHADOW_SAMPLER_EXTENSION) - 1);
             loc += sizeof(SHADOW_SAMPLER_EXTENSION) - 1;
         }
-        
+
         // memcpy(new_string1 + loc, string[0] + origin_loc, length[0] - origin_loc);
         // loc += length[0] - origin_loc;
         loc += memcpy_with_add_vec(new_string1 + loc, (char *)(string[0] + origin_loc), "lessThan(", length[0] - origin_loc);
@@ -683,7 +662,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         }
     }
 
-    glShaderSource(shader, count, (const GLchar * const*)string, length);
+    glShaderSource(shader, count, (const GLchar *const *)string, length);
     // printf("\ngl shader %d source after count %d context %llx:\n%s\n", shader, count, (uint64_t)context, string[0]);
 
     if (new_string1 != NULL)
@@ -697,48 +676,45 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 }
 
 static int GLSL_VERSION_SIZE = 7;
-static const char *GLSL_VERSION[]={
+static const char *GLSL_VERSION[] = {
     "430",
     "330",
     "300 es",
     "310 es",
     "100",
     "440",
-    "450"
-};
+    "450"};
 
 void change_GLSL_version(char *start, char *end, int try_cnt)
 {
-    while(start + 3 < end && (*start < '0' || *start > '9'))
+    while (start + 3 < end && (*start < '0' || *start > '9'))
     {
         start++;
     }
 
-    if(*start < '0' || *start > '9' || try_cnt >= GLSL_VERSION_SIZE)
+    if (*start < '0' || *start > '9' || try_cnt >= GLSL_VERSION_SIZE)
     {
         return;
     }
 
-    start[0]=GLSL_VERSION[try_cnt][0];
-    start[1]=GLSL_VERSION[try_cnt][1];
-    start[2]=GLSL_VERSION[try_cnt][2];
+    start[0] = GLSL_VERSION[try_cnt][0];
+    start[1] = GLSL_VERSION[try_cnt][1];
+    start[2] = GLSL_VERSION[try_cnt][2];
     start += 3;
-    if((try_cnt >=2 && try_cnt <= 3) && end - start >= 3)
+    if ((try_cnt >= 2 && try_cnt <= 3) && end - start >= 3)
     {
-        start[0]=GLSL_VERSION[try_cnt][3];
-        start[1]=GLSL_VERSION[try_cnt][4];
-        start[2]=GLSL_VERSION[try_cnt][5];
+        start[0] = GLSL_VERSION[try_cnt][3];
+        start[1] = GLSL_VERSION[try_cnt][4];
+        start[2] = GLSL_VERSION[try_cnt][5];
         start += 3;
     }
-    while(start != end)
+    while (start != end)
     {
         *start = ' ';
         start++;
     }
     return;
-
 }
-
 
 void d_glCompileShader_special(void *context, GLuint guest_id)
 {
@@ -747,8 +723,9 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
     glCompileShader(host_id);
     GLenum error = glGetError();
 
-    if(error!=GL_NO_ERROR){
-        printf("glCompileShader %x guest %u host %u\n",error, guest_id,host_id);
+    if (error != GL_NO_ERROR)
+    {
+        printf("glCompileShader %x guest %u host %u\n", error, guest_id, host_id);
     }
 
     GLint compiled;
@@ -776,28 +753,27 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
         {
             //着色器编译报错的话，就尝试下更改版本号，看能不能编译过去，只有都编译不过去的时候才报错
             int try_cnt = 0;
-            while(try_cnt < GLSL_VERSION_SIZE)
+            while (try_cnt < GLSL_VERSION_SIZE)
             {
                 change_GLSL_version(string_loc + 8, enter_loc, try_cnt);
-                
-                glShaderSource(host_id, 1, (const char* const*)&source, &source_len);
+
+                glShaderSource(host_id, 1, (const char *const *)&source, &source_len);
                 glCompileShader(host_id);
                 glGetShaderiv(host_id, GL_COMPILE_STATUS, &compiled);
                 // printf("try change(%d) source compiled %d:%s\n", try_cnt, compiled, source);
-                if(compiled)
+                if (compiled)
                 {
                     break;
                 }
                 try_cnt++;
             }
         }
-        if(!compiled)
+        if (!compiled)
         {
             printf("shader compile error! shader source:\n%s\nerror info:\n%s\n", source, info_log);
         }
 
         g_free(source);
         g_free(info_log);
-        
     }
 }

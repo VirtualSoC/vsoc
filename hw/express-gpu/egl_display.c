@@ -28,7 +28,7 @@ EGLBoolean add_config(Egl_Display *display, eglConfig *config)
 
 /**
  * @brief 添加与窗口无关的配置信息，可以指定某个配置属性，添加一系列值
- * 
+ *
  * @param display 需要添加配置的display
  * @param attr_enum 需要添加的配置属性的Enum，比如EGL_RED_SIZE
  * @param vals 需要添加的属性值数组
@@ -53,14 +53,16 @@ void add_window_independent_config(Egl_Display *display, EGLint attr_enum, const
     }
 }
 
-void add_simple_config(Egl_Display *display){
-    EGLint red_sizes[]   = {5, 8, 8};
+void add_simple_config(Egl_Display *display)
+{
+    EGLint red_sizes[] = {5, 8, 8};
     EGLint green_sizes[] = {6, 8, 8};
-    EGLint blue_sizes[]  = {5, 8, 8};
+    EGLint blue_sizes[] = {5, 8, 8};
     EGLint alpha_sizes[] = {0, 0, 8};
     int length = sizeof(red_sizes) / sizeof(EGLint);
 
-    for (int i = 0; i < length; i++) {
+    for (int i = 0; i < length; i++)
+    {
         eglConfig *config = (eglConfig *)g_malloc(sizeof(eglConfig));
         memset(config, 0xff, sizeof(eglConfig));
 
@@ -90,8 +92,6 @@ void add_simple_config(Egl_Display *display){
         set_val_by_enum(config, blue_sizes[i], EGL_BLUE_SIZE);
         set_val_by_enum(config, alpha_sizes[i], EGL_ALPHA_SIZE);
         set_val_by_enum(config, 0, EGL_LUMINANCE_SIZE);
-        
-
 
         if (!add_config(display, config))
         {

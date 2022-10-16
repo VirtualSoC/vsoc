@@ -1,12 +1,12 @@
 /**
  * @file egl_trans.c
  * @author gaodi (gaodi.sec@qq.com)
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2020-11-25
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 
 #include "hw/express-gpu/egl_trans.h"
@@ -29,15 +29,15 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         return;
     }
 
-    //Double_Buffer *egl_context = (egl_context->render_double_buffer);
-    //uint64_t fun_id=GET_FUN_ID(call->id);
-    //uint64_t is_async=FUN_IS_ASYNC(call->id);
+    // Double_Buffer *egl_context = (egl_context->render_double_buffer);
+    // uint64_t fun_id=GET_FUN_ID(call->id);
+    // uint64_t is_async=FUN_IS_ASYNC(call->id);
 
     Call_Para all_para[MAX_PARA_NUM];
 
     unsigned char ret_local_buf[1024 * 4];
 
-    unsigned char *no_ptr_buf=NULL;
+    unsigned char *no_ptr_buf = NULL;
 
     switch (call->id)
     {
@@ -89,7 +89,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -201,7 +202,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -359,7 +361,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -503,7 +506,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -599,7 +603,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -753,7 +758,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -850,7 +856,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -915,7 +922,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -984,7 +992,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1056,7 +1065,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1126,7 +1136,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1187,7 +1198,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1247,7 +1259,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1304,7 +1317,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1364,7 +1378,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1426,7 +1441,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1491,7 +1507,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1557,7 +1574,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1624,7 +1642,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1708,7 +1727,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1729,7 +1749,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         temp_loc += 8;
 
         const EGLint *attrib_list = (const EGLint *)(temp + temp_loc);
-        temp_loc += get_attrib_list_len(attrib_list);;
+        temp_loc += get_attrib_list_len(attrib_list);
+        ;
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
@@ -1775,7 +1796,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1839,7 +1861,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1873,9 +1896,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
             break;
         }
 
-        
         d_eglCreateImage(egl_context, dpy, ctx, target, buffer, attrib_list, image);
-
     }
     break;
 
@@ -1914,7 +1935,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1976,7 +1998,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2034,7 +2057,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2140,8 +2164,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         int width;
         int height;
         int hal_format;
-        
-        
+
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglSwapBuffers))
         {
@@ -2163,7 +2186,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2199,7 +2223,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         // assert(surface>1000);
         Guest_Mem *swap_time = all_para[2].data;
 
-        d_eglSwapBuffers(egl_context, dpy, surface, invoke_time,gbuffer_id, width, height, hal_format, ret_invoke_time, swap_time);
+        d_eglSwapBuffers(egl_context, dpy, surface, invoke_time, gbuffer_id, width, height, hal_format, ret_invoke_time, swap_time);
     }
     break;
 
@@ -2252,7 +2276,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2303,7 +2328,8 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2318,7 +2344,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         temp_loc += 8;
 
         int out_buf_len = all_para[1].data_len;
-        if(unlikely(out_buf_len != 4))
+        if (unlikely(out_buf_len != 4))
         {
             printf("error! get gbuffer type get >4 size\n");
             break;
@@ -2327,7 +2353,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         int ret = get_global_gbuffer_type(gbuffer_id);
 
         guest_read(all_para[1].data, &ret, 0, out_buf_len);
-
     }
     break;
 
@@ -2335,7 +2360,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         break;
     }
 
-    if(no_ptr_buf!=NULL)
+    if (no_ptr_buf != NULL)
     {
         g_free(no_ptr_buf);
     }

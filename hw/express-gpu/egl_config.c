@@ -102,7 +102,7 @@ EGLBoolean is_config_equaled(eglConfig *config, eglConfig *other)
 eglConfig *config_to_hints(EGLConfig cfg, GLFWHints *hints)
 {
     eglConfig *config = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GUINT_TO_POINTER(cfg));
-    
+
     for (int i = 0; i < NUM_HINTS; i++)
     {
         hints->hints[i * 2] = config_hints[i];
@@ -134,138 +134,147 @@ EGLint get_hint_by_config(eglConfig *config, int64_t hint_enum)
     }
 }
 
-void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum) {
-    switch (attr_enum) {
-        case EGL_MAX_PBUFFER_WIDTH:
-            config->max_pbuffer_width = val;
-            break;
-        case EGL_MAX_PBUFFER_HEIGHT:
-            config->max_pbuffer_height = val;
-            break;
-        case EGL_MAX_PBUFFER_PIXELS:
-            config->max_pbuffer_size = val;
-            break;
-        case EGL_NATIVE_VISUAL_ID:
-            config->native_visual_id = val;
-            break;
-        case EGL_LEVEL:
-            config->frame_buffer_level = val;
-            break;
-        case EGL_BUFFER_SIZE:
-            config->buffer_size = val;
-            break;
-        case EGL_RED_SIZE: {
-            config->red_size = val;
-            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
-            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
-            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
-            break;
+void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum)
+{
+    switch (attr_enum)
+    {
+    case EGL_MAX_PBUFFER_WIDTH:
+        config->max_pbuffer_width = val;
+        break;
+    case EGL_MAX_PBUFFER_HEIGHT:
+        config->max_pbuffer_height = val;
+        break;
+    case EGL_MAX_PBUFFER_PIXELS:
+        config->max_pbuffer_size = val;
+        break;
+    case EGL_NATIVE_VISUAL_ID:
+        config->native_visual_id = val;
+        break;
+    case EGL_LEVEL:
+        config->frame_buffer_level = val;
+        break;
+    case EGL_BUFFER_SIZE:
+        config->buffer_size = val;
+        break;
+    case EGL_RED_SIZE:
+    {
+        config->red_size = val;
+        config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+        config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+        config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
+        break;
+    }
+    case EGL_GREEN_SIZE:
+    {
+        config->green_size = val;
+        config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+        config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+        config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
+        break;
+    }
+    case EGL_BLUE_SIZE:
+    {
+        config->blue_size = val;
+        config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+        config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+        config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
+        break;
+    }
+    case EGL_LUMINANCE_SIZE:
+        config->luminance_size = val;
+        break;
+    case EGL_ALPHA_SIZE:
+    {
+        config->alpha_size = val;
+        config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
+        config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+        config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
+        break;
+    }
+    case EGL_BIND_TO_TEXTURE_RGB:
+        config->bind_to_tex_rgb = val;
+        break;
+    case EGL_BIND_TO_TEXTURE_RGBA:
+        config->bind_to_tex_rgba = val;
+        break;
+    case EGL_CONFIG_CAVEAT:
+    {
+        config->caveat = val;
+        config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+        break;
+    }
+    case EGL_CONFORMANT:
+        config->conformant = val;
+        break;
+    case EGL_CONFIG_ID:
+        config->config_id = val;
+        break;
+    case EGL_DEPTH_SIZE:
+        config->depth_size = val;
+        break;
+    case EGL_MAX_SWAP_INTERVAL:
+        config->max_swap_interval = val;
+        break;
+    case EGL_MIN_SWAP_INTERVAL:
+        config->min_swap_interval = val;
+        break;
+    case EGL_NATIVE_RENDERABLE:
+        config->native_renderable = val;
+        break;
+    case EGL_RENDERABLE_TYPE:
+        config->renderable_type = val;
+        break;
+    case EGL_NATIVE_VISUAL_TYPE:
+        config->native_visual_type = val;
+        break;
+    case EGL_SAMPLE_BUFFERS:
+        config->sample_buffers_num = val;
+        if (config->sample_buffers_num == EGL_DONT_CARE)
+        {
+            config->sample_buffers_num = 0;
         }
-        case EGL_GREEN_SIZE: {
-            config->green_size = val;
-            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
-            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
-            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
-            break;
-        }
-        case EGL_BLUE_SIZE: {
-            config->blue_size = val;
-            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
-            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
-            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
-            break;
-        }
-        case EGL_LUMINANCE_SIZE:
-            config->luminance_size = val;
-            break;
-        case EGL_ALPHA_SIZE: {
-            config->alpha_size = val;
-            config->buffer_size = config->red_size + config->green_size + config->blue_size + config->alpha_size;
-            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
-            config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
-            break;
-        }
-        case EGL_BIND_TO_TEXTURE_RGB:
-            config->bind_to_tex_rgb = val;
-            break;
-        case EGL_BIND_TO_TEXTURE_RGBA:
-            config->bind_to_tex_rgba = val;
-            break;
-        case EGL_CONFIG_CAVEAT: {
-            config->caveat = val;
-            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
-            break;
-        }
-        case EGL_CONFORMANT:
-            config->conformant = val;
-            break;
-        case EGL_CONFIG_ID:
-            config->config_id = val;
-            break;
-        case EGL_DEPTH_SIZE:
-            config->depth_size = val;
-            break;
-        case EGL_MAX_SWAP_INTERVAL:
-            config->max_swap_interval = val;
-            break;
-        case EGL_MIN_SWAP_INTERVAL:
-            config->min_swap_interval = val;
-            break;
-        case EGL_NATIVE_RENDERABLE:
-            config->native_renderable = val;
-            break;
-        case EGL_RENDERABLE_TYPE:
-            config->renderable_type = val;
-            break;
-        case EGL_NATIVE_VISUAL_TYPE:
-            config->native_visual_type = val;
-            break;
-        case EGL_SAMPLE_BUFFERS:
-            config->sample_buffers_num = val;
-            if(config->sample_buffers_num == EGL_DONT_CARE)
-            {
-                config->sample_buffers_num = 0;
-            }
-            break;
-        case EGL_SAMPLES: {
-            config->samples_per_pixel = val;
-            config->sample_buffers_num = config->samples_per_pixel > 0 ? 1 : 0;
-            break;
-        }
-        case EGL_STENCIL_SIZE:
-            config->stencil_size = val;
-            break;
-        case EGL_SURFACE_TYPE:
-            config->surface_type = val;
-            break;
-        case EGL_TRANSPARENT_TYPE: {
-            config->transparent_type = val;
-            config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
-            break;
-        }
-        case EGL_TRANSPARENT_RED_VALUE:
-            config->trans_red_val = val;
-            break;
-        case EGL_TRANSPARENT_GREEN_VALUE:
-            config->trans_green_val = val;
-            break;
-        case EGL_TRANSPARENT_BLUE_VALUE:
-            config->trans_blue_val = val;
-            break;
-        case EGL_COLOR_BUFFER_TYPE:
-            config->color_buffer_type = val;
-            break;
-        case EGL_ALPHA_MASK_SIZE:
-            config->alpha_mask_size = val;
-            break;
-        case EGL_RECORDABLE_ANDROID:
-            config->recordable_android = val;
-            break;
-        case EGL_FRAMEBUFFER_TARGET_ANDROID:
-            config->framebuffer_target_android = val;
-            break;
-        default:
-            break;
+        break;
+    case EGL_SAMPLES:
+    {
+        config->samples_per_pixel = val;
+        config->sample_buffers_num = config->samples_per_pixel > 0 ? 1 : 0;
+        break;
+    }
+    case EGL_STENCIL_SIZE:
+        config->stencil_size = val;
+        break;
+    case EGL_SURFACE_TYPE:
+        config->surface_type = val;
+        break;
+    case EGL_TRANSPARENT_TYPE:
+    {
+        config->transparent_type = val;
+        config->conformant = ((config->buffer_size > 0) && (config->caveat != EGL_NON_CONFORMANT_CONFIG)) ? config->renderable_type : 0;
+        break;
+    }
+    case EGL_TRANSPARENT_RED_VALUE:
+        config->trans_red_val = val;
+        break;
+    case EGL_TRANSPARENT_GREEN_VALUE:
+        config->trans_green_val = val;
+        break;
+    case EGL_TRANSPARENT_BLUE_VALUE:
+        config->trans_blue_val = val;
+        break;
+    case EGL_COLOR_BUFFER_TYPE:
+        config->color_buffer_type = val;
+        break;
+    case EGL_ALPHA_MASK_SIZE:
+        config->alpha_mask_size = val;
+        break;
+    case EGL_RECORDABLE_ANDROID:
+        config->recordable_android = val;
+        break;
+    case EGL_FRAMEBUFFER_TARGET_ANDROID:
+        config->framebuffer_target_android = val;
+        break;
+    default:
+        break;
     }
 }
 

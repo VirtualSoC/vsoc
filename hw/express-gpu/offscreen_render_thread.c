@@ -4,9 +4,9 @@
  * @brief 这个文件是用于定义express_gpu设备的文件，包含了direct用来调用的接口和涉及到的专用结构体
  * @version 0.1
  * @date 2020-12-31
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 
 #define STD_DEBUG_LOG
@@ -24,7 +24,6 @@
 #include "hw/express-gpu/test_trans.h"
 
 #include "qemu/atomic.h"
-
 
 //用于保存draw线程信息的hash表，方便分发到相应的线程
 static GHashTable *render_thread_contexts = NULL;
@@ -49,7 +48,6 @@ void release_call_special(Direct_Express_Call *call, int notify);
 
 int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct_Express_Call *pre_call, Direct_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
 
-
 static void g_surface_map_destroy(gpointer data);
 
 static void g_context_map_destroy(gpointer data);
@@ -58,8 +56,8 @@ static void gbuffer_map_destroy(gpointer data);
 
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
- * 
- * @param call 
+ *
+ * @param call
  */
 void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 {
@@ -98,8 +96,9 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
     {
 #ifdef ENABLE_OPENGL_DEBUG
         GLenum error_code = glGetError();
-        if(error_code!=GL_NO_ERROR){
-            printf("#fun_id %llu context %llx get error %x\n",fun_id, (uint64_t)render_context->opengl_context, error_code);
+        if (error_code != GL_NO_ERROR)
+        {
+            printf("#fun_id %llu context %llx get error %x\n", fun_id, (uint64_t)render_context->opengl_context, error_code);
         }
 #endif
     }
@@ -108,9 +107,9 @@ void decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 
 /**
  * @brief 把聚合好的数据解包，分解成不同的call，用于继续调用invoke函数
- * 
- * @param context 
- * @param call 
+ *
+ * @param context
+ * @param call
  */
 void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 {
@@ -242,10 +241,10 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call)
 
 /**
  * @brief 从聚合的数据中取出信息，创建一个call，用于之后调用
- * 
+ *
  * @param send_buf 原始的发送数据
  * @param save_buf 保存的指针数据
- * @return  
+ * @return
  */
 int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct_Express_Call *pre_call, Direct_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data)
 {
@@ -419,13 +418,11 @@ void render_context_init(Thread_Context *context)
     }
 }
 
-
-
 static void g_surface_map_destroy(gpointer data)
 {
     Window_Buffer *real_surface = (Window_Buffer *)data;
-    express_printf("try free surface %llx\n",(uint64_t)real_surface);
-    if(real_surface->is_current)
+    express_printf("try free surface %llx\n", (uint64_t)real_surface);
+    if (real_surface->is_current)
     {
         real_surface->need_destroy = 1;
     }
@@ -433,7 +430,6 @@ static void g_surface_map_destroy(gpointer data)
     {
         render_surface_destroy(real_surface);
     }
-
 }
 
 static void g_context_map_destroy(gpointer data)
@@ -457,18 +453,17 @@ static void gbuffer_map_destroy(gpointer data)
 {
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
 
-    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n",gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
-
+    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n", gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
 
     //@todo 没有context时，能不能delete sync？所以暂时让主线程去释放sync
-    if(gbuffer->usage_type == GBUFFER_TYPE_TEXTURE)
+    if (gbuffer->usage_type == GBUFFER_TYPE_TEXTURE)
     {
-        if(gbuffer->data_sync != NULL)
+        if (gbuffer->data_sync != NULL)
         {
             send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->data_sync);
             // glDeleteSync(gbuffer->data_sync);
         }
-        if(gbuffer->delete_sync != NULL)
+        if (gbuffer->delete_sync != NULL)
         {
             send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->delete_sync);
             // glDeleteSync(gbuffer->delete_sync);
@@ -481,18 +476,16 @@ static void gbuffer_map_destroy(gpointer data)
         ATOMIC_LOCK(gbuffer->is_lock);
         gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
         gbuffer->is_using = 0;
-        if(gbuffer->is_dying == 0)
+        if (gbuffer->is_dying == 0)
         {
             gbuffer->is_dying = 1;
             send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
         }
         ATOMIC_UNLOCK(gbuffer->is_lock);
-
     }
-        // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
+    // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
 
     return;
-
 }
 
 void render_context_destroy(Thread_Context *context)
@@ -504,7 +497,7 @@ void render_context_destroy(Thread_Context *context)
     //目前通道关掉只有一种可能，就是进程退出了
 
     //保证都不是current状态，确保能够删除成功
-    if(thread_context->opengl_context!=NULL)
+    if (thread_context->opengl_context != NULL)
     {
         d_eglMakeCurrent(thread_context, NULL, NULL, NULL, NULL, 0, 0, 0, 0);
     }
@@ -526,7 +519,6 @@ void render_context_destroy(Thread_Context *context)
     //         ATOMIC_UNLOCK(old_draw_gbuffer->is_lock);
     //     }
 
-
     // }
     // if (thread_context->render_double_buffer_draw != NULL && thread_context->render_double_buffer_draw != thread_context->render_double_buffer_read)
     // {
@@ -544,7 +536,7 @@ void render_context_destroy(Thread_Context *context)
     // }
 
     // process_context->thread_cnt -= 1;
-    express_printf("process %llx destroy cnt %d\n", (uint64_t)process_context, process_context->thread_cnt); 
+    express_printf("process %llx destroy cnt %d\n", (uint64_t)process_context, process_context->thread_cnt);
     if (qatomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
         //由最后一个退出的线程清空资源
@@ -553,9 +545,8 @@ void render_context_destroy(Thread_Context *context)
 
         g_hash_table_destroy(process_context->surface_map);
 
-
-        //image删除，这里主要是为了释放gbuffer映射
-        // printf("destroy process context\n");
+        // image删除，这里主要是为了释放gbuffer映射
+        //  printf("destroy process context\n");
         g_hash_table_destroy(process_context->gbuffer_map);
 
         send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);

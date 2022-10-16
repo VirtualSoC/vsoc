@@ -83,7 +83,7 @@ void egl_init(void *dpy, void *father_context)
     LOAD_EGL_FUN(wglGetPixelFormatAttribfv);
     LOAD_EGL_FUN(wglChoosePixelFormat);
 
-    if(wglCreateContextAttribs == NULL)
+    if (wglCreateContextAttribs == NULL)
     {
         printf("note! wglCreateContextAttribs is NULL! \n");
     }
@@ -119,9 +119,9 @@ void egl_init(void *dpy, void *father_context)
         printf("error! cannot choose pixel format!\n");
         exit(-1);
     }
-    
+
     static_pixel_format = pFormats[0];
-    
+
     static_pbuffer_attribs[0] = WGL_PBUFFER_LARGEST_ARB;
     static_pbuffer_attribs[1] = 1;
     static_pbuffer_attribs[2] = 0;
@@ -152,7 +152,7 @@ void *egl_createContext(void)
     {
         wglReleasePbufferDC(pbuffer, pbuffer_dc);
         wglDestroyPbuffer(pbuffer);
-        printf("error! create context null! error is %llx\n",(unsigned long long)GetLastError());
+        printf("error! create context null! error is %llx\n", (unsigned long long)GetLastError());
     }
     return context;
 }
@@ -163,9 +163,9 @@ void egl_makeCurrent(void *context)
     {
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);
         int ret = wglMakeCurrent(pbuffer_dc, (HGLRC)context);
-        if(ret == 0)
+        if (ret == 0)
         {
-            printf("error! makecurrent window %llx failed error %llu\n",(uint64_t)context,(unsigned long long)GetLastError());
+            printf("error! makecurrent window %llx failed error %llu\n", (uint64_t)context, (unsigned long long)GetLastError());
         }
     }
     else
@@ -181,7 +181,7 @@ void egl_destroyContext(void *context)
     {
         gint64 t = g_get_real_time();
         // printf("destroy ");
-        printf("destroy window %llx\n",(uint64_t)context);
+        printf("destroy window %llx\n", (uint64_t)context);
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);
         HPBUFFERARB pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
 
@@ -191,7 +191,7 @@ void egl_destroyContext(void *context)
 
         g_hash_table_remove(context_dc_map, (gpointer)context);
         g_hash_table_remove(context_pbuffer_map, (gpointer)context);
-        
+
         express_printf("destroy window ok %lld\n", g_get_real_time() - t);
     }
 }

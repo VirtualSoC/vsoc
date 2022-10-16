@@ -1,12 +1,12 @@
 /**
  * @file express_gpu_pci.c
  * @author gaodi (gaodi.sec@qq.com)
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2020-9-22
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 // #define STD_DEBUG_LOG
 
@@ -26,7 +26,6 @@ static void direct_express_pci_instance_init(Object *obj)
 
     virtio_instance_init_common(obj, &dev->direct_express, sizeof(dev->direct_express),
                                 TYPE_DIRECT_EXPRESS);
-
 }
 
 static void direct_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)

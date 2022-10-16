@@ -4,9 +4,9 @@
  * @brief 重构后的处理线程相关的函数
  * @version 0.1
  * @date 2020-12-31
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 
 // #define STD_DEBUG_LOG
@@ -20,9 +20,9 @@ Direct_Express_Call *call_pop(Thread_Context *context);
 
 /**
  * @brief 从context的环形缓冲区中pop出一个call，若没有call，则会阻塞直到下一个call到达，这个只在thread运行函数中使用
- * 
- * @param context 
- * @return Direct_Express_Call* 
+ *
+ * @param context
+ * @return Direct_Express_Call*
  */
 Direct_Express_Call *call_pop(Thread_Context *context)
 {
@@ -41,7 +41,7 @@ Direct_Express_Call *call_pop(Thread_Context *context)
 
 #endif
 
-        if(direct_express_should_stop)
+        if (direct_express_should_stop)
         {
             return NULL;
         }
@@ -66,9 +66,9 @@ Direct_Express_Call *call_pop(Thread_Context *context)
 
 /**
  * @brief 将call加入到线程context的缓冲区中
- * 
- * @param context 
- * @param call 
+ *
+ * @param context
+ * @param call
  */
 void call_push(Thread_Context *context, Direct_Express_Call *call)
 {
@@ -85,12 +85,12 @@ void call_push(Thread_Context *context, Direct_Express_Call *call)
 
 #endif
 
-        if(direct_express_should_stop)
+        if (direct_express_should_stop)
         {
             return;
         }
     }
-    if(context->call_buf[context->write_loc]!=NULL)
+    if (context->call_buf[context->write_loc] != NULL)
     {
         printf("error push find not null\n");
     }
@@ -113,9 +113,9 @@ void call_push(Thread_Context *context, Direct_Express_Call *call)
 
 /**
  * @brief 处理线程运行函数，分发线程会分发call到这个线程，然后调用call_handle进行处理
- * 
- * @param opaque 
- * @return void* 
+ *
+ * @param opaque
+ * @return void*
  */
 void *handle_thread_run(void *opaque)
 {
@@ -132,7 +132,7 @@ void *handle_thread_run(void *opaque)
     {
         Direct_Express_Call *call = call_pop(context);
 
-        if(direct_express_should_stop)
+        if (direct_express_should_stop)
         {
             return NULL;
         }
@@ -151,7 +151,6 @@ void *handle_thread_run(void *opaque)
             express_printf("handle thread call handle\n");
             context->call_handle(context, call);
         }
-
     }
 
 #ifdef _WIN32

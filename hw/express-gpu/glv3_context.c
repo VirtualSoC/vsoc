@@ -8,20 +8,14 @@
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/offscreen_render_thread.h"
 
-
 //下面这两个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
 static void g_buffer_map_destroy(gpointer data);
 
 static void g_vao_point_data_destroy(gpointer data);
 
-
-
-
-static GList * volatile native_context_pool = NULL;
+static GList *volatile native_context_pool = NULL;
 static int native_context_pool_size = 0;
 static int native_context_pool_locker = 0;
-
-
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 {
@@ -48,9 +42,6 @@ void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *b
     }
     memcpy(buffer, static_string, len);
 }
-
-
-
 
 void resource_context_init(Resource_Context *resources, Share_Resources *share_resources)
 {
@@ -124,7 +115,7 @@ void resource_context_destroy(Resource_Context *resources)
     {
         DESTROY_RESOURCES(texture_resource, glDeleteTextures);
         // gbuffer_ptr_map 只有texture_resource有
-        if(resources->texture_resource->gbuffer_ptr_map != NULL)
+        if (resources->texture_resource->gbuffer_ptr_map != NULL)
         {
             g_free(resources->texture_resource->gbuffer_ptr_map);
         }
@@ -188,7 +179,6 @@ void resource_context_destroy(Resource_Context *resources)
 
     DESTROY_RESOURCES(query_resource, glDeleteQueries);
 
-
     g_free(resources->exclusive_resources);
 }
 
@@ -199,11 +189,11 @@ void *get_native_opengl_context(int independ_mode)
     void *native_context = NULL;
 
     ATOMIC_LOCK(native_context_pool_locker);
-    GList *first= g_list_first(native_context_pool);
+    GList *first = g_list_first(native_context_pool);
     ATOMIC_UNLOCK(native_context_pool_locker);
-    if(first == NULL || independ_mode == 1 || first->data == NULL)
+    if (first == NULL || independ_mode == 1 || first->data == NULL)
     {
-        if(independ_mode == 1)
+        if (independ_mode == 1)
         {
             native_context = (void *)0xffffff;
         }
@@ -222,7 +212,7 @@ void *get_native_opengl_context(int independ_mode)
         ATOMIC_UNLOCK(native_context_pool_locker);
 
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
-            //等待window真正的建立起来
+        //等待window真正的建立起来
         int sleep_cnt = 0;
         while (native_context == NULL || native_context == (void *)0xffffff)
         {
@@ -241,7 +231,7 @@ void *get_native_opengl_context(int independ_mode)
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_remove(native_context_pool, native_context);
         native_context_pool_size--;
-        if(native_context_pool_size == 0)
+        if (native_context_pool_size == 0)
         {
             //要是搬空了，那就再加个
             native_context_pool = g_list_append(native_context_pool, NULL);
@@ -257,18 +247,16 @@ void *get_native_opengl_context(int independ_mode)
     return native_context;
 }
 
-
-
 void release_native_opengl_context(void *native_context, int independ_mode)
 {
     //假如已经保存有闲置的超过5个context，则新释放的context直接销毁，否则保存下来
     //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建5个备用的
 
-    if(native_context_pool_size < 5 && independ_mode == 0)
+    if (native_context_pool_size < 5 && independ_mode == 0)
     {
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_append(native_context_pool, NULL);
-        
+
         GList *last = g_list_last(native_context_pool);
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
 
@@ -277,8 +265,8 @@ void release_native_opengl_context(void *native_context, int independ_mode)
     }
     // context_num--;
     // printf("context_num %d\n",context_num);
-    
-    if(independ_mode == 1)
+
+    if (independ_mode == 1)
     {
         glfwSetWindowShouldClose(native_context, 1);
         glfwDestroyWindow(native_context);
@@ -287,10 +275,7 @@ void release_native_opengl_context(void *native_context, int independ_mode)
     {
         egl_destroyContext(native_context);
     }
-
-
 }
-
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context, int independ_mode)
 {
@@ -305,7 +290,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     // opengl_context->bind_image = NULL;
 
     Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-    memset(texture_status, 0 ,sizeof(Texture_Binding_Status));
+    memset(texture_status, 0, sizeof(Texture_Binding_Status));
 
     texture_status->guest_current_texture_2D = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
@@ -345,7 +330,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     // texture_status->host_current_texture_unit = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
     // memset(texture_status->host_current_texture_unit, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->texture_unit_num =  preload_static_context_value->max_combined_texture_image_units;
+    texture_status->texture_unit_num = preload_static_context_value->max_combined_texture_image_units;
 
     // opengl_context->current_target = GL_TEXTURE_2D;
 
@@ -355,13 +340,13 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     opengl_context->view_h = 0;
 
     //要在opengl_context里创建window，因为opengl环境保存在window里
-// #ifdef USE_GLFW_AS_WGL
+    // #ifdef USE_GLFW_AS_WGL
     // send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(opengl_context->window));
     opengl_context->window = get_native_opengl_context(independ_mode);
-// #else
-// 不能在子线程中创建context，不然会为空
-//     opengl_context->window = egl_createContext();
-// #endif
+    // #else
+    // 不能在子线程中创建context，不然会为空
+    //     opengl_context->window = egl_createContext();
+    // #endif
     // printf("send message create window opengl context %llx window_ptr %llx\n", (uint64_t)opengl_context, &(opengl_context->window));
 
     Share_Resources *share_resources = NULL;
@@ -372,16 +357,13 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     }
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
-    memset(bound_buffer,0,sizeof(Bound_Buffer));
-
+    memset(bound_buffer, 0, sizeof(Bound_Buffer));
 
     opengl_context->buffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
 
     bound_buffer->vao_point_data = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_vao_point_data_destroy);
 
-
     Attrib_Point *temp_point = g_malloc0(sizeof(Attrib_Point));
-
 
     bound_buffer->attrib_point = temp_point;
 
@@ -399,7 +381,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     opengl_context->draw_texi_vao = 0;
     opengl_context->draw_texi_ebo = 0;
 
-
     return opengl_context;
 }
 
@@ -411,47 +392,40 @@ void opengl_context_init(Opengl_Context *context)
 
     Resource_Map_Status *map_status = resource_status->vertex_array_resource;
 
-
-
     if (bound_buffer->has_init == 0)
     {
         //这个has_init也指opengl_context是否已经初始化
         bound_buffer->has_init = 1;
 
-
         GLuint vao0 = 0;
         GLuint temp_guest_vao = 0;
         unsigned long long temp_host_vao = 0;
 
-
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glCreateVertexArrays(1, &vao0);
             glCreateBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
             glCreateBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
-            
+
             glCreateBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
             glCreateBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
 
-
             glVertexArrayElementBuffer(vao0, bound_buffer->attrib_point->indices_buffer_object);
             bound_buffer->attrib_point->element_array_buffer = bound_buffer->attrib_point->indices_buffer_object;
-
         }
         else
         {
             glGenVertexArrays(1, &vao0);
-            
+
             glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
             glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
 
             glGenBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
             glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
-
         }
 
         // printf("context %llx init vao %d\n",(uint64_t)context, vao0);
-        
+
         temp_host_vao = vao0;
         create_host_map_ids(map_status, 1, &temp_guest_vao, &temp_host_vao);
 
@@ -470,7 +444,6 @@ void opengl_context_init(Opengl_Context *context)
         //这个非常重要，不然很多游戏非常暗，因为他们用了SRGB纹理
         glEnable(GL_FRAMEBUFFER_SRGB);
 
-
         //下面这些都是context复用时，guest端有状态缓存减少调用的状态，context复用时需要进行恢复
         // 先暂时不恢复，而是以销毁context再重建context的方式实现复用
         // glActiveTexture(GL_TEXTURE0);
@@ -487,9 +460,7 @@ void opengl_context_init(Opengl_Context *context)
         // glDisable(GL_DITHER);
         // glDisable(GL_CULL_FACE);
         // glDisable(GL_CULL_FACE);
-        //buffer和texture都被销毁了，一定会还原，所以不用管，主要要复原所有全局状态
-
-
+        // buffer和texture都被销毁了，一定会还原，所以不用管，主要要复原所有全局状态
 
         // for(int i =0;i<16;i++)
         // {
@@ -502,12 +473,11 @@ void opengl_context_init(Opengl_Context *context)
     }
 }
 
-
 /**
  * @brief 销毁opengl_context函数，主要为销毁资源，真正的opengl context可能会缓存
  * 因为销毁的时候可能没有makecurrent了，所以得先makecurrent以调用opengl函数
- * 
- * @param context 
+ *
+ * @param context
  */
 void opengl_context_destroy(Opengl_Context *context)
 {
@@ -536,8 +506,7 @@ void opengl_context_destroy(Opengl_Context *context)
     // g_free(texture_status->guest_current_texture_unit);
     // g_free(texture_status->host_current_texture_unit);
 
-
-    if(opengl_context->independ_mode==1)
+    if (opengl_context->independ_mode == 1)
     {
         glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
     }
@@ -545,7 +514,6 @@ void opengl_context_destroy(Opengl_Context *context)
     {
         egl_makeCurrent(opengl_context->window);
     }
-
 
     //这两个个都有默认的销毁函数
     // g_hash_table_remove_all(opengl_context->buffer_map);
@@ -559,39 +527,36 @@ void opengl_context_destroy(Opengl_Context *context)
         glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
     }
 
-    if(opengl_context->draw_texi_vbo!=0)
+    if (opengl_context->draw_texi_vbo != 0)
     {
         glDeleteBuffers(1, &(opengl_context->draw_texi_vbo));
     }
 
-    if(opengl_context->draw_texi_ebo!=0)
+    if (opengl_context->draw_texi_ebo != 0)
     {
         glDeleteBuffers(1, &(opengl_context->draw_texi_ebo));
     }
 
-    if(opengl_context->draw_texi_vao!=0)
+    if (opengl_context->draw_texi_vao != 0)
     {
         glDeleteVertexArrays(1, &(opengl_context->draw_texi_vao));
     }
 
-
-
     resource_context_destroy(&(opengl_context->resource_status));
-
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-    if(opengl_context->independ_mode==1)
+    if (opengl_context->independ_mode == 1)
     {
         glfwHideWindow(opengl_context->window);
         glfwMakeContextCurrent(NULL);
     }
     else
     {
-        express_printf("context %llx windows %llx makecurrent null\n",(uint64_t)opengl_context, opengl_context->window);
+        express_printf("context %llx windows %llx makecurrent null\n", (uint64_t)opengl_context, opengl_context->window);
         egl_makeCurrent(NULL);
     }
     release_native_opengl_context(opengl_context->window, opengl_context->independ_mode);
@@ -604,7 +569,6 @@ static void g_buffer_map_destroy(gpointer data)
     Guest_Host_Map *map_res = (Guest_Host_Map *)data;
     g_free(map_res);
 }
-
 
 static void g_vao_point_data_destroy(gpointer data)
 {
@@ -619,4 +583,3 @@ static void g_vao_point_data_destroy(gpointer data)
 
     g_free(vao_point);
 }
-

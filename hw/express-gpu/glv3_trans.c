@@ -1,19 +1,18 @@
 /**
  * @file glv3_trans.c
  * @author gaodi (gaodi.sec@qq.com)
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2020-11-25
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 
 // #include "GLES3/gl3.h"
 // #include "GLES2/gl2ext.h"
 // #include "GLES3/gl3platform.h"
 #define STD_DEBUG_LOG
-
 
 #include "hw/express-gpu/glv3_trans.h"
 #include "hw/express-gpu/offscreen_render_thread.h"
@@ -29,7 +28,6 @@
 #include "hw/express-gpu/gl_helper.h"
 
 #include "hw/express-gpu/glv1.h"
-
 
 // 更新：下面的描述已经过时，仅供参考
 // 1. guest端需要同步的函数
@@ -48,45 +46,45 @@
 //      每次调用时，会直接返回之前已经申请好的值，这次的异步调用会用于申请新的值，这样实现了guest端的"异步"
 //      目前调用实现上与之前的1.1.1一致，但是它会额外多一个函数实现来套娃，方便之后修改
 
-//glWaitSync GLsync sync, GLbitfield flags, GLuint64 timeout分类到1.1中
+// glWaitSync GLsync sync, GLbitfield flags, GLuint64 timeout分类到1.1中
 //注意存在指针的指针,这个时候指针里的每个指针都作为一个para
 
-//void* glMapBufferRange GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access
+// void* glMapBufferRange GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access
 //调用时调用 glMapBufferRange GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access void *ret
-// GLboolean glUnmapBuffer GLenum target 实际调用GLboolean glUnmapBuffer GLenum target, GLsizeiptr length, void* unmap_buf
+//  GLboolean glUnmapBuffer GLenum target 实际调用GLboolean glUnmapBuffer GLenum target, GLsizeiptr length, void* unmap_buf
 //需要在context内保存下相关的指针，而且qemu内也需要保存相关的指针
 
-//const GLubyte* glGetStringi GLenum name, GLuint index不翻译
-//const GLubyte* glGetString GLenum name不翻译
+// const GLubyte* glGetStringi GLenum name, GLuint index不翻译
+// const GLubyte* glGetString GLenum name不翻译
 
-//glGetDriverControlStringQCOM GLuint driverControl, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *driverControlString
-//glExtGetProgramBinarySourceQCOM GLuint program, GLenum shadertype, GLchar *source, GLint *length
+// glGetDriverControlStringQCOM GLuint driverControl, GLsizei bufSize, GLsizei *length#sizeof(GLsizei), GLchar *driverControlString
+// glExtGetProgramBinarySourceQCOM GLuint program, GLenum shadertype, GLchar *source, GLint *length
 
-//glEGLImageTargetRenderbufferStorageOES
+// glEGLImageTargetRenderbufferStorageOES
 
 void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *call)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)r_context;
     Opengl_Context *opengl_context = render_context->opengl_context;
     // Process_Context *process_context = render_context->process_context;
-    uint64_t fun_id=GET_FUN_ID(call->id);
+    uint64_t fun_id = GET_FUN_ID(call->id);
 
     if (unlikely(opengl_context == NULL && call->id != FUNID_glGetStaticValues && call->id != FUNID_glBindEGLImage &&
-     call->id != FUNID_glReadGraphicBuffer && call->id != FUNID_glGraphicBufferData && call->id != FUNID_glSync))
+                 call->id != FUNID_glReadGraphicBuffer && call->id != FUNID_glGraphicBufferData && call->id != FUNID_glSync))
     {
-        printf("invoke func id %llu with null context\n",fun_id);
+        printf("invoke func id %llu with null context\n", fun_id);
         call->callback(call, 0);
         return;
     }
 
     Window_Buffer *draw_surface = render_context->render_double_buffer_draw;
-    if(likely(draw_surface != NULL))
+    if (likely(draw_surface != NULL))
     {
-        if(unlikely(draw_surface->frame_start_time == 0))
+        if (unlikely(draw_surface->frame_start_time == 0))
         {
             draw_surface->frame_start_time = g_get_real_time();
         }
-        if(unlikely(draw_surface->type == WINDOW_SURFACE && draw_surface->gbuffer != NULL && draw_surface->gbuffer->is_writing == 0))
+        if (unlikely(draw_surface->type == WINDOW_SURFACE && draw_surface->gbuffer != NULL && draw_surface->gbuffer->is_writing == 0))
         {
             draw_surface->gbuffer->is_writing = 1;
 #ifdef _WIN32
@@ -96,8 +94,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
     }
 
-    //uint64_t is_async=FUN_IS_ASYNC(call->id);
-    //uint64_t need_speed=FUN_NEED_SPEED(call->id);
+    // uint64_t is_async=FUN_IS_ASYNC(call->id);
+    // uint64_t need_speed=FUN_NEED_SPEED(call->id);
     Call_Para all_para[MAX_PARA_NUM];
 
     unsigned char ret_local_buf[1024 * 4];
@@ -145,7 +143,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -193,8 +192,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLenum ret = glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), flags, timeout);
         *ret_ptr = ret;
 
-        express_printf("glClientWaitSync context %llx guest %u host %llu ret %x\n",(uint64_t)opengl_context, (unsigned int)(uint64_t)sync,
-            (GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), ret);
+        express_printf("glClientWaitSync context %llx guest %u host %llu ret %x\n", (uint64_t)opengl_context, (unsigned int)(uint64_t)sync,
+                       (GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), ret);
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -240,7 +239,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -329,7 +329,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -418,7 +419,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -507,7 +509,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -596,7 +599,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -685,7 +689,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -750,65 +755,65 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         /* type: "110" */
 
         /* Define variables */
-    //     GLint a;
+        //     GLint a;
 
-    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (unlikely(para_num < PARA_NUM_MIN_glTestPointer1))
-    //     {
-    //         break;
-    //     }
+        //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        //     if (unlikely(para_num < PARA_NUM_MIN_glTestPointer1))
+        //     {
+        //         break;
+        //     }
 
-    //     size_t temp_len = 0;
-    //     unsigned char *temp = NULL;
+        //     size_t temp_len = 0;
+        //     unsigned char *temp = NULL;
 
-    //     temp_len = all_para[0].data_len;
-    //     if (unlikely(temp_len < 4 * 1))
-    //     {
-    //         break;
-    //     }
+        //     temp_len = all_para[0].data_len;
+        //     if (unlikely(temp_len < 4 * 1))
+        //     {
+        //         break;
+        //     }
 
-    //     int null_flag = 0;
-    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (unlikely(temp == NULL))
-    //     {
-    //         if (temp_len != 0 && null_flag == 0)
-    //         {
-    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
-    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-    //         }
-    //         else
-    //         {
-    //             break;
-    //         }
-    //     }
+        //     int null_flag = 0;
+        //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+        //     if (unlikely(temp == NULL))
+        //     {
+        //         if (temp_len != 0 && null_flag == 0)
+        //         {
+        //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+        //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //         }
+        //         else
+        //         {
+        //             break;
+        //         }
+        //     }
 
-    //     unsigned int temp_loc = 0;
+        //     unsigned int temp_loc = 0;
 
-    //     a = *(GLint *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     a = *(GLint *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     int b_flag = 0;
-    //     int b_null_flag = 0;
-    //     GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
+        //     int b_flag = 0;
+        //     int b_null_flag = 0;
+        //     GLint *b = get_direct_ptr(all_para[1].data, &b_null_flag);
 
-    //     if (b == NULL && b_null_flag == 0)
-    //     {
-    //         b = g_malloc(all_para[1].data_len);
-    //         guest_write(all_para[1].data, b, 0, all_para[1].data_len);
+        //     if (b == NULL && b_null_flag == 0)
+        //     {
+        //         b = g_malloc(all_para[1].data_len);
+        //         guest_write(all_para[1].data, b, 0, all_para[1].data_len);
 
-    //         b_flag = 1;
-    //     }
-    //     else
-    //     {
-    //         b_flag = 0;
-    //     }
+        //         b_flag = 1;
+        //     }
+        //     else
+        //     {
+        //         b_flag = 0;
+        //     }
 
-    //     glTestPointer1(a, b);
+        //     glTestPointer1(a, b);
 
-    //     if (b_flag == 1)
-    //     {
-    //         g_free(b);
-    //     }
+        //     if (b_flag == 1)
+        //     {
+        //         g_free(b);
+        //     }
     }
     break;
 
@@ -1065,7 +1070,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1503,7 +1509,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1588,7 +1595,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1675,7 +1683,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1825,7 +1834,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -1917,7 +1927,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2008,7 +2019,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2097,7 +2109,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2189,7 +2202,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2281,7 +2295,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2372,7 +2387,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2414,23 +2430,22 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
-            if(target == GL_TEXTURE_EXTERNAL_OES)
+            if (target == GL_TEXTURE_EXTERNAL_OES)
             {
                 Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-                if(texture_status->host_current_active_texture != 0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(GL_TEXTURE0);
                 }
                 glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
                 glGetTexParameterfv(GL_TEXTURE_2D, pname, params);
                 glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-                if(texture_status->host_current_active_texture!=0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
                 }
-
             }
             else
             {
@@ -2487,7 +2502,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2529,24 +2545,23 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
-            if(target == GL_TEXTURE_EXTERNAL_OES)
+            if (target == GL_TEXTURE_EXTERNAL_OES)
             {
 
                 Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-                if(texture_status->host_current_active_texture != 0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(GL_TEXTURE0);
                 }
                 glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
                 glGetTexParameteriv(GL_TEXTURE_2D, pname, params);
                 glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-                if(texture_status->host_current_active_texture!=0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
                 }
-
             }
             else
             {
@@ -2554,7 +2569,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             }
         }
         else
-        {  
+        {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glGetTextureParameteriv(bind_texture, pname, params);
         }
@@ -2605,7 +2620,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2693,7 +2709,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2789,7 +2806,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -2891,7 +2909,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3004,7 +3023,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3038,7 +3058,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         int out_buf_loc = 0;
 
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
-        //out_buf_loc+=gl_get_uniform_block_para_size(context,program,uniformBlockIndex,pname)*sizeof(GLint);
+        // out_buf_loc+=gl_get_uniform_block_para_size(context,program,uniformBlockIndex,pname)*sizeof(GLint);
 
         if (unlikely(out_buf_loc > out_buf_len))
         {
@@ -3097,7 +3117,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3191,7 +3212,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3279,7 +3301,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3368,7 +3391,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3418,7 +3442,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         glGetProgramBinary((GLuint)get_host_program_id(opengl_context, (unsigned int)program), bufSize, length, binaryFormat, binary);
 
-        express_printf("glGetProgramBinary len %u format %lld\n",*length,*binaryFormat);
+        express_printf("glGetProgramBinary len %u format %lld\n", *length, *binaryFormat);
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (likely(out_buf_len > MAX_OUT_BUF_LEN))
@@ -3465,7 +3489,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3558,7 +3583,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3642,7 +3668,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3727,7 +3754,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3822,7 +3850,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -3863,25 +3892,25 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             }
             break;
         }
-        
-        if(host_opengl_version < 45 || DSA_enable == 0)
+
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
         }
         else
         {
             texture_binding_status_sync(opengl_context, target);
         }
-        if(target == GL_TEXTURE_EXTERNAL_OES)
+        if (target == GL_TEXTURE_EXTERNAL_OES)
         {
             Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-            if(texture_status->host_current_active_texture != 0)
+            if (texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
             }
             glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
             glGetTexParameterxvOES(GL_TEXTURE_2D, pname, params);
             glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-            if(texture_status->host_current_active_texture!=0)
+            if (texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
             }
@@ -3934,7 +3963,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4022,7 +4052,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4110,7 +4141,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4198,7 +4230,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4287,7 +4320,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4381,7 +4415,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4482,7 +4517,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4603,7 +4639,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4692,7 +4729,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4783,7 +4821,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4872,7 +4911,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -4917,7 +4957,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             glGetTexLevelParameteriv(target, level, pname, params);
         }
@@ -4971,7 +5011,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5016,7 +5057,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             glGetTexLevelParameterfv(target, level, pname, params);
         }
@@ -5072,7 +5113,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5165,7 +5207,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5271,7 +5314,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5377,7 +5421,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5483,7 +5528,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5590,7 +5636,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5700,7 +5747,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5812,7 +5860,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -5914,7 +5963,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6015,7 +6065,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6106,7 +6157,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6194,7 +6246,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6282,7 +6335,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6313,7 +6367,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         int out_buf_loc = 0;
 
         GLfloat *params = (GLfloat *)(ret_buf + out_buf_loc);
-        //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
+        // out_buf_loc+=gl_get_program_uniform_size(context,program,location);
 
         if (unlikely(out_buf_loc > out_buf_len))
         {
@@ -6370,7 +6424,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6401,7 +6456,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         int out_buf_loc = 0;
 
         GLint *params = (GLint *)(ret_buf + out_buf_loc);
-        //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
+        // out_buf_loc+=gl_get_program_uniform_size(context,program,location);
 
         if (unlikely(out_buf_loc > out_buf_len))
         {
@@ -6458,7 +6513,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6489,7 +6545,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         int out_buf_loc = 0;
 
         GLuint *params = (GLuint *)(ret_buf + out_buf_loc);
-        //out_buf_loc+=gl_get_program_uniform_size(context,program,location);
+        // out_buf_loc+=gl_get_program_uniform_size(context,program,location);
 
         if (unlikely(out_buf_loc > out_buf_len))
         {
@@ -6547,7 +6603,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6610,7 +6667,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glGetUniformIndices((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformCount, (const GLchar * const*)uniformNames, uniformIndices);
+        glGetUniformIndices((GLuint)get_host_program_id(opengl_context, (unsigned int)program), uniformCount, (const GLchar *const *)uniformNames, uniformIndices);
 
         guest_read(all_para[1 + uniformCount].data, ret_buf, 0, out_buf_len);
 
@@ -6667,7 +6724,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6755,7 +6813,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6843,7 +6902,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -6931,7 +6991,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7019,7 +7080,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7061,7 +7123,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             glGetBufferParameteriv(target, pname, params);
         }
@@ -7070,7 +7132,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
             glGetNamedBufferParameteriv(bind_buffer, pname, params);
         }
-
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -7116,7 +7177,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7158,7 +7220,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(host_opengl_version < 45 || DSA_enable == 0)
+        if (host_opengl_version < 45 || DSA_enable == 0)
         {
             glGetBufferParameteri64v(target, pname, params);
         }
@@ -7167,7 +7229,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
             glGetNamedBufferParameteri64v(bind_buffer, pname, params);
         }
-
 
         guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -7212,7 +7273,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7297,7 +7359,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7339,9 +7402,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            printf("@todo! glGetBooleani_v target %x index %x with dsa\n",target,index);
+            printf("@todo! glGetBooleani_v target %x index %x with dsa\n", target, index);
         }
 
         glGetBooleani_v(target, index, data);
@@ -7389,7 +7452,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7473,7 +7537,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7558,7 +7623,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7600,9 +7666,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            printf("@todo! glGetIntegeri_v target %x index %x with dsa\n",target,index);
+            printf("@todo! glGetIntegeri_v target %x index %x with dsa\n", target, index);
         }
 
         glGetIntegeri_v(target, index, data);
@@ -7650,7 +7716,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7735,7 +7802,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7776,9 +7844,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             }
             break;
         }
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            printf("@todo! glGetInteger64i_v target %x index %x with dsa\n",target,index);
+            printf("@todo! glGetInteger64i_v target %x index %x with dsa\n", target, index);
         }
         glGetInteger64i_v(target, index, data);
 
@@ -7832,7 +7900,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -7901,7 +7970,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8081,7 +8151,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8142,7 +8213,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8163,7 +8235,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         glEndQuery(target);
         // printf("glEndQuery target %llx\n", target);
-
     }
     break;
 
@@ -8204,7 +8275,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8274,7 +8346,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8305,7 +8378,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureStorage2D(bind_texture, levels, internalformat, width, height);
@@ -8314,7 +8387,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             glTexStorage2D(target, levels, internalformat, width, height);
         }
-
     }
     break;
 
@@ -8357,7 +8429,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8391,7 +8464,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureStorage3D(bind_texture, levels, internalformat, width, height, depth);
@@ -8400,7 +8473,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             glTexStorage3D(target, levels, internalformat, width, height, depth);
         }
-        
     }
     break;
 
@@ -8446,7 +8518,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8535,7 +8608,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8625,7 +8699,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8719,7 +8794,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8812,7 +8888,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8894,7 +8971,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -8980,7 +9058,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9069,7 +9148,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9160,7 +9240,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9254,7 +9335,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9294,10 +9376,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
-            if(glCopyTextureImage2DEXT == NULL)
+            if (glCopyTextureImage2DEXT == NULL)
             {
                 printf("error! glCopyTextureImage2DEXT is NULL!\n");
             }
@@ -9307,7 +9389,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             glCopyTexImage2D(target, level, internalformat, x, y, width, height, border);
         }
-
     }
     break;
 
@@ -9352,7 +9433,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9392,7 +9474,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glCopyTextureSubImage2D(bind_texture, level, xoffset, yoffset, x, y, width, height);
@@ -9401,7 +9483,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
         }
-
     }
     break;
 
@@ -9447,7 +9528,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9490,7 +9572,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glCopyTextureSubImage3D(bind_texture, level, xoffset, yoffset, zoffset, x, y, width, height);
@@ -9541,7 +9623,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9619,7 +9702,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9697,7 +9781,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9763,7 +9848,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9822,7 +9908,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9846,11 +9933,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        express_printf("glWaitSync context %llx guest %u host %llu timeout %llu\n",(uint64_t)opengl_context, (unsigned int)(uint64_t)sync,
-            (GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), timeout);
+        express_printf("glWaitSync context %llx guest %u host %llu timeout %llu\n", (uint64_t)opengl_context, (unsigned int)(uint64_t)sync,
+                       (GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), timeout);
         glWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), flags, timeout);
         // glClientWaitSync((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)sync), GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-
     }
     break;
 
@@ -9891,7 +9977,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9962,7 +10049,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -9985,7 +10073,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         const void *binary = (const void *)(temp + temp_loc);
         temp_loc += length;
 
-
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
@@ -10004,13 +10091,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             printf("error! glProgramBinary program_data_len != 4 %d\n", out_buf_len);
             break;
         }
-        express_printf("context %llx program binary %u host %u\n",(uint64_t)opengl_context, program,
-            (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
+        express_printf("context %llx program binary %u host %u\n", (uint64_t)opengl_context, program,
+                       (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glProgramBinary_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), binaryFormat, binary, length, program_data_len);
 
         guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
-
-
     }
     break;
 
@@ -10048,7 +10133,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10110,7 +10196,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10176,7 +10263,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10246,7 +10334,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10318,7 +10407,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10389,7 +10479,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10464,7 +10555,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10532,7 +10624,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10599,7 +10692,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10660,7 +10754,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10724,7 +10819,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10784,7 +10880,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10844,7 +10941,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10904,7 +11002,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -10964,7 +11063,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11022,7 +11122,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11084,7 +11185,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11149,7 +11251,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11182,7 +11285,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        
         int out_buf_len = all_para[1].data_len;
 
         int ret_int = 0;
@@ -11196,13 +11298,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        d_glCreateShaderProgramv_special(opengl_context, type, count, (const GLchar * const*)strings, program, program_data_len);
+        d_glCreateShaderProgramv_special(opengl_context, type, count, (const GLchar *const *)strings, program, program_data_len);
 
         guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
 
         g_free(strings);
-
-
     }
     break;
 
@@ -11240,7 +11340,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11300,7 +11401,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11360,7 +11462,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11420,7 +11523,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11480,7 +11584,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11540,7 +11645,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11600,7 +11706,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11660,7 +11767,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11720,7 +11828,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11780,7 +11889,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11837,7 +11947,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11894,7 +12005,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -11951,7 +12063,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12011,7 +12124,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12071,7 +12185,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12131,7 +12246,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12191,7 +12307,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12255,7 +12372,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12269,13 +12387,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         program = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
 
-
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-
 
         int out_buf_len = all_para[1].data_len;
 
@@ -12290,12 +12406,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        express_printf("context %llx link program %u host %u\n",(uint64_t)opengl_context, program,
-            (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
+        express_printf("context %llx link program %u host %u\n", (uint64_t)opengl_context, program,
+                       (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glLinkProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), program_data_len);
 
         guest_read(all_para[1].data, program_data_len, 0, out_buf_len);
-
     }
     break;
 
@@ -12334,7 +12449,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12394,7 +12510,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12451,7 +12568,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12508,7 +12626,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12566,7 +12685,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12628,7 +12748,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12705,7 +12826,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12779,7 +12901,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12851,7 +12974,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12869,7 +12993,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        express_printf("context %llx bind vertexArray guest %u host %u\n",(uint64_t)opengl_context,array,(GLuint)get_host_array_id(opengl_context, (unsigned int)array));
+        express_printf("context %llx bind vertexArray guest %u host %u\n", (uint64_t)opengl_context, array, (GLuint)get_host_array_id(opengl_context, (unsigned int)array));
         d_glBindVertexArray_special(opengl_context, array);
     }
     break;
@@ -12909,7 +13033,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -12930,7 +13055,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        express_printf("glbindbuffer target %x %d\n",target, buffer);
+        express_printf("glbindbuffer target %x %d\n", target, buffer);
         d_glBindBuffer_special(opengl_context, target, buffer);
     }
     break;
@@ -12969,7 +13094,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13096,7 +13222,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13126,11 +13253,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        express_printf("mapbufferrange glbindbufferRange target %x index %d buffer %d offset %lld size %lld end %lld\n", target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size, offset+size);
+        express_printf("mapbufferrange glbindbufferRange target %x index %d buffer %d offset %lld size %lld end %lld\n", target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size, offset + size);
 
         d_glBindBufferRange_special(opengl_context, target, index, buffer, offset, size);
-
-        
     }
     break;
 
@@ -13170,7 +13295,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13234,7 +13360,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13299,7 +13426,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13360,7 +13488,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13421,7 +13550,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13481,7 +13611,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13539,7 +13670,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13597,7 +13729,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13667,7 +13800,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13685,7 +13819,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        //printf("context %llx ActiveTexture %d\n",(uint64_t)opengl_context, texture-GL_TEXTURE0);
+        // printf("context %llx ActiveTexture %d\n",(uint64_t)opengl_context, texture-GL_TEXTURE0);
         d_glActiveTexture_special(opengl_context, texture);
     }
     break;
@@ -13725,7 +13859,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13789,7 +13924,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13855,7 +13991,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13913,7 +14050,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -13974,7 +14112,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14037,7 +14176,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14103,7 +14243,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14163,7 +14304,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14229,7 +14371,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14286,7 +14429,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14346,7 +14490,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14412,7 +14557,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14469,7 +14615,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14526,7 +14673,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14583,7 +14731,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14641,7 +14790,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14702,7 +14852,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14762,7 +14913,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14780,7 +14932,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        if(cap == GL_SCISSOR_TEST && opengl_context!=NULL)
+        if (cap == GL_SCISSOR_TEST && opengl_context != NULL)
         {
             opengl_context->enable_scissor = 0;
         }
@@ -14822,7 +14974,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14841,7 +14994,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(cap == GL_SCISSOR_TEST && opengl_context!=NULL)
+        if (cap == GL_SCISSOR_TEST && opengl_context != NULL)
         {
             opengl_context->enable_scissor = 1;
         }
@@ -14887,7 +15040,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -14957,7 +15111,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15029,7 +15184,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15086,7 +15242,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15105,17 +15262,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glGenerateTextureMipmap(bind_texture);
-
         }
         else
         {
             glGenerateMipmap(target);
         }
-
     }
     break;
 
@@ -15154,7 +15309,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15214,7 +15370,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15272,7 +15429,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15357,7 +15515,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15424,7 +15583,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15487,7 +15647,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15555,7 +15716,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15621,7 +15783,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15687,7 +15850,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15745,7 +15909,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15807,7 +15972,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15873,7 +16039,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15941,7 +16108,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -15966,35 +16134,33 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameterf(bind_texture, pname, param);
         }
         else
         {
-            if(target == GL_TEXTURE_EXTERNAL_OES)
+            if (target == GL_TEXTURE_EXTERNAL_OES)
             {
                 Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-                if(texture_status->host_current_active_texture != 0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(GL_TEXTURE0);
                 }
                 glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
                 glTexParameterf(GL_TEXTURE_2D, pname, param);
                 glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-                if(texture_status->host_current_active_texture!=0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
                 }
-
             }
             else
             {
                 glTexParameterf(target, pname, param);
             }
         }
-
     }
     break;
 
@@ -16034,7 +16200,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16059,24 +16226,24 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameteri(bind_texture, pname, param);
         }
         else
         {
-            if(target == GL_TEXTURE_EXTERNAL_OES)
+            if (target == GL_TEXTURE_EXTERNAL_OES)
             {
                 Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-                if(texture_status->host_current_active_texture != 0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(GL_TEXTURE0);
                 }
                 glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
                 glTexParameteri(GL_TEXTURE_2D, pname, param);
                 glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-                if(texture_status->host_current_active_texture!=0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
                 }
@@ -16124,7 +16291,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16185,7 +16353,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16247,7 +16416,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16312,7 +16482,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16378,7 +16549,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16447,7 +16619,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16517,7 +16690,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16590,7 +16764,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16659,7 +16834,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16678,8 +16854,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        express_printf("context %llx use program guest %u host %u\n",(uint64_t)opengl_context, program, 
-            (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
+        express_printf("context %llx use program guest %u host %u\n", (uint64_t)opengl_context, program,
+                       (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
         d_glUseProgram_special(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program));
     }
     break;
@@ -16718,7 +16894,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16776,7 +16953,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16838,7 +17016,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16904,7 +17083,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -16974,7 +17154,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17052,7 +17233,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17140,7 +17322,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17213,7 +17396,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17286,7 +17470,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17359,7 +17544,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17429,7 +17615,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17491,7 +17678,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17557,7 +17745,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17627,7 +17816,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17699,7 +17889,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17769,7 +17960,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17799,7 +17991,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_buffer1 = get_guest_binding_texture(opengl_context, readTarget);
             GLuint bind_buffer2 = get_guest_binding_texture(opengl_context, writeTarget);
@@ -17848,7 +18040,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17913,7 +18106,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -17978,7 +18172,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18043,7 +18238,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18107,7 +18303,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18170,7 +18367,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18236,7 +18434,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18296,7 +18495,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18363,7 +18563,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18424,7 +18625,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18489,7 +18691,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18562,7 +18765,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18624,7 +18828,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18687,7 +18892,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18746,7 +18952,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18813,7 +19020,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18884,7 +19092,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -18952,7 +19161,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19024,7 +19234,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19082,7 +19293,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19145,7 +19357,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19213,7 +19426,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19278,7 +19492,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19343,7 +19558,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19407,7 +19623,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19468,7 +19685,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19530,7 +19748,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19593,7 +19812,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19651,7 +19871,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19716,7 +19937,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19793,7 +20015,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19869,7 +20092,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -19940,7 +20164,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20004,7 +20229,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20066,7 +20292,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20132,7 +20359,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20202,7 +20430,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20276,7 +20505,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20350,7 +20580,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20416,7 +20647,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20486,7 +20718,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20560,7 +20793,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20634,7 +20868,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20700,7 +20935,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20770,7 +21006,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20844,7 +21081,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20918,7 +21156,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -20951,7 +21190,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        glTransformFeedbackVaryings((GLuint)get_host_program_id(opengl_context, (unsigned int)program), count, (const GLchar * const*)varyings, bufferMode);
+        glTransformFeedbackVaryings((GLuint)get_host_program_id(opengl_context, (unsigned int)program), count, (const GLchar *const *)varyings, bufferMode);
 
         g_free(varyings);
     }
@@ -20992,7 +21231,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21017,24 +21257,24 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameterfv(bind_texture, pname, params);
         }
         else
         {
-            if(target == GL_TEXTURE_EXTERNAL_OES)
+            if (target == GL_TEXTURE_EXTERNAL_OES)
             {
                 Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-                if(texture_status->host_current_active_texture != 0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(GL_TEXTURE0);
                 }
                 glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
                 glTexParameterfv(GL_TEXTURE_2D, pname, params);
                 glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-                if(texture_status->host_current_active_texture!=0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
                 }
@@ -21044,7 +21284,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
                 glTexParameterfv(target, pname, params);
             }
         }
-
     }
     break;
 
@@ -21083,7 +21322,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21108,36 +21348,34 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureParameteriv(bind_texture, pname, params);
         }
         else
         {
-            if(target == GL_TEXTURE_EXTERNAL_OES)
+            if (target == GL_TEXTURE_EXTERNAL_OES)
             {
 
                 Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-                if(texture_status->host_current_active_texture != 0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(GL_TEXTURE0);
                 }
                 glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
                 glTexParameteriv(GL_TEXTURE_2D, pname, params);
                 glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
-                if(texture_status->host_current_active_texture!=0)
+                if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
                 }
-
             }
             else
             {
                 glTexParameteriv(target, pname, params);
             }
         }
-
     }
     break;
 
@@ -21176,7 +21414,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21240,7 +21479,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21304,7 +21544,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21368,7 +21609,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21432,7 +21674,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21496,7 +21739,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21560,7 +21804,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21624,7 +21869,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21687,7 +21933,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21747,7 +21994,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21807,7 +22055,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21867,7 +22116,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21929,7 +22179,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -21997,7 +22248,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22065,7 +22317,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22133,7 +22386,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22201,7 +22455,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22269,7 +22524,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22337,7 +22593,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22405,7 +22662,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22473,7 +22731,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22539,7 +22798,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22599,7 +22859,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22660,7 +22921,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22724,7 +22986,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22788,7 +23051,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22852,7 +23116,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22916,7 +23181,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -22980,7 +23246,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23044,7 +23311,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23108,7 +23376,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23172,7 +23441,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23236,7 +23506,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23320,7 +23591,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23395,7 +23667,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23455,7 +23728,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23515,7 +23789,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23576,7 +23851,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23638,7 +23914,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23696,7 +23973,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23758,7 +24036,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23815,7 +24094,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23876,7 +24156,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -23939,7 +24220,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24000,7 +24282,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24065,7 +24348,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24133,7 +24417,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24201,7 +24486,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24269,7 +24555,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24337,7 +24624,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24405,7 +24693,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24473,7 +24762,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24541,7 +24831,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24609,7 +24900,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24677,7 +24969,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24745,7 +25038,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24813,7 +25107,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24882,7 +25177,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -24954,7 +25250,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25026,7 +25323,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25098,7 +25396,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25170,7 +25469,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25242,7 +25542,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25314,7 +25615,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25386,7 +25688,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25458,7 +25761,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25528,7 +25832,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25593,7 +25898,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25658,7 +25964,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25723,7 +26030,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25788,7 +26096,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25851,7 +26160,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -25916,7 +26226,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26007,7 +26318,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26082,7 +26394,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26156,7 +26469,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26219,7 +26533,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26286,7 +26601,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26354,7 +26670,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26416,7 +26733,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26478,7 +26796,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26544,7 +26863,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26623,7 +26943,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26705,7 +27026,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26789,7 +27111,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26878,7 +27201,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -26965,7 +27289,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27054,7 +27379,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27142,7 +27468,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27226,7 +27553,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27280,7 +27608,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27340,7 +27669,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < (8*2+4*5) * 1))
+        if (unlikely(temp_len < (8 * 2 + 4 * 5) * 1))
         {
             break;
         }
@@ -27351,7 +27680,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27383,7 +27713,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         stride = *(int *)(temp + temp_loc);
         temp_loc += 4;
 
-
         void *real_buffer = all_para[1].data;
 
         //注意得传入r_context
@@ -27400,25 +27729,22 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        
+
         int read_len = all_para[0].data_len;
 
-        if(unlikely(read_len > sizeof(Static_Context_Values) + 512 * 100 + 400))
+        if (unlikely(read_len > sizeof(Static_Context_Values) + 512 * 100 + 400))
         {
             read_len = sizeof(Static_Context_Values) + 512 * 100 + 400;
         }
 
         if (unlikely(all_para[0].data_len != sizeof(Static_Context_Values) + 512 * 100 + 400))
         {
-            printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal! host %lld guest %lld\n",sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
+            printf("error! sizeof(Static_Context_Values) + 512 * 100 + 400 not equal! host %lld guest %lld\n", sizeof(Static_Context_Values) + 512 * 100 + 400, all_para[0].data_len);
             break;
         }
-        guest_read(all_para[0].data, preload_static_context_value, 0, min(all_para[0].data_len,sizeof(Static_Context_Values) + 512 * 100 + 400));
-
-
+        guest_read(all_para[0].data, preload_static_context_value, 0, min(all_para[0].data_len, sizeof(Static_Context_Values) + 512 * 100 + 400));
     }
     break;
-
 
     case FUNID_glGetProgramData:
 
@@ -27432,8 +27758,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        
-
 
         size_t temp_len = 0;
         unsigned char *temp = NULL;
@@ -27450,7 +27774,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27469,17 +27794,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         int read_len = all_para[1].data_len;
 
-        if(buf_len != read_len)
+        if (buf_len != read_len)
         {
-            printf("error! buf_len != read_len %d %d\n",buf_len,read_len);
+            printf("error! buf_len != read_len %d %d\n", buf_len, read_len);
             break;
         }
 
         void *real_buffer = all_para[1].data;
 
         d_glGetProgramData(opengl_context, (GLuint)get_host_program_id(opengl_context, (unsigned int)program), buf_len, real_buffer);
-
-
     }
     break;
 
@@ -27488,14 +27811,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         //用于同步，不需要做任何事情
         express_printf("guest sync\n");
         // glFinish();
-
     }
     break;
 
     case FUNID_glBindImageTexture:
 
     {
-
 
         /* Define variables */
         GLuint unit;
@@ -27527,7 +27848,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27537,7 +27859,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
 
         unsigned int temp_loc = 0;
-        
+
         unit = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
 
@@ -27558,7 +27880,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         format = *(GLenum *)(temp + temp_loc);
         temp_loc += 4;
-
 
         /* Check length */
         if (unlikely(temp_len < temp_loc))
@@ -27593,13 +27914,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        int null_flag = 0;   
+        int null_flag = 0;
         temp = get_direct_ptr(all_para[0].data, &null_flag);
         if (unlikely(temp == NULL))
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27619,9 +27941,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         offset = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
 
-        stride = *(GLsizei  *)(temp + temp_loc);
+        stride = *(GLsizei *)(temp + temp_loc);
         temp_loc += 4;
-        
+
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
@@ -27636,7 +27958,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     {
 
         GLuint attribindex;
- 	    GLint size;
+        GLint size;
         GLenum type;
         GLboolean normalized;
         GLuint relativeoffset;
@@ -27662,7 +27984,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27694,10 +28017,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
         glVertexAttribFormat(attribindex, size, type, normalized, relativeoffset);
-        
     }
     break;
-
 
     case FUNID_glVertexAttribIFormat:
 
@@ -27729,7 +28050,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27761,13 +28083,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     }
     break;
 
-
     case FUNID_glVertexAttribBinding:
 
     {
 
         GLuint attribindex;
- 	    GLuint bindingindex;
+        GLuint bindingindex;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribBinding))
@@ -27790,7 +28111,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27806,7 +28128,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
 
         bindingindex = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
-        
+
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
@@ -27815,7 +28137,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         glVertexAttribBinding(attribindex, bindingindex);
     }
     break;
-
 
     case FUNID_glDispatchCompute:
 
@@ -27846,7 +28167,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27875,7 +28197,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     }
     break;
 
-
     case FUNID_glDispatchComputeIndirect:
 
     {
@@ -27903,7 +28224,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27917,7 +28239,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         indirect = *(GLintptr *)(temp + temp_loc);
         temp_loc += 8;
 
-
         if (unlikely(temp_len < temp_loc))
         {
             break;
@@ -27925,7 +28246,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         glDispatchComputeIndirect(indirect);
     }
     break;
-
 
     case FUNID_glMemoryBarrier:
 
@@ -27954,7 +28274,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27974,17 +28295,14 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
         glMemoryBarrier(barriers);
-        
     }
     break;
-
 
     case FUNID_glMemoryBarrierByRegion:
 
     {
 
         GLbitfield barriers;
-
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glMemoryBarrierByRegion))
@@ -28007,7 +28325,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28021,14 +28340,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         barriers = *(GLbitfield *)(temp + temp_loc);
         temp_loc += 4;
 
-
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
             break;
         }
         glMemoryBarrierByRegion(barriers);
-
     }
     break;
 
@@ -28037,8 +28354,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     {
 
         GLenum target;
- 	    GLenum pname;
- 	    GLint param;
+        GLenum pname;
+        GLint param;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glFramebufferParameteri))
@@ -28061,7 +28378,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28081,24 +28399,22 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         param = *(GLint *)(temp + temp_loc);
         temp_loc += 4;
 
-
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        
+
         glFramebufferParameteri(target, pname, param);
     }
     break;
-
 
     case FUNID_glSampleMaski:
 
     {
 
         GLuint maskNumber;
- 	    GLbitfield mask;
+        GLbitfield mask;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glSampleMaski))
@@ -28121,7 +28437,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28147,8 +28464,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     }
     break;
 
-
-
     case FUNID_glTexStorage2DMultisample:
 
     {
@@ -28159,7 +28474,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLsizei width;
         GLsizei height;
         GLboolean fixedsamplelocations;
-
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glTexStorage2DMultisample))
@@ -28182,7 +28496,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28217,7 +28532,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_texture = get_guest_binding_texture(opengl_context, target);
             glTextureStorage2DMultisample(bind_texture, samples, internalformat, width, height, fixedsamplelocations);
@@ -28226,10 +28541,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             glTexStorage2DMultisample(target, samples, internalformat, width, height, fixedsamplelocations);
         }
-
     }
     break;
-
 
     case FUNID_glValidateProgramPipeline:
 
@@ -28258,7 +28571,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28272,25 +28586,22 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         pipeline = *(GLuint *)(temp + temp_loc);
         temp_loc += 4;
 
-
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
             break;
         }
-        
-        glValidateProgramPipeline((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline));
 
+        glValidateProgramPipeline((GLuint)get_host_pipeline_id(opengl_context, (unsigned int)pipeline));
     }
     break;
-
 
     case FUNID_glVertexBindingDivisor:
 
     {
 
         GLuint bindingindex;
- 	    GLuint divisor;
+        GLuint divisor;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glVertexBindingDivisor))
@@ -28313,7 +28624,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28337,18 +28649,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         }
 
         d_glVertexBindingDivisor_special(opengl_context, bindingindex, divisor);
-        
     }
     break;
-
 
     case FUNID_glDrawArraysIndirect_with_bound:
 
     {
 
         GLenum mode;
- 	    GLintptr indirect;
-
+        GLintptr indirect;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glDrawArraysIndirect_with_bound))
@@ -28371,7 +28680,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28393,19 +28703,17 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        
-        d_glDrawArraysIndirect_with_bound(opengl_context, mode, indirect);
 
+        d_glDrawArraysIndirect_with_bound(opengl_context, mode, indirect);
     }
     break;
-
 
     case FUNID_glDrawArraysIndirect_without_bound:
 
     {
 
         GLenum mode;
- 	    void *indirect;
+        void *indirect;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glDrawArraysIndirect_without_bound))
@@ -28428,7 +28736,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28445,14 +28754,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         //注意，这里由于结构体数据不大，所以是直接放到前两个参数后面的
         indirect = (void *)(temp + temp_loc);
 
-
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
             break;
         }
         d_glDrawArraysIndirect_without_bound(opengl_context, mode, indirect);
-
     }
     break;
 
@@ -28485,7 +28792,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28513,7 +28821,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         d_glDrawElementsIndirect_with_bound(opengl_context, mode, type, indirect);
     }
     break;
-
 
     case FUNID_glDrawElementsIndirect_without_bound:
 
@@ -28544,7 +28851,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28604,7 +28912,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28678,7 +28987,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28703,8 +29013,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             break;
         }
-        
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
             glTextureBuffer(bind_buffer, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
@@ -28713,7 +29023,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             glTexBuffer(target, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer));
         }
-
     }
     break;
 
@@ -28726,7 +29035,6 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         GLuint buffer;
         GLintptr offset;
         GLsizeiptr size;
-
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glTexBufferRange))
@@ -28749,7 +29057,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28781,7 +29090,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
             break;
         }
 
-        if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             GLuint bind_buffer = get_guest_binding_buffer(opengl_context, target);
             glTexBufferRange(bind_buffer, internalformat, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size);
@@ -28796,13 +29105,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     case FUNID_glColorMaski:
 
     {
-        
+
         GLuint buf;
         GLboolean red;
         GLboolean green;
         GLboolean blue;
         GLboolean alpha;
-
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glColorMaski))
@@ -28825,7 +29133,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28864,13 +29173,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     case FUNID_glBlendFuncSeparatei:
 
     {
-        
+
         GLuint buf;
         GLenum srcRGB;
         GLenum dstRGB;
         GLenum srcAlpha;
         GLenum dstAlpha;
-
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glBlendFuncSeparatei))
@@ -28893,7 +29201,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28932,11 +29241,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     case FUNID_glBlendEquationSeparatei:
 
     {
-        
+
         GLuint buf;
         GLenum modeRGB;
         GLenum modeAlpha;
-
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glBlendEquationSeparatei))
@@ -28959,7 +29267,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
         {
             if (temp_len != 0 && null_flag == 0)
             {
-                temp = g_malloc(temp_len);no_ptr_buf=temp;
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
                 guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -28989,227 +29298,222 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *ca
     }
     break;
 
+        // case FUNID_glBindSharedGLImage:
 
+        // {
 
-    // case FUNID_glBindSharedGLImage:
+        //     /* Define variables */
+        //     GLenum target;
+        //     GLint texture;
+        //     EGLContext share_ctx;
 
-    // {
+        //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        //     if (unlikely(para_num < PARA_NUM_MIN_glBindSharedGLImage))
+        //     {
+        //         break;
+        //     }
 
-    //     /* Define variables */
-    //     GLenum target;
-    //     GLint texture;
-    //     EGLContext share_ctx;
+        //     size_t temp_len = 0;
+        //     unsigned char *temp = NULL;
 
+        //     temp_len = all_para[0].data_len;
+        //     if (unlikely(temp_len < 4+4+8))
+        //     {
+        //         break;
+        //     }
 
-    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (unlikely(para_num < PARA_NUM_MIN_glBindSharedGLImage))
-    //     {
-    //         break;
-    //     }
+        //     int null_flag = 0;
+        //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+        //     if (unlikely(temp == NULL))
+        //     {
+        //         if (temp_len != 0 && null_flag == 0)
+        //         {
+        //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+        //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //         }
+        //         else
+        //         {
+        //             break;
+        //         }
+        //     }
 
-    //     size_t temp_len = 0;
-    //     unsigned char *temp = NULL;
+        //     unsigned int temp_loc = 0;
 
-    //     temp_len = all_para[0].data_len;
-    //     if (unlikely(temp_len < 4+4+8))
-//     {
-    //         break;
-    //     }
+        //     target = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     int null_flag = 0;
-    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (unlikely(temp == NULL))
-    //     {
-    //         if (temp_len != 0 && null_flag == 0)
-    //         {
-    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
-    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-    //         }
-    //         else
-    //         {
-    //             break;
-    //         }
-    //     }
+        //     texture = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     unsigned int temp_loc = 0;
+        //     share_ctx = *(EGLContext *)(temp + temp_loc);
+        //     temp_loc += 8;
 
-    //     target = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     /* Check length */
+        //     if (unlikely(temp_len < temp_loc))
+        //     {
+        //         break;
+        //     }
 
-    //     texture = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     Opengl_Context *share_context = (Opengl_Context *)g_hash_table_lookup(render_context->process_context->context_map, GUINT_TO_POINTER(share_ctx));
 
-    //     share_ctx = *(EGLContext *)(temp + temp_loc);
-    //     temp_loc += 8;
+        //     d_glBindSharedGLImage(opengl_context, target, texture, share_context);
+        // }
+        // break;
 
-    //     /* Check length */
-    //     if (unlikely(temp_len < temp_loc))
-    //     {
-    //         break;
-    //     }
+        // case FUNID_glFramebufferSharedTexture2D:
 
-    //     Opengl_Context *share_context = (Opengl_Context *)g_hash_table_lookup(render_context->process_context->context_map, GUINT_TO_POINTER(share_ctx));
+        // {
 
-    //     d_glBindSharedGLImage(opengl_context, target, texture, share_context);
-    // }
-    // break;
+        //     GLenum target;
+        //     GLenum attachment;
+        //     GLenum textarget;
+        //     GLuint texture;
+        //     GLint level;
+        //     EGLContext share_ctx;
 
-    // case FUNID_glFramebufferSharedTexture2D:
+        //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        //     if (unlikely(para_num < PARA_NUM_MIN_glFramebufferSharedTexture2D))
+        //     {
+        //         break;
+        //     }
 
-    // {
+        //     size_t temp_len = 0;
+        //     unsigned char *temp = NULL;
 
-    //     GLenum target;
-    //     GLenum attachment;
-    //     GLenum textarget;
-    //     GLuint texture;
-    //     GLint level;
-    //     EGLContext share_ctx;
+        //     temp_len = all_para[0].data_len;
+        //     if (unlikely(temp_len < 20 * 1 + 8))
+        //     {
+        //         break;
+        //     }
 
-    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (unlikely(para_num < PARA_NUM_MIN_glFramebufferSharedTexture2D))
-    //     {
-    //         break;
-    //     }
+        //     int null_flag = 0;
+        //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+        //     if (unlikely(temp == NULL))
+        //     {
+        //         if (temp_len != 0 && null_flag == 0)
+        //         {
+        //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+        //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //         }
+        //         else
+        //         {
+        //             break;
+        //         }
+        //     }
 
-    //     size_t temp_len = 0;
-    //     unsigned char *temp = NULL;
+        //     unsigned int temp_loc = 0;
 
-    //     temp_len = all_para[0].data_len;
-    //     if (unlikely(temp_len < 20 * 1 + 8))
-    //     {
-    //         break;
-    //     }
+        //     target = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     int null_flag = 0;
-    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (unlikely(temp == NULL))
-    //     {
-    //         if (temp_len != 0 && null_flag == 0)
-    //         {
-    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
-    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-    //         }
-    //         else
-    //         {
-    //             break;
-    //         }
-    //     }
+        //     attachment = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     unsigned int temp_loc = 0;
+        //     textarget = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     target = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     texture = *(GLuint *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     attachment = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     level = *(GLint *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     textarget = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     share_ctx = *(EGLContext *)(temp + temp_loc);
+        //     temp_loc += 8;
 
-    //     texture = *(GLuint *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     /* Check length */
+        //     if (unlikely(temp_len < temp_loc))
+        //     {
+        //         break;
+        //     }
+        //     // GLuint t;
+        //     // glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
+        //     // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",(uint64_t)opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
+        //     Opengl_Context *share_context = (Opengl_Context *)g_hash_table_lookup(render_context->process_context->context_map, GUINT_TO_POINTER(share_ctx));
 
-    //     level = *(GLint *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     d_glFramebufferSharedTexture2D(opengl_context, target, attachment, textarget, texture, level, share_context);
+        // }
+        // break;
 
-    //     share_ctx = *(EGLContext *)(temp + temp_loc);
-    //     temp_loc += 8;
+        // case FUNID_glFramebufferEGLImage:
 
-    //     /* Check length */
-    //     if (unlikely(temp_len < temp_loc))
-    //     {
-    //         break;
-    //     }
-    //     // GLuint t;
-    //     // glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&t);
-    //     // printf("#%llx FramebufferTexture2D %u target %x attachment %x textarget %x guest %u texture %u level %d\n",(uint64_t)opengl_context,t,target, attachment, textarget, texture, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level);
-    //     Opengl_Context *share_context = (Opengl_Context *)g_hash_table_lookup(render_context->process_context->context_map, GUINT_TO_POINTER(share_ctx));
-        
-        
-    //     d_glFramebufferSharedTexture2D(opengl_context, target, attachment, textarget, texture, level, share_context);
-    // }
-    // break;
+        // {
 
-    // case FUNID_glFramebufferEGLImage:
+        //     /* Define variables */
+        //     GLenum target;
+        //     GLenum attachment;
+        //     GLenum textarget;
+        //     GLeglImageOES image;
+        //     GLint level;
 
-    // {
+        //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        //     if (unlikely(para_num < PARA_NUM_MIN_glFramebufferEGLImage))
+        //     {
+        //         break;
+        //     }
 
+        //     size_t temp_len = 0;
+        //     unsigned char *temp = NULL;
 
-    //     /* Define variables */
-    //     GLenum target;
-    //     GLenum attachment;
-    //     GLenum textarget;
-    //     GLeglImageOES image;
-    //     GLint level;
+        //     temp_len = all_para[0].data_len;
+        //     if (unlikely(temp_len < 24 * 1))
+        //     {
+        //         break;
+        //     }
 
-    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (unlikely(para_num < PARA_NUM_MIN_glFramebufferEGLImage))
-    //     {
-    //         break;
-    //     }
+        //     int null_flag = 0;
+        //     temp = get_direct_ptr(all_para[0].data, &null_flag);
+        //     if (unlikely(temp == NULL))
+        //     {
+        //         if (temp_len != 0 && null_flag == 0)
+        //         {
+        //             temp = g_malloc(temp_len);no_ptr_buf=temp;
+        //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //         }
+        //         else
+        //         {
+        //             break;
+        //         }
+        //     }
 
-    //     size_t temp_len = 0;
-    //     unsigned char *temp = NULL;
+        //     unsigned int temp_loc = 0;
 
-    //     temp_len = all_para[0].data_len;
-    //     if (unlikely(temp_len < 24 * 1))
-    //     {
-    //         break;
-    //     }
+        //     target = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     int null_flag = 0;
-    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (unlikely(temp == NULL))
-    //     {
-    //         if (temp_len != 0 && null_flag == 0)
-    //         {
-    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
-    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-    //         }
-    //         else
-    //         {
-    //             break;
-    //         }
-    //     }
+        //     attachment = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     unsigned int temp_loc = 0;
+        //     textarget = *(GLenum *)(temp + temp_loc);
+        //     temp_loc += 4;
 
-    //     target = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
+        //     image = *(uint64_t *)(temp + temp_loc);
+        //     temp_loc += 8;
 
-    //     attachment = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
-
-    //     textarget = *(GLenum *)(temp + temp_loc);
-    //     temp_loc += 4;
-
-    //     image = *(uint64_t *)(temp + temp_loc);
-    //     temp_loc += 8;
-
-    //     level = *(GLint *)(temp + temp_loc);
-    //     temp_loc += 4;
-    //     /* Check length */
-    //     if (unlikely(temp_len < temp_loc))
-    //     {
-    //         break;
-    //     }
-    //     d_glFramebufferEGLImage(opengl_context, target, attachment, textarget, image, level);
-    // }
-    // break;
+        //     level = *(GLint *)(temp + temp_loc);
+        //     temp_loc += 4;
+        //     /* Check length */
+        //     if (unlikely(temp_len < temp_loc))
+        //     {
+        //         break;
+        //     }
+        //     d_glFramebufferEGLImage(opengl_context, target, attachment, textarget, image, level);
+        // }
+        // break;
 
     default:
     {
-        printf("error! invoke call id %llx not exist!\n",call->id);
+        printf("error! invoke call id %llx not exist!\n", call->id);
     }
     break;
     }
 
-    if(no_ptr_buf!=NULL)
+    if (no_ptr_buf != NULL)
     {
         g_free(no_ptr_buf);
     }
 
-    //if(need_speed){
+    // if(need_speed){
     call->callback(call, 1);
     //}else{
     //    call->callback(call, 0);

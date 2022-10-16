@@ -4,9 +4,9 @@
  * @brief 使用host的GPU进行渲染，并且构建双缓冲，包含了双缓冲的相关函数
  * @version 0.1
  * @date 2020-12-10
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 // #define STD_DEBUG_LOG
 // #define TIMER_LOG
@@ -29,7 +29,6 @@
 
 #include "hw/express-gpu/sdl_control.h"
 
-
 GAsyncQueue *main_window_event_queue = NULL;
 int main_window_event_queue_lock = 0;
 
@@ -38,7 +37,6 @@ Static_Context_Values *preload_static_context_value = NULL;
 int sdl2_no_need = 0;
 
 int host_opengl_version = 0;
-
 
 #ifdef ENABLE_DSA
 int DSA_enable = 1;
@@ -54,17 +52,12 @@ int composer_refresh_HZ = 60;
 // static int event_queue_lock;
 // static GQueue *sync_event_queue;
 
-
-
 static GHashTable *gbuffer_global_map = NULL;
 static GHashTable *gbuffer_global_types = NULL;
 
 static volatile int gbuffer_global_map_lock = 0;
 
 static volatile int gbuffer_global_types_lock = 0;
-
-
-
 
 static int calc_screen_hz = 0;
 
@@ -79,16 +72,13 @@ static gint64 remain_sleep_time = 0;
 static int has_painted = 0;
 #endif
 
-
 static gint64 gen_frame_time_avg_1s = 0;
 
-
-#define EVENT_QUEUE_LOCK                                   \
+#define EVENT_QUEUE_LOCK                                    \
     while (qatomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
         ;
 
 #define EVENT_QUEUE_UNLOCK qatomic_cmpxchg(&(event_queue_lock), 1, 0);
-
 
 static GLFWwindow *glfw_window = NULL;
 
@@ -106,7 +96,6 @@ static long window_height = 0;
 static long real_window_width = 0;
 static long real_window_height = 0;
 
-
 static double mouse_pos_record[100][100];
 static int mouse_pos_record_num[100];
 static int key_repeat_cnt[100];
@@ -116,16 +105,12 @@ static int now_press_key;
 static double now_mouse_xpos;
 static double now_mouse_ypos;
 
-
-
 static bool is_replaying;
 static int replaying_key;
 
 static bool is_click;
 
-
 static Graphic_Buffer *display_gbuffer;
-
 
 volatile int native_render_run = 0;
 
@@ -136,11 +121,11 @@ static const char GPU_VERSION[] = "OpenGL ES 3.1 (";
 static const char GPU_RENDERER[] = "Mali-G77";
 static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
 
-//google devide info
-// static const GLubyte GPU_VENDOR[] = "Google (";
-// static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
-// static const GLubyte GPU_RENDERER[] = "Android Emulator OpenGL ES Translator (";
-// static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
+// google devide info
+//  static const GLubyte GPU_VENDOR[] = "Google (";
+//  static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
+//  static const GLubyte GPU_RENDERER[] = "Android Emulator OpenGL ES Translator (";
+//  static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
 
 static const int OPENGL_MAJOR_VERSION = 3;
 static const int OPENGL_MINOR_VERSION = 1;
@@ -238,12 +223,9 @@ static void *native_window_create(int independ_mode);
 void remove_gbuffer_from_global_map(uint64_t gbuffer_id);
 void window_size_change_callback(GLFWwindow *window, int width, int height);
 
-
 Notifier shutdown_notifier;
 
-
 static Dying_List *dying_gbuffer;
-
 
 static gint64 last_click_time = 0;
 static void close_window_callback(GLFWwindow *window)
@@ -313,9 +295,9 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
         down = true;
     }
 
-    if((mods & GLFW_MOD_ALT)!=0 && (action == GLFW_PRESS || action == GLFW_REPEAT) && key < 100)
+    if ((mods & GLFW_MOD_ALT) != 0 && (action == GLFW_PRESS || action == GLFW_REPEAT) && key < 100)
     {
-        if(key_is_repeat[key]==0)
+        if (key_is_repeat[key] == 0)
         {
             // printf("press key %d\n",key);
             now_press_key = key;
@@ -323,44 +305,40 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
             mouse_click_record[key] = 0;
             mouse_pos_record_num[key] = 0;
             key_repeat_cnt[key] = 0;
-
         }
-
     }
 
-
-    if(action == GLFW_RELEASE && key < 100)
+    if (action == GLFW_RELEASE && key < 100)
     {
-        key_is_repeat[key]=0;
+        key_is_repeat[key] = 0;
         now_press_key = 0;
     }
 
-    if(mouse_click_record[key]==1 && key_is_repeat[key] == 0)
+    if (mouse_click_record[key] == 1 && key_is_repeat[key] == 0)
     {
         // printf("replay %d\n",key);
 
-
-        if(action == GLFW_PRESS)
+        if (action == GLFW_PRESS)
         {
             // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(mouse_pos_record[key][0] / real_window_width * window_width), 0, window_width);
             // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(mouse_pos_record[key][1] / real_window_height * window_height), 0, window_height);
             // qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, true);
             // key_repeat_cnt[key] = 1;
             // printf("replay click pos1 %lf %lf\n",mouse_pos_record[key][0],mouse_pos_record[key][1]);
-            if(is_click)
+            if (is_click)
             {
                 qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, false);
                 is_click = false;
             }
-            if(is_replaying)
+            if (is_replaying)
             {
                 return;
             }
             is_replaying = true;
             replaying_key = key;
-            key_repeat_cnt[key]=0;
+            key_repeat_cnt[key] = 0;
         }
-        else if(action == GLFW_REPEAT)
+        else if (action == GLFW_REPEAT)
         {
             // printf("replay hold\n");
         }
@@ -374,9 +352,7 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
     else
     {
         qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
-
     }
-
 
     // qemu_input_event_sync();
 
@@ -390,11 +366,10 @@ static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double y
 
     // printf("now mouse %lf %lf\n", xpos,ypos);
 
-    if(is_replaying)
+    if (is_replaying)
     {
         return;
     }
-
 
 #ifdef ENSURE_SAME_WIDTH_HEIGHT_RATIO
     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(xpos / real_window_width * window_width), 0, window_width);
@@ -424,15 +399,14 @@ static void mouse_click_handle_callback(GLFWwindow *window, int button, int acti
 {
     InputButton btn;
     // printf("mouse click %d %d\n",button, action);
-    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
-        if(now_press_key!=0)
+        if (now_press_key != 0)
         {
             // printf("record pos1 %lf %lf\n",now_mouse_xpos,now_mouse_ypos);
             mouse_click_record[now_press_key] = 1;
         }
     }
-
 
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
@@ -457,7 +431,7 @@ static void mouse_click_handle_callback(GLFWwindow *window, int button, int acti
         press = false;
     }
 
-    if(is_click == press || is_replaying)
+    if (is_click == press || is_replaying)
     {
         return;
     }
@@ -554,38 +528,38 @@ static int try_destroy_gbuffer(void *data)
 {
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
 
-    if(gbuffer == NULL)
+    if (gbuffer == NULL)
     {
         return 1;
     }
 
-    if(gbuffer->is_dying == 0)
+    if (gbuffer->is_dying == 0)
     {
         return 1;
     }
 
-    if(gbuffer->remain_life_time > 0)
+    if (gbuffer->remain_life_time > 0)
     {
         gbuffer->remain_life_time--;
         return 0;
     }
 
-    if(display_gbuffer == gbuffer)
+    if (display_gbuffer == gbuffer)
     {
         display_gbuffer = NULL;
     }
 
-    if(gbuffer->gbuffer_id != 0)
+    if (gbuffer->gbuffer_id != 0)
     {
         // psurface的gbuffer_id为0
         remove_gbuffer_from_global_map(gbuffer->gbuffer_id);
     }
-    
-    if(gbuffer->usage_type == GBUFFER_TYPE_BITMAP)
+
+    if (gbuffer->usage_type == GBUFFER_TYPE_BITMAP)
     {
         set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP_NEED_DATA);
     }
-    else if(gbuffer->usage_type == GBUFFER_TYPE_FBO)
+    else if (gbuffer->usage_type == GBUFFER_TYPE_FBO)
     {
         set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_FBO_NEED_DATA);
     }
@@ -599,7 +573,6 @@ static int try_destroy_gbuffer(void *data)
     return 1;
 }
 
-
 static void handle_child_window_event(void)
 {
     ATOMIC_LOCK(main_window_event_queue_lock);
@@ -611,21 +584,21 @@ static void handle_child_window_event(void)
         switch (child_event->event_code)
         {
         case MAIN_PAINT:
-            {
+        {
 #ifdef ENABLE_STATIC_WINDOW_REFRESH
 #else
-                Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
-                opengl_paint(gbuffer);
-                
-                has_painted = 1;
+            Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+            opengl_paint(gbuffer);
 
-                glfwSwapBuffers(glfw_window);
+            has_painted = 1;
+
+            glfwSwapBuffers(glfw_window);
 #endif
-            }
-            break;
+        }
+        break;
         case MAIN_CREATE_CHILD_WINDOW:
 
-            //context只能是由父线程创建，以进行资源共享
+            // context只能是由父线程创建，以进行资源共享
             {
                 void **window_ptr = (void **)child_event->data;
                 if (window_ptr == NULL)
@@ -635,7 +608,7 @@ static void handle_child_window_event(void)
                 // printf("create window\n");
                 // printf("start create window ptr %llx\n", window_ptr);
                 int independ_mode = 0;
-                if(*window_ptr!=NULL)
+                if (*window_ptr != NULL)
                 {
                     independ_mode = 1;
                 }
@@ -647,73 +620,72 @@ static void handle_child_window_event(void)
             break;
 
         case MAIN_DESTROY_GBUFFER:
+        {
+            Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+            if (gbuffer->gbuffer_id == 0)
             {
-                Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
-                if(gbuffer->gbuffer_id == 0)
-                {
-                    destroy_gbuffer(gbuffer);
-                }
-                else
-                {
-                    // printf("real destroy gbuffer %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
-                    dying_gbuffer = dying_list_append(dying_gbuffer, gbuffer);
-                }
-
+                destroy_gbuffer(gbuffer);
             }
-            break;
+            else
+            {
+                // printf("real destroy gbuffer %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
+                dying_gbuffer = dying_list_append(dying_gbuffer, gbuffer);
+            }
+        }
+        break;
         case MAIN_CANCEL_GBUFFER:
+        {
+            Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+            if (gbuffer != NULL)
             {
-                Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
-                if(gbuffer != NULL)
-                {
-                    // printf("real cancel gbuffer delete %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
-                    dying_gbuffer = dying_list_remove(dying_gbuffer, gbuffer);
-                }
+                // printf("real cancel gbuffer delete %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
+                dying_gbuffer = dying_list_remove(dying_gbuffer, gbuffer);
             }
-            break;
+        }
+        break;
 
         case MAIN_DESTROY_ALL_EGLSYNC:
+        {
+            Resource_Map_Status *status = (Resource_Map_Status *)child_event->data;
+            if (status == NULL || status->max_id == 0)
             {
-                Resource_Map_Status *status = (Resource_Map_Status *)child_event->data;
-                if (status == NULL || status->max_id == 0)
-                {
-                    break;
-                }
-                for (int i = 1; i <= status->max_id; i++)
-                {
-                    if (status->resource_id_map[i] != 0)
-                    {
-                        glDeleteSync((GLsync)status->resource_id_map[i]);
-                    }
-                }
-                if (status->resource_id_map != NULL)
-                {
-                    g_free(status->resource_id_map);
-                }
-                if (status->resource_is_init != NULL)
-                {
-                    g_free(status->resource_is_init);
-                }
-                if (status->gbuffer_ptr_map != NULL)
-                {
-                    g_free(status->gbuffer_ptr_map);
-                }
-                g_free(status);
+                break;
             }
-            break;
+            for (int i = 1; i <= status->max_id; i++)
+            {
+                if (status->resource_id_map[i] != 0)
+                {
+                    glDeleteSync((GLsync)status->resource_id_map[i]);
+                }
+            }
+            if (status->resource_id_map != NULL)
+            {
+                g_free(status->resource_id_map);
+            }
+            if (status->resource_is_init != NULL)
+            {
+                g_free(status->resource_is_init);
+            }
+            if (status->gbuffer_ptr_map != NULL)
+            {
+                g_free(status->gbuffer_ptr_map);
+            }
+            g_free(status);
+        }
+        break;
         case MAIN_DESTROY_ONE_SYNC:
+        {
+            GLsync sync = (GLsync)child_event->data;
+            if (sync == NULL)
             {
-                GLsync sync = (GLsync)child_event->data;
-                if (sync == NULL)
-                {
-                    break;
-                }
-
-                glDeleteSync(sync);
+                break;
             }
-            break;
+
+            glDeleteSync(sync);
+        }
+        break;
         default:
-            //express_printf("child win msg: %d\n", uMsg);
+            // express_printf("child win msg: %d\n", uMsg);
             break;
         }
         g_free(child_event);
@@ -726,26 +698,24 @@ static void handle_child_window_event(void)
     return;
 }
 
-
-
 static void static_value_prepare(void)
 {
 
     preload_static_context_value = g_malloc0(sizeof(Static_Context_Values) + 512 * 100 + 400);
-    
+
     preload_static_context_value->composer_HZ = composer_refresh_HZ;
     preload_static_context_value->composer_pid = 0;
 
-        // initialize static status
+    // initialize static status
     preload_static_context_value->major_version = OPENGL_MAJOR_VERSION;
     preload_static_context_value->minor_version = OPENGL_MINOR_VERSION;
 
     prepare_integer_value(preload_static_context_value);
 
-    GLenum error =glGetError();
-    if(error!=GL_NO_ERROR)
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR)
     {
-        printf("error when creating static vaules %x\n",error);
+        printf("error when creating static vaules %x\n", error);
     }
     //下面三个值之所以要限定范围，是因为guest端有个固定大小的数组，这个最大值是数组的最大大小
     if (preload_static_context_value->max_vertex_attribs > 32)
@@ -753,12 +723,12 @@ static void static_value_prepare(void)
         preload_static_context_value->max_vertex_attribs = 32;
     }
 
-    if(preload_static_context_value->max_image_units > 16)
+    if (preload_static_context_value->max_image_units > 16)
     {
         preload_static_context_value->max_image_units = 16;
     }
 
-    if(preload_static_context_value->max_vertex_attrib_bindings > 32)
+    if (preload_static_context_value->max_vertex_attrib_bindings > 32)
     {
         preload_static_context_value->max_vertex_attrib_bindings = 32;
     }
@@ -779,10 +749,10 @@ static void static_value_prepare(void)
     //     printf("support compress texture%d %x \n",i, preload_static_context_value->compressed_texture_formats[i]);
     // }
     // printf("binary formats num %d eg %d shader formats num %d eg %d\n",preload_static_context_value->num_program_binary_formats,
-    //     preload_static_context_value->program_binary_formats[0], 
+    //     preload_static_context_value->program_binary_formats[0],
     //     preload_static_context_value->num_shader_binary_formats,
     //     preload_static_context_value->shader_binary_formats[0]);
-    
+
     //@todo 增加换硬件后暂时移除binary的功能
     // preload_static_context_value->num_program_binary_formats =0;
     // preload_static_context_value->num_shader_binary_formats = 0;
@@ -802,7 +772,6 @@ static void static_value_prepare(void)
 
     char *string_loc = ((char *)preload_static_context_value) + sizeof(Static_Context_Values);
 
-
     char *temp_loc = string_loc;
 
     const char *gl_string;
@@ -821,11 +790,11 @@ static void static_value_prepare(void)
 
     gl_string = (const char *)glGetString(GL_VERSION);
 
-    if(gl_string != NULL && gl_string[0] == '4')
+    if (gl_string != NULL && gl_string[0] == '4')
     {
         int major_version = gl_string[0] - '0';
         int minor_version = gl_string[2] - '0';
-        if(major_version <= 4 && major_version >= 1 && minor_version >= 1 && minor_version <= 9)
+        if (major_version <= 4 && major_version >= 1 && minor_version >= 1 && minor_version <= 9)
         {
             host_opengl_version = major_version * 10 + minor_version;
         }
@@ -878,14 +847,12 @@ static void static_value_prepare(void)
     {
 
         gl_string = (const char *)glGetStringi(GL_EXTENSIONS, i);
-        printf("host extension %d %s\n",i, gl_string);
+        printf("host extension %d %s\n", i, gl_string);
 
-
-        if(strstr(gl_string, "GL_EXT_direct_state_access") != NULL)
+        if (strstr(gl_string, "GL_EXT_direct_state_access") != NULL)
         {
             has_dsa = 1;
         }
-
 
         // if(i >= 512 - SPECIAL_EXTENSIONS_SIZE + no_need_extensions_cnt)
         // {
@@ -916,13 +883,12 @@ static void static_value_prepare(void)
         // temp_loc++;
     }
 
-    if(has_dsa == 0)
+    if (has_dsa == 0)
     {
         DSA_enable = 0;
     }
 
-
-    printf("host gl %d DSA_enable %d\n",host_opengl_version, DSA_enable);
+    printf("host gl %d DSA_enable %d\n", host_opengl_version, DSA_enable);
 
     // num_extensions -= no_need_extensions_cnt;
 
@@ -964,13 +930,13 @@ static void static_value_prepare(void)
 
 /**
  * @brief 界面上用于画出图像的函数，实际逻辑为取出d_buffer中的display_texture，然后画出来
- * 
- * @param d_buffer 
+ *
+ * @param d_buffer
  */
 static void opengl_paint(Graphic_Buffer *gbuffer)
 {
 
-    if(gbuffer != NULL)
+    if (gbuffer != NULL)
     {
         // printf("opengl_paint gbuffer %llx texture %d\n", gbuffer->gbuffer_id, gbuffer->data_texture);
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
@@ -993,13 +959,11 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-
-
         if (gbuffer->data_sync != 0)
         {
             // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
             glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
-            if(gbuffer->delete_sync != 0)
+            if (gbuffer->delete_sync != 0)
             {
                 glDeleteSync(gbuffer->delete_sync);
             }
@@ -1007,13 +971,11 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
             gbuffer->data_sync = NULL;
         }
 
-
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
         gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
     }
 }
 
@@ -1099,7 +1061,7 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
 
 /**
  * @brief 创建带window的opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
- * 
+ *
  * @param independ_mode 是否需要单独窗口模式
  */
 static void *native_window_create(int independ_mode)
@@ -1109,7 +1071,7 @@ static void *native_window_create(int independ_mode)
     static int windows_cnt = 0;
     int cnt = windows_cnt++;
 
-    if(independ_mode==1)
+    if (independ_mode == 1)
     {
         char name[100];
         sprintf(name, "opengl-child-window%d", cnt);
@@ -1139,15 +1101,15 @@ static void *native_window_create(int independ_mode)
     assert(child_window != NULL);
 
     // express_printf("create windows surface %lx\n", d_buffer);
-    //todo 根据配置设置窗口属性
+    // todo 根据配置设置窗口属性
     return child_window;
 }
 
 /**
  * @brief 覆盖在原来窗口上面用于绘制的窗口的线程主函数，主要包括了窗口的建立和设置
- * 
+ *
  * @param opaque 需要传入VirtIODevice
- * @return void* 
+ * @return void*
  */
 void *native_window_thread(void *opaque)
 {
@@ -1213,7 +1175,6 @@ void *native_window_thread(void *opaque)
     shutdown_notifier.notify = shutdown_notify_callback;
     qemu_register_shutdown_notifier(&shutdown_notifier);
 
-
     glfwMakeContextCurrent(glfw_window);
 
     HDC dpy_dc = GetDC(glfwGetWin32Window(glfw_window));
@@ -1231,7 +1192,6 @@ void *native_window_thread(void *opaque)
     gbuffer_global_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
     gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
 
-
     prepare_draw_texi();
     static_value_prepare();
 
@@ -1245,7 +1205,7 @@ void *native_window_thread(void *opaque)
 
     express_printf("native windows create!\n");
 
-    if(VSYNC_enable == 0)
+    if (VSYNC_enable == 0)
     {
         glfwSwapInterval(0);
     }
@@ -1299,13 +1259,13 @@ void *native_window_thread(void *opaque)
 
         handle_child_window_event();
 
-        if(is_replaying && replaying_key!=0)
+        if (is_replaying && replaying_key != 0)
         {
-            if(key_repeat_cnt[replaying_key] < mouse_pos_record_num[replaying_key])
+            if (key_repeat_cnt[replaying_key] < mouse_pos_record_num[replaying_key])
             {
-                qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(mouse_pos_record[replaying_key][key_repeat_cnt[replaying_key]*2] / real_window_width * window_width), 0, window_width);
-                qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(mouse_pos_record[replaying_key][key_repeat_cnt[replaying_key]*2+1] / real_window_height * window_height), 0, window_height);
-                if(key_repeat_cnt[replaying_key] == 0)
+                qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(mouse_pos_record[replaying_key][key_repeat_cnt[replaying_key] * 2] / real_window_width * window_width), 0, window_width);
+                qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(mouse_pos_record[replaying_key][key_repeat_cnt[replaying_key] * 2 + 1] / real_window_height * window_height), 0, window_height);
+                if (key_repeat_cnt[replaying_key] == 0)
                 {
                     qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, true);
                 }
@@ -1313,10 +1273,10 @@ void *native_window_thread(void *opaque)
             }
         }
 
-        if(now_press_key != 0 && mouse_click_record[now_press_key]==1 && mouse_pos_record_num[now_press_key]<50)
+        if (now_press_key != 0 && mouse_click_record[now_press_key] == 1 && mouse_pos_record_num[now_press_key] < 50)
         {
-            mouse_pos_record[now_press_key][mouse_pos_record_num[now_press_key]*2] = now_mouse_xpos;
-            mouse_pos_record[now_press_key][mouse_pos_record_num[now_press_key]*2+1] = now_mouse_ypos;
+            mouse_pos_record[now_press_key][mouse_pos_record_num[now_press_key] * 2] = now_mouse_xpos;
+            mouse_pos_record[now_press_key][mouse_pos_record_num[now_press_key] * 2 + 1] = now_mouse_ypos;
             mouse_pos_record_num[now_press_key]++;
         }
 
@@ -1327,7 +1287,7 @@ void *native_window_thread(void *opaque)
             if (sdl2_no_need == 0 && window_width != 0 && window_height != 0)
             {
                 sdl2_no_need = 1;
-                glfwSetWindowSize(glfw_window, window_width*3/4, window_height*3/4);
+                glfwSetWindowSize(glfw_window, window_width * 3 / 4, window_height * 3 / 4);
                 glfwShowWindow(glfw_window);
             }
 
@@ -1335,7 +1295,6 @@ void *native_window_thread(void *opaque)
             opengl_paint(display_gbuffer);
             glfwSwapBuffers(glfw_window);
 #endif
-
         }
         else
         {
@@ -1352,7 +1311,7 @@ void *native_window_thread(void *opaque)
 
 #ifdef ENABLE_STATIC_WINDOW_REFRESH
 #else
-        if(!has_painted)
+        if (!has_painted)
         {
             continue;
         }
@@ -1388,7 +1347,7 @@ void *native_window_thread(void *opaque)
         }
 #ifdef ENABLE_STATIC_WINDOW_REFRESH
         gint64 spend_time = now_time - frame_start_time;
-        if(VSYNC_enable == 0)
+        if (VSYNC_enable == 0)
         {
             long need_sleep = 1000000 / composer_refresh_HZ - spend_time + remain_sleep_time;
 
@@ -1419,10 +1378,10 @@ void *native_window_thread(void *opaque)
 
 // /**
 //  * @brief swapbuffer时的垂直同步
-//  * 
-//  * @param event 
-//  * @param interval 
-//  * @param now_hz 
+//  *
+//  * @param event
+//  * @param interval
+//  * @param now_hz
 //  * @return int
 //  */
 // int draw_wait_GSYNC(void *event, int wait_frame_num)
@@ -1483,9 +1442,7 @@ void *native_window_thread(void *opaque)
 //         return main_frame_num;
 //     }
 
-    
 // }
-
 
 // static void g_queue_event_notify(gpointer data, gpointer user_data)
 // {
@@ -1495,12 +1452,10 @@ void *native_window_thread(void *opaque)
 //     return;
 // }
 
-
 void set_display_gbuffer(Graphic_Buffer *gbuffer)
 {
     display_gbuffer = gbuffer;
 }
-
 
 int get_global_gbuffer_type(uint64_t gbuffer_id)
 {
@@ -1513,7 +1468,7 @@ int get_global_gbuffer_type(uint64_t gbuffer_id)
 void set_global_gbuffer_type(uint64_t gbuffer_id, int type)
 {
     ATOMIC_LOCK(gbuffer_global_types_lock);
-    if(type == GBUFFER_TYPE_NONE)
+    if (type == GBUFFER_TYPE_NONE)
     {
         g_hash_table_remove(gbuffer_global_types, (gpointer)(gbuffer_id));
     }
@@ -1524,7 +1479,6 @@ void set_global_gbuffer_type(uint64_t gbuffer_id, int type)
     ATOMIC_UNLOCK(gbuffer_global_types_lock);
     return;
 }
-
 
 void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer)
 {
@@ -1537,12 +1491,12 @@ Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(gbuffer_global_map, (gpointer)(gbuffer_id));
-    if(gbuffer != NULL)
+    if (gbuffer != NULL)
     {
         gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
     }
     ATOMIC_UNLOCK(gbuffer_global_map_lock);
-    
+
     return gbuffer;
 }
 
@@ -1553,7 +1507,6 @@ void remove_gbuffer_from_global_map(uint64_t gbuffer_id)
     ATOMIC_UNLOCK(gbuffer_global_map_lock);
 }
 
-
 void send_message_to_main_window(int message_code, void *data)
 {
     Main_window_Event *event = g_malloc(sizeof(Main_window_Event));
@@ -1562,7 +1515,7 @@ void send_message_to_main_window(int message_code, void *data)
     ATOMIC_LOCK(main_window_event_queue_lock);
     g_async_queue_push(main_window_event_queue, (gpointer)event);
     ATOMIC_UNLOCK(main_window_event_queue_lock);
-    if(message_code == MAIN_PAINT || message_code == MAIN_CREATE_CHILD_WINDOW)
+    if (message_code == MAIN_PAINT || message_code == MAIN_CREATE_CHILD_WINDOW)
     {
         glfwPostEmptyEvent();
     }

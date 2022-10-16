@@ -1,12 +1,12 @@
 /**
  * @file express_gpu.c
  * @author gaodi (gaodi.sec@qq.com)
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2020-10-20
- * 
+ *
  * @copyright Copyright (c) 2020
- * 
+ *
  */
 // #define STD_DEBUG_LOG
 #include "hw/direct-express/direct_express.h"
@@ -18,9 +18,9 @@
 
 /**
  * @brief 当vring有数据来的之后的回调函数，在aio线程中运行
- * 
- * @param vdev 
- * @param vq 
+ *
+ * @param vdev
+ * @param vq
  */
 static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
 {
@@ -34,7 +34,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
         qemu_thread_create(&g->render_thread, "direct-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
     }
-    else if(g->thread_run == 1)
+    else if (g->thread_run == 1)
     {
         //分发线程还没跑起来，就不处理了
         return;
@@ -43,7 +43,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
     {
 #ifdef DISTRIBUTE_WHEN_VM_EXIT
         int running_flag = qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1);
-        if(running_flag == 0)
+        if (running_flag == 0)
         {
             //没有在处理环上数据，那我就来处理
             int pop_flag = 1;
@@ -55,11 +55,10 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
             //我先处理着，但是分发线程也得赶紧醒来接着我处理
             wake_up_distribute();
 
-
-            while(pop_flag != 0 || recycle_flag != 0)
+            while (pop_flag != 0 || recycle_flag != 0)
             {
                 //一旦分发线程跑起来了，就赶紧回虚拟机里去，避免长时间操作，影响vCPU运行，进而造成间歇性卡顿
-                if(qatomic_read(&atomic_distribute_thread_running) == 2)
+                if (qatomic_read(&atomic_distribute_thread_running) == 2)
                 {
                     running_flag = 1;
                     break;
@@ -69,30 +68,29 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
                 recycle_flag = 1;
 
                 virtqueue_data_distribute_and_recycle(g->data_queue, &pop_flag, &recycle_flag);
-                if(pop_flag != 0)
+                if (pop_flag != 0)
                 {
                     pop_cnt += 1;
                 }
-                if(recycle_flag != 0)
+                if (recycle_flag != 0)
                 {
                     recycle_cnt += 1;
                 }
             }
-            if(recycle_flag != 0)
+            if (recycle_flag != 0)
             {
                 // printf("direct notify\n");
                 virtio_notify(VIRTIO_DEVICE(vdev), vq);
             }
-            
+
             // printf("handle ok pop_cnt %d recycle_cnt %d ", pop_cnt, recycle_cnt);
 
-            if(running_flag == 1)
+            if (running_flag == 1)
             {
                 // printf("other thread continue\n");
             }
 
             qatomic_set(&atomic_distribute_thread_running, 0);
-
         }
         else
         {
@@ -108,7 +106,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
 
 /**
  * @brief aio线程处理数据时的回调函数，在这里调用实际的处理函数
- * 
+ *
  * @param opaque 传递的参数，实际就是express-GPU
  */
 static void direct_express_handle_bh(void *opaque)
@@ -120,9 +118,9 @@ static void direct_express_handle_bh(void *opaque)
 /**
  * @brief guest往queue中添加数据后，kick这边后的回调的函数。
  * 为了保证虚拟机快速恢复，因此需要将任务快速抛到aio线程中，由aio线程去处理数据
- * 
- * @param vdev 
- * @param vq 
+ *
+ * @param vdev
+ * @param vq
  */
 static void direct_express_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 {

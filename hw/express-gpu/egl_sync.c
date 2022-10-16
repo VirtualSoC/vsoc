@@ -34,7 +34,7 @@ EGLBoolean d_eglGetSyncAttrib(void *context, EGLDisplay dpy, EGLSync sync, EGLin
     if (host_sync == NULL || attribute != EGL_SYNC_STATUS)
     {
         printf("error! egGetSyncAttrib guest sync %d host sync %lld, opengl_context %llx, attribute %x\n", guest_sync_int, (uint64_t)host_sync, (uint64_t)thread_context->opengl_context, attribute);
-        if(attribute == EGL_SYNC_STATUS)
+        if (attribute == EGL_SYNC_STATUS)
         {
             *value = EGL_UNSIGNALED;
         }
@@ -51,7 +51,7 @@ EGLBoolean d_eglGetSyncAttrib(void *context, EGLDisplay dpy, EGLSync sync, EGLin
     GLsizei len = 0;
     glGetSynciv(host_sync, GL_SYNC_STATUS, (GLsizei)sizeof(GLint), &len, &now_status);
 
-    if(thread_context->opengl_context == NULL)
+    if (thread_context->opengl_context == NULL)
     {
         egl_makeCurrent(NULL);
     }
@@ -84,7 +84,7 @@ void d_eglCreateSync(void *context, EGLDisplay dpy, EGLenum type, const EGLint *
 
     GLsync host_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-    if(thread_context->opengl_context == NULL)
+    if (thread_context->opengl_context == NULL)
     {
         egl_makeCurrent(NULL);
     }
@@ -111,11 +111,11 @@ EGLBoolean d_eglDestroySync(void *context, EGLDisplay dpy, EGLSync sync)
     {
         return EGL_FALSE;
     }
-        
+
     GLsync host_sync = (GLsync)get_host_resource_id(status, guest_sync_int);
 
     remove_host_map_ids(status, 1, &guest_sync_int);
-    if(thread_context->opengl_context == NULL)
+    if (thread_context->opengl_context == NULL)
     {
         send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, host_sync);
     }
@@ -138,13 +138,13 @@ EGLBoolean d_eglWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint fla
 
     if (host_sync != NULL)
     {
-        if(thread_context->opengl_context == NULL)
+        if (thread_context->opengl_context == NULL)
         {
             printf("eglWaitSync with null opengl context");
             egl_makeCurrent(dummy_window_for_sync);
         }
         glWaitSync(host_sync, 0, GL_TIMEOUT_IGNORED);
-        if(thread_context->opengl_context == NULL)
+        if (thread_context->opengl_context == NULL)
         {
             egl_makeCurrent(NULL);
         }
@@ -156,7 +156,7 @@ EGLBoolean d_eglWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint fla
 EGLint d_eglClientWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout)
 {
     unsigned int guest_sync_int = (unsigned int)(uint64_t)sync;
-    GLenum ret=0;
+    GLenum ret = 0;
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Resource_Map_Status *status = thread_context->process_context->egl_sync_resource;
@@ -165,8 +165,8 @@ EGLint d_eglClientWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint f
     if (host_sync != NULL)
     {
         //有些等待可能是在没有opengl context的情况下的，这种情况下直接返回true，因为来回的时间应该够同步了
-        // 
-        if(thread_context->opengl_context == NULL)
+        //
+        if (thread_context->opengl_context == NULL)
         {
             printf("eglClientWaitSync with null opengl context\n");
             egl_makeCurrent(dummy_window_for_sync);
@@ -176,7 +176,7 @@ EGLint d_eglClientWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint f
             glFlush();
         }
         ret = glClientWaitSync(host_sync, GL_SYNC_FLUSH_COMMANDS_BIT, (GLuint64)timeout);
-        if(thread_context->opengl_context == NULL)
+        if (thread_context->opengl_context == NULL)
         {
             egl_makeCurrent(NULL);
         }
@@ -193,6 +193,6 @@ EGLint d_eglClientWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint f
             return EGL_CONDITION_SATISFIED;
         }
     }
-    printf("eglClientWaitSync guest_sync %d no host sync\n",guest_sync_int);
+    printf("eglClientWaitSync guest_sync %d no host sync\n", guest_sync_int);
     return EGL_FALSE;
 }
