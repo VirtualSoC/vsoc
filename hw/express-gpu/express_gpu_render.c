@@ -29,7 +29,6 @@
 
 #include "hw/express-gpu/sdl_control.h"
 
-// HWND draw_native_window;
 
 GAsyncQueue *main_window_event_queue = NULL;
 int main_window_event_queue_lock = 0;
@@ -50,15 +49,11 @@ int VSYNC_enable = 0;
 
 int composer_refresh_HZ = 60;
 
-static unsigned int main_frame_num = 0;
+// static unsigned int main_frame_num = 0;
 
 // static int event_queue_lock;
 // static GQueue *sync_event_queue;
 
-// static GHashTable *gbuffer_id_surface_map = NULL;
-// static GHashTable *gbuffer_id_image_map = NULL;
-// static int gbuffer_id_surface_map_lock = 0;
-// static int gbuffer_id_image_map_lock = 0;
 
 
 static GHashTable *gbuffer_global_map = NULL;
@@ -76,18 +71,17 @@ static int calc_screen_hz = 0;
 static int now_screen_hz = 0;
 
 static gint64 last_calc_time = 0;
+
+#ifdef ENABLE_STATIC_WINDOW_REFRESH
 static gint64 frame_start_time = 0;
 static gint64 remain_sleep_time = 0;
+#else
+static int has_painted = 0;
+#endif
 
-// static gint64 stand_frame_time = 0;
-// static volatile gint64 last_gen_frame_time = 0;
-// static gint64 gen_frame_time_all = 0;
-// static gen_frame_cnt = 0;
-// static gint64 now_gen_frame_time = 0;
 
 static gint64 gen_frame_time_avg_1s = 0;
 
-// static int force_gsync = 0;
 
 #define EVENT_QUEUE_LOCK                                   \
     while (qatomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
@@ -95,7 +89,6 @@ static gint64 gen_frame_time_avg_1s = 0;
 
 #define EVENT_QUEUE_UNLOCK qatomic_cmpxchg(&(event_queue_lock), 1, 0);
 
-// static void *opengl_render_hwnd = NULL;
 
 static GLFWwindow *glfw_window = NULL;
 
@@ -131,11 +124,8 @@ static int replaying_key;
 static bool is_click;
 
 
-// static Window_Buffer *compose_surface;
-
 static Graphic_Buffer *display_gbuffer;
 
-// static int compose_surface_lock = 0;
 
 volatile int native_render_run = 0;
 
@@ -250,8 +240,7 @@ void window_size_change_callback(GLFWwindow *window, int width, int height);
 
 
 Notifier shutdown_notifier;
-// static Dying_List *dying_surfaces;
-// static Dying_List *dying_images;
+
 
 static Dying_List *dying_gbuffer;
 
@@ -336,16 +325,6 @@ static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int 
             key_repeat_cnt[key] = 0;
 
         }
-
-        // if(mouse_click_record[key]==1 && (mods & GLFW_MOD_SHIFT)!=0)
-        // {
-        //     if(action == GLFW_REPEAT && mouse_pos_record_num[key]<50)
-        //     {
-        //         mouse_pos_record[key][mouse_pos_record_num[key]*2] = now_mouse_xpos;
-        //         mouse_pos_record[key][mouse_pos_record_num[key]*2+1] = now_mouse_ypos;
-        //         mouse_pos_record_num[key]++;
-        //     }
-        // }
 
     }
 
@@ -632,6 +611,17 @@ static void handle_child_window_event(void)
         switch (child_event->event_code)
         {
         case MAIN_PAINT:
+            {
+#ifdef ENABLE_STATIC_WINDOW_REFRESH
+#else
+                Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+                opengl_paint(gbuffer);
+                
+                has_painted = 1;
+
+                glfwSwapBuffers(glfw_window);
+#endif
+            }
             break;
         case MAIN_CREATE_CHILD_WINDOW:
 
@@ -643,7 +633,6 @@ static void handle_child_window_event(void)
                     break;
                 }
                 // printf("create window\n");
-                // gint64 t = g_get_real_time();
                 // printf("start create window ptr %llx\n", window_ptr);
                 int independ_mode = 0;
                 if(*window_ptr!=NULL)
@@ -723,17 +712,6 @@ static void handle_child_window_event(void)
                 glDeleteSync(sync);
             }
             break;
-        // case MAIN_DESTROY_ONE_TEXTURE:
-        // {
-        //     GLuint texture = (GLsync)child_event->data;
-        //     if (texture == 0)
-        //     {
-        //         break;
-        //     }
-
-        //     glDeleteTextures(1, &texture);
-        // }
-        // break;
         default:
             //express_printf("child win msg: %d\n", uMsg);
             break;
@@ -744,8 +722,6 @@ static void handle_child_window_event(void)
         child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
         ATOMIC_UNLOCK(main_window_event_queue_lock);
     }
-    // 把foreach放到下面，是因为主线程的消息中可能有取消gbuffer销毁流程的消息
-    dying_list_foreach(dying_gbuffer, try_destroy_gbuffer);
 
     return;
 }
@@ -764,7 +740,7 @@ static void static_value_prepare(void)
     preload_static_context_value->major_version = OPENGL_MAJOR_VERSION;
     preload_static_context_value->minor_version = OPENGL_MINOR_VERSION;
 
-    prepare_interger_value(preload_static_context_value);
+    prepare_integer_value(preload_static_context_value);
 
     GLenum error =glGetError();
     if(error!=GL_NO_ERROR)
@@ -993,12 +969,6 @@ static void static_value_prepare(void)
  */
 static void opengl_paint(Graphic_Buffer *gbuffer)
 {
-    // glClear(GL_COLOR_BUFFER_BIT);
-    // glClearColor(1, 1, 1, 0);
-    // glViewport(0, 0, window_width, window_height);
-    // glClear(GL_COLOR_BUFFER_BIT);
-    //glClearColor(0, 0, 1, 0);
-    // glDisable(GL_DEPTH_TEST);
 
     if(gbuffer != NULL)
     {
@@ -1037,7 +1007,6 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
             gbuffer->data_sync = NULL;
         }
 
-        // GLuint texture = acquire_texture_from_image(real_image);
 
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
@@ -1129,11 +1098,9 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
 #endif
 
 /**
- * @brief 创建opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
+ * @brief 创建带window的opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
  * 
- * @param d_buffer 需要创建context的双缓冲区，创建完成后会直接存入其中
- * @param width 界面的宽
- * @param height 界面的高
+ * @param independ_mode 是否需要单独窗口模式
  */
 static void *native_window_create(int independ_mode)
 {
@@ -1149,16 +1116,6 @@ static void *native_window_create(int independ_mode)
 
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-
-        // @todo 验证把下面windowhit给注释掉了（会影响窗口）会不会影响到fbo
-        // int idx = 0;
-        // while (d_buffer->window_hints.hints[idx] != (int64_t)GLFW_DONT_CARE && idx < HINTS_LEN)
-        // {
-        //     int64_t hint_enum = d_buffer->window_hints.hints[idx];
-        //     int64_t hint_val = d_buffer->window_hints.hints[idx + 1];
-        //     glfwWindowHint(hint_enum, hint_val);
-        //     idx += 2;
-        // }
 
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
@@ -1179,7 +1136,6 @@ static void *native_window_create(int independ_mode)
         child_window = egl_createContext();
     }
 
-    //假如某个缓冲区同时被读取和写入，也就是同时以texture读取，以及用其他opengl函数画时，整个opengl环境就会炸
     assert(child_window != NULL);
 
     // express_printf("create windows surface %lx\n", d_buffer);
@@ -1257,12 +1213,6 @@ void *native_window_thread(void *opaque)
     shutdown_notifier.notify = shutdown_notify_callback;
     qemu_register_shutdown_notifier(&shutdown_notifier);
 
-    // draw_native_window = glfwGetWin32Window(glfw_window);
-
-    // SetParent(draw_native_window, render_hwnd);
-    // SetWindowLong(draw_native_window, GWL_STYLE, WS_CHILD);
-    // SetWindowLongPtr(draw_native_window, GWLP_WNDPROC, (LONG_PTR)&sub_window_proc);
-    // ShowWindow(draw_native_window, TRUE);
 
     glfwMakeContextCurrent(glfw_window);
 
@@ -1270,11 +1220,7 @@ void *native_window_thread(void *opaque)
     HGLRC gl_context = glfwGetWGLContext(glfw_window);
     egl_init(dpy_dc, gl_context);
 
-#ifdef USE_GLFW_AS_WGL
-    dummy_window_for_sync = glfwCreateWindow(1, 1, "sync", NULL, glfw_window);
-#else
     dummy_window_for_sync = egl_createContext();
-#endif
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -1285,9 +1231,6 @@ void *native_window_thread(void *opaque)
     gbuffer_global_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
     gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
 
-
-    // gbuffer_id_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-    // gbuffer_id_image_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
 
     prepare_draw_texi();
     static_value_prepare();
@@ -1331,9 +1274,11 @@ void *native_window_thread(void *opaque)
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
         // glfwWaitEvents();
+#ifdef ENABLE_STATIC_WINDOW_REFRESH
         frame_start_time = g_get_real_time();
+#endif
 
-        main_frame_num = (main_frame_num + 1) % 65536;
+        // main_frame_num = (main_frame_num + 1) % 65536;
 
         // TIMER_START(queue)
         // EVENT_QUEUE_LOCK;
@@ -1346,8 +1291,13 @@ void *native_window_thread(void *opaque)
         // TIMER_OUTPUT(queue, 100)
         glClear(GL_COLOR_BUFFER_BIT);
 
-        handle_child_window_event();
+#ifdef ENABLE_STATIC_WINDOW_REFRESH
         glfwPollEvents();
+#else
+        glfwWaitEventsTimeout(0.005);
+#endif
+
+        handle_child_window_event();
 
         if(is_replaying && replaying_key!=0)
         {
@@ -1372,11 +1322,8 @@ void *native_window_thread(void *opaque)
 
         qemu_input_event_sync();
 
-        // ATOMIC_LOCK(compose_surface_lock);
         if (display_gbuffer != NULL)
         {
-            opengl_paint(display_gbuffer);
-
             if (sdl2_no_need == 0 && window_width != 0 && window_height != 0)
             {
                 sdl2_no_need = 1;
@@ -1384,22 +1331,11 @@ void *native_window_thread(void *opaque)
                 glfwShowWindow(glfw_window);
             }
 
-            // TIMER_START(paint)
-            // TIMER_END(paint)
-
-            // TIMER_START(event)
-            // ATOMIC_UNLOCK(compose_surface_lock);
-
-            // TIMER_END(event)
-            // TIMER_OUTPUT(event, 100)
-
-            // TIMER_START(swap)
+#ifdef ENABLE_STATIC_WINDOW_REFRESH
+            opengl_paint(display_gbuffer);
             glfwSwapBuffers(glfw_window);
+#endif
 
-            // TIMER_END(swap)
-
-            // TIMER_OUTPUT(paint, 100)
-            // TIMER_OUTPUT(swap, 100)
         }
         else
         {
@@ -1412,14 +1348,19 @@ void *native_window_thread(void *opaque)
                 real_window_height = window_height;
                 glfwHideWindow(glfw_window);
             }
-
-            // TIMER_START(event)
-            // ATOMIC_UNLOCK(compose_surface_lock);
-
-            // TIMER_END(event)
-            // TIMER_OUTPUT(event, 100)
-            glfwSwapBuffers(glfw_window);
         }
+
+#ifdef ENABLE_STATIC_WINDOW_REFRESH
+#else
+        if(!has_painted)
+        {
+            continue;
+        }
+        has_painted = 0;
+#endif
+
+        // 把foreach放到下面，是因为主线程的消息中可能有取消gbuffer销毁流程的消息
+        dying_list_foreach(dying_gbuffer, try_destroy_gbuffer);
 
         gint64 now_time = g_get_real_time();
 
@@ -1445,6 +1386,7 @@ void *native_window_thread(void *opaque)
         {
             calc_screen_hz += 1;
         }
+#ifdef ENABLE_STATIC_WINDOW_REFRESH
         gint64 spend_time = now_time - frame_start_time;
         if(VSYNC_enable == 0)
         {
@@ -1460,7 +1402,7 @@ void *native_window_thread(void *opaque)
             gint64 sleep_end_time = g_get_real_time();
             remain_sleep_time = need_sleep - (sleep_end_time - sleep_start_time);
         }
-
+#endif
     }
 
     // qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
@@ -1620,4 +1562,8 @@ void send_message_to_main_window(int message_code, void *data)
     ATOMIC_LOCK(main_window_event_queue_lock);
     g_async_queue_push(main_window_event_queue, (gpointer)event);
     ATOMIC_UNLOCK(main_window_event_queue_lock);
+    if(message_code == MAIN_PAINT || message_code == MAIN_CREATE_CHILD_WINDOW)
+    {
+        glfwPostEmptyEvent();
+    }
 }

@@ -98,10 +98,6 @@ long long set_host_map_id(Resource_Map_Status *status, int guest_id, int host_id
         glGenTextures(1, (unsigned int *)&(host_id));
         status->resource_id_map[guest_id] = host_id;
     }
-    // if(guest_id <=2 )
-    // {
-    //     printf("create map guest %d host %d\n", guest_id, host_id);
-    // }
 
     return origin_id;
 }
@@ -507,10 +503,6 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
     for (int i = 0; i < n; i++)
     {
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
-        // if(textures[i] <=2 )
-        // {
-        //     printf("context %llx create map guest %d host %d\n", (uint64_t)context, textures[i], host_buffers[i]);
-        // }
     }
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
@@ -739,20 +731,13 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
 
     Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
 
-    // glGenVertexArrays(n, arrays);
 
     for (int i = 0; i < n; i++)
     {
 
-        // Buffer_Status *status=g_malloc(sizeof(Buffer_Status));
 
-        // memset(status,0,sizeof(Buffer_Status));
-        // status->vertex_array_buffer=arrays[i];
-
-        // g_hash_table_insert(bound_buffer->vao_status, GUINT_TO_POINTER(arrays[i]), (gpointer)status);
-
-        Attrib_Point *point_data = g_malloc(sizeof(Attrib_Point));
-        memset(point_data, 0, sizeof(Attrib_Point));
+        Attrib_Point *point_data = g_malloc0(sizeof(Attrib_Point));
+        // memset(point_data, 0, sizeof(Attrib_Point));
         
 
         if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
@@ -892,13 +877,6 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, textures, host_buffers);
 
-    // if(to_external_texture_id_map != NULL)
-    // {
-    //     for(int i = 0;i<n;i++)
-    //     {
-    //         g_hash_table_remove(to_external_texture_id_map,GUINT_TO_POINTER(host_buffers[i]));
-    //     }
-    // }
 
     // for(int i = 0;i<n;i++)
     // {
@@ -917,10 +895,6 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_cube_map_array, host_buffers[i]);
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_buffer, host_buffers[i]);
         // GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_unit, host_buffers[i]);
-        // if(textures[i] <=2 )
-        // {
-        //     printf("context %llx delete texture map guest %d host %d\n", (uint64_t)context, textures[i], host_buffers[i]);
-        // }
     }
 
 

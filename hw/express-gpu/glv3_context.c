@@ -9,10 +9,8 @@
 #include "hw/express-gpu/offscreen_render_thread.h"
 
 
-//下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
+//下面这两个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
 static void g_buffer_map_destroy(gpointer data);
-
-// static void g_vao_status_destroy(gpointer data);
 
 static void g_vao_point_data_destroy(gpointer data);
 
@@ -190,14 +188,11 @@ void resource_context_destroy(Resource_Context *resources)
 
     DESTROY_RESOURCES(query_resource, glDeleteQueries);
 
-    // g_free(resources->frame_buffer_resource->resource_id_map);
-    // g_free(resources->program_pipeline_resource->resource_id_map);
-    // g_free(resources->transform_feedback_resource->resource_id_map);
-    // g_free(resources->vertex_array_resource->resource_id_map);
-    // g_free(resources->query_resource->resource_id_map);
 
     g_free(resources->exclusive_resources);
 }
+
+// int context_num = 0;
 
 void *get_native_opengl_context(int independ_mode)
 {
@@ -208,17 +203,23 @@ void *get_native_opengl_context(int independ_mode)
     ATOMIC_UNLOCK(native_context_pool_locker);
     if(first == NULL || independ_mode == 1 || first->data == NULL)
     {
-        // #ifdef USE_GLFW_AS_WGL
         if(independ_mode == 1)
         {
             native_context = (void *)0xffffff;
         }
 
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
-        // #else
         // 不能在子线程中创建context，不然会为空
         //     opengl_context->window = egl_createContext();
-        // #endif
+
+        ATOMIC_LOCK(native_context_pool_locker);
+        //链表为空，则要多填充1个，反正之后要等待
+        native_context_pool = g_list_append(native_context_pool, NULL);
+
+        GList *last = g_list_last(native_context_pool);
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
+        native_context_pool_size++;
+        ATOMIC_UNLOCK(native_context_pool_locker);
 
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
             //等待window真正的建立起来
@@ -232,6 +233,7 @@ void *get_native_opengl_context(int independ_mode)
                 printf("wait for window creating too long! ptr %llx\n", (uint64_t)&native_context);
             }
         }
+        printf("waiting for context creating %d\n", sleep_cnt);
     }
     else
     {
@@ -239,8 +241,19 @@ void *get_native_opengl_context(int independ_mode)
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_remove(native_context_pool, native_context);
         native_context_pool_size--;
+        if(native_context_pool_size == 0)
+        {
+            //要是搬空了，那就再加个
+            native_context_pool = g_list_append(native_context_pool, NULL);
+
+            GList *last = g_list_last(native_context_pool);
+            send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
+            native_context_pool_size++;
+        }
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
+    // context_num++;
+    // printf("context_num %d\n",context_num);
     return native_context;
 }
 
@@ -256,14 +269,14 @@ void release_native_opengl_context(void *native_context, int independ_mode)
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_append(native_context_pool, NULL);
         
-        GList *first = g_list_last(native_context_pool);
-        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(first->data));
+        GList *last = g_list_last(native_context_pool);
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
 
         native_context_pool_size++;
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
-    // else
-    // {
+    // context_num--;
+    // printf("context_num %d\n",context_num);
     
     if(independ_mode == 1)
     {
@@ -275,20 +288,13 @@ void release_native_opengl_context(void *native_context, int independ_mode)
         egl_destroyContext(native_context);
     }
 
-// #ifdef USE_GLFW_AS_WGL
-//     glfwSetWindowShouldClose(native_context, 1);
-//     glfwDestroyWindow(native_context);
-// #else
-//     egl_destroyContext(native_context);
-// #endif
-    // }
 
 }
 
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context, int independ_mode)
 {
-    Opengl_Context *opengl_context = g_malloc(sizeof(Opengl_Context));
+    Opengl_Context *opengl_context = g_malloc0(sizeof(Opengl_Context));
     opengl_context->is_current = 0;
     opengl_context->need_destroy = 0;
     opengl_context->window = NULL;
@@ -300,53 +306,38 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
 
     Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
     memset(texture_status, 0 ,sizeof(Texture_Binding_Status));
-    texture_status->guest_current_texture_2D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_2D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_2D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_2D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_2D = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->guest_current_texture_cube_map = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_cube_map, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->host_current_texture_2D = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_cube_map = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_cube_map, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_cube_map = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->guest_current_texture_3D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_3D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->host_current_texture_cube_map = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_3D = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_3D, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_3D = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->guest_current_texture_2D_array = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_2D_array, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->host_current_texture_3D = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_2D_array = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_2D_array, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_2D_array = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->guest_current_texture_2D_multisample = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_2D_multisample, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->host_current_texture_2D_array = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_2D_multisample = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_2D_multisample, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_2D_multisample = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->guest_current_texture_2D_multisample_array = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_2D_multisample_array, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->host_current_texture_2D_multisample = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_2D_multisample_array = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_2D_multisample_array, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_2D_multisample_array = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->guest_current_texture_cube_map_array = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_cube_map_array, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->host_current_texture_2D_multisample_array = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_cube_map_array = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_cube_map_array, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_cube_map_array = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->guest_current_texture_buffer = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->guest_current_texture_buffer, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->host_current_texture_cube_map_array = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    texture_status->host_current_texture_buffer = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    memset(texture_status->host_current_texture_buffer, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+    texture_status->guest_current_texture_buffer = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
+
+    texture_status->host_current_texture_buffer = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
     // texture_status->guest_current_texture_unit = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
     // memset(texture_status->guest_current_texture_unit, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
@@ -383,26 +374,15 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     memset(bound_buffer,0,sizeof(Bound_Buffer));
 
-    // opengl_context->pixel_store_status.pack_alignment=4;
-    // opengl_context->pixel_store_status.unpack_alignment=4;
 
     opengl_context->buffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
 
-    // bound_buffer->vao_status=g_hash_table_new_full(g_direct_hash, g_direct_equal,NULL,g_vao_status_destroy);
     bound_buffer->vao_point_data = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_vao_point_data_destroy);
 
-    // bound_buffer->buffer_type=g_hash_table_new(g_direct_hash, g_direct_equal);
 
-    // Buffer_Status *status=g_malloc(sizeof(Buffer_Status));
-    // memset(status,0,sizeof(Buffer_Status));
-    // g_hash_table_insert(bound_buffer->vao_status, GUINT_TO_POINTER(0), (gpointer)status);
+    Attrib_Point *temp_point = g_malloc0(sizeof(Attrib_Point));
 
-    Attrib_Point *temp_point = g_malloc(sizeof(Attrib_Point));
-    memset(temp_point, 0, sizeof(Attrib_Point));
 
-    // g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(0), (gpointer)temp_point);
-
-    // bound_buffer->buffer_status=status;
     bound_buffer->attrib_point = temp_point;
 
     resource_context_init(&(opengl_context->resource_status), share_resources);
@@ -531,7 +511,7 @@ void opengl_context_init(Opengl_Context *context)
  */
 void opengl_context_destroy(Opengl_Context *context)
 {
-    express_printf("opengl context destroy %lx\n", context);
+    express_printf("opengl context destroy %llx guest %llx\n", (uint64_t)context, (uint64_t)context->guest_context);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
@@ -565,15 +545,9 @@ void opengl_context_destroy(Opengl_Context *context)
     {
         egl_makeCurrent(opengl_context->window);
     }
-// #ifdef USE_GLFW_AS_WGL
-//     // printf("make current context %llx windows %llx\n",(uint64_t)opengl_context,opengl_context->window);
-//     glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
-// #else
-//     egl_makeCurrent(opengl_context->window);
-// #endif
 
 
-    //这三个remove后都有默认的销毁函数
+    //这两个个都有默认的销毁函数
     // g_hash_table_remove_all(opengl_context->buffer_map);
     g_hash_table_destroy(opengl_context->buffer_map);
     // g_hash_table_destroy(bound_buffer->vao_status);
@@ -620,15 +594,6 @@ void opengl_context_destroy(Opengl_Context *context)
         express_printf("context %llx windows %llx makecurrent null\n",(uint64_t)opengl_context, opengl_context->window);
         egl_makeCurrent(NULL);
     }
-// #ifdef USE_GLFW_AS_WGL
-// #ifdef DEBUG_INDEPEND_WINDOW
-//     glfwHideWindow(opengl_context->window);
-// #endif
-//     glfwMakeContextCurrent(NULL);
-// #else
-//     express_printf("context %llx windows %llx makecurrent null\n",(uint64_t)opengl_context, opengl_context->window);
-//     egl_makeCurrent(NULL);
-// #endif
     release_native_opengl_context(opengl_context->window, opengl_context->independ_mode);
 }
 
@@ -640,13 +605,6 @@ static void g_buffer_map_destroy(gpointer data)
     g_free(map_res);
 }
 
-// static void g_vao_status_destroy(gpointer data)
-// {
-//     express_printf("vao_status destroy\n");
-
-//     Buffer_Status *vao_status = (Buffer_Status *)data;
-//     g_free(vao_status);
-// }
 
 static void g_vao_point_data_destroy(gpointer data)
 {

@@ -13,8 +13,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
     GLuint max_len = offset + length;
 
     unsigned char *map_pointer = NULL;
-    // glDeleteBuffers(1, &(point_data->buffer_object[index]));
-    // glGenBuffers(1, &(point_data->buffer_object[index]));
+
     if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         //@todo 扩大提前申请的量级
@@ -424,11 +423,11 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    GLuint cu_vao = 0;
 #ifdef STD_DEBUG_LOG_GLOBAL_ON
+    GLuint cu_vao = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &cu_vao);
-#endif
     express_printf("%llx glDrawArrays mode %x first %d count %d vao %d\n",(uint64_t)context, mode, first, count, cu_vao);
+#endif
     if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         vao_binding_status_sync(context);
@@ -444,14 +443,6 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
         {
             texture_unit_status_sync(context, -1);
         }
-
-        // if(cu_vao == 1)
-        // {
-        //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        // }
-
-        // int data[] ={0,1,2,3,4,5};
-        // glDrawElements(mode, count, GL_UNSIGNED_INT, data);
 
         glDrawArrays(mode, first, count);
         express_printf("glDrawArrays end\n");
@@ -479,14 +470,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
 void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLsizei count, GLsizei instancecount)
 {
-    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    // Buffer_Status *status = bound_buffer->buffer_status;
 
-    // set_attrib_point(context,instancecount);
-    // if (status->array_buffer != 0)
-    // {
-    //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
-    // }
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
@@ -528,14 +512,7 @@ void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLs
 
 void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices)
 {
-    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    // Buffer_Status *status = bound_buffer->buffer_status;
 
-    // set_attrib_point(context,1);
-    // if (status->array_buffer != 0)
-    // {
-    //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
-    // }
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
@@ -580,7 +557,6 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
         // printf("pre array vao %d\n",pre_array);
         // glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_array);
         // printf("pre array ebo %d\n",pre_array);
-        // @todo 3Dmark ice test crash
 
         glDrawElements(mode, count, type, (void *)indices);
         if(opengl_context->is_using_external_program == 1)
@@ -602,8 +578,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
 
     GLint buffer_loc = 0;
     unsigned char *map_pointer = NULL;
-    // glDeleteBuffers(1, &(point_data->indices_buffer_object));
-    // glGenBuffers(1, &(point_data->indices_buffer_object));
+
     if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         // Buffer_Status *status = &(bound_buffer->buffer_status);
@@ -611,8 +586,6 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
         if (length > point_data->indices_buffer_len)
         {
             //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的两倍，类似于vector的翻倍机制
-            // glDeleteBuffers(1, &(point_data->buffer_object));
-            // glGenBuffers(1, &(point_data->buffer_object));
 
             int alloc_size =  length * BUFFER_MULTIPLY_FACTOR;
             if(alloc_size < 1024)
@@ -663,12 +636,6 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
 
         glUnmapNamedBuffer(point_data->indices_buffer_object);
 
-        // if(status->host_vao_ebo != point_data->indices_buffer_object)
-        // {
-        //     glVertexArrayElementBuffer(status->host_vao, point_data->indices_buffer_object);
-        //     status->host_vao_ebo = point_data->indices_buffer_object;
-        //     status->host_element_array_buffer = point_data->indices_buffer_object;
-        // }
 
     }
     else
@@ -677,8 +644,6 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
         if (length > point_data->indices_buffer_len)
         {
             //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的两倍，类似于vector的翻倍机制
-            // glDeleteBuffers(1, &(point_data->buffer_object));
-            // glGenBuffers(1, &(point_data->buffer_object));
 
             int alloc_size =  length * BUFFER_MULTIPLY_FACTOR;
             if(alloc_size < 1024)
@@ -788,29 +753,6 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
 
         }
 
-        // if(type == GL_UNSIGNED_SHORT)
-        // {
-        //     unsigned short *map_pointer = g_malloc(len);
-        //     guest_write((Guest_Mem *)indices,map_pointer,0,len);
-        //     unsigned short min_m = 0xffff,max_m = 0;
-        //     for(int i= 0;i<count;i++)
-        //     {
-        //         if(map_pointer[i] > ((Opengl_Context *)context)->attrib_data_index && ((Opengl_Context *)context)->attrib_data_index !=0)
-        //         {
-        //             printf("error! glDrawElement without indices %u max_index %d max len %d\n",(unsigned int)map_pointer[i],((Opengl_Context *)context)->attrib_data_index,((Opengl_Context *)context)->attrib_data_len);
-        //         }
-        //         if(max_m<map_pointer[i])
-        //             max_m = map_pointer[i];
-        //         if(min_m>map_pointer[i])
-        //             min_m = map_pointer[i];
-        //     }
-        //     printf("indices min %u max %u\n",(unsigned int)min_m,(unsigned int)max_m);
-
-        // }
-
-
-        // glDrawElements(mode, count, type, map_pointer);
-        // g_free(map_pointer);
 
 
         glDrawElements(mode, count, type,  (const void *)(uint64_t)buffer_loc);
@@ -903,14 +845,7 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
 
 void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices, GLsizei instancecount)
 {
-    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    // Buffer_Status *status = bound_buffer->buffer_status;
 
-    // set_attrib_point(context,instancecount);
-    // if (status->array_buffer != 0)
-    // {
-    //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
-    // }
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
@@ -955,14 +890,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
 {
     //这里的start和end不会对此时的操作有影响，因为只要在那个范围内了，该传输过去还是得传输过去，只是最后会不会用的问题
 
-    // Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
-    // Buffer_Status *status = bound_buffer->buffer_status;
 
-    // set_attrib_point(context,1);
-    // if (status->array_buffer != 0)
-    // {
-    //     glBindBuffer(GL_ARRAY_BUFFER,status->array_buffer);
-    // }
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 

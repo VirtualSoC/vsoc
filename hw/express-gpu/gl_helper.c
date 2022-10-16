@@ -796,7 +796,7 @@ size_t gl_pname_size(GLenum pname)
 }
 
 
-void prepare_interger_value(Static_Context_Values *s_values)
+void prepare_integer_value(Static_Context_Values *s_values)
 {
 
     s_values->implementation_color_read_type = 5121;

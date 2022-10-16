@@ -68,8 +68,11 @@
 //是否使用glfw代替原生wgl创建pbuffer的过程，使用这个才能启用DEBUG_INDEPEND_WINDOW
 // #define USE_GLFW_AS_WGL
 
+//保证窗口有相同长宽比的宏
 #define ENSURE_SAME_WIDTH_HEIGHT_RATIO
 
+//是否开启外置窗口固定帧率刷新模式的宏
+// #define ENABLE_STATIC_WINDOW_REFRESH
 
 //是否启用DSA模式
 // #define ENABLE_DSA

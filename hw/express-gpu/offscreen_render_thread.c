@@ -17,6 +17,7 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/offscreen_render_thread.h"
 #include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/egl_draw.h"
 
 #include "hw/express-gpu/glv3_trans.h"
 #include "hw/express-gpu/egl_trans.h"
@@ -24,8 +25,6 @@
 
 #include "qemu/atomic.h"
 
-// #include "hw/express-gpu/egl_surface.h"
-// #include "hw/express-gpu/egl_context.h"
 
 //用于保存draw线程信息的hash表，方便分发到相应的线程
 static GHashTable *render_thread_contexts = NULL;
@@ -49,8 +48,6 @@ void cluster_decode_invoke(Thread_Context *context, Direct_Express_Call *call);
 void release_call_special(Direct_Express_Call *call, int notify);
 
 int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Direct_Express_Call *pre_call, Direct_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
-
-// static void g_window_surface_map_destroy(gpointer data);
 
 
 static void g_surface_map_destroy(gpointer data);
@@ -422,35 +419,21 @@ void render_context_init(Thread_Context *context)
     }
 }
 
-// static void g_window_surface_map_destroy(gpointer data)
-// {
-//     printf("remove window_surface %llx\n",data);
-//     Window_Buffer *real_surface = (Window_Buffer *)data;
-//     if (real_surface->type == WINDOW_SURFACE)
-//     {
-//         render_surface_destroy(real_surface);
-//     }
-// }
 
-// static gboolean g_window_surface_destroy(gpointer key, gpointer data, gpointer user_data)
-// {
-//     Window_Buffer *real_surface = (Window_Buffer *)data;
-//     printf("remove window_surface %llx hold cnt %d guest_gbuffer_num %d surface type %d\n",data,real_surface->hold_surface_cnt, real_surface->guest_gbuffer_num, real_surface->type);
-//     if (real_surface->type == WINDOW_SURFACE)
-//     {
-//         render_surface_destroy(real_surface);
-//     }
-//     return true;
-// }
 
 static void g_surface_map_destroy(gpointer data)
 {
     Window_Buffer *real_surface = (Window_Buffer *)data;
-    // if (real_surface->type == P_SURFACE)
-    // {
-        // printf("remove p_surface %llx\n",data);
-    render_surface_destroy(real_surface);
-    // }
+    express_printf("try free surface %llx\n",(uint64_t)real_surface);
+    if(real_surface->is_current)
+    {
+        real_surface->need_destroy = 1;
+    }
+    else
+    {
+        render_surface_destroy(real_surface);
+    }
+
 }
 
 static void g_context_map_destroy(gpointer data)
@@ -459,11 +442,12 @@ static void g_context_map_destroy(gpointer data)
     if (real_context->is_current)
     {
         //假如当前的context正在被使用，则需要等到context没有被使用了才能删除
+        express_printf("context %llx guest %llx is using\n", (uint64_t)real_context, (uint64_t)real_context->guest_context);
         real_context->need_destroy = 1;
     }
     else
     {
-        express_printf("destroy context %llx\n",real_context);
+        express_printf("destroy context %llx\n", (uint64_t)real_context);
         opengl_context_destroy(real_context);
         g_free(real_context);
     }
@@ -472,20 +456,22 @@ static void g_context_map_destroy(gpointer data)
 static void gbuffer_map_destroy(gpointer data)
 {
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
-    // EGL_Image *real_image = (EGL_Image *)data;
-    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n",gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
-    // PostMessage(draw_native_window, WM_USER_IMAGE_DESTROY, 0, (LPARAM)real_image);
-    // send_message_to_main_window(MAIN_DESTROY_IMAGE, real_image);
 
+    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n",gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
+
+
+    //@todo 没有context时，能不能delete sync？所以暂时让主线程去释放sync
     if(gbuffer->usage_type == GBUFFER_TYPE_TEXTURE)
     {
         if(gbuffer->data_sync != NULL)
         {
-            glDeleteSync(gbuffer->data_sync);
+            send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->data_sync);
+            // glDeleteSync(gbuffer->data_sync);
         }
         if(gbuffer->delete_sync != NULL)
         {
-            glDeleteSync(gbuffer->delete_sync);
+            send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->delete_sync);
+            // glDeleteSync(gbuffer->delete_sync);
         }
         set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
         g_free(gbuffer);
@@ -505,31 +491,6 @@ static void gbuffer_map_destroy(gpointer data)
     }
         // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
 
-    // if(real_image->target != EGL_GL_TEXTURE_2D)
-    // {
-    //     if(real_image->fbo_texture != 0)
-    //     {
-    //         send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture);
-    //     }
-    //     if(real_image->fbo_texture_reverse != 0)
-    //     {
-    //         send_message_to_main_window(MAIN_DESTROY_ONE_TEXTURE, real_image->fbo_texture_reverse);
-    //     }
-    // }
-
-
-    // if (real_image->fbo_sync != NULL)
-    // {
-    //     send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync);
-    // }
-    // if (real_image->fbo_sync_need_delete != NULL)
-    // {
-    //     send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, real_image->fbo_sync_need_delete);
-    // }
-
-    // set_gbuffer_id_image(real_image->gbuffer_id, real_image, NULL);
-
-    // g_free(real_image);
     return;
 
 }
@@ -539,49 +500,59 @@ void render_context_destroy(Thread_Context *context)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-// #ifdef USE_GLFW_AS_WGL
-//     glfwMakeContextCurrent(NULL);
-// #else
-//     egl_makeCurrent(NULL);
-// #endif
+    //这个函数的出现表示文件close了，通道都关掉了
+    //目前通道关掉只有一种可能，就是进程退出了
 
     //保证都不是current状态，确保能够删除成功
-    if (thread_context->render_double_buffer_read != NULL)
+    if(thread_context->opengl_context!=NULL)
     {
-        thread_context->render_double_buffer_read->is_current = 0;
+        d_eglMakeCurrent(thread_context, NULL, NULL, NULL, NULL, 0, 0, 0, 0);
     }
-    if (thread_context->render_double_buffer_draw != NULL)
-    {
-        thread_context->render_double_buffer_draw->is_current = 0;
-    }
-    if (thread_context->opengl_context != NULL)
-    {
-        express_printf("render context destroy thread %llx context %llx when current window %llx\n", thread_context, thread_context->opengl_context, thread_context->opengl_context->window);
-        // if(thread_context->opengl_context->window != NULL)
-        // {
-        //     printf("destroy windows when destroy all\n");
-        //     glfwSetWindowShouldClose(thread_context->opengl_context->window, 1);
-        //     glfwPollEvents();
-        //     glfwDestroyWindow(thread_context->opengl_context->window);
-        // }
-        // thread_context->opengl_context->window = NULL;
-        g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(thread_context->opengl_context->guest_context));
-        egl_makeCurrent(NULL);
+    // if (thread_context->render_double_buffer_read != NULL)
+    // {
+    //     thread_context->render_double_buffer_read->is_current = 0;
 
-        thread_context->opengl_context->is_current = 0;
-    }
+    //     Graphic_Buffer *old_draw_gbuffer = thread_context->render_double_buffer_draw->gbuffer;
+    //     express_printf("makecurrent free draw surface %llx\n",(uint64_t)thread_context->render_double_buffer_draw);
+    //     if(thread_context->render_double_buffer_draw->type == WINDOW_SURFACE && old_draw_gbuffer->gbuffer_id != gbuffer_id)
+    //     {
+    //         ATOMIC_LOCK(old_draw_gbuffer->is_lock);
+    //         old_draw_gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
+    //         if(old_draw_gbuffer->is_using == 0 && old_draw_gbuffer->is_dying == 0)
+    //         {
+    //             old_draw_gbuffer->is_dying = 1;
+    //             send_message_to_main_window(MAIN_DESTROY_GBUFFER, old_draw_gbuffer);
+    //         }
+    //         ATOMIC_UNLOCK(old_draw_gbuffer->is_lock);
+    //     }
+
+
+    // }
+    // if (thread_context->render_double_buffer_draw != NULL && thread_context->render_double_buffer_draw != thread_context->render_double_buffer_read)
+    // {
+    //     thread_context->render_double_buffer_draw->is_current = 0;
+    // }
+    // if (thread_context->opengl_context != NULL)
+    // {
+    //     express_printf("render context destroy thread %llx context %llx guest %llx when current window %llx\n", (uint64_t)thread_context, (uint64_t)thread_context->opengl_context,(uint64_t)thread_context->opengl_context->guest_context, (uint64_t)thread_context->opengl_context->window);
+
+    //     thread_context->opengl_context->is_current = 0;
+    //     g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(thread_context->opengl_context->guest_context));
+
+    //     egl_makeCurrent(NULL);
+
+    // }
 
     // process_context->thread_cnt -= 1;
-    express_printf("process %llx destroy cnt %d\n", process_context, process_context->thread_cnt);
+    express_printf("process %llx destroy cnt %d\n", (uint64_t)process_context, process_context->thread_cnt); 
     if (qatomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
-        express_printf("process %llx destroy everything\n", process_context);
+        //由最后一个退出的线程清空资源
+        express_printf("process %llx destroy everything\n", (uint64_t)process_context);
         g_hash_table_destroy(process_context->context_map);
 
         g_hash_table_destroy(process_context->surface_map);
 
-        // g_hash_table_foreach_remove(process_context->native_window_surface_map, g_window_surface_destroy, NULL);
-        // g_hash_table_destroy(process_context->native_window_surface_map);
 
         //image删除，这里主要是为了释放gbuffer映射
         // printf("destroy process context\n");

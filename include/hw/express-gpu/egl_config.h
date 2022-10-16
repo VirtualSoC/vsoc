@@ -51,7 +51,7 @@ typedef struct
 #define HINTS_LEN 2 * NUM_HINTS + 1
 #define NUM_DEPTH_VAL 2
 #define NUM_STENCILE_VAL 2
-#define NUM_SAMPLE_VAL 4
+#define NUM_SAMPLE_VAL 3
 // 仿照EGL的attribute表，[ENUM1, VALUE1, ENUM2, VALUE2, ...]，以GLFW_DONT_CARE结尾
 typedef struct {int64_t hints[HINTS_LEN];} GLFWHints;
 

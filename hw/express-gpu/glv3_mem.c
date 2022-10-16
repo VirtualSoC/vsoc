@@ -258,77 +258,12 @@ void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsi
 
 void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access)
 {
-    // if(target == GL_ARRAY_BUFFER)
-    // {
-    //     GLuint vbo;
-    //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-    //     printf("map buffer vbo %u\n",vbo);
-    // }
-    // if(target == GL_ELEMENT_ARRAY_BUFFER)
-    // {
-    //     GLuint ebo;
-    //     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
-    //     printf("map buffer ebo %u\n",ebo);
-    // }
-    // if(target == GL_UNIFORM_BUFFER)
-    //     glFinish();
-
-    // Buffer_Status *status = &(((Opengl_Context *)context)->bound_buffer_status.buffer_status);
-
-    // int buffer ;
-    // switch (target)
-    // {
-    // case GL_ARRAY_BUFFER:
-    //     buffer = status->array_buffer;
-    //     break;
-    // case GL_ELEMENT_ARRAY_BUFFER:
-    //     buffer = status->element_array_buffer;
-    //     break;
-    // case GL_COPY_READ_BUFFER:
-    //     buffer = status->copy_read_buffer;
-    //     break;
-    // case GL_COPY_WRITE_BUFFER:
-    //     buffer = status->copy_write_buffer;
-    //     break;
-    // case GL_PIXEL_PACK_BUFFER:
-    //     buffer = status->pixel_pack_buffer;
-    //     break;
-    // case GL_PIXEL_UNPACK_BUFFER:
-    //     buffer = status->pixel_unpack_buffer;
-    //     break;
-    // case GL_TRANSFORM_FEEDBACK_BUFFER:
-    //     buffer = status->transform_feedback_buffer;
-    //     break;
-    // case GL_UNIFORM_BUFFER:
-    //     buffer = status->uniform_buffer;
-    //     break;
-    // case GL_ATOMIC_COUNTER_BUFFER:
-    //     buffer = status->atomic_counter_buffer;
-    //     break;
-    // case GL_DISPATCH_INDIRECT_BUFFER:
-    //     buffer = status->dispatch_indirect_buffer;
-    //     break;
-    // case GL_DRAW_INDIRECT_BUFFER:
-    //     buffer = status->draw_indirect_buffer;
-    //     break;
-    // case GL_SHADER_STORAGE_BUFFER:
-    //     buffer = status->shader_storage_buffer;
-
-    // }
 
     // GLint size = 0;
 
     // glGetBufferParameteriv(target, GL_BUFFER_SIZE, &size);
     // express_printf("mapbufferrange target %x offset %d length %d end %d buffer id %d buffer size %d access %x\n",(int)target,(int)offset,(int)length,(int)offset+(int)length,buffer,size,(int)access);
 
-    // if(access==GL_MAP_WRITE_BIT |GL_MAP_UNSYNCHRONIZED_BIT)
-    // {
-    //     access=access | GL_MAP_INVALIDATE_RANGE_BIT ;
-    // }
-    // if(target == GL_UNIFORM_BUFFER)
-    // {
-    //     glBufferData(target, length+offset, NULL, GL_DYNAMIC_DRAW);
-    // }
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
 
     GLubyte *map_pointer = NULL;
@@ -342,11 +277,6 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
         map_pointer = glMapBufferRange(target, offset, length, access);
     }
     
-    // GLint error = glGetError();
-    // if(error!=0)
-    // {
-    //     printf("error map buffer context %llx target %x bind_buffer %d offset %d length %d access %x\n",(uint64_t)context, target, bind_buffer, (int)offset, (int)length, access);
-    // }
 
     //然后保存下这个map结果
     GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
@@ -372,78 +302,15 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     //注意，写入类型的map调用在guest端是异步的，但是这个函数本身运行时是同步的，而且同一个渲染线程执行起来肯定是串行的
     //所以不会出现这个map被阻塞住了，还没获得host端指针，然后guest端调用flush向这个指针写入数据的情况
 
-    // GLenum target;
-    // GLintptr offset;
-    // GLsizeiptr length;
-    // GLbitfield access;
-
-    // Guest_Mem *guest_mem_int=(Guest_Mem *)int_data;
-
-    // size_t start_loc=0;
-    // guest_write(guest_mem_int,&target,start_loc,sizeof(GLenum));
-    // start_loc+=sizeof(GLenum);
-    // guest_write(guest_mem_int,&offset,start_loc,sizeof(GLintptr));
-    // start_loc+=sizeof(GLintptr);
-    // guest_write(guest_mem_int,&length,start_loc,sizeof(GLsizeiptr));
-    // start_loc+=sizeof(GLsizeiptr);
-    // guest_write(guest_mem_int,&access,start_loc,sizeof(GLbitfield));
-
-    // Guest_Mem *guest_mem = (Guest_Mem *)mem_buf;
-    // Scatter_Data *s_data = guest_mem->scatter_data;
-
-    // GLubyte *map_pointer = glMapBufferRange(target, offset, length, access);
-
-    // //然后保存下这个map结果
-    // GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
-    // Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, GUINT_TO_POINTER(target));
-    // if (map_res == NULL)
-    // {
-    //     map_res = g_malloc(sizeof(Guest_Host_Map));
-    //     memset(map_res, 0, sizeof(Guest_Host_Map));
-    //     g_hash_table_insert(buffer_map, GUINT_TO_POINTER(target), (gpointer)map_res);
-    // }
-    // else
-    // {
-    //     //todo 可能之前map过，然后切换绑定对象了，这个时候会发生什么需要测试
-    //     //todo 假如维持绑定的过程中出现了对象被删除或者调用了glBufferData时，会自动取消映射，这个需要特殊处理，现阶段先假定都是正常unmap的
-    // }
-
-    // map_res->access = access;
-    // map_res->host_data = map_pointer;
-    // map_res->map_len = length;
-    // map_res->target = target;
-
-    // if (map_res->guest_data != NULL)
-    // {
-    //     g_free(map_res->guest_data);
-    //     // map_res->guest_data=NULL;
-    // }
-    // map_res->guest_data = g_malloc(guest_mem->num * sizeof(Scatter_Data));
-    // memcpy(map_res->guest_data, s_data, guest_mem->num * sizeof(Scatter_Data));
 }
 
 GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
 {
-    // if(target == GL_ARRAY_BUFFER)
-    // {
-    //     GLuint vbo;
-    //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-    //     printf("unmap buffer vbo %u\n",vbo);
-    // }
-    // if(target == GL_ELEMENT_ARRAY_BUFFER)
-    // {
-    //     GLuint ebo;
-    //     glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
-    //     printf("unmap buffer ebo %u\n",ebo);
-    // }
-    // printf("unmap buffer %x\n",(int)target);
+
     GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
     Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)));
     if (map_res == NULL)
     {
-        // map_res = g_malloc(sizeof(Guest_Host_Map));
-        // memset(map_res, 0, sizeof(Guest_Host_Map));
-        // g_hash_table_insert(buffer_map, GUINT_TO_POINTER(target), (gpointer)map_res);
         printf("error! unmap get NULL map_res!\n");
         return GL_FALSE;
     }
@@ -464,7 +331,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
 
 
     g_hash_table_remove(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)));
-    // memset(map_res, 0, sizeof(Guest_Host_Map));
+
     return ret;
 }
 

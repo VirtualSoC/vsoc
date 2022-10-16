@@ -22,7 +22,7 @@ EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
     // thread_context->render_double_buffer_read = NULL;
     // thread_context->render_double_buffer_draw = NULL;
 
-    express_printf("eglTerminate invoke!\n");
+    express_printf("eglTerminate context %llx\n",(uint64_t) thread_context->opengl_context);
     return GL_TRUE;
 }
 
@@ -64,8 +64,8 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
 
 
     //todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
-    express_printf("#%llx context create share %llx\n",(uint64_t)opengl_context,real_share_context);
-    express_printf("context create guest %lx host %lx\n", guest_context, opengl_context);
+    express_printf("#%llx context create share %llx\n",(uint64_t)opengl_context,(uint64_t)real_share_context);
+    express_printf("context create guest %llx host %llx\n", (uint64_t)guest_context, (uint64_t)opengl_context);
 
     opengl_context->guest_context = guest_context;
 
@@ -79,23 +79,9 @@ EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    // Opengl_Context *real_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
-    // if(real_context==NULL){
-    //     return EGL_FALSE;
-    // }
-
-    // if (real_context->is_current)
-    // {
-    //     real_context->need_destroy = 1;
-    // }
-    // else
-    // {
-    //     //实际上是到主窗口调用opengl_context_destroy了
-    //     PostMessage(draw_native_window, WM_USER_CONTEXT_DESTROY, 0, (LPARAM)real_context);
-    // }
 
     //这个context_map的销毁函数g_context_map_destroy里已经包含对context的处理了
-    express_printf("context remove guest %lx\n", ctx);
+    express_printf("context remove guest %llx\n", (uint64_t)ctx);
     g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(ctx));
     return EGL_TRUE;
 }

@@ -13,7 +13,6 @@ GHashTable *program_is_external_map = NULL;
 
 GHashTable *program_data_map = NULL;
 
-// GHashTable *to_external_texture_id_map = NULL;
 
 
 int memcpy_with_add_vec(char* dst, char* origin, const char *fun, int len);
@@ -467,6 +466,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         {
             has_find_external = 1;
         }
+        //@todo 由于有了version尝试模块，这个地方代码可以注释掉，但是需要测试
         string_loc = strstr(string[i], "#version");
         if (string_loc != NULL && string_loc - string[i] <= length[i])
         {

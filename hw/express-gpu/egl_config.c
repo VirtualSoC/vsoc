@@ -48,7 +48,7 @@ const int64_t config_hints[NUM_HINTS] = {
 
 const int depth_vals[NUM_DEPTH_VAL] = {0, 24};
 const int stencil_vals[NUM_STENCILE_VAL] = {0, 8};
-const int sample_vals[NUM_SAMPLE_VAL] = {0, 2, 4, 8};
+const int sample_vals[NUM_SAMPLE_VAL] = {0, 2, 4};
 
 EGLBoolean is_config_in_table(eglConfig *config, GHashTable *table)
 {

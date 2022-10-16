@@ -2331,60 +2331,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
     }
     break;
 
-    // case FUNID_eglRemainImage:
-
-    // {
-
-    //     EGLImage image;
-
-    //     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     if (unlikely(para_num < PARA_NUM_MIN_eglRemainImage))
-    //     {
-    //         break;
-    //     }
-
-    //     size_t temp_len = 0;
-    //     unsigned char *temp = NULL;
-
-    //     temp_len = all_para[0].data_len;
-    //     if (unlikely(temp_len < 8 * 1))
-    //     {
-    //         break;
-    //     }
-
-    //     int null_flag = 0;
-    //     temp = get_direct_ptr(all_para[0].data, &null_flag);
-    //     if (unlikely(temp == NULL))
-    //     {
-    //         if (temp_len != 0 && null_flag == 0)
-    //         {
-    //             temp = g_malloc(temp_len);no_ptr_buf=temp;
-    //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
-    //         }
-    //         else
-    //         {
-    //             break;
-    //         }
-    //     }
-
-    //     unsigned int temp_loc = 0;
-
-    //     image = *(EGLImage *)(temp + temp_loc);
-    //     temp_loc += 8;
-
-        
-    //     /* Check length */
-    //     if (unlikely(temp_len < temp_loc))
-    //     {
-    //         break;
-    //     }
-
-        
-    //     d_eglRemainImage(egl_context, image);
-
-    // }
-    // break;
-
     default:
         break;
     }
@@ -2394,10 +2340,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call
         g_free(no_ptr_buf);
     }
 
-    //if(need_speed){
     call->callback(call, 1);
-    //}else{
-    //    call->callback(call, 0);
-    //}
+
     return;
 }

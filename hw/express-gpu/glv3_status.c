@@ -15,8 +15,6 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
     GLuint draw_fbo0 = ((Opengl_Context *)context)->draw_fbo0;
     GLuint read_fbo0 = ((Opengl_Context *)context)->read_fbo0;
 
-    // glFlush();
-    // glFinish();
     if (framebuffer == 0)
     {
         if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
@@ -38,8 +36,6 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
         // printf("conetxt %llx bind framebuffer %u status %x\n",(uint64_t)context, framebuffer, status);
     }
 
-    // glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
-    // glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
 }
 
 void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
@@ -509,11 +505,13 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     {
 #ifdef _WIN32
         //不能因为等待导致掉帧或卡死
-        WaitForSingleObject(gbuffer->writing_ok_event, 1000/composer_refresh_HZ/4*3);
+        //暂时允许掉一帧，因为理论上一帧过后肯定好了
+        int waiting_time = 1000/composer_refresh_HZ/4*6;
+        WaitForSingleObject(gbuffer->writing_ok_event, waiting_time);
         express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n",gbuffer->is_writing);
         if(gbuffer->is_writing == 1)
         {
-            printf("waiting gbuffer(release writing) out of time %d\n",1000/composer_refresh_HZ/4*3);
+            printf("waiting gbuffer(release writing) out of time %d\n",waiting_time);
         }
 #else
 #endif

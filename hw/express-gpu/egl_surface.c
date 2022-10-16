@@ -18,18 +18,11 @@
 #include "hw/express-gpu/offscreen_render_thread.h"
 #include "hw/express-gpu/glv3_resource.h"
 
-// EGL_Image *create_real_image(void *context, uint64_t g_buffer_id, int format, int stride, int width, int height);
-// void connect_fbo_texture(Graphic_Buffer *gbuffer, int index, int new);
 Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height, int surface_type);
 
 
 void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
-
-    // GLenum ret=glGetError();
-    // if(ret!=GL_NO_ERROR){
-    //     express_printf("swap before get gl error %x\n",ret);
-    // }
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)render_context;
     Opengl_Context *opengl_context = (Opengl_Context *)(thread_context->opengl_context);
@@ -389,6 +382,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     surface->depth_internal_format = depth_internal_format;
     surface->stencil_internal_format = stencil_internal_format;
 
+    express_printf("create surface %llx\n", (uint64_t)surface);
 
 
     return surface;
@@ -448,7 +442,7 @@ int render_surface_destroy(Window_Buffer *surface)
     {
         send_message_to_main_window(MAIN_DESTROY_GBUFFER, surface->gbuffer);
     }
-
+    express_printf("free surface %llx\n", (uint64_t)surface);
     g_free(surface);
 
     return 1;
@@ -462,17 +456,7 @@ void d_eglIamComposer(void *context, EGLSurface surface, unsigned int pid)
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GUINT_TO_POINTER(surface));
 
     // printf("surface is composer %llx guest %llx\n", real_surface, surface);
-    // static int has_pbuffer_composer = 0;
-    // if (real_surface->type == P_SURFACE)
-    // {
-    //     has_pbuffer_composer = 1;
-    // real_surface->I_am_composer = 1;
-    // }
 
-    // if (has_pbuffer_composer == 1)
-    // {
-    //     return;
-    // }
     preload_static_context_value->composer_pid = pid;
     real_surface->I_am_composer = 1;
 }
@@ -560,17 +544,10 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
         return EGL_FALSE;
     }
 
-    if(real_surface->is_current == 1)
-    {
-        real_surface->need_destroy = 1;
-    }
-    else
-    {
-         //会调用到 surface_map 的删除函数 g_surface_map_destroy
-        g_hash_table_remove(process_context->surface_map, GUINT_TO_POINTER(surface));
-    }
+    //会调用到 surface_map 的删除函数 g_surface_map_destroy
+    g_hash_table_remove(process_context->surface_map, GUINT_TO_POINTER(surface));
 
-    express_printf("destroy surface host %lx guest %lx\n", real_surface, surface);
+    express_printf("destroy surface host %llx guest %llx\n", (uint64_t)real_surface, (uint64_t)surface);
     return EGL_TRUE;
 }
 
@@ -996,6 +973,7 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));
     }
+    // fbo是surface产生的，与context强相关，不能在这里销毁
     // if(gbuffer->data_fbo!=0)
     // {
     //     glDeleteFramebuffers(1, &(gbuffer->data_fbo));
@@ -1035,27 +1013,7 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
 #endif
 
     g_free(gbuffer);
-//         {
-//             glDeleteTextures(1, &(real_image->fbo_texture));
-//         }
 
-//         if (real_image->display_fbo != 0)
-//         {
-//             glDeleteFramebuffers(1, &(real_image->display_fbo));
-//             glDeleteFramebuffers(1, &(real_image->display_fbo_reverse));
-
-//             glDeleteTextures(1, &(real_image->fbo_texture_reverse));
-//         }
-//     }
-
-//     if (real_image->fbo_sync != NULL)
-//     {
-//         glDeleteSync(real_image->fbo_sync);
-//     }
-//     if (real_image->fbo_sync_need_delete != NULL)
-//     {
-//         glDeleteSync(real_image->fbo_sync_need_delete);
-//     }
 }
 
 

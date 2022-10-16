@@ -28,8 +28,8 @@ void d_glTexEnvi_special(void *context, GLenum target, GLenum pname, GLint param
 
 void d_glTexEnvx_special(void *context, GLenum target, GLenum pname, GLfixed param)
 {
-    printf("null glTexEnvxOES %llx\n", (unsigned long long)glTexEnvxOES);
-    // glTexEnvxOES(target, pname, param);
+    express_printf("null glTexEnvxOES %llx %llx %llx pname %x param %x\n", (unsigned long long)glTexEnvxOES,(unsigned long long)glTexEnvi, (unsigned long long)glTexEnvf,  pname, param);
+    glTexEnvi(target, pname, param);
 }
 
 void d_glTexParameterx_special(void *context, GLenum target, GLenum pname, GLint param)
