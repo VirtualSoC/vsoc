@@ -70,6 +70,7 @@ static gint64 frame_start_time = 0;
 static gint64 remain_sleep_time = 0;
 #else
 static int has_painted = 0;
+static int size_has_change = 0;
 #endif
 
 static gint64 gen_frame_time_avg_1s = 0;
@@ -492,8 +493,6 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 
         glfwSetWindowSize(window, real_window_width, real_window_height);
 
-        return;
-
 #else
         int x = 0, y = 0;
 
@@ -522,6 +521,13 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 
 #endif
     }
+
+#ifndef ENABLE_STATIC_WINDOW_REFRESH
+    size_has_change = 1;
+#endif
+
+    return;
+
 }
 
 static int try_destroy_gbuffer(void *data)
@@ -1236,6 +1242,8 @@ void *native_window_thread(void *opaque)
         // glfwWaitEvents();
 #ifdef ENABLE_STATIC_WINDOW_REFRESH
         frame_start_time = g_get_real_time();
+#else
+        size_has_change = 0;
 #endif
 
         // main_frame_num = (main_frame_num + 1) % 65536;
@@ -1313,6 +1321,11 @@ void *native_window_thread(void *opaque)
 #else
         if (!has_painted)
         {
+            if(size_has_change == 1)
+            {
+                opengl_paint(display_gbuffer);
+                glfwSwapBuffers(glfw_window);
+            }
             continue;
         }
         has_painted = 0;
