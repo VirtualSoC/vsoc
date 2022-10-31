@@ -2,7 +2,7 @@
 // #define STD_DEBUG_LOG
 // #define EGL_EGLEXT_PROTOTYPES
 #include "hw/express-gpu/test_trans.h"
-#include "hw/direct-express/express_log.h"
+#include "hw/teleport-express/express_log.h"
 
 char *copy_large_buf = NULL;
 size_t buf_len = 0;
@@ -58,7 +58,7 @@ void test_copy(void *data, size_t len)
     return;
 }
 
-void test_decode_invoke(void *context, Direct_Express_Call *call)
+void test_decode_invoke(void *context, Teleport_Express_Call *call)
 {
 
     // Double_Buffer *egl_context = (render_context->render_double_buffer);

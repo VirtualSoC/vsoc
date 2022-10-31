@@ -1,8 +1,8 @@
 #ifndef GLV3_VERTEX_H
 #define GLV3_VERTEX_H
 
-#include "hw/direct-express/direct_express_distribute.h"
-#include "hw/direct-express/express_device_common.h"
+#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/express_device_common.h"
 
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/gl_helper.h"

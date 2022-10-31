@@ -1,0 +1,9 @@
+config TELEPORT_EXPRESS
+    bool
+    default y
+    depends on PCI && VIRTIO && TELEPORT_EXPRESS_PCI
+
+config TELEPORT_EXPRESS_PCI
+    bool
+    default y
+    depends on PCI && VIRTIO

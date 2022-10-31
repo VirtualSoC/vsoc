@@ -67,7 +67,7 @@ source tricore/Kconfig
 source xtensa/Kconfig
 
 
-source direct-express/Kconfig
+source teleport-express/Kconfig
 source express-gpu/Kconfig
 
 

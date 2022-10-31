@@ -5,7 +5,7 @@
 
 #include "glad/glad.h"
 #include "hw/express-gpu/egl_window.h"
-#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/express_gpu.h"
 
 GHashTable *program_is_external_map = NULL;
 
@@ -209,13 +209,16 @@ int init_program_data(GLuint program)
         }
         // assert(temp_ptr-program_data <= buf_len);
         g_free(name_buf);
-#ifdef ENABLE_OPENGL_DEBUG
-        GLenum error = glGetError();
-        if (error != GL_NO_ERROR)
+
+        if(express_gpu_gl_debug_enable)
         {
-            printf("error when create program\n");
+            GLenum error = glGetError();
+            if (error != GL_NO_ERROR)
+            {
+                printf("error when create program\n");
+            }
         }
-#endif
+
         return buf_len;
     }
 }

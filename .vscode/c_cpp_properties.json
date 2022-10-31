@@ -18,11 +18,11 @@
                 "_UNICODE"
             ],
             "windowsSdkVersion": "10.0.19041.0",
-            // "compilerPath": "C:/msys64/mingw64/bin/x86_64-w64-mingw32-gcc.exe",
             "compilerPath": "C:/msys64/mingw64/bin/gcc.exe",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "intelliSenseMode": "gcc-x64"
+            "intelliSenseMode": "gcc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
         }
     ],
     "version": 4

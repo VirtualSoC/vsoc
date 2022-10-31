@@ -1,8 +1,8 @@
 #ifndef GLV3_CONTEXT_H
 #define GLV3_CONTEXT_H
 
-#include "hw/direct-express/express_device_common.h"
-#include "hw/direct-express/express_log.h"
+#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/express_gpu_render.h"
 
 #include "hw/express-gpu/glv3_status.h"

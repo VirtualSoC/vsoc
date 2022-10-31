@@ -56,12 +56,14 @@
 #define ATOMIC_SET_UNUSED(s) (qatomic_cmpxchg(&(s), 1, 0))
 
 //是否启用opengl调试模式的宏定义
-#define ENABLE_OPENGL_DEBUG
+// 已经废弃，可以通过命令行设置
+// #define ENABLE_OPENGL_DEBUG
 
 //是否启用opengl执行性能警告输出
-// #ifdef ENABLE_OPENGL_PERFORMANCE_WARNING
+#define ENABLE_OPENGL_PERFORMANCE_WARNING
 
 // 是否启用全局独立窗口进行调试的宏定义
+// 已经废弃，可以通过命令行设置
 // #define DEBUG_INDEPEND_WINDOW
 
 //下面这个宏定义已经弃用
@@ -75,6 +77,7 @@
 // #define ENABLE_STATIC_WINDOW_REFRESH
 
 //是否启用DSA模式
+//DSA模式尚未测试确定可用，而且性能提升并不明显，暂时不支持
 // #define ENABLE_DSA
 
 

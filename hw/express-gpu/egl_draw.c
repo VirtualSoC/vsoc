@@ -6,7 +6,6 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/express_gpu_render.h"
 
-#ifdef ENABLE_OPENGL_DEBUG
 static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
     // 忽略一些不是错误的id
@@ -96,7 +95,6 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLen
     }
     printf("\n");
 }
-#endif
 
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
@@ -221,12 +219,14 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         egl_makeCurrent(real_opengl_context->window);
     }
 
-#ifdef ENABLE_OPENGL_DEBUG
-    glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallback(gl_debug_output, NULL);
-    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-#endif
+    if(express_gpu_gl_debug_enable)
+    {    
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(gl_debug_output, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+    }
+
     //然后设置当前的surface和context
     thread_context->render_double_buffer_read = real_surface_read;
     real_surface_read->is_current = 1;
@@ -500,12 +500,14 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, opengl_context->draw_fbo0);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
     }
-    // #ifdef DEBUG_INDEPEND_WINDOW
+    
+    // if(express_gpu_independ_window_enable)
+    // {
     //     glBindFramebuffer(GL_READ_FRAMEBUFFER, gbuffer->data_fbo);
     //     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     //     glBlitFramebuffer(0, 0, gbuffer->width, gbuffer->height, 0, 0, gbuffer->width, gbuffer->height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     //     glfwSwapBuffers(opengl_context->window);
-    // #endif
+    // }
 
     if (is_composer == 1)
     {

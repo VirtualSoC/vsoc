@@ -15,8 +15,8 @@
 
 #include "hw/express-gpu/express_gpu_render.h"
 
-#include "hw/direct-express/direct_express.h"
-#include "hw/direct-express/express_log.h"
+#include "hw/teleport-express/teleport_express.h"
+#include "hw/teleport-express/express_log.h"
 
 #include "hw/express-gpu/egl_context.h"
 #include "hw/express-gpu/glv3_context.h"
@@ -254,7 +254,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
     // ATOMIC_UNLOCK(compose_surface_lock);
     // set_compose_surface(NULL, NULL);
     display_gbuffer = NULL;
-    direct_express_should_stop = true;
+    teleport_express_should_stop = true;
 
     // glfwTerminate();
     if (native_render_run == 2)
@@ -853,8 +853,12 @@ static void static_value_prepare(void)
     {
 
         gl_string = (const char *)glGetStringi(GL_EXTENSIONS, i);
-        printf("host extension %d %s\n", i, gl_string);
-
+        
+        if(express_gpu_gl_debug_enable)
+        {
+           printf("host extension %d %s\n", i, gl_string);
+        }
+        
         if (strstr(gl_string, "GL_EXT_direct_state_access") != NULL)
         {
             has_dsa = 1;
@@ -930,7 +934,10 @@ static void static_value_prepare(void)
     }
 
     preload_static_context_value->extensions_gles2 = (unsigned long long)(extensions_start - string_loc + extensions_len);
-    printf("extensions len %d num %d: %s|\n", extensions_len, num_extensions, string_loc + (unsigned long)(preload_static_context_value->extensions_gles2));
+    if(express_gpu_gl_debug_enable)
+    {
+        printf("extensions len %d num %d: %s|\n", extensions_len, num_extensions, string_loc + (unsigned long)(preload_static_context_value->extensions_gles2));
+    }
     assert(temp_loc < ((char *)preload_static_context_value) + sizeof(Static_Context_Values) + 512 * 100 + 400);
 }
 
@@ -985,7 +992,6 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
     }
 }
 
-#ifdef ENABLE_OPENGL_DEBUG
 static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
                                      GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
@@ -1063,7 +1069,6 @@ static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
     }
     printf("\n");
 }
-#endif
 
 /**
  * @brief 创建带window的opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
@@ -1120,7 +1125,7 @@ static void *native_window_create(int independ_mode)
 void *native_window_thread(void *opaque)
 {
     // VirtIODevice *vdev = opaque;
-    // Direct_Express *e = DIRECT_EXPRESS(vdev);
+    // Teleport_Express *e = TELEPORT_EXPRESS(vdev);
 
     //通过这个方式获取hwnd要求必须使用SDL接口创建界面
     QemuConsole *con;
@@ -1149,9 +1154,10 @@ void *native_window_thread(void *opaque)
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-#ifdef ENABLE_OPENGL_DEBUG
-    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
-#endif
+    if(express_gpu_gl_debug_enable)
+    {
+        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+    }
 
     //创建一个窗口，这个window也是context
     //这个窗口的大小不用在意，因为之后会重新设置窗口大小
@@ -1231,12 +1237,14 @@ void *native_window_thread(void *opaque)
     // glEnable(GL_BLEND);
     // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-#ifdef ENABLE_OPENGL_DEBUG
-    glEnable(GL_DEBUG_OUTPUT);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallback(gl_debug_output, NULL);
-    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-#endif
+    if(express_gpu_gl_debug_enable)
+    {
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(gl_debug_output, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+    }
+
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {
         // glfwWaitEvents();

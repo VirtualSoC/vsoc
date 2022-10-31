@@ -15,7 +15,7 @@
 #define STD_DEBUG_LOG
 
 #include "hw/express-gpu/glv3_trans.h"
-#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/express_gpu.h"
 
 #include "hw/express-gpu/glv3_mem.h"
 #include "hw/express-gpu/glv3_texture.h"
@@ -62,7 +62,7 @@
 
 // glEGLImageTargetRenderbufferStorageOES
 
-void gl3_decode_invoke(Render_Thread_Context *r_context, Direct_Express_Call *call)
+void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *call)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)r_context;
     Opengl_Context *opengl_context = render_context->opengl_context;

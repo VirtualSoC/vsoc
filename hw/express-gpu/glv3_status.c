@@ -5,7 +5,7 @@
 
 #include "glad/glad.h"
 #include "hw/express-gpu/egl_window.h"
-#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/express_gpu.h"
 
 void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
 {

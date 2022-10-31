@@ -1,9 +1,9 @@
 #ifndef EGL_SYNC_H
 #define EGL_SYNC_H
 
-#include "hw/direct-express/direct_express_distribute.h"
+#include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/express-gpu/express_gpu_render.h"
-#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/express_gpu.h"
 
 // #include "hw/express-gpu/egl_define.h"
 

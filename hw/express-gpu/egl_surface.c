@@ -15,7 +15,7 @@
 #include "hw/express-gpu/egl_display.h"
 
 #include "hw/express-gpu/express_gpu_render.h"
-#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/express_gpu.h"
 #include "hw/express-gpu/glv3_resource.h"
 
 Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height, int surface_type);
@@ -714,25 +714,28 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-#ifdef ENABLE_OPENGL_DEBUG
-    GLenum error = glGetError();
-    if (error != GL_NO_ERROR)
+    if(express_gpu_gl_debug_enable)
     {
-        printf("error when creating gbuffer1 init error %x\n", error);
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR)
+        {
+            printf("error when creating gbuffer1 init error %x\n", error);
+        }
     }
-#endif
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
     glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, pixel_type, NULL);
 
-#ifdef ENABLE_OPENGL_DEBUG
-    error = glGetError();
-    if (error != GL_NO_ERROR)
+    if(express_gpu_gl_debug_enable)
     {
-        printf("error when creating gbuffer1 %x width %d height %d format %x pixel_type %x \n", error, width, height, format, pixel_type);
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR)
+        {
+            printf("error when creating gbuffer1 %x width %d height %d format %x pixel_type %x \n", error, width, height, format, pixel_type);
+        }
     }
-#endif
+
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -783,13 +786,15 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
         }
     }
 
-#ifdef ENABLE_OPENGL_DEBUG
-    error = glGetError();
-    if (error != GL_NO_ERROR)
+    if(express_gpu_gl_debug_enable)
     {
-        printf("error when creating gbuffer2 %x\n", error);
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR)
+        {
+            printf("error when creating gbuffer2 %x\n", error);
+        }
     }
-#endif
+
 
     glBindTexture(GL_TEXTURE_2D, pre_texture);
     glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);

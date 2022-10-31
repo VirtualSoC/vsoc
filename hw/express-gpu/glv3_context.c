@@ -6,7 +6,7 @@
 
 #include "glad/glad.h"
 #include "hw/express-gpu/egl_window.h"
-#include "hw/express-gpu/offscreen_render_thread.h"
+#include "hw/express-gpu/express_gpu.h"
 
 //下面这两个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
 static void g_buffer_map_destroy(gpointer data);

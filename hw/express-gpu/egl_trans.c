@@ -18,7 +18,7 @@
 #include "hw/express-gpu/egl_sync.h"
 #include "hw/express-gpu/test_trans.h"
 
-void egl_decode_invoke(Render_Thread_Context *context, Direct_Express_Call *call)
+void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
 {
     Render_Thread_Context *egl_context = (Render_Thread_Context *)context;
 

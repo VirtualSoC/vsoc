@@ -9,10 +9,10 @@
  *
  */
 // #define STD_DEBUG_LOG
-#include "hw/direct-express/direct_express.h"
+#include "hw/teleport-express/teleport_express.h"
 
-#include "hw/direct-express/direct_express_distribute.h"
-#include "hw/direct-express/express_log.h"
+#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/express_log.h"
 
 // #define express_printf null_printf
 
@@ -22,16 +22,16 @@
  * @param vdev
  * @param vq
  */
-static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
+static void teleport_express_handle(VirtIODevice *vdev, VirtQueue *vq)
 {
 
-    Direct_Express *g = DIRECT_EXPRESS(vdev);
+    Teleport_Express *g = TELEPORT_EXPRESS(vdev);
     if (g->thread_run == 0)
     {
-        guest_null_ptr_init(g->data_queue);
+        guest_null_ptr_init(vq);
         express_printf("start handle thread\n");
         g->thread_run = 1;
-        qemu_thread_create(&g->render_thread, "direct-express-distribute", call_distribute_thread,
+        qemu_thread_create(&g->render_thread, "teleport-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
     }
     else if (g->thread_run == 1)
@@ -67,7 +67,7 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
                 pop_flag = 1;
                 recycle_flag = 1;
 
-                virtqueue_data_distribute_and_recycle(g->data_queue, &pop_flag, &recycle_flag);
+                virtqueue_data_distribute_and_recycle(vq, &pop_flag, &recycle_flag);
                 if (pop_flag != 0)
                 {
                     pop_cnt += 1;
@@ -104,16 +104,16 @@ static void direct_express_handle(VirtIODevice *vdev, VirtQueue *vq)
     return;
 }
 
-/**
- * @brief aio线程处理数据时的回调函数，在这里调用实际的处理函数
- *
- * @param opaque 传递的参数，实际就是express-GPU
- */
-static void direct_express_handle_bh(void *opaque)
-{
-    Direct_Express *g = opaque;
-    direct_express_handle(&g->parent_obj, g->data_queue);
-}
+// /**
+//  * @brief aio线程处理数据时的回调函数，在这里调用实际的处理函数
+//  *
+//  * @param opaque 传递的参数，实际就是express-GPU
+//  */
+// static void teleport_express_handle_bh(void *opaque)
+// {
+//     Teleport_Express *g = opaque;
+//     teleport_express_handle(&g->parent_obj, g->data_queue);
+// }
 
 /**
  * @brief guest往queue中添加数据后，kick这边后的回调的函数。
@@ -122,32 +122,36 @@ static void direct_express_handle_bh(void *opaque)
  * @param vdev
  * @param vq
  */
-static void direct_express_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
+static void teleport_express_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 {
-    Direct_Express *g = DIRECT_EXPRESS(vdev);
+    // Teleport_Express *g = TELEPORT_EXPRESS(vdev);
     // qemu_bh_schedule(g->data_bh);
-    direct_express_handle(&g->parent_obj, g->data_queue);
+    teleport_express_handle(vdev, vq);
 }
 
-static void direct_express_realize(DeviceState *qdev, Error **errp)
+static void teleport_express_realize(DeviceState *qdev, Error **errp)
 {
 
     VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
-    Direct_Express *g = DIRECT_EXPRESS(qdev);
+    Teleport_Express *g = TELEPORT_EXPRESS(qdev);
 
     //初始化使用virtio的gpu设备
-    virtio_init(VIRTIO_DEVICE(g), DIRECT_EXPRESS_DEVICE_ID, 0);
+    virtio_init(VIRTIO_DEVICE(g), TELEPORT_EXPRESS_DEVICE_ID, 0);
 
     //为该设备添加1024大小的queue，并且设置收到queue返回消息后的回调函数
     //最大为1024大小，也就是不弄indirect table的话最大只有1024个页，
     //弄indirect table时单个空间最大可以放一个额外的1024大小的table，
     //一个参数占用一个空间，因此单个参数的数据被限制在1024*1024个不连续页面，
     //当然实际限制一次数据传输在256Mb左右
-    virtio_add_queue(vdev, 1024, direct_express_handle_cb);
+    virtio_add_queue(vdev, 1024, teleport_express_handle_cb);
+    virtio_add_queue(vdev, 1024, teleport_express_handle_cb);
 
-    g->data_queue = virtio_get_queue(vdev, 0);
+
+    g->out_data_queue = virtio_get_queue(vdev, 0);
+    g->in_data_queue = virtio_get_queue(vdev, 1);
+
     //在aio线程处理中处理数据的函数
-    g->data_bh = qemu_bh_new(direct_express_handle_bh, g);
+    // g->data_bh = qemu_bh_new(teleport_express_handle_bh, g);
 
     virtio_add_feature(&vdev->host_features, VIRTIO_RING_F_INDIRECT_DESC);
 
@@ -155,7 +159,7 @@ static void direct_express_realize(DeviceState *qdev, Error **errp)
 }
 
 static uint64_t
-direct_express_get_features(VirtIODevice *vdev, uint64_t features,
+teleport_express_get_features(VirtIODevice *vdev, uint64_t features,
                             Error **errp)
 {
     // 设备独特的特性，下面是virtio-GPU的例子
@@ -172,7 +176,7 @@ direct_express_get_features(VirtIODevice *vdev, uint64_t features,
 }
 
 // static void
-// direct_express_set_features(VirtIODevice *vdev, uint64_t features)
+// teleport_express_set_features(VirtIODevice *vdev, uint64_t features)
 // {
 //     //这个不会被调用到
 //     //    static const uint32_t virgl = (1 << VIRTIO_GPU_F_VIRGL);
@@ -184,35 +188,35 @@ direct_express_get_features(VirtIODevice *vdev, uint64_t features,
 //     return;
 // }
 
-static void direct_express_class_init(ObjectClass *klass, void *data)
+static void teleport_express_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
 
     //    vdc->unrealize = virtio_gpu_base_device_unrealize;
-    vdc->get_features = direct_express_get_features;
+    vdc->get_features = teleport_express_get_features;
     vdc->set_features = NULL;
 
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     dc->hotpluggable = false;
 
-    vdc->realize = direct_express_realize;
+    vdc->realize = teleport_express_realize;
 }
 
-static void direct_express_register_types(void)
+static void teleport_express_register_types(void)
 {
     static InterfaceInfo interfaces[] = {
         {INTERFACE_CONVENTIONAL_PCI_DEVICE},
         {},
     };
     static const TypeInfo express_info = {
-        .name = TYPE_DIRECT_EXPRESS,
+        .name = TYPE_TELEPORT_EXPRESS,
         .parent = TYPE_VIRTIO_DEVICE,
-        .instance_size = sizeof(Direct_Express),
-        .class_init = direct_express_class_init,
+        .instance_size = sizeof(Teleport_Express),
+        .class_init = teleport_express_class_init,
         .interfaces = interfaces,
     };
 
     type_register_static(&express_info);
 }
-type_init(direct_express_register_types)
+type_init(teleport_express_register_types)

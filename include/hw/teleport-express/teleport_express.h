@@ -1,5 +1,5 @@
-#ifndef QEMU_DIRECT_EXPRESS_H
-#define QEMU_DIRECT_EXPRESS_H
+#ifndef QEMU_TELEPORT_EXPRESS_H
+#define QEMU_TELEPORT_EXPRESS_H
 
 // #include "qemu/units.h"
 // #include "hw/pci/pci.h"
@@ -19,17 +19,17 @@
 #include "qemu/osdep.h"
 #include "hw/virtio/virtio-pci.h"
 
-#define TYPE_DIRECT_EXPRESS "direct-express"
+#define TYPE_TELEPORT_EXPRESS "teleport-express"
 
 
 //用于EXPRESS_GPU驱动加载的非常重要的ID，需要与驱动保持一致
-#define DIRECT_EXPRESS_DEVICE_ID 32
+#define TELEPORT_EXPRESS_DEVICE_ID 32
 
 
 
 
-#define DIRECT_EXPRESS(obj) \
-    OBJECT_CHECK(Direct_Express, (obj), TYPE_DIRECT_EXPRESS)
+#define TELEPORT_EXPRESS(obj) \
+    OBJECT_CHECK(Teleport_Express, (obj), TYPE_TELEPORT_EXPRESS)
 
 
 
@@ -37,11 +37,9 @@ typedef struct
 {
     VirtIODevice parent_obj;
 
-    //设备的传输通道
-    VirtQueue *data_queue;
-
-    //aio线程处理数据的句柄
-    QEMUBH *data_bh;
+    //设备的输出传输通道
+    VirtQueue *out_data_queue;
+    VirtQueue *in_data_queue;
 
     //渲染线程
     QemuThread render_thread;
@@ -49,10 +47,10 @@ typedef struct
     int thread_run;
 
     //暂时没用到
-    QemuMutex thr_mutex;
-    QemuCond thr_cond;
+    // QemuMutex thr_mutex;
+    // QemuCond thr_cond;
 
-} Direct_Express;
+} Teleport_Express;
 
 
-#endif //QEMU_DIRECT_EXPRESS_H
+#endif //QEMU_TELEPORT_EXPRESS_H

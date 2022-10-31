@@ -22,7 +22,7 @@
             //     "-drive", "index=1,if=virtio,id=ramdisk,file=D:/ramdisk.img,format=raw",
             //     "-drive", "index=2,if=virtio,id=userdata,file=D:/userdata_60G2.qcow2,format=qcow2",
             //     "-serial", "stdio",
-            //     "-device", "direct-express-pci", 
+            //     "-device", "teleport", 
             //     "-display", "none"
             // ],
             "args": [
@@ -38,7 +38,7 @@
                 "-hda", "D:/hda_t.img",
                 "-cdrom", "D:/android_x86_64.iso",
                 "-serial", "stdio",
-                "-device", "direct-express-pci", 
+                "-device", "teleport", 
             ],
 
             "stopAtEntry": false,

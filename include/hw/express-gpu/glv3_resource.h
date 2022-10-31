@@ -1,7 +1,7 @@
 #ifndef GLV3_RESOURCE_H
 #define GLV3_RESOURCE_H
-#include "hw/direct-express/direct_express_distribute.h"
-#include "hw/direct-express/express_device_common.h"
+#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/express_device_common.h"
 #include "hw/express-gpu/glv3_context.h"
 
 int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *guest_ids, unsigned long long *host_ids);

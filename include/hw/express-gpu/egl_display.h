@@ -2,7 +2,7 @@
 #define EGL_DISPLAY_H
 
 #include "hw/express-gpu/egl_config.h"
-#include "hw/direct-express/express_log.h"
+#include "hw/teleport-express/express_log.h"
 
 #define RENDERABLE_SUPPORT 0 | EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT;
 #define PBUFFER_MAX_WIDTH 32767

@@ -18,15 +18,15 @@
         "express_gpu.h": "c",
         "express_gpu_distribute.h": "c",
         "express_gpu_render.h": "c",
-        "direct_express_pci.h": "c",
-        "direct_express.h": "c",
+        "teleport_express_pci.h": "c",
+        "teleport_express.h": "c",
         "utime.h": "c",
         "*.list": "cpp",
         "bitset": "c",
         "chrono": "c",
         "algorithm": "c",
         "express_log.h": "c",
-        "direct_express_distribute.h": "c",
+        "teleport_express_distribute.h": "c",
         "functional": "cpp",
         "string_view": "c",
         "define.h": "c",
@@ -130,7 +130,8 @@
         "virtio.h": "c",
         "*.idef": "c",
         "semaphore": "c",
-        "eglext.h": "c"
+        "eglext.h": "c",
+        "express_device_ctrl.h": "c"
     },
     "cmake.configureOnOpen": false
 }

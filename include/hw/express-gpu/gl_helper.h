@@ -1,8 +1,8 @@
 #ifndef GL_HELPER_H
 #define GL_HELPER_H
 
-#include "hw/direct-express/express_device_common.h"
-#include "hw/direct-express/express_log.h"
+#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/express_gpu_render.h"
 
 

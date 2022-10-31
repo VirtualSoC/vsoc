@@ -3,6 +3,7 @@
 #include "hw/express-gpu/egl_context.h"
 #include "hw/express-gpu/glv3_context.h"
 
+
 EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
@@ -51,9 +52,11 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
             independ_mode = 1;
         }
     }
-#ifdef DEBUG_INDEPEND_WINDOW
-    independ_mode = 1;
-#endif
+
+    if(express_gpu_independ_window_enable)
+    {
+        independ_mode = 1;
+    }
 
     Opengl_Context *opengl_context = opengl_context_create(real_share_context, independ_mode);
     for (int i = 0; attrib_list[i] != EGL_NONE; i += 2)

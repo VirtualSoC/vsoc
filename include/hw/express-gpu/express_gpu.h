@@ -1,7 +1,9 @@
-#ifndef OFFSCREEN_RENDER_THREAD_H
-#define OFFSCREEN_RENDER_THREAD_H
+#ifndef EXPRESS_GPU_H
+#define EXPRESS_GPU_H
 
-#include "hw/direct-express/express_device_common.h"
+#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/teleport_express_distribute.h"
+
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/egl_display.h"
 #include "hw/express-gpu/egl_surface.h"

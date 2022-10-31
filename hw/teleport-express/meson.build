@@ -1,0 +1,14 @@
+softmmu_ss.add(when: 'CONFIG_TELEPORT_EXPRESS_PCI', if_true: files('teleport_express_pci.c'))
+
+teleport_express = ss.source_set()
+
+teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
+               if_true: files(
+                   'express_log.c',
+                   'teleport_express.c',
+                   'express_handle_thread.c',
+                   'teleport_express_distribute.c',
+                   'express_device_ctrl.c',
+               ))
+
+softmmu_ss.add_all(teleport_express)

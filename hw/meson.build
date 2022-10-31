@@ -67,5 +67,5 @@ subdir('sparc64')
 subdir('tricore')
 subdir('xtensa')
 
-subdir('direct-express')
+subdir('teleport-express')
 subdir('express-gpu')

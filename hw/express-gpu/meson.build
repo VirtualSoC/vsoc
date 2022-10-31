@@ -6,7 +6,7 @@ express_gpu = ss.source_set()
 express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                if_true: files(
                     'express_gpu_render.c',
-                    'offscreen_render_thread.c',
+                    'express_gpu.c',
                     'glad.c',
                     'glv3_context.c',
                     'glv3_trans.c',
