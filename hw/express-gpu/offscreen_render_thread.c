@@ -22,6 +22,7 @@
 #include "hw/express-gpu/glv3_trans.h"
 #include "hw/express-gpu/egl_trans.h"
 #include "hw/express-gpu/test_trans.h"
+#include "hw/express-gpu/device_gtkinterface.h"
 
 #include "qemu/atomic.h"
 
@@ -31,6 +32,8 @@ static GHashTable *render_thread_contexts = NULL;
 static GHashTable *render_process_contexts = NULL;
 
 static QemuThread render_thread;
+
+static QemuThread gtkinterface_thread;
 
 //这些函数不提供外部调用接口
 Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
@@ -406,6 +409,7 @@ void render_context_init(Thread_Context *context)
     {
         express_printf("create native window\n");
         qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->direct_express_device, QEMU_THREAD_DETACHED);
+        //qemu_thread_create(&gtkinterface_thread, "gtkinterface_thread", create_gtkinterface, NULL, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
 

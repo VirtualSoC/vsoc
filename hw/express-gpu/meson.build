@@ -28,10 +28,13 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                     'gl_helper.c',
                     'egl_window_wgl.c',
                     'test_trans.c',
+                    'device_gtkinterface.c'
                ))
 
 glfw = cc.find_library('glfw3')
 opengl32 = cc.find_library('opengl32')
+gtk3 = dependency('gtk+-3.0')
+express_gpu.add(gtk3)
 express_gpu.add(glfw)
 express_gpu.add(opengl32)
 
