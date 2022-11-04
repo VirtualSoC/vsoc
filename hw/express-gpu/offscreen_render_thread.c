@@ -409,7 +409,7 @@ void render_context_init(Thread_Context *context)
     {
         express_printf("create native window\n");
         qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->direct_express_device, QEMU_THREAD_DETACHED);
-        //qemu_thread_create(&gtkinterface_thread, "gtkinterface_thread", create_gtkinterface, NULL, QEMU_THREAD_DETACHED);
+        qemu_thread_create(&gtkinterface_thread, "gtkinterface_thread", create_gtkinterface, NULL, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
 

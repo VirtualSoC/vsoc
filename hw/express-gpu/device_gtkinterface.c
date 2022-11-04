@@ -1,5 +1,13 @@
 #include "hw/express-gpu/device_gtkinterface.h"
 
+static const char *DEVICE_STRING[] = {
+    FOREACH_DEVICE(GENERATE_STRING)
+};
+
+static const char *DATA_TYPE_STRING[] = {
+    FOREACH_DATA_TYPE(GENERATE_STRING)
+};
+
 void send_gest(int device,int datatype,char *data[],int array_len)
 {
     g_print("Device Selected: %s \n",DEVICE_STRING[device]);
@@ -16,7 +24,7 @@ void handle_input(GtkWidget *widget, gpointer data)
     int selected_datatype = atoi(gtk_combo_box_get_active_id(GTK_COMBO_BOX(widgets->datatype_list)));
     const gchar *text = gtk_entry_get_text(GTK_ENTRY(widgets->entry));
     // copy to buffer removing const for strsok() slpiting array
-    gchar buffer[strlen(text)];
+    gchar buffer[MAX_INPUT_LEN];
     strcpy(buffer,text);
 
     int len = (int)gtk_spin_button_get_value(GTK_SPIN_BUTTON(widgets->spin_button));
@@ -74,7 +82,7 @@ void *create_gtkinterface(void *data)
     gtk_combo_box_set_active(GTK_COMBO_BOX(widgets->datatype_list), 1);
     gtk_grid_attach_next_to (GTK_GRID (grid), widgets->datatype_list, widgets->device_list, GTK_POS_RIGHT, 2, 1);
 
-    widgets->spin_button = gtk_spin_button_new_with_range(1,MAX_INPUT_LEN,1);
+    widgets->spin_button = gtk_spin_button_new_with_range(1,MAX_ARRAY_LEN,1);
     gtk_grid_attach_next_to (GTK_GRID (grid), widgets->spin_button, widgets->datatype_list, GTK_POS_RIGHT, 2, 1);
 
     submit_button = gtk_button_new_with_label("Submit");

@@ -1,6 +1,9 @@
+#ifndef GTKINTERFACE_H
+#define GTKINTERFACE_H
 #include <gtk/gtk.h>
 
-#define MAX_INPUT_LEN 20
+#define MAX_INPUT_LEN 256
+#define MAX_ARRAY_LEN 20
 #define FOREACH_DEVICE(DEVICE) \
         DEVICE(Audio)       \
         DEVICE(Bluetooth)   \
@@ -16,10 +19,6 @@ enum DEVICE_ENUM {
     FOREACH_DEVICE(GENERATE_ENUM)
 };
 
-static const char *DEVICE_STRING[] = {
-    FOREACH_DEVICE(GENERATE_STRING)
-};
-
 #define FOREACH_DATA_TYPE(DATA_TYPE) \
         DATA_TYPE(Char)          \
         DATA_TYPE(Int)           \
@@ -31,11 +30,6 @@ static const char *DEVICE_STRING[] = {
 enum DATA_TYPE_ENUM {
     FOREACH_DATA_TYPE(GENERATE_ENUM)
 };
-
-static const char *DATA_TYPE_STRING[] = {
-    FOREACH_DATA_TYPE(GENERATE_STRING)
-};
-
 struct gtkinterface_data{
     enum DEVICE_ENUM device;       //check FOREACH_DATA_TYPE
     enum DATA_TYPE_ENUM datatype;  // check DATA_TYPE_STRING
@@ -54,8 +48,10 @@ struct Listening_widget_list{
 void *create_gtkinterface(void *data);
 
 //should be called inside gtk main thread
-void quit_device_window(GtkWidget *widget, gpointer data);
+void destroy_gtkinterface(GtkWidget *widget, gpointer data);
 
 void handle_input(GtkWidget *widget, gpointer data);
 
 void send_gest(int device,int datatype,char *data[],int array_len);
+
+#endif
