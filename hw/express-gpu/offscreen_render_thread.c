@@ -22,7 +22,7 @@
 #include "hw/express-gpu/glv3_trans.h"
 #include "hw/express-gpu/egl_trans.h"
 #include "hw/express-gpu/test_trans.h"
-#include "hw/express-gpu/device_gtkinterface.h"
+#include "hw/express-gpu/device_interface.h"
 
 #include "qemu/atomic.h"
 
@@ -33,7 +33,9 @@ static GHashTable *render_process_contexts = NULL;
 
 static QemuThread render_thread;
 
-static QemuThread gtkinterface_thread;
+static QemuThread interface_thread;
+
+static device_interface_data *interface_data = NULL;
 
 //这些函数不提供外部调用接口
 Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
@@ -56,6 +58,28 @@ static void g_surface_map_destroy(gpointer data);
 static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
+
+void send_device_data(char *device, char *datatype,int data_len, char *data[data_len]);
+
+/**
+ * @brief The callback function will be called by the device interface thread, for sending data to Guest
+ *
+ * @param device Target device 
+ * @param datatype The Input data type
+ * @param data_len The length of input data array  
+ * @param data The input data array, it would be an char array for every element no matter what datatype is set.
+ * 
+ */
+void send_device_data(char *device, char *datatype,int data_len, char *data[data_len])
+{
+    printf("device: %s\n",device);
+    printf("datatype: %s\ndata: ",datatype);
+    for(int i=0; i<data_len; ++i)
+    {
+        printf("%s ",data[i]);
+    }
+    printf("\ndata_len: %d\n",data_len);
+}
 
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
@@ -404,12 +428,15 @@ void render_context_init(Thread_Context *context)
 {
 
     express_printf("render context init!\n");
+    interface_data = (device_interface_data *)malloc(sizeof(device_interface_data));
+    interface_data->run = true;
+    interface_data->senddata_callback = &send_device_data;
     //这个render线程只能创建一次，且其他线程必须等待该线程运行成功
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
         express_printf("create native window\n");
         qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->direct_express_device, QEMU_THREAD_DETACHED);
-        qemu_thread_create(&gtkinterface_thread, "gtkinterface_thread", create_gtkinterface, NULL, QEMU_THREAD_DETACHED);
+        qemu_thread_create(&interface_thread, "interface_thread", create_interface, interface_data, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
 
@@ -504,6 +531,11 @@ void render_context_destroy(Thread_Context *context)
     if (thread_context->opengl_context != NULL)
     {
         d_eglMakeCurrent(thread_context, NULL, NULL, NULL, NULL, 0, 0, 0, 0);
+    }
+    // Stop device interface window, it will be free at the interface thread after clean up window 
+    if(interface_data != NULL)
+    {
+        interface_data->run = false;
     }
     // if (thread_context->render_double_buffer_read != NULL)
     // {
