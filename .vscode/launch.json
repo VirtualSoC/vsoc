@@ -30,7 +30,7 @@
                 "-m", "6096",
                 "-smp", "6", 
                 "-machine", "usb=on", 
-                "-device", "usb-kbd", "-device", "usb-tablet",
+                "-device", "usb-kbd",
                 "-audiodev", "dsound,id=hda",
                 "-device", "intel-hda",
                 "-device", "hda-output,audiodev=hda",

@@ -1394,7 +1394,7 @@ GLdouble glTestInt6(GLint a, GLuint b)
 //     char *temp = g_malloc(a * sizeof(int));
 //     memset(temp, 0, a * sizeof(int));
 //     printf("glTestPointer3 %d\n", a);
-//     guest_write((Guest_Mem *)b, temp, 0, a * sizeof(int));
+//     read_from_guest_mem((Guest_Mem *)b, temp, 0, a * sizeof(int));
 
 //     char *temp_s[100];
 //     int loc = 0;
@@ -1404,7 +1404,7 @@ GLdouble glTestInt6(GLint a, GLuint b)
 //     }
 //     printf("glTestPointer3 %s\n", temp_s);
 
-//     guest_read((Guest_Mem *)c, temp, 0, a * sizeof(int));
+//     write_to_guest_mem((Guest_Mem *)c, temp, 0, a * sizeof(int));
 
 //     fflush(stdout);
 //     return 12456687;
@@ -1427,7 +1427,7 @@ void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
     // char *t="temp test abcd";
     // memcpy(out_string,t,strlen(t));
     char *temp = g_malloc(buf_len);
-    guest_write((Guest_Mem *)out_string, temp, 0, buf_len);
+    read_from_guest_mem((Guest_Mem *)out_string, temp, 0, buf_len);
 
     if (buf_len < 100)
     {

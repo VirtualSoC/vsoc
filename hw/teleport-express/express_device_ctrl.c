@@ -1,10 +1,8 @@
-#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/teleport_express_call.h"
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/teleport-express/express_device_ctrl.h"
-
-
 
 int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Teleport_Express_Call *pre_call, Teleport_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
 void release_call_none(Teleport_Express_Call *call, int notify);
@@ -13,7 +11,7 @@ void express_device_ctrl_invoke(Teleport_Express_Call *call)
 {
 
     Call_Para all_para[MAX_PARA_NUM];
-
+    express_printf("get ctrl invoke %llx\n", call->id);
     switch (call->id)
     {
 
@@ -27,12 +25,12 @@ void express_device_ctrl_invoke(Teleport_Express_Call *call)
             break;
         }
         uint64_t ret_data = (((uint64_t)kernel_load_express_driver_num) << 32) + (uint64_t)(strlen(kernel_load_express_driver_names) + 1);
-        guest_read(all_para[0].data, &ret_data, 0, 8);
+        write_to_guest_mem(all_para[0].data, &ret_data, 0, 8);
     }
     break;
     case FUNID_getExpressDeviceNames:
     {
-        if(kernel_load_express_driver_num == 0)
+        if (kernel_load_express_driver_num == 0)
         {
             break;
         }
@@ -44,7 +42,7 @@ void express_device_ctrl_invoke(Teleport_Express_Call *call)
             printf("error len %d need len %d para_num %dFUNID_getExpressDeviceNames\n", temp_len, name_len, para_num);
             break;
         }
-        guest_read(all_para[0].data, (void *)kernel_load_express_driver_names, 0, name_len);
+        write_to_guest_mem(all_para[0].data, (void *)kernel_load_express_driver_names, 0, name_len);
     }
 
     break;
@@ -54,14 +52,11 @@ void express_device_ctrl_invoke(Teleport_Express_Call *call)
     }
     break;
     }
-    
-    
-    call->callback(call, 0);
+
+    call->callback(call, true);
 
     return;
 }
-
-
 
 /**
  * @brief 把聚合好的数据解包，分解成不同的call，用于继续调用invoke函数
@@ -111,7 +106,7 @@ void cluster_decode_invoke(Teleport_Express_Call *call, void *context, EXPRESS_D
         if (temp_len != 0 && null_flag == 0)
         {
             // temp = temp_buf;
-            guest_write(all_para[0].data, send_async_buf, 0, all_para[0].data_len);
+            read_from_guest_mem(all_para[0].data, send_async_buf, 0, all_para[0].data_len);
         }
         else
         {
@@ -137,7 +132,7 @@ void cluster_decode_invoke(Teleport_Express_Call *call, void *context, EXPRESS_D
         if (temp_len != 0 && null_flag == 0)
         {
             // temp = temp_buf;
-            guest_write(all_para[1].data, save_buf, 0, all_para[1].data_len);
+            read_from_guest_mem(all_para[1].data, save_buf, 0, all_para[1].data_len);
         }
         else
         {
@@ -269,4 +264,3 @@ void release_call_none(Teleport_Express_Call *call, int notify)
 {
     return;
 }
-

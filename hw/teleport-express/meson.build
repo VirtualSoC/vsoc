@@ -6,8 +6,10 @@ teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                if_true: files(
                    'express_log.c',
                    'teleport_express.c',
-                   'express_handle_thread.c',
+                   'teleport_express_call.c',
                    'teleport_express_distribute.c',
+                   'teleport_express_register.c',
+                   'express_handle_thread.c',
                    'express_device_ctrl.c',
                ))
 

@@ -3,7 +3,7 @@
 #ifndef EGL_TRANS_H
 #define EGL_TRANS_H
 
-#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/teleport_express_call.h"
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/express-gpu/express_gpu.h"
 
@@ -48,15 +48,15 @@
 
 #define PARA_NUM_MIN_eglChooseConfig (1)
 
-#define FUNID_eglCreatePbufferSurface ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u)  + 10023)
+#define FUNID_eglCreatePbufferSurface ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10023)
 
 #define PARA_NUM_MIN_eglCreatePbufferSurface (1)
 
-#define FUNID_eglCreateWindowSurface ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u)  + 10024)
+#define FUNID_eglCreateWindowSurface ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10024)
 
 #define PARA_NUM_MIN_eglCreateWindowSurface (1)
 
-#define FUNID_eglCreateContext ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u)  + 10025)
+#define FUNID_eglCreateContext ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10025)
 
 #define PARA_NUM_MIN_eglCreateContext (1)
 

@@ -25,7 +25,7 @@ void test_no_copy(void *data, size_t len)
     {
         return;
     }
-    guest_write(data, copy_large_buf, 0, len);
+    read_from_guest_mem(data, copy_large_buf, 0, len);
 
     return;
 }
@@ -45,7 +45,7 @@ void test_copy(void *data, size_t len)
 
     // express_printf("copy %lld %lx\n", buf_len, copy_large_buf);
 
-    guest_write(data, copy_large_buf, 0, len);
+    read_from_guest_mem(data, copy_large_buf, 0, len);
 
     // gint64 spend_time = g_get_real_time() - start_time;
     // if (spend_time == 0)

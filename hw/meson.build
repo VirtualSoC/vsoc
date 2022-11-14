@@ -69,3 +69,4 @@ subdir('xtensa')
 
 subdir('teleport-express')
 subdir('express-gpu')
+subdir('express-input')

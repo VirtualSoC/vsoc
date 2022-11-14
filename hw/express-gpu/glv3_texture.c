@@ -28,13 +28,13 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         // express_printf("gl get error %x\n",glGetError());
 
         // GLubyte *temp_data=g_malloc(end_loc-start_loc);
-        // guest_write(guest_mem,temp_data,start_loc,end_loc-start_loc);
+        // read_from_guest_mem(guest_mem,temp_data,start_loc,end_loc-start_loc);
         // express_printf("texture:");
         // for(int i=0;i<end_loc-start_loc;i++){
         //     express_printf("%u ",(unsigned int)temp_data[i]);
         // }
         // express_printf("\n");
-        guest_write(guest_mem, map_pointer, start_loc, end_loc - start_loc);
+        read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
         // host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,1);
 
         glUnmapNamedBuffer(asyn_texture);
@@ -65,13 +65,13 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         // express_printf("gl get error %x\n",glGetError());
 
         // GLubyte *temp_data=g_malloc(end_loc-start_loc);
-        // guest_write(guest_mem,temp_data,start_loc,end_loc-start_loc);
+        // read_from_guest_mem(guest_mem,temp_data,start_loc,end_loc-start_loc);
         // express_printf("texture:");
         // for(int i=0;i<end_loc-start_loc;i++){
         //     express_printf("%u ",(unsigned int)temp_data[i]);
         // }
         // express_printf("\n");
-        guest_write(guest_mem, map_pointer, start_loc, end_loc - start_loc);
+        read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
         // host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,1);
 
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
@@ -866,7 +866,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     // }
     // printf("glreadpixels %s\n",print_chars);
 
-    guest_read(guest_mem, map_pointer, 0, end_loc - start_loc);
+    write_to_guest_mem(guest_mem, map_pointer, 0, end_loc - start_loc);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
@@ -990,17 +990,17 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
     {
         for (int i = 0; i < height; i++)
         {
-            // guest_write(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
-            guest_write(guest_mem, map_pointer + i * row_byte_len, i * guest_row_byte_len, row_byte_len);
+            // read_from_guest_mem(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
+            read_from_guest_mem(guest_mem, map_pointer + i * row_byte_len, i * guest_row_byte_len, row_byte_len);
         }
     }
     else
     {
-        guest_write(guest_mem, map_pointer, 0, row_byte_len * height);
+        read_from_guest_mem(guest_mem, map_pointer, 0, row_byte_len * height);
     }
 
     //不能直接write，因为每一行有额外的填充
-    // guest_write(guest_mem, map_pointer, 0, buf_len);
+    // read_from_guest_mem(guest_mem, map_pointer, 0, buf_len);
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glUnmapNamedBuffer(asyn_texture);
@@ -1148,13 +1148,13 @@ void d_glReadGraphicBuffer(void *r_context, EGLContext ctx, uint64_t gbuffer_id,
     {
         for (int i = 0; i < height; i++)
         {
-            // guest_write(guest_mem, map_pointer + (height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
-            guest_read(guest_mem, map_pointer + i * row_byte_len, i * guest_row_byte_len, row_byte_len);
+            // read_from_guest_mem(guest_mem, map_pointer + (height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
+            write_to_guest_mem(guest_mem, map_pointer + i * row_byte_len, i * guest_row_byte_len, row_byte_len);
         }
     }
     else
     {
-        guest_read(guest_mem, map_pointer, 0, row_byte_len * height);
+        write_to_guest_mem(guest_mem, map_pointer, 0, row_byte_len * height);
     }
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);

@@ -22,8 +22,21 @@ int kernel_load_express_driver_num = 0;
 static GHashTable *all_register_device_info = NULL;
 
 static Property teleport_express_base_properties[] = {
+    //这个vectors变量决定了是否还是用msix中断，假如没有这行，则为APIC中断
+    //若使用APIC中断，则可能出现中断不能及时处理，引发__report_bad_irq函数报错，进而导致中断速度缓慢（If 99,900 of the previous 100,000 interrupts have not been handled* then assume that the IRQ is stuck in some manner）
+    DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 3),
     DEFINE_PROP_BOOL("gl_debug", Teleport_Express_PCI, enalbe_opengl_debug, false),
     DEFINE_PROP_BOOL("independ_window", Teleport_Express_PCI, enable_independ_window, false),
+    DEFINE_PROP_BOOL("keep_window_scale", Teleport_Express_PCI, keep_window_scale, true),
+    DEFINE_PROP_INT32("window_width", Teleport_Express_PCI, window_width, 1280),
+    DEFINE_PROP_INT32("window_height", Teleport_Express_PCI, window_height, 720),
+
+    DEFINE_PROP_BOOL("scroll_is_zoom", Teleport_Express_PCI, scroll_is_zoom, true),
+    DEFINE_PROP_BOOL("right_click_is_two_finger", Teleport_Express_PCI, right_click_is_two_finger, true),
+    DEFINE_PROP_INT32("scroll_ratio", Teleport_Express_PCI, scroll_ratio, 20),
+
+    DEFINE_PROP_BOOL("finger_replay", Teleport_Express_PCI, finger_replay, true),
+
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -54,6 +67,13 @@ Express_Device_Info *get_express_device_info(unsigned int device_id)
     return (Express_Device_Info *)g_hash_table_lookup(all_register_device_info, GUINT_TO_POINTER(device_id));
 }
 
+/**
+ * @brief 根据Express_Device_Info里的内容产生给qemu命令行用的Property
+ *
+ * @param key
+ * @param value
+ * @param userData
+ */
 static void fill_property(void *key, void *value, void *userData)
 {
     Express_Device_Info *info = (Express_Device_Info *)value;
@@ -75,21 +95,36 @@ static void fill_property(void *key, void *value, void *userData)
     }
 }
 
+/**
+ * @brief 根据命令行的结果与是否默认开启的属性，产生要输入给内核的模块名字列表，内核将要加载这些模块。同时顺便更新info里的enable属性，方便模块内部判断
+ *
+ * @param key
+ * @param value
+ * @param userData
+ */
 static void fill_kernel_driver_name(void *key, void *value, void *userData)
 {
     Express_Device_Info *info = (Express_Device_Info *)value;
 
     Teleport_Express_PCI *express_pci = (Teleport_Express_PCI *)userData;
 
-    if (info->driver_name != NULL && (info->device_index == -1 || express_pci->express_device_enable[info->device_index]))
+    if (info->device_index == -1 || express_pci->express_device_enable[info->device_index])
     {
-        strcpy(kernel_load_express_driver_names + driver_names_len, info->driver_name);
-        driver_names_len += strlen(info->driver_name);
+        info->enable = true;
+        if (info->driver_name != NULL)
+        {
+            strcpy(kernel_load_express_driver_names + driver_names_len, info->driver_name);
+            driver_names_len += strlen(info->driver_name);
 
-        kernel_load_express_driver_names[driver_names_len] = ' ';
-        driver_names_len += 1;
+            kernel_load_express_driver_names[driver_names_len] = ' ';
+            driver_names_len += 1;
 
-        kernel_load_express_driver_num += 1;
+            kernel_load_express_driver_num += 1;
+        }
+    }
+    else
+    {
+        info->enable = false;
     }
 }
 
@@ -123,7 +158,7 @@ static void init_express_driver_names(Teleport_Express_PCI *express_pci)
     g_hash_table_foreach(all_register_device_info, fill_kernel_driver_name, express_pci);
     kernel_load_express_driver_names[driver_names_len] = 0;
 
-    // printf("init_express_driver_names |%s|", kernel_load_express_driver_names);
+    printf("init_express_driver_names |%s|\n", kernel_load_express_driver_names);
 
     return;
 }
@@ -183,15 +218,17 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
     init_express_driver_names(express_pci);
 
-    if (express_pci->enalbe_opengl_debug)
-    {
-        express_gpu_gl_debug_enable = true;
-    }
+    express_gpu_gl_debug_enable = express_pci->enalbe_opengl_debug;
+    express_gpu_independ_window_enable = express_pci->enable_independ_window;
+    express_gpu_keep_window_scale = express_pci->keep_window_scale;
+    express_gpu_window_width = express_pci->window_width;
+    express_gpu_window_height = express_pci->window_height;
 
-    if (express_pci->enable_independ_window)
-    {
-        express_gpu_independ_window_enable = true;
-    }
+    express_touchscreen_scroll_is_zoom = express_pci->scroll_is_zoom;
+    express_touchscreen_right_click_is_two_finger = express_pci->right_click_is_two_finger;
+    express_touchscreen_scroll_ratio = express_pci->scroll_ratio;
+
+    express_keyboard_finger_replay = express_pci->finger_replay;
 
     if (local_error)
     {

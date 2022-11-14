@@ -91,7 +91,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -154,7 +154,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id, width, height, hal_format);
         *ret_ptr = ret;
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -204,7 +204,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -262,7 +262,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglSwapBuffers_sync(egl_context, dpy, surface, gbuffer_id, width, height, hal_format);
         *ret_ptr = ret;
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -318,7 +318,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglWaitGL(egl_context);
         *ret_ptr = ret;
 
-        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -363,7 +363,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -404,7 +404,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglWaitNative(egl_context, engine);
         *ret_ptr = ret;
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -460,7 +460,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglWaitClient(egl_context);
         *ret_ptr = ret;
 
-        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -508,7 +508,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -558,7 +558,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint ret = d_eglClientWaitSync(egl_context, dpy, sync, flags, timeout);
         *ret_ptr = ret;
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -605,7 +605,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -655,7 +655,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglGetSyncAttrib(egl_context, dpy, sync, attribute, value);
         *ret_ptr = ret;
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -714,7 +714,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint ret = d_eglGetEGLConfigParam(egl_context, num_configs);
         *ret_ptr = ret;
 
-        guest_read(all_para[0].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -760,7 +760,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -807,7 +807,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint ret = d_eglGetEGLConfigs(egl_context, num_attrs, list_len, attr_list);
         *ret_ptr = ret;
 
-        guest_read(all_para[1].data, ret_buf, 0, out_buf_len);
+        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -858,7 +858,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -924,7 +924,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -994,7 +994,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1067,7 +1067,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1138,7 +1138,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1200,7 +1200,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1261,7 +1261,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1319,7 +1319,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1380,7 +1380,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1443,7 +1443,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1509,7 +1509,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1576,7 +1576,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1644,7 +1644,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1729,7 +1729,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1798,7 +1798,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1863,7 +1863,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1937,7 +1937,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2000,7 +2000,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2059,7 +2059,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2120,7 +2120,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         //         if (temp_len != 0 && null_flag == 0)
         //         {
         //             temp = g_malloc(temp_len);no_ptr_buf=temp;
-        //             guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+        //             read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
         //         }
         //         else
         //         {
@@ -2188,7 +2188,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2278,7 +2278,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2330,7 +2330,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                guest_write(all_para[0].data, temp, 0, all_para[0].data_len);
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2352,7 +2352,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         int ret = get_global_gbuffer_type(gbuffer_id);
 
-        guest_read(all_para[1].data, &ret, 0, out_buf_len);
+        write_to_guest_mem(all_para[1].data, &ret, 0, out_buf_len);
     }
     break;
 

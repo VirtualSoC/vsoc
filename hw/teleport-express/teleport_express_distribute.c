@@ -10,10 +10,11 @@
  */
 // #define STD_DEBUG_LOG
 
+#include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/teleport-express/express_handle_thread.h"
+
 #include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/express_device_ctrl.h"
 
 //这是VirtQueueElement里面的实际东西
@@ -31,7 +32,6 @@
 //     struct iovec *out_sg; //实际地址和长度
 // } VirtQueueElement;
 
-
 static VirtIODevice *teleport_express_device;
 
 //用于回收call的队列，实现了无锁的入队，这里将它的大小设置为CALL_BUF_SIZE+2是为了保证队列不会爆，大小一定满足要求
@@ -40,25 +40,12 @@ static Teleport_Express_Call *call_recycle_queue[(CALL_BUF_SIZE + 2)];
 static volatile int call_recycle_queue_header;
 static volatile int call_recycle_queue_tail;
 
-static void *guest_null_ptr = NULL;
-
-bool teleport_express_should_stop = 0;
-
 int atomic_distribute_thread_running = 0;
 
-static Teleport_Express_Call *volatile packaging_call = NULL;
-static int remain_elem_num = 0;
-
-static void release_call(Teleport_Express_Call *out_call);
 static void push_free_callback(Teleport_Express_Call *call, int notify);
 void push_to_thread(Teleport_Express_Call *call);
 void init_distribute_event(void);
 void distribute_wait(void);
-
-Teleport_Express_Call *alloc_one_call(void);
-void release_one_call(Teleport_Express_Call *call);
-Guest_Mem *alloc_one_guest_mem(void);
-void release_one_guest_mem(Guest_Mem *mem);
 
 //用于通知回收的事件，这里对于平台兼容性的部分尚未完成
 typedef struct
@@ -72,488 +59,41 @@ typedef struct
 
 RECYCLE_EVENT recycle_event;
 
-static Teleport_Express_Call pre_alloc_call[CALL_BUF_SIZE * 2];
-static bool pre_alloc_call_flag[CALL_BUF_SIZE * 2];
+// /**
+//  * @brief 释放Draw_Call这个结构体本身占用的空间，并将其占用的vring空间部分返还给guest
+//  *
+//  * @param out_call 需要释放的Teleport_Express_Call
+//  */
+// static void release_call(Teleport_Express_Call *out_call)
+// {
 
-static volatile int pre_alloc_call_loc = 0;
+//     VirtQueue *vq = out_call->vq;
+//     VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, out_call->elem_header, 1, next);
+//     TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(out_call->elem_header);
 
-static Guest_Mem pre_guest_mem[CALL_BUF_SIZE * 2 * MAX_PARA_NUM];
-static bool pre_guest_mem_flag[CALL_BUF_SIZE * 2 * MAX_PARA_NUM];
-
-static volatile int pre_guest_mem_loc = 0;
-
-Teleport_Express_Call *alloc_one_call(void)
-{
-    //自定义内存分配机制是为了加速取数据，减少无用消耗
-    int cnt = 0;
-    while (pre_alloc_call_flag[pre_alloc_call_loc] == true)
-    {
-        pre_alloc_call_loc = (pre_alloc_call_loc + 1) % (CALL_BUF_SIZE * 2);
-        cnt++;
-        if (unlikely(cnt > CALL_BUF_SIZE * 2))
-        {
-            return NULL;
-        }
-    }
-    pre_alloc_call_flag[pre_alloc_call_loc] = true;
-    return pre_alloc_call + pre_alloc_call_loc;
-}
-
-void release_one_call(Teleport_Express_Call *call)
-{
-    int loc = (int)(call - pre_alloc_call);
-    if (unlikely(loc < 0 || loc >= CALL_BUF_SIZE * 2))
-    {
-        return;
-    }
-    pre_alloc_call_flag[loc] = false;
-}
-
-Guest_Mem *alloc_one_guest_mem(void)
-{
-    int cnt = 0;
-    while (pre_guest_mem_flag[pre_guest_mem_loc] == true)
-    {
-        pre_guest_mem_loc = (pre_guest_mem_loc + 1) % (CALL_BUF_SIZE * 2 * MAX_PARA_NUM);
-        cnt++;
-        if (unlikely(cnt > CALL_BUF_SIZE * 2 * MAX_PARA_NUM))
-        {
-            return NULL;
-        }
-    }
-    pre_guest_mem_flag[pre_guest_mem_loc] = true;
-    return pre_guest_mem + pre_guest_mem_loc;
-}
-
-void release_one_guest_mem(Guest_Mem *mem)
-{
-    int loc = (int)(mem - pre_guest_mem);
-    if (unlikely(loc < 0 || loc >= CALL_BUF_SIZE * 2 * MAX_PARA_NUM))
-    {
-        return;
-    }
-    pre_guest_mem_flag[loc] = false;
-}
-
-/**
- * @brief 获取直接的guest端指针，flag表示是否获取到了，返回guest端的指针，可能为NULL，因为当初传入的指针可能真的为NULL
- *
- * @param guest_mem
- * @param flag
- * @return void*
- */
-void *get_direct_ptr(Guest_Mem *guest_mem, int *flag)
-{
-    if (likely(guest_mem->num == 1))
-    {
-        Scatter_Data *guest_data = guest_mem->scatter_data;
-        *flag = 1;
-        //这里也可能返回NULL，所以以flag来区分
-        return guest_data->data;
-    }
-    *flag = 0;
-    return NULL;
-}
-
-/**
- * @brief guest向host写入数据
- *
- * @param guest guest端数据，指向一个Guest_Mem结构体
- * @param host host端内存，指向一个host内存
- * @param start_loc 读取guest端的开始位置
- * @param length 读取guest的数据长度
- */
-void guest_write(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
-{
-    if (unlikely(guest == NULL || guest->all_len == 0))
-    {
-        return;
-    }
-    express_printf("guest_write length %llu all_len %d\n", length, guest->all_len);
-    Scatter_Data *guest_data = guest->scatter_data;
-    if (unlikely(length == 0 || host == NULL || length > guest->all_len))
-    {
-        printf("guest write error host %llx len %d %lld\n", (uint64_t)host, guest->all_len, length);
-        return;
-    }
-
-    host_guest_buffer_exchange(guest_data, (unsigned char *)host, start_loc, length, 1);
-}
-
-/**
- * @brief guest从host读入数据
- *
- * @param guest guest端数据，指向一个Guest_Mem结构体
- * @param host host端内存，指向一个host内存
- * @param start_loc 写入guest端的开始位置
- * @param length 写入guest的数据长度
- */
-void guest_read(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
-{
-    if (unlikely(guest == NULL))
-    {
-        return;
-    }
-    express_printf("guest_read length %llu all_len %d\n", length, guest->all_len);
-
-    Scatter_Data *guest_data = guest->scatter_data;
-    if (unlikely(length == 0 || host == NULL || length > guest->all_len))
-    {
-        return;
-    }
-    express_printf("read %llu,%llu\n", start_loc, length);
-    host_guest_buffer_exchange(guest_data, (unsigned char *)host, start_loc, length, 0);
-}
-
-/**
- * @brief 交换scatter的guest数据和host数据
- *
- * @param guest_data guest数据，指向一个Scatter_Data数组
- * @param host_data host数据，为正常内存指针
- * @param start_loc 需要交换的guest数据的开始位置
- * @param length 需要交换的长度
- * @param is_guest_to_host
- */
-void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_data, size_t start_loc, size_t length, int is_guest_to_host)
-{
-
-    // int walk_loc = 0;
-    if (unlikely(guest_data == NULL || host_data == NULL))
-    {
-        return;
-    }
-
-    size_t remain_len = length;
-    // express_printf("memcpy data len %llu,%d\n",length,remain_len);
-    int guest_loc = start_loc;
-    int host_loc = 0;
-    // int cpy_len = 0;
-    int guest_index = 0;
-    unsigned char *last_data = NULL;
-    while (remain_len > 0 && remain_len < 100000000000)
-    {
-        if (unlikely(guest_data[guest_index].len == 0 || guest_data[guest_index].data == NULL))
-        {
-            break;
-        }
-        if (guest_data[guest_index].len > guest_loc)
-        {
-            //一直找到start_loc所在的那个区块
-            if (remain_len < guest_data[guest_index].len - guest_loc)
-            {
-                if (is_guest_to_host)
-                {
-                    memcpy(host_data + host_loc, guest_data[guest_index].data + guest_loc, remain_len);
-                }
-                else
-                {
-
-                    express_printf("memcpy data %lx index %d loc %d host %lx loc %d remain %llu\n", guest_data[guest_index].data, guest_index, guest_loc, host_data, host_loc, remain_len);
-                    memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, remain_len);
-                }
-                break;
-            }
-            else
-            {
-                if (is_guest_to_host)
-                {
-                    memcpy(host_data + host_loc, guest_data[guest_index].data + guest_loc, guest_data[guest_index].len - guest_loc);
-                }
-                else
-                {
-
-                    express_printf("memcpy data %lx index %d loc %d len %llu,host %lx loc %d remain %llu\n", guest_data[guest_index].data, guest_index, guest_loc, guest_data[guest_index].len, host_data, host_loc, remain_len);
-
-                    if (last_data != guest_data[guest_index].data)
-                    {
-                        last_data = guest_data[guest_index].data;
-                    }
-                    else
-                    {
-                        printf("error map data! same scatter data pointer");
-                    }
-
-                    memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, guest_data[guest_index].len - guest_loc);
-                }
-                host_loc += guest_data[guest_index].len - guest_loc;
-                remain_len -= guest_data[guest_index].len - guest_loc;
-            }
-            //只要复制了一次之后guest_loc都为0，因为这个时候后面的都是从下一段内存的刚开始的位置开始（因为内存连续）
-            guest_loc = 0;
-        }
-        else
-        {
-            guest_loc -= guest_data[guest_index].len;
-        }
-        guest_index++;
-    }
-}
-
-/**
- * @brief 将Teleport_Express_Queue_Elem内的数据填充完毕，也就是初始化Teleport_Express_Queue_Elem中除了
- * VirtQueueElement的其他部分，例如para指针，type类型等
- *
- * @param elem 需要填充的elem数据
- * @param id 需要回传的函数调用id（假如有的话），不需要则设为NULL（只有第一个elem需要）
- * @param thread_id 需要回传的线程id（假如有的话），不需要则设为NULL（只有第一个elem需要）
- * @param process_id 需要回传的进程id（假如有的话），不需要则设为NULL（只有第一个elem需要）
- * @param unique_id 需要回传的通道文件唯一id（假如有的话），不需要则设为NULL（只有第一个elem需要）
- * @param num 需要回传的参数数目（假如有的话），不需要则设为NULL（只有第一个elem需要）
- * @return int 返回填充是否完成，1表示完成，0表示失败
- */
-static int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned long long *id, unsigned long long *thread_id, unsigned long long *process_id, unsigned long long *unique_id, unsigned long long *num)
-{
-    VirtQueueElement *v_elem = &elem->elem;
-    // printf("fill elem num %u %u\n",v_elem->out_num,v_elem->in_num);
-    if ((v_elem->out_num != 0 && v_elem->in_num != 0) || (v_elem->out_num == 0 && v_elem->in_num == 0))
-    {
-        return 0;
-    }
-    elem->para = NULL;
-    elem->next = NULL;
-
-    Guest_Mem *guest_mem = alloc_one_guest_mem();
-
-    if (unlikely(guest_mem == NULL))
-    {
-        printf("error! guest_mem alloc return NULL!\n");
-        return 0;
-    }
-
-    if (v_elem->out_num != 0)
-    {
-        guest_mem->scatter_data = (Scatter_Data *)v_elem->out_sg;
-        guest_mem->num = v_elem->out_num;
-    }
-
-    if (v_elem->in_num != 0)
-    {
-        guest_mem->scatter_data = (Scatter_Data *)v_elem->in_sg;
-        guest_mem->num = v_elem->in_num;
-    }
-
-    int buf_len = 0;
-    for (int i = 0; i < guest_mem->num; i++)
-    {
-        if (guest_mem->scatter_data[i].len == 4 && guest_mem->scatter_data[i].data == guest_null_ptr && v_elem->out_num == 1 && v_elem->in_num == 0)
-        {
-            express_printf("find null prt!!!\n");
-            guest_mem->scatter_data[i].data = NULL;
-            guest_mem->scatter_data[i].len = 0;
-        }
-        buf_len += guest_mem->scatter_data[i].len;
-
-        // express_printf("guest_mem %d i %d len %d now %d\n",num,i, guest_mem->scatter_data[i].len, buf_len);
-    }
-
-    guest_mem->all_len = buf_len;
-    elem->len = buf_len;
-
-    elem->para = guest_mem;
-
-    if (id != NULL && num != NULL && thread_id != NULL && process_id != NULL && unique_id != NULL)
-    {
-        //在设置了id和num指针的情况下才传出数据
-        //这种情况还要先检查是不是in_buf
-        if (unlikely(v_elem->in_num != 1 || v_elem->out_num != 0))
-        {
-            return 0;
-        }
-        //这里scatter_data数组就一个，所以直接可以当指针开取数据
-        // Teleport_Express_Flag_Buf *flag_buf = (Teleport_Express_Flag_Buf *)guest_mem->scatter_data->data;
-
-        int null_flag = 0;
-        Teleport_Express_Flag_Buf *flag_buf = get_direct_ptr(guest_mem, &null_flag);
-        if (null_flag != 0)
-        {
-            if (unlikely(flag_buf == NULL))
-            {
-                printf("error! null flag_buf\n");
-                return 0;
-            }
-            *id = flag_buf->id;
-            *process_id = flag_buf->process_id;
-            *thread_id = flag_buf->thread_id;
-            *num = flag_buf->para_num;
-            *unique_id = flag_buf->unique_id;
-        }
-        else
-        {
-            Teleport_Express_Flag_Buf flag_buf_temp;
-            guest_write(guest_mem, &flag_buf_temp, 0, sizeof(Teleport_Express_Flag_Buf));
-            *id = flag_buf_temp.id;
-            *process_id = flag_buf_temp.process_id;
-            *thread_id = flag_buf_temp.thread_id;
-            *num = flag_buf_temp.para_num;
-            *unique_id = flag_buf->unique_id;
-        }
-    }
-    return 1;
-}
-
-/**
- * @brief 从queue中打包出一个draw调用
- *
- * @param vq
- * @return Teleport_Express_Draw_Call* 返回为NULL表示queue中没有数据，或者有数据但是数据不对
- */
-static Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq)
-{
-
-    // static int pack_cnt = 0;
-    Teleport_Express_Queue_Elem *elem;
-
-    Teleport_Express_Call *call;
-
-    unsigned long long para_num;
-    unsigned long long fun_id;
-    unsigned long long thread_id;
-    unsigned long long process_id;
-    unsigned long long unique_id;
-
-    elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
-    while (elem)
-    {
-
-        if (packaging_call != NULL)
-        {
-            call = packaging_call;
-            packaging_call = NULL;
-            para_num = remain_elem_num - 1;
-            remain_elem_num = 0;
-            // printf("continue null elem reamin %d\n", para_num + 1);
-
-            if (unlikely(elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_teleport_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
-            {
-                //要么是数据复制有问题，要么是这个elem是个in的类型，破坏了调用结构
-                //因此将已经保存的数据抛弃，将这个elem作为第一个elem重新尝试fill，所以是break后continue
-                VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, call->elem_header, 1, next);
-                TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(call->elem_header);
-                release_one_call(call);
-                call = NULL;
-                printf(YELLOW("fill para error first elem %u,%u remain_elem_num %llu\n"), elem->elem.in_num, elem->elem.out_num, para_num);
-                break;
-            }
-            call->elem_tail->next = elem;
-            call->elem_tail = elem;
-        }
-        else
-        {
-            if (unlikely(fill_teleport_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0))
-            {
-                //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
-                VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, elem, 1, next);
-                TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(elem);
-                printf("fill error %u %u\n", elem->elem.in_num, elem->elem.out_num);
-                return NULL;
-            }
-
-            call = alloc_one_call();
-            if (call == NULL)
-            {
-                printf("error! alloc call return NULL!\n");
-            }
-            call->elem_header = elem;
-            call->elem_tail = elem;
-            call->vq = vq;
-
-            call->para_num = para_num;
-            call->id = fun_id;
-            call->thread_id = thread_id;
-            call->process_id = process_id;
-            call->unique_id = unique_id;
-            call->spend_time = 0;
-            call->next = NULL;
-        }
-        // gint64 start_time=g_get_real_time();
-
-        //会有para_num个传入参数，这些elem本应该都是out类型
-        for (int i = 0; i < para_num; i++)
-        {
-            //由于有时候取数据取的过快，安卓那边还没把剩下的一个大数据放进去vring内，这个时候pop会pop一个空的
-            //所以要在这里搞个循环，循环的取。但是循环时间又不能过长，以免影响其他数据的传输
-            //因此这里使用了一个循环计数机制，50000000基本相当于50ms左右，这个时间不够的话还要继续加
-            //--更新：现在不循环取了，而是记下来，等下一次的时候取
-            int cnt_timeout = 0;
-
-            elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
-
-            if (unlikely(elem == NULL))
-            {
-                packaging_call = call;
-                remain_elem_num = para_num - i;
-                // printf("find null elem\n");
-                return NULL;
-            }
-
-            // while (elem == NULL)
-            // {
-            //     // t_int = g_get_real_time();
-            //     // start_time = g_get_real_time();
-
-            //     elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
-            //     cnt_timeout++;
-            //     if(teleport_express_should_stop)
-            //     {
-            //         return NULL;
-            //     }
-            // }
-
-            if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_teleport_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
-            {
-                //要么是数据复制有问题，要么是这个elem是个in的类型，破坏了调用结构
-                //因此将已经保存的数据抛弃，将这个elem作为第一个elem重新尝试fill，所以是break后continue
-                VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, call->elem_header, 1, next);
-                TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(call->elem_header);
-                release_one_call(call);
-                call = NULL;
-                if (elem == NULL)
-                {
-                    printf(YELLOW("fill para error NULL %d\n"), cnt_timeout);
-                }
-                else
-                {
-                    printf(YELLOW("fill para error %u,%u\n"), elem->elem.in_num, elem->elem.out_num);
-                }
-                break;
-            }
-            call->elem_tail->next = elem;
-            call->elem_tail = elem;
-        }
-
-        //不让用goto就得break后continue
-        if (call == NULL)
-        {
-            continue;
-        }
-
-        //返回call，elem的空间释放由call里面的回调函数实现
-        return call;
-    }
-
-    return NULL;
-}
+//     release_one_call(out_call);
+//     return;
+// }
 
 /**
  * @brief 创建一个thread_context，并根据这个context新建一个线程
  *
  * @param context 需要初始化的线程context
  */
-Thread_Context *thread_context_create(unsigned long long thread_id, unsigned long long type_id, unsigned long long len, Express_Device_Info *info)
+Thread_Context *thread_context_create(unsigned long long thread_id, unsigned long long device_id, unsigned long long len, Express_Device_Info *info)
 {
 
-    Thread_Context *context = g_malloc(len);
+    Thread_Context *context = g_malloc0(len);
     memset(context, 0, len);
-
+    context->device_id = device_id;
     context->thread_id = thread_id;
-    context->type_id = type_id;
 
     //环形缓冲区初始化
     memset(context->call_buf, 0, (CALL_BUF_SIZE + 2) * sizeof(Teleport_Express_Call *));
 
     context->read_loc = 0;
     context->write_loc = 0;
-    context->atomic_event_lock = 0;
+    // context->atomic_event_lock = 0;
     context->init = 0;
     context->thread_run = 1;
 
@@ -589,26 +129,25 @@ void push_to_thread(Teleport_Express_Call *call)
     uint64_t process_id = call->process_id;
     uint64_t unique_id = call->unique_id;
 
-    uint64_t device_type_id = GET_DEVICE_ID(call->id);
+    uint64_t device_id = GET_DEVICE_ID(call->id);
     uint64_t fun_id = GET_FUN_ID(call->id);
 
-    if(device_type_id == 0)
+    if (device_id == EXPRESS_CTRL_DEVICE_ID)
     {
         express_device_ctrl_invoke(call);
         return;
     }
 
-
-    Express_Device_Info *device_info = get_express_device_info(device_type_id);
-    if (device_info == NULL)
+    Express_Device_Info *device_info = get_express_device_info(device_id);
+    if (device_info == NULL || (device_info->device_type & OUTPUT_DEVICE_TYPE) == 0)
     {
-        express_printf("something bad happened %llu %llu\n", device_type_id, fun_id);
+        express_printf("something bad happened %llu %llu\n", device_id, fun_id);
         call->callback(call, 0);
         return;
     }
-    express_printf("\033[31mpush to %s thread_id %llu %08x fun id%llu %llu %08x unique id %08x\033[0m\n", device_info->name, call->thread_id, call->thread_id, device_type_id, fun_id, call->id, call->unique_id);
+    express_printf("\033[31mpush to %s thread_id %llu %08x fun id%llu %llu %08x unique id %08x\033[0m\n", device_info->name, call->thread_id, call->thread_id, device_id, fun_id, call->id, call->unique_id);
 
-    Thread_Context *context = device_info->get_context(device_type_id, thread_id, process_id, unique_id, device_info);
+    Thread_Context *context = (Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, device_info);
 
     //找得到相应的设备处理时才把他推送到相应的设备线程
     if (context != NULL)
@@ -617,7 +156,7 @@ void push_to_thread(Teleport_Express_Call *call)
         {
             if (device_info->remove_context)
             {
-                device_info->remove_context(device_type_id, thread_id, process_id, unique_id, device_info);
+                device_info->remove_context(device_id, thread_id, process_id, unique_id, device_info);
                 call->is_end = 1;
                 context->init = 0;
             }
@@ -679,7 +218,7 @@ void distribute_wait(void)
 #endif
 }
 
-int push_cnt = 0;
+// int push_cnt = 0;
 /**
  * @brief 真正用于取出vring上传过来的数据，然后调用相关解码的线程
  *
@@ -708,7 +247,7 @@ void *call_distribute_thread(void *opaque)
     int pop_cnt = 0;
     int in_handle_num = 0;
 
-    e->thread_run = 2;
+    e->distribute_thread_run = 2;
 
     //这个挪到了线程建立之前
     // guest_null_ptr_init(vq);
@@ -721,13 +260,14 @@ void *call_distribute_thread(void *opaque)
     while (qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0)
         ;
 #endif
-    while (e->thread_run && !teleport_express_should_stop)
+    while (e->distribute_thread_run && !teleport_express_should_stop)
     {
 
         int has_handle_flag = 0;
         int pop_flag = 1;
         int recycle_flag = 1;
-        virtqueue_data_distribute_and_recycle(vq, &pop_flag, &recycle_flag);
+        int need_irq = 0;
+        virtqueue_data_distribute_and_recycle(vq, &pop_flag, &recycle_flag, &need_irq);
 
         if (pop_flag != 0)
         {
@@ -809,51 +349,6 @@ void *call_distribute_thread(void *opaque)
     return NULL;
 }
 
-void guest_null_ptr_init(VirtQueue *vq)
-{
-    VirtQueueElement *elem;
-
-    express_printf("wait for pop\n");
-    // QemuThread render_thread;
-    // qemu_thread_create(&render_thread,"handle_thread",native_window_thread,vdev,QEMU_THREAD_JOINABLE);
-    elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
-    while (elem == NULL)
-    {
-        elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
-        express_printf("error elem is NULL\n");
-    }
-    express_printf("get first one ptr %llu %llu %llu\n", elem->out_sg->iov_len, elem->out_num, elem->in_num);
-
-    if (elem->out_sg->iov_len == 4 && elem->out_num == 1 && elem->in_num == 0)
-    {
-        guest_null_ptr = elem->out_sg->iov_base;
-
-        express_printf("null ptr %llu\n", (uint64_t)guest_null_ptr);
-
-        //计算内存复制速度
-        char *temp1 = g_malloc(1024 * 1024 * 24);
-        char *temp2 = g_malloc(1024 * 1024 * 24);
-        memset(temp1, 0, 1024 * 1024 * 24);
-        // memset(temp2,1,1024*1024*24);
-        gint64 t_start = g_get_real_time();
-        memcpy(temp1, temp2, 1024 * 1024 * 24);
-        uint32_t t_spend = (uint32_t)(g_get_real_time() - t_start);
-        uint32_t mem_speed = 1024 * 1024 * 24 / t_spend;
-
-        express_printf("mem cpy speed %u\n", mem_speed);
-
-        *(uint32_t *)guest_null_ptr = mem_speed;
-
-        g_free(temp1);
-        g_free(temp2);
-    }
-    else
-    {
-        printf("error! null ptr cannot be init!\n");
-    }
-    virtqueue_push(vq, elem, 1);
-}
-
 /**
  * @brief 分发线程处理virtqueue的call的函数
  *
@@ -862,14 +357,14 @@ void guest_null_ptr_init(VirtQueue *vq)
  * @param recycle_flag 是否有回收call的flag
  * @return void
  */
-void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *recycle_flag)
+void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *recycle_flag, int *need_irq)
 {
     Teleport_Express_Call *call = NULL;
     int origin_pop_flag = *pop_flag;
     int origin_recycle_flag = *recycle_flag;
     *pop_flag = 0;
     *recycle_flag = 0;
-    if (origin_pop_flag == 1 && (call = pack_call_from_queue(vq)) != NULL)
+    if (origin_pop_flag == 1 && (call = pack_call_from_queue(vq, 0)) != NULL)
     {
         //从queue中打包调用，假如打包失败的话，失败的部分也还是会还给guest
         express_printf("virtio has data push\n");
@@ -878,6 +373,10 @@ void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *re
         call->callback = push_free_callback;
         call->is_end = 0;
         push_to_thread(call);
+        if (GET_DEVICE_ID(call->id) == EXPRESS_CTRL_DEVICE_ID && FUN_NEED_SYNC(call->id))
+        {
+            *need_irq = 1;
+        }
         *pop_flag = 1;
     }
     //这里之前是else if，高负载下导致大量call被堆积到这里，一直没法回收，影响了性能，因此这里进行修改
@@ -892,61 +391,15 @@ void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *re
         call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
         // Teleport_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
         call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
-        release_call(out_call);
+        if (FUN_NEED_SYNC(out_call->id))
+        {
+            *need_irq = 1;
+        }
+        release_one_call(out_call, false);
         *recycle_flag = 1;
     }
 
     return;
-}
-
-/**
- * @brief 释放Draw_Call这个结构体本身占用的空间，并将其占用的vring空间部分返还给guest
- *
- * @param out_call 需要释放的Teleport_Express_Call
- */
-static void release_call(Teleport_Express_Call *out_call)
-{
-
-    VirtQueue *vq = out_call->vq;
-    VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, out_call->elem_header, 1, next);
-    TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(out_call->elem_header);
-
-    release_one_call(out_call);
-    return;
-}
-
-/**
- * @brief 从call中获得其保存的参数，并返回参数数目，假如返回的是0，则说明获取失败
- *
- * @param call 用于提取参数的call
- * @param call_para 传入的用于设置参数信息的call_para数组指针，其中每一个元素都有data和len两个值，其中，data是Guest_Mem指针
- * @param para_num 传入的参数数目，会验证是否和call中的数目是否过大
- * @return int
- */
-int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsigned long max_para_num)
-{
-
-    Teleport_Express_Queue_Elem *header = call->elem_header;
-    Teleport_Express_Queue_Elem *now_elem = header->next;
-    if (max_para_num < call->para_num)
-    {
-        return 0;
-    }
-    call->spend_time = g_get_real_time();
-
-    for (int i = 0; i < call->para_num; i++)
-    {
-        if (unlikely(now_elem == NULL))
-        {
-            return 0;
-        }
-        // Guest_Mem *mem=now_elem->para;
-        call_para[i].data = now_elem->para;
-
-        call_para[i].data_len = now_elem->len;
-        now_elem = now_elem->next;
-    }
-    return call->para_num;
 }
 
 /**
@@ -958,20 +411,7 @@ int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsign
 void push_free_callback(Teleport_Express_Call *call, int notify)
 {
 
-    if (call->spend_time != 0)
-    {
-        call->spend_time = g_get_real_time() - call->spend_time;
-    }
-
-    //设置guest端的flag标志，防止中断丢失
-    Guest_Mem *mem = call->elem_header->para;
-
-    unsigned long long t_flag = 1;
-    guest_read(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, flag), 8);
-    guest_read(mem, &(call->spend_time), __builtin_offsetof(Teleport_Express_Flag_Buf, mem_spend_time), 8);
-
-    // guest_write(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, id), 8);
-    express_printf("write flag id %llu %llu\n", t_flag, call->thread_id);
+    common_call_callback(call);
 
     //无锁入队
     int origin_tail = call_recycle_queue_tail;
@@ -992,4 +432,3 @@ void push_free_callback(Teleport_Express_Call *call, int notify)
         wake_up_distribute();
     }
 }
-

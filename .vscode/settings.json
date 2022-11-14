@@ -131,7 +131,12 @@
         "*.idef": "c",
         "semaphore": "c",
         "eglext.h": "c",
-        "express_device_ctrl.h": "c"
+        "express_device_ctrl.h": "c",
+        "teleport_express_register.h": "c",
+        "net.h": "c",
+        "teleport_express_call.h": "c",
+        "express_touchscreen.h": "c",
+        "express_keyboard.h": "c"
     },
     "cmake.configureOnOpen": false
 }

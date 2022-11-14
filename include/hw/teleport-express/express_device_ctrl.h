@@ -1,7 +1,7 @@
 #ifndef QEMU_EXPRESS_DEVICE_CTRL_H
 #define QEMU_EXPRESS_DEVICE_CTRL_H
 
-#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/teleport_express_call.h"
 #include "hw/teleport-express/express_device_common.h"
 
 

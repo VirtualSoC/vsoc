@@ -44,13 +44,19 @@ typedef struct
     //渲染线程
     QemuThread render_thread;
 
-    int thread_run;
+    int distribute_thread_run;
+
+    int register_input_vq_locker;
+
 
     //暂时没用到
     // QemuMutex thr_mutex;
     // QemuCond thr_cond;
 
 } Teleport_Express;
+
+
+extern bool teleport_express_should_stop;
 
 
 #endif //QEMU_TELEPORT_EXPRESS_H

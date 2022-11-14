@@ -520,7 +520,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
             send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
         }
         // 合成器的生存时间要长5倍，相当于是10秒钟
-        set_display_gbuffer(gbuffer);
+        // set_display_gbuffer(gbuffer);
 
         send_message_to_main_window(MAIN_PAINT, gbuffer);
     }
@@ -560,8 +560,8 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         // Guest_Mem *guest_mem_invoke = (Guest_Mem *)ret_invoke_time;
         // Guest_Mem *guest_mem_swap = (Guest_Mem *)swap_time;
         // int64_t a,b;
-        // guest_write(guest_mem_invoke, &a, 0, sizeof(EGLint));
-        // guest_write(guest_mem_swap, &b, 0, sizeof(EGLint));
+        // read_from_guest_mem(guest_mem_invoke, &a, 0, sizeof(EGLint));
+        // read_from_guest_mem(guest_mem_swap, &b, 0, sizeof(EGLint));
         // express_printf("invoke time %lld swap_time %lld\n",a,b);
     }
 
@@ -632,15 +632,15 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         Thread_Context *thread_context = (Thread_Context *)context;
         if (thread_context->init != 0)
         {
-            // guest_write(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
+            // read_from_guest_mem(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
 
             // now_flag_cnt = (now_flag_cnt + 1) % 1024;
 
             // EGLint swap_time = (EGLint)(real_surface->frame_gen_time);
             // printf("#%llx write now_avg_swap_time %lld\n", ((Render_Thread_Context *)thread_context)->opengl_context, now_avg_swap_time);
-            guest_read(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
+            write_to_guest_mem(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
 
-            guest_read(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
+            write_to_guest_mem(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
         }
     }
 

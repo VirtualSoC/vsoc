@@ -33,7 +33,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapNamedBufferRange(point_data->buffer_object[index], offset, length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], 0, length);
 
             point_data->buffer_loc[index] = 0;
@@ -45,7 +45,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
-            guest_write((Guest_Mem *)pointer, map_pointer + offset, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], offset, length);
 
@@ -56,7 +56,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             // map_pointer=glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
             //     GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            // guest_write((Guest_Mem *)pointer,map_pointer,0,length);
+            // read_from_guest_mem((Guest_Mem *)pointer,map_pointer,0,length);
             // glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             // point_data->buffer_loc[index]=0;
@@ -68,7 +68,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                                 point_data->buffer_len[index] - point_data->remain_buffer_len[index], length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], 0, length);
 
@@ -103,7 +103,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             point_data->buffer_loc[index] = 0;
@@ -115,7 +115,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
-            guest_write((Guest_Mem *)pointer, map_pointer + offset, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
 
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, offset, length);
 
@@ -126,7 +126,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             // map_pointer=glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
             //     GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            // guest_write((Guest_Mem *)pointer,map_pointer,0,length);
+            // read_from_guest_mem((Guest_Mem *)pointer,map_pointer,0,length);
             // glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             // point_data->buffer_loc[index]=0;
@@ -138,7 +138,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                            point_data->buffer_len[index] - point_data->remain_buffer_len[index], length,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
@@ -575,7 +575,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
             map_pointer = glMapNamedBufferRange(point_data->indices_buffer_object, 0, length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             glFlushMappedNamedBufferRange(point_data->indices_buffer_object, 0, length);
 
             point_data->remain_indices_buffer_len = point_data->indices_buffer_len - length;
@@ -587,7 +587,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->indices_buffer_object, 0, length);
 
@@ -600,7 +600,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                                 point_data->indices_buffer_len - point_data->remain_indices_buffer_len, length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->indices_buffer_object, 0, length);
 
@@ -631,7 +631,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
             map_pointer = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             glFlushMappedBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length);
 
             point_data->remain_indices_buffer_len = point_data->indices_buffer_len - length;
@@ -643,7 +643,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length);
 
@@ -656,7 +656,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                            point_data->indices_buffer_len - point_data->remain_indices_buffer_len, length,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-            guest_write((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length);
 
@@ -667,7 +667,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
             // map_pointer=glMapBufferRange(GL_ARRAY_BUFFER, 0, length,
             //     GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            // guest_write((Guest_Mem *)pointer,map_pointer,0,length);
+            // read_from_guest_mem((Guest_Mem *)pointer,map_pointer,0,length);
             // glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             // point_data->remain_indices_buffer_len=point_data->indices_buffer_len-length;

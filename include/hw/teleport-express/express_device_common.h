@@ -7,31 +7,38 @@
 #define EXPRESS_GPU_DEVICE_ID ((uint64_t)1)
 #define EXPRESS_LOG_DEVICE_ID ((uint64_t)2)
 
+#define EXPRESS_TOUCHSCREEN_DEVICE_ID ((uint64_t)3)
+#define EXPRESS_KEYBOARD_DEVICE_ID ((uint64_t)4)
 
 
 //保留的fun_id，其他设备不可使用
 #define EXPRESS_TERMINATE_FUN_ID (0)
 #define EXPRESS_CLUSTER_FUN_ID (9999)
-#define EXPRESS_REGISTER_FUN_ID (99999999)
+#define EXPRESS_REGISTER_BUFFER_FUN_ID (999999)
+#define EXPRESS_IRQ_FUN_ID (1000000)
+#define EXPRESS_GET_PROP_FUN_ID (1000001)
+
 
 
 //存放call的缓冲区大小
 #define CALL_BUF_SIZE 512
 
+#define INPUT_DEVICE_TYPE 1
+#define OUTPUT_DEVICE_TYPE 2
 
 
-#define EXPRESS_DEVICE_NUM 1
 
-#define EXPRESS_DEVICE_NAMES \
-"express_cdev "
-
-
-//device设备的id在高4字节，需要调用的函数id在低3字节，设备id决定到底哪个线程去处理，函数id决定怎么处理，中间一个字节的每个位决定函数处理是异步同步等信息
+// device设备的id在高4字节，需要调用的函数id在低3字节，设备id决定到底哪个线程去处理，函数id决定怎么处理，中间一个字节的每个位决定函数处理是异步同步等信息
 //设备id（4字节）|标志位（1字节）|函数id（3字节）
-#define GET_DEVICE_ID(id)  ((id) >> 32)
-#define GET_FUN_ID(id)     ((id)&0xffffff)
-#define FUN_NEED_SYNC(id)   (((id)>>24)&0x1)
+#define GET_DEVICE_ID(id) ((id) >> 32)
+#define GET_FUN_ID(id) ((id)&0xffffff)
+#define FUN_NEED_SYNC(id) (((id) >> 24) & 0x1)
 #define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
+
+#define SYNC_FUN_ID(id) ((1L << 24) | id)
+
+#define DEVICE_FUN_ID(device_id, id) (((u64)device_id << 32) | id)
+
 
 
 #define EXPRESS_DEVICE_INIT(device_name, info)                                       \
@@ -42,9 +49,40 @@
 
 
 
+
+
+
+//scatter与下面这个iovec等价
+//struct iovec {
+//     void *iov_base;
+//     size_t iov_len;
+// };
+typedef struct Scatter_Data
+{
+    unsigned char *data;
+    size_t len;
+} Scatter_Data;
+
+typedef struct Guest_Mem
+{
+    Scatter_Data *scatter_data;
+    int num;
+    int all_len;
+} Guest_Mem;
+
+typedef struct Call_Para
+{
+    // int is_direct;
+    Guest_Mem *data;
+    size_t data_len;
+} Call_Para;
+
+
+
+
 /**
  * @brief 自定义的Queue_Elem结构体，用来接收guest端传输过来的数据元信息
- * 
+ *
  */
 typedef struct Teleport_Express_Queue_Elem
 {
@@ -58,7 +96,6 @@ typedef struct Teleport_Express_Queue_Elem
 
     struct Teleport_Express_Queue_Elem *next;
 } Teleport_Express_Queue_Elem;
-
 
 
 typedef struct Teleport_Express_Call
@@ -95,8 +132,28 @@ typedef struct Teleport_Express_Call
 
 typedef void (*EXPRESS_DECODE_FUN)(void *, Teleport_Express_Call *);
 
+
 typedef struct Thread_Context
 {
+        //设备的类型id
+    uint64_t device_id;
+
+    //用于缓冲call的环形缓冲区
+    Teleport_Express_Call *call_buf[CALL_BUF_SIZE + 2];
+
+    //环形缓冲区的读写位置
+    volatile int read_loc;
+    volatile int write_loc;
+
+    // int atomic_event_lock;
+
+//缓冲区用来通知 有数据/缓冲区有空位置 的event
+// QemuEvent data_event;
+#ifdef _WIN32
+    HANDLE data_event;
+#else
+
+#endif
 
     //给特定设备用来标记当前thread是否初始化完成的标志
     int init;
@@ -106,26 +163,6 @@ typedef struct Thread_Context
 
     //对应到guest端调用起这个设备的线程的线程id
     uint64_t thread_id;
-
-    //设备的类型id
-    uint64_t type_id;
-
-    //用于缓冲call的环形缓冲区
-    Teleport_Express_Call *call_buf[CALL_BUF_SIZE + 2];
-
-    //环形缓冲区的读写位置
-    volatile int read_loc;
-    volatile int write_loc;
-
-    int atomic_event_lock;
-
-//缓冲区用来通知 有数据/缓冲区有空位置 的event
-// QemuEvent data_event;
-#ifdef _WIN32
-    HANDLE data_event;
-#else
-
-#endif
 
     //标示当前线程
     QemuThread this_thread;
@@ -144,10 +181,12 @@ typedef struct Thread_Context
 } Thread_Context;
 
 
+
 typedef struct Express_Device_Info
 {
     //留作内部使用
     int device_index;
+    bool enable;
 
     //该设备是否默认启用
     bool enable_default;
@@ -164,37 +203,50 @@ typedef struct Express_Device_Info
     //设备的类型id
     int device_id;
 
-    //对应到Thread_Context中的两个设备自定义的函数——初始化函数和call处理函数
+    //设备的类型
+    int device_type;
+
+    //对应到Thread_Context中的两个设备自定义的函数——初始化函数和call处理函数，仅output模式可用
     void (*context_init)(struct Thread_Context *context);
     void (*context_destroy)(struct Thread_Context *context);
     void (*call_handle)(struct Thread_Context *context, Teleport_Express_Call *call);
 
     //设备定义的用于获取context的函数，例如有一个统一的context或者对每一个线程维护一个context
-    Thread_Context *(*get_context)(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    Thread_Context *(*get_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
-    void (*remove_context)(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    void (*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+
+
+    void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);
+    void (*irq_register)(Teleport_Express_Call *call);
+
+    void *static_prop;
+    int static_prop_size;
 
 } Express_Device_Info;
-
 
 extern bool express_gpu_gl_debug_enable;
 extern bool express_gpu_independ_window_enable;
 
+extern bool express_gpu_keep_window_scale;
+
+extern int express_gpu_window_width;
+extern int express_gpu_window_height;
+
+extern bool express_touchscreen_scroll_is_zoom;
+extern bool express_touchscreen_right_click_is_two_finger;
+extern int express_touchscreen_scroll_ratio;
+
+extern bool express_keyboard_finger_replay;
+
 extern char *kernel_load_express_driver_names;
 extern int kernel_load_express_driver_num;
-
-
 
 void express_device_init_common(Express_Device_Info *info);
 
 Express_Device_Info *get_express_device_info(unsigned int device_id);
 
 void cluster_decode_invoke(Teleport_Express_Call *call, void *context, EXPRESS_DECODE_FUN decode_fun);
-
-
-//FUN_ID为0是保留字段
-
-// #define FUNID_eglSwapBuffers_special ((EXPRESS_GPU_DEVICE_ID<<32u)+(((uint64_t)0x8+0x4)<<24u)+100000)
 
 
 #endif

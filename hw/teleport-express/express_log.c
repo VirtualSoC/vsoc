@@ -14,7 +14,7 @@
 
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
-
+#include "hw/teleport-express/teleport_express_call.h"
 
 #define LOG_DIR "log//call"
 
@@ -121,12 +121,12 @@ void log_init(struct Thread_Context *context)
  * @param info
  * @return Thread_Context*
  */
-static Thread_Context *get_log_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_log_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
 
     if (log_thread_context == NULL)
     {
-        log_thread_context = thread_context_create(thread_id, type_id, sizeof(Thread_Context), info);
+        log_thread_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
     }
     return log_thread_context;
 }
@@ -191,7 +191,7 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
             int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#LOG_GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
             express_printf("#LOG_GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
             loc += num;
-            guest_write(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
+            read_from_guest_mem(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
             express_printf("%s\n", print_buf + loc);
             loc += all_para[0].data_len;
 
@@ -215,7 +215,7 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
         }
         gint64 start_time = g_get_real_time();
 
-        guest_write(all_para[0].data, copy_test_buf, 0, all_para[0].data_len);
+        read_from_guest_mem(all_para[0].data, copy_test_buf, 0, all_para[0].data_len);
 
         gint64 spend_time = g_get_real_time() - start_time;
         if (spend_time == 0)
@@ -279,9 +279,10 @@ static Express_Device_Info express_log_info = {
     .option_name = NULL,
     .driver_name = NULL,
     .device_id = EXPRESS_LOG_DEVICE_ID,
+    .device_type = OUTPUT_DEVICE_TYPE,
     .context_init = log_init,
     .call_handle = call_printf,
     .get_context = get_log_thread_context,
 };
 
-EXPRESS_DEVICE_INIT(EXPRESS_LOG, &express_log_info)
+EXPRESS_DEVICE_INIT(express_log, &express_log_info)

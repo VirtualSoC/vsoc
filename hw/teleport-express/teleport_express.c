@@ -11,10 +11,15 @@
 // #define STD_DEBUG_LOG
 #include "hw/teleport-express/teleport_express.h"
 
+#include "hw/teleport-express/teleport_express_call.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/teleport_express_register.h"
+
 #include "hw/teleport-express/express_log.h"
 
 // #define express_printf null_printf
+
+bool teleport_express_should_stop = 0;
 
 /**
  * @brief 当vring有数据来的之后的回调函数，在aio线程中运行
@@ -22,19 +27,19 @@
  * @param vdev
  * @param vq
  */
-static void teleport_express_handle(VirtIODevice *vdev, VirtQueue *vq)
+static void teleport_express_output_handle(VirtIODevice *vdev, VirtQueue *vq)
 {
 
     Teleport_Express *g = TELEPORT_EXPRESS(vdev);
-    if (g->thread_run == 0)
+    if (g->distribute_thread_run == 0)
     {
         guest_null_ptr_init(vq);
         express_printf("start handle thread\n");
-        g->thread_run = 1;
+        g->distribute_thread_run = 1;
         qemu_thread_create(&g->render_thread, "teleport-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
     }
-    else if (g->thread_run == 1)
+    else if (g->distribute_thread_run == 1)
     {
         //分发线程还没跑起来，就不处理了
         return;
@@ -51,6 +56,7 @@ static void teleport_express_handle(VirtIODevice *vdev, VirtQueue *vq)
 
             int recycle_cnt = 0;
             int pop_cnt = 0;
+            int need_irq = 0;
 
             //我先处理着，但是分发线程也得赶紧醒来接着我处理
             wake_up_distribute();
@@ -67,7 +73,7 @@ static void teleport_express_handle(VirtIODevice *vdev, VirtQueue *vq)
                 pop_flag = 1;
                 recycle_flag = 1;
 
-                virtqueue_data_distribute_and_recycle(vq, &pop_flag, &recycle_flag);
+                virtqueue_data_distribute_and_recycle(vq, &pop_flag, &recycle_flag, &need_irq);
                 if (pop_flag != 0)
                 {
                     pop_cnt += 1;
@@ -77,7 +83,7 @@ static void teleport_express_handle(VirtIODevice *vdev, VirtQueue *vq)
                     recycle_cnt += 1;
                 }
             }
-            if (recycle_flag != 0)
+            if (need_irq != 0)
             {
                 // printf("direct notify\n");
                 virtio_notify(VIRTIO_DEVICE(vdev), vq);
@@ -104,15 +110,29 @@ static void teleport_express_handle(VirtIODevice *vdev, VirtQueue *vq)
     return;
 }
 
+static void teleport_express_input_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
+{
+
+    Teleport_Express *g = TELEPORT_EXPRESS(vdev);
+
+    if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
+    {
+        register_input_buffer_call(vdev, vq);
+        qatomic_set(&(g->register_input_vq_locker), 0);
+    }
+
+    return;
+}
+
 // /**
 //  * @brief aio线程处理数据时的回调函数，在这里调用实际的处理函数
 //  *
 //  * @param opaque 传递的参数，实际就是express-GPU
 //  */
-// static void teleport_express_handle_bh(void *opaque)
+// static void teleport_express_output_handle_bh(void *opaque)
 // {
 //     Teleport_Express *g = opaque;
-//     teleport_express_handle(&g->parent_obj, g->data_queue);
+//     teleport_express_output_handle(&g->parent_obj, g->data_queue);
 // }
 
 /**
@@ -122,11 +142,11 @@ static void teleport_express_handle(VirtIODevice *vdev, VirtQueue *vq)
  * @param vdev
  * @param vq
  */
-static void teleport_express_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
+static void teleport_express_output_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 {
     // Teleport_Express *g = TELEPORT_EXPRESS(vdev);
     // qemu_bh_schedule(g->data_bh);
-    teleport_express_handle(vdev, vq);
+    teleport_express_output_handle(vdev, vq);
 }
 
 static void teleport_express_realize(DeviceState *qdev, Error **errp)
@@ -143,15 +163,14 @@ static void teleport_express_realize(DeviceState *qdev, Error **errp)
     //弄indirect table时单个空间最大可以放一个额外的1024大小的table，
     //一个参数占用一个空间，因此单个参数的数据被限制在1024*1024个不连续页面，
     //当然实际限制一次数据传输在256Mb左右
-    virtio_add_queue(vdev, 1024, teleport_express_handle_cb);
-    virtio_add_queue(vdev, 1024, teleport_express_handle_cb);
-
+    virtio_add_queue(vdev, 1024, teleport_express_output_handle_cb);
+    virtio_add_queue(vdev, 1024, teleport_express_input_handle_cb);
 
     g->out_data_queue = virtio_get_queue(vdev, 0);
     g->in_data_queue = virtio_get_queue(vdev, 1);
 
     //在aio线程处理中处理数据的函数
-    // g->data_bh = qemu_bh_new(teleport_express_handle_bh, g);
+    // g->data_bh = qemu_bh_new(teleport_express_output_handle_bh, g);
 
     virtio_add_feature(&vdev->host_features, VIRTIO_RING_F_INDIRECT_DESC);
 
@@ -160,7 +179,7 @@ static void teleport_express_realize(DeviceState *qdev, Error **errp)
 
 static uint64_t
 teleport_express_get_features(VirtIODevice *vdev, uint64_t features,
-                            Error **errp)
+                              Error **errp)
 {
     // 设备独特的特性，下面是virtio-GPU的例子
     //    VirtIOGPUBase *g = VIRTIO_GPU_BASE(vdev);

@@ -22,6 +22,16 @@ typedef struct Teleport_Express_PCI{
     bool express_device_enable[MAX_EXPRESS_DEVICE_NUM];
     bool enalbe_opengl_debug;
     bool enable_independ_window;
+    bool keep_window_scale;
+    int window_width;
+    int window_height;
+
+    bool scroll_is_zoom;
+    bool right_click_is_two_finger;
+    int scroll_ratio;
+
+    bool finger_replay;
+    
 } Teleport_Express_PCI;
 
 

@@ -155,7 +155,7 @@ void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 //         if (temp_len != 0 && null_flag == 0)
 //         {
 //             // temp = temp_buf;
-//             guest_write(all_para[0].data, send_async_buf, 0, all_para[0].data_len);
+//             read_from_guest_mem(all_para[0].data, send_async_buf, 0, all_para[0].data_len);
 //         }
 //         else
 //         {
@@ -181,7 +181,7 @@ void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 //         if (temp_len != 0 && null_flag == 0)
 //         {
 //             // temp = temp_buf;
-//             guest_write(all_para[1].data, save_buf, 0, all_para[1].data_len);
+//             read_from_guest_mem(all_para[1].data, save_buf, 0, all_para[1].data_len);
 //         }
 //         else
 //         {
@@ -338,7 +338,7 @@ void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 //     return;
 // }
 
-Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     if (render_thread_contexts == NULL)
     {
@@ -354,7 +354,7 @@ Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, 
     {
         // express_printf("create new thread\n");
         express_printf("create new thread context\n");
-        context = thread_context_create(thread_id, type_id, sizeof(Render_Thread_Context), info);
+        context = thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
         Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
         //处理好process_context与thread_context的关系
         //新建进程上下文
@@ -563,6 +563,7 @@ static Express_Device_Info express_gpu_info = {
     .option_name = "gl",
     .driver_name = "express_cdev",
     .device_id = EXPRESS_GPU_DEVICE_ID,
+    .device_type = OUTPUT_DEVICE_TYPE,
     .context_init = render_context_init,
     .context_destroy = render_context_destroy,
     .call_handle = decode_invoke,
@@ -570,4 +571,4 @@ static Express_Device_Info express_gpu_info = {
     .remove_context = remove_render_thread_context,
 };
 
-EXPRESS_DEVICE_INIT(EXPRESS_GPU, &express_gpu_info)
+EXPRESS_DEVICE_INIT(express_gpu, &express_gpu_info)

@@ -2,7 +2,7 @@
 #define TEST_TRANS_H
 
 #include "hw/teleport-express/express_device_common.h"
-#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/teleport_express_call.h"
 
 #define MAX_OUT_BUF_LEN 4096
 

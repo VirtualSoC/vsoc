@@ -250,7 +250,7 @@ void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsi
     {
         GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
         Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)));
-        guest_read((Guest_Mem *)mem_buf, (void *)map_res->host_data, 0, length);
+        write_to_guest_mem((Guest_Mem *)mem_buf, (void *)map_res->host_data, 0, length);
         // host_guest_buffer_exchange(map_res->guest_data, map_res->host_data, 0, length, 0);
     }
 }
@@ -351,7 +351,7 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
     }
     if (map_res->access & GL_MAP_WRITE_BIT)
     {
-        guest_write((Guest_Mem *)data, map_res->host_data + offset, 0, length);
+        read_from_guest_mem((Guest_Mem *)data, map_res->host_data + offset, 0, length);
 
         uint32_t crc = 0;
         // for(int i=0;i<length;i++)

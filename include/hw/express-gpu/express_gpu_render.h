@@ -33,7 +33,6 @@
 #define MAIN_DESTROY_GBUFFER 9
 #define MAIN_CANCEL_GBUFFER 10
 
-
 #define GBUFFER_TYPE_NONE 0
 #define GBUFFER_TYPE_WINDOW 1
 #define GBUFFER_TYPE_BITMAP 2
@@ -43,10 +42,10 @@
 #define GBUFFER_TYPE_FBO 6
 #define GBUFFER_TYPE_FBO_NEED_DATA 7
 
-
-#define ATOMIC_LOCK(s)                       \
-     int atomic_cnt=0;while (qatomic_cmpxchg(&(s), 0, 1) == 1&&atomic_cnt<10000) \
-          printf("lock on %s %d ", #s,atomic_cnt++);
+#define ATOMIC_LOCK(s)                                              \
+     int atomic_cnt = 0;                                            \
+     while (qatomic_cmpxchg(&(s), 0, 1) == 1 && atomic_cnt < 10000) \
+          printf("lock on %s %d ", #s, atomic_cnt++);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
 
 // #define ATOMIC_SET_USED(s) ATOMIC_LOCK(s)
@@ -71,22 +70,20 @@
 // #define USE_GLFW_AS_WGL
 
 //保证窗口有相同长宽比的宏
-#define ENSURE_SAME_WIDTH_HEIGHT_RATIO
+// #define ENSURE_SAME_WIDTH_HEIGHT_RATIO
 
 //是否开启外置窗口固定帧率刷新模式的宏
 // #define ENABLE_STATIC_WINDOW_REFRESH
 
 //是否启用DSA模式
-//DSA模式尚未测试确定可用，而且性能提升并不明显，暂时不支持
+// DSA模式尚未测试确定可用，而且性能提升并不明显，暂时不支持
 // #define ENABLE_DSA
-
 
 #ifdef ENABLE_DSA
 #define DSA_LIKELY(t) likely(t)
 #else
 #define DSA_LIKELY(t) unlikely(t)
 #endif
-
 
 typedef struct Main_window_Event
 {
@@ -215,8 +212,7 @@ typedef struct Static_Context_Values
      GLuint64 extensions[512];
      //大概需要512*100+400左右的空间存放字符串，这么大的空间应该是够了
 
-}__attribute__((packed, aligned(1))) Static_Context_Values;
-
+} __attribute__((packed, aligned(1))) Static_Context_Values;
 
 // typedef struct Static_Context_Values1 Static_Context_Values1;
 
@@ -268,7 +264,6 @@ int draw_wait_GSYNC(void *event, int wait_frame_num);
 // void set_gbuffer_id_image(uint64_t gbuffer_id, EGL_Image *origin_image, EGL_Image *now_image);
 
 void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer);
-
 
 Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
 

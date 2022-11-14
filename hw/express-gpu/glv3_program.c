@@ -284,7 +284,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     }
 
     express_printf("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
-    guest_read(guest_mem, save_program_data, 0, buf_len);
+    write_to_guest_mem(guest_mem, save_program_data, 0, buf_len);
 
     //读取完成后直接删除就行了
     g_hash_table_remove(program_data_map, GUINT_TO_POINTER(program));
