@@ -47,6 +47,16 @@
 
 #endif
 
+typedef struct Device_Log_Setting_Info
+{
+    int express_gpu_debug_level;
+    int express_gpu_log_to_host;
+    int express_gpu_log_with_buffer;
+    int express_gpu_open_opengl_trace;
+} __attribute__((packed, aligned(4))) Device_Log_Setting_Info;
+
+
+
 char *get_now_time(void);
 int null_printf(const char *a, ...);
 

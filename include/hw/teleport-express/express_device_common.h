@@ -2,6 +2,7 @@
 #define EXPRESS_DEVICE_COMMON_H
 
 #include "hw/teleport-express/teleport_express.h"
+#include "hw/teleport-express/express_log.h"
 
 #define EXPRESS_CTRL_DEVICE_ID ((uint64_t)0)
 #define EXPRESS_GPU_DEVICE_ID ((uint64_t)1)
@@ -224,6 +225,9 @@ typedef struct Express_Device_Info
     int static_prop_size;
 
 } Express_Device_Info;
+
+
+extern Device_Log_Setting_Info express_device_log_setting_info;
 
 extern bool express_gpu_gl_debug_enable;
 extern bool express_gpu_independ_window_enable;

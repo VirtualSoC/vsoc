@@ -31,6 +31,12 @@ static Property teleport_express_base_properties[] = {
     DEFINE_PROP_INT32("window_width", Teleport_Express_PCI, window_width, 1280),
     DEFINE_PROP_INT32("window_height", Teleport_Express_PCI, window_height, 720),
 
+    DEFINE_PROP_INT32("gl_log_level", Teleport_Express_PCI, gpu_debug_level, 1),
+    DEFINE_PROP_BOOL("gl_log_to_host", Teleport_Express_PCI, gpu_log_to_host, true),
+    DEFINE_PROP_BOOL("buffer_log", Teleport_Express_PCI, gpu_log_with_buffer, false),
+    DEFINE_PROP_BOOL("opengl_trace", Teleport_Express_PCI, opengl_trace, false),
+
+
     DEFINE_PROP_BOOL("scroll_is_zoom", Teleport_Express_PCI, scroll_is_zoom, true),
     DEFINE_PROP_BOOL("right_click_is_two_finger", Teleport_Express_PCI, right_click_is_two_finger, true),
     DEFINE_PROP_INT32("scroll_ratio", Teleport_Express_PCI, scroll_ratio, 20),
@@ -39,6 +45,8 @@ static Property teleport_express_base_properties[] = {
 
     DEFINE_PROP_END_OF_LIST(),
 };
+
+
 
 static Property *teleport_express_all_properties = NULL;
 
@@ -223,6 +231,11 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     express_gpu_keep_window_scale = express_pci->keep_window_scale;
     express_gpu_window_width = express_pci->window_width;
     express_gpu_window_height = express_pci->window_height;
+
+    express_device_log_setting_info.express_gpu_debug_level = express_pci->gpu_debug_level;
+    express_device_log_setting_info.express_gpu_log_to_host = (int)express_pci->gpu_log_to_host;
+    express_device_log_setting_info.express_gpu_log_with_buffer = (int)express_pci->gpu_log_with_buffer;
+    express_device_log_setting_info.express_gpu_open_opengl_trace = (int)express_pci->opengl_trace;
 
     express_touchscreen_scroll_is_zoom = express_pci->scroll_is_zoom;
     express_touchscreen_right_click_is_two_finger = express_pci->right_click_is_two_finger;

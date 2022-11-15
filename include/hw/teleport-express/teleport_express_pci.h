@@ -26,12 +26,17 @@ typedef struct Teleport_Express_PCI{
     int window_width;
     int window_height;
 
+    int gpu_debug_level;
+    bool gpu_log_to_host;
+    bool gpu_log_with_buffer;
+    bool opengl_trace;
+
     bool scroll_is_zoom;
     bool right_click_is_two_finger;
     int scroll_ratio;
 
     bool finger_replay;
-    
+
 } Teleport_Express_PCI;
 
 
