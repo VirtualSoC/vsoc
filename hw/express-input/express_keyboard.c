@@ -33,6 +33,8 @@ typedef struct Keyboard_Context
 
 static Keyboard_Context static_keyboard_context;
 
+static bool keyboard_irq_enable = false;
+
 bool express_keyboard_finger_replay = false;
 
 void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
@@ -75,7 +77,7 @@ void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int
             (action == GLFW_REPEAT && !check_mouse_is_replaying(linux_code)) ||
             (action == GLFW_RELEASE && !stop_mouse_replay(linux_code)))
         {
-            static_keyboard_context.data.key[linux_code] = true;
+            static_keyboard_context.data.key[linux_code] = (action != GLFW_RELEASE);
             static_keyboard_context.data.key_is_refresh[linux_code] = true;
             static_keyboard_context.need_sync = true;
         }
@@ -85,7 +87,7 @@ void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int
 void sync_express_keyboard_input(void)
 {
 
-    if (!static_keyboard_context.need_sync)
+    if (!static_keyboard_context.need_sync || !keyboard_irq_enable)
     {
         return;
     }
@@ -100,7 +102,8 @@ void sync_express_keyboard_input(void)
     static_keyboard_context.need_sync = false;
     memset(static_keyboard_context.data.key_is_refresh, 0, sizeof(static_keyboard_context.data.key_is_refresh));
 
-    // printf("irq send ok\n");
+    // printf("touchscreen irq send ok\n");
+
     send_express_device_irq(static_keyboard_context.irq_call, 0, sizeof(Keyboard_Data));
     static_keyboard_context.irq_call = NULL;
 }
@@ -117,9 +120,27 @@ static void keyboard_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64
 
 static void keyboard_irq_register(Teleport_Express_Call *call)
 {
-    // printf("touch register irq\n");
+    // printf("register irq\n");
+    if(static_keyboard_context.irq_call != NULL)
+    {
+        send_express_device_irq(static_keyboard_context.irq_call, 0, 0);
+    }
 
+
+    keyboard_irq_enable = true;
     static_keyboard_context.irq_call = call;
+}
+
+static void keyboard_irq_release(void)
+{
+    if(static_keyboard_context.irq_call != NULL)
+    {
+        send_express_device_irq(static_keyboard_context.irq_call, 0, 0);
+    
+        printf("keyboard_irq_release\n");
+        keyboard_irq_enable = false;
+        static_keyboard_context.irq_call = NULL;
+    }
 }
 
 static Express_Device_Info express_keyboard_info = {
@@ -132,6 +153,7 @@ static Express_Device_Info express_keyboard_info = {
 
     .buffer_register = keyboard_buffer_register,
     .irq_register = keyboard_irq_register,
+    .irq_release = keyboard_irq_release,
 
 };
 

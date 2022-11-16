@@ -14,7 +14,7 @@
 #define MAX_RECORD_SLOT 100
 #define MAX_RECORD_NUM 100
 
-void set_touchscreen_size(int width, int height, int max_width, int max_height);
+void set_touchscreen_window_size(int max_width, int max_height);
 
 void start_mouse_record(int index);
 void stop_mouse_record(void);

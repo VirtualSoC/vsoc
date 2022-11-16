@@ -24,7 +24,7 @@
 
 // static volatile int pre_guest_mem_loc = 0;
 
-#define INIT_CACHE_SIZE 16
+#define INIT_CACHE_SIZE 128
 
 typedef struct Fast_Alloc_Date_Cache
 {

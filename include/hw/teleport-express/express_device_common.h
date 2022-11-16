@@ -18,6 +18,7 @@
 #define EXPRESS_REGISTER_BUFFER_FUN_ID (999999)
 #define EXPRESS_IRQ_FUN_ID (1000000)
 #define EXPRESS_GET_PROP_FUN_ID (1000001)
+#define EXPRESS_RELEASE_IRQ_FUN_ID (1000002)
 
 
 
@@ -220,6 +221,7 @@ typedef struct Express_Device_Info
 
     void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);
     void (*irq_register)(Teleport_Express_Call *call);
+    void (*irq_release)(void);
 
     void *static_prop;
     int static_prop_size;
@@ -236,6 +238,8 @@ extern bool express_gpu_keep_window_scale;
 
 extern int express_gpu_window_width;
 extern int express_gpu_window_height;
+
+extern int *express_touchscreen_size;
 
 extern bool express_touchscreen_scroll_is_zoom;
 extern bool express_touchscreen_right_click_is_two_finger;

@@ -29,7 +29,6 @@ typedef struct Touchscreen_Data
     int touch_y[10];
     int is_touched[10];
     int touch_cnt;
-    Touchscreen_Prop prop;
 } __attribute__((packed, aligned(4))) Touchscreen_Data;
 
 typedef struct Touchscreen_Context
@@ -40,20 +39,21 @@ typedef struct Touchscreen_Context
     bool need_sync;
 } Touchscreen_Context;
 
-static Touchscreen_Context static_touchscreen_context = {
-    .data = {
-        .prop = {
-            .width = 1920,
-            .height = 1080,
-        }}};
+static Touchscreen_Context static_touchscreen_context;
+
+
+//触摸屏的物理大小，可以通过命令行来设置
+static Touchscreen_Prop static_prop = {
+    .width = 1920,
+    .height = 1080,
+};
+
+int *express_touchscreen_size = (int *)&static_prop;
+
 
 // qemu这边的窗口大小
 static int window_width = 0;
 static int window_height = 0;
-
-//虚拟机里面的系统，绘制的内容的大小（显示屏大小）
-static int display_width = 1920;
-static int display_height = 1080;
 
 static bool now_finger_used[10];
 
@@ -81,6 +81,8 @@ static int now_replay_finger_num[MAX_RECORD_SLOT];
 static int scroll_yoffset = 0;
 static bool is_scrolling = false;
 
+static bool touchscreen_irq_enable = false;
+
 /**
  * @brief Set the touchscreen size object
  *
@@ -89,22 +91,12 @@ static bool is_scrolling = false;
  * @param max_width qemu显示的窗口的宽度
  * @param max_height qemu显示的窗口的高度
  */
-void set_touchscreen_size(int width, int height, int max_width, int max_height)
+void set_touchscreen_window_size(int max_width, int max_height)
 {
-    display_width = width;
-    display_height = height;
+    // display_width = width;
+    // display_height = height;
     window_width = max_width;
     window_height = max_height;
-
-    if (display_width != static_touchscreen_context.data.prop.width)
-    {
-        static_touchscreen_context.data.prop.width = display_width;
-    }
-
-    if (display_height != static_touchscreen_context.data.prop.height)
-    {
-        static_touchscreen_context.data.prop.height = display_height;
-    }
 }
 
 void start_mouse_record(int index)
@@ -233,25 +225,25 @@ void express_touchscreen_mouse_move_handle(GLFWwindow *window, double xpos, doub
     int real_display_height = window_height;
     if (express_gpu_keep_window_scale)
     {
-        now_finger_xpos = (int)((double)xpos / window_width * display_width);
-        now_finger_ypos = (int)((double)ypos / window_height * display_height);
+        now_finger_xpos = (int)((double)xpos / window_width * static_prop.width);
+        now_finger_ypos = (int)((double)ypos / window_height * static_prop.height);
     }
     else
     {
-        if ((double)display_width / display_height > (double)window_width / window_height)
+        if ((double)static_prop.width / static_prop.height > (double)window_width / window_height)
         {
-            real_display_height = (double)display_height / display_width * window_width;
+            real_display_height = (double)static_prop.height / static_prop.width * window_width;
             ypos = min(max((ypos - (double)(window_height - real_display_height) / 2), 0), (double)real_display_height);
         }
         else
         {
-            real_display_width = (double)display_width / display_height * display_height;
+            real_display_width = (double)static_prop.width / static_prop.height * static_prop.height;
             xpos = min(max((xpos - (double)(window_width - real_display_width) / 2), 0), (double)real_display_width);
         }
     }
 
-    now_finger_xpos = (int)(xpos / real_display_width * display_width);
-    now_finger_ypos = (int)(ypos / real_display_height * display_height);
+    now_finger_xpos = (int)(xpos / real_display_width * static_prop.width);
+    now_finger_ypos = (int)(ypos / real_display_height * static_prop.height);
 
     // printf("now finger %d %d %d %d %d %d\n", now_finger_xpos, now_finger_ypos,real_display_width,real_display_height,window_width, window_height );
 
@@ -300,7 +292,7 @@ void express_touchscreen_mouse_scroll_handle(GLFWwindow *window, double xoffset,
     if (express_touchscreen_scroll_is_zoom)
     {
         int temp_yoffset = ((int)yoffset) * express_touchscreen_scroll_ratio;
-        int temp_finger_offset = min(now_finger_ypos, display_height - now_finger_ypos) - 100;
+        int temp_finger_offset = min(now_finger_ypos, static_prop.height - now_finger_ypos) - 100;
 
         // 加上offset不改变正负号才能加上去（同正同负）
         if (scroll_yoffset * (scroll_yoffset + temp_yoffset) > 0 || scroll_yoffset == 0)
@@ -335,7 +327,7 @@ void set_express_touchscreen_input(int x, int y, int is_touched, int index)
     {
         return;
     }
-    if (x < 0 || x >= display_width || y < 0 || y >= display_height)
+    if (x < 0 || x >= static_prop.width || y < 0 || y >= static_prop.height)
     {
         return;
     }
@@ -363,7 +355,7 @@ void sync_express_touchscreen_input(void)
     record_mouse_pos();
     keep_mouse_replaying();
 
-    if (!static_touchscreen_context.need_sync)
+    if (!static_touchscreen_context.need_sync || !touchscreen_irq_enable)
     {
         return;
     }
@@ -377,7 +369,7 @@ void sync_express_touchscreen_input(void)
 
     static_touchscreen_context.need_sync = false;
 
-    // printf("irq send ok\n");
+    // printf("touchscreen irq send ok\n");
     send_express_device_irq(static_touchscreen_context.irq_call, 0, sizeof(Touchscreen_Data));
     static_touchscreen_context.irq_call = NULL;
 }
@@ -396,7 +388,25 @@ static void touchscreen_irq_register(Teleport_Express_Call *call)
 {
     // printf("touch register irq\n");
 
+    if (static_touchscreen_context.irq_call != NULL)
+    {
+        send_express_device_irq(static_touchscreen_context.irq_call, 0, 0);
+    }
+
+    touchscreen_irq_enable = true;
     static_touchscreen_context.irq_call = call;
+}
+
+static void touchscreen_irq_release(void)
+{
+    if (static_touchscreen_context.irq_call != NULL)
+    {
+        send_express_device_irq(static_touchscreen_context.irq_call, 0, 0);
+
+        printf("touchscreen_irq_release\n");
+        touchscreen_irq_enable = false;
+        static_touchscreen_context.irq_call = NULL;
+    }
 }
 
 static Express_Device_Info express_touchscreen_info = {
@@ -409,8 +419,9 @@ static Express_Device_Info express_touchscreen_info = {
 
     .buffer_register = touchscreen_buffer_register,
     .irq_register = touchscreen_irq_register,
+    .irq_release = touchscreen_irq_release,
 
-    .static_prop = &(static_touchscreen_context.data.prop),
+    .static_prop = &(static_prop),
     .static_prop_size = sizeof(Touchscreen_Prop),
 
 };

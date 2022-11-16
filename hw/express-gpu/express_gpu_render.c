@@ -538,7 +538,7 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
             glViewport(x, y, temp_window_width, temp_window_height);
         }
 
-        set_touchscreen_size(display_width, display_height, window_width, window_height);
+        set_touchscreen_window_size(window_width, window_height);
 
         // #ifdef ENSURE_SAME_WIDTH_HEIGHT_RATIO
         //         if (calc_width < width && calc_height > height)
@@ -1262,6 +1262,9 @@ void *native_window_thread(void *opaque)
 
     glfwMakeContextCurrent(glfw_window);
 
+    set_touchscreen_window_size(window_width, window_height);
+
+
     HDC dpy_dc = GetDC(glfwGetWin32Window(glfw_window));
     HGLRC gl_context = glfwGetWGLContext(glfw_window);
     egl_init(dpy_dc, gl_context);
@@ -1360,8 +1363,6 @@ void *native_window_thread(void *opaque)
                 opengl_paint(display_gbuffer);
                 calc_screen_hz += 1;
                 has_refresh = true;
-
-                set_touchscreen_size(display_width, display_height, window_width, window_height);
 
                 glfwSwapBuffers(glfw_window);
             }

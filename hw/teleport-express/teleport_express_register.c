@@ -6,6 +6,8 @@
 
 static VirtIODevice *in_teleport_express = NULL;
 
+static bool need_send_irq = false;
+
 // /**
 //  * @brief 从queue中打包出一个draw调用
 //  *
@@ -157,6 +159,11 @@ static void push_to_device(Teleport_Express_Call *call)
     {
         send_device_prop_to_guest(device_info, call);
     }
+    else if (fun_id == EXPRESS_RELEASE_IRQ_FUN_ID)
+    {
+        device_info->irq_release();
+        call->callback(call, 1);
+    }
     else
     {
         printf("unknow fun id %llu device %llu\n", fun_id, device_id);
@@ -218,9 +225,15 @@ void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int
     write_to_guest_mem(mem, &t_data, __builtin_offsetof(Teleport_Express_Flag_Buf, ret_data), 8);
 
     irq_call->callback(irq_call, 0);
+
+    need_send_irq = true;
 }
 
 void express_input_device_sync(void)
 {
-    virtio_notify(VIRTIO_DEVICE(in_teleport_express), TELEPORT_EXPRESS(in_teleport_express)->in_data_queue);
+    if (need_send_irq)
+    {
+        virtio_notify(VIRTIO_DEVICE(in_teleport_express), TELEPORT_EXPRESS(in_teleport_express)->in_data_queue);
+        need_send_irq = false;
+    }
 }
