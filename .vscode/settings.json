@@ -137,7 +137,9 @@
         "teleport_express_call.h": "c",
         "express_touchscreen.h": "c",
         "express_keyboard.h": "c",
-        "error.h": "c"
+        "error.h": "c",
+        "device_interface.h": "c",
+        "device_interface_window.h": "c"
     },
     "cmake.configureOnOpen": false
 }

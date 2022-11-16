@@ -27,43 +27,43 @@
 
 
 
-typedef struct accelerometer_data {
+typedef struct Accelerometer_Data {
     float scale;
     int x;
     int y;
     int z;
-} accelerometer_data;
+} Accelerometer_Data;
 
-typedef struct magnetic_data {
+typedef struct Magnetic_Data {
     float scale_x;
     float scale_y;
     float scale_z;
     int x;
     int y;
     int z;
-} magnetic_data;
+} Magnetic_Data;
 
-typedef struct light_data {
+typedef struct Light_Data {
     float scale;
     int input;
-} light_data;
+} Light_Data;
 
-typedef struct gyroscope_data {
+typedef struct Gyroscope_Data {
     float scale;
     int x;
     int y;
     int z;
-} gyroscope_data;
+} Gyroscope_Data;
 
-typedef struct device_interface_data{
-    accelerometer_data *acc_data;
-    magnetic_data *mag_data;
-    light_data *lig_data;
-    gyroscope_data *gyr_data;
+typedef struct Device_Interface_Data{
+    Accelerometer_Data *acc_data;
+    Magnetic_Data *mag_data;
+    Light_Data *lig_data;
+    Gyroscope_Data *gyr_data;
     volatile int *run;
-}device_interface_data;
+}Device_Interface_Data;
 
-void *create_interface(void *data);
+void *interface_window_thread(void *data);
 void handle_battery_change(int current_battery);
 void handle_accelerometer_change(float scale, int x, int y, int z);
 void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, int y, int z);
