@@ -132,6 +132,7 @@ static bool window_need_refresh = false;
 static Graphic_Buffer *display_gbuffer;
 
 volatile int native_render_run = 0;
+volatile int device_interface_run = 0;
 
 static QemuConsole *input_receive_con = NULL;
 
@@ -274,6 +275,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
     // set_compose_surface(NULL, NULL);
     display_gbuffer = NULL;
     teleport_express_should_stop = true;
+    device_interface_run = 0;
 
     // glfwTerminate();
     if (native_render_run == 2)

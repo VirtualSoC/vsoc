@@ -222,6 +222,8 @@ extern GAsyncQueue *main_window_event_queue;
 
 extern volatile int native_render_run;
 
+extern volatile int device_interface_run;
+
 extern Static_Context_Values *preload_static_context_value;
 
 extern void *dummy_window_for_sync;
