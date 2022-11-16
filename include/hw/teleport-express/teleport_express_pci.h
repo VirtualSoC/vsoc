@@ -1,5 +1,5 @@
-//
 // Created by gaodi on 2020/9/22.
+//
 //
 
 #ifndef QEMU_TELEPORT_EXPRESS_PCI_H
@@ -22,6 +22,7 @@ typedef struct Teleport_Express_PCI{
     bool express_device_enable[MAX_EXPRESS_DEVICE_NUM];
     bool enalbe_opengl_debug;
     bool enable_independ_window;
+    bool show_device_input_window;
     bool keep_window_scale;
     int window_width;
     int window_height;

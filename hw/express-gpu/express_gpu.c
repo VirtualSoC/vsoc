@@ -22,6 +22,7 @@
 #include "hw/express-gpu/glv3_trans.h"
 #include "hw/express-gpu/egl_trans.h"
 #include "hw/express-gpu/test_trans.h"
+#include "hw/express-gpu/device_interface.h"
 
 #include "qemu/atomic.h"
 
@@ -32,9 +33,13 @@ static GHashTable *render_process_contexts = NULL;
 
 static QemuThread render_thread;
 
+static QemuThread device_interface_thread;
+
+static device_interface_data *dev_data;
 
 bool express_gpu_gl_debug_enable = false;
 bool express_gpu_independ_window_enable = false;
+bool express_device_input_window = true;
 
 //这些函数不提供外部调用接口
 Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
@@ -409,6 +414,12 @@ void render_context_init(Thread_Context *context)
         express_printf("create native window\n");
         qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
+        if(express_device_input_window)
+        {    
+            dev_data = (device_interface_data *)malloc(sizeof(device_interface_data));
+            dev_data->run = true;
+            qemu_thread_create(&device_interface_thread, "interface_thread", create_interface, dev_data, QEMU_THREAD_DETACHED);
+        }
     }
 
     if (native_render_run == 1)
@@ -503,6 +514,11 @@ void render_context_destroy(Thread_Context *context)
     {
         d_eglMakeCurrent(thread_context, NULL, NULL, NULL, NULL, 0, 0, 0, 0);
     }
+    // stop deivce interface thread resource will be released in that thread
+    // if(express_device_input_window && dev_data != NULL)
+    // {
+    //     dev_data->run = false;
+    // }
     // if (thread_context->render_double_buffer_read != NULL)
     // {
     //     thread_context->render_double_buffer_read->is_current = 0;
