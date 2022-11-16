@@ -59,28 +59,6 @@ static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
 
-void send_device_data(char *device, char *datatype,int data_len, char *data[data_len]);
-
-/**
- * @brief The callback function will be called by the device interface thread, for sending data to Guest
- *
- * @param device Target device 
- * @param datatype The Input data type
- * @param data_len The length of input data array  
- * @param data The input data array, it would be an char array for every element no matter what datatype is set.
- * 
- */
-void send_device_data(char *device, char *datatype,int data_len, char *data[data_len])
-{
-    printf("device: %s\n",device);
-    printf("datatype: %s\ndata: ",datatype);
-    for(int i=0; i<data_len; ++i)
-    {
-        printf("%s ",data[i]);
-    }
-    printf("\ndata_len: %d\n",data_len);
-}
-
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
  *
@@ -430,7 +408,6 @@ void render_context_init(Thread_Context *context)
     express_printf("render context init!\n");
     interface_data = (device_interface_data *)malloc(sizeof(device_interface_data));
     interface_data->run = true;
-    interface_data->senddata_callback = &send_device_data;
     //这个render线程只能创建一次，且其他线程必须等待该线程运行成功
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {

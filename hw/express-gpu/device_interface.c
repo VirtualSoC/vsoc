@@ -1,70 +1,34 @@
 #include "hw/express-gpu/device_interface.h"
 
-#define FOREACH_DEVICE(DEVICE) \
-        DEVICE(Audio)          \
-        DEVICE(Battery)        \
-        DEVICE(GPS)            \
-        DEVICE(Gravity_sensor) \
-        DEVICE(Gyro_sensor)    \
-        DEVICE(Magnetic_sensor)\
-        DEVICE(Dev_Len)        \
+#define FOREACH_DEVICE_DATA(DATA) \
+        DATA(accelerometer_data)  \
+        DATA(magnetic_data)       \
+        DATA(light_data)          \
+        DATA(gyroscope_data)      \
 
-#define GENERATE_ENUM(ENUM) ENUM,
-#define GENERATE_STRING(STRING) #STRING,
-
-#define FOREACH_DATA_TYPE(DATA_TYPE) \
-        DATA_TYPE(String)        \
-        DATA_TYPE(Int)           \
-        DATA_TYPE(Long)          \
-        DATA_TYPE(Float)         \
-        DATA_TYPE(Double)        \
-        DATA_TYPE(Datatype_Len)  \
-
-enum DEVICE_ENUM {
-    FOREACH_DEVICE(GENERATE_ENUM)
-};
-
-enum DATA_TYPE_ENUM {
-    FOREACH_DATA_TYPE(GENERATE_ENUM)
-};
-
-const char *DEVICE_STRING[] = {
-    FOREACH_DEVICE(GENERATE_STRING)
-};
-
-const char *DATA_TYPE_STRING[] = {
-    FOREACH_DATA_TYPE(GENERATE_STRING)
-};
+#define DEVICE_DEFINE(DATA)  DATA *cur_##DATA;
 
 static SDL_Window *window = NULL;
-static int current_device = 0;
-static int current_type = 0;
-static char current_buffer[MAX_INPUT_BUFFER] = "";
-static char notify_text[64] = "";
-static int current_len = 1;
 static device_interface_data *my_data = NULL;
 
-static void handle_submit(void)
-{
-    if(my_data==NULL){
-        printf("Device_interface::my_data missing!\n");
-    // } else if(my_data->senddata_callback == NULL){
-    //     printf("Target Device: %s\n",DEVICE_STRING[current_device]);
-    //     printf("Datatype: %s\n",DATA_TYPE_STRING[current_type]);
-    //     printf("Data: %s\n", current_buffer);
-    //     printf("Input Data Array len: %d\n", current_len);
-    } else {
-        char *cur = strtok(current_buffer,",");
-        for(int i=0; i<current_len; ++i){
-            my_data->data[i] = cur;
-            cur = strtok(NULL ,",");
-            printf("%s",my_data->data[i]);
-        }
-        strcpy(my_data->device, DEVICE_STRING[current_device]);
-        strcpy(my_data->datatype, DATA_TYPE_STRING[current_type]);
-        my_data->data_len = current_len;
-        my_data->senddata_callback(my_data->device, my_data->datatype, my_data->data_len, my_data->data);
-    }
+void handle_battery_change(int current_battery){
+    printf("current_battery: %d\n", current_battery);
+}
+
+void handle_accelerometer_change(float scale, int x, int y, int z){
+    printf("accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
+}
+
+void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, int y, int z){
+    printf("magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d\n",scale_x,scale_y,scale_z,x,y,z);
+}
+
+void handle_light_change(float scale,int input){
+    printf("light scale: %.2f, input: %d\n",scale,input);
+}
+
+void handle_gyroscope_change(float scale, int x, int y, int z){
+    printf("gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
 }
 
 void *create_interface(void *data)
@@ -73,6 +37,11 @@ void *create_interface(void *data)
     if(my_data == NULL) {
         printf("Device_interface::Failed to malloc data");
     }
+    accelerometer_data cur_acc = {.scale = 0, .x = 0, .y = 0, .z = 0};
+    magnetic_data cur_mag = {.scale_x = 0, .scale_y = 0, .scale_z = 0, .x = 0, .y = 0, .z = 0};
+    light_data cur_light = {.scale = 0, .input = 0};
+    gyroscope_data cur_gyr = {.scale = 0, .x = 0, .y = 0, .z = 0};
+    int cur_battery = 100;
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("Device_interface::Failed to init SDL: %s\n", SDL_GetError());
@@ -115,10 +84,6 @@ void *create_interface(void *data)
 
     SDL_GLContext gl_context = SDL_GL_CreateContext(window); 
     SDL_GL_SetSwapInterval(1);  // enable vsync 
-    
-
-    // check opengl version sdl uses
-    // printf("opengl version: %s", (char*)glGetString(GL_VERSION));
 
     // setup imgui
     igCreateContext(NULL);
@@ -162,30 +127,173 @@ void *create_interface(void *data)
         {
             igBegin("Device Input", &(my_data->run), 0);
             current_width = igGetWindowWidth();
-            igSetNextItemWidth(current_width* 0.3f);
-            igCombo_Str_arr("Target Device", &current_device, DEVICE_STRING, Dev_Len, Dev_Len);
-            igSameLine(0.0f, -1.0f);
-            igSetNextItemWidth(current_width* 0.3f);
-            igCombo_Str_arr("Input Datatype", &current_type, DATA_TYPE_STRING, Datatype_Len, Datatype_Len);
+            // Battery
+            if(igCollapsingHeader_TreeNodeFlags("Battery",0))
+            {
+                igSliderInt("%%", &cur_battery, 0, 100, "%d", 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_battery_change(cur_battery);
+                }
+            }
 
-            
-            igInputTextWithHint("##InputData", 
-                                "If input is an array use comma to seperate elements, "
-                                "and set up the length of array in spin button",
-                                current_buffer, (size_t)MAX_INPUT_BUFFER, 0, NULL, NULL);
-            igSameLine(0.0f, -1.0f);
-            igSetNextItemWidth(current_width * 0.3f);
-            igInputInt("##InputDataLen", &current_len, 1, 5, 0);
-            if(current_len<1) current_len = 1;
-            else if(current_len>MAX_ARRAY_LEN) current_len = MAX_ARRAY_LEN;
+            // Accelerometer
+            if(igCollapsingHeader_TreeNodeFlags("Accelerometer",0))
+            {
+                igText("Scale: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputFloat("##accscale",&cur_acc.scale,0.5,5,"%.2f",0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_accelerometer_change(cur_acc.scale,
+                    cur_acc.x,cur_acc.y,cur_acc.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("x: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##accx", &cur_acc.x, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_accelerometer_change(cur_acc.scale,
+                    cur_acc.x,cur_acc.y,cur_acc.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("y: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##accy", &cur_acc.y, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_accelerometer_change(cur_acc.scale,
+                    cur_acc.x,cur_acc.y,cur_acc.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("z: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##accz", &cur_acc.z, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_accelerometer_change(cur_acc.scale,
+                    cur_acc.x,cur_acc.y,cur_acc.z);
+                }
+            }
 
-            igText("%s", notify_text);
-            igSameLine(current_width - 60.0f, -1.0f);
-            ImVec2 buttonSize;
-            buttonSize.x = 0;
-            buttonSize.y = 0;
-            if (igButton("Submit", buttonSize)){
-                handle_submit();
+            // Magnetic
+            if(igCollapsingHeader_TreeNodeFlags("Magnetic",0))
+            {
+                igText("Scale x: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputFloat("##magscalex",&cur_mag.scale_x,0.5,5,"%.2f",0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_magnetic_change(cur_mag.scale_x,cur_mag.scale_y,
+                    cur_mag.scale_z,cur_mag.x,cur_mag.y,cur_mag.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("Scale y: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputFloat("##magscaley",&cur_mag.scale_y,0.5,5,"%.2f",0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_magnetic_change(cur_mag.scale_x,cur_mag.scale_y,
+                    cur_mag.scale_z,cur_mag.x,cur_mag.y,cur_mag.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("Scale z: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputFloat("##magscalez",&cur_mag.scale_z,0.5,5,"%.2f",0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_magnetic_change(cur_mag.scale_x,cur_mag.scale_y,
+                    cur_mag.scale_z,cur_mag.x,cur_mag.y,cur_mag.z);
+                }
+                
+                igText("x: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##magx", &cur_mag.x, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_magnetic_change(cur_mag.scale_x,cur_mag.scale_y,
+                    cur_mag.scale_z,cur_mag.x,cur_mag.y,cur_mag.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("y: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##magy", &cur_mag.y, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_magnetic_change(cur_mag.scale_x,cur_mag.scale_y,
+                    cur_mag.scale_z,cur_mag.x,cur_mag.y,cur_mag.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("z: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##magz", &cur_mag.z, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_magnetic_change(cur_mag.scale_x,cur_mag.scale_y,
+                    cur_mag.scale_z,cur_mag.x,cur_mag.y,cur_mag.z);
+                }
+            }
+
+
+            // Light
+            if(igCollapsingHeader_TreeNodeFlags("Light",0))
+            {
+                igText("Scale: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.3f);
+                igInputFloat("##lightscale",&cur_light.scale,0.5,5,"%.2f",0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_light_change(cur_light.scale,cur_light.input);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("Input: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.3f);
+                igInputInt("##lightinput", &cur_light.input, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_light_change(cur_light.scale,cur_light.input);
+                }
+            }
+
+
+            // Gyroscope
+            if(igCollapsingHeader_TreeNodeFlags("Gyroscope",0))
+            {
+                igText("Scale: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputFloat("##gyroscale",&cur_gyr.scale,0.5,5,"%.2f",0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_gyroscope_change(cur_gyr.scale, 
+                    cur_gyr.x, cur_gyr.y, cur_gyr.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("x: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##gyrox", &cur_gyr.x, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_gyroscope_change(cur_gyr.scale, 
+                    cur_gyr.x, cur_gyr.y, cur_gyr.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("y: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##gyroy", &cur_gyr.y, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_gyroscope_change(cur_gyr.scale, 
+                    cur_gyr.x, cur_gyr.y, cur_gyr.z);
+                }
+                igSameLine(0.0f, -1.0f);
+                igText("z: ");
+                igSameLine(0.0f, -1.0f);
+                igSetNextItemWidth(current_width * 0.2f);
+                igInputInt("##gyroz", &cur_gyr.z, 1, 5, 0);
+                if(igIsItemDeactivatedAfterEdit()){
+                    handle_gyroscope_change(cur_gyr.scale, 
+                    cur_gyr.x, cur_gyr.y, cur_gyr.z);
+                }
             }
 
             igText("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO()->Framerate, igGetIO()->Framerate);
