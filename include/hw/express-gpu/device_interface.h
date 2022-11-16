@@ -60,7 +60,7 @@ typedef struct device_interface_data{
     magnetic_data *mag_data;
     light_data *lig_data;
     gyroscope_data *gyr_data;
-    bool run;
+    volatile int *run;
 }device_interface_data;
 
 void *create_interface(void *data);

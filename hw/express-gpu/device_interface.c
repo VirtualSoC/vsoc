@@ -103,7 +103,8 @@ void *create_interface(void *data)
     igStyleColorsDark(NULL);
 
     float current_width;
-    while (my_data->run)
+    bool show_imgui = true;
+    while (*my_data->run)
     {
         SDL_Event e;
 
@@ -125,7 +126,7 @@ void *create_interface(void *data)
 
         // show a simple window that we created ourselves
         {
-            igBegin("Device Input", &(my_data->run), 0);
+            igBegin("Device Input", &show_imgui, 0);
             current_width = igGetWindowWidth();
             // Battery
             if(igCollapsingHeader_TreeNodeFlags("Battery",0))
@@ -318,6 +319,7 @@ void *create_interface(void *data)
             }
     #endif
         SDL_GL_SwapWindow(window);
+        show_imgui = *my_data->run == 1;
     }
 
     // clean up
