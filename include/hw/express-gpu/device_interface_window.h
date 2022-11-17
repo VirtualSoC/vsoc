@@ -1,13 +1,16 @@
 #ifndef DEVICE_INTERFACE_H
 #define DEVICE_INTERFACE_H
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#define CIMGUI_USE_SDL
+#define CIMGUI_USE_GLFW
 #define CIMGUI_USE_OPENGL3
 #include "hw/express-gpu/cimgui/cimgui.h"
 #include "hw/express-gpu/cimgui/cimgui_impl.h"
-#define SDL_MAIN_HANDLED
-#include <SDL2/SDL.h>
+#define TIMER_LOG
+#define STD_DEBUG_LOG
+#include "hw/teleport-express/express_log.h"
 #include <stdbool.h>
+#include <GLFW/glfw3.h>
+#include "glib.h"
 
 #ifdef _MSC_VER
 #include <windows.h>
@@ -20,12 +23,6 @@
 #define igColorEdit3 igColorEdit3_Str
 #define igButton igButton_Str
 #endif
-
-
-#define MAX_INPUT_BUFFER 256
-#define MAX_ARRAY_LEN 20
-
-
 
 typedef struct Accelerometer_Data {
     float scale;

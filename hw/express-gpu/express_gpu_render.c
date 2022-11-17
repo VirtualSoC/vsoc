@@ -1260,9 +1260,9 @@ void *native_window_thread(void *opaque)
 
     glfwSetWindowCloseCallback(glfw_window, close_window_callback);
 
-    glfwSwapInterval(0);
-
     glfwMakeContextCurrent(glfw_window);
+
+    glfwSwapInterval(0);
 
     set_touchscreen_window_size(window_width, window_height);
 

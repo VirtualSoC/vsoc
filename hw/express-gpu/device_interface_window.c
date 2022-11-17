@@ -1,39 +1,36 @@
 #include "hw/express-gpu/device_interface_window.h"
 
-#define FOREACH_DEVICE_DATA(DATA) \
-    DATA(accelerometer_data)      \
-    DATA(magnetic_data)           \
-    DATA(light_data)              \
-    DATA(gyroscope_data)
-
-#define DEVICE_DEFINE(DATA) DATA *cur_##DATA;
-
-static SDL_Window *window = NULL;
 static Device_Interface_Data all_interface_data;
+const double FPSLimit = 1.0 / 60.0;
 
 void handle_battery_change(int current_battery)
 {
-    printf("current_battery: %d\n", current_battery);
+    printf("Device_interface::current_battery: %d\n", current_battery);
 }
 
 void handle_accelerometer_change(float scale, int x, int y, int z)
 {
-    printf("accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
+    printf("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
 }
 
 void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, int y, int z)
 {
-    printf("magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d\n", scale_x, scale_y, scale_z, x, y, z);
+    printf("Device_interface::magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d\n", scale_x, scale_y, scale_z, x, y, z);
 }
 
 void handle_light_change(float scale, int input)
 {
-    printf("light scale: %.2f, input: %d\n", scale, input);
+    printf("Device_interface::light scale: %.2f, input: %d\n", scale, input);
 }
 
 void handle_gyroscope_change(float scale, int x, int y, int z)
 {
-    printf("gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
+    printf("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
+}
+
+static void glfw_error_callback(int error, const char* description)
+{
+    fprintf(stderr, "Device_interface::Glfw Error %d: %s\n", error, description);
 }
 
 void *interface_window_thread(void *data)
@@ -46,47 +43,51 @@ void *interface_window_thread(void *data)
     Gyroscope_Data cur_gyr = {.scale = 0, .x = 0, .y = 0, .z = 0};
     int cur_battery = 100;
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0)
-    {
-        printf("Device_interface::Failed to init SDL: %s\n", SDL_GetError());
-        return NULL;
-    }
-
-// Decide GL+GLSL versions
-#if __APPLE__
-    // GL 3.2 Core + GLSL 150
-    const char *glsl_version = "#version 150";
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+    // Setup window
+    glfwSetErrorCallback(glfw_error_callback);
+    // GLFW already be initialized in our qemu main thread
+    // if (!glfwInit())
+    // {
+    //     fprintf(stderr, "Device_interface::Glfw init failed!!\n");
+    // }
+        
+    // Decide GL+GLSL versions
+#if defined(IMGUI_IMPL_OPENGL_ES2)
+    // GL ES 2.0 + GLSL 100
+    const char* glsl_version = "#version 100";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+#elif defined(__APPLE__)
+    // GL 3.2 + GLSL 150
+    const char* glsl_version = "#version 150";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
 #else
     // GL 3.0 + GLSL 130
-    const char *glsl_version = "#version 130";
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    const char* glsl_version = "#version 130";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
-    // and prepare OpenGL stuff
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_DisplayMode current;
-    SDL_GetCurrentDisplayMode(0, &current);
 
-    window = SDL_CreateWindow(
-        "Device_input", 0, 0, 1, 1,
-        SDL_WINDOW_HIDDEN | SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+    glfwMakeContextCurrent(NULL);
+
+    // Create window with graphics context
+    GLFWwindow* window = glfwCreateWindow(1, 1, "Device Input", NULL, NULL);
     if (window == NULL)
     {
-        printf("Device_interface::Failed to create window: %s\n", SDL_GetError());
+        printf("Device_interface::Failed to create window\n");
         return NULL;
     }
-
-    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
-    SDL_GL_SetSwapInterval(1); // enable vsync
+    
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1); // Enable vsync
 
     // setup imgui
     igCreateContext(NULL);
@@ -100,32 +101,30 @@ void *interface_window_thread(void *data)
     ioptr->ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport / Platform Windows
 #endif
 
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     igStyleColorsDark(NULL);
 
     float current_width;
     bool show_imgui = true;
-    while (*(all_interface_data.run))
+    double lastFrameTime = glfwGetTime();   // number of seconds since the last frame
+    
+    while (*(all_interface_data.run) == 1)
     {
-        SDL_Event e;
-        // printf("interface run");
-
-        // we need to call SDL_PollEvent to let window rendered, otherwise
-        // no window will be shown
-        while (SDL_PollEvent(&e) != 0)
+        //glfwPollEvents();
+        double now = glfwGetTime();
+        // avoid drawing too fast, update frame only when it reach FPSlimit
+        if((now - lastFrameTime) < FPSLimit)
         {
-            ImGui_ImplSDL2_ProcessEvent(&e);
-            if (e.type == SDL_QUIT)
-                *(all_interface_data.run) = 0;
-            if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE && e.window.windowID == SDL_GetWindowID(window))
-                *(all_interface_data.run) = 0;
+            continue;
         }
-
+        // printf("Device_interface::Draw Frame!\n");
+        glfwWaitEventsTimeout(0.01);
         // start imgui frame
         ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplSDL2_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
         igNewFrame();
 
         // show a simple window that we created ourselves
@@ -322,37 +321,40 @@ void *interface_window_thread(void *data)
 
         // render
         igRender();
-        SDL_GL_MakeCurrent(window, gl_context);
-        // glViewport(0, 0, (int)ioptr->DisplaySize.x, (int)ioptr->DisplaySize.y);
+        // int display_w, display_h;
+        // glfwGetFramebufferSize(window, &display_w, &display_h);
+        // glViewport(0, 0, display_w, display_h);
         // glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
         // glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(igGetDrawData());
 #ifdef IMGUI_HAS_DOCK
         if (ioptr->ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
         {
-            SDL_Window *backup_current_window = SDL_GL_GetCurrentWindow();
-            SDL_GLContext backup_current_context = SDL_GL_GetCurrentContext();
+            GLFWwindow* backup_current_context = glfwGetCurrentContext();
             igUpdatePlatformWindows();
             igRenderPlatformWindowsDefault(NULL, NULL);
-            SDL_GL_MakeCurrent(backup_current_window, backup_current_context);
+            glfwMakeContextCurrent(backup_current_context);
         }
 #endif
-        SDL_GL_SwapWindow(window);
-        show_imgui = (*(all_interface_data.run) == 1);
+        glfwSwapBuffers(window);
+        lastFrameTime = now;
+        if(!show_imgui || *(all_interface_data.run) == 0)
+        {
+            *(all_interface_data.run) = 0;
+            show_imgui = false;
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
     }
 
     // clean up
     ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
     igDestroyContext(NULL);
 
-    SDL_GL_DeleteContext(gl_context);
-    if (window != NULL)
-    {
-        SDL_DestroyWindow(window);
-        window = NULL;
-    }
-    SDL_Quit();
+    glfwMakeContextCurrent(NULL);
+    glfwDestroyWindow(window);
+    // glfw will only terminate once, it would be terminate in our main window thread 
+    //glfwTerminate();
     printf("Device_interface::Destroy window\n");
 
     return NULL;
