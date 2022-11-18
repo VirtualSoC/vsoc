@@ -110,6 +110,9 @@ void *interface_window_thread(void *data)
     float current_width;
     bool show_imgui = true;
     double lastFrameTime = glfwGetTime();   // number of seconds since the last frame
+    ImVec2 window_size;
+    window_size.x = 400;
+    window_size.y = 300;
     
     while (*(all_interface_data.run) == 1)
     {
@@ -126,6 +129,8 @@ void *interface_window_thread(void *data)
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         igNewFrame();
+
+        igSetNextWindowSize(window_size, ImGuiCond_Once);
 
         // show a simple window that we created ourselves
         {
@@ -153,7 +158,6 @@ void *interface_window_thread(void *data)
                     handle_accelerometer_change(cur_acc.scale,
                                                 cur_acc.x, cur_acc.y, cur_acc.z);
                 }
-                igSameLine(0.0f, -1.0f);
                 igText("x: ");
                 igSameLine(0.0f, -1.0f);
                 igSetNextItemWidth(current_width * 0.2f);
@@ -283,7 +287,6 @@ void *interface_window_thread(void *data)
                     handle_gyroscope_change(cur_gyr.scale,
                                             cur_gyr.x, cur_gyr.y, cur_gyr.z);
                 }
-                igSameLine(0.0f, -1.0f);
                 igText("x: ");
                 igSameLine(0.0f, -1.0f);
                 igSetNextItemWidth(current_width * 0.2f);
