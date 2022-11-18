@@ -33,7 +33,7 @@
 
 #define TIMER_OUTPUT(a, fre)                  \
     if (fre == 0 || timer_cnt_##a % fre == 0) \
-        express_printf("timer-" #a " cnt %lld all %lld avg %lf\n", timer_cnt_##a, timer_spend_##a, timer_spend_##a * 1.0 / timer_cnt_##a);
+        printf("timer-" #a " cnt %lld all %lld avg %lf\n", timer_cnt_##a, timer_spend_##a, timer_spend_##a * 1.0 / timer_cnt_##a);
 
 #define TIMER_RESET(a)   \
     timer_spend_##a = 0; \

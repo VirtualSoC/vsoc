@@ -5,9 +5,6 @@
 #define CIMGUI_USE_OPENGL3
 #include "hw/express-gpu/cimgui/cimgui.h"
 #include "hw/express-gpu/cimgui/cimgui_impl.h"
-#define TIMER_LOG
-#define STD_DEBUG_LOG
-#include "hw/teleport-express/express_log.h"
 #include <stdbool.h>
 #include <GLFW/glfw3.h>
 #include "glib.h"
