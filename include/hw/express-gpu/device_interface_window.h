@@ -5,24 +5,9 @@
 #define CIMGUI_USE_OPENGL3
 #include "hw/express-gpu/cimgui/cimgui.h"
 #include "hw/express-gpu/cimgui/cimgui_impl.h"
-#define TIMER_LOG
-#define STD_DEBUG_LOG
-#include "hw/teleport-express/express_log.h"
 #include <stdbool.h>
 #include <GLFW/glfw3.h>
 #include "glib.h"
-
-#ifdef _MSC_VER
-#include <windows.h>
-#endif
-
-#ifdef IMGUI_HAS_IMSTR
-#define igBegin igBegin_Str
-#define igSliderFloat igSliderFloat_Str
-#define igCheckbox igCheckbox_Str
-#define igColorEdit3 igColorEdit3_Str
-#define igButton igButton_Str
-#endif
 
 typedef struct Accelerometer_Data {
     float scale;
