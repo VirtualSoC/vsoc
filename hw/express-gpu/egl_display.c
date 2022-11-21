@@ -2,6 +2,52 @@
 
 Egl_Display *default_egl_display;
 
+
+
+/**
+ * @brief 初始化Egl_Display
+ *
+ * @param display_point 待初始化的Egl_Display
+ */
+void init_display(Egl_Display **display_point)
+{
+    // Egl_Display *display = (Egl_Display *)&default_wgl_display;
+    // *display_point = (Egl_Display *)&default_wgl_display;
+
+    default_egl_display = g_malloc0(sizeof(Egl_Display));
+
+    express_printf("init display\n");
+    // init_wgl_extension(display);
+    init_configs(default_egl_display);
+
+    default_egl_display->guest_ver_major = 1;
+    default_egl_display->guest_ver_minor = 5;
+
+    default_egl_display->is_init = true;
+}
+
+/**
+ * @brief 初始化EGL configuration并将所有可用configuration保存到全局的hash表中
+ *
+ * @param display 待初始化的Egl_Display
+ */
+void init_configs(Egl_Display *display)
+{
+    if (display->egl_config_set == NULL)
+    {
+        display->egl_config_set = g_hash_table_new(g_direct_hash, g_direct_equal);
+    }
+
+    // 添加一些与窗口无关的配置
+    add_simple_config(display);
+    add_window_independent_config(display, EGL_DEPTH_SIZE, depth_vals, NUM_DEPTH_VAL);
+    add_window_independent_config(display, EGL_STENCIL_SIZE, stencil_vals, NUM_STENCILE_VAL);
+    add_window_independent_config(display, EGL_SAMPLES, sample_vals, NUM_SAMPLE_VAL);
+
+}
+
+
+
 EGLBoolean add_config(Egl_Display *display, eglConfig *config)
 {
     // 过滤掉一些奇葩值，另外不需要抗锯齿
@@ -72,7 +118,7 @@ void add_simple_config(Egl_Display *display)
         config->bind_to_tex_rgba = EGL_FALSE; // 暂不支持
         config->transparent_type = EGL_NONE;
         config->color_buffer_type = EGL_RGB_BUFFER;
-        config->surface_type = EGL_WINDOW_BIT;
+        config->surface_type = (EGL_WINDOW_BIT | EGL_PBUFFER_BIT);
 
         config->native_renderable = EGL_FALSE;
         config->recordable_android = EGL_FALSE;
@@ -86,6 +132,17 @@ void add_simple_config(Egl_Display *display)
         config->max_pbuffer_height = PBUFFER_MAX_HEIGHT;
         config->max_pbuffer_size = PBUFFER_MAX_PIXELS;
         config->native_visual_id = 0;
+
+
+        config->native_visual_type = EGL_NONE;
+        config->caveat = EGL_NONE;
+
+        config->min_swap_interval = MIN_SWAP_INTERVAL;
+        config->max_swap_interval = MAX_SWAP_INTERVAL;
+        config->renderable_type = RENDERABLE_SUPPORT;
+
+        config->samples_per_pixel = 0;
+        config->sample_buffers_num = 0 > 0 ? 1 : 0;
 
         set_val_by_enum(config, red_sizes[i], EGL_RED_SIZE);
         set_val_by_enum(config, green_sizes[i], EGL_GREEN_SIZE);

@@ -33,7 +33,8 @@ void handle_gyroscope_change(float scale, int x, int y, int z)
 
 static void glfw_error_callback(int error, const char *description)
 {
-    fprintf(stderr, "Device_interface::Glfw Error %d: %s\n", error, description);
+    // fprintf(stderr, "Device_interface::Glfw Error %d: %s\n", error, description);
+    return;
 }
 
 static Accelerometer_Data cur_acc = {.scale = 0, .x = 0, .y = 0, .z = 0};

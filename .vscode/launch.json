@@ -45,7 +45,7 @@
             "cwd": "${workspaceFolder}/build",
             "environment": [{
                 "name": "PATH",
-                "value": "C:/msys64/mingw64/bin;C:/msys64/usr/local/bin;C:/msys64/usr/bin;C:/msys64/bin:C:/Windows/System32;C:/Windows;C:/Windows/System32/Wbem;C:/Windows/System32/WindowsPowerShell/v1.0/;C:/msys64/usr/bin/site_perl;C:/msys64/usr/bin/vendor_perl;C:/msys64/usr/bin/core_perl;"
+                "value": "C:/msys64/mingw64/bin;C:/msys64/mingw64/lib;C:/msys64/usr/local/bin;C:/msys64/usr/bin;C:/msys64/bin:C:/Windows/System32;C:/Windows;C:/Windows/System32/Wbem;C:/Windows/System32/WindowsPowerShell/v1.0/;C:/msys64/usr/bin/site_perl;C:/msys64/usr/bin/vendor_perl;C:/msys64/usr/bin/core_perl;"
             }],
             "externalConsole": true,
             "MIMode" : "gdb",
