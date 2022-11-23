@@ -10,6 +10,8 @@
 
 #define EXPRESS_TOUCHSCREEN_DEVICE_ID ((uint64_t)3)
 #define EXPRESS_KEYBOARD_DEVICE_ID ((uint64_t)4)
+#define EXPRESS_BATTERY_DEVICE_ID ((uint64_t)5)
+
 
 
 //保留的fun_id，其他设备不可使用

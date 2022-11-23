@@ -70,6 +70,7 @@ source xtensa/Kconfig
 source teleport-express/Kconfig
 source express-gpu/Kconfig
 source express-input/Kconfig
+source express-sensor/Kconfig
 
 
 

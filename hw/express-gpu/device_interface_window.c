@@ -1,14 +1,22 @@
+
 #include "hw/express-gpu/device_interface_window.h"
 
 #define TIMER_LOG
 #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
+#include "hw/express-sensor/express_battery.h"
+
+
+
 static Device_Interface_Data all_interface_data;
 
 void handle_battery_change(int current_battery)
 {
     printf("Device_interface::current_battery: %d\n", current_battery);
+
+    express_battery_status_changed(POWER_SUPPLY_PROP_CAPACITY, current_battery);
+    sync_express_battery_status();
 }
 
 void handle_accelerometer_change(float scale, int x, int y, int z)
@@ -314,7 +322,7 @@ void *interface_window_thread(void *data)
     glfwMakeContextCurrent(NULL);
 
     // Create glfw window with graphics context
-    window = glfwCreateWindow(123, 456, "Device Input", NULL, NULL);
+    window = glfwCreateWindow(1, 1, "Device Input", NULL, NULL);
     if (window == NULL)
     {
         printf("Device_interface::Failed to create window\n");

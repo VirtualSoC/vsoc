@@ -33,8 +33,6 @@ static GHashTable *render_process_contexts = NULL;
 
 static QemuThread render_thread;
 
-static QemuThread device_interface_thread;
-
 
 bool express_gpu_gl_debug_enable = false;
 bool express_gpu_independ_window_enable = false;
@@ -413,11 +411,6 @@ void render_context_init(Thread_Context *context)
         express_printf("create native window\n");
         qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
-        if(express_device_input_window_enable)
-        {
-            device_interface_run = 1;
-            qemu_thread_create(&device_interface_thread, "interface_thread", interface_window_thread, (void*)&device_interface_run, QEMU_THREAD_DETACHED);
-        }
     }
 
     if (native_render_run == 1)

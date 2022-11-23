@@ -139,7 +139,10 @@
         "express_keyboard.h": "c",
         "error.h": "c",
         "device_interface.h": "c",
-        "device_interface_window.h": "c"
+        "device_interface_window.h": "c",
+        "express_battery.h": "c",
+        "stdbool.h": "c",
+        "glib.h": "c"
     },
     "cmake.configureOnOpen": false
 }

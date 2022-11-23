@@ -29,6 +29,8 @@
 
 #include "hw/express-gpu/sdl_control.h"
 
+#include "hw/express-gpu/device_interface_window.h"
+
 #include "hw/express-input/express_touchscreen.h"
 #include "hw/express-input/express_keyboard.h"
 
@@ -71,6 +73,9 @@ static int calc_screen_hz = 0;
 static int now_screen_hz = 0;
 
 static gint64 last_calc_time = 0;
+
+
+static QemuThread device_interface_thread;
 
 // #ifdef ENABLE_STATIC_WINDOW_REFRESH
 // static gint64 frame_start_time = 0;
@@ -1223,6 +1228,12 @@ void *native_window_thread(void *opaque)
     //初始化glfw
     if (!glfwInit())
         return NULL;
+
+    if(express_device_input_window_enable)
+    {
+        device_interface_run = 1;
+        qemu_thread_create(&device_interface_thread, "interface_thread", interface_window_thread, (void*)&device_interface_run, QEMU_THREAD_DETACHED);
+    }
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
