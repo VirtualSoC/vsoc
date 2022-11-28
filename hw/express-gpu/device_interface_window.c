@@ -57,6 +57,10 @@ GLFWwindow *window = NULL;
 static void update_window_scale(void)
 {
     float new_dpi_scale = igGetWindowDpiScale();
+    if(new_dpi_scale == 0.0f)
+    {
+        new_dpi_scale = 1.0f;
+    }
     if(window_dpi_scale != new_dpi_scale)
     {
         window_size.x *= new_dpi_scale/(window_dpi_scale);
