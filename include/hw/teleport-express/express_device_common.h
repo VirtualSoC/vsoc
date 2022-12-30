@@ -11,7 +11,9 @@
 #define EXPRESS_TOUCHSCREEN_DEVICE_ID ((uint64_t)3)
 #define EXPRESS_KEYBOARD_DEVICE_ID ((uint64_t)4)
 #define EXPRESS_BATTERY_DEVICE_ID ((uint64_t)5)
-
+#define EXPRESS_ACCELEROMTETER_DEVICE_ID ((uint64_t)6)
+#define EXPRESS_GYROSCOPE_DEVICE_ID ((uint64_t)7)
+#define EXPRESS_GPS_DEVICE_ID ((uint64_t)8)
 
 
 //保留的fun_id，其他设备不可使用

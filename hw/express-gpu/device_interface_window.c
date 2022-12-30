@@ -6,22 +6,155 @@
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/express-sensor/express_battery.h"
+#include "hw/express-sensor/express_accel.h"
+#include "hw/express-sensor/express_gyro.h"
+#include "hw/express-sensor/express_gps.h"
 
+#define IM_COL32_R_SHIFT    0
+#define IM_COL32_G_SHIFT    8
+#define IM_COL32_B_SHIFT    16
+#define IM_COL32_A_SHIFT    24
+#define IM_COL32_A_MASK     0xFF000000
+#define IM_COL32(R,G,B,A)    (((ImU32)(A)<<IM_COL32_A_SHIFT) | ((ImU32)(B)<<IM_COL32_B_SHIFT) | ((ImU32)(G)<<IM_COL32_G_SHIFT) | ((ImU32)(R)<<IM_COL32_R_SHIFT))
+#define IM_COL32_WHITE       IM_COL32(255,255,255,255)  // Opaque white = 0xFFFFFFFF
+#define IM_COL32_BLACK       IM_COL32(0,0,0,255)        // Opaque black
+#define IM_COL32_BLACK_TRANS IM_COL32(0,0,0,0)          // Transparent black = 0x00000000
 
+#define LISTEN_INPUT_CHANGE(func,...)   \
+if (igIsItemDeactivatedAfterEdit())     \
+{                                       \
+    func(__VA_ARGS__);                  \
+}                                       
+
+#define LISTEN_COMBO_CHANGE(func,...)   \
+if (igIsItemDeactivatedAfterEdit())     \
+{                                       \
+    func(__VA_ARGS__);                  \
+}                                       
 
 static Device_Interface_Data all_interface_data;
+static Accelerometer_Data cur_acc = {
+    .scale = 0.78125,
+    .sample_hz = 800,
+    .temperature = 30.0, 
+    .voltage = 0.23, 
+    .x = 0, 
+    .y = 0, 
+    .z = 0
+};
 
-void handle_battery_change(int current_battery)
+static Gyroscope_Data cur_gyro = {
+    .scale = 0.23145,
+    .sample_hz = 200,
+    .temperature = 30.0, 
+    .voltage = 0.23, 
+    .x = 0, 
+    .y = 0, 
+    .z = 0
+};
+
+static GPS_Data cur_gps = {
+    .lat = 27.81,
+    .lon = -82.79,
+    .ground_speed = 0,
+    .altitude = 105.0,
+    .hdop = 1.0,
+    .vdop = 1.3,
+    .pdop = 1.7,
+    .speed_dir = 0,
+    .year = 2022,
+    .month = 12,
+    .day = 30,
+    .hr = 12,
+    .min = 0,
+    .sec = 0,
+    .num_sv = 9,
+    .sv_prns = {22,11,27,01,03,02,10,21,19,0,0,0},
+    .num_sv_inview = 15,
+    .sv_inview =
+            { //satellites in view
+                {26,25,138,53},
+                {16,25,91,67},
+                {01,51,238,77},
+                {02,45,85,41},
+                {03,38,312,01},
+                {30,68,187,37},
+                {11,22,49,44},
+                {9,67,76,71},
+                {10,14,177,12},
+                {19,86,235,37},
+                {21,84,343,95},
+                {22,77,040,66},
+                {8,50,177,60},
+                {6,81,336,46},
+                {27,63,209,83},
+                {0,0,0,0}
+            }
+};
+
+static Battery_Data cur_battery = {
+    .charge = false,
+    .status = POWER_SUPPLY_STATUS_NOT_CHARGING,
+    .health = POWER_SUPPLY_HEALTH_GOOD,
+    .capacity = 100, // capacity in percents
+    .voltage = 4.0,
+    .temperature = 25.0, // temperature of the power supply.
+    .technology = POWER_SUPPLY_TECHNOLOGY_LION,
+    .cycle_count = 10,
+    .current_now = 900,
+    .charge_full = 5000,
+    .charge_counter = 10000
+};
+
+const char *battery_tech_name[] =  {
+	"UNKNOWN",
+	"NiMH",
+	"LION",
+	"LIPO",
+	"LiFe",
+	"NiCd",
+	"LiMn",
+};
+
+//POWER_SUPPLY_PROP_HEALTH
+const char *battery_health_name[] =  {
+    "UNKNOWN",
+    "GOOD",
+    "OVERHEAT",
+    "DEAD",
+    "OVERVOLTAGE",
+    "UNSPEC_FAILURE",
+};
+
+//POWER_SUPPLY_PROP_STATUS
+const char *battery_status_name[] =  {
+	"UNKNOWN",
+	"CHARGING",
+	"DISCHARGING",
+	"NOT CHARGING",
+	"FULL",
+};
+
+static Magnetic_Data cur_mag = {.scale_x = 0, .scale_y = 0, .scale_z = 0, .x = 0, .y = 0, .z = 0};
+static Light_Data cur_light = {.scale = 0, .input = 0};
+static ImVec2 window_size;
+static float window_dpi_scale = 1.0;
+GLFWwindow *window = NULL;
+
+void handle_battery_change(int property,int value)
 {
-    printf("Device_interface::current_battery: %d\n", current_battery);
+    printf("Device_interface::current_battery: %d\n", value);
 
-    express_battery_status_changed(POWER_SUPPLY_PROP_CAPACITY, current_battery);
+    express_battery_status_changed(property, value);
     sync_express_battery_status();
 }
 
-void handle_accelerometer_change(float scale, int x, int y, int z)
+void handle_accelerometer_change(int property, int value)
 {
-    printf("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
+    printf("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", cur_acc.scale, cur_acc.x, cur_acc.y, cur_acc.z);
+
+    express_accel_status_changed(property, value);
+    sync_express_accel_status();
 }
 
 void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, int y, int z)
@@ -34,9 +167,18 @@ void handle_light_change(float scale, int input)
     printf("Device_interface::light scale: %.2f, input: %d\n", scale, input);
 }
 
-void handle_gyroscope_change(float scale, int x, int y, int z)
+void handle_gyroscope_change(int property, int value)
 {
-    printf("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", scale, x, y, z);
+    printf("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", cur_gyro.scale, cur_gyro.x, cur_gyro.y, cur_gyro.z);
+    express_gyro_status_changed(property, value);
+    sync_express_gyro_status();
+}
+
+void handle_gps_change(int property, int value)
+{
+    printf("Device_interface::gps latitude: %.6f, longitude: %.6f\n", cur_gps.lat, cur_gps.lon);
+    express_gps_status_changed(property, value);
+    sync_express_gps_status();
 }
 
 static void glfw_error_callback(int error, const char *description)
@@ -44,15 +186,6 @@ static void glfw_error_callback(int error, const char *description)
     // fprintf(stderr, "Device_interface::Glfw Error %d: %s\n", error, description);
     return;
 }
-
-static Accelerometer_Data cur_acc = {.scale = 0, .x = 0, .y = 0, .z = 0};
-static Magnetic_Data cur_mag = {.scale_x = 0, .scale_y = 0, .scale_z = 0, .x = 0, .y = 0, .z = 0};
-static Light_Data cur_light = {.scale = 0, .input = 0};
-static Gyroscope_Data cur_gyr = {.scale = 0, .x = 0, .y = 0, .z = 0};
-static int cur_battery = 100;
-static ImVec2 window_size;
-static float window_dpi_scale = 1.0;
-GLFWwindow *window = NULL;
 
 static void update_window_scale(void)
 {
@@ -64,6 +197,56 @@ static void update_window_scale(void)
         window_dpi_scale = new_dpi_scale;
         igSetWindowFontScale(new_dpi_scale);
     }
+}
+
+static void igToggleButton(const char* str_id, bool* v)
+{
+    ImVec2 p;
+    igGetCursorScreenPos(&p);
+    ImDrawList* draw_list = igGetWindowDrawList();
+
+    float height = igGetFrameHeight();
+    float width = height * 1.55f;
+    float radius = height * 0.50f;
+    ImVec2 bwidth = {width, height};
+
+    if(igInvisibleButton(str_id, bwidth,0))
+    {
+        *v = !*v;
+        express_ac_plug_status_changed(*v);
+        sync_express_battery_status();
+    }
+
+    float t = *v ? 1.0f : 0.0f;
+
+    ImGuiContext *g = igGetCurrentContext();
+    float ANIM_SPEED = 0.08f;
+    if (g->LastActiveId == ImGuiWindow_GetID_Str(igGetCurrentWindow(),str_id, NULL))// && g.LastActiveIdTimer < ANIM_SPEED)
+    {
+        float t_anim = igImSaturate(g->LastActiveIdTimer / ANIM_SPEED);
+        t = *v ? (t_anim) : (1.0f - t_anim);
+    }
+
+    ImU32 col_bg;
+    
+    if (igIsItemHovered(0))
+    {
+        ImVec4 out, color1 = {0.78f, 0.78f, 0.78f, 1.0f}, color2 = {0.64f, 0.83f, 0.34f, 1.0f};
+        igImLerp_Vec4(&out, color1, color2, t);
+        col_bg = igGetColorU32_Vec4(out);
+    }else
+    {
+        ImVec4 out, color1 = {0.85f, 0.85f, 0.85f, 1.0f}, color2 = {0.56f, 0.83f, 0.26f, 1.0f};
+        igImLerp_Vec4(&out, color1, color2, t);
+        col_bg = igGetColorU32_Vec4(out);
+    }
+        
+    
+    ImVec2 filled = {p.x + width, p.y + height};
+    ImDrawList_AddRectFilled(draw_list, p, filled, col_bg, height * 0.5f, 0);
+    filled.x = p.x + radius + t * (width - radius * 2.0f);
+    filled.y = p.y + radius;
+    ImDrawList_AddCircleFilled(draw_list, filled, radius - 1.5f, IM_COL32_WHITE, 0);
 }
 
 static void draw_window(bool *show_imgui)
@@ -83,185 +266,367 @@ static void draw_window(bool *show_imgui)
         // Battery
         if (igCollapsingHeader_TreeNodeFlags("Battery", 0))
         {
-            igSliderInt("%%", &cur_battery, 0, 100, "%d", 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_battery_change(cur_battery);
-            }
+            igSliderInt("\%", &cur_battery.capacity, 0, 100, "%d", 0);
+            LISTEN_INPUT_CHANGE(handle_battery_change, POWER_SUPPLY_PROP_CAPACITY, cur_battery.capacity)
+            igSameLine(0.0f, -1.0f);
+            igText("Charged");
+            igSameLine(0.0f, -1.0f);
+            igToggleButton("##batterycharge", &cur_battery.charge);
+
+            igText("Technology:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.18f);             
+            if(igCombo_Str_arr("##batterytech", &cur_battery.technology, battery_tech_name , 7, 7))
+                handle_battery_change(POWER_SUPPLY_PROP_TECHNOLOGY, cur_battery.health);
+            igSameLine(0.0f, -1.0f);
+            igText("Health:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.18f);             
+            if(igCombo_Str_arr("##batteryhealth", &cur_battery.health, battery_health_name , 6, 6))
+                handle_battery_change(POWER_SUPPLY_PROP_TECHNOLOGY, cur_battery.health);
+            igSameLine(0.0f, -1.0f);
+            igText("Status:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.18f);             
+            if(igCombo_Str_arr("##batterystatus", &cur_battery.status, battery_status_name , 5, 5))
+                handle_battery_change(POWER_SUPPLY_PROP_TECHNOLOGY, cur_battery.health);
+
+            igText("Voltage:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.17f);
+            igInputFloat("v", &cur_battery.voltage, 0.000001, 0.1, "%.6f", 0);
+            LISTEN_INPUT_CHANGE(handle_battery_change, POWER_SUPPLY_PROP_VOLTAGE_NOW, (int)(cur_battery.voltage*1000000))
+            igSameLine(0.0f, -1.0f);
+            igText("Cycle Count:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.15f);
+            igInputInt("##batterycycle", &cur_battery.cycle_count, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_battery_change, POWER_SUPPLY_PROP_CYCLE_COUNT, cur_battery.cycle_count)
+            igSameLine(0.0f, -1.0f);
+            igText("Temperature:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.15f);
+            igInputFloat("##batterytemp", &cur_battery.temperature, 0.1, 5, "%.1f", 0);
+            LISTEN_INPUT_CHANGE(handle_battery_change, POWER_SUPPLY_PROP_TEMP, (int)(cur_battery.temperature*10))
+
+            igText("Current:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.16f);
+            igInputFloat("mA", &cur_battery.current_now, 0.001, 5, "%.3f", 0);
+            LISTEN_INPUT_CHANGE(handle_battery_change, POWER_SUPPLY_PROP_CURRENT_NOW, (int)(cur_battery.current_now*1000))
+            igSameLine(0.0f, -1.0f);
+            igText("Capacity:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.18f);
+            igInputFloat("mAH", &cur_battery.charge_full, 0.001, 5, "%.4f", 0);
+            LISTEN_INPUT_CHANGE(handle_battery_change, POWER_SUPPLY_PROP_CHARGE_FULL, (int)(cur_battery.charge_full*1000))
+            igSameLine(0.0f, -1.0f);
+            igText("Charge Count:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.14f);
+            igInputInt("##batterycount", &cur_battery.charge_counter, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_battery_change, POWER_SUPPLY_PROP_CHARGE_COUNTER, cur_battery.charge_counter)
         }
 
         // Accelerometer
         if (igCollapsingHeader_TreeNodeFlags("Accelerometer", 0))
         {
-            igText("Scale: ");
+            igText("Scale:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
-            igInputFloat("##accscale", &cur_acc.scale, 0.5, 5, "%.2f", 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_accelerometer_change(cur_acc.scale,
-                                            cur_acc.x, cur_acc.y, cur_acc.z);
-            }
+            igInputFloat("##accscale", &cur_acc.scale, 0.000001, 0.1, "%.6f", 0);
+            LISTEN_INPUT_CHANGE(handle_accelerometer_change, EXPRESS_ACCEL_SCALE, (int)(cur_acc.scale*1000000))
             igSameLine(0.0f, -1.0f);
-            igText("x: ");
+            igText("Sample Frequency:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##accsample_hz", &cur_acc.sample_hz, 0.000001, 0.1, "%.6f", 0);
+            LISTEN_INPUT_CHANGE(handle_accelerometer_change, EXPRESS_ACCEL_SAMPLE_FREQUENCY, (int)(cur_acc.sample_hz*1000000))
+            
+            igText("Temperature:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("Celsyus", &cur_acc.temperature, 0.01, 0.1, "%.2f", 0);
+            LISTEN_INPUT_CHANGE(handle_accelerometer_change, EXPRESS_ACCEL_TEMPERATURE, (int)(cur_acc.temperature*1000000))
+            igSameLine(0.0f, -1.0f);
+            igText("Voltage:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("v", &cur_acc.voltage, 0.000001, 0.1, "%.6f", 0);
+            LISTEN_INPUT_CHANGE(handle_accelerometer_change, EXPRESS_ACCEL_VOLTAGE, (int)(cur_acc.voltage*1000000))
+
+            igText("x:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputInt("##accx", &cur_acc.x, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_accelerometer_change(cur_acc.scale,
-                                            cur_acc.x, cur_acc.y, cur_acc.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_accelerometer_change, EXPRESS_ACCEL_X, cur_acc.x)
             igSameLine(0.0f, -1.0f);
-            igText("y: ");
+            igText("y:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputInt("##accy", &cur_acc.y, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_accelerometer_change(cur_acc.scale,
-                                            cur_acc.x, cur_acc.y, cur_acc.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_accelerometer_change, EXPRESS_ACCEL_Y, cur_acc.y)
             igSameLine(0.0f, -1.0f);
-            igText("z: ");
+            igText("z:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputInt("##accz", &cur_acc.z, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
+           LISTEN_INPUT_CHANGE(handle_accelerometer_change, EXPRESS_ACCEL_Z, cur_acc.z)
+        }
+        // Gyroscope
+        if (igCollapsingHeader_TreeNodeFlags("Gyroscope", 0))
+        {
+            igText("Scale:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##gyrocale", &cur_gyro.scale, 0.000001, 0.1, "%.6f", 0);
+            LISTEN_INPUT_CHANGE(handle_gyroscope_change, EXPRESS_GYRO_SCALE, (int)(cur_gyro.scale*1000000))
+            igSameLine(0.0f, -1.0f);
+            igText("Sample Frequency:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##gyrosample_hz", &cur_gyro.sample_hz, 0.000001, 0.1, "%.6f", 0);
+            LISTEN_INPUT_CHANGE(handle_gyroscope_change, EXPRESS_GYRO_SAMPLE_FREQUENCY, (int)(cur_gyro.sample_hz*1000000))
+            
+            igText("Temperature:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("Celsyus", &cur_gyro.temperature, 0.01, 0.1, "%.2f", 0);
+            LISTEN_INPUT_CHANGE(handle_gyroscope_change, EXPRESS_GYRO_TEMPERATURE, (int)(cur_gyro.temperature*1000000))
+            igSameLine(0.0f, -1.0f);
+            igText("Voltage:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("v", &cur_gyro.voltage, 0.000001, 0.1, "%.6f", 0);
+            LISTEN_INPUT_CHANGE(handle_gyroscope_change, EXPRESS_GYRO_VOLTAGE, (int)(cur_gyro.voltage*1000000))
+
+            igText("x:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gyrox", &cur_gyro.x, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gyroscope_change, EXPRESS_GYRO_X, cur_gyro.x)
+            igSameLine(0.0f, -1.0f);
+            igText("y:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gyroy", &cur_gyro.y, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gyroscope_change, EXPRESS_GYRO_Y, cur_gyro.y)
+            igSameLine(0.0f, -1.0f);
+            igText("z:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gyroz", &cur_gyro.z, 1, 5, 0);
+           LISTEN_INPUT_CHANGE(handle_gyroscope_change, EXPRESS_GYRO_Z, cur_gyro.z)
+        }
+
+        // GPS
+        if (igCollapsingHeader_TreeNodeFlags("GPS", 0))
+        {
+            igText("Latitude:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputDouble("##gpslat", &cur_gps.lat, 0.0000001, 0.1, "%.7f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_LATITUDE, (int)(cur_gps.lat*10000000))
+            igSameLine(0.0f, -1.0f);
+            igText("Longitude:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputDouble("##gpslon", &cur_gps.lon, 0.0000001, 0.1, "%.7f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_LONGITUDE, (int)(cur_gps.lon*10000000))
+            
+            igText("Speed:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("km/hr", &cur_gps.ground_speed, 0.1, 1, "%.1f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_GROUND_SPEED, (int)(cur_gps.ground_speed*10))
+            igSameLine(0.0f, -1.0f);
+            igText("Heading Direction:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##gpscourse", &cur_gps.speed_dir, 0.1, 1, "%.1f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_SPEED_DIRECTION, (int)(cur_gps.speed_dir*10))
+            igSameLine(0.0f, -1.0f);
+            igText("Altitude:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("m", &cur_gps.altitude, 0.1, 0.1, "%.1f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_ALTITUDE, (int)(cur_gps.altitude*10))
+
+            igText("Year:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gpsyear", &cur_gps.year, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_YEAR, cur_gps.year)
+            igSameLine(0.0f, -1.0f);
+            igText("Month:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gpsmon", &cur_gps.month, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_MONTH, cur_gps.month)
+            igSameLine(0.0f, -1.0f);
+            igText("Day:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gpsmon", &cur_gps.day, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_DAY, cur_gps.day)
+
+            igText("Hour:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gpshr", &cur_gps.hr, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_HOUR, cur_gps.hr)
+            igSameLine(0.0f, -1.0f);
+            igText("Minutes:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gpsmin", &cur_gps.min, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_MINUTE, cur_gps.min)
+            igSameLine(0.0f, -1.0f);
+            igText("Secound:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##gpssec", &cur_gps.sec, 0.01, 1, "%.2f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_SECOND, (int)(cur_gps.sec*100))
+
+            igText("HDOP:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##gpshdop", &cur_gps.hdop, 0.1, 1, "%.1f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_HDOP, (int)(cur_gps.hdop*10))
+            igSameLine(0.0f, -1.0f);
+            igText("PDOP:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##gpspdop", &cur_gps.pdop, 0.1, 1, "%.1f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_PDOP, (int)(cur_gps.pdop*10))
+            igSameLine(0.0f, -1.0f);
+            igText("VDOP:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputFloat("##gpsvdop", &cur_gps.vdop, 0.01, 0.1, "%.1f", 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_VDOP, (int)(cur_gps.vdop*10))
+
+            igText("Number of active satellites:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gpsnumsv", &cur_gps.num_sv, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_NUM_ACTIVE_SV, cur_gps.num_sv)
+
+            #define GPS_ACTIVE_SV(i) \
+            igSetNextItemWidth(window_size.x * 0.1f); \
+            igInputInt("##gpssv", &cur_gps.sv_prns[i], 1, 5, 0); \
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_ACTIVE_SV_ID, cur_gps.sv_prns[i]*100+i) 
+
+            for(int i=0;i<12;++i)
             {
-                handle_accelerometer_change(cur_acc.scale,
-                                            cur_acc.x, cur_acc.y, cur_acc.z);
+                igPushID_Int(i);
+                GPS_ACTIVE_SV(i)
+                igPopID();
+                if(i!=5 && i!=11)
+                {
+                    igSameLine(0.0f, -1.0f);
+                }
+            }
+
+            igText("Number of satellites in view:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.2f);
+            igInputInt("##gpsnumsvinview", &cur_gps.num_sv_inview, 1, 5, 0);
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_NUM_SV_INVIEW, cur_gps.num_sv_inview)
+
+            #define GPS_SV_INVIEW(i) \
+            igText("ID:");\
+            igSameLine(0.0f, -1.0f); \
+            igSetNextItemWidth(window_size.x * 0.1f); \
+            igInputInt("##gpssvviewid", &cur_gps.sv_inview[i][0], 1, 5, 0); \
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_SV_INVIEW_ID, cur_gps.sv_inview[i][0]*100+i) \
+            igSameLine(0.0f, -1.0f); \
+            igText("Elevation:");\
+            igSameLine(0.0f, -1.0f); \
+            igSetNextItemWidth(window_size.x * 0.1f); \
+            igInputInt("##gpssvviewe", &cur_gps.sv_inview[i][1], 1, 5, 0); \
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_SV_INVIEW_ELEVATION, cur_gps.sv_inview[i][1]*100+i) \
+            igSameLine(0.0f, -1.0f); \
+            igText("Azimuth:");\
+            igSameLine(0.0f, -1.0f); \
+            igSetNextItemWidth(window_size.x * 0.12f); \
+            igInputInt("##gpssvviewa", &cur_gps.sv_inview[i][2], 1, 5, 0); \
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_SV_INVIEW_AZIMUTH, cur_gps.sv_inview[i][2]*100+i) \
+            igSameLine(0.0f, -1.0f); \
+            igText("SNR:");\
+            igSameLine(0.0f, -1.0f); \
+            igSetNextItemWidth(window_size.x * 0.1f); \
+            igInputInt("##gpssvviews", &cur_gps.sv_inview[i][3], 1, 5, 0); \
+            LISTEN_INPUT_CHANGE(handle_gps_change, EXPRESS_GPS_SV_INVIEW_SNR, cur_gps.sv_inview[i][3]*100+i)
+
+            for(int i=0;i<16;++i)
+            {
+                igPushID_Int(i);
+                GPS_SV_INVIEW(i)
+                igPopID();
             }
         }
 
         // Magnetic
         if (igCollapsingHeader_TreeNodeFlags("Magnetic", 0))
         {
-            igText("Scale x: ");
+            igText("Scale x:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputFloat("##magscalex", &cur_mag.scale_x, 0.5, 5, "%.2f", 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_magnetic_change(cur_mag.scale_x, cur_mag.scale_y,
-                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_magnetic_change,cur_mag.scale_x, cur_mag.scale_y,
+                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z)
             igSameLine(0.0f, -1.0f);
-            igText("Scale y: ");
+            igText("Scale y:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputFloat("##magscaley", &cur_mag.scale_y, 0.5, 5, "%.2f", 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_magnetic_change(cur_mag.scale_x, cur_mag.scale_y,
-                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_magnetic_change,cur_mag.scale_x, cur_mag.scale_y,
+                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z)
             igSameLine(0.0f, -1.0f);
-            igText("Scale z: ");
+            igText("Scale z:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputFloat("##magscalez", &cur_mag.scale_z, 0.5, 5, "%.2f", 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_magnetic_change(cur_mag.scale_x, cur_mag.scale_y,
-                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_magnetic_change,cur_mag.scale_x, cur_mag.scale_y,
+                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z)
 
-            igText("x: ");
+            igText("x:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputInt("##magx", &cur_mag.x, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_magnetic_change(cur_mag.scale_x, cur_mag.scale_y,
-                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_magnetic_change,cur_mag.scale_x, cur_mag.scale_y,
+                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z)
             igSameLine(0.0f, -1.0f);
-            igText("y: ");
+            igText("y:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputInt("##magy", &cur_mag.y, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_magnetic_change(cur_mag.scale_x, cur_mag.scale_y,
-                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_magnetic_change,cur_mag.scale_x, cur_mag.scale_y,
+                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z)
             igSameLine(0.0f, -1.0f);
-            igText("z: ");
+            igText("z:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.2f);
             igInputInt("##magz", &cur_mag.z, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_magnetic_change(cur_mag.scale_x, cur_mag.scale_y,
-                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_magnetic_change,cur_mag.scale_x, cur_mag.scale_y,
+                                       cur_mag.scale_z, cur_mag.x, cur_mag.y, cur_mag.z)
         }
 
         // Light
         if (igCollapsingHeader_TreeNodeFlags("Light", 0))
         {
-            igText("Scale: ");
+            igText("Scale:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.3f);
             igInputFloat("##lightscale", &cur_light.scale, 0.5, 5, "%.2f", 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_light_change(cur_light.scale, cur_light.input);
-            }
+            LISTEN_INPUT_CHANGE(handle_light_change,cur_light.scale, cur_light.input)
             igSameLine(0.0f, -1.0f);
-            igText("Input: ");
+            igText("Input:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.3f);
             igInputInt("##lightinput", &cur_light.input, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_light_change(cur_light.scale, cur_light.input);
-            }
-        }
-
-        // Gyroscope
-        if (igCollapsingHeader_TreeNodeFlags("Gyroscope", 0))
-        {
-            igText("Scale: ");
-            igSameLine(0.0f, -1.0f);
-            igSetNextItemWidth(window_size.x * 0.2f);
-            igInputFloat("##gyroscale", &cur_gyr.scale, 0.5, 5, "%.2f", 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_gyroscope_change(cur_gyr.scale,
-                                        cur_gyr.x, cur_gyr.y, cur_gyr.z);
-            }
-            igSameLine(0.0f, -1.0f);
-            igText("x: ");
-            igSameLine(0.0f, -1.0f);
-            igSetNextItemWidth(window_size.x * 0.2f);
-            igInputInt("##gyrox", &cur_gyr.x, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_gyroscope_change(cur_gyr.scale,
-                                        cur_gyr.x, cur_gyr.y, cur_gyr.z);
-            }
-            igSameLine(0.0f, -1.0f);
-            igText("y: ");
-            igSameLine(0.0f, -1.0f);
-            igSetNextItemWidth(window_size.x * 0.2f);
-            igInputInt("##gyroy", &cur_gyr.y, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_gyroscope_change(cur_gyr.scale,
-                                        cur_gyr.x, cur_gyr.y, cur_gyr.z);
-            }
-            igSameLine(0.0f, -1.0f);
-            igText("z: ");
-            igSameLine(0.0f, -1.0f);
-            igSetNextItemWidth(window_size.x * 0.2f);
-            igInputInt("##gyroz", &cur_gyr.z, 1, 5, 0);
-            if (igIsItemDeactivatedAfterEdit())
-            {
-                handle_gyroscope_change(cur_gyr.scale,
-                                        cur_gyr.x, cur_gyr.y, cur_gyr.z);
-            }
+            LISTEN_INPUT_CHANGE(handle_light_change,cur_light.scale, cur_light.input)
         }
 
         igText("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO()->Framerate, igGetIO()->Framerate);
