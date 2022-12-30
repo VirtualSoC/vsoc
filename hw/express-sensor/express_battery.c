@@ -42,7 +42,7 @@ static Battery_Context static_battery_context = {
     .data = {
         .status_changed = BATTERY_STATUS_CHANGED,
         .online = 0,
-        .status = POWER_SUPPLY_STATUS_NOT_CHARGING,
+        .status = POWER_SUPPLY_STATUS_DISCHARGING,
         .health = POWER_SUPPLY_HEALTH_GOOD,
         .present = 1,
         .capacity = 100,    // 100% charged
@@ -92,7 +92,7 @@ void express_battery_status_changed(int status_type, int value)
         break;
     case POWER_SUPPLY_PROP_CAPACITY:
         static_battery_context.data.capacity = value;
-        static_battery_context.data.status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+        static_battery_context.data.status = POWER_SUPPLY_STATUS_DISCHARGING;
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_NOW:
         static_battery_context.data.voltage = value;
