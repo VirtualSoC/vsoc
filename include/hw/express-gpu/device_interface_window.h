@@ -62,6 +62,12 @@ typedef struct GPS_Data {
     int num_sv_inview;
     int sv_inview[16][4];
 } GPS_Data;
+
+typedef struct Mic_Data {
+    bool using_mic;
+    bool start_capture;
+    char file_path[100];
+} Mic_Data;
 typedef struct Magnetic_Data {
     float scale_x;
     float scale_y;

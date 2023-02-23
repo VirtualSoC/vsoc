@@ -14,6 +14,7 @@
 #define EXPRESS_ACCELEROMTETER_DEVICE_ID ((uint64_t)6)
 #define EXPRESS_GYROSCOPE_DEVICE_ID ((uint64_t)7)
 #define EXPRESS_GPS_DEVICE_ID ((uint64_t)8)
+#define EXPRESS_MICROPHONE_DEVICE_ID ((uint64_t)9)
 
 
 //保留的fun_id，其他设备不可使用

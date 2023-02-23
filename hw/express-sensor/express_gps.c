@@ -71,7 +71,7 @@ static GPS_Context static_gps_context = {
     .data = {
         // St Petersburg, Florida
         .status = { 1,1,1,0,9 },
-        .location = { 278100000,-827900000 }, // lat, lon
+        .location = { 116326759, 40003304 }, // lat, lon
         .detail = { 
             {22,11,27,01,03,02,10,21,19,0,0,0}, // SV IDs
             15,        // nums of satellites in view
