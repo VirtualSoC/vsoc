@@ -642,8 +642,12 @@ Guest_Mem *copy_guest_mem_from_call(Teleport_Express_Call *call, int index)
 
 void free_copied_guest_mem(Guest_Mem *mem)
 {
-    g_free(mem->scatter_data);
-    g_free(mem);
+    if(mem!=NULL){
+        if(mem->scatter_data!=NULL){
+            g_free(mem->scatter_data);
+        }
+        g_free(mem);
+    }
 }
 
 void guest_null_ptr_init(VirtQueue *vq)

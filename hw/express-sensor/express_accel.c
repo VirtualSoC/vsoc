@@ -84,7 +84,7 @@ void sync_express_accel_status(void)
     }
     if (static_accel_context.irq_call == NULL)
     {
-        printf("irq not ok!\n");
+        printf("accel irq not ok!\n");
         return;
     }
 
@@ -110,7 +110,7 @@ static void accel_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
 
 static void accel_irq_register(Teleport_Express_Call *call)
 {
-    printf("register irq\n");
+    printf("register irq accel\n");
     if (static_accel_context.irq_call != NULL)
     {
         send_express_device_irq(static_accel_context.irq_call, 0, 0);
@@ -127,7 +127,7 @@ static void accel_irq_register(Teleport_Express_Call *call)
     }
 }
 
-static void accel_irq_release(void)
+static void accel_irq_release(Teleport_Express_Call *call)
 {
     if (static_accel_context.irq_call != NULL)
     {

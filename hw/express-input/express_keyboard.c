@@ -93,7 +93,7 @@ void sync_express_keyboard_input(void)
     }
     if (static_keyboard_context.irq_call == NULL)
     {
-        printf("irq not ok!\n");
+        printf("keyboard irq not ok!\n");
         return;
     }
 
@@ -102,7 +102,7 @@ void sync_express_keyboard_input(void)
     static_keyboard_context.need_sync = false;
     memset(static_keyboard_context.data.key_is_refresh, 0, sizeof(static_keyboard_context.data.key_is_refresh));
 
-    // printf("touchscreen irq send ok\n");
+    // printf("keyboard irq send ok\n");
 
     send_express_device_irq(static_keyboard_context.irq_call, 0, sizeof(Keyboard_Data));
     static_keyboard_context.irq_call = NULL;
@@ -131,7 +131,7 @@ static void keyboard_irq_register(Teleport_Express_Call *call)
     static_keyboard_context.irq_call = call;
 }
 
-static void keyboard_irq_release(void)
+static void keyboard_irq_release(Teleport_Express_Call *call)
 {
     if(static_keyboard_context.irq_call != NULL)
     {

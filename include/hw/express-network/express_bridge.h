@@ -1,0 +1,37 @@
+#ifndef EXPRESS_BRIDGE_H
+#define EXPRESS_BRIDGE_H
+
+#include "hw/teleport-express/express_log.h"
+
+#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/teleport_express_register.h"
+#include "hw/teleport-express/teleport_express_distribute.h"
+
+
+
+typedef struct Birdge_Connection_Context{
+
+    Guest_Mem *guest_data;
+    Teleport_Express_Call *irq_call;
+
+    int socket_fd;
+
+    bool read_thread_should_running;
+    QemuThread read_thread;
+
+} Birdge_Connection_Context;
+
+typedef struct
+{
+    Thread_Context thread_context;
+
+    int status_id;
+
+    int unique_id;
+
+    Birdge_Connection_Context connection_context;
+
+} Bridge_Thread_Context;
+
+
+#endif

@@ -84,7 +84,7 @@ void sync_express_gyro_status(void)
     }
     if (static_gyro_context.irq_call == NULL)
     {
-        printf("irq not ok!\n");
+        printf("gyro irq not ok!\n");
         return;
     }
 
@@ -110,7 +110,7 @@ static void gyro_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
 
 static void gyro_irq_register(Teleport_Express_Call *call)
 {
-    printf("register irq\n");
+    printf("register irq gyro\n");
     if (static_gyro_context.irq_call != NULL)
     {
         send_express_device_irq(static_gyro_context.irq_call, 0, 0);
@@ -127,7 +127,7 @@ static void gyro_irq_register(Teleport_Express_Call *call)
     }
 }
 
-static void gyro_irq_release(void)
+static void gyro_irq_release(Teleport_Express_Call *call)
 {
     if (static_gyro_context.irq_call != NULL)
     {

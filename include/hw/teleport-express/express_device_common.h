@@ -16,6 +16,10 @@
 #define EXPRESS_GPS_DEVICE_ID ((uint64_t)8)
 
 
+
+#define EXPRESS_BRIDGE_DEVICE_ID ((uint64_t)40)
+
+
 //保留的fun_id，其他设备不可使用
 #define EXPRESS_TERMINATE_FUN_ID (0)
 #define EXPRESS_CLUSTER_FUN_ID (9999)
@@ -225,7 +229,7 @@ typedef struct Express_Device_Info
 
     void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);
     void (*irq_register)(Teleport_Express_Call *call);
-    void (*irq_release)(void);
+    void (*irq_release)(Teleport_Express_Call *call);
 
     void *static_prop;
     int static_prop_size;

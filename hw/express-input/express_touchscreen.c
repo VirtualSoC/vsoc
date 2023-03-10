@@ -361,7 +361,7 @@ void sync_express_touchscreen_input(void)
     }
     if (static_touchscreen_context.irq_call == NULL)
     {
-        printf("irq not ok!\n");
+        printf("touchscreen irq not ok!\n");
         return;
     }
 
@@ -397,7 +397,7 @@ static void touchscreen_irq_register(Teleport_Express_Call *call)
     static_touchscreen_context.irq_call = call;
 }
 
-static void touchscreen_irq_release(void)
+static void touchscreen_irq_release(Teleport_Express_Call *call)
 {
     if (static_touchscreen_context.irq_call != NULL)
     {

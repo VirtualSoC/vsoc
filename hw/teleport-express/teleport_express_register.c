@@ -155,13 +155,13 @@ static void push_to_device(Teleport_Express_Call *call)
     {
         device_info->irq_register(call);
     }
-    else if (fun_id == EXPRESS_GET_PROP_FUN_ID)
+    else if (fun_id == EXPRESS_GET_PROP_FUN_ID && device_info->static_prop != NULL && device_info->static_prop_size != 0)
     {
         send_device_prop_to_guest(device_info, call);
     }
     else if (fun_id == EXPRESS_RELEASE_IRQ_FUN_ID)
     {
-        device_info->irq_release();
+        device_info->irq_release(call);
         call->callback(call, 1);
     }
     else

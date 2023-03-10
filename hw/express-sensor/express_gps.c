@@ -177,7 +177,7 @@ void sync_express_gps_status(void)
     }
     if (static_gps_context.irq_call == NULL)
     {
-        printf("irq not ok!\n");
+        printf("gps irq not ok!\n");
         return;
     }
 
@@ -203,7 +203,7 @@ static void gps_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t pr
 
 static void gps_irq_register(Teleport_Express_Call *call)
 {
-    printf("register irq\n");
+    printf("register irq gps\n");
     if (static_gps_context.irq_call != NULL)
     {
         send_express_device_irq(static_gps_context.irq_call, 0, 0);
@@ -220,7 +220,7 @@ static void gps_irq_register(Teleport_Express_Call *call)
     }
 }
 
-static void gps_irq_release(void)
+static void gps_irq_release(Teleport_Express_Call *call)
 {
     if (static_gps_context.irq_call != NULL)
     {

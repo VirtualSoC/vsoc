@@ -142,7 +142,10 @@
         "device_interface_window.h": "c",
         "express_battery.h": "c",
         "stdbool.h": "c",
-        "glib.h": "c"
+        "glib.h": "c",
+        "express_bridge.h": "c",
+        "internet": "c",
+        "ratio": "c"
     },
     "cmake.configureOnOpen": false
 }

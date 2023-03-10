@@ -593,7 +593,8 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     }
     else
     {
-        if (real_surface->frame_start_time != 0)
+        real_surface->swap_time_all -= real_surface->swap_time[real_surface->swap_loc];
+        if (real_surface->frame_start_time == 0)
         {
             real_surface->swap_time_all += 2000;
             real_surface->swap_time[real_surface->swap_loc] = 2000;
@@ -603,7 +604,6 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
             real_surface->swap_time_all += now_time - real_surface->frame_start_time;
             real_surface->swap_time[real_surface->swap_loc] = now_time - real_surface->frame_start_time;
         }
-        real_surface->swap_time_all -= real_surface->swap_time[real_surface->swap_loc];
         real_surface->swap_loc = (real_surface->swap_loc + 1) % 5;
     }
 

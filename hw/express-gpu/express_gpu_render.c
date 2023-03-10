@@ -1046,9 +1046,9 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+        // glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        // glDrawArrays(GL_TRIANGLES, 0, 6);
 
         if (gbuffer->data_sync != 0)
         {
