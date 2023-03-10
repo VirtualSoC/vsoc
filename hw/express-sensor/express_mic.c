@@ -207,7 +207,7 @@ static void mic_irq_register(Teleport_Express_Call *call)
     }
 }
 
-static void mic_irq_release(void)
+static void mic_irq_release(Teleport_Express_Call *call)
 {
     if (static_mic_context.irq_call != NULL)
     {
