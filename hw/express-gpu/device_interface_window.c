@@ -9,6 +9,7 @@
 #include "hw/express-sensor/express_accel.h"
 #include "hw/express-sensor/express_gyro.h"
 #include "hw/express-sensor/express_gps.h"
+#include "hw/express-sensor/express_mic.h"
 
 #define IM_COL32_R_SHIFT    0
 #define IM_COL32_G_SHIFT    8
@@ -54,8 +55,8 @@ static Gyroscope_Data cur_gyro = {
 };
 
 static GPS_Data cur_gps = {
-    .lat = 27.81,
-    .lon = -82.79,
+    .lat = 116.326759,
+    .lon = 40.003304,
     .ground_speed = 0,
     .altitude = 105.0,
     .hdop = 1.0,
@@ -106,6 +107,12 @@ static Battery_Data cur_battery = {
     .charge_counter = 10000
 };
 
+static Mic_Data cur_mic = {
+    .using_mic = true,
+    .start_capture = false,
+    .file_path = ""
+};
+
 const char *battery_tech_name[] =  {
 	"UNKNOWN",
 	"NiMH",
@@ -147,6 +154,17 @@ void handle_battery_change(int property,int value)
 
     express_battery_status_changed(property, value);
     sync_express_battery_status();
+}
+
+static void handle_plugin_change(bool value)
+{
+    express_ac_plug_status_changed(value);
+    sync_express_battery_status();
+}
+
+static void handle_mic_change(bool value)
+{
+    cur_mic.using_mic = value;
 }
 
 void handle_accelerometer_change(int property, int value)
@@ -203,7 +221,7 @@ static void update_window_scale(void)
     }
 }
 
-static void igToggleButton(const char* str_id, bool* v)
+static void igToggleButton(const char* str_id, bool* v, void(*func)(bool value))
 {
     ImVec2 p;
     igGetCursorScreenPos(&p);
@@ -217,8 +235,7 @@ static void igToggleButton(const char* str_id, bool* v)
     if(igInvisibleButton(str_id, bwidth,0))
     {
         *v = !*v;
-        express_ac_plug_status_changed(*v);
-        sync_express_battery_status();
+        func(*v);
     }
 
     float t = *v ? 1.0f : 0.0f;
@@ -275,7 +292,7 @@ static void draw_window(bool *show_imgui)
             igSameLine(0.0f, -1.0f);
             igText("Charged");
             igSameLine(0.0f, -1.0f);
-            igToggleButton("##batterycharge", &cur_battery.charge);
+            igToggleButton("##batterycharge", &cur_battery.charge, handle_plugin_change);
 
             igText("Technology:");
             igSameLine(0.0f, -1.0f);
@@ -569,6 +586,45 @@ static void draw_window(bool *show_imgui)
                 GPS_SV_INVIEW(i)
                 igPopID();
             }
+        }
+        // Microphone
+        if (igCollapsingHeader_TreeNodeFlags("Microphone", 0))
+        {
+            igText("File path:");
+            igSameLine(0.0f, -1.0f);
+            igInputText("##micpath",cur_mic.file_path,100, 0, NULL, NULL);
+            if(cur_mic.using_mic && igGetActiveID()==igGetID_Str("##micpath"))
+            {
+               igClearActiveID();
+            }
+            
+            igText("Using Microphone");
+            igSameLine(0.0f, -1.0f);
+            igToggleButton("Using microphone",&cur_mic.using_mic, handle_mic_change);
+            if(cur_mic.start_capture && igGetActiveID()==igGetID_Str("Using microphone"))
+            {
+               igClearActiveID();
+            }
+            igSameLine(0.0f, -1.0f);
+            ImVec2 button_size = {0,0};
+            if(igButton(cur_mic.start_capture?"stop capture":"start capture",button_size))
+            {
+                if(cur_mic.start_capture)
+                {
+                    stop_capture();
+                } else
+                {
+                    if(cur_mic.using_mic)
+                    {
+                        start_capture();
+                    } else 
+                    {
+                        start_capture_from_file(cur_mic.file_path);
+                    }
+                }
+                cur_mic.start_capture = !cur_mic.start_capture;
+            }
+
         }
 
         // Magnetic

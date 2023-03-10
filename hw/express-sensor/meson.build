@@ -8,7 +8,8 @@ express_sensor.add(when: 'CONFIG_EXPRESS_SENSOR',
                     'express_battery.c',
                     'express_accel.c',
                     'express_gyro.c',
-                    'express_gps.c'
+                    'express_gps.c',
+                    'express_mic.c'
                ))
 
 
