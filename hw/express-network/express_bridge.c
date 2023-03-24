@@ -16,7 +16,7 @@
 #include "hw/express-network/express_bridge.h"
 #include "qemu/sockets.h"
 
-#define WRITE_CACHE_SIZE (512 * 1024)
+#define WRITE_CACHE_SIZE (1024 * 1024 + 512)
 
 #define HAS_COMMING_DATA(read_data) \
     ((read_data)->guest_read_loc == (read_data)->host_write_loc)
@@ -70,7 +70,7 @@ static void bridge_irq_register(Teleport_Express_Call *call)
 {
 
     Bridge_Thread_Context *context = g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(call->unique_id));
-    printf("bridge register irq thread_id %llu context %llx\n", call->thread_id, (uint64_t)context);
+    // printf("bridge register irq thread_id %llu context %llx\n", call->thread_id, (uint64_t)context);
 
     if(context != NULL){
         context->connection_context.irq_call = call;
@@ -127,7 +127,7 @@ static int bridge_socket_listern(int port)
         return -1;
     }
 
-    printf(DEBUG_HEAD "listern port %d ok\n", port);
+    printf(DEBUG_HEAD "bridge listern port %d ok\n", port);
 
     return fd;
 }
@@ -165,12 +165,12 @@ static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
     int read_cnt = 0;
     int all_read_cnt = 0;
 
-    int max_guest_size = (head->guest_read_loc - head->host_write_loc + head->data_size) % head->data_size;
-
-    int max_write_size = max(max_guest_size, WRITE_CACHE_SIZE);
-
+    // printf("max_write_size %d \n",max_write_size);
     do
     {
+        int max_guest_size = (head->guest_read_loc - head->host_write_loc + head->data_size - 1) % head->data_size;
+
+        int max_write_size = min(max_guest_size, WRITE_CACHE_SIZE);
         // int buf_len = 0;
         // char *buf = get_next_continue_guest_mem(guest_mem, head->host_write_loc + sizeof(Bridge_Read_Data), &buf_len);
 
@@ -179,30 +179,41 @@ static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
         //     return all_read_cnt;
         // }
 
+        if(max_write_size == 0){
+            return all_read_cnt;
+        }
+
         read_cnt = recv(fd, read_cache, max_write_size, 0);
         if (read_cnt < 0)
         {
             int err = errno;
-            // printf(DEBUG_HEAD "read fd %d get %d err %d\n", fd, read_cnt, err);
+            if (err == EINTR || err == EWOULDBLOCK || err == EAGAIN)
+            {
+                return all_read_cnt;
+            }
+            printf(DEBUG_HEAD "read fd %d get %d err %d\n", fd, read_cnt, err);
+            return -1;
+        }
+        else if (read_cnt == 0)
+        {
+            int err = errno;
+            printf("recv get 0 errno %d\n",err);
             if (err == EINTR || err == EWOULDBLOCK || err == EAGAIN)
             {
                 return all_read_cnt;
             }
             return -1;
         }
-        else if (read_cnt == 0)
-        {
-            return -1;
-        }
 
-        printf(DEBUG_HEAD "read fd %d get %d write_loc %d\n", fd, read_cnt, head->host_write_loc);
+
+        // printf(DEBUG_HEAD "read fd %d get %d write_loc %d read_loc %d max_cnt %d max_guest %d\n", fd, read_cnt, head->host_write_loc, head->guest_read_loc, max_write_size, max_guest_size);
 
         if (head->host_write_loc + read_cnt > head->data_size)
         {
             int first_write_size = head->data_size - head->host_write_loc;
             write_to_guest_mem(guest_mem, read_cache, head->host_write_loc + sizeof(Bridge_Read_Data), first_write_size);
             head->host_write_loc = 0;
-            write_to_guest_mem(guest_mem, read_cache, head->host_write_loc + sizeof(Bridge_Read_Data), read_cnt - first_write_size);
+            write_to_guest_mem(guest_mem, read_cache + first_write_size, head->host_write_loc + sizeof(Bridge_Read_Data), read_cnt - first_write_size);
             head->host_write_loc = read_cnt - first_write_size;
         }
         else
@@ -259,7 +270,7 @@ static void *bridge_read_host_thread(void *opaque)
         if (ret > 0)
         {
             // 注入中断
-            printf(DEBUG_HEAD"read get data %d\n", ret);
+            // printf(DEBUG_HEAD"read get data %d\n", ret);
             if (bridge_context->connection_context.irq_call != NULL)
             {
                 send_express_device_irq(bridge_context->connection_context.irq_call, 0, 0);
@@ -279,11 +290,13 @@ static void *bridge_read_host_thread(void *opaque)
                 bridge_context->connection_context.irq_call = NULL;
                 need_send_irq = false;
             }
+            // printf("sleep 1000\n");
             g_usleep(1000);
         }
         else
         {
             // 断开连接
+            printf("recv get close\n");
             bridge_context->status_id = CLOSED_STATUS;
             break;
         }
@@ -325,7 +338,7 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
     // uint64_t thread_id = call->thread_id;
     // unsigned long process_id=call->process_id;
 
-    printf(DEBUG_HEAD "bridge get call_id %llu\n",fun_id);
+    // printf(DEBUG_HEAD "bridge get call_id %llu\n",fun_id);
     switch (fun_id)
     {
     case BRIDGE_FUN_BIND:
@@ -410,6 +423,7 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
         if (para_num == 1 && bridge_context->status_id == CONNECTED_STATUS && bridge_context->connection_context.socket_fd != 0 &&
             all_para[0].data != NULL && all_para[0].data_len != 0)
         {
+            // printf("guest send %lld\n", all_para[0].data_len);
             int num = all_para[0].data->num;
             Scatter_Data *scatter_data = all_para[0].data->scatter_data;
             for (int i = 0; i < num; i++)
