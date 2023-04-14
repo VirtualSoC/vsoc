@@ -9,7 +9,7 @@
  *
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/egl_display.h"

@@ -26,9 +26,9 @@ typedef struct Express_Accel_Data {
 
 typedef struct Accel_Context
 {
+    Device_Context device_context;
     Express_Accel_Data data;
     Guest_Mem *guest_buffer;
-    Teleport_Express_Call *irq_call;
     bool need_sync;
 } Accel_Context;
 
@@ -45,8 +45,8 @@ static Accel_Context static_accel_context = {
     }
 };
 
-static bool accel_irq_enable = false;
-static bool accel_data_init = false;
+// static bool accel_irq_enable = false;
+// static bool accel_data_init = false;
 
 void express_accel_status_changed(int status_type, int value)
 {
@@ -77,14 +77,14 @@ void express_accel_status_changed(int status_type, int value)
 
 void sync_express_accel_status(void)
 {
-
-    if (!static_accel_context.need_sync || !accel_irq_enable)
+    if (!static_accel_context.device_context.irq_enabled)
     {
         return;
     }
-    if (static_accel_context.irq_call == NULL)
+
+
+    if (!static_accel_context.need_sync)
     {
-        printf("accel irq not ok!\n");
         return;
     }
 
@@ -92,10 +92,7 @@ void sync_express_accel_status(void)
 
     static_accel_context.need_sync = false;
 
-    printf("accel irq send ok\n");
-
-    send_express_device_irq(static_accel_context.irq_call, 0, sizeof(Express_Accel_Data));
-    static_accel_context.irq_call = NULL;
+    set_express_device_irq((Device_Context *)&static_accel_context, 0, sizeof(Express_Accel_Data));
 }
 
 static void accel_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
@@ -108,35 +105,40 @@ static void accel_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
     static_accel_context.guest_buffer = data;
 }
 
-static void accel_irq_register(Teleport_Express_Call *call)
+// static void accel_irq_register(Teleport_Express_Call *call)
+// {
+//     printf("register irq accel\n");
+//     if (static_accel_context.irq_call != NULL)
+//     {
+//         send_express_device_irq(static_accel_context.irq_call, 0, 0);
+//     }
+
+//     accel_irq_enable = true;
+//     static_accel_context.irq_call = call;
+
+//     if (!accel_data_init && static_accel_context.guest_buffer != NULL)
+//     {
+//         accel_data_init = true;
+//         static_accel_context.need_sync = true;
+//         sync_express_accel_status();
+//     }
+// }
+
+// static void accel_irq_release(Teleport_Express_Call *call)
+// {
+//     if (static_accel_context.irq_call != NULL)
+//     {
+//         send_express_device_irq(static_accel_context.irq_call, 0, 0);
+
+//         printf("accel_irq_release\n");
+//         accel_irq_enable = false;
+//         static_accel_context.irq_call = NULL;
+//     }
+// }
+
+static Device_Context *get_accel_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    printf("register irq accel\n");
-    if (static_accel_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_accel_context.irq_call, 0, 0);
-    }
-
-    accel_irq_enable = true;
-    static_accel_context.irq_call = call;
-
-    if (!accel_data_init && static_accel_context.guest_buffer != NULL)
-    {
-        accel_data_init = true;
-        static_accel_context.need_sync = true;
-        sync_express_accel_status();
-    }
-}
-
-static void accel_irq_release(Teleport_Express_Call *call)
-{
-    if (static_accel_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_accel_context.irq_call, 0, 0);
-
-        printf("accel_irq_release\n");
-        accel_irq_enable = false;
-        static_accel_context.irq_call = NULL;
-    }
+    return (Device_Context *)&static_accel_context;
 }
 
 static Express_Device_Info express_accel_info = {
@@ -147,9 +149,10 @@ static Express_Device_Info express_accel_info = {
     .device_id = EXPRESS_ACCELEROMTETER_DEVICE_ID,
     .device_type = INPUT_DEVICE_TYPE,
 
+    .get_device_context = get_accel_context,
     .buffer_register = accel_buffer_register,
-    .irq_register = accel_irq_register,
-    .irq_release = accel_irq_release,
+    // .irq_register = accel_irq_register,
+    // .irq_release = accel_irq_release,
 
 };
 

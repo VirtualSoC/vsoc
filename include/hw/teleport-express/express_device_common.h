@@ -191,7 +191,13 @@ typedef struct Thread_Context
 
 } Thread_Context;
 
+struct Express_Device_Info;
 
+typedef struct Device_Context{
+    bool irq_enabled;
+    Teleport_Express_Call *irq_call;
+    struct Express_Device_Info *device_info;
+} Device_Context;
 
 typedef struct Express_Device_Info
 {
@@ -229,8 +235,9 @@ typedef struct Express_Device_Info
 
 
     void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);
-    void (*irq_register)(Teleport_Express_Call *call);
-    void (*irq_release)(Teleport_Express_Call *call);
+    Device_Context *(*get_device_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    void (*irq_register)(Device_Context *context);
+    void (*irq_release)(Device_Context *context);
 
     void *static_prop;
     int static_prop_size;

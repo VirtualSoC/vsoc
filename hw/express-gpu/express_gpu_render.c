@@ -1356,7 +1356,7 @@ void *native_window_thread(void *opaque)
 
             sync_express_touchscreen_input();
             sync_express_keyboard_input();
-            express_input_device_sync();
+            // express_input_device_sync();
 
             handle_child_window_event();
 

@@ -2,109 +2,28 @@
 
 #include "hw/teleport-express/teleport_express_register.h"
 
+#include "qemu/atomic.h"
+
 #include "hw/teleport-express/express_log.h"
 
 static VirtIODevice *in_teleport_express = NULL;
 
+static Teleport_Express_Call *call_recycle_queue[(CALL_BUF_SIZE + 2)];
+static volatile int call_recycle_queue_header = 0;
+static volatile int call_recycle_queue_tail = 0;
+
 static bool need_send_irq = false;
 
-// /**
-//  * @brief 从queue中打包出一个draw调用
-//  *
-//  * @param vq
-//  * @return Teleport_Express_Draw_Call*
-//  */
-// static Teleport_Express_Call *get_one_call_from_input_queue(VirtQueue *vq)
-// {
+bool now_can_set_event = true;
+#ifdef _WIN32
+HANDLE input_event = NULL;
+#else
 
-//     // static int pack_cnt = 0;
-//     Teleport_Express_Queue_Elem *elem;
+#endif
 
-//     Teleport_Express_Call *call;
-
-//     // unsigned long long para_num;
-//     // unsigned long long fun_id;
-//     // unsigned long long thread_id;
-//     // unsigned long long process_id;
-//     // unsigned long long unique_id;
-
-//     elem = (Teleport_Express_Queue_Elem *)virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
-
-//     if (elem)
-//     {
-//         VirtQueueElement *v_elem = &elem->elem;
-//         printf("get elem call num %u %u\n",v_elem->out_num,v_elem->in_num);
-//         if ((v_elem->out_num != 0 && v_elem->in_num != 0) || (v_elem->out_num == 0 && v_elem->in_num == 0))
-//         {
-//             return NULL;
-//         }
-//         elem->para = NULL;
-//         elem->next = NULL;
-
-//         Guest_Mem *guest_mem = g_malloc(sizeof(Guest_Mem));
-
-//         if (v_elem->out_num != 0)
-//         {
-//             guest_mem->scatter_data = (Scatter_Data *)v_elem->out_sg;
-//             guest_mem->num = v_elem->out_num;
-//         }
-
-//         if (v_elem->in_num != 0)
-//         {
-//             guest_mem->scatter_data = (Scatter_Data *)v_elem->in_sg;
-//             guest_mem->num = v_elem->in_num;
-//         }
-
-//         int buf_len = 0;
-//         for (int i = 0; i < guest_mem->num; i++)
-//         {
-//             buf_len += guest_mem->scatter_data[i].len;
-//             // express_printf("guest_mem %d i %d len %d now %d\n",num,i, guest_mem->scatter_data[i].len, buf_len);
-//         }
-
-//         guest_mem->all_len = buf_len;
-//         elem->len = buf_len;
-
-//         elem->para = guest_mem;
-
-//         call = g_malloc0(sizeof(Teleport_Express_Call));
-//         call->elem_header = elem;
-//         call->elem_tail = elem;
-//         call->vq = vq;
-
-//         call->spend_time = 0;
-//         call->next = NULL;
-
-//         elem = (Teleport_Express_Queue_Elem *)virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
-
-//         int null_flag = 0;
-//         Teleport_Express_Flag_Buf *flag_buf = get_direct_ptr(guest_mem, &null_flag);
-//         if (null_flag != 0)
-//         {
-//             call->id = flag_buf->id;
-//             call->process_id = flag_buf->process_id;
-//             call->thread_id = flag_buf->thread_id;
-//             call->para_num = flag_buf->para_num;
-//             call->unique_id = flag_buf->unique_id;
-//         }
-//         else
-//         {
-//             Teleport_Express_Flag_Buf flag_buf_temp;
-//             read_from_guest_mem(guest_mem, &flag_buf_temp, 0, sizeof(Teleport_Express_Flag_Buf));
-//             call->id = flag_buf_temp.id;
-//             call->process_id = flag_buf_temp.process_id;
-//             call->thread_id = flag_buf_temp.thread_id;
-//             call->para_num = flag_buf_temp.para_num;
-//             call->unique_id = flag_buf->unique_id;
-//         }
-
-//         return call;
-//     }
-//     else
-//     {
-//         return NULL;
-//     }
-// }
+void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int len);
+void common_device_irq_register(Device_Context *device_context, Teleport_Express_Call *irq_call);
+void common_device_irq_release(Device_Context *device_context);
 
 static void send_device_prop_to_guest(Express_Device_Info *device_info, Teleport_Express_Call *call)
 {
@@ -145,6 +64,18 @@ static void push_to_device(Teleport_Express_Call *call)
     }
     express_printf("\033[31mpush to %s device %llx id %llx \033[0m\n", device_info->name, device_id, call->id);
 
+    Device_Context *device_context = device_info->get_device_context(device_id, thread_id, process_id, unique_id, device_info);
+    if(unlikely(device_context == NULL))
+    {
+        call->callback(call, 0);
+        return;
+    }
+    
+    if (unlikely(device_context->device_info == NULL))
+    {
+        device_context->device_info = device_info;
+    }
+
     if (fun_id == EXPRESS_REGISTER_BUFFER_FUN_ID)
     {
         Guest_Mem *data = copy_guest_mem_from_call(call, 1);
@@ -153,7 +84,7 @@ static void push_to_device(Teleport_Express_Call *call)
     }
     else if (fun_id == EXPRESS_IRQ_FUN_ID)
     {
-        device_info->irq_register(call);
+        common_device_irq_register(device_context, call);
     }
     else if (fun_id == EXPRESS_GET_PROP_FUN_ID && device_info->static_prop != NULL && device_info->static_prop_size != 0)
     {
@@ -161,7 +92,7 @@ static void push_to_device(Teleport_Express_Call *call)
     }
     else if (fun_id == EXPRESS_RELEASE_IRQ_FUN_ID)
     {
-        device_info->irq_release(call);
+        common_device_irq_release(device_context);
         call->callback(call, 1);
     }
     else
@@ -181,10 +112,37 @@ static void push_to_device(Teleport_Express_Call *call)
  */
 static void input_call_release(Teleport_Express_Call *call, int notify)
 {
-    //设置guest端的flag标志，防止中断丢失
+    // 设置guest端的flag标志，防止中断丢失
     common_call_callback(call);
 
-    release_one_call(call, (bool)notify);
+    // 无锁入队
+    int origin_tail = call_recycle_queue_tail;
+    int t = origin_tail;
+    do
+    {
+        while (call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)] != NULL)
+        {
+            t = (t + 1) % (CALL_BUF_SIZE + 2);
+        }
+    } while (qatomic_cmpxchg(&(call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)]), NULL, call) != NULL);
+
+    qatomic_cmpxchg(&call_recycle_queue_tail, origin_tail, (t + 1) % (CALL_BUF_SIZE + 2));
+
+    // release_one_call(call, (bool)notify);
+
+    need_send_irq = true;
+    if (input_event != NULL && now_can_set_event)
+    {
+#ifdef _WIN32
+        SetEvent(input_event);
+#else
+#endif
+        express_printf("slow input_event!\n");
+    }
+    else
+    {
+        express_printf("qucik input_event!\n");
+    }
 
     return;
 }
@@ -199,10 +157,10 @@ void register_input_buffer_call(VirtIODevice *vdev, VirtQueue *vq)
 
     Teleport_Express_Call *call = pack_call_from_queue(vq, 1);
 
-    if (call == NULL)
-    {
-        printf("register get no call\n");
-    }
+    // if (call == NULL)
+    // {
+    //     printf("register get no call\n");
+    // }
 
     while (call != NULL)
     {
@@ -213,6 +171,9 @@ void register_input_buffer_call(VirtIODevice *vdev, VirtQueue *vq)
 
         call = pack_call_from_queue(vq, 1);
     }
+
+    express_input_device_sync();
+
     return;
 }
 
@@ -225,15 +186,151 @@ void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int
     write_to_guest_mem(mem, &t_data, __builtin_offsetof(Teleport_Express_Flag_Buf, ret_data), 8);
 
     irq_call->callback(irq_call, 0);
+}
 
-    need_send_irq = true;
+void *input_sync_thread(void *opaque)
+{
+
+#ifdef _WIN32
+    input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+#else
+
+#endif
+    while (!teleport_express_should_stop)
+    {
+        // 有一个中断时，之后的1ms超时内的中断都不再使能中断的打断，以防止中断过于频繁
+        DWORD ret = WaitForSingleObject(input_event, 1);
+        if (ret == WAIT_TIMEOUT)
+        {
+            now_can_set_event = true;
+        }
+        else
+        {
+            express_printf("intrupted by event\n");
+            now_can_set_event = false;
+        }
+
+        if (need_send_irq)
+        {
+            Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
+            if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
+            {
+                register_input_buffer_call(in_teleport_express, g->in_data_queue);
+                qatomic_set(&(g->register_input_vq_locker), 0);
+            }
+        }
+    }
+    CloseHandle(input_event);
+    return NULL;
 }
 
 void express_input_device_sync(void)
 {
+
+    while (call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] != NULL)
+    {
+
+        Teleport_Express_Call *out_call = call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)];
+        call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
+        // Teleport_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
+        call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
+
+        release_one_call(out_call, false);
+    }
+
     if (need_send_irq)
     {
         virtio_notify(VIRTIO_DEVICE(in_teleport_express), TELEPORT_EXPRESS(in_teleport_express)->in_data_queue);
         need_send_irq = false;
+        // printf("input sync\n");
     }
+}
+
+void common_device_irq_register(Device_Context *device_context, Teleport_Express_Call *irq_call)
+{
+    express_printf("irq register %s\n", device_context->device_info->name);
+
+    Teleport_Express_Call *origin_call = NULL;
+    if ((origin_call = qatomic_xchg(&device_context->irq_call, irq_call)) != NULL)
+    {
+        if (origin_call == (void *)1)
+        {
+            // 此时已经release过了，所以此时需要直接发送call
+            // 但是可能此时继续产生send irq的中断请求，只是send出去的不会进行重置，所以这里进行二次交换，假如换到NULL，说明irq call被input函数发送出去了，就不用管了
+            if ((origin_call = qatomic_xchg(&device_context->irq_call, NULL)) != NULL)
+            {
+                // 这里origin_call不可能再次为1，因为已经release过一次了
+                if (origin_call == (void *)1)
+                {
+                    printf("error! %s register with half-released status get one release 1!\n", device_context->device_info->name);
+                    return;
+                }
+                send_express_device_irq(origin_call, 0, 0);
+                printf("%s release bewteen send and reset\n", device_context->device_info->name);
+                return;
+            }
+        }
+    }
+    device_context->irq_enabled = true;
+    if(device_context->device_info->irq_register != NULL)
+    {
+        device_context->device_info->irq_register(device_context);
+    }
+}
+
+void common_device_irq_release(Device_Context *device_context)
+{
+    device_context->irq_enabled = false;
+
+    printf("irq release %s\n", device_context->device_info->name);
+
+    Teleport_Express_Call *origin_call = NULL;
+    if ((origin_call = qatomic_xchg(&device_context->irq_call, 1)) != NULL)
+    {
+        if (origin_call != (void *)1)
+        {
+            send_express_device_irq(origin_call, 0, 0);
+
+            // 在irq_call被release函数获取时，不可能存在进一步的中断注入，因而也不可能出现中断的重置，所以可以放心设置为NULL
+            // 其他情况意味着在等待下一次中断重置过程中
+            qatomic_xchg(&device_context->irq_call, NULL);
+            printf("%s irq_release\n", device_context->device_info->name);
+        }
+        else
+        {
+            printf("error! %s release twice!\n", device_context->device_info->name);
+        }
+    }
+
+    if(device_context->device_info->irq_release != NULL)
+    {
+        device_context->device_info->irq_release(device_context);
+    }
+}
+
+
+int set_express_device_irq(Device_Context *device_context, int buf_index, int len)
+{
+    if (!device_context->irq_enabled)
+    {
+        printf("%s irq is not enabled!\n", device_context->device_info->name);
+        return IRQ_NOT_ENABLE;
+    }
+
+    Teleport_Express_Call *origin_call = NULL;
+    if ((origin_call = qatomic_xchg(&device_context->irq_call, NULL)) == NULL)
+    {
+        printf("%s irq not ok!\n", device_context->device_info->name);
+        return IRQ_NOT_READY;
+    }
+
+    if (origin_call == (void *)1)
+    {
+        printf("%s has been released!\n", device_context->device_info->name);
+        return IRQ_RELEASED;
+    }
+
+    send_express_device_irq(origin_call, buf_index, len);
+
+    return IRQ_SET_OK;
 }

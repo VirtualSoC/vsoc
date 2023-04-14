@@ -33,23 +33,21 @@ typedef struct Touchscreen_Data
 
 typedef struct Touchscreen_Context
 {
+    Device_Context device_context;
     Touchscreen_Data data;
     Guest_Mem *guest_buffer;
-    Teleport_Express_Call *irq_call;
     bool need_sync;
 } Touchscreen_Context;
 
 static Touchscreen_Context static_touchscreen_context;
 
-
-//触摸屏的物理大小，可以通过命令行来设置
+// 触摸屏的物理大小，可以通过命令行来设置
 static Touchscreen_Prop static_prop = {
     .width = 1920,
     .height = 1080,
 };
 
 int *express_touchscreen_size = (int *)&static_prop;
-
 
 // qemu这边的窗口大小
 static int window_width = 0;
@@ -81,7 +79,7 @@ static int now_replay_finger_num[MAX_RECORD_SLOT];
 static int scroll_yoffset = 0;
 static bool is_scrolling = false;
 
-static bool touchscreen_irq_enable = false;
+// static bool touchscreen_irq_enable = false;
 
 /**
  * @brief Set the touchscreen size object
@@ -142,10 +140,10 @@ bool start_mouse_replay(int index)
     {
         if (finger_xpos_record[index][0] >= 0)
         {
-            //占用一根指头
+            // 占用一根指头
             if (now_replay_finger_num[index] == 0)
             {
-                //前两根指头不能用，留给双指操作，因此最多8根指头同时操作
+                // 前两根指头不能用，留给双指操作，因此最多8根指头同时操作
                 int use_n = 2;
                 while (qatomic_cmpxchg(&(now_finger_used[use_n]), false, true) && use_n < MAX_TOUCH_POINT)
                     use_n++;
@@ -178,7 +176,7 @@ bool check_mouse_is_replaying(int index)
 
 static void keep_mouse_replaying(void)
 {
-    //键盘按下后会先触发PRESS，然后过一会再会持续触发REPEAT，加入这个是为了保证在press和repeat间，replay不会间隔过久
+    // 键盘按下后会先触发PRESS，然后过一会再会持续触发REPEAT，加入这个是为了保证在press和repeat间，replay不会间隔过久
     for (int i = 0; i < MAX_RECORD_SLOT; i++)
     {
         if (finger_is_record[i] && finger_is_replay[i])
@@ -187,7 +185,7 @@ static void keep_mouse_replaying(void)
             set_express_touchscreen_input(finger_xpos_record[i][now_cnt], finger_ypos_record[i][now_cnt], 1, now_replay_finger_num[i]);
             if (now_cnt + 1 < MAX_RECORD_NUM && finger_xpos_record[i][now_cnt + 1] >= 0)
             {
-                //让now_cnt对应位置的xpos永远不为-1
+                // 让now_cnt对应位置的xpos永远不为-1
                 now_replay_cnt[i]++;
             }
         }
@@ -203,7 +201,7 @@ bool stop_mouse_replay(int index)
         now_replay_cnt[index] = 0;
         finger_is_replay[index] = false;
 
-        //释放指头
+        // 释放指头
         qatomic_set(&(now_finger_used[now_replay_finger_num[index]]), false);
         now_replay_finger_num[index] = 0;
         return true;
@@ -351,27 +349,43 @@ void set_express_touchscreen_input(int x, int y, int is_touched, int index)
 void sync_express_touchscreen_input(void)
 {
 
-    //每次sync阶段才进行record或者replay的操作，这样频率才能对等，也不会因为press和repeat触发间隔大产生啥问题
+    // 每次sync阶段才进行record或者replay的操作，这样频率才能对等，也不会因为press和repeat触发间隔大产生啥问题
     record_mouse_pos();
     keep_mouse_replaying();
 
-    if (!static_touchscreen_context.need_sync || !touchscreen_irq_enable)
+    if (!static_touchscreen_context.need_sync)
     {
         return;
     }
-    if (static_touchscreen_context.irq_call == NULL)
+
+    if (!static_touchscreen_context.device_context.irq_enabled)
     {
-        printf("touchscreen irq not ok!\n");
+        printf("express_touchscreen irq is not ok\n");
+        static_touchscreen_context.need_sync = false;
         return;
     }
+
+    // Teleport_Express_Call *origin_call = NULL;
+    // if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, NULL)) == NULL)
+    // {
+    //     printf("touchscreen irq not ok!\n");
+    //     return;
+    // }
+
+    // if (origin_call == (void *)1)
+    // {
+    //     printf("touchscreen has been released!\n");
+    //     return;
+    // }
 
     write_to_guest_mem(static_touchscreen_context.guest_buffer, &(static_touchscreen_context.data), 0, sizeof(Touchscreen_Data));
 
     static_touchscreen_context.need_sync = false;
 
     // printf("touchscreen irq send ok\n");
-    send_express_device_irq(static_touchscreen_context.irq_call, 0, sizeof(Touchscreen_Data));
-    static_touchscreen_context.irq_call = NULL;
+    // send_express_device_irq(origin_call, 0, sizeof(Touchscreen_Data));
+    set_express_device_irq((Device_Context *)&static_touchscreen_context, 0, sizeof(Touchscreen_Data));
+    
 }
 
 static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
@@ -384,29 +398,62 @@ static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uin
     static_touchscreen_context.guest_buffer = data;
 }
 
-static void touchscreen_irq_register(Teleport_Express_Call *call)
+// static void touchscreen_irq_register(Teleport_Express_Call *call)
+// {
+//     express_printf("touch register irq\n");
+
+//     Teleport_Express_Call *origin_call = NULL;
+//     if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, call)) != NULL)
+//     {
+//         if (origin_call == (void *)1)
+//         {
+//             // 此时已经release过了，所以此时需要直接发送call
+//             // 但是可能此时继续产生send irq的中断请求，只是send出去的不会进行重置，所以这里进行二次交换，假如换到NULL，说明irq call被input函数发送出去了，就不用管了
+//             if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, NULL)) != NULL)
+//             {
+//                 // 这里origin_call不可能再次为1，因为已经release过一次了
+//                 if (origin_call == (void *)1)
+//                 {
+//                     printf("error! touchscreen register with half-released status get one release 1!\n");
+//                     return;
+//                 }
+//                 send_express_device_irq(origin_call, 0, 0);
+//                 printf("touchscreen release bewteen send and reset\n");
+//                 return;
+//             }
+//         }
+//     }
+//     touchscreen_irq_enable = true;
+// }
+
+// static void touchscreen_irq_release(Teleport_Express_Call *call)
+// {
+//     touchscreen_irq_enable = false;
+
+//     printf("release touchscreen\n");
+
+//     Teleport_Express_Call *origin_call = NULL;
+//     if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, 1)) != NULL)
+//     {
+//         if (origin_call != (void *)1)
+//         {
+//             send_express_device_irq(origin_call, 0, 0);
+
+//             // 在irq_call被release函数获取时，不可能存在进一步的中断注入，因而也不可能出现中断的重置，所以可以放心设置为NULL
+//             // 其他情况意味着在等待下一次中断重置过程中
+//             qatomic_xchg(&static_touchscreen_context.irq_call, NULL);
+//             printf("touchscreen_irq_release\n");
+//         }
+//         else
+//         {
+//             printf("error! release twice!\n");
+//         }
+//     }
+// }
+
+static Device_Context *get_touchscreen_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    // printf("touch register irq\n");
-
-    if (static_touchscreen_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_touchscreen_context.irq_call, 0, 0);
-    }
-
-    touchscreen_irq_enable = true;
-    static_touchscreen_context.irq_call = call;
-}
-
-static void touchscreen_irq_release(Teleport_Express_Call *call)
-{
-    if (static_touchscreen_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_touchscreen_context.irq_call, 0, 0);
-
-        printf("touchscreen_irq_release\n");
-        touchscreen_irq_enable = false;
-        static_touchscreen_context.irq_call = NULL;
-    }
+    return (Device_Context *)&static_touchscreen_context;
 }
 
 static Express_Device_Info express_touchscreen_info = {
@@ -417,9 +464,10 @@ static Express_Device_Info express_touchscreen_info = {
     .device_id = EXPRESS_TOUCHSCREEN_DEVICE_ID,
     .device_type = INPUT_DEVICE_TYPE,
 
+    .get_device_context = get_touchscreen_context,
     .buffer_register = touchscreen_buffer_register,
-    .irq_register = touchscreen_irq_register,
-    .irq_release = touchscreen_irq_release,
+    // .irq_register = touchscreen_irq_register,
+    // .irq_release = touchscreen_irq_release,
 
     .static_prop = &(static_prop),
     .static_prop_size = sizeof(Touchscreen_Prop),

@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  *
  */
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "hw/teleport-express/teleport_express.h"
 
 #include "hw/teleport-express/teleport_express_call.h"
@@ -36,7 +36,7 @@ static void teleport_express_output_handle(VirtIODevice *vdev, VirtQueue *vq)
         guest_null_ptr_init(vq);
         express_printf("start handle thread\n");
         g->distribute_thread_run = 1;
-        qemu_thread_create(&g->render_thread, "teleport-express-distribute", call_distribute_thread,
+        qemu_thread_create(&g->distribute_thread, "teleport-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
     }
     else if (g->distribute_thread_run == 1)
@@ -114,6 +114,12 @@ static void teleport_express_input_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 {
 
     Teleport_Express *g = TELEPORT_EXPRESS(vdev);
+
+    if(g->input_thread_run == 0){
+        qemu_thread_create(&g->input_thread, "teleport-express-input", input_sync_thread,
+                           vdev, QEMU_THREAD_JOINABLE);
+        g->input_thread_run = 1;
+    }
 
     if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
     {

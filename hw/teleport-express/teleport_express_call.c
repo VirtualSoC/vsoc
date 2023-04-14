@@ -624,7 +624,7 @@ int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsign
 Guest_Mem *copy_guest_mem_from_call(Teleport_Express_Call *call, int index)
 {
     Call_Para para[MAX_PARA_NUM];
-    int para_num = get_para_from_call(call, para, 1);
+    int para_num = get_para_from_call(call, para, MAX_PARA_NUM);
     if (para_num >= index)
     {
         Guest_Mem *save_mem = g_malloc(sizeof(Guest_Mem));
@@ -709,6 +709,21 @@ void common_call_callback(Teleport_Express_Call *call)
     write_to_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, flag), 8);
     write_to_guest_mem(mem, &(call->spend_time), __builtin_offsetof(Teleport_Express_Flag_Buf, mem_spend_time), 8);
 
+    // read_from_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, id), 8);
+    // printf("write flag id %llu %llu\n", t_flag, call->thread_id);
+}
+
+
+bool call_is_interrupt(Teleport_Express_Call *call)
+{
+
+    //设置guest端的flag标志，防止中断丢失
+    Guest_Mem *mem = call->elem_header->para;
+
+    unsigned long long t_flag = 0;
+    read_from_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, flag), 8);
+
+    return t_flag == 2;
     // read_from_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, id), 8);
     // printf("write flag id %llu %llu\n", t_flag, call->thread_id);
 }

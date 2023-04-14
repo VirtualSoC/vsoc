@@ -113,5 +113,6 @@ void guest_null_ptr_init(VirtQueue *vq);
 
 void common_call_callback(Teleport_Express_Call *call);
 
+bool call_is_interrupt(Teleport_Express_Call *call);
 
 #endif

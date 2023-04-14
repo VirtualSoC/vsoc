@@ -26,9 +26,9 @@ typedef struct Express_Gyro_Data {
 
 typedef struct Gyro_Context
 {
+    Device_Context device_context;
     Express_Gyro_Data data;
     Guest_Mem *guest_buffer;
-    Teleport_Express_Call *irq_call;
     bool need_sync;
 } Gyro_Context;
 
@@ -45,7 +45,7 @@ static Gyro_Context static_gyro_context = {
     }
 };
 
-static bool gyro_irq_enable = false;
+// static bool gyro_irq_enable = false;
 static bool gyro_data_init = false;
 
 void express_gyro_status_changed(int status_type, int value)
@@ -77,14 +77,14 @@ void express_gyro_status_changed(int status_type, int value)
 
 void sync_express_gyro_status(void)
 {
-
-    if (!static_gyro_context.need_sync || !gyro_irq_enable)
+    if (!static_gyro_context.device_context.irq_enabled)
     {
         return;
     }
-    if (static_gyro_context.irq_call == NULL)
+
+
+    if (!static_gyro_context.need_sync)
     {
-        printf("gyro irq not ok!\n");
         return;
     }
 
@@ -92,10 +92,9 @@ void sync_express_gyro_status(void)
 
     static_gyro_context.need_sync = false;
 
-    printf("gyro irq send ok\n");
+    express_printf("gyro irq send ok\n");
 
-    send_express_device_irq(static_gyro_context.irq_call, 0, sizeof(Express_Gyro_Data));
-    static_gyro_context.irq_call = NULL;
+    set_express_device_irq((Device_Context *)&static_gyro_context, 0, sizeof(Express_Gyro_Data));
 }
 
 static void gyro_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
@@ -108,16 +107,16 @@ static void gyro_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
     static_gyro_context.guest_buffer = data;
 }
 
-static void gyro_irq_register(Teleport_Express_Call *call)
+static void gyro_irq_register(Device_Context *context)
 {
-    printf("register irq gyro\n");
-    if (static_gyro_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_gyro_context.irq_call, 0, 0);
-    }
+    // printf("register irq gyro\n");
+    // if (static_gyro_context.irq_call != NULL)
+    // {
+    //     send_express_device_irq(static_gyro_context.irq_call, 0, 0);
+    // }
 
-    gyro_irq_enable = true;
-    static_gyro_context.irq_call = call;
+    // gyro_irq_enable = true;
+    // static_gyro_context.irq_call = call;
 
     if (!gyro_data_init && static_gyro_context.guest_buffer != NULL)
     {
@@ -127,17 +126,23 @@ static void gyro_irq_register(Teleport_Express_Call *call)
     }
 }
 
-static void gyro_irq_release(Teleport_Express_Call *call)
-{
-    if (static_gyro_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_gyro_context.irq_call, 0, 0);
+// static void gyro_irq_release(Teleport_Express_Call *call)
+// {
+//     if (static_gyro_context.irq_call != NULL)
+//     {
+//         send_express_device_irq(static_gyro_context.irq_call, 0, 0);
 
-        printf("gyro_irq_release\n");
-        gyro_irq_enable = false;
-        static_gyro_context.irq_call = NULL;
-    }
+//         printf("gyro_irq_release\n");
+//         gyro_irq_enable = false;
+//         static_gyro_context.irq_call = NULL;
+//     }
+// }
+
+static Device_Context *get_gyro_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+{
+    return (Device_Context *)&static_gyro_context;
 }
+
 
 static Express_Device_Info express_gyro_info = {
     .enable_default = true,
@@ -147,9 +152,10 @@ static Express_Device_Info express_gyro_info = {
     .device_id = EXPRESS_GYROSCOPE_DEVICE_ID,
     .device_type = INPUT_DEVICE_TYPE,
 
+    .get_device_context = get_gyro_context,
     .buffer_register = gyro_buffer_register,
     .irq_register = gyro_irq_register,
-    .irq_release = gyro_irq_release,
+    // .irq_release = gyro_irq_release,
 
 };
 

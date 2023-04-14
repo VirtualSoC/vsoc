@@ -41,10 +41,15 @@ typedef struct
     VirtQueue *out_data_queue;
     VirtQueue *in_data_queue;
 
-    //渲染线程
-    QemuThread render_thread;
+    //分发线程
+    QemuThread distribute_thread;
+
+    //输入中断注入线程
+    QemuThread input_thread;
+
 
     int distribute_thread_run;
+    int input_thread_run;
 
     int register_input_vq_locker;
 

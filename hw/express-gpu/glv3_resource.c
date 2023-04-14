@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "hw/express-gpu/glv3_resource.h"
 #include "hw/express-gpu/glv3_program.h"

@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 // #define STD_DEBUG_LOG_GLOBAL_ON
 #include "hw/express-gpu/glv3_vertex.h"
 #include "hw/express-gpu/glv3_status.h"
@@ -304,8 +304,8 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
     }
     else
     {
-        GLuint ebo = 0;
-        GLuint vbo = 0;
+        GLint ebo = 0;
+        GLint vbo = 0;
 #ifdef STD_DEBUG_LOG_GLOBAL_ON
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
@@ -329,8 +329,8 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
     }
     else
     {
-        GLuint ebo = 0;
-        GLuint vbo = 0;
+        GLint ebo = 0;
+        GLint vbo = 0;
 #ifdef STD_DEBUG_LOG_GLOBAL_ON
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
@@ -406,7 +406,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
 #ifdef STD_DEBUG_LOG_GLOBAL_ON
-    GLuint cu_vao = 0;
+    GLint cu_vao = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &cu_vao);
     express_printf("%llx glDrawArrays mode %x first %d count %d vao %d\n", (uint64_t)context, mode, first, count, cu_vao);
 #endif
@@ -517,13 +517,13 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
     }
     else
     {
-        GLuint ebo = 0;
-        GLuint vbo = 0;
+        GLint ebo = 0;
+        GLint vbo = 0;
 #ifdef STD_DEBUG_LOG_GLOBAL_ON
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
 #endif
-        express_printf("drawElements %x %d %x %lx vbo %u ebo %u\n", mode, (int)count, type, indices, vbo, ebo);
+        express_printf("drawElements %x %d %x %lx vbo %d ebo %d\n", mode, (int)count, type, indices, vbo, ebo);
 
         if (opengl_context->is_using_external_program == 1)
         {

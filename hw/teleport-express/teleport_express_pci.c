@@ -22,8 +22,8 @@ int kernel_load_express_driver_num = 0;
 static GHashTable *all_register_device_info = NULL;
 
 static Property teleport_express_base_properties[] = {
-    //这个vectors变量决定了是否还是用msix中断，假如没有这行，则为APIC中断
-    //若使用APIC中断，则可能出现中断不能及时处理，引发__report_bad_irq函数报错，进而导致中断速度缓慢（If 99,900 of the previous 100,000 interrupts have not been handled* then assume that the IRQ is stuck in some manner）
+    // 这个vectors变量决定了是否还是用msix中断，假如没有这行，则为APIC中断
+    // 若使用APIC中断，则可能出现中断不能及时处理，引发__report_bad_irq函数报错，进而导致中断速度缓慢（If 99,900 of the previous 100,000 interrupts have not been handled* then assume that the IRQ is stuck in some manner）
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 3),
     DEFINE_PROP_BOOL("gl_debug", Teleport_Express_PCI, enalbe_opengl_debug, false),
     DEFINE_PROP_BOOL("independ_window", Teleport_Express_PCI, enable_independ_window, false),
@@ -41,7 +41,6 @@ static Property teleport_express_base_properties[] = {
     DEFINE_PROP_BOOL("buffer_log", Teleport_Express_PCI, gpu_log_with_buffer, false),
     DEFINE_PROP_BOOL("opengl_trace", Teleport_Express_PCI, opengl_trace, false),
 
-
     DEFINE_PROP_BOOL("scroll_is_zoom", Teleport_Express_PCI, scroll_is_zoom, true),
     DEFINE_PROP_BOOL("right_click_is_two_finger", Teleport_Express_PCI, right_click_is_two_finger, true),
     DEFINE_PROP_INT32("scroll_ratio", Teleport_Express_PCI, scroll_ratio, 20),
@@ -50,8 +49,6 @@ static Property teleport_express_base_properties[] = {
 
     DEFINE_PROP_END_OF_LIST(),
 };
-
-
 
 static Property *teleport_express_all_properties = NULL;
 
@@ -108,6 +105,20 @@ static void fill_property(void *key, void *value, void *userData)
     }
 }
 
+static void copy_express_driver_name(Express_Device_Info *info)
+{
+    if (info->driver_name != NULL)
+    {
+        strcpy(kernel_load_express_driver_names + driver_names_len, info->driver_name);
+        driver_names_len += strlen(info->driver_name);
+
+        kernel_load_express_driver_names[driver_names_len] = ' ';
+        driver_names_len += 1;
+
+        kernel_load_express_driver_num += 1;
+    }
+}
+
 /**
  * @brief 根据命令行的结果与是否默认开启的属性，产生要输入给内核的模块名字列表，内核将要加载这些模块。同时顺便更新info里的enable属性，方便模块内部判断
  *
@@ -121,19 +132,15 @@ static void fill_kernel_driver_name(void *key, void *value, void *userData)
 
     Teleport_Express_PCI *express_pci = (Teleport_Express_PCI *)userData;
 
+    if (info->device_id == EXPRESS_GPU_DEVICE_ID || info->device_id == EXPRESS_BRIDGE_DEVICE_ID)
+    {
+        return;
+    }
+
     if (info->device_index == -1 || express_pci->express_device_enable[info->device_index])
     {
         info->enable = true;
-        if (info->driver_name != NULL)
-        {
-            strcpy(kernel_load_express_driver_names + driver_names_len, info->driver_name);
-            driver_names_len += strlen(info->driver_name);
-
-            kernel_load_express_driver_names[driver_names_len] = ' ';
-            driver_names_len += 1;
-
-            kernel_load_express_driver_num += 1;
-        }
+        copy_express_driver_name(info);
     }
     else
     {
@@ -167,6 +174,22 @@ static void init_express_driver_names(Teleport_Express_PCI *express_pci)
 
     kernel_load_express_driver_names = g_malloc0(driver_names_len + 1);
     driver_names_len = 0;
+
+    Express_Device_Info *info = (Express_Device_Info *)g_hash_table_lookup(all_register_device_info, GUINT_TO_POINTER(EXPRESS_GPU_DEVICE_ID));
+
+    if (express_pci->express_device_enable[info->device_index])
+    {
+        info->enable = true;
+        copy_express_driver_name(info);
+    }
+
+    info = (Express_Device_Info *)g_hash_table_lookup(all_register_device_info, GUINT_TO_POINTER(EXPRESS_BRIDGE_DEVICE_ID));
+
+    if (express_pci->express_device_enable[info->device_index])
+    {
+        info->enable = true;
+        copy_express_driver_name(info);
+    }
 
     g_hash_table_foreach(all_register_device_info, fill_kernel_driver_name, express_pci);
     kernel_load_express_driver_names[driver_names_len] = 0;

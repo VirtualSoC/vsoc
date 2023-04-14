@@ -10,9 +10,8 @@
 
 
 typedef struct Birdge_Connection_Context{
-
+    Device_Context device_context;
     Guest_Mem *guest_data;
-    Teleport_Express_Call *irq_call;
 
     int socket_fd;
 
@@ -27,7 +26,9 @@ typedef struct
 
     int status_id;
 
-    int unique_id;
+    uint64_t unique_id;
+
+    uint64_t thread_id;
 
     Birdge_Connection_Context connection_context;
 

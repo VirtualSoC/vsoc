@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "hw/express-gpu/egl_draw.h"
 #include "hw/express-gpu/egl_surface.h"

@@ -29,6 +29,7 @@ typedef struct Express_Mic_Data {
 
 typedef struct Mic_Context
 {
+    Device_Context device_context;
     Express_Mic_Data data;
     struct timeval last_send_time;
     Guest_Mem *guest_buffer;
@@ -51,8 +52,8 @@ static Mic_Context static_mic_context = {
     .last_send_time.tv_sec = 0
 };
 
-static bool mic_irq_enable = false;
-static bool mic_data_init = false;
+// static bool mic_irq_enable = false;
+// static bool mic_data_init = false;
 
 static void data_callback_from_file(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
@@ -157,16 +158,20 @@ void express_mic_status_changed(const void *buf, int size)
 
 void sync_express_mic_status(void)
 {
+    if (!static_mic_context.device_context.irq_enabled)
+    {
+        return;
+    }
 
-    if (!static_mic_context.need_sync || !mic_irq_enable)
+    if (!static_mic_context.need_sync)
     {
         return;
     }
-    if (static_mic_context.irq_call == NULL)
-    {
-        // printf("irq not ok!\n");
-        return;
-    }
+    // if (static_mic_context.irq_call == NULL)
+    // {
+    //     // printf("irq not ok!\n");
+    //     return;
+    // }
 
     write_to_guest_mem(static_mic_context.guest_buffer, &(static_mic_context.data), 0, sizeof(Express_Mic_Data));
 
@@ -174,8 +179,8 @@ void sync_express_mic_status(void)
 
     // printf("mic irq send ok\n");
 
-    send_express_device_irq(static_mic_context.irq_call, 0, sizeof(Express_Mic_Data));
-    static_mic_context.irq_call = NULL;
+    set_express_device_irq((Device_Context *)&static_mic_context, 0, sizeof(Express_Mic_Data));
+    // static_mic_context.irq_call = NULL;
 }
 
 static void mic_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
@@ -188,36 +193,42 @@ static void mic_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t pr
     static_mic_context.guest_buffer = data;
 }
 
-static void mic_irq_register(Teleport_Express_Call *call)
+// static void mic_irq_register(Teleport_Express_Call *call)
+// {
+//     printf("register irq\n");
+//     if (static_mic_context.irq_call != NULL)
+//     {
+//         send_express_device_irq(static_mic_context.irq_call, 0, 0);
+//     }
+
+//     mic_irq_enable = true;
+//     static_mic_context.irq_call = call;
+
+//     if (!mic_data_init && static_mic_context.guest_buffer != NULL)
+//     {
+//         mic_data_init = true;
+//         static_mic_context.need_sync = true;
+//         sync_express_mic_status();
+//     }
+// }
+
+// static void mic_irq_release(Teleport_Express_Call *call)
+// {
+//     if (static_mic_context.irq_call != NULL)
+//     {
+//         send_express_device_irq(static_mic_context.irq_call, 0, 0);
+
+//         printf("mic_irq_release\n");
+//         mic_irq_enable = false;
+//         static_mic_context.irq_call = NULL;
+//     }
+// }
+
+static Device_Context *get_mic_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    printf("register irq\n");
-    if (static_mic_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_mic_context.irq_call, 0, 0);
-    }
-
-    mic_irq_enable = true;
-    static_mic_context.irq_call = call;
-
-    if (!mic_data_init && static_mic_context.guest_buffer != NULL)
-    {
-        mic_data_init = true;
-        static_mic_context.need_sync = true;
-        sync_express_mic_status();
-    }
+    return (Device_Context *)&static_mic_context;
 }
 
-static void mic_irq_release(Teleport_Express_Call *call)
-{
-    if (static_mic_context.irq_call != NULL)
-    {
-        send_express_device_irq(static_mic_context.irq_call, 0, 0);
-
-        printf("mic_irq_release\n");
-        mic_irq_enable = false;
-        static_mic_context.irq_call = NULL;
-    }
-}
 
 static Express_Device_Info express_mic_info = {
     .enable_default = true,
@@ -227,9 +238,10 @@ static Express_Device_Info express_mic_info = {
     .device_id = EXPRESS_MICROPHONE_DEVICE_ID,
     .device_type = INPUT_DEVICE_TYPE,
 
+    .get_device_context = get_mic_context,
     .buffer_register = mic_buffer_register,
-    .irq_register = mic_irq_register,
-    .irq_release = mic_irq_release,
+    // .irq_register = mic_irq_register,
+    // .irq_release = mic_irq_release,
 
 };
 
