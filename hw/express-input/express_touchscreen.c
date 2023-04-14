@@ -79,7 +79,6 @@ static int now_replay_finger_num[MAX_RECORD_SLOT];
 static int scroll_yoffset = 0;
 static bool is_scrolling = false;
 
-// static bool touchscreen_irq_enable = false;
 
 /**
  * @brief Set the touchscreen size object
@@ -365,18 +364,6 @@ void sync_express_touchscreen_input(void)
         return;
     }
 
-    // Teleport_Express_Call *origin_call = NULL;
-    // if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, NULL)) == NULL)
-    // {
-    //     printf("touchscreen irq not ok!\n");
-    //     return;
-    // }
-
-    // if (origin_call == (void *)1)
-    // {
-    //     printf("touchscreen has been released!\n");
-    //     return;
-    // }
 
     write_to_guest_mem(static_touchscreen_context.guest_buffer, &(static_touchscreen_context.data), 0, sizeof(Touchscreen_Data));
 
@@ -398,58 +385,6 @@ static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uin
     static_touchscreen_context.guest_buffer = data;
 }
 
-// static void touchscreen_irq_register(Teleport_Express_Call *call)
-// {
-//     express_printf("touch register irq\n");
-
-//     Teleport_Express_Call *origin_call = NULL;
-//     if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, call)) != NULL)
-//     {
-//         if (origin_call == (void *)1)
-//         {
-//             // 此时已经release过了，所以此时需要直接发送call
-//             // 但是可能此时继续产生send irq的中断请求，只是send出去的不会进行重置，所以这里进行二次交换，假如换到NULL，说明irq call被input函数发送出去了，就不用管了
-//             if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, NULL)) != NULL)
-//             {
-//                 // 这里origin_call不可能再次为1，因为已经release过一次了
-//                 if (origin_call == (void *)1)
-//                 {
-//                     printf("error! touchscreen register with half-released status get one release 1!\n");
-//                     return;
-//                 }
-//                 send_express_device_irq(origin_call, 0, 0);
-//                 printf("touchscreen release bewteen send and reset\n");
-//                 return;
-//             }
-//         }
-//     }
-//     touchscreen_irq_enable = true;
-// }
-
-// static void touchscreen_irq_release(Teleport_Express_Call *call)
-// {
-//     touchscreen_irq_enable = false;
-
-//     printf("release touchscreen\n");
-
-//     Teleport_Express_Call *origin_call = NULL;
-//     if ((origin_call = qatomic_xchg(&static_touchscreen_context.irq_call, 1)) != NULL)
-//     {
-//         if (origin_call != (void *)1)
-//         {
-//             send_express_device_irq(origin_call, 0, 0);
-
-//             // 在irq_call被release函数获取时，不可能存在进一步的中断注入，因而也不可能出现中断的重置，所以可以放心设置为NULL
-//             // 其他情况意味着在等待下一次中断重置过程中
-//             qatomic_xchg(&static_touchscreen_context.irq_call, NULL);
-//             printf("touchscreen_irq_release\n");
-//         }
-//         else
-//         {
-//             printf("error! release twice!\n");
-//         }
-//     }
-// }
 
 static Device_Context *get_touchscreen_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
@@ -466,8 +401,6 @@ static Express_Device_Info express_touchscreen_info = {
 
     .get_device_context = get_touchscreen_context,
     .buffer_register = touchscreen_buffer_register,
-    // .irq_register = touchscreen_irq_register,
-    // .irq_release = touchscreen_irq_release,
 
     .static_prop = &(static_prop),
     .static_prop_size = sizeof(Touchscreen_Prop),

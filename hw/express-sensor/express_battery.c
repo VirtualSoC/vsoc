@@ -55,7 +55,6 @@ static Battery_Context static_battery_context = {
         .charge_counter = 10000,
     }};
 
-// static bool battery_irq_enable = false;
 static bool battery_data_init = false;
 
 void express_ac_plug_status_changed(bool is_pluged)
@@ -132,25 +131,6 @@ void sync_express_battery_status(void)
         return;
     }
 
-    // Teleport_Express_Call *origin_call = NULL;
-    // if ((origin_call = qatomic_xchg(&static_battery_context.irq_call, NULL)) == NULL)
-    // {
-    //     printf("battery irq not ok!\n");
-    //     return;
-    // }
-
-    // if (origin_call == (void *)1)
-    // {
-    //     printf("battery has been released!\n");
-    //     return;
-    // }
-
-    // if (static_battery_context.irq_call == NULL)
-    // {
-    //     printf("battery irq not ok!\n");
-    //     return;
-    // }
-
     write_to_guest_mem(static_battery_context.guest_buffer, &(static_battery_context.data), 0, sizeof(Express_Battery_Data));
 
     static_battery_context.need_sync = false;
@@ -173,42 +153,6 @@ static void battery_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_
 
 static void battery_irq_register(Device_Context *context)
 {
-    // printf("register irq battery\n");
-    // if (static_battery_context.irq_call != NULL)
-    // {
-    //     send_express_device_irq(static_battery_context.irq_call, 0, 0);
-    // }
-
-    // battery_irq_enable = true;
-    // static_battery_context.irq_call = call;
-
-   
-
-    // express_printf("battery register irq\n");
-
-    // Teleport_Express_Call *origin_call = NULL;
-    // if ((origin_call = qatomic_xchg(&static_battery_context.irq_call, call)) != NULL)
-    // {
-    //     if (origin_call == (void *)1)
-    //     {
-    //         // 此时已经release过了，所以此时需要直接发送call
-    //         // 但是可能此时继续产生send irq的中断请求，只是send出去的不会进行重置，所以这里进行二次交换，假如换到NULL，说明irq call被input函数发送出去了，就不用管了
-    //         if ((origin_call = qatomic_xchg(&static_battery_context.irq_call, NULL)) != NULL)
-    //         {
-    //             // 这里origin_call不可能再次为1，因为已经release过一次了
-    //             if (origin_call == (void *)1)
-    //             {
-    //                 printf("error! touchscreen register with half-released status get one release 1!\n");
-    //                 return;
-    //             }
-    //             send_express_device_irq(origin_call, 0, 0);
-    //             printf("touchscreen release bewteen send and reset\n");
-    //             return;
-    //         }
-    //     }
-    // }
-    // battery_irq_enable = true;
-
 
     if (!battery_data_init && static_battery_context.guest_buffer != NULL)
     {
@@ -216,42 +160,7 @@ static void battery_irq_register(Device_Context *context)
         static_battery_context.need_sync = true;
         sync_express_battery_status();
     }
-
 }
-
-// static void battery_irq_release(Teleport_Express_Call *call)
-// {
-//     // if (static_battery_context.irq_call != NULL)
-//     // {
-//     //     send_express_device_irq(static_battery_context.irq_call, 0, 0);
-
-//     //     printf("battery_irq_release\n");
-//     //     battery_irq_enable = false;
-//     //     static_battery_context.irq_call = NULL;
-//     // }
-
-//     battery_irq_enable = false;
-//     printf("release battery\n");
-
-//     Teleport_Express_Call *origin_call = NULL;
-//     if ((origin_call = qatomic_xchg(&static_battery_context.irq_call, 1)) != NULL)
-//     {
-//         if (origin_call != (void *)1)
-//         {
-//             send_express_device_irq(origin_call, 0, 0);
-
-//             // 在irq_call被release函数获取时，不可能存在进一步的中断注入，因而也不可能出现中断的重置，所以可以放心设置为NULL
-//             // 其他情况意味着在等待下一次中断重置过程中
-//             qatomic_xchg(&static_battery_context.irq_call, NULL);
-//             printf("battery_irq_release\n");
-//         }
-//         else
-//         {
-//             printf("error! battery_irq_release twice!\n");
-//         }
-//     }
-
-// }
 
 static Device_Context *get_battery_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {

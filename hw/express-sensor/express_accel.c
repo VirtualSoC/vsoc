@@ -13,16 +13,17 @@
 
 #include "hw/express-sensor/express_accel.h"
 
-typedef struct Express_Accel_Data {
+typedef struct Express_Accel_Data
+{
     int x;
     int y;
     int z;
-	int scale;
-	int sample_hz;
-	int temperature;
-	int voltage;
+    int scale;
+    int sample_hz;
+    int temperature;
+    int voltage;
     int enable;
-}__attribute__((packed, aligned(4))) Express_Accel_Data;
+} __attribute__((packed, aligned(4))) Express_Accel_Data;
 
 typedef struct Accel_Context
 {
@@ -37,16 +38,11 @@ static Accel_Context static_accel_context = {
         .x = 0,
         .y = 0,
         .z = 0,
-        .scale = 781250, // 0.78125 accelerometer measurement range, ex +- 4G => 9.81/4096 = 0.023951
+        .scale = 781250,        // 0.78125 accelerometer measurement range, ex +- 4G => 9.81/4096 = 0.023951
         .sample_hz = 800000000, // 1.0
         .temperature = 30000000,
         .voltage = 230000,
-        .enable = 1
-    }
-};
-
-// static bool accel_irq_enable = false;
-// static bool accel_data_init = false;
+        .enable = 1}};
 
 void express_accel_status_changed(int status_type, int value)
 {
@@ -82,7 +78,6 @@ void sync_express_accel_status(void)
         return;
     }
 
-
     if (!static_accel_context.need_sync)
     {
         return;
@@ -105,37 +100,6 @@ static void accel_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
     static_accel_context.guest_buffer = data;
 }
 
-// static void accel_irq_register(Teleport_Express_Call *call)
-// {
-//     printf("register irq accel\n");
-//     if (static_accel_context.irq_call != NULL)
-//     {
-//         send_express_device_irq(static_accel_context.irq_call, 0, 0);
-//     }
-
-//     accel_irq_enable = true;
-//     static_accel_context.irq_call = call;
-
-//     if (!accel_data_init && static_accel_context.guest_buffer != NULL)
-//     {
-//         accel_data_init = true;
-//         static_accel_context.need_sync = true;
-//         sync_express_accel_status();
-//     }
-// }
-
-// static void accel_irq_release(Teleport_Express_Call *call)
-// {
-//     if (static_accel_context.irq_call != NULL)
-//     {
-//         send_express_device_irq(static_accel_context.irq_call, 0, 0);
-
-//         printf("accel_irq_release\n");
-//         accel_irq_enable = false;
-//         static_accel_context.irq_call = NULL;
-//     }
-// }
-
 static Device_Context *get_accel_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     return (Device_Context *)&static_accel_context;
@@ -151,8 +115,6 @@ static Express_Device_Info express_accel_info = {
 
     .get_device_context = get_accel_context,
     .buffer_register = accel_buffer_register,
-    // .irq_register = accel_irq_register,
-    // .irq_release = accel_irq_release,
 
 };
 

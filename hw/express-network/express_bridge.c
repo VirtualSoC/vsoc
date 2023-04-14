@@ -75,7 +75,6 @@ static void bridge_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t
     context->connection_context.guest_data = data;
 }
 
-
 static int bridge_socket_listern(int port)
 {
     struct sockaddr_in saddr;
@@ -228,7 +227,6 @@ static void *bridge_accept_host_thread(void *opaque)
                     get_accept_fd = 0;
                     write_to_guest_mem(bridge_context->connection_context.guest_data, &accept_status, __builtin_offsetof(Bridge_Accept_Data, accept_status), sizeof(int));
 
-
                     int irq_status = set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0);
                     if (irq_status == IRQ_SET_OK)
                     {
@@ -265,14 +263,14 @@ static void *bridge_accept_host_thread(void *opaque)
             qemu_socket_set_nonblock(ret_fd);
             g_hash_table_insert(accept_fd_thread_maps, GUINT_TO_POINTER(ret_fd), (gpointer)(uint64_t)guest_thread_id);
             get_accept_fd = ret_fd;
-            
+
             continue;
         }
     }
 
-    if(get_accept_fd != 0)
+    if (get_accept_fd != 0)
     {
-        closesocket(get_accept_fd);    
+        closesocket(get_accept_fd);
     }
 
     closesocket(bridge_context->connection_context.socket_fd);
@@ -285,7 +283,6 @@ static void *bridge_accept_host_thread(void *opaque)
     set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
 
     return NULL;
-
 }
 
 static void *bridge_read_host_thread(void *opaque)
@@ -314,7 +311,6 @@ static void *bridge_read_host_thread(void *opaque)
         }
 
         Guest_Mem *guest_mem = bridge_context->connection_context.guest_data;
-
 
         int ret = fd_data_to_guest_mem(bridge_context->connection_context.socket_fd, guest_mem, read_cache);
 
@@ -359,9 +355,7 @@ static void *bridge_read_host_thread(void *opaque)
 
     set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
 
-
     printf(DEBUG_HEAD "bridge thread exit closefd %d\n", bridge_context->connection_context.socket_fd);
-
 
     return NULL;
 }
@@ -525,11 +519,10 @@ static void remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64
     g_hash_table_remove(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
 }
 
-
 static Device_Context *get_bridge_connection_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     Bridge_Thread_Context *thread_context = g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
-    if(thread_context == NULL)
+    if (thread_context == NULL)
     {
         return NULL;
     }
