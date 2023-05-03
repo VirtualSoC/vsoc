@@ -48,6 +48,8 @@ GLuint load_shader(GLenum type, const char *shaderSrc);
 
 int main_window_opengl_prepare(GLuint *program, GLuint *VAO);
 
+void adjust_blend_type(int blend_type);
+
 Dying_List *dying_list_append(Dying_List *list, void *data);
 
 Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun);

@@ -35,7 +35,7 @@
 #include "hw/express-input/express_keyboard.h"
 
 GAsyncQueue *main_window_event_queue = NULL;
-int main_window_event_queue_lock = 0;
+volatile int main_window_event_queue_lock = 0;
 
 Static_Context_Values *preload_static_context_value = NULL;
 
@@ -56,6 +56,8 @@ int express_gpu_window_FPS = 60;
 
 bool express_gpu_keep_window_scale = false;
 
+QemuThread native_window_render_thread;
+
 // static unsigned int main_frame_num = 0;
 
 // static int event_queue_lock;
@@ -73,7 +75,6 @@ static int calc_screen_hz = 0;
 static int now_screen_hz = 0;
 
 static gint64 last_calc_time = 0;
-
 
 static QemuThread device_interface_thread;
 
@@ -100,19 +101,27 @@ void *dummy_window_for_sync = NULL;
 static GLuint programID = 0;
 static GLuint drawVAO = 0;
 
-static GLint reverse_loc = 0;
-static GLuint is_reverse = 0;
+static GLint program_transform_loc = 0;
+static GLuint now_transform_type = 0;
 
 static bool window_is_shown = false;
 
 static int window_width = 0;
 static int window_height = 0;
 
+static int display_content_x = 0;
+static int display_content_y = 0;
+
+static int display_content_width = 0;
+static int display_content_height = 0;
+
 int express_gpu_window_width = 0;
 int express_gpu_window_height = 0;
 
-static int display_width = 0;
-static int display_height = 0;
+bool force_show_native_render_window = false;
+
+static int display_width = 1280;
+static int display_height = 720;
 
 static bool window_need_refresh = false;
 ;
@@ -135,6 +144,8 @@ static bool window_need_refresh = false;
 // static bool is_click;
 
 static Graphic_Buffer *display_gbuffer;
+
+static GBuffer_Layers *display_layers;
 
 volatile int native_render_run = 0;
 volatile int device_interface_run = 0;
@@ -209,24 +220,24 @@ static const char *SPECIAL_EXTENSIONS[] =
 };
 static const int SPECIAL_EXTENSIONS_SIZE = 46 - 1;
 
-//支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
-// static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
-//     {
-//         //gl
-//         /* 1*/ "GL_NV_texture_barrier",          // and gles
-//         /* 2*/ "GL_KHR_blend_equation_advanced", // and gles
-//         /* 3*/ "GL_NV_blend_equation_advanced",  // and gles
-//         /* 4*/ "GL_ARB_clear_texture",
-//         /* 5*/ "GL_ARB_draw_indirect",
-//         /* 6*/ "GL_ARB_timer_query",
-//         /* 7*/ "GL_EXT_timer_query",
-//         /* 8*/ "GL_ARB_multi_draw_indirect",
-//         /* 9*/ "GL_NV_path_rendering",            // and gles
-//         /*10*/ "GL_NV_framebuffer_mixed_samples", // and gles
-//         /*11*/ "GL_EXT_debug_marker",             //and gles
-//         /*12*/ "GL_ARB_invalidate_subdata",
-//         /*13*/ "GL_KHR_debug",             // and gles
-//         /*14*/ "GL_EXT_window_rectangles", // and gles
+// 支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
+//  static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
+//      {
+//          //gl
+//          /* 1*/ "GL_NV_texture_barrier",          // and gles
+//          /* 2*/ "GL_KHR_blend_equation_advanced", // and gles
+//          /* 3*/ "GL_NV_blend_equation_advanced",  // and gles
+//          /* 4*/ "GL_ARB_clear_texture",
+//          /* 5*/ "GL_ARB_draw_indirect",
+//          /* 6*/ "GL_ARB_timer_query",
+//          /* 7*/ "GL_EXT_timer_query",
+//          /* 8*/ "GL_ARB_multi_draw_indirect",
+//          /* 9*/ "GL_NV_path_rendering",            // and gles
+//          /*10*/ "GL_NV_framebuffer_mixed_samples", // and gles
+//          /*11*/ "GL_EXT_debug_marker",             //and gles
+//          /*12*/ "GL_ARB_invalidate_subdata",
+//          /*13*/ "GL_KHR_debug",             // and gles
+//          /*14*/ "GL_EXT_window_rectangles", // and gles
 
 //         //gles
 //         /*15*/ "GL_EXT_blend_func_extended",
@@ -251,7 +262,6 @@ static Dying_List *dying_gbuffer;
 
 static gint64 last_click_time = 0;
 
-void remove_gbuffer_from_global_map(uint64_t gbuffer_id);
 void window_size_change_callback(GLFWwindow *window, int width, int height);
 
 static void close_window_callback(GLFWwindow *window)
@@ -302,213 +312,11 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
     }
 }
 
-// static void keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
-// {
-//     int qcode;
-//     bool down = false;
-
-//     if (code > qemu_input_map_glfw_to_qcode_len)
-//     {
-//         return;
-//     }
-//     qcode = qemu_input_map_glfw_to_qcode[key];
-
-//     if (action == GLFW_RELEASE)
-//     {
-//         down = false;
-//     }
-//     else
-//     {
-//         down = true;
-//     }
-
-//     // if ((mods & GLFW_MOD_ALT) != 0 && (action == GLFW_PRESS || action == GLFW_REPEAT) && key < 100)
-//     // {
-//     //     if (key_is_repeat[key] == 0)
-//     //     {
-//     //         // printf("press key %d\n",key);
-//     //         now_press_key = key;
-//     //         key_is_repeat[key] = 1;
-//     //         mouse_click_record[key] = 0;
-//     //         mouse_pos_record_num[key] = 0;
-//     //         key_repeat_cnt[key] = 0;
-//     //     }
-//     // }
-
-//     // if (action == GLFW_RELEASE && key < 100)
-//     // {
-//     //     key_is_repeat[key] = 0;
-//     //     now_press_key = 0;
-//     // }
-
-//     // if (mouse_click_record[key] == 1 && key_is_repeat[key] == 0)
-//     // {
-//     //     // printf("replay %d\n",key);
-
-//     //     if (action == GLFW_PRESS)
-//     //     {
-//     //         // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(mouse_pos_record[key][0] / real_window_width * window_width), 0, window_width);
-//     //         // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(mouse_pos_record[key][1] / real_window_height * window_height), 0, window_height);
-//     //         // qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, true);
-//     //         // key_repeat_cnt[key] = 1;
-//     //         // printf("replay click pos1 %lf %lf\n",mouse_pos_record[key][0],mouse_pos_record[key][1]);
-//     //         if (is_click)
-//     //         {
-//     //             qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, false);
-//     //             is_click = false;
-//     //         }
-//     //         if (is_replaying)
-//     //         {
-//     //             return;
-//     //         }
-//     //         is_replaying = true;
-//     //         replaying_key = key;
-//     //         key_repeat_cnt[key] = 0;
-//     //     }
-//     //     else if (action == GLFW_REPEAT)
-//     //     {
-//     //         // printf("replay hold\n");
-//     //     }
-//     //     else
-//     //     {
-//     //         is_replaying = false;
-//     //         // printf("replay release\n");
-//     //         qemu_input_queue_btn(input_receive_con, INPUT_BUTTON_LEFT, false);
-//     //     }
-//     // }
-//     // else
-//     // {
-//     qemu_input_event_send_key_qcode(input_receive_con, (QKeyCode)qcode, down);
-//     // }
-
-//     // qemu_input_event_sync();
-
-//     // printf("key:%d, code:%d, action:%d, mods:%d,scancode %d,qcode %d\n", key, code, action, mods, glfwGetKeyScancode(key),qcode);
-// }
-
-// static bool is_left_click = 0;
-
-// static void mouse_move_handle_callback(GLFWwindow *window, double xpos, double ypos)
-// {
-//     now_mouse_xpos = xpos;
-//     now_mouse_ypos = ypos;
-
-//     // printf("now mouse %lf %lf\n", xpos,ypos);
-
-//     if (is_replaying)
-//     {
-//         return;
-//     }
-
-// #ifdef ENSURE_SAME_WIDTH_HEIGHT_RATIO
-//     set_express_touchscreen_input((int)(xpos / real_window_width * window_width), (int)(ypos / real_window_height * window_height), is_left_click, 0);
-
-//     // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)(xpos / real_window_width * window_width), 0, window_width);
-//     // qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)(ypos / real_window_height * window_height), 0, window_height);
-// #else
-//     if (real_window_height > window_height)
-//     {
-//         ypos -= (real_window_height - window_height) / 2;
-//     }
-
-//     if (real_window_width > window_width)
-//     {
-//         xpos -= (real_window_width - window_width) / 2;
-//     }
-//     if ((int)ypos > window_height || (int)xpos > window_width || (int)ypos < 0 || (int)xpos < 0)
-//     {
-//         return;
-//     }
-
-//     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_X, (int)xpos, 0, window_width);
-//     qemu_input_queue_abs(input_receive_con, INPUT_AXIS_Y, (int)ypos, 0, window_height);
-// // qemu_input_event_sync();
-// #endif
-// }
-
-// static void mouse_click_handle_callback(GLFWwindow *window, int button, int action, int mods)
-// {
-//     InputButton btn;
-//     // printf("mouse click %d %d\n",button, action);
-//     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
-//     {
-//         if (now_press_key != 0)
-//         {
-//             // printf("record pos1 %lf %lf\n",now_mouse_xpos,now_mouse_ypos);
-//             mouse_click_record[now_press_key] = 1;
-//         }
-//     }
-
-//     if (button == GLFW_MOUSE_BUTTON_LEFT)
-//     {
-//         btn = INPUT_BUTTON_LEFT;
-//         if (action != GLFW_RELEASE)
-//         {
-//             is_left_click = 1;
-//         }
-//         else
-//         {
-//             is_left_click = 0;
-//         }
-//         set_express_touchscreen_input((int)(now_mouse_xpos / real_window_width * window_width), (int)(now_mouse_ypos / real_window_height * window_height), is_left_click, 0);
-//     }
-//     else if (button == GLFW_MOUSE_BUTTON_RIGHT)
-//     {
-//         btn = INPUT_BUTTON_RIGHT;
-//     }
-//     else if (button == GLFW_MOUSE_BUTTON_MIDDLE)
-//     {
-//         btn = INPUT_BUTTON_MIDDLE;
-//     }
-//     else
-//     {
-//         return;
-//     }
-
-//     bool press = true;
-//     if (action == GLFW_RELEASE)
-//     {
-//         press = false;
-//     }
-
-//     if (is_click == press || is_replaying)
-//     {
-//         return;
-//     }
-//     is_click = press;
-
-//     if(false)
-//     qemu_input_queue_btn(input_receive_con, btn, press);
-//     // qemu_input_event_sync();
-// }
-
-// static void mouse_scroll_handle_callback(GLFWwindow *window, double xoffset, double yoffset)
-// {
-//     InputButton btn;
-//     if (yoffset > 0)
-//     {
-//         btn = INPUT_BUTTON_WHEEL_UP;
-//     }
-//     else if (yoffset < 0)
-//     {
-//         btn = INPUT_BUTTON_WHEEL_DOWN;
-//     }
-//     else
-//     {
-//         return;
-//     }
-
-//     qemu_input_queue_btn(input_receive_con, btn, true);
-//     qemu_input_event_sync();
-//     qemu_input_queue_btn(input_receive_con, btn, false);
-//     qemu_input_event_sync();
-// }
-
 void window_size_change_callback(GLFWwindow *window, int width, int height)
 {
     window_need_refresh = true;
 
-    //需要保证画面比例不变
+    // 需要保证画面比例不变
     if (window_width != width || window_height != height)
     {
 
@@ -538,61 +346,25 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 
             glViewport(0, 0, window_width, window_height);
 
+            display_content_x = 0;
+            display_content_y = 0;
+            display_content_width = window_width;
+            display_content_height = window_height;
+            express_printf("set window size %d %d keep scale\n", window_width, window_height);
             glfwSetWindowSize(window, window_width, window_height);
         }
         else
         {
             glViewport(x, y, temp_window_width, temp_window_height);
+
+            display_content_x = x;
+            display_content_y = y;
+            display_content_width = temp_window_width;
+            display_content_height = temp_window_height;
         }
 
+        express_printf("set touchscreen size %d %d\n", window_width, window_height);
         set_touchscreen_window_size(window_width, window_height);
-
-        // #ifdef ENSURE_SAME_WIDTH_HEIGHT_RATIO
-        //         if (calc_width < width && calc_height > height)
-        //         {
-        //             real_window_width = calc_width;
-        //             real_window_height = height;
-        //         }
-        //         else if (calc_width > width && calc_height < height)
-        //         {
-        //             real_window_width = width;
-        //             real_window_height = calc_height;
-        //         }
-        //         else
-        //         {
-        //             //其他情况认为是精度计算问题，直接用新的值
-        //             real_window_width = width;
-        //             real_window_height = height;
-        //         }
-        //         glViewport(0, 0, real_window_width, real_window_height);
-
-        //         glfwSetWindowSize(window, real_window_width, real_window_height);
-
-        // #else
-        //         int x = 0, y = 0;
-
-        //         if (calc_width < width && calc_height > height)
-        //         {
-        //             window_width = calc_width;
-        //             window_height = height;
-        //             x = (width - calc_width) / 2;
-        //         }
-        //         else if (calc_width > width && calc_height < height)
-        //         {
-        //             window_width = width;
-        //             window_height = calc_height;
-        //             y = (height - calc_height) / 2;
-        //         }
-        //         else
-        //         {
-        //             //其他情况认为是精度计算问题，直接用新的值
-        //             window_width = width;
-        //             window_height = height;
-        //         }
-        //         real_window_width = width;
-        //         real_window_height = height;
-        //         glViewport(x, y, window_width, window_height);
-        // #endif
     }
 
     // #ifndef ENABLE_STATIC_WINDOW_REFRESH
@@ -659,6 +431,7 @@ static void handle_child_window_event(void)
     Main_window_Event *child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
     ATOMIC_UNLOCK(main_window_event_queue_lock);
 
+    int paint_event_cnt = 0;
     while (child_event != NULL)
     {
         switch (child_event->event_code)
@@ -675,6 +448,22 @@ static void handle_child_window_event(void)
             // has_painted = 1;
             // glfwSwapBuffers(glfw_window);
             // #endif
+        }
+        break;
+        case MAIN_PAINT_LAYERS:
+        {
+            GBuffer_Layers *layers = (GBuffer_Layers *)child_event->data;
+            if (display_layers != NULL)
+            {
+                g_free(display_layers);
+            }
+            display_layers = layers;
+            window_need_refresh = true;
+            paint_event_cnt++;
+            if(paint_event_cnt>1)
+            {
+                printf("error! paint num %d\n", paint_event_cnt);
+            }
         }
         break;
         case MAIN_CREATE_CHILD_WINDOW:
@@ -798,7 +587,7 @@ static void static_value_prepare(void)
     {
         printf("error when creating static vaules %x\n", error);
     }
-    //下面三个值之所以要限定范围，是因为guest端有个固定大小的数组，这个最大值是数组的最大大小
+    // 下面三个值之所以要限定范围，是因为guest端有个固定大小的数组，这个最大值是数组的最大大小
     if (preload_static_context_value->max_vertex_attribs > 32)
     {
         preload_static_context_value->max_vertex_attribs = 32;
@@ -920,7 +709,7 @@ static void static_value_prepare(void)
     int num_extensions = preload_static_context_value->num_extensions;
 
     // num_extensions = 0;
-    //目前暂时只设定固定的扩展支持
+    // 目前暂时只设定固定的扩展支持
 
     int start_loc = 0;
     int has_dsa = 0;
@@ -1016,6 +805,101 @@ static void static_value_prepare(void)
     assert(temp_loc < ((char *)preload_static_context_value) + sizeof(Static_Context_Values) + 512 * 100 + 400);
 }
 
+static void opengl_paint_composer_layers(void)
+{
+    GBuffer_Layers *layers = display_layers;
+
+    if(express_display_info.pixel_height != display_height || express_display_info.pixel_width != display_width)
+    {
+        display_height = express_display_info.pixel_height;
+        display_width = express_display_info.pixel_width;
+    }
+
+    if (layers != NULL)
+    {
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        for (int i = 0; i < layers->layer_num; i++)
+        {
+            GBuffer_Layer layer = layers->layer[i];
+            Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
+            express_printf("draw layer gbuffer_id %llx  %d %d %d %d\n", layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height);
+            if (gbuffer != NULL)
+            {
+
+                // 画面不是显示的整个窗口，需要针对性缩放
+                int view_x = (int)((double)layer.x / display_width * display_content_width + display_content_x);
+                // glviewport的(0,0)点在左下角，而正常画面需要显示的是左上角
+                // int view_y = (int)((double)layer.y / display_height * display_content_height + display_content_y);
+                int view_y = (int)((1.0 - (double)(layer.y + layer.height) / display_height) * display_content_height + display_content_y);
+
+                GLsizei view_width = (GLsizei)((double)layer.width / display_width * display_content_width);
+                GLsizei view_height = (GLsizei)((double)layer.height / display_height * display_content_height);
+
+                // printf("glviewport %d %d %d %d\n",view_x, view_y, view_width, view_height);
+                // printf("display %d %d %d %d\n",display_width, display_height, display_content_width, display_content_height);
+                glViewport(view_x, view_y, view_width, view_height);
+
+                // 裁剪区域似乎是相对的，相对于渲染区而言的，所以似乎不需要转换 @todo 需要验证
+                // int crop_x = (int)((double)layer.crop_x / display_width * display_content_width + display_content_x);
+                // int crop_y = (int)((double)layer.crop_y / display_height * display_content_height + display_content_y);
+                // int crop_width = (int)((double)layer.crop_width / display_width * display_content_width);
+                // int crop_height = (int)((double)layer.crop_height / display_height * display_content_height);
+                // glScissor(crop_x, crop_y, crop_width, crop_height);
+
+                if (layer.width == layer.crop_width && layer.height == layer.crop_height && layer.crop_x == 0 && layer.crop_y == 0)
+                {
+                    glDisable(GL_SCISSOR_TEST);
+                }
+                else
+                {
+                    glEnable(GL_SCISSOR_TEST);
+                    glScissor(layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
+                }
+
+                adjust_blend_type(layer.blend_type);
+
+                if (now_transform_type != layer.transform_type)
+                {
+                    now_transform_type = layer.transform_type;
+                    glUniform1i(program_transform_loc, now_transform_type);
+                }
+
+                opengl_paint(gbuffer);
+            }
+        }
+    }
+}
+
+static void opengl_paint_composer_gbuffer(void)
+{
+    Graphic_Buffer *gbuffer = display_gbuffer;
+    if (gbuffer == NULL)
+    {
+        return;
+    }
+
+    if (display_width != gbuffer->width || display_height == gbuffer->height)
+    {
+        display_width = gbuffer->width;
+        display_height = gbuffer->height;
+        // real_window_width = window_width;
+        // real_window_height = window_height;
+        // glViewport(0, 0, window_width, window_height);
+    }
+    if (now_transform_type != 0)
+    {
+        now_transform_type = 0;
+        glUniform1i(program_transform_loc, now_transform_type);
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glViewport(display_content_x, display_content_y, display_content_width, display_content_height);
+
+    opengl_paint(gbuffer);
+}
+
 /**
  * @brief 界面上用于画出图像的函数，实际逻辑为取出d_buffer中的display_texture，然后画出来
  *
@@ -1023,28 +907,11 @@ static void static_value_prepare(void)
  */
 static void opengl_paint(Graphic_Buffer *gbuffer)
 {
-
     if (gbuffer != NULL)
     {
         // printf("opengl_paint gbuffer %llx texture %d\n", gbuffer->gbuffer_id, gbuffer->data_texture);
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
-
-        if (display_width != gbuffer->width || display_height == gbuffer->height)
-        {
-            display_width = gbuffer->width;
-            display_height = gbuffer->height;
-            // real_window_width = window_width;
-            // real_window_height = window_height;
-            // glViewport(0, 0, window_width, window_height);
-        }
-        // if (is_reverse == 0)
-        // {
-        //     is_reverse = 1;
-        //     glUniform1i(reverse_loc, 1);
-        // }
         // printf("paint texture %d\n",gbuffer->data_texture);
-
-        glClear(GL_COLOR_BUFFER_BIT);
 
         // glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
@@ -1171,7 +1038,7 @@ static void *native_window_create(int independ_mode)
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 
-        //因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
+        // 因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
         child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
 
@@ -1205,14 +1072,14 @@ void *native_window_thread(void *opaque)
     // VirtIODevice *vdev = opaque;
     // Teleport_Express *e = TELEPORT_EXPRESS(vdev);
 
-    //通过这个方式获取hwnd要求必须使用SDL接口创建界面
-    QemuConsole *con;
-    while ((con = qemu_console_lookup_by_index(0)) == NULL)
-    {
-        //理论上启动这个线程时，主窗口的hwnd肯定是有了，所以不会进到这个等待循环内
-        g_usleep(10000);
-        express_printf("con is NULL\n");
-    }
+    // 通过这个方式获取hwnd要求必须使用SDL接口创建界面
+    QemuConsole *con = NULL;
+    // while ((con = qemu_console_lookup_by_index(0)) == NULL)
+    // {
+    //     //理论上启动这个线程时，主窗口的hwnd肯定是有了，所以不会进到这个等待循环内
+    //     g_usleep(10000);
+    //     express_printf("con is NULL\n");
+    // }
 
     input_receive_con = con;
 
@@ -1225,14 +1092,14 @@ void *native_window_thread(void *opaque)
 
     // GetClientRect(render_hwnd, &rcParent);
 
-    //初始化glfw
+    // 初始化glfw
     if (!glfwInit())
         return NULL;
 
-    if(express_device_input_window_enable)
+    if (express_device_input_window_enable)
     {
         device_interface_run = 1;
-        qemu_thread_create(&device_interface_thread, "interface_thread", interface_window_thread, (void*)&device_interface_run, QEMU_THREAD_DETACHED);
+        qemu_thread_create(&device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
     }
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
@@ -1243,9 +1110,12 @@ void *native_window_thread(void *opaque)
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     }
 
-    //创建一个窗口，这个window也是context
+    // 创建一个窗口，这个window也是context
     window_width = express_gpu_window_width;
     window_height = express_gpu_window_height;
+
+    display_content_width = express_gpu_window_width;
+    display_content_height = express_gpu_window_height;
 
     glfw_window = glfwCreateWindow(window_width, window_height, "Trinity", NULL, NULL);
 
@@ -1257,16 +1127,23 @@ void *native_window_thread(void *opaque)
         return NULL;
     }
 
-    //键盘事件
+    // 键盘事件
     glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     glfwSetKeyCallback(glfw_window, express_keyboard_handle_callback);
 
-    //鼠标事件
+    // 鼠标事件
     glfwSetCursorPosCallback(glfw_window, express_touchscreen_mouse_move_handle);
     glfwSetMouseButtonCallback(glfw_window, express_touchscreen_mouse_click_handle);
     glfwSetScrollCallback(glfw_window, express_touchscreen_mouse_scroll_handle);
 
-    //设置窗口大小可以自由调整
+    // 开启触摸屏支持
+    glfwSetInputMode(glfw_window, GLFW_TOUCH, GLFW_TRUE);
+    glfwSetTouchCallback(glfw_window, express_touchscreen_touch_handle);
+
+    // 捕获鼠标进出事件，在鼠标移动出窗口时，需要停用输入，即需要传递触摸屏release消息
+    glfwSetCursorEnterCallback(glfw_window, express_touchscreen_entered_handle);
+
+    // 设置窗口大小可以自由调整
     glfwSetFramebufferSizeCallback(glfw_window, window_size_change_callback);
 
     glfwSetWindowCloseCallback(glfw_window, close_window_callback);
@@ -1276,7 +1153,6 @@ void *native_window_thread(void *opaque)
     glfwSwapInterval(0);
 
     set_touchscreen_window_size(window_width, window_height);
-
 
     HDC dpy_dc = GetDC(glfwGetWin32Window(glfw_window));
     HGLRC gl_context = glfwGetWGLContext(glfw_window);
@@ -1304,8 +1180,8 @@ void *native_window_thread(void *opaque)
     main_window_opengl_prepare(&programID, &drawVAO);
     glBindVertexArray(drawVAO);
 
-    reverse_loc = glGetUniformLocation(programID, "need_reverse");
-    is_reverse = 0;
+    program_transform_loc = glGetUniformLocation(programID, "transform_loc");
+    now_transform_type = 0;
 
     express_printf("native windows create!\n");
 
@@ -1320,11 +1196,11 @@ void *native_window_thread(void *opaque)
 
     // int a = 1;
     // glViewport(0, 0, window_width, window_height);
-    //因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
+    // 因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
 
-    //开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+    // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
     glDisable(GL_BLEND);
     // glEnable(GL_BLEND);
     // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1351,7 +1227,7 @@ void *native_window_thread(void *opaque)
 
         do
         {
-            //处理各种输入事件、opengl事件
+            // 处理各种输入事件、opengl事件
             glfwWaitEventsTimeout(0.001);
 
             sync_express_touchscreen_input();
@@ -1359,9 +1235,17 @@ void *native_window_thread(void *opaque)
             // express_input_device_sync();
 
             handle_child_window_event();
+            // printf("start run native thread %d %d\n", force_show_native_render_window, window_is_shown);
+
+            if (force_show_native_render_window == true && window_is_shown == false)
+            {
+                glfwShowWindow(glfw_window);
+                glfwSwapBuffers(glfw_window);
+                window_is_shown = true;
+            }
 
             // 在窗口上绘制内容
-            if (display_gbuffer != NULL && window_need_refresh)
+            if ((display_gbuffer != NULL || display_layers != NULL) && window_need_refresh)
             {
                 if (!window_is_shown)
                 {
@@ -1373,7 +1257,14 @@ void *native_window_thread(void *opaque)
 
                 window_need_refresh = false;
 
-                opengl_paint(display_gbuffer);
+                if (display_gbuffer != NULL && display_layers != NULL)
+                {
+                    printf(RED("warning! neither display_layers and display_gbuffer is NULL!"));
+                }
+
+                opengl_paint_composer_gbuffer();
+                opengl_paint_composer_layers();
+
                 calc_screen_hz += 1;
                 has_refresh = true;
 
@@ -1381,7 +1272,7 @@ void *native_window_thread(void *opaque)
             }
             else
             {
-                if (display_gbuffer == NULL && window_is_shown == true)
+                if ((display_gbuffer == NULL && display_layers == NULL) && window_is_shown == true && force_show_native_render_window == false)
                 {
                     window_is_shown = false;
                     printf("hide window\n");
@@ -1409,7 +1300,7 @@ void *native_window_thread(void *opaque)
         frame_start_time = now_time;
         remain_sleep_time = need_sleep_time;
 
-        //丢帧丢了100ms了，就不管少休眠的时间了
+        // 丢帧丢了100ms了，就不管少休眠的时间了
         if (need_sleep_time < -100000)
         {
             need_sleep_time = 0;
@@ -1423,7 +1314,7 @@ void *native_window_thread(void *opaque)
             float gen_frame_time_avg = 1.0f * frame_draw_time / now_screen_hz;
             if (now_screen_hz == 0)
             {
-                printf("screen draw 0 frame this second\n");
+                express_printf("screen draw 0 frame this second\n");
             }
             else
             {
@@ -1583,7 +1474,7 @@ void *native_window_thread(void *opaque)
 
     printf("native windows close!\n");
 
-    //当他返回0时表示窗口被关掉了
+    // 当他返回0时表示窗口被关掉了
     native_render_run = 0;
     // qemu_thread_join(&t);
     return NULL;
@@ -1665,10 +1556,10 @@ void *native_window_thread(void *opaque)
 //     return;
 // }
 
-void set_display_gbuffer(Graphic_Buffer *gbuffer)
-{
-    // display_gbuffer = gbuffer;
-}
+// void set_display_gbuffer(Graphic_Buffer *gbuffer)
+// {
+//     display_gbuffer = gbuffer;
+// }
 
 int get_global_gbuffer_type(uint64_t gbuffer_id)
 {
@@ -1728,7 +1619,7 @@ void send_message_to_main_window(int message_code, void *data)
     ATOMIC_LOCK(main_window_event_queue_lock);
     g_async_queue_push(main_window_event_queue, (gpointer)event);
     ATOMIC_UNLOCK(main_window_event_queue_lock);
-    if (message_code == MAIN_PAINT || message_code == MAIN_CREATE_CHILD_WINDOW)
+    if (message_code == MAIN_PAINT || message_code == MAIN_PAINT_LAYERS || message_code == MAIN_CREATE_CHILD_WINDOW)
     {
         glfwPostEmptyEvent();
     }

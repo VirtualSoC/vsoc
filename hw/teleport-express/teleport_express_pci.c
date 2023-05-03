@@ -33,8 +33,12 @@ static Property teleport_express_base_properties[] = {
 
     DEFINE_PROP_BOOL("device_input_window", Teleport_Express_PCI, show_device_input_window, false),
 
-    DEFINE_PROP_INT32("touchscreen_width", Teleport_Express_PCI, touchscreen_width, 1920),
-    DEFINE_PROP_INT32("touchscreen_height", Teleport_Express_PCI, touchscreen_height, 1080),
+    DEFINE_PROP_INT32("display_width", Teleport_Express_PCI, display_width, 1920),
+    DEFINE_PROP_INT32("display_height", Teleport_Express_PCI, display_height, 1080),
+
+    DEFINE_PROP_INT32("phy_width", Teleport_Express_PCI, phy_width, 1920),
+    DEFINE_PROP_INT32("phy_height", Teleport_Express_PCI, phy_height, 1080),
+
 
     DEFINE_PROP_INT32("gl_log_level", Teleport_Express_PCI, gpu_debug_level, 1),
     DEFINE_PROP_BOOL("gl_log_to_host", Teleport_Express_PCI, gpu_log_to_host, true),
@@ -261,8 +265,15 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     express_gpu_window_width = express_pci->window_width;
     express_gpu_window_height = express_pci->window_height;
 
-    express_touchscreen_size[0] = express_pci->touchscreen_width;
-    express_touchscreen_size[1] = express_pci->touchscreen_height;
+    express_touchscreen_size[0] = express_pci->display_width;
+    express_touchscreen_size[1] = express_pci->display_height;
+
+    *express_display_pixel_width = express_pci->display_width;
+    *express_display_pixel_height = express_pci->display_height;
+
+    *express_display_phy_width = express_pci->phy_width;
+    *express_display_phy_height = express_pci->phy_height;
+
 
     express_device_log_setting_info.express_gpu_debug_level = express_pci->gpu_debug_level;
     express_device_log_setting_info.express_gpu_log_to_host = (int)express_pci->gpu_log_to_host;

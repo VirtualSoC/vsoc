@@ -147,7 +147,9 @@
         "internet": "c",
         "ratio": "c",
         "cerrno": "c",
-        "*.code": "c"
+        "*.code": "c",
+        "thread": "c",
+        "express_display.h": "c"
     },
     "cmake.configureOnOpen": false
 }

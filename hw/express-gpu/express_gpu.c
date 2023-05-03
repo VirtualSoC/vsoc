@@ -31,7 +31,6 @@ static GHashTable *render_thread_contexts = NULL;
 
 static GHashTable *render_process_contexts = NULL;
 
-static QemuThread render_thread;
 
 
 bool express_gpu_gl_debug_enable = false;
@@ -409,7 +408,7 @@ void render_context_init(Thread_Context *context)
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
         express_printf("create native window\n");
-        qemu_thread_create(&render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
+        qemu_thread_create(&native_window_render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
 

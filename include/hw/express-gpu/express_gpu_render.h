@@ -7,8 +7,8 @@
 #define GLFW_EXPOSE_NATIVE_WGL
 
 #include "glad/glad.h"
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
+#include "hw/express-gpu/GLFW/glfw3.h"
+#include "hw/express-gpu/GLFW/glfw3native.h"
 
 #include "hw/express-gpu/egl_window.h"
 
@@ -32,6 +32,7 @@
 #define MAIN_DESTROY_ONE_TEXTURE 8
 #define MAIN_DESTROY_GBUFFER 9
 #define MAIN_CANCEL_GBUFFER 10
+#define MAIN_PAINT_LAYERS 11
 
 #define GBUFFER_TYPE_NONE 0
 #define GBUFFER_TYPE_WINDOW 1
@@ -45,7 +46,7 @@
 #define ATOMIC_LOCK(s)                                              \
      int atomic_cnt = 0;                                            \
      while (qatomic_cmpxchg(&(s), 0, 1) == 1 && atomic_cnt < 10000) \
-          printf("lock on %s %d ", #s, atomic_cnt++);
+          printf("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
 
 // #define ATOMIC_SET_USED(s) ATOMIC_LOCK(s)
@@ -90,6 +91,57 @@ typedef struct Main_window_Event
      int event_code;
      void *data;
 } Main_window_Event;
+
+
+typedef enum {
+    BLEND_NONE = 0,         /**< No blending */
+    BLEND_CLEAR,            /**< CLEAR blending */
+    BLEND_SRC,              /**< SRC blending */
+    BLEND_SRCOVER,          /**< SRC_OVER blending */
+    BLEND_DSTOVER,          /**< DST_OVER blending */
+    BLEND_SRCIN,            /**< SRC_IN blending */
+    BLEND_DSTIN,            /**< DST_IN blending */
+    BLEND_SRCOUT,           /**< SRC_OUT blending */
+    BLEND_DSTOUT,           /**< DST_OUT blending */
+    BLEND_SRCATOP,          /**< SRC_ATOP blending */
+    BLEND_DSTATOP,          /**< DST_ATOP blending */
+    BLEND_ADD,              /**< ADD blending */
+    BLEND_XOR,              /**< XOR blending */
+    BLEND_DST,              /**< DST blending */
+    BLEND_AKS,              /**< AKS blending */
+    BLEND_AKD,              /**< AKD blending */
+    BLEND_BUTT              /**< Null operation */
+} BlendType;
+
+typedef enum {
+    ROTATE_NONE = 0,        /**< No rotation */
+    ROTATE_90,              /**< Rotation by 90 degrees */
+    ROTATE_180,             /**< Rotation by 180 degrees */
+    ROTATE_270,             /**< Rotation by 270 degrees */
+    ROTATE_BUTT             /**< Invalid operation */
+} TransformType;
+
+typedef struct GBuffer_Layer{
+     int x;
+     int y;
+     int z;
+     int width;
+     int height;
+     int blend_type;
+     int transform_type;
+     int crop_x;
+     int crop_y;
+     int crop_width;
+     int crop_height;
+     //SetLayerVisibleRegion暂时先不支持
+     uint64_t gbuffer_id;
+} __attribute__((packed, aligned(4))) GBuffer_Layer;
+
+typedef struct GBuffer_Layers{
+     int layer_num;
+     struct GBuffer_Layer layer[0];
+} __attribute__((packed, aligned(4))) GBuffer_Layers;
+
 
 //注意顺序，保证不影响结构体对齐
 typedef struct Static_Context_Values
@@ -234,6 +286,11 @@ extern int DSA_enable;
 
 extern int composer_refresh_HZ;
 
+extern QemuThread native_window_render_thread;
+
+extern bool force_show_native_render_window;
+
+
 void *native_window_thread(void *opaque);
 // void *opengl_ui_thread(void *opaque);
 
@@ -265,6 +322,8 @@ int draw_wait_GSYNC(void *event, int wait_frame_num);
 
 // void set_gbuffer_id_image(uint64_t gbuffer_id, EGL_Image *origin_image, EGL_Image *now_image);
 
+void remove_gbuffer_from_global_map(uint64_t gbuffer_id);
+
 void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer);
 
 Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
@@ -275,7 +334,7 @@ void set_global_gbuffer_type(uint64_t gbuffer_id, int type);
 
 void send_message_to_main_window(int message_code, void *data);
 
-void set_display_gbuffer(Graphic_Buffer *gbuffer);
+// void set_display_gbuffer(Graphic_Buffer *gbuffer);
 
 // bool should_give_up_gpu();
 

@@ -27,8 +27,11 @@ typedef struct Teleport_Express_PCI{
     int window_width;
     int window_height;
 
-    int touchscreen_width;
-    int touchscreen_height;
+    int display_width;
+    int display_height;
+
+    int phy_width;
+    int phy_height;
 
     int gpu_debug_level;
     bool gpu_log_to_host;

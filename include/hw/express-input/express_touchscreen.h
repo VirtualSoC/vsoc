@@ -6,8 +6,8 @@
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_register.h"
 
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
+#include "hw/express-gpu/GLFW/glfw3.h"
+#include "hw/express-gpu/GLFW/glfw3native.h"
 
 #define MAX_TOUCH_POINT 10
 
@@ -26,6 +26,10 @@ bool stop_mouse_replay(int index);
 void express_touchscreen_mouse_move_handle(GLFWwindow *window, double xpos, double ypos);
 void express_touchscreen_mouse_click_handle(GLFWwindow *window, int button, int action, int mods);
 void express_touchscreen_mouse_scroll_handle(GLFWwindow *window, double xoffset, double yoffset);
+void express_touchscreen_touch_handle(GLFWwindow *window, int touch, int action, double xpos, double ypos);
+void express_touchscreen_entered_handle(GLFWwindow *window, int entered);
+
+void reset_touchscreen_input(void);
 
 void set_express_touchscreen_input(int x, int y, int is_touched, int index);
 

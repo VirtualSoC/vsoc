@@ -1104,21 +1104,39 @@ GLuint load_shader(GLenum type, const char *shaderSrc)
  */
 int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
 {
+
+    // @todo 暂时未支持旋转和翻转操作
     char vShaderStr[] =
         "#version 300 es\n"
         "layout (location = 0) in vec2 position;\n"
         "layout (location = 1) in vec2 texCoords;\n"
-        "uniform int need_reverse;\n"
+        "uniform int transform_loc;\n"
         "out vec2 TexCoords;\n"
         "void main()\n"
         "{\n"
-        "    if(need_reverse == 0)\n"
+        "    if(transform_loc == 1)\n"
         "    {\n"
-        "       gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
+        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "    }\n"
+        "    else if(transform_loc == 2)\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "    }\n"
+        "    else if(transform_loc == 3)\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "    }\n"
+        "    else if(transform_loc == 4)\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "    }\n"
+        "    else if(transform_loc == 5)\n"
+        "    {\n"
+        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
         "    }\n"
         "    else\n"
         "    {\n"
-        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "       gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
         "    }\n"
         "    TexCoords = texCoords;\n"
         "}\n";
@@ -1183,15 +1201,122 @@ int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
     *program = programObject;
     *VAO = quadVAO;
 
-    //开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
-    // glEnable(GL_BLEND);
-    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+    //  glEnable(GL_BLEND);
+    //  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glUseProgram(programObject);
 
     glClearColor(0, 0, 0, 1);
 
     return 1;
+}
+
+void adjust_blend_type(int blend_type)
+{
+    switch (blend_type)
+    {
+    case BLEND_NONE:
+    {
+        glDisable(GL_BLEND);
+    }
+    break;
+    case BLEND_CLEAR:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ZERO, GL_ZERO);
+    }
+    break;
+    case BLEND_SRC:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ZERO);
+    }
+    break;
+    case BLEND_SRCOVER:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    break;
+    case BLEND_DSTOVER:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ONE);
+    }
+    break;
+    case BLEND_SRCIN:
+    {
+        // 只显示src和dst重叠的地方，dst只有alpha参与运算
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_DST_ALPHA, GL_ZERO);
+    }
+    break;
+    case BLEND_DSTIN:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ZERO, GL_SRC_ALPHA);
+    }
+    break;
+    case BLEND_SRCOUT:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ZERO);
+    }
+    break;
+    case BLEND_DSTOUT:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    break;
+    case BLEND_SRCATOP:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    break;
+    case BLEND_DSTATOP:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_DST_ALPHA);
+    }
+    break;
+    case BLEND_ADD:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ONE);
+    }
+    break;
+    case BLEND_XOR:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    break;
+    case BLEND_DST:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ZERO, GL_ONE);
+    }
+    break;
+    case BLEND_AKS:
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA_SATURATE, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    break;
+    case BLEND_AKD:
+    {
+    }
+    break;
+    default:
+    {
+        glDisable(GL_BLEND);
+        printf(YELLOW("unknown blend type %d\n"), blend_type);
+    }
+    break;
+    }
 }
 
 Dying_List *dying_list_append(Dying_List *list, void *data)

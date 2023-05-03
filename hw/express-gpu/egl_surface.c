@@ -431,6 +431,7 @@ int render_surface_destroy(Window_Buffer *surface)
 {
     if (surface->type == P_SURFACE && surface->gbuffer != NULL)
     {
+        surface->gbuffer->is_dying = 1;
         send_message_to_main_window(MAIN_DESTROY_GBUFFER, surface->gbuffer);
     }
     express_printf("free surface %llx\n", (uint64_t)surface);
@@ -590,6 +591,92 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
     return gbuffer;
 }
 
+
+Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id)
+{
+
+    int sampler_num = 0;
+    int format = GL_RGBA;
+    int pixel_type = GL_UNSIGNED_INT;
+    int internal_format = GL_RGBA8;
+    int depth_internal_format = 0;
+    int stencil_internal_format = 0;
+    int width = info.width;
+    int height = info.height;
+
+    // @todo 需要检查内存布局
+    if (info.format == PIXEL_FMT_RGBX_8888 || info.format == PIXEL_FMT_RGBA_8888)
+    {
+        //根据鼠标显示来看，8888的情况下内存布局有反向
+        internal_format = GL_RGBA8;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_BYTE;
+        // real_image->pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
+        // row_byte_len = width * 4;
+    }
+    else if (info.format == PIXEL_FMT_BGRX_8888 || info.format == PIXEL_FMT_BGRA_8888)
+    {
+        // printf("EGLImage with g_buffer_id %llx need format BGRA_8888!!!\n", (uint64_t)g_buffer_id);
+        internal_format = GL_RGBA8;
+        format = GL_BGRA;
+        pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
+        // row_byte_len = width * 4;
+    }
+    else if (info.format == PIXEL_FMT_RGB_888)
+    {
+        internal_format = GL_RGB8;
+        format = GL_RGB;
+        pixel_type = GL_UNSIGNED_INT;
+        // row_byte_len = width * 3;
+    }
+    else if (info.format == PIXEL_FMT_BGR_565)
+    {
+        internal_format = GL_RGB565;
+        format = GL_BGR;
+        pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (info.format == PIXEL_FMT_BGRA_4444 || info.format == PIXEL_FMT_BGRX_4444)
+    {
+        internal_format = GL_RGBA4;
+        format = GL_BGRA;
+        pixel_type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (info.format == PIXEL_FMT_RGBA_4444 || info.format == PIXEL_FMT_RGBX_4444)
+    {
+        internal_format = GL_RGBA4;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (info.format == PIXEL_FMT_BGRX_5551 || info.format == PIXEL_FMT_BGRX_5551)
+    {
+        internal_format = GL_RGB5_A1;
+        format = GL_BGRA;
+        pixel_type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+        // GL_UNSIGNED_SHORT_5_5_5_1
+        // row_byte_len = width * 2;
+    }
+    else
+    {
+        internal_format = GL_RGBA8;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_INT;
+        // row_byte_len = width * 4;
+        printf("error! unknown gralloc format %d!!!\n", info.format);
+    }
+
+    return create_gbuffer(width, height, sampler_num,
+                          format,
+                          pixel_type,
+                          internal_format,
+                          depth_internal_format,
+                          stencil_internal_format,
+                          gbuffer_id);
+}
+
+
 Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id)
 {
 
@@ -623,7 +710,7 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         // printf("EGLImage with g_buffer_id %llx need format BGRA_8888!!!\n", (uint64_t)g_buffer_id);
         internal_format = GL_RGBA8;
         format = GL_BGRA;
-        pixel_type = GL_UNSIGNED_INT_8_8_8_8;
+        pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
         // row_byte_len = width * 4;
     }
     else if (hal_format == HAL_PIXEL_FORMAT_RGB_888)
@@ -937,7 +1024,7 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
 
 void destroy_gbuffer(Graphic_Buffer *gbuffer)
 {
-    // printf("destroy gbuffer %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
+    // printf("destroy gbuffer %llx ptr %llx\n", gbuffer->gbuffer_id, (unsigned long long)gbuffer);
     if (gbuffer->data_texture != 0)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));
@@ -974,6 +1061,13 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
     {
         glDeleteSync(gbuffer->delete_sync);
     }
+
+    if(gbuffer->guest_data != NULL)
+    {
+        free_copied_guest_mem(gbuffer->guest_data);
+    }
+
+    glFlush();
 
 #ifdef _WIN32
     CloseHandle(gbuffer->writing_ok_event);
@@ -1121,6 +1215,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
             }
         }
         gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        glFlush();
         // glFinish();
 
         if (thread_context->opengl_context == NULL)

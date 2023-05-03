@@ -6,7 +6,7 @@
 #include "hw/express-gpu/cimgui/cimgui.h"
 #include "hw/express-gpu/cimgui/cimgui_impl.h"
 #include <stdbool.h>
-#include <GLFW/glfw3.h>
+#include "hw/express-gpu/GLFW/glfw3.h"
 
 typedef struct Accelerometer_Data {
     float scale;

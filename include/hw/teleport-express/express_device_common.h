@@ -16,6 +16,7 @@
 #define EXPRESS_GPS_DEVICE_ID ((uint64_t)8)
 #define EXPRESS_MICROPHONE_DEVICE_ID ((uint64_t)9)
 
+#define EXPRESS_DISPLAY_DEVICE_ID ((uint64_t)10)
 
 
 #define EXPRESS_BRIDGE_DEVICE_ID ((uint64_t)40)
@@ -46,9 +47,10 @@
 #define FUN_NEED_SYNC(id) (((id) >> 24) & 0x1)
 #define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
 
-#define SYNC_FUN_ID(id) ((1L << 24) | id)
+#define SYNC_FUN_ID(id) ((1L << 24) | (uint64_t)id)
+#define HOST_SYNC_FUN_ID(id) ((1L << 25) | (uint64_t)id)
 
-#define DEVICE_FUN_ID(device_id, id) (((u64)device_id << 32) | id)
+#define DEVICE_FUN_ID(device_id, id) (((uint64_t)device_id << 32) | id)
 
 
 
@@ -228,15 +230,20 @@ typedef struct Express_Device_Info
     void (*context_destroy)(struct Thread_Context *context);
     void (*call_handle)(struct Thread_Context *context, Teleport_Express_Call *call);
 
-    //设备定义的用于获取context的函数，例如有一个统一的context或者对每一个线程维护一个context
+    //设备定义的用于获取数据分发context的函数，负责处理从guest到host的数据，例如有一个统一的context或者对每一个线程维护一个context
     Thread_Context *(*get_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
     void (*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
 
+    // guest注册DMA内存的回调
     void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);
+    
+    // 获取设备用于容纳虚拟中断的context，负责host向guest发送通知
     Device_Context *(*get_device_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    // 注册虚拟中断时的回调
     void (*irq_register)(Device_Context *context);
+    // 虚拟中断释放时的回调
     void (*irq_release)(Device_Context *context);
 
     void *static_prop;
@@ -266,6 +273,11 @@ extern bool express_keyboard_finger_replay;
 
 extern char *kernel_load_express_driver_names;
 extern int kernel_load_express_driver_num;
+
+extern int *express_display_pixel_width;
+extern int *express_display_pixel_height;
+extern int *express_display_phy_width;
+extern int *express_display_phy_height;
 
 void express_device_init_common(Express_Device_Info *info);
 

@@ -83,6 +83,7 @@ void d_eglCreateSync(void *context, EGLDisplay dpy, EGLenum type, const EGLint *
     }
 
     GLsync host_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
 
     if (thread_context->opengl_context == NULL)
     {

@@ -1036,6 +1036,8 @@ void d_glGraphicBufferData(void *t_context, EGLContext ctx, uint64_t gbuffer_id,
 
     gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
+    glFlush();
+    
     if (thread_context->opengl_context == NULL)
     {
         if (opengl_context->independ_mode == 1)
