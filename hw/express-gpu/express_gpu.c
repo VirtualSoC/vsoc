@@ -45,7 +45,7 @@ void decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
 
 void render_context_destroy(Thread_Context *context);
 
-void remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf);
+bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf);
 
 // void cluster_decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
 
@@ -348,15 +348,16 @@ Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id
         render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 
-    Thread_Context *context = g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(unique_id));
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
     // express_printf("g_hash table lookup\n");
     //没有context就新建线程
-    if (context == NULL)
+    if (thread_context == NULL)
     {
         // express_printf("create new thread\n");
         express_printf("create new thread context\n");
-        context = thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
-        Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+        thread_context = (Render_Thread_Context *)thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
+        thread_context->thread_unique_ids = g_hash_table_new(g_direct_hash, g_direct_equal);
+
         //处理好process_context与thread_context的关系
         //新建进程上下文
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
@@ -381,23 +382,39 @@ Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id
         qatomic_inc(&(process->thread_cnt));
         // process->thread_cnt += 1;
         thread_context->process_context = process;
-        g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(unique_id), (gpointer)context);
+        g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(thread_id), (gpointer)thread_context);
     }
-    return context;
+
+    // 这里是只要是新的unique_id就都给加上，所以需要额外排除那种不是专门针对gpu device的调用
+    // 例如更新显存数据时，显示指定了一次gpu device调用，但是其实其本质是display device调用，
+    // 因此那种情况下，需要显示的删除该unique_id
+    g_hash_table_insert(thread_context->thread_unique_ids, GUINT_TO_POINTER(unique_id), (gpointer)1);
+    return (Thread_Context *)thread_context;
 }
 
-void remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
+bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
-    Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
-    if (process != NULL)
-    {
-        if (process->thread_cnt == 1)
-        {
-            g_hash_table_remove(render_process_contexts, GUINT_TO_POINTER(process_id));
-        }
-    }
+    Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
 
-    g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(unique_id));
+    g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
+
+    if(g_hash_table_size(render_context->thread_unique_ids) == 0)
+    {
+        g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+        Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
+        if (process != NULL)
+        {
+            if (process->thread_cnt == 1)
+            {
+                g_hash_table_remove(render_process_contexts, GUINT_TO_POINTER(process_id));
+            }
+        }
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 void render_context_init(Thread_Context *context)
@@ -498,6 +515,8 @@ void render_context_destroy(Thread_Context *context)
 
     //这个函数的出现表示文件close了，通道都关掉了
     //目前通道关掉只有一种可能，就是进程退出了
+
+    g_hash_table_destroy(thread_context->thread_unique_ids);
 
     //保证都不是current状态，确保能够删除成功
     if (thread_context->opengl_context != NULL)

@@ -156,9 +156,11 @@ void push_to_thread(Teleport_Express_Call *call)
         {
             if (device_info->remove_context)
             {
-                device_info->remove_context(device_id, thread_id, process_id, unique_id, device_info);
-                call->is_end = 1;
-                context->init = 0;
+                if(device_info->remove_context(device_id, thread_id, process_id, unique_id, device_info))
+                {
+                    call->is_end = 1;
+                    context->init = 0;
+                }
             }
         }
         call_push(context, call);

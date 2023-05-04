@@ -512,11 +512,12 @@ static Thread_Context *get_bridge_context(uint64_t device_id, uint64_t thread_id
     return context;
 }
 
-static void remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static bool remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     // Thread_Context *context = g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
 
     g_hash_table_remove(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
+    return true;
 }
 
 static Device_Context *get_bridge_connection_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
