@@ -108,7 +108,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
 {
     //@todo 处理config、处理attrib_list
 
-    //这里先根据attrb_list获取窗口的宽和高
+    // 这里先根据attrb_list获取窗口的宽和高
 
     Window_Buffer *surface = g_malloc0(sizeof(Window_Buffer));
     surface->type = surface_type;
@@ -534,7 +534,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
         return EGL_FALSE;
     }
 
-    //会调用到 surface_map 的删除函数 g_surface_map_destroy
+    // 会调用到 surface_map 的删除函数 g_surface_map_destroy
     g_hash_table_remove(process_context->surface_map, GUINT_TO_POINTER(surface));
 
     express_printf("destroy surface host %llx guest %llx\n", (uint64_t)real_surface, (uint64_t)surface);
@@ -555,7 +555,7 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
 
     if (opengl_context != thread_context->opengl_context)
     {
-        //假如现在opengl不对
+        // 假如现在opengl不对
         printf("create gbuffer with different context!\n");
         if (opengl_context->independ_mode == 1)
         {
@@ -591,7 +591,6 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
     return gbuffer;
 }
 
-
 Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id)
 {
 
@@ -607,7 +606,7 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
     // @todo 需要检查内存布局
     if (info.format == EXPRESS_PIXEL_RGBA8888 || info.format == EXPRESS_PIXEL_RGBX8888)
     {
-        //根据鼠标显示来看，8888的情况下内存布局有反向
+        // 根据鼠标显示来看，8888的情况下内存布局有反向
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_BYTE;
@@ -690,7 +689,6 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
                           gbuffer_id);
 }
 
-
 Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id)
 {
 
@@ -713,7 +711,7 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
 
     if (hal_format == EXPRESS_PIXEL_RGBA8888 || hal_format == EXPRESS_PIXEL_RGBX8888)
     {
-        //根据鼠标显示来看，8888的情况下内存布局有反向
+        // 根据鼠标显示来看，8888的情况下内存布局有反向
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_BYTE;
@@ -851,7 +849,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    if(express_gpu_gl_debug_enable)
+    if (express_gpu_gl_debug_enable)
     {
         GLenum error = glGetError();
         if (error != GL_NO_ERROR)
@@ -864,7 +862,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, pixel_type, NULL);
 
-    if(express_gpu_gl_debug_enable)
+    if (express_gpu_gl_debug_enable)
     {
         GLenum error = glGetError();
         if (error != GL_NO_ERROR)
@@ -872,7 +870,6 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
             printf("error when creating gbuffer1 %x width %d height %d format %x pixel_type %x \n", error, width, height, format, pixel_type);
         }
     }
-
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -897,7 +894,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     if (depth_internal_format != 0)
     {
-        //这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
+        // 这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_depth);
         if (sampler_num > 1)
         {
@@ -909,7 +906,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
         }
     }
 
-    //之所以当深度24模板8时要合并，是因为这样效率更高
+    // 之所以当深度24模板8时要合并，是因为这样效率更高
     if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_stencil);
@@ -923,7 +920,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
         }
     }
 
-    if(express_gpu_gl_debug_enable)
+    if (express_gpu_gl_debug_enable)
     {
         GLenum error = glGetError();
         if (error != GL_NO_ERROR)
@@ -931,7 +928,6 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
             printf("error when creating gbuffer2 %x\n", error);
         }
     }
-
 
     glBindTexture(GL_TEXTURE_2D, pre_texture);
     glBindBuffer(GL_ARRAY_BUFFER, pre_vbo);
@@ -976,7 +972,7 @@ void reverse_gbuffer(Graphic_Buffer *gbuffer)
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_draw);
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_read);
 
-    //因为这种情况出现的太少了，因为普通应用根本没有权限自己建个bufferQueue，因此这里就直接创建一个临时的fbo，用完就丢弃了
+    // 因为这种情况出现的太少了，因为普通应用根本没有权限自己建个bufferQueue，因此这里就直接创建一个临时的fbo，用完就丢弃了
     GLuint temp_fbo;
     glGenFramebuffers(1, &temp_fbo);
 
@@ -1019,8 +1015,8 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
 
     if (surface->sampler_num > 1)
     {
-        //窗口不需要开启多采样，只需要fbo开启就行
-        // glfwWindowHint(GLFW_SAMPLES, d_buffer->config->samples_per_pixel);
+        // 窗口不需要开启多采样，只需要fbo开启就行
+        //  glfwWindowHint(GLFW_SAMPLES, d_buffer->config->samples_per_pixel);
         glEnable(GL_MULTISAMPLE);
     }
     else
@@ -1029,7 +1025,7 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, surface->data_fbo[surface->now_fbo_loc]);
-    //附加颜色缓冲区
+    // 附加颜色缓冲区
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);
 
     surface->connect_texture[surface->now_fbo_loc] = gbuffer->data_texture;
@@ -1038,11 +1034,11 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     if (surface->sampler_num > 1 && gbuffer->sampler_num > 1)
     {
         glBindFramebuffer(GL_FRAMEBUFFER, surface->sampler_fbo[surface->now_fbo_loc]);
-        //附加颜色缓冲区
+        // 附加颜色缓冲区
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, gbuffer->sampler_rbo);
     }
 
-    //附加深度缓冲区
+    // 附加深度缓冲区
     if (surface->depth_internal_format == GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_depth);
@@ -1052,7 +1048,7 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_depth);
     }
 
-    //附加模板缓冲区
+    // 附加模板缓冲区
     if (surface->stencil_internal_format != 0 && surface->depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_stencil);
@@ -1112,7 +1108,7 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
         glDeleteSync(gbuffer->delete_sync);
     }
 
-    if(gbuffer->guest_data != NULL)
+    if (gbuffer->guest_data != NULL)
     {
         free_copied_guest_mem(gbuffer->guest_data);
     }
@@ -1135,8 +1131,8 @@ EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface,
 
 EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer depressed_buffer, const EGLint *attrib_list, EGLImage guest_image)
 {
-    //创建image，要么是使用别的应用绘制使用的缓冲区，要么是新创建的缓冲区
-    //前者之前肯定有surface连接，所以肯定找得到，后者不会找得到，必须得给手动建立一个
+    // 创建image，要么是使用别的应用绘制使用的缓冲区，要么是新创建的缓冲区
+    // 前者之前肯定有surface连接，所以肯定找得到，后者不会找得到，必须得给手动建立一个
 
     // 这里buffer和guest_image是一样的，都是gbuffer_id
     // 实际不一样，因为buffer可能是32位应用传过来的，所以会被截断，导致和gbuffer_id不一样，所以这里直接重命名为depressed_buffer
@@ -1245,7 +1241,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         // gbuffer_id直接截取后面4个字节就是share的texture
         GLuint host_share_texture = get_host_texture_id(share_opengl_context, (GLuint)gbuffer_id);
 
-        //之所以这里没有判断是否存在gbuffer，是因为作为texture的情况下，gbuffer一定不存在。即同一个进程下同一个id的EGLImage不会创建两次
+        // 之所以这里没有判断是否存在gbuffer，是因为作为texture的情况下，gbuffer一定不存在。即同一个进程下同一个id的EGLImage不会创建两次
         gbuffer = g_malloc0(sizeof(Graphic_Buffer));
         gbuffer->usage_type = GBUFFER_TYPE_TEXTURE;
         gbuffer->data_texture = host_share_texture;
@@ -1253,7 +1249,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
         if (thread_context->opengl_context == NULL)
         {
-            //假如现在opengl不对
+            // 假如现在opengl不对
             printf("create eglImage gbuffer with different context!\n");
             if (share_opengl_context->independ_mode == 1)
             {

@@ -51,7 +51,6 @@ int display_is_open = 1;
 
 void display_status_change(Display_Status status);
 
-
 /**
  * @brief
  *
@@ -233,7 +232,8 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         guest_upload_gbuffer_data(info);
     }
     break;
-    case FUNID_Alloc_Gbuffer:{
+    case FUNID_Alloc_Gbuffer:
+    {
         Gralloc_Gbuffer_Info info;
 
         if (unlikely(para_num < PARA_NUM_Alloc_Gbuffer))
@@ -270,7 +270,8 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         alloc_gbuffer_with_gralloc(info, gbuffer_data);
     }
     break;
-    case FUNID_Get_Display_Mods:{
+    case FUNID_Get_Display_Mods:
+    {
 
         if (unlikely(para_num < PARA_NUM_Get_Display_Mods))
         {
@@ -287,7 +288,8 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         // printf("FUNID_Get_Display_Mods\n");
     }
     break;
-    case FUNID_Set_Display_Status:{
+    case FUNID_Set_Display_Status:
+    {
 
         Display_Status status;
 
@@ -303,13 +305,13 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         }
 
         read_from_guest_mem(all_para[0].data, &status, 0, sizeof(Display_Status));
-        
+
         display_status_change(status);
         // printf("FUNID_Set_Display_Status\n");
-
     }
     break;
-    case FUNID_Get_Display_Status:{
+    case FUNID_Get_Display_Status:
+    {
 
         if (unlikely(para_num < PARA_NUM_Get_Display_Status))
         {
@@ -323,7 +325,6 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         }
 
         write_to_guest_mem(all_para[0].data, &now_display_status, 0, sizeof(Display_Status));
-
     }
     break;
     default:
@@ -409,14 +410,13 @@ static void display_context_destroy(Thread_Context *context)
     }
 }
 
-
 void display_status_change(Display_Status status)
 {
-    printf("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u\n", 
-        now_display_status.refresh_rate, status.refresh_rate, now_display_status.power_status, status.power_status, 
-            now_display_status.backlight, status.backlight);
+    printf("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u\n",
+           now_display_status.refresh_rate, status.refresh_rate, now_display_status.power_status, status.power_status,
+           now_display_status.backlight, status.backlight);
     now_display_status = status;
-    if(now_display_status.power_status == 3)
+    if (now_display_status.power_status == 3)
     {
         display_is_open = 0;
     }
@@ -447,7 +447,8 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
         gbuffer->guest_data = mem_data;
         express_printf("alloc gbuffer size %d mem len %d\n", gbuffer->size, mem_data->all_len);
     }
-    else{
+    else
+    {
         printf("error! alloc_gbuffer_with_gralloc get no-null gbuffer origin %d %d new %d %d\n", gbuffer->width, gbuffer->height, info.width, info.height);
         free_copied_guest_mem(mem_data);
     }
@@ -650,7 +651,7 @@ void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info)
     }
 
     printf("guest_download_gbuffer_data id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
-                   gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
+           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, all_pixel_size, GL_MAP_READ_BIT);
 

@@ -2,8 +2,6 @@
 
 Egl_Display *default_egl_display;
 
-
-
 /**
  * @brief 初始化Egl_Display
  *
@@ -43,10 +41,7 @@ void init_configs(Egl_Display *display)
     add_window_independent_config(display, EGL_DEPTH_SIZE, depth_vals, NUM_DEPTH_VAL);
     add_window_independent_config(display, EGL_STENCIL_SIZE, stencil_vals, NUM_STENCILE_VAL);
     add_window_independent_config(display, EGL_SAMPLES, sample_vals, NUM_SAMPLE_VAL);
-
 }
-
-
 
 EGLBoolean add_config(Egl_Display *display, eglConfig *config)
 {
@@ -132,7 +127,6 @@ void add_simple_config(Egl_Display *display)
         config->max_pbuffer_height = PBUFFER_MAX_HEIGHT;
         config->max_pbuffer_size = PBUFFER_MAX_PIXELS;
         config->native_visual_id = 0;
-
 
         config->native_visual_type = EGL_NONE;
         config->caveat = EGL_NONE;

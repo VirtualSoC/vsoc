@@ -157,7 +157,7 @@ void sync_express_keyboard_input(bool need_send)
         return;
     }
 
-    if(need_send)
+    if (need_send)
     {
         write_to_guest_mem(static_keyboard_context.guest_buffer, &(static_keyboard_context.data), 0, sizeof(Keyboard_Data));
         set_express_device_irq((Device_Context *)&static_keyboard_context, 0, sizeof(Keyboard_Data));

@@ -164,7 +164,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     }
 
     // context与opengl相关，当它销毁时窗口是要销毁的
-    //原来current的context要destroy
+    // 原来current的context要destroy
     if (thread_context->opengl_context != NULL && thread_context->opengl_context != real_opengl_context)
     {
         // thread_context->opengl_context->draw_surface = NULL;
@@ -220,15 +220,15 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         egl_makeCurrent(real_opengl_context->window);
     }
 
-    if(express_gpu_gl_debug_enable)
-    {    
+    if (express_gpu_gl_debug_enable)
+    {
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallback(gl_debug_output, NULL);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
     }
 
-    //然后设置当前的surface和context
+    // 然后设置当前的surface和context
     thread_context->render_double_buffer_read = real_surface_read;
     real_surface_read->is_current = 1;
     thread_context->render_double_buffer_draw = real_surface_draw;
@@ -243,7 +243,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     // real_opengl_context->draw_surface = real_surface_read;
 
     // printf("#%llx makecurrent draw surface %llx\n",real_opengl_context, real_surface_draw);
-    //窗口大小设置一定要在init之前
+    // 窗口大小设置一定要在init之前
 
     if (gbuffer_id != 0)
     {
@@ -336,7 +336,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if (real_surface_draw != NULL && real_surface_read != NULL)
     {
         read_fbo = real_surface_read->gbuffer->data_fbo;
-        //设置framebuffer 0
+        // 设置framebuffer 0
         if (gbuffer->sampler_num > 1)
         {
             write_fbo = gbuffer->sampler_fbo;
@@ -425,16 +425,16 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
 
     if (gbuffer_id == 0 || gbuffer == NULL)
     {
-        //不可能不在自己进程下
+        // 不可能不在自己进程下
         printf("error! context %llx queuebuffer id %llx not exist!\n", (uint64_t)opengl_context, (uint64_t)gbuffer_id);
         return;
     }
 
-    //防止卡死，queue之后要主动解锁
-    // egl_image->is_lock = 0;
-    // egl_image->host_has_data = 1;
-    // ATOMIC_UNLOCK(egl_image->display_texture_is_use);
-    // ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
+    // 防止卡死，queue之后要主动解锁
+    //  egl_image->is_lock = 0;
+    //  egl_image->host_has_data = 1;
+    //  ATOMIC_UNLOCK(egl_image->display_texture_is_use);
+    //  ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
     express_printf("#%llx context queue buffer %llx\n", (uint64_t)opengl_context, gbuffer_id);
 
     if (gbuffer->sampler_num > 1)
@@ -460,10 +460,10 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
 
     if (preload_static_context_value->composer_pid != 0 && ((int)(gbuffer->gbuffer_id >> 32)) != preload_static_context_value->composer_pid)
     {
-        //这种情况太罕见了，只在长按图标拖动时才会出现，这种情况下的gbuffer提供者也是自己，而不是surfaceflinger，它会把数据绘制到surface上，进而绘制到gbuffer上。
-        //由于之后gbuffer被作为texture用时，会有个自动上下颠倒，因此直接在这里进行上下颠倒，这样保存到texture中的就已经是上下颠倒过了的
-        //为什么surfaceflinger不需要上下颠倒？安卓9的surfaceflinger输出的图像是到正常的fbo里，不需要颠倒，而安卓10输出到gbuffer里，确实是上下颠倒的，但是我们的窗口在这种情况下进行颠倒输出的，因此不存在问题
-        //为什么surfaceflinger把其他窗口gbuffer数据当成texture来用不需要颠倒？也需要颠倒，但是这个颠倒操作是surfaceflinger自己完成的，我们通过设置a_win->perform(a_win, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, HAL_TRANSFORM_FLIP_V)来实现
+        // 这种情况太罕见了，只在长按图标拖动时才会出现，这种情况下的gbuffer提供者也是自己，而不是surfaceflinger，它会把数据绘制到surface上，进而绘制到gbuffer上。
+        // 由于之后gbuffer被作为texture用时，会有个自动上下颠倒，因此直接在这里进行上下颠倒，这样保存到texture中的就已经是上下颠倒过了的
+        // 为什么surfaceflinger不需要上下颠倒？安卓9的surfaceflinger输出的图像是到正常的fbo里，不需要颠倒，而安卓10输出到gbuffer里，确实是上下颠倒的，但是我们的窗口在这种情况下进行颠倒输出的，因此不存在问题
+        // 为什么surfaceflinger把其他窗口gbuffer数据当成texture来用不需要颠倒？也需要颠倒，但是这个颠倒操作是surfaceflinger自己完成的，我们通过设置a_win->perform(a_win, NATIVE_WINDOW_SET_BUFFERS_TRANSFORM, HAL_TRANSFORM_FLIP_V)来实现
         printf("reverse gbuffer %llx\n", gbuffer->gbuffer_id);
         reverse_gbuffer(gbuffer);
     }
@@ -479,7 +479,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
         glDeleteSync(temp_sync);
     }
 
-    express_printf("gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync );
+    express_printf("gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
 
     // glFinish();
     glFlush();
@@ -505,7 +505,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, opengl_context->draw_fbo0);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
     }
-    
+
     // if(express_gpu_independ_window_enable)
     // {
     //     glBindFramebuffer(GL_READ_FRAMEBUFFER, gbuffer->data_fbo);
@@ -516,11 +516,11 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
 
     if (is_composer == 1)
     {
-        //合成器生成的gbuffer没有createImage和destroyImage的过程，所以可能面临内存泄露的问题，因此合成器产生的gbuffer就直接延迟删除，假如要用到了，则延长寿命，但是始终不从链表上删除
+        // 合成器生成的gbuffer没有createImage和destroyImage的过程，所以可能面临内存泄露的问题，因此合成器产生的gbuffer就直接延迟删除，假如要用到了，则延长寿命，但是始终不从链表上删除
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
         if (gbuffer->is_dying == 0)
         {
-            //保证destroy消息只发送一次，并且一直在链表上
+            // 保证destroy消息只发送一次，并且一直在链表上
             gbuffer->is_dying = 1;
             send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
         }
@@ -581,7 +581,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
 
     if (real_surface->swap_time_cnt < 5)
     {
-        //前两帧刚开始很可能用来进行初始化，因此前两帧帧的时间不能保存，都假设只是2ms的时间，因为这个是一次传输的延迟，相当于是距离前一个同步的时间
+        // 前两帧刚开始很可能用来进行初始化，因此前两帧帧的时间不能保存，都假设只是2ms的时间，因为这个是一次传输的延迟，相当于是距离前一个同步的时间
         if (real_surface->swap_time_cnt <= 2 || real_surface->frame_start_time == 0)
         {
             real_surface->swap_time[real_surface->swap_loc] = 2000;
@@ -633,7 +633,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         Guest_Mem *guest_mem_invoke = (Guest_Mem *)ret_invoke_time;
         Guest_Mem *guest_mem_swap = (Guest_Mem *)swap_time;
 
-        //加这个判断是为了防止guest端应用被强退，内存被释放之后，这里再进行内存的写入，导致潜在的系统崩溃
+        // 加这个判断是为了防止guest端应用被强退，内存被释放之后，这里再进行内存的写入，导致潜在的系统崩溃
         Thread_Context *thread_context = (Thread_Context *)context;
         if (thread_context->init != 0)
         {
@@ -649,7 +649,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         }
     }
 
-    //计算帧率
+    // 计算帧率
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
         double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);

@@ -28,20 +28,18 @@
 
 #include "qemu/atomic.h"
 
-//用于保存draw线程信息的hash表，方便分发到相应的线程
+// 用于保存draw线程信息的hash表，方便分发到相应的线程
 static GHashTable *render_thread_contexts = NULL;
 
 static GHashTable *render_process_contexts = NULL;
-
-
 
 bool express_gpu_gl_debug_enable = false;
 bool express_gpu_independ_window_enable = false;
 bool express_device_input_window_enable = false;
 
-//这些函数不提供外部调用接口
-// Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
-// void render_context_init(Thread_Context *context);
+// 这些函数不提供外部调用接口
+//  Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+//  void render_context_init(Thread_Context *context);
 
 // void decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
 
@@ -60,7 +58,6 @@ static void g_surface_map_destroy(gpointer data);
 static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
-
 
 static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Teleport_Express_Call *call)
 {
@@ -112,7 +109,8 @@ static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Telepor
         guest_upload_gbuffer_data(info);
     }
     break;
-    case FUNID_GPU_Alloc_Gbuffer:{
+    case FUNID_GPU_Alloc_Gbuffer:
+    {
         Gralloc_Gbuffer_Info info;
 
         if (unlikely(para_num < PARA_NUM_MIN_GPU_Alloc_Gbuffer))
@@ -197,7 +195,6 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     return;
 }
 
-
 static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     if (render_thread_contexts == NULL)
@@ -209,7 +206,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
     // express_printf("g_hash table lookup\n");
-    //没有context就新建线程
+    // 没有context就新建线程
     if (thread_context == NULL)
     {
         // express_printf("create new thread\n");
@@ -217,15 +214,15 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         thread_context = (Render_Thread_Context *)thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
         thread_context->thread_unique_ids = g_hash_table_new(g_direct_hash, g_direct_equal);
 
-        //处理好process_context与thread_context的关系
-        //新建进程上下文
+        // 处理好process_context与thread_context的关系
+        // 新建进程上下文
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
         if (process == NULL)
         {
             express_printf("create new process context\n");
             process = g_malloc(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
-            //注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
+            // 注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
             process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
             // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
             // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
@@ -257,7 +254,7 @@ static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, u
 
     g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
 
-    if(g_hash_table_size(render_context->thread_unique_ids) == 0)
+    if (g_hash_table_size(render_context->thread_unique_ids) == 0)
     {
         g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(thread_id));
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
@@ -280,7 +277,7 @@ static void render_context_init(Thread_Context *context)
 {
 
     express_printf("render context init!\n");
-    //这个render线程只能创建一次，且其他线程必须等待该线程运行成功
+    // 这个render线程只能创建一次，且其他线程必须等待该线程运行成功
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
         express_printf("create native window\n");
@@ -316,7 +313,7 @@ static void g_context_map_destroy(gpointer data)
     Opengl_Context *real_context = (Opengl_Context *)data;
     if (real_context->is_current)
     {
-        //假如当前的context正在被使用，则需要等到context没有被使用了才能删除
+        // 假如当前的context正在被使用，则需要等到context没有被使用了才能删除
         express_printf("context %llx guest %llx is using\n", (uint64_t)real_context, (uint64_t)real_context->guest_context);
         real_context->need_destroy = 1;
     }
@@ -372,12 +369,12 @@ static void render_context_destroy(Thread_Context *context)
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
 
-    //这个函数的出现表示文件close了，通道都关掉了
-    //目前通道关掉只有一种可能，就是进程退出了
+    // 这个函数的出现表示文件close了，通道都关掉了
+    // 目前通道关掉只有一种可能，就是进程退出了
 
     g_hash_table_destroy(thread_context->thread_unique_ids);
 
-    //保证都不是current状态，确保能够删除成功
+    // 保证都不是current状态，确保能够删除成功
     if (thread_context->opengl_context != NULL)
     {
         d_eglMakeCurrent(thread_context, NULL, NULL, NULL, NULL, 0, 0, 0, 0);
@@ -420,7 +417,7 @@ static void render_context_destroy(Thread_Context *context)
     express_printf("process %llx destroy cnt %d\n", (uint64_t)process_context, process_context->thread_cnt);
     if (qatomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
-        //由最后一个退出的线程清空资源
+        // 由最后一个退出的线程清空资源
         express_printf("process %llx destroy everything\n", (uint64_t)process_context);
         g_hash_table_destroy(process_context->context_map);
 
