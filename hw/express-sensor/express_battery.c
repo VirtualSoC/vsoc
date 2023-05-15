@@ -61,15 +61,16 @@ void express_ac_plug_status_changed(bool is_pluged)
 {
     static_battery_context.data.online = is_pluged;
 
-    static_battery_context.data.status = POWER_SUPPLY_STATUS_CHARGING;
-    static_battery_context.data.status_changed |= AC_STATUS_CHANGED;
+    if (is_pluged)
+    {
+        static_battery_context.data.status_changed = AC_STATUS_CHANGED;
+    }
+    else
+    {
+        static_battery_context.data.status_changed = 0;
+    }
 
     static_battery_context.need_sync = true;
-
-    if (static_battery_context.data.capacity == 100)
-    {
-        static_battery_context.data.status = POWER_SUPPLY_STATUS_FULL;
-    }
 }
 
 void express_battery_status_changed(int status_type, int value)
@@ -91,7 +92,20 @@ void express_battery_status_changed(int status_type, int value)
         break;
     case POWER_SUPPLY_PROP_CAPACITY:
         static_battery_context.data.capacity = value;
-        static_battery_context.data.status = POWER_SUPPLY_STATUS_DISCHARGING;
+        if (static_battery_context.data.capacity == 100)
+        {
+            if (static_battery_context.data.status == POWER_SUPPLY_STATUS_CHARGING)
+            {
+                static_battery_context.data.status = POWER_SUPPLY_STATUS_FULL;
+            }
+        }
+        else
+        {
+            if (static_battery_context.data.status == POWER_SUPPLY_STATUS_FULL)
+            {
+                static_battery_context.data.status = POWER_SUPPLY_STATUS_CHARGING;
+            }
+        }
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_NOW:
         static_battery_context.data.voltage = value;

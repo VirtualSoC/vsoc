@@ -298,19 +298,19 @@ static void draw_window(bool *show_imgui)
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.18f);             
             if(igCombo_Str_arr("##batterytech", &cur_battery.technology, battery_tech_name , 7, 7))
-                handle_battery_change(POWER_SUPPLY_PROP_TECHNOLOGY, cur_battery.health);
+                handle_battery_change(POWER_SUPPLY_PROP_TECHNOLOGY, cur_battery.technology);
             igSameLine(0.0f, -1.0f);
             igText("Health:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.18f);             
             if(igCombo_Str_arr("##batteryhealth", &cur_battery.health, battery_health_name , 6, 6))
-                handle_battery_change(POWER_SUPPLY_PROP_TECHNOLOGY, cur_battery.health);
+                handle_battery_change(POWER_SUPPLY_PROP_HEALTH, cur_battery.health);
             igSameLine(0.0f, -1.0f);
             igText("Status:");
             igSameLine(0.0f, -1.0f);
             igSetNextItemWidth(window_size.x * 0.18f);             
             if(igCombo_Str_arr("##batterystatus", &cur_battery.status, battery_status_name , 5, 5))
-                handle_battery_change(POWER_SUPPLY_PROP_TECHNOLOGY, cur_battery.health);
+                handle_battery_change(POWER_SUPPLY_PROP_STATUS, cur_battery.status);
 
             igText("Voltage:");
             igSameLine(0.0f, -1.0f);
