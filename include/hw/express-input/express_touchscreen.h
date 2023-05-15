@@ -33,6 +33,6 @@ void reset_touchscreen_input(void);
 
 void set_express_touchscreen_input(int x, int y, int is_touched, int index);
 
-void sync_express_touchscreen_input(void);
+void sync_express_touchscreen_input(bool need_send);
 
 #endif

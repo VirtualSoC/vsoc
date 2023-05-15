@@ -464,11 +464,11 @@ void express_touchscreen_touch_handle(GLFWwindow *window, int touch_id, int acti
         }
         search_finger = (int64_t)get_next_avali_finger();
     }
-    if(search_finger != -1)
+    if (search_finger != -1)
     {
         // 保持50的生命，大概是50ms
         search_finger &= 0xffffffffL;
-        g_hash_table_insert(real_touch_id_map, GINT_TO_POINTER(touch_id), (gpointer)(((search_finger)|(50LL<<32))));
+        g_hash_table_insert(real_touch_id_map, GINT_TO_POINTER(touch_id), (gpointer)(((search_finger) | (50LL << 32))));
 
         set_express_touchscreen_input(now_finger_xpos, now_finger_ypos, action != GLFW_RELEASE, search_finger);
         if (action == GLFW_RELEASE)
@@ -602,7 +602,7 @@ void set_express_touchscreen_input(int x, int y, int is_touched, int index)
     }
 }
 
-void sync_express_touchscreen_input(void)
+void sync_express_touchscreen_input(bool need_send)
 {
 
     // 每次sync阶段才进行record或者replay的操作，这样频率才能对等，也不会因为press和repeat触发间隔大产生啥问题
@@ -628,13 +628,16 @@ void sync_express_touchscreen_input(void)
         return;
     }
 
-    write_to_guest_mem(static_touchscreen_context.guest_buffer, &(static_touchscreen_context.data), 0, sizeof(Touchscreen_Data));
+    if (need_send)
+    {
+        write_to_guest_mem(static_touchscreen_context.guest_buffer, &(static_touchscreen_context.data), 0, sizeof(Touchscreen_Data));
+        set_express_device_irq((Device_Context *)&static_touchscreen_context, 0, sizeof(Touchscreen_Data));
+    }
 
     static_touchscreen_context.need_sync = false;
 
     // printf("touchscreen irq send ok\n");
     // send_express_device_irq(origin_call, 0, sizeof(Touchscreen_Data));
-    set_express_device_irq((Device_Context *)&static_touchscreen_context, 0, sizeof(Touchscreen_Data));
 }
 
 static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
