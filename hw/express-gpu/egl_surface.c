@@ -605,7 +605,7 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
     int height = info.height;
 
     // @todo 需要检查内存布局
-    if (info.format == PIXEL_FMT_RGBX_8888 || info.format == PIXEL_FMT_RGBA_8888)
+    if (info.format == EXPRESS_PIXEL_RGBA8888 || info.format == EXPRESS_PIXEL_RGBX8888)
     {
         //根据鼠标显示来看，8888的情况下内存布局有反向
         internal_format = GL_RGBA8;
@@ -614,7 +614,36 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
         // real_image->pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
         // row_byte_len = width * 4;
     }
-    else if (info.format == PIXEL_FMT_BGRX_8888 || info.format == PIXEL_FMT_BGRA_8888)
+    else if (info.format == EXPRESS_PIXEL_RGB888)
+    {
+        internal_format = GL_RGB8;
+        format = GL_RGB;
+        pixel_type = GL_UNSIGNED_INT;
+        // row_byte_len = width * 3;
+    }
+    else if (info.format == EXPRESS_PIXEL_RGB565)
+    {
+        internal_format = GL_RGB565;
+        format = GL_RGB;
+        pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (info.format == EXPRESS_PIXEL_RGBA5551 || info.format == EXPRESS_PIXEL_RGBX5551)
+    {
+        internal_format = GL_RGB5_A1;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+        // GL_UNSIGNED_SHORT_5_5_5_1
+        // row_byte_len = width * 2;
+    }
+    else if (info.format == EXPRESS_PIXEL_RGBA4444 || info.format == EXPRESS_PIXEL_RGBX4444)
+    {
+        internal_format = GL_RGBA4;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (info.format == EXPRESS_PIXEL_BGRA8888 || info.format == EXPRESS_PIXEL_BGRX8888)
     {
         // printf("EGLImage with g_buffer_id %llx need format BGRA_8888!!!\n", (uint64_t)g_buffer_id);
         internal_format = GL_RGBA8;
@@ -622,40 +651,25 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
         pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
         // row_byte_len = width * 4;
     }
-    else if (info.format == PIXEL_FMT_RGB_888)
-    {
-        internal_format = GL_RGB8;
-        format = GL_RGB;
-        pixel_type = GL_UNSIGNED_INT;
-        // row_byte_len = width * 3;
-    }
-    else if (info.format == PIXEL_FMT_BGR_565)
+    else if (info.format == EXPRESS_PIXEL_BGR565)
     {
         internal_format = GL_RGB565;
         format = GL_BGR;
         pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
         // row_byte_len = width * 2;
     }
-    else if (info.format == PIXEL_FMT_BGRA_4444 || info.format == PIXEL_FMT_BGRX_4444)
+    else if (info.format == EXPRESS_PIXEL_RGB1010102)
     {
-        internal_format = GL_RGBA4;
-        format = GL_BGRA;
-        pixel_type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
-        // row_byte_len = width * 2;
-    }
-    else if (info.format == PIXEL_FMT_RGBA_4444 || info.format == PIXEL_FMT_RGBX_4444)
-    {
-        internal_format = GL_RGBA4;
+        internal_format = GL_RGB10_A2;
         format = GL_RGBA;
-        pixel_type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
+        pixel_type = GL_UNSIGNED_INT_2_10_10_10_REV;
         // row_byte_len = width * 2;
     }
-    else if (info.format == PIXEL_FMT_BGRX_5551 || info.format == PIXEL_FMT_BGRX_5551)
+    else if (info.format == EXPRESS_PIXEL_R8)
     {
-        internal_format = GL_RGB5_A1;
-        format = GL_BGRA;
-        pixel_type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
-        // GL_UNSIGNED_SHORT_5_5_5_1
+        internal_format = GL_R8;
+        format = GL_RED;
+        pixel_type = GL_UNSIGNED_BYTE;
         // row_byte_len = width * 2;
     }
     else
@@ -696,7 +710,8 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         depth_internal_format = surface->depth_internal_format;
         stencil_internal_format = surface->stencil_internal_format;
     }
-    if (hal_format == HAL_PIXEL_FORMAT_RGBA_8888 || hal_format == HAL_PIXEL_FORMAT_RGBX_8888)
+
+    if (hal_format == EXPRESS_PIXEL_RGBA8888 || hal_format == EXPRESS_PIXEL_RGBX8888)
     {
         //根据鼠标显示来看，8888的情况下内存布局有反向
         internal_format = GL_RGBA8;
@@ -705,7 +720,36 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         // real_image->pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
         // row_byte_len = width * 4;
     }
-    else if (hal_format == HAL_PIXEL_FORMAT_BGRA_8888)
+    else if (hal_format == EXPRESS_PIXEL_RGB888)
+    {
+        internal_format = GL_RGB8;
+        format = GL_RGB;
+        pixel_type = GL_UNSIGNED_INT;
+        // row_byte_len = width * 3;
+    }
+    else if (hal_format == EXPRESS_PIXEL_RGB565)
+    {
+        internal_format = GL_RGB565;
+        format = GL_RGB;
+        pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (hal_format == EXPRESS_PIXEL_RGBA5551 || hal_format == EXPRESS_PIXEL_RGBX5551)
+    {
+        internal_format = GL_RGB5_A1;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_SHORT_1_5_5_5_REV;
+        // GL_UNSIGNED_SHORT_5_5_5_1
+        // row_byte_len = width * 2;
+    }
+    else if (hal_format == EXPRESS_PIXEL_RGBA4444 || hal_format == EXPRESS_PIXEL_RGBX4444)
+    {
+        internal_format = GL_RGBA4;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_SHORT_4_4_4_4_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (hal_format == EXPRESS_PIXEL_BGRA8888 || hal_format == EXPRESS_PIXEL_BGRX8888)
     {
         // printf("EGLImage with g_buffer_id %llx need format BGRA_8888!!!\n", (uint64_t)g_buffer_id);
         internal_format = GL_RGBA8;
@@ -713,19 +757,25 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
         // row_byte_len = width * 4;
     }
-    else if (hal_format == HAL_PIXEL_FORMAT_RGB_888)
+    else if (hal_format == EXPRESS_PIXEL_BGR565)
     {
-        internal_format = GL_RGB8;
-        format = GL_RGB;
-        pixel_type = GL_UNSIGNED_INT;
-        // row_byte_len = width * 3;
-    }
-    else if (hal_format == HAL_PIXEL_FORMAT_RGB_565)
-    {
-        //根据视频播放来看，565的情况下内存没有反向
         internal_format = GL_RGB565;
-        format = GL_RGB;
-        pixel_type = GL_UNSIGNED_SHORT_5_6_5;
+        format = GL_BGR;
+        pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (hal_format == EXPRESS_PIXEL_RGB1010102)
+    {
+        internal_format = GL_RGB10_A2;
+        format = GL_RGBA;
+        pixel_type = GL_UNSIGNED_INT_2_10_10_10_REV;
+        // row_byte_len = width * 2;
+    }
+    else if (hal_format == EXPRESS_PIXEL_R8)
+    {
+        internal_format = GL_R8;
+        format = GL_RED;
+        pixel_type = GL_UNSIGNED_BYTE;
         // row_byte_len = width * 2;
     }
     else
@@ -734,7 +784,7 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_INT;
         // row_byte_len = width * 4;
-        printf("error! unknown EGLImage format %d!!!\n", hal_format);
+        printf("error! unknown gralloc format %d!!!\n", hal_format);
     }
 
     return create_gbuffer(width, height, sampler_num,

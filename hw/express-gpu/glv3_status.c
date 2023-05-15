@@ -509,6 +509,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         gbuffer->data_sync = 0;
 
         // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+        glFlush();
     }
 
     host_share_texture = gbuffer->data_texture;

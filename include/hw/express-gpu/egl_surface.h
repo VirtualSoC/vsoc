@@ -15,50 +15,68 @@
 #define WINDOW_SURFACE 2
 
 
-#define HAL_PIXEL_FORMAT_RGBA_8888 1
-#define HAL_PIXEL_FORMAT_RGBX_8888 2
-#define HAL_PIXEL_FORMAT_RGB_888 3
-#define HAL_PIXEL_FORMAT_RGB_565 4
-#define HAL_PIXEL_FORMAT_BGRA_8888 5
-
 typedef enum {
-    PIXEL_FMT_CLUT8 = 0,                 /**< CLUT8 format */
-    PIXEL_FMT_CLUT1,                     /**< CLUT1 format */
-    PIXEL_FMT_CLUT4,                     /**< CLUT4 format */
-    PIXEL_FMT_RGB_565,                   /**< RGB565 format */
-    PIXEL_FMT_RGBA_5658,                 /**< RGBA5658 format */
-    PIXEL_FMT_RGBX_4444,                 /**< RGBX4444 format */
-    PIXEL_FMT_RGBA_4444,                 /**< RGBA4444 format */
-    PIXEL_FMT_RGB_444,                   /**< RGB444 format */
-    PIXEL_FMT_RGBX_5551,                 /**< RGBX5551 format */
-    PIXEL_FMT_RGBA_5551,                 /**< RGBA5551 format */
-    PIXEL_FMT_RGB_555,                   /**< RGB555 format */
-    PIXEL_FMT_RGBX_8888,                 /**< RGBX8888 format */
-    PIXEL_FMT_RGBA_8888,                 /**< RGBA8888 format */
-    PIXEL_FMT_RGB_888,                   /**< RGB888 format */
-    PIXEL_FMT_BGR_565,                   /**< BGR565 format */
-    PIXEL_FMT_BGRX_4444,                 /**< BGRX4444 format */
-    PIXEL_FMT_BGRA_4444,                 /**< BGRA4444 format */
-    PIXEL_FMT_BGRX_5551,                 /**< BGRX5551 format */
-    PIXEL_FMT_BGRA_5551,                 /**< BGRA5551 format */
-    PIXEL_FMT_BGRX_8888,                 /**< BGRX8888 format */
-    PIXEL_FMT_BGRA_8888,                 /**< BGRA8888 format */
-    PIXEL_FMT_YUV_422_I,                 /**< YUV422 interleaved format */
-    PIXEL_FMT_YCBCR_422_SP,              /**< YCBCR422 semi-planar format */
-    PIXEL_FMT_YCRCB_422_SP,              /**< YCRCB422 semi-planar format */
-    PIXEL_FMT_YCBCR_420_SP,              /**< YCBCR420 semi-planar format */
-    PIXEL_FMT_YCRCB_420_SP,              /**< YCRCB420 semi-planar format */
-    PIXEL_FMT_YCBCR_422_P,               /**< YCBCR422 planar format */
-    PIXEL_FMT_YCRCB_422_P,               /**< YCRCB422 planar format */
-    PIXEL_FMT_YCBCR_420_P,               /**< YCBCR420 planar format */
-    PIXEL_FMT_YCRCB_420_P,               /**< YCRCB420 planar format */
-    PIXEL_FMT_YUYV_422_PKG,              /**< YUYV422 packed format */
-    PIXEL_FMT_UYVY_422_PKG,              /**< UYVY422 packed format */
-    PIXEL_FMT_YVYU_422_PKG,              /**< YVYU422 packed format */
-    PIXEL_FMT_VYUY_422_PKG,              /**< VYUY422 packed format */
-    PIXEL_FMT_VENDER_MASK = 0X7FFF0000,  /**< vendor mask format */
-    PIXEL_FMT_BUTT = 0X7FFFFFFF          /**< Invalid pixel format */
-} FMT_Pixel_Format;
+     EXPRESS_PIXEL_RGBA8888 = 0,
+     EXPRESS_PIXEL_RGBX8888,
+     EXPRESS_PIXEL_RGB888,
+     EXPRESS_PIXEL_RGB565,
+     EXPRESS_PIXEL_RGBA5551,
+     EXPRESS_PIXEL_RGBX5551,
+     EXPRESS_PIXEL_RGBA4444,
+     EXPRESS_PIXEL_RGBX4444,
+     EXPRESS_PIXEL_BGRA8888,
+     EXPRESS_PIXEL_BGRX8888,
+     EXPRESS_PIXEL_BGR565,
+     EXPRESS_PIXEL_RGB1010102,
+     EXPRESS_PIXEL_R8,
+     // todo: add yuv
+
+} EXPRESS_Pixel_Format;
+
+// #define HAL_PIXEL_FORMAT_RGBA_8888 1
+// #define HAL_PIXEL_FORMAT_RGBX_8888 2
+// #define HAL_PIXEL_FORMAT_RGB_888 3
+// #define HAL_PIXEL_FORMAT_RGB_565 4
+// #define HAL_PIXEL_FORMAT_BGRA_8888 5
+
+// typedef enum {
+//     PIXEL_FMT_CLUT8 = 0,                 /**< CLUT8 format */
+//     PIXEL_FMT_CLUT1,                     /**< CLUT1 format */
+//     PIXEL_FMT_CLUT4,                     /**< CLUT4 format */
+//     PIXEL_FMT_RGB_565,                   /**< RGB565 format */
+//     PIXEL_FMT_RGBA_5658,                 /**< RGBA5658 format */
+//     PIXEL_FMT_RGBX_4444,                 /**< RGBX4444 format */
+//     PIXEL_FMT_RGBA_4444,                 /**< RGBA4444 format */
+//     PIXEL_FMT_RGB_444,                   /**< RGB444 format */
+//     PIXEL_FMT_RGBX_5551,                 /**< RGBX5551 format */
+//     PIXEL_FMT_RGBA_5551,                 /**< RGBA5551 format */
+//     PIXEL_FMT_RGB_555,                   /**< RGB555 format */
+//     PIXEL_FMT_RGBX_8888,                 /**< RGBX8888 format */
+//     PIXEL_FMT_RGBA_8888,                 /**< RGBA8888 format */
+//     PIXEL_FMT_RGB_888,                   /**< RGB888 format */
+//     PIXEL_FMT_BGR_565,                   /**< BGR565 format */
+//     PIXEL_FMT_BGRX_4444,                 /**< BGRX4444 format */
+//     PIXEL_FMT_BGRA_4444,                 /**< BGRA4444 format */
+//     PIXEL_FMT_BGRX_5551,                 /**< BGRX5551 format */
+//     PIXEL_FMT_BGRA_5551,                 /**< BGRA5551 format */
+//     PIXEL_FMT_BGRX_8888,                 /**< BGRX8888 format */
+//     PIXEL_FMT_BGRA_8888,                 /**< BGRA8888 format */
+//     PIXEL_FMT_YUV_422_I,                 /**< YUV422 interleaved format */
+//     PIXEL_FMT_YCBCR_422_SP,              /**< YCBCR422 semi-planar format */
+//     PIXEL_FMT_YCRCB_422_SP,              /**< YCRCB422 semi-planar format */
+//     PIXEL_FMT_YCBCR_420_SP,              /**< YCBCR420 semi-planar format */
+//     PIXEL_FMT_YCRCB_420_SP,              /**< YCRCB420 semi-planar format */
+//     PIXEL_FMT_YCBCR_422_P,               /**< YCBCR422 planar format */
+//     PIXEL_FMT_YCRCB_422_P,               /**< YCRCB422 planar format */
+//     PIXEL_FMT_YCBCR_420_P,               /**< YCBCR420 planar format */
+//     PIXEL_FMT_YCRCB_420_P,               /**< YCRCB420 planar format */
+//     PIXEL_FMT_YUYV_422_PKG,              /**< YUYV422 packed format */
+//     PIXEL_FMT_UYVY_422_PKG,              /**< UYVY422 packed format */
+//     PIXEL_FMT_YVYU_422_PKG,              /**< YVYU422 packed format */
+//     PIXEL_FMT_VYUY_422_PKG,              /**< VYUY422 packed format */
+//     PIXEL_FMT_VENDER_MASK = 0X7FFF0000,  /**< vendor mask format */
+//     PIXEL_FMT_BUTT = 0X7FFFFFFF          /**< Invalid pixel format */
+// } FMT_Pixel_Format;
 
 
 #define MAX_WINDOW_LIFE_TIME (60*5)
@@ -103,7 +121,7 @@ typedef struct Graphic_Buffer{
      int is_dying;
      int is_using;
      int need_reverse;
-
+     int layer_id;
 
      int format;
      int pixel_type;
