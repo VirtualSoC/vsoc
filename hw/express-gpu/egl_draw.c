@@ -204,7 +204,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glfwMakeContextCurrent((GLFWwindow *)real_opengl_context->window);
         if (real_surface_draw != NULL && real_surface_draw->type == WINDOW_SURFACE && real_surface_draw->width > 10 && real_surface_draw->height > 10)
         {
-            glfwSetWindowSize(real_opengl_context->window, real_surface_draw->width, real_surface_draw->height);
+            express_printf("glfwSetWindowSize surface width %d height %d width %d height %d\n", real_surface_draw->width, real_surface_draw->height, width, height);
+            glfwSetWindowSize(real_opengl_context->window, width, height);
             glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
             glfwShowWindow((GLFWwindow *)real_opengl_context->window);
         }
@@ -467,14 +468,18 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
         reverse_gbuffer(gbuffer);
     }
 
-    if (gbuffer->delete_sync != 0)
-    {
-        glDeleteSync(gbuffer->delete_sync);
-    }
+    GLsync temp_sync = gbuffer->delete_sync;
 
     gbuffer->delete_sync = gbuffer->data_sync;
     gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     gbuffer->is_writing = 0;
+
+    if (temp_sync != 0)
+    {
+        glDeleteSync(temp_sync);
+    }
+
+    express_printf("gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync );
 
     // glFinish();
     glFlush();
