@@ -39,21 +39,26 @@ extern Display_Info express_display_info;
 
 #define FUNID_Terminate (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 0))
 
-#define FUNID_Terminate_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(0)))
+#define FUNID_Terminate_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(1)))
 
-#define FUNID_Commit_Composer_Layer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 1))
-
-#define FUNID_Show_Window (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 2))
+#define FUNID_Alloc_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, HOST_SYNC_FUN_ID(2)))
 
 #define FUNID_Gbuffer_Download (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(3)))
 
 #define FUNID_Gbuffer_Upload (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 4))
 
-#define FUNID_Alloc_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, HOST_SYNC_FUN_ID(5)))
+#define FUNID_Sync_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(5)))
 
-#define FUNID_Get_Display_Mods (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(6)))
 
-#define FUNID_Set_Display_Status (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 7))
+#define FUNID_Show_Window (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 10))
+
+#define FUNID_Commit_Composer_Layer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 11))
+
+#define FUNID_Get_Display_Mods (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(12)))
+
+#define FUNID_Set_Display_Status (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 13))
+
+#define FUNID_Get_Display_Status (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(14)))
 
 
 #define PARA_NUM_Terminate_Gbuffer 1
@@ -69,5 +74,13 @@ extern Display_Info express_display_info;
 #define PARA_NUM_Get_Display_Mods 1
 
 #define PARA_NUM_Set_Display_Status 1
+#define PARA_NUM_Get_Display_Status 1
+
+
+extern int display_is_open;
+
+void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info);
+void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info);
+void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
 
 #endif

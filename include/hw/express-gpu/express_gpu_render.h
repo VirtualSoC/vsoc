@@ -44,9 +44,9 @@
 #define GBUFFER_TYPE_FBO_NEED_DATA 7
 
 #define ATOMIC_LOCK(s)                                              \
-     int atomic_cnt = 0;                                            \
+     int atomic_cnt = 1;                                            \
      while (qatomic_cmpxchg(&(s), 0, 1) == 1 && atomic_cnt < 10000) \
-          printf("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
+          if(atomic_cnt % 10 == 0) printf("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
 
 // #define ATOMIC_SET_USED(s) ATOMIC_LOCK(s)

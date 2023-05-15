@@ -106,9 +106,11 @@ static GLuint now_transform_type = 0;
 
 static bool window_is_shown = false;
 
+// QEMU的主窗口的长宽
 static int window_width = 0;
 static int window_height = 0;
 
+// 显示的内容的实际位置和长宽
 static int display_content_x = 0;
 static int display_content_y = 0;
 
@@ -120,11 +122,11 @@ int express_gpu_window_height = 0;
 
 bool force_show_native_render_window = false;
 
-static int display_width = 1280;
-static int display_height = 720;
+// guest对应的虚拟显示器的大小
+static int display_width = 0;
+static int display_height = 0;
 
 static bool window_need_refresh = false;
-;
 
 // static long real_window_width = 0;
 // static long real_window_height = 0;
@@ -146,6 +148,8 @@ static bool window_need_refresh = false;
 static Graphic_Buffer *display_gbuffer;
 
 static GBuffer_Layers *display_layers;
+
+static int display_composer_layers_id = 0;
 
 volatile int native_render_run = 0;
 volatile int device_interface_run = 0;
@@ -394,7 +398,7 @@ static int try_destroy_gbuffer(void *data)
         return 0;
     }
 
-    if (display_gbuffer == gbuffer)
+    if (display_gbuffer == gbuffer || display_composer_layers_id == gbuffer->layer_id)
     {
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
         // display_gbuffer = NULL;
@@ -420,7 +424,7 @@ static int try_destroy_gbuffer(void *data)
         set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
     }
     destroy_gbuffer(gbuffer);
-    // printf("gbuffer %llx is dead\n",gbuffer->gbuffer_id);
+    printf("gbuffer %llx is dead\n", gbuffer->gbuffer_id);
 
     return 1;
 }
@@ -457,10 +461,11 @@ static void handle_child_window_event(void)
             {
                 g_free(display_layers);
             }
+            display_composer_layers_id++;
             display_layers = layers;
             window_need_refresh = true;
             paint_event_cnt++;
-            if(paint_event_cnt>1)
+            if (paint_event_cnt > 1)
             {
                 printf("error! paint num %d\n", paint_event_cnt);
             }
@@ -809,7 +814,7 @@ static void opengl_paint_composer_layers(void)
 {
     GBuffer_Layers *layers = display_layers;
 
-    if(express_display_info.pixel_height != display_height || express_display_info.pixel_width != display_width)
+    if (express_display_info.pixel_height != display_height || express_display_info.pixel_width != display_width)
     {
         display_height = express_display_info.pixel_height;
         display_width = express_display_info.pixel_width;
@@ -819,6 +824,11 @@ static void opengl_paint_composer_layers(void)
     {
         glClear(GL_COLOR_BUFFER_BIT);
 
+        if (!display_is_open)
+        {
+            return;
+        }
+
         for (int i = 0; i < layers->layer_num; i++)
         {
             GBuffer_Layer layer = layers->layer[i];
@@ -826,6 +836,7 @@ static void opengl_paint_composer_layers(void)
             express_printf("draw layer gbuffer_id %llx  %d %d %d %d\n", layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height);
             if (gbuffer != NULL)
             {
+                gbuffer->layer_id = display_composer_layers_id;
 
                 // 画面不是显示的整个窗口，需要针对性缩放
                 int view_x = (int)((double)layer.x / display_width * display_content_width + display_content_x);
@@ -868,6 +879,8 @@ static void opengl_paint_composer_layers(void)
                 opengl_paint(gbuffer);
             }
         }
+
+        glFlush();
     }
 }
 
@@ -898,6 +911,8 @@ static void opengl_paint_composer_gbuffer(void)
     glViewport(display_content_x, display_content_y, display_content_width, display_content_height);
 
     opengl_paint(gbuffer);
+
+    glFlush();
 }
 
 /**
@@ -917,6 +932,12 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
 
         // glDrawArrays(GL_TRIANGLES, 0, 6);
 
+        if (gbuffer->is_writing != 0)
+        {
+            printf("error! get writing gbuffer when opengl_paint\n");
+        }
+
+        express_printf("draw gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
         if (gbuffer->data_sync != 0)
         {
             // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
@@ -1113,6 +1134,8 @@ void *native_window_thread(void *opaque)
     // 创建一个窗口，这个window也是context
     window_width = express_gpu_window_width;
     window_height = express_gpu_window_height;
+    display_width = *express_display_pixel_width;
+    display_height = *express_display_pixel_height;
 
     display_content_width = express_gpu_window_width;
     display_content_height = express_gpu_window_height;
@@ -1230,8 +1253,8 @@ void *native_window_thread(void *opaque)
             // 处理各种输入事件、opengl事件
             glfwWaitEventsTimeout(0.001);
 
-            sync_express_touchscreen_input();
-            sync_express_keyboard_input();
+            sync_express_touchscreen_input((bool)display_is_open);
+            sync_express_keyboard_input((bool)display_is_open);
             // express_input_device_sync();
 
             handle_child_window_event();
@@ -1269,6 +1292,10 @@ void *native_window_thread(void *opaque)
                 has_refresh = true;
 
                 glfwSwapBuffers(glfw_window);
+
+                // 把foreach放到下面，是因为主线程的消息中可能有取消gbuffer销毁流程的消息
+                // 放到绘制函数里，是为了避免过快销毁gbuffer（绘制函数外是最高1000hz的频率
+                dying_list_foreach(dying_gbuffer, try_destroy_gbuffer);
             }
             else
             {
@@ -1281,9 +1308,6 @@ void *native_window_thread(void *opaque)
                     sdl2_no_need = 0;
                 }
             }
-
-            // 把foreach放到下面，是因为主线程的消息中可能有取消gbuffer销毁流程的消息
-            dying_list_foreach(dying_gbuffer, try_destroy_gbuffer);
 
             now_time = g_get_real_time();
 

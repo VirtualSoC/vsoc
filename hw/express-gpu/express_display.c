@@ -47,10 +47,7 @@ int *express_display_pixel_height = &(express_display_info.pixel_height);
 int *express_display_phy_width = &(express_display_info.phy_width);
 int *express_display_phy_height = &(express_display_info.phy_height);
 
-
-void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info);
-void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info);
-void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
+int display_is_open = 1;
 
 void display_status_change(Display_Status status);
 
@@ -287,7 +284,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         }
 
         write_to_guest_mem(all_para[0].data, &express_display_info, 0, sizeof(Display_Info));
-        printf("FUNID_Get_Display_Mods\n");
+        // printf("FUNID_Get_Display_Mods\n");
     }
     break;
     case FUNID_Set_Display_Status:{
@@ -308,7 +305,24 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         read_from_guest_mem(all_para[0].data, &status, 0, sizeof(Display_Status));
         
         display_status_change(status);
-        printf("FUNID_Set_Display_Status\n");
+        // printf("FUNID_Set_Display_Status\n");
+
+    }
+    break;
+    case FUNID_Get_Display_Status:{
+
+        if (unlikely(para_num < PARA_NUM_Get_Display_Status))
+        {
+            break;
+        }
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(Display_Status)))
+        {
+            break;
+        }
+
+        write_to_guest_mem(all_para[0].data, &now_display_status, 0, sizeof(Display_Status));
 
     }
     break;
@@ -402,6 +416,14 @@ void display_status_change(Display_Status status)
         now_display_status.refresh_rate, status.refresh_rate, now_display_status.power_status, status.power_status, 
             now_display_status.backlight, status.backlight);
     now_display_status = status;
+    if(now_display_status.power_status == 3)
+    {
+        display_is_open = 0;
+    }
+    else
+    {
+        display_is_open = 1;
+    }
 }
 
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
@@ -506,7 +528,7 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, all_pixel_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
-    express_printf("guest_upload_gbuffer_data id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
+    printf("guest_upload_gbuffer_data id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
            gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     // GraphicBuffer里的图片是正的，放到纹理里要倒个个
@@ -516,13 +538,17 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
     {
         for (int i = 0; i < info.height; i++)
         {
-            // read_from_guest_mem(guest_mem, map_pointer + (egl_image->height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
-            read_from_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
+            read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * info.stride, row_byte_len);
+            // read_from_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
         }
     }
     else
     {
-        read_from_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
+        // read_from_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
+        for (int i = 0; i < info.height; i++)
+        {
+            read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+        }
     }
 
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
@@ -623,7 +649,7 @@ void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info)
                error, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
     }
 
-    express_printf("guest_download_gbuffer_data id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
+    printf("guest_download_gbuffer_data id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
                    gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, all_pixel_size, GL_MAP_READ_BIT);

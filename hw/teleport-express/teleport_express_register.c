@@ -330,6 +330,7 @@ int set_express_device_irq(Device_Context *device_context, int buf_index, int le
         return IRQ_RELEASED;
     }
 
+    express_printf("%s irq send ok!\n", device_context->device_info->name);
     send_express_device_irq(origin_call, buf_index, len);
 
     return IRQ_SET_OK;

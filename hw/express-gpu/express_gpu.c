@@ -24,6 +24,8 @@
 #include "hw/express-gpu/test_trans.h"
 #include "hw/express-gpu/device_interface_window.h"
 
+#include "hw/express-gpu/express_display.h"
+
 #include "qemu/atomic.h"
 
 //用于保存draw线程信息的hash表，方便分发到相应的线程
@@ -38,14 +40,14 @@ bool express_gpu_independ_window_enable = false;
 bool express_device_input_window_enable = false;
 
 //这些函数不提供外部调用接口
-Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
-void render_context_init(Thread_Context *context);
+// Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+// void render_context_init(Thread_Context *context);
 
-void decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
+// void decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
 
-void render_context_destroy(Thread_Context *context);
+// void render_context_destroy(Thread_Context *context);
 
-bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf);
+// bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf);
 
 // void cluster_decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
 
@@ -59,19 +61,102 @@ static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
 
+
+static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Teleport_Express_Call *call)
+{
+    Call_Para all_para[5];
+    size_t temp_len;
+    int para_num = get_para_from_call(call, all_para, 5);
+
+    g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(call->unique_id));
+
+    switch (call->id)
+    {
+    case FUNID_GPU_Gbuffer_Download:
+    {
+        Gralloc_Gbuffer_Info info;
+
+        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Download))
+        {
+            break;
+        }
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
+        {
+            break;
+        }
+
+        read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
+
+        guest_download_gbuffer_data(info);
+    }
+    break;
+    case FUNID_GPU_Gbuffer_Upload:
+    {
+        Gralloc_Gbuffer_Info info;
+
+        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Upload))
+        {
+            break;
+        }
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
+        {
+            break;
+        }
+
+        read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
+
+        guest_upload_gbuffer_data(info);
+    }
+    break;
+    case FUNID_GPU_Alloc_Gbuffer:{
+        Gralloc_Gbuffer_Info info;
+
+        if (unlikely(para_num < PARA_NUM_MIN_GPU_Alloc_Gbuffer))
+        {
+            break;
+        }
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
+        {
+            break;
+        }
+
+        read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
+
+        Guest_Mem *gbuffer_data = copy_guest_mem_from_call(call, 2);
+
+        alloc_gbuffer_with_gralloc(info, gbuffer_data);
+    }
+    break;
+    default:
+    {
+        printf("error! unknown gpu gbuffer invoke id %llx para_num %d\n", call->id, para_num);
+    }
+    }
+
+    call->callback(call, 1);
+
+    return;
+}
+
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
  *
  * @param call
  */
-void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
+static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 {
 
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
 
-    // express_printf("enter decode invoke\n");
-
     uint64_t fun_id = GET_FUN_ID(call->id);
+
+    express_printf("enter gpu decode invoke id %llu\n", fun_id);
 
     if (fun_id >= 200000)
     {
@@ -91,6 +176,10 @@ void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 
         cluster_decode_invoke(call, context, (EXPRESS_DECODE_FUN)decode_invoke);
     }
+    else if (fun_id > 5000)
+    {
+        gbuffer_decode_invoke(render_context, call);
+    }
     else
     {
 
@@ -108,238 +197,8 @@ void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     return;
 }
 
-// /**
-//  * @brief 把聚合好的数据解包，分解成不同的call，用于继续调用invoke函数
-//  *
-//  * @param context
-//  * @param call
-//  */
-// void cluster_decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
-// {
-//     Call_Para all_para[MAX_PARA_NUM];
 
-//     unsigned char *send_async_buf;
-//     int send_async_buf_len;
-
-//     unsigned char *save_buf;
-
-//     // unsigned char temp_buf[1024];
-
-//     //把保存的两个参数数据取出来
-
-//     int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-//     if (para_num != 2)
-//     {
-//         call->callback(call, 0);
-//         return;
-//     }
-
-//     size_t temp_len = 0;
-//     unsigned char *temp = NULL;
-
-//     temp_len = all_para[0].data_len;
-//     send_async_buf_len = temp_len;
-
-//     if (temp_len % 8 != 0)
-//     {
-//         call->callback(call, 0);
-//         return;
-//     }
-
-//     send_async_buf = g_malloc(temp_len);
-
-//     int null_flag = 0;
-//     temp = get_direct_ptr(all_para[0].data, &null_flag);
-
-//     if (temp == NULL)
-//     {
-//         if (temp_len != 0 && null_flag == 0)
-//         {
-//             // temp = temp_buf;
-//             read_from_guest_mem(all_para[0].data, send_async_buf, 0, all_para[0].data_len);
-//         }
-//         else
-//         {
-//             call->callback(call, 0);
-//             g_free(send_async_buf);
-//             return;
-//         }
-//     }
-//     else
-//     {
-//         memcpy(send_async_buf, temp, temp_len);
-//     }
-
-//     temp_len = all_para[1].data_len;
-
-//     save_buf = g_malloc(temp_len);
-
-//     null_flag = 0;
-//     temp = get_direct_ptr(all_para[1].data, &null_flag);
-//     // printf("get direct ptr %llx\n",temp);
-//     if (temp == NULL)
-//     {
-//         if (temp_len != 0 && null_flag == 0)
-//         {
-//             // temp = temp_buf;
-//             read_from_guest_mem(all_para[1].data, save_buf, 0, all_para[1].data_len);
-//         }
-//         else
-//         {
-//             call->callback(call, 0);
-//             g_free(send_async_buf);
-//             g_free(save_buf);
-//             return;
-//         }
-//     }
-//     else
-//     {
-//         memcpy(save_buf, temp, temp_len);
-//     }
-
-//     Teleport_Express_Call unpack_call;
-//     unpack_call.vq = NULL;
-//     unpack_call.vdev = NULL;
-//     unpack_call.callback = release_call_special;
-//     unpack_call.is_end = 0;
-
-//     unpack_call.spend_time = 0;
-//     unpack_call.next = NULL;
-
-//     Teleport_Express_Queue_Elem pre_elem[MAX_PARA_NUM + 1];
-//     Guest_Mem pre_mem[MAX_PARA_NUM + 1];
-//     Scatter_Data pre_s_data[MAX_PARA_NUM + 1];
-
-//     //依次从两个数组数据中取出数据，创建call
-//     int buf_loc = 0;
-//     int create_ret;
-//     while (buf_loc < send_async_buf_len)
-//     {
-//         create_ret = create_call_from_cluster((uint64_t *)(send_async_buf + buf_loc), save_buf, &unpack_call, pre_elem, pre_mem, pre_s_data);
-//         if (create_ret == 0)
-//         {
-//             break;
-//         }
-//         //解包的几个id还是原来的id
-//         unpack_call.thread_id = call->thread_id;
-//         unpack_call.process_id = call->process_id;
-//         unpack_call.unique_id = call->unique_id;
-
-//         buf_loc += (unpack_call.para_num * 2 + 2) * 8;
-//         if (buf_loc > send_async_buf_len)
-//         {
-//             //防止有的call有问题
-//             break;
-//         }
-
-//         decode_invoke(context, &unpack_call);
-//     }
-//     //所有调用完成后，这个call要回收
-//     call->callback(call, 1);
-
-//     g_free(send_async_buf);
-//     g_free(save_buf);
-//     return;
-// }
-
-// /**
-//  * @brief 从聚合的数据中取出信息，创建一个call，用于之后调用
-//  *
-//  * @param send_buf 原始的发送数据
-//  * @param save_buf 保存的指针数据
-//  * @return
-//  */
-// int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Teleport_Express_Call *pre_call, Teleport_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data)
-// {
-
-//     pre_call->id = send_buf[0];
-
-//     //用9999作为聚合调用的id
-//     if (GET_FUN_ID(pre_call->id) == 9999)
-//     {
-//         return 0;
-//     }
-
-//     pre_call->para_num = send_buf[1];
-//     pre_call->elem_header = NULL;
-//     // assert(pre_call->para_num < 10);
-//     //第一个elem是用于存储各种id的，这个解包的call用不到。但是也得占位
-//     // Teleport_Express_Queue_Elem *elem = g_malloc(sizeof(Teleport_Express_Queue_Elem));
-//     pre_call->elem_header = &(pre_elem[0]);
-//     Teleport_Express_Queue_Elem *last_elem = &(pre_elem[0]);
-//     for (int i = 0; i < pre_call->para_num; i++)
-//     {
-//         //需要把这个pre_elem[i+1]中能填充的部分给填充起来
-
-//         // Guest_Mem *guest_mem = g_malloc(sizeof(Guest_Mem));
-//         // Scatter_Data *scatter_data = g_malloc(sizeof(Scatter_Data));
-
-//         if (send_buf[i * 2 + 2 + 1] != 0)
-//         {
-//             pre_scatter_data[i].len = send_buf[i * 2 + 2];
-//             pre_scatter_data[i].data = save_buf + send_buf[i * 2 + 2 + 1];
-//         }
-//         else
-//         {
-//             pre_scatter_data[i].len = 0;
-//             pre_scatter_data[i].data = NULL;
-//         }
-
-//         pre_guest_mem[i].scatter_data = &(pre_scatter_data[i]);
-//         pre_guest_mem[i].num = 1;
-//         pre_guest_mem[i].all_len = pre_scatter_data[i].len;
-
-//         pre_elem[i + 1].para = &(pre_guest_mem[i]);
-//         pre_elem[i + 1].len = send_buf[i * 2 + 2];
-//         pre_elem[i + 1].next = NULL;
-
-//         last_elem->next = &(pre_elem[i + 1]);
-//         last_elem = &(pre_elem[i + 1]);
-//     }
-//     pre_call->elem_tail = &(pre_elem[pre_call->para_num]);
-
-//     //因为这个call是解包的call，所以不能调用原先的callback，只能调用新的callback，这个里面会释放前面申请的各种数据
-//     //所以不论是vdev还是vq都用不上，不用设置来着
-
-//     return 1;
-// }
-
-// /**
-//  * @brief 用于call使用完成之后的回调
-//  *
-//  * @param call
-//  * @param notify
-//  */
-// void release_call_special(Teleport_Express_Call *call, int notify)
-// {
-//     // Teleport_Express_Queue_Elem *elem = call->elem_header;
-
-//     // Teleport_Express_Queue_Elem *delete_elem = elem;
-//     // elem = elem->next;
-
-//     // //第一个elem里面是空的啥也没有
-//     // g_free(delete_elem);
-
-//     // for (int i = 0; i < call->para_num; i++)
-//     // {
-//     //     delete_elem = elem;
-//     //     Guest_Mem *guest_mem = (Guest_Mem *)elem->para;
-//     //     Scatter_Data *scatter_data = guest_mem->scatter_data;
-
-//     //     g_free(scatter_data);
-//     //     g_free(guest_mem);
-
-//     //     elem = elem->next;
-
-//     //     g_free(delete_elem);
-//     // }
-
-//     // //最后要自己释放掉这个call，因为这个不会推送给轮询线程来释放
-//     // g_free(call);
-//     return;
-// }
-
-Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     if (render_thread_contexts == NULL)
     {
@@ -392,7 +251,7 @@ Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id
     return (Thread_Context *)thread_context;
 }
 
-bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
+static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
 
@@ -417,7 +276,7 @@ bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t
     }
 }
 
-void render_context_init(Thread_Context *context)
+static void render_context_init(Thread_Context *context)
 {
 
     express_printf("render context init!\n");
@@ -508,7 +367,7 @@ static void gbuffer_map_destroy(gpointer data)
     return;
 }
 
-void render_context_destroy(Thread_Context *context)
+static void render_context_destroy(Thread_Context *context)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;

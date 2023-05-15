@@ -247,6 +247,7 @@ typedef struct Express_Device_Info
     // 虚拟中断释放时的回调
     void (*irq_release)(Device_Context *context);
 
+    // 给外设提供的静态属性参数值，可以在内核内通过调用get_teleport_input_device_prop来获得
     void *static_prop;
     int static_prop_size;
 
