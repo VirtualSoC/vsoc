@@ -125,41 +125,41 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         hal_format = *(int *)(temp + temp_loc);
         temp_loc += 4;
 
-        int out_buf_len = all_para[1].data_len;
+        // int out_buf_len = all_para[1].data_len;
 
-        unsigned char *ret_buf = NULL;
+        // unsigned char *ret_buf = NULL;
 
-        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
-        {
-            ret_buf = g_malloc(out_buf_len);
-        }
-        else
-        {
-            ret_buf = ret_local_buf;
-        }
-        int out_buf_loc = 0;
+        // if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        // {
+        //     ret_buf = g_malloc(out_buf_len);
+        // }
+        // else
+        // {
+        //     ret_buf = ret_local_buf;
+        // }
+        // int out_buf_loc = 0;
 
-        EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
-        out_buf_loc += sizeof(EGLBoolean);
+        // EGLBoolean *ret_ptr = (EGLBoolean *)(ret_buf + out_buf_loc);
+        // out_buf_loc += sizeof(EGLBoolean);
 
-        if (unlikely(out_buf_loc > out_buf_len))
-        {
-            if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
-            {
-                g_free(ret_buf);
-            }
-            break;
-        }
+        // if (unlikely(out_buf_loc > out_buf_len))
+        // {
+        //     if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        //     {
+        //         g_free(ret_buf);
+        //     }
+        //     break;
+        // }
 
-        EGLBoolean ret = d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id, width, height, hal_format);
-        *ret_ptr = ret;
+        d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id, width, height, hal_format);
+        // *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
+        // write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
-        if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
-        {
-            g_free(ret_buf);
-        }
+        // if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
+        // {
+        //     g_free(ret_buf);
+        // }
     }
     break;
 
