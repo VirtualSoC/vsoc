@@ -30,7 +30,7 @@
 #define BRIDGE_FUN_ACCEPT 2
 #define BRIDGE_FUN_CONNECT 3
 #define BRIDGE_FUN_OUTPUT 4
-#define BRIDGE_FUN_END 5
+// #define BRIDGE_FUN_END 5
 
 #define NONE_STATUS 0
 #define BIND_STATUS 1
@@ -455,26 +455,27 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
         }
     }
     break;
-    case BRIDGE_FUN_END:
-    {
-        if (para_num == 0)
-        {
-            g_hash_table_remove(bridge_thread_contexts, GUINT_TO_POINTER(bridge_context->unique_id));
-            bridge_context->thread_context.thread_run = 0;
+    // case BRIDGE_FUN_END:
+    // {
+    //     if (para_num == 0)
+    //     {
+    //         g_hash_table_remove(bridge_thread_contexts, GUINT_TO_POINTER(bridge_context->unique_id));
+    //         bridge_context->thread_context.thread_run = 0;
 
-            if (bridge_context->status_id == CONNECTED_STATUS || bridge_context->status_id == BIND_STATUS)
-            {
-                bridge_context->connection_context.read_thread_should_running = false;
-                // closesocket(bridge_context->connection_context.socket_fd);
-                // 等待线程退出
-                qemu_thread_join(&bridge_context->connection_context.read_thread);
-                printf(DEBUG_HEAD "wait read thread exit ok %d\n", bridge_context->connection_context.socket_fd);
-            }
-        }
-    }
-    break;
+    //         if (bridge_context->status_id == CONNECTED_STATUS || bridge_context->status_id == BIND_STATUS)
+    //         {
+    //             bridge_context->connection_context.read_thread_should_running = false;
+    //             // closesocket(bridge_context->connection_context.socket_fd);
+    //             // 等待线程退出
+    //             qemu_thread_join(&bridge_context->connection_context.read_thread);
+    //             printf(DEBUG_HEAD "wait read thread exit ok %d\n", bridge_context->connection_context.socket_fd);
+    //         }
+    //     }
+    // }
+    // break;
     default:
     {
+        printf("error bridge fun id %lld\n", fun_id);
     }
     break;
     }
@@ -514,9 +515,21 @@ static Thread_Context *get_bridge_context(uint64_t device_id, uint64_t thread_id
 
 static bool remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    // Thread_Context *context = g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
+    Bridge_Thread_Context *bridge_context = (Bridge_Thread_Context *)g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
 
     g_hash_table_remove(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
+
+    bridge_context->thread_context.thread_run = 0;
+
+    if (bridge_context->status_id == CONNECTED_STATUS || bridge_context->status_id == BIND_STATUS)
+    {
+        bridge_context->connection_context.read_thread_should_running = false;
+        // closesocket(bridge_context->connection_context.socket_fd);
+        // 等待线程退出
+        qemu_thread_join(&bridge_context->connection_context.read_thread);
+        printf(DEBUG_HEAD "wait read thread exit ok %d\n", bridge_context->connection_context.socket_fd);
+    }
+
     return true;
 }
 
