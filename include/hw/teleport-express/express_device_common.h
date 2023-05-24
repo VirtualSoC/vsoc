@@ -281,6 +281,8 @@ extern int *express_display_pixel_height;
 extern int *express_display_phy_width;
 extern int *express_display_phy_height;
 
+extern bool express_display_switch_open;
+
 void express_device_init_common(Express_Device_Info *info);
 
 Express_Device_Info *get_express_device_info(unsigned int device_id);

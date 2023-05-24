@@ -44,6 +44,9 @@ typedef struct Teleport_Express_PCI{
 
     bool finger_replay;
 
+    bool display_switch_open;
+
+
 } Teleport_Express_PCI;
 
 

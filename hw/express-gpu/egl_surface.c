@@ -657,7 +657,7 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
         pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
         // row_byte_len = width * 2;
     }
-    else if (info.format == EXPRESS_PIXEL_RGB1010102)
+    else if (info.format == EXPRESS_PIXEL_RGBA1010102)
     {
         internal_format = GL_RGB10_A2;
         format = GL_RGBA;
@@ -762,7 +762,7 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
         // row_byte_len = width * 2;
     }
-    else if (hal_format == EXPRESS_PIXEL_RGB1010102)
+    else if (hal_format == EXPRESS_PIXEL_RGBA1010102)
     {
         internal_format = GL_RGB10_A2;
         format = GL_RGBA;

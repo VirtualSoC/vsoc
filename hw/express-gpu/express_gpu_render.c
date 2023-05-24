@@ -824,7 +824,7 @@ static void opengl_paint_composer_layers(void)
     {
         glClear(GL_COLOR_BUFFER_BIT);
 
-        if (!display_is_open)
+        if (!display_is_open && express_display_switch_open)
         {
             return;
         }
@@ -1253,8 +1253,8 @@ void *native_window_thread(void *opaque)
             // 处理各种输入事件、opengl事件
             glfwWaitEventsTimeout(0.001);
 
-            sync_express_touchscreen_input((bool)display_is_open);
-            sync_express_keyboard_input((bool)display_is_open);
+            sync_express_touchscreen_input((bool)display_is_open || !express_display_switch_open);
+            sync_express_keyboard_input((bool)display_is_open || !express_display_switch_open);
             // express_input_device_sync();
 
             handle_child_window_event();

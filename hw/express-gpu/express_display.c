@@ -49,6 +49,8 @@ int *express_display_phy_height = &(express_display_info.phy_height);
 
 int display_is_open = 1;
 
+bool express_display_switch_open = false;
+
 void display_status_change(Display_Status status);
 
 /**
@@ -415,14 +417,17 @@ void display_status_change(Display_Status status)
     printf("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u\n",
            now_display_status.refresh_rate, status.refresh_rate, now_display_status.power_status, status.power_status,
            now_display_status.backlight, status.backlight);
-    now_display_status = status;
-    if (now_display_status.power_status == 3)
+    if(express_display_switch_open)
     {
-        display_is_open = 0;
-    }
-    else
-    {
-        display_is_open = 1;
+        now_display_status = status;
+        if (now_display_status.power_status == 3)
+        {
+            display_is_open = 0;
+        }
+        else
+        {
+            display_is_open = 1;
+        }
     }
 }
 
