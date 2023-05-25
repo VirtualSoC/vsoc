@@ -56,6 +56,8 @@ int express_gpu_window_FPS = 60;
 
 bool express_gpu_keep_window_scale = false;
 
+bool express_gpu_open_shader_binary = true;
+
 QemuThread native_window_render_thread;
 
 // static unsigned int main_frame_num = 0;
@@ -629,8 +631,11 @@ static void static_value_prepare(void)
     //     preload_static_context_value->shader_binary_formats[0]);
 
     //@todo 增加换硬件后暂时移除binary的功能
-    // preload_static_context_value->num_program_binary_formats =0;
-    // preload_static_context_value->num_shader_binary_formats = 0;
+    if(!express_gpu_open_shader_binary)
+    {
+        preload_static_context_value->num_program_binary_formats = 0;
+        preload_static_context_value->num_shader_binary_formats = 0;
+    }
 
     if (preload_static_context_value->num_program_binary_formats > 8)
     {
