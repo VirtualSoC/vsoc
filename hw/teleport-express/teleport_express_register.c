@@ -130,7 +130,7 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
 
     // release_one_call(call, (bool)notify);
 
-    need_send_irq = true;
+    // need_send_irq = true;
     if (input_event != NULL && now_can_set_event)
     {
 #ifdef _WIN32
@@ -210,14 +210,11 @@ void *input_sync_thread(void *opaque)
             now_can_set_event = false;
         }
 
-        if (need_send_irq)
+        Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
+        if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
         {
-            Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
-            if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
-            {
-                register_input_buffer_call(in_teleport_express, g->in_data_queue);
-                qatomic_set(&(g->register_input_vq_locker), 0);
-            }
+            register_input_buffer_call(in_teleport_express, g->in_data_queue);
+            qatomic_set(&(g->register_input_vq_locker), 0);
         }
     }
     CloseHandle(input_event);
@@ -236,6 +233,8 @@ void express_input_device_sync(void)
         call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
 
         release_one_call(out_call, false);
+
+        need_send_irq = true;
     }
 
     if (need_send_irq)
