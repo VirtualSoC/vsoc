@@ -1074,6 +1074,8 @@ void *native_window_thread(void *opaque)
                 glfwShowWindow(glfw_window);
                 glfwSwapBuffers(glfw_window);
                 window_is_shown = true;
+                sdl2_no_need = 1;
+
             }
 
             // 在窗口上绘制内容
