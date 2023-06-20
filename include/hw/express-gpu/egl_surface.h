@@ -176,7 +176,6 @@ typedef struct Window_Buffer
      // int last_frame_num;
      int swap_interval;
 
-     int I_am_composer;
 
 
      int64_t swap_time[20];

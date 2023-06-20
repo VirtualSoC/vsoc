@@ -846,18 +846,6 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
 
     unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-    // if (gbuffer->data_sync != NULL)
-    // {
-    //     if (gbuffer->delete_sync != NULL)
-    //     {
-    //         glDeleteSync(gbuffer->delete_sync);
-    //     }
-
-    //     gbuffer->delete_sync = gbuffer->data_sync;
-    //     gbuffer->data_sync = NULL;
-    // }
-
-    // gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     glFlush();
 }

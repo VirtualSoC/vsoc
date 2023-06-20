@@ -45,24 +45,10 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
             express_printf("create gbuffer when swapbuffer gbuffer %llx gbuffer\n", gbuffer_id, next_draw_gbuffer);
 
             add_gbuffer_to_global(next_draw_gbuffer);
-            // set_global_gbuffer_type(gbuffer_id, GBUFFER_TYPE_WINDOW);
         }
         else
         {
-            // ATOMIC_LOCK(next_draw_gbuffer->is_lock);
-            // next_draw_gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
-            // if (next_draw_gbuffer->is_using == 0 && next_draw_gbuffer->is_dying == 1)
-            // {
-            //     next_draw_gbuffer->is_dying = 0;
-            //     send_message_to_main_window(MAIN_CANCEL_GBUFFER, next_draw_gbuffer);
-            // }
-            // ATOMIC_UNLOCK(next_draw_gbuffer->is_lock);
         }
-        //         next_draw_gbuffer->is_writing = 1;
-        // #ifdef _WIN32
-        //         ResetEvent(next_draw_gbuffer->writing_ok_event);
-        // #else
-        // #endif
     }
     else
     {
@@ -73,23 +59,6 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
 
     GLenum attachments[] = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMENT};
     glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 3, attachments);
-
-    // TIMER_START(sync)
-    // if (next_draw_gbuffer->data_sync != 0)
-    // {
-    //     // glFinish();
-    //     // glClientWaitSync(next_draw_gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-    //     glWaitSync(next_draw_gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
-
-    //     if (next_draw_gbuffer->delete_sync != 0)
-    //     {
-    //         glDeleteSync(next_draw_gbuffer->delete_sync);
-    //     }
-    //     next_draw_gbuffer->delete_sync = next_draw_gbuffer->data_sync;
-    //     next_draw_gbuffer->data_sync = NULL;
-    // }
-    // TIMER_END(sync)
-    // TIMER_OUTPUT(sync, 100)
 
     surface->gbuffer = next_draw_gbuffer;
 
@@ -442,15 +411,14 @@ int render_surface_destroy(Window_Buffer *surface)
 
 void d_eglIamComposer(void *context, EGLSurface surface, unsigned int pid)
 {
-    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
-    Process_Context *process_context = thread_context->process_context;
+    // Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    // Process_Context *process_context = thread_context->process_context;
 
-    Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GUINT_TO_POINTER(surface));
-
+    // Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GUINT_TO_POINTER(surface));
     // printf("surface is composer %llx guest %llx\n", real_surface, surface);
 
     preload_static_context_value->composer_pid = pid;
-    real_surface->I_am_composer = 1;
+    // real_surface->I_am_composer = 1;
 }
 
 void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list, EGLSurface guest_surface)
@@ -605,7 +573,6 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
 
     if (info.format == EXPRESS_PIXEL_RGBA8888 || info.format == EXPRESS_PIXEL_RGBX8888)
     {
-        // 根据鼠标显示来看，8888的情况下内存布局有反向
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_BYTE;
@@ -709,7 +676,6 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
 
     if (hal_format == EXPRESS_PIXEL_RGBA8888 || hal_format == EXPRESS_PIXEL_RGBX8888)
     {
-        // 根据鼠标显示来看，8888的情况下内存布局有反向
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_BYTE;
@@ -1111,11 +1077,6 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
 
     glFlush();
 
-// #ifdef _WIN32
-//     CloseHandle(gbuffer->writing_ok_event);
-// #else
-
-// #endif
 
     g_free(gbuffer);
 }
@@ -1182,12 +1143,6 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
     if (target == EGL_NATIVE_BUFFER_ANDROID)
     {
-        // int gbuffer_type = (int)get_global_gbuffer_type(gbuffer_id);
-
-        // if (gbuffer_type != GBUFFER_TYPE_NONE)
-        // {
-        //     gbuffer = get_gbuffer_from_global_map(gbuffer_id);
-        // }
 
         gbuffer = get_gbuffer_from_global_map(gbuffer_id);
 
@@ -1197,34 +1152,10 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
             gbuffer = create_gbuffer_with_context(width, height, hal_format, thread_context, ctx, gbuffer_id);
 
             add_gbuffer_to_global(gbuffer);
-            // if (gbuffer_type == GBUFFER_TYPE_NONE)
-            // {
-            //     set_global_gbuffer_type(gbuffer_id, GBUFFER_TYPE_NATIVE);
-            //     gbuffer->usage_type = GBUFFER_TYPE_NATIVE;
-            // }
-            // else
-            // {
-            //     if (gbuffer_type != GBUFFER_TYPE_BITMAP_NEED_DATA)
-            //     {
-            //         printf("error! gbuffer NULL with gbuffer_type %d\n", gbuffer_type);
-            //     }
-            //     gbuffer->usage_type = GBUFFER_TYPE_BITMAP_NEED_DATA;
-            //     gbuffer->remain_life_time = MAX_BITMAP_LIFE_TIME;
-            // }
+
         }
         else
         {
-            // printf("cancel gbuffer delete %llx ptr %llx\n", gbuffer->gbuffer_id, (uint64_t)gbuffer);
-            // gbuffer->usage_type = GBUFFER_TYPE_WINDOW;
-
-            // ATOMIC_LOCK(gbuffer->is_lock);
-            // gbuffer->is_using = 1;
-            // if (gbuffer->is_dying == 1)
-            // {
-            //     gbuffer->is_dying = 0;
-            //     send_message_to_main_window(MAIN_CANCEL_GBUFFER, gbuffer);
-            // }
-            // ATOMIC_UNLOCK(gbuffer->is_lock);
         }
     }
     else
@@ -1251,35 +1182,6 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         {
             printf("error! eglCreateImage share texture get different opengl_context %llx %llx\n", (uint64_t)thread_context->opengl_context, (uint64_t)share_opengl_context);
         }
-
-        // if (thread_context->opengl_context == NULL)
-        // {
-        //     // 假如现在opengl不对
-        //     printf("create eglImage gbuffer with different context!\n");
-        //     if (share_opengl_context->independ_mode == 1)
-        //     {
-        //         glfwMakeContextCurrent((GLFWwindow *)share_opengl_context->window);
-        //     }
-        //     else
-        //     {
-        //         egl_makeCurrent(share_opengl_context->window);
-        //     }
-        // }
-        // gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        // glFlush();
-        // glFinish();
-
-        // if (thread_context->opengl_context == NULL)
-        // {
-        //     if (share_opengl_context->independ_mode == 1)
-        //     {
-        //         glfwMakeContextCurrent(NULL);
-        //     }
-        //     else
-        //     {
-        //         egl_makeCurrent(NULL);
-        //     }
-        // }
 
         // texture类型的gbuffer不需要放到global表中，因为这个image只能在自己进程内共享
     }

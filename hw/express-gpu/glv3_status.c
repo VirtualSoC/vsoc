@@ -480,38 +480,6 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         }
     }
 
-//     //假如应用帧数都是60帧，则基本不可能出现这种情况，因为queuebuffer的时延也就几毫秒
-//     if (gbuffer->is_writing == 1)
-//     {
-// #ifdef _WIN32
-//         //不能因为等待导致掉帧或卡死
-//         //暂时允许掉一帧，因为理论上一帧过后肯定好了
-//         int waiting_time = 1000 / composer_refresh_HZ / 4 * 6;
-//         WaitForSingleObject(gbuffer->writing_ok_event, waiting_time);
-//         express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n", gbuffer->is_writing);
-//         if (gbuffer->is_writing == 1)
-//         {
-//             printf("waiting gbuffer(release writing) out of time %d\n", waiting_time);
-//         }
-// #else
-// #endif
-//     }
-
-//     if (gbuffer->data_sync != 0)
-//     {
-//         if (gbuffer->delete_sync != 0)
-//         {
-//             glDeleteSync(gbuffer->delete_sync);
-//         }
-//         glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
-
-//         gbuffer->delete_sync = gbuffer->data_sync;
-//         gbuffer->data_sync = 0;
-
-//         // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-//         glFlush();
-//     }
-
     host_share_texture = gbuffer->data_texture;
 
     //原来的texture直接删除掉，假设原来的texture不会再被正常使用——不确定@todo

@@ -41,18 +41,6 @@ bool express_device_input_window_enable = false;
 //  Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 //  void render_context_init(Thread_Context *context);
 
-// void decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
-
-// void render_context_destroy(Thread_Context *context);
-
-// bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf);
-
-// void cluster_decode_invoke(Thread_Context *context, Teleport_Express_Call *call);
-
-// void release_call_special(Teleport_Express_Call *call, int notify);
-
-// int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Teleport_Express_Call *pre_call, Teleport_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
-
 static void g_surface_map_destroy(gpointer data);
 
 static void g_context_map_destroy(gpointer data);
@@ -224,13 +212,8 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             // 注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
             process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
-            // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
-            // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+            
             process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
-            // process->egl_sync_resource = g_malloc0(sizeof(Resource_Map_Status));
-            // process->egl_sync_resource->map_size = 0;
-            // process->egl_sync_resource->max_id = 0;
-            // process->egl_sync_resource->resource_id_map = NULL;
             process->thread_cnt = 0;
 
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
@@ -344,21 +327,11 @@ static void gbuffer_map_destroy(gpointer data)
             send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->delete_sync);
             // glDeleteSync(gbuffer->delete_sync);
         }
-        // set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
         g_free(gbuffer);
     }
     else
     {
         // 其他类型的gbuffer真实释放由display线程完成
-        // ATOMIC_LOCK(gbuffer->is_lock);
-        // gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
-        // gbuffer->is_using = 0;
-        // if (gbuffer->is_dying == 0)
-        // {
-        //     gbuffer->is_dying = 1;
-        //     send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
-        // }
-        // ATOMIC_UNLOCK(gbuffer->is_lock);
     }
     // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
 
@@ -380,39 +353,6 @@ static void render_context_destroy(Thread_Context *context)
     {
         d_eglMakeCurrent(thread_context, NULL, NULL, NULL, NULL, 0, 0, 0, 0);
     }
-    // if (thread_context->render_double_buffer_read != NULL)
-    // {
-    //     thread_context->render_double_buffer_read->is_current = 0;
-
-    //     Graphic_Buffer *old_draw_gbuffer = thread_context->render_double_buffer_draw->gbuffer;
-    //     express_printf("makecurrent free draw surface %llx\n",(uint64_t)thread_context->render_double_buffer_draw);
-    //     if(thread_context->render_double_buffer_draw->type == WINDOW_SURFACE && old_draw_gbuffer->gbuffer_id != gbuffer_id)
-    //     {
-    //         ATOMIC_LOCK(old_draw_gbuffer->is_lock);
-    //         old_draw_gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
-    //         if(old_draw_gbuffer->is_using == 0 && old_draw_gbuffer->is_dying == 0)
-    //         {
-    //             old_draw_gbuffer->is_dying = 1;
-    //             send_message_to_main_window(MAIN_DESTROY_GBUFFER, old_draw_gbuffer);
-    //         }
-    //         ATOMIC_UNLOCK(old_draw_gbuffer->is_lock);
-    //     }
-
-    // }
-    // if (thread_context->render_double_buffer_draw != NULL && thread_context->render_double_buffer_draw != thread_context->render_double_buffer_read)
-    // {
-    //     thread_context->render_double_buffer_draw->is_current = 0;
-    // }
-    // if (thread_context->opengl_context != NULL)
-    // {
-    //     express_printf("render context destroy thread %llx context %llx guest %llx when current window %llx\n", (uint64_t)thread_context, (uint64_t)thread_context->opengl_context,(uint64_t)thread_context->opengl_context->guest_context, (uint64_t)thread_context->opengl_context->window);
-
-    //     thread_context->opengl_context->is_current = 0;
-    //     g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(thread_context->opengl_context->guest_context));
-
-    //     egl_makeCurrent(NULL);
-
-    // }
 
     // process_context->thread_cnt -= 1;
     express_printf("process %llx destroy cnt %d\n", (uint64_t)process_context, process_context->thread_cnt);
