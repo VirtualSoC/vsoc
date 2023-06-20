@@ -459,13 +459,13 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
     if (gbuffer == NULL)
     {
-        printf("error! glBindEGLImage with NULL gbuffer when finding in process gbuffer_id %llx type %d\n", gbuffer_id, gbuffer->usage_type);
+        printf("error! glBindEGLImage with NULL gbuffer when finding in process gbuffer_id %llx target %x\n", gbuffer_id, target);
         return;
     }
 
     // printf("glBindEGLImage gbuffer %llx ptr %llx type %d target-texture(%d)\n",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
 
-    if (gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
+    if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE)
     {
         set_texture_gbuffer_ptr(opengl_context, texture, gbuffer);
         // printf("glBindEGLImage gbuffer_id %llx when write %d sync %d\n", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
@@ -480,37 +480,37 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         }
     }
 
-    //假如应用帧数都是60帧，则基本不可能出现这种情况，因为queuebuffer的时延也就几毫秒
-    if (gbuffer->is_writing == 1)
-    {
-#ifdef _WIN32
-        //不能因为等待导致掉帧或卡死
-        //暂时允许掉一帧，因为理论上一帧过后肯定好了
-        int waiting_time = 1000 / composer_refresh_HZ / 4 * 6;
-        WaitForSingleObject(gbuffer->writing_ok_event, waiting_time);
-        express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n", gbuffer->is_writing);
-        if (gbuffer->is_writing == 1)
-        {
-            printf("waiting gbuffer(release writing) out of time %d\n", waiting_time);
-        }
-#else
-#endif
-    }
+//     //假如应用帧数都是60帧，则基本不可能出现这种情况，因为queuebuffer的时延也就几毫秒
+//     if (gbuffer->is_writing == 1)
+//     {
+// #ifdef _WIN32
+//         //不能因为等待导致掉帧或卡死
+//         //暂时允许掉一帧，因为理论上一帧过后肯定好了
+//         int waiting_time = 1000 / composer_refresh_HZ / 4 * 6;
+//         WaitForSingleObject(gbuffer->writing_ok_event, waiting_time);
+//         express_printf("glBindEGLImage gbuffer is writting(waiting end %d)\n", gbuffer->is_writing);
+//         if (gbuffer->is_writing == 1)
+//         {
+//             printf("waiting gbuffer(release writing) out of time %d\n", waiting_time);
+//         }
+// #else
+// #endif
+//     }
 
-    if (gbuffer->data_sync != 0)
-    {
-        if (gbuffer->delete_sync != 0)
-        {
-            glDeleteSync(gbuffer->delete_sync);
-        }
-        glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
+//     if (gbuffer->data_sync != 0)
+//     {
+//         if (gbuffer->delete_sync != 0)
+//         {
+//             glDeleteSync(gbuffer->delete_sync);
+//         }
+//         glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
 
-        gbuffer->delete_sync = gbuffer->data_sync;
-        gbuffer->data_sync = 0;
+//         gbuffer->delete_sync = gbuffer->data_sync;
+//         gbuffer->data_sync = 0;
 
-        // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-        glFlush();
-    }
+//         // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+//         glFlush();
+//     }
 
     host_share_texture = gbuffer->data_texture;
 

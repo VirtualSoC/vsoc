@@ -90,11 +90,11 @@ typedef struct Graphic_Buffer{
      int is_writing;
      
      //假如合成器在使用这个gbufffer时发现正在写入，则新建并监听这个事件，以让对方来唤醒自己
-#ifdef _WIN32
-    HANDLE writing_ok_event;
-#else
+// #ifdef _WIN32
+//     HANDLE writing_ok_event;
+// #else
 
-#endif
+// #endif
      int is_lock;
      int sampler_num;
      
@@ -121,7 +121,7 @@ typedef struct Graphic_Buffer{
      int is_dying;
      int is_using;
      int need_reverse;
-     int layer_id;
+     // int layer_id;
 
      int format;
      int pixel_type;

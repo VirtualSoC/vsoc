@@ -21,6 +21,8 @@
 
 #include "hw/express-gpu/egl_surface.h"
 
+#include "hw/express-gpu/express_sync.h"
+
 #include "qemu/atomic.h"
 
 static Thread_Context *static_display_context = NULL;
@@ -33,6 +35,15 @@ static int un_pack_buffer_size = 0;
 static GLsync unpack_buffer_sync = NULL;
 
 static Display_Status now_display_status;
+
+static GLuint programID = 0;
+static GLuint drawVAO = 0;
+
+static GLint program_transform_loc = 0;
+static GLuint now_transform_type = 0;
+
+static Graphic_Buffer *display_write_gbuffer;
+static Graphic_Buffer *display_read_gbuffer;
 
 Display_Info express_display_info = {
     .pixel_width = 1280,
@@ -50,6 +61,9 @@ int *express_display_phy_height = &(express_display_info.phy_height);
 int display_is_open = 1;
 
 bool express_display_switch_open = false;
+
+static void opengl_paint_composer_layers(GBuffer_Layers *layers);
+static void display_present(void);
 
 void display_status_change(Display_Status status);
 
@@ -117,10 +131,10 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             else
             {
                 remove_gbuffer_from_global_map(info.gbuffer_id);
-                set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
+                // set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
                 destroy_gbuffer(gbuffer);
             }
-            printf("FUNID_Terminate_Gbuffer destroy gbuffer id %llx\n", info.gbuffer_id);
+            printf("terminate gbuffer id %llx\n", info.gbuffer_id);
         }
     }
     break;
@@ -148,18 +162,29 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
         if (layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers) != layers_size)
         {
-            printf(RED("error! Gbuffer_Layers’ size is not equal to data size num %d calc size %lld layers_size %lld"), layers->layer_num, layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers), layers_size);
+            printf(RED("error! Gbuffer_Layers' size is not equal to data size num %d calc size %lld layers_size %lld\n"), layers->layer_num, layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers), layers_size);
             g_free(layers);
             break;
         }
 
-        send_message_to_main_window(MAIN_PAINT_LAYERS, layers);
+        opengl_paint_composer_layers(layers);
+        g_free(layers);
+
+        display_present();
+
+        send_message_to_main_window(MAIN_PAINT, display_read_gbuffer);
     }
     break;
     case FUNID_Show_Window:
     {
         printf("force_show_native_render_window\n");
-        force_show_native_render_window = true;
+        force_show_native_render_window = 1;
+    }
+    break;
+    case FUNID_Show_Window_FLIP_V:
+    {
+        printf("force_show_native_render_window-filp_v\n");
+        force_show_native_render_window = 2;
     }
     break;
     case FUNID_Gbuffer_Download:
@@ -270,6 +295,78 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         Guest_Mem *gbuffer_data = copy_guest_mem_from_call(call, 2);
 
         alloc_gbuffer_with_gralloc(info, gbuffer_data);
+    }
+    break;
+    case FUNID_Set_Sync_Flag:
+    {
+        uint64_t sync_id;
+
+        if (unlikely(para_num < PARA_NUM_Set_Sync_Flag))
+        {
+            break;
+        }
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(uint64_t)))
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(temp == NULL))
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        sync_id = *(uint64_t *)(temp);
+
+        set_express_sync_id((int)sync_id, true);
+    }
+    break;
+    case FUNID_Wait_Sync:
+    {
+        uint64_t sync_id;
+
+        if (unlikely(para_num < PARA_NUM_Wait_Sync))
+        {
+            break;
+        }
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(uint64_t)))
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(temp == NULL))
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        sync_id = *(uint64_t *)(temp);
+
+        wait_for_express_sync((int)sync_id, true);
     }
     break;
     case FUNID_Get_Display_Mods:
@@ -397,6 +494,44 @@ static void display_context_init(Thread_Context *context)
         glGenBuffers(1, &un_pack_buffer);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, un_pack_buffer);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, un_pack_buffer);
+
+        display_write_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
+                                               0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
+        display_read_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
+                                              0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
+
+        glGenFramebuffers(1, &display_write_gbuffer->data_fbo);
+        glGenFramebuffers(1, &display_read_gbuffer->data_fbo);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
+
+        main_window_opengl_prepare(&programID, &drawVAO);
+        glBindVertexArray(drawVAO);
+
+        program_transform_loc = glGetUniformLocation(programID, "transform_loc");
+        now_transform_type = 0;
+
+        glEnable(GL_SCISSOR_TEST);
+
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
+
+        // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+        glDisable(GL_BLEND);
+        // glEnable(GL_BLEND);
+        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        if (express_gpu_gl_debug_enable)
+        {
+            glEnable(GL_DEBUG_OUTPUT);
+            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            glDebugMessageCallback(gl_debug_output, NULL);
+            glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        }
     }
 }
 
@@ -412,12 +547,159 @@ static void display_context_destroy(Thread_Context *context)
     }
 }
 
+static void opengl_paint_composer_layers(GBuffer_Layers *layers)
+{
+    int display_height = express_display_info.pixel_height;
+    // int display_width = express_display_info.pixel_width;
+
+    if (layers != NULL)
+    {
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        if (!display_is_open && express_display_switch_open)
+        {
+            return;
+        }
+
+        for (int i = 0; i < layers->layer_num; i++)
+        {
+            GBuffer_Layer layer = layers->layer[i];
+
+            express_printf("composer wait for sync %d\n", layer.write_sync_id);
+
+            wait_for_express_sync(layer.write_sync_id, true);
+
+            Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
+            if (gbuffer != NULL)
+            {
+                express_printf("draw layer gbuffer_id %llx  %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d\n",
+                       layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+                // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
+                // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
+                // 两者间可能存在缩放关系
+                // 这里计算得到的是，在缩放正确的情况下，原始的整个gbuffer绘制到当前界面的位置
+                int view_w = gbuffer->width * layer.width / layer.crop_width;
+                int view_h = gbuffer->height * layer.height / layer.crop_height;
+                int view_x = layer.x - layer.crop_x * layer.width / layer.crop_width;
+                int view_y = 0;
+                if (force_show_native_render_window == 2)
+                {
+                    // 安卓9的显示
+                    view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
+                    if (layer.transform_type == FLIP_V)
+                    {
+                        // guest在设置了上下翻转的情况下，layer的crop坐标也会是翻转后的图像区域坐标,
+                        // 也就是，crop的xy实际是翻转后的图像的左上角（即实际的左下角）
+                        // 需要手动把这个crop坐标上下翻转过来，获得真正图像左上角的xy坐标
+                        view_y = layer.y - (gbuffer->height - layer.crop_height - layer.crop_y) * layer.height / layer.crop_height;
+                    }
+                }
+                else if (force_show_native_render_window == 1)
+                {
+                    // 先进行缩放，计算原始gbuffer的左上角应该在哪（以窗口上面为y轴零点）
+                    view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
+                    // 然后计算gbuffer的左下角应该在哪（以窗口下面为y轴零点）
+                    view_y = display_height - view_y - view_h;
+                }
+
+                express_printf("glviewport %d %d %d %d glScissor %d %d %d %d\n", view_x, view_y, view_w, view_h, layer.x, display_height - layer.y - layer.height, layer.width, layer.height);
+                express_printf("layer %d %d %d %d crop %d %d %d %d\n", layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
+                glViewport(view_x, view_y, view_w, view_h);
+
+                // glScissor是当前视口的裁剪情况，整个裁剪是说这个区域外就不绘制了，但是空间还是占着
+                // 而合成器的crop裁剪，是直接区域裁掉，所占的区域就没了
+                // 简单的说，从效果上来看，合成器的裁剪是把原来的图片给剪了一下，变小了后再缩放贴到屏幕缓冲区的相应位置
+                // 而glScissor，是原来的图片整个都贴到缓冲区的相应位置，但是屏幕缓冲区所指定的区域之外的地方用东西给盖住（其实是不绘制，而不是盖住）
+                if (force_show_native_render_window == 2)
+                {
+                    glScissor(layer.x, layer.y, layer.width, layer.height);
+                }
+                else if (force_show_native_render_window == 1)
+                {
+                    glScissor(layer.x, display_height - layer.y - layer.height, layer.width, layer.height);
+                }
+
+                adjust_blend_type(layer.blend_type);
+
+                // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与系统内逻辑一致，
+                // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
+                if (now_transform_type != layer.transform_type)
+                {
+                    now_transform_type = layer.transform_type;
+                    if (now_transform_type != FLIP_V && now_transform_type != ROTATE_NONE)
+                    {
+                        printf("error! not support transform_type %d\n", now_transform_type);
+                    }
+                    glUniform1i(program_transform_loc, now_transform_type);
+                }
+
+                opengl_paint_gbuffer(gbuffer);
+
+                express_printf("composer set sync %d\n", layer.read_sync_id);
+
+                set_express_sync_id(layer.read_sync_id, true);
+            }
+        }
+
+        GLsync temp_sync = display_write_gbuffer->delete_sync;
+
+        display_write_gbuffer->delete_sync = display_write_gbuffer->data_sync;
+        display_write_gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        display_write_gbuffer->is_writing = 0;
+
+        if (temp_sync != 0)
+        {
+            glDeleteSync(temp_sync);
+        }
+
+        glFlush();
+    }
+}
+
+static void display_present(void)
+{
+    Graphic_Buffer *temp_gbuffer = display_read_gbuffer;
+
+    display_read_gbuffer = display_write_gbuffer;
+
+    display_write_gbuffer = temp_gbuffer;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+
+    // 保证主线程使用完成上一个gbuffer
+    ATOMIC_LOCK(display_write_gbuffer->is_lock);
+
+    main_display_gbuffer = display_read_gbuffer;
+
+    // 这里直接unlock，不需要一直锁住，是因为只有这个画完了之后，才会赋值到main_display_gbuffer，所以不会被主线程访问到，也就不需要锁住
+    // 无论主线程之后会不会继续读取，这里都要直接进行后续的绘制
+    ATOMIC_UNLOCK(display_write_gbuffer->is_lock);
+
+    // int64_t now_time = g_get_real_time();
+    // static int64_t last_display_time = 0;
+    // printf("display_present %llx time %lld gap %lld\n", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
+    // last_display_time = now_time;
+
+    static int now_screen_hz = 0;
+    static uint64_t last_record_time = 0;
+    uint64_t now_time = g_get_real_time();
+    now_screen_hz++;
+
+    if (now_time - last_record_time > 1000000)
+    {
+        float gen_frame_time_avg = 1.0f * (now_time - last_record_time) / now_screen_hz;
+        printf("composer draw avg %.2f us %.2f FPS\n", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_record_time));
+        last_record_time = now_time;
+        now_screen_hz = 0;
+    }
+}
+
 void display_status_change(Display_Status status)
 {
     printf("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u\n",
            now_display_status.refresh_rate, status.refresh_rate, now_display_status.power_status, status.power_status,
            now_display_status.backlight, status.backlight);
-    if(express_display_switch_open)
+    if (express_display_switch_open)
     {
         now_display_status = status;
         if (now_display_status.power_status == 3)
@@ -444,7 +726,7 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
     {
         gbuffer = create_gbuffer_from_gralloc_info(info, info.gbuffer_id);
         add_gbuffer_to_global(gbuffer);
-        set_global_gbuffer_type(info.gbuffer_id, GBUFFER_TYPE_NATIVE);
+        // set_global_gbuffer_type(info.gbuffer_id, GBUFFER_TYPE_NATIVE);
         gbuffer->usage = info.usage;
         gbuffer->pixel_size = info.pixel_size;
         gbuffer->size = info.size;
@@ -538,23 +820,22 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
            gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     // GraphicBuffer里的图片是正的，放到纹理里要倒个个
-    // -- 不用倒个了，因为系统内整体进行了倒个
-    //@todo: 看看是否需要进行上下颠倒
+    // -- 不用倒个了，因为合成的时候，普通窗口都进行了倒个，然后显示的时候，又进行了倒个
     if (info.stride != row_byte_len)
     {
         for (int i = 0; i < info.height; i++)
         {
-            read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * info.stride, row_byte_len);
-            // read_from_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
+            // read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * info.stride, row_byte_len);
+            read_from_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
         }
     }
     else
     {
-        // read_from_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
-        for (int i = 0; i < info.height; i++)
-        {
-            read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
-        }
+        read_from_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
+        // for (int i = 0; i < info.height; i++)
+        // {
+        //     read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+        // }
     }
 
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
@@ -565,18 +846,18 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
 
     unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
-    if (gbuffer->data_sync != NULL)
-    {
-        if (gbuffer->delete_sync != NULL)
-        {
-            glDeleteSync(gbuffer->delete_sync);
-        }
+    // if (gbuffer->data_sync != NULL)
+    // {
+    //     if (gbuffer->delete_sync != NULL)
+    //     {
+    //         glDeleteSync(gbuffer->delete_sync);
+    //     }
 
-        gbuffer->delete_sync = gbuffer->data_sync;
-        gbuffer->data_sync = NULL;
-    }
+    //     gbuffer->delete_sync = gbuffer->data_sync;
+    //     gbuffer->data_sync = NULL;
+    // }
 
-    gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     glFlush();
 }

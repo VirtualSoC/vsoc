@@ -1,5 +1,7 @@
 #include "hw/express-gpu/gl_helper.h"
 
+#include "hw/teleport-express/teleport_express_call.h"
+
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
  *
@@ -1128,7 +1130,7 @@ int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
         "    }\n"
         "    else if(transform_loc == 4)\n"
         "    {\n"
-        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
+        "       gl_Position = vec4(-position.x, position.y, 0.0f, 1.0f);\n"
         "    }\n"
         "    else if(transform_loc == 5)\n"
         "    {\n"
@@ -1425,6 +1427,99 @@ Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun)
     }
     return list;
 }
+
+
+void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+{
+    // 忽略一些不是错误的id
+    if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
+        return;
+    if (severity == GL_DEBUG_SEVERITY_LOW || severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+    {
+        return;
+    }
+
+#ifdef ENABLE_OPENGL_PERFORMANCE_WARNING
+
+#else
+    if (type == GL_DEBUG_TYPE_PERFORMANCE)
+    {
+        return;
+    }
+#endif
+
+    printf("\ndebug message(%u):%s\n", id, message);
+    switch (source)
+    {
+    case GL_DEBUG_SOURCE_API:
+        printf("Source: API ");
+        break;
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+        printf("Source: Window System ");
+        break;
+    case GL_DEBUG_SOURCE_SHADER_COMPILER:
+        printf("Source: Shader Compiler ");
+        break;
+    case GL_DEBUG_SOURCE_THIRD_PARTY:
+        printf("Source: Third Party ");
+        break;
+    case GL_DEBUG_SOURCE_APPLICATION:
+        printf("Source: APPLICATION ");
+        break;
+    case GL_DEBUG_SOURCE_OTHER:
+        break;
+    }
+
+    switch (type)
+    {
+    case GL_DEBUG_TYPE_ERROR:
+        printf("Type: Error ");
+        break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        printf("Type: Deprecated Behaviour ");
+        break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        printf("Type: Undefined Behaviour ");
+        break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+        printf("Type: Portability ");
+        break;
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        printf("Type: Performance ");
+        break;
+    case GL_DEBUG_TYPE_MARKER:
+        printf("Type: Marker ");
+        break;
+    case GL_DEBUG_TYPE_PUSH_GROUP:
+        printf("Type: Push Group ");
+        break;
+    case GL_DEBUG_TYPE_POP_GROUP:
+        printf("Type: Pop Group ");
+        break;
+    case GL_DEBUG_TYPE_OTHER:
+        printf("Type: Other ");
+        break;
+    }
+
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_HIGH:
+        printf("Severity: high");
+        break;
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        printf("Severity: medium");
+        break;
+    case GL_DEBUG_SEVERITY_LOW:
+        printf("Severity: low");
+        break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        printf("Severity: notification");
+        break;
+    }
+    printf("\n");
+}
+
+
 
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d)
 {

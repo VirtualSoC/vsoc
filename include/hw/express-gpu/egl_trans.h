@@ -147,6 +147,12 @@
 
 #define PARA_NUM_MIN_eglGetGBufferType (2)
 
+
+#define FUNID_EGL_Set_Sync_Flag (DEVICE_FUN_ID(EXPRESS_GPU_DEVICE_ID, (10050)))
+
+#define FUNID_EGL_Wait_Sync (DEVICE_FUN_ID(EXPRESS_GPU_DEVICE_ID, (10051)))
+
+
 // #define FUNID_eglRemainImage ((EXPRESS_GPU_DEVICE_ID << 32u) + 10046)
 
 // #define PARA_NUM_MIN_eglRemainImage (1)

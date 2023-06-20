@@ -25,7 +25,7 @@ typedef struct Process_Context{
     //这个是方便进程退出时，销毁image
     // GHashTable *gbuffer_image_map;
 
-    Resource_Map_Status *egl_sync_resource;
+    // Resource_Map_Status *egl_sync_resource;
 
     int thread_cnt;
 } Process_Context;

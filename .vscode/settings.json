@@ -149,7 +149,8 @@
         "cerrno": "c",
         "*.code": "c",
         "thread": "c",
-        "express_display.h": "c"
+        "express_display.h": "c",
+        "express_sync.h": "c"
     },
     "cmake.configureOnOpen": false
 }

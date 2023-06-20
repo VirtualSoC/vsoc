@@ -8,6 +8,8 @@
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/express_gpu.h"
 
+#define MAX_PRELOAD_CONTEXT_NUM 10
+
 //下面这两个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用
 static void g_buffer_map_destroy(gpointer data);
 
@@ -251,10 +253,10 @@ void *get_native_opengl_context(int independ_mode)
 
 void release_native_opengl_context(void *native_context, int independ_mode)
 {
-    //假如已经保存有闲置的超过5个context，则新释放的context直接销毁，否则保存下来
-    //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建5个备用的
+    //假如已经保存有闲置的超过MAX_PRELOAD_CONTEXT_NUM个context，则新释放的context直接销毁，否则保存下来
+    //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建MAX_PRELOAD_CONTEXT_NUM个备用的
 
-    if (native_context_pool_size < 5 && independ_mode == 0)
+    if (native_context_pool_size < MAX_PRELOAD_CONTEXT_NUM && independ_mode == 0)
     {
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_append(native_context_pool, NULL);

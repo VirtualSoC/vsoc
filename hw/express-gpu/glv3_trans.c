@@ -87,10 +87,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         if (unlikely(draw_surface->type == WINDOW_SURFACE && draw_surface->gbuffer != NULL && draw_surface->gbuffer->is_writing == 0))
         {
             draw_surface->gbuffer->is_writing = 1;
-#ifdef _WIN32
-            ResetEvent(draw_surface->gbuffer->writing_ok_event);
-#else
-#endif
+// #ifdef _WIN32
+//             ResetEvent(draw_surface->gbuffer->writing_ok_event);
+// #else
+// #endif
         }
     }
 

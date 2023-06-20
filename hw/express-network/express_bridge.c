@@ -111,7 +111,7 @@ static int bridge_socket_listern(int port)
 
     qemu_socket_set_nonblock(fd);
 
-    printf(DEBUG_HEAD "bridge listern fd %d port %d ok\n", fd, port);
+    printf(DEBUG_HEAD "bridge listen fd %d port %d ok\n", fd, port);
 
     return fd;
 }

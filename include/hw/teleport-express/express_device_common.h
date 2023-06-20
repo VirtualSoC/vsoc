@@ -22,6 +22,8 @@
 #define EXPRESS_BRIDGE_DEVICE_ID ((uint64_t)40)
 
 
+#define EXPRESS_SYNC_DEVICE_ID ((uint64_t)50)
+
 //保留的fun_id，其他设备不可使用
 #define EXPRESS_TERMINATE_FUN_ID (0)
 #define EXPRESS_CLUSTER_FUN_ID (9999)

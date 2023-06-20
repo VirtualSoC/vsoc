@@ -227,10 +227,10 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
             // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_window_surface_map_destroy);
             // process->native_window_surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
             process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
-            process->egl_sync_resource = g_malloc0(sizeof(Resource_Map_Status));
-            process->egl_sync_resource->map_size = 0;
-            process->egl_sync_resource->max_id = 0;
-            process->egl_sync_resource->resource_id_map = NULL;
+            // process->egl_sync_resource = g_malloc0(sizeof(Resource_Map_Status));
+            // process->egl_sync_resource->map_size = 0;
+            // process->egl_sync_resource->max_id = 0;
+            // process->egl_sync_resource->resource_id_map = NULL;
             process->thread_cnt = 0;
 
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
@@ -344,20 +344,21 @@ static void gbuffer_map_destroy(gpointer data)
             send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->delete_sync);
             // glDeleteSync(gbuffer->delete_sync);
         }
-        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
+        // set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
         g_free(gbuffer);
     }
     else
     {
-        ATOMIC_LOCK(gbuffer->is_lock);
-        gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
-        gbuffer->is_using = 0;
-        if (gbuffer->is_dying == 0)
-        {
-            gbuffer->is_dying = 1;
-            send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
-        }
-        ATOMIC_UNLOCK(gbuffer->is_lock);
+        // 其他类型的gbuffer真实释放由display线程完成
+        // ATOMIC_LOCK(gbuffer->is_lock);
+        // gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
+        // gbuffer->is_using = 0;
+        // if (gbuffer->is_dying == 0)
+        // {
+        //     gbuffer->is_dying = 1;
+        //     send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
+        // }
+        // ATOMIC_UNLOCK(gbuffer->is_lock);
     }
     // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
 
@@ -427,7 +428,7 @@ static void render_context_destroy(Thread_Context *context)
         //  printf("destroy process context\n");
         g_hash_table_destroy(process_context->gbuffer_map);
 
-        send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);
+        // send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);
 
         g_free(process_context);
     }

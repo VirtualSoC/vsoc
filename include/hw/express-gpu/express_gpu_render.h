@@ -12,6 +12,8 @@
 
 #include "hw/express-gpu/egl_window.h"
 
+#include "hw/express-gpu/gl_helper.h"
+
 #include "hw/express-gpu/egl_surface.h"
 
 #define SPECIAL_SCREEN_SYNC_HZ 60
@@ -34,14 +36,18 @@
 #define MAIN_CANCEL_GBUFFER 10
 #define MAIN_PAINT_LAYERS 11
 
-#define GBUFFER_TYPE_NONE 0
 #define GBUFFER_TYPE_WINDOW 1
-#define GBUFFER_TYPE_BITMAP 2
-#define GBUFFER_TYPE_NATIVE 3
-#define GBUFFER_TYPE_BITMAP_NEED_DATA 4
-#define GBUFFER_TYPE_TEXTURE 5
-#define GBUFFER_TYPE_FBO 6
-#define GBUFFER_TYPE_FBO_NEED_DATA 7
+#define GBUFFER_TYPE_TEXTURE 2
+
+
+// #define GBUFFER_TYPE_NONE 0
+// #define GBUFFER_TYPE_WINDOW 1
+// #define GBUFFER_TYPE_BITMAP 2
+// #define GBUFFER_TYPE_NATIVE 3
+// #define GBUFFER_TYPE_BITMAP_NEED_DATA 4
+// #define GBUFFER_TYPE_TEXTURE 5
+// #define GBUFFER_TYPE_FBO 6
+// #define GBUFFER_TYPE_FBO_NEED_DATA 7
 
 #define ATOMIC_LOCK(s)                                              \
      int atomic_cnt = 1;                                            \
@@ -93,34 +99,6 @@ typedef struct Main_window_Event
 } Main_window_Event;
 
 
-typedef enum {
-    BLEND_NONE = 0,         /**< No blending */
-    BLEND_CLEAR,            /**< CLEAR blending */
-    BLEND_SRC,              /**< SRC blending */
-    BLEND_SRCOVER,          /**< SRC_OVER blending */
-    BLEND_DSTOVER,          /**< DST_OVER blending */
-    BLEND_SRCIN,            /**< SRC_IN blending */
-    BLEND_DSTIN,            /**< DST_IN blending */
-    BLEND_SRCOUT,           /**< SRC_OUT blending */
-    BLEND_DSTOUT,           /**< DST_OUT blending */
-    BLEND_SRCATOP,          /**< SRC_ATOP blending */
-    BLEND_DSTATOP,          /**< DST_ATOP blending */
-    BLEND_ADD,              /**< ADD blending */
-    BLEND_XOR,              /**< XOR blending */
-    BLEND_DST,              /**< DST blending */
-    BLEND_AKS,              /**< AKS blending */
-    BLEND_AKD,              /**< AKD blending */
-    BLEND_BUTT              /**< Null operation */
-} BlendType;
-
-typedef enum {
-    ROTATE_NONE = 0,        /**< No rotation */
-    ROTATE_90,              /**< Rotation by 90 degrees */
-    ROTATE_180,             /**< Rotation by 180 degrees */
-    ROTATE_270,             /**< Rotation by 270 degrees */
-    ROTATE_BUTT             /**< Invalid operation */
-} TransformType;
-
 typedef struct GBuffer_Layer{
      int x;
      int y;
@@ -133,6 +111,8 @@ typedef struct GBuffer_Layer{
      int crop_y;
      int crop_width;
      int crop_height;
+     int write_sync_id;
+     int read_sync_id;
      //SetLayerVisibleRegion暂时先不支持
      uint64_t gbuffer_id;
 } __attribute__((packed, aligned(4))) GBuffer_Layer;
@@ -143,128 +123,6 @@ typedef struct GBuffer_Layers{
 } __attribute__((packed, aligned(4))) GBuffer_Layers;
 
 
-//注意顺序，保证不影响结构体对齐
-typedef struct Static_Context_Values
-{
-     GLuint composer_HZ;
-     GLuint composer_pid;
-     GLint num_extensions;
-     //____________ FIXED VALUE ____________
-     GLint major_version;
-     GLint minor_version;
-     GLint implementation_color_read_format;
-     GLint implementation_color_read_type;
-     GLint max_array_texture_layers;
-     GLint max_color_attachments;
-     GLint max_combined_uniform_blocks;
-     GLint max_draw_buffers;
-     GLint max_fragment_input_components;
-     GLint max_fragment_uniform_blocks;
-     GLint max_program_texel_offset;
-     GLint max_transform_feedback_interleaved_components;
-     GLint max_transform_feedback_separate_attribs;
-     GLint max_transform_feedback_separate_components;
-     GLint max_uniform_buffer_bindings;
-     GLint max_varying_components;
-     GLint max_varying_vectors;
-     GLint max_vertex_output_components;
-     GLint max_vertex_uniform_blocks;
-     GLint min_program_texel_offset;
-     GLint num_program_binary_formats;
-     //     GLint samples;
-     //     GLint sample_buffers;
-     //____________ QUERY HOST ___________
-     GLint subpixel_bits;
-     GLint num_compressed_texture_formats;
-     GLint compressed_texture_formats[128];
-     GLint max_3d_texture_size;
-     GLint max_texture_size;
-     GLint max_combined_texture_image_units;
-     GLint max_cube_map_texture_size;
-     GLint max_elements_vertices;
-     GLint max_elements_indices;
-     GLint max_fragment_uniform_components;
-     GLint max_fragment_uniform_vectors;
-     GLint max_renderbuffer_size;
-     GLint max_vertex_attribs;
-     GLint max_image_units;
-     GLint max_vertex_attrib_bindings;
-     GLint max_computer_uniform_blocks;
-     GLint max_computer_texture_image_units;
-     GLint max_computer_image_uniforms;
-     GLint max_computer_sharde_memory_size;
-     GLint max_computer_uniform_components;
-     GLint max_computer_atomic_counter_buffers;
-     GLint max_computer_atomic_counters;
-     GLint max_combined_compute_uniform_components;
-     GLint max_computer_work_group_invocations;
-     GLint max_computer_work_group_count[3];
-     GLint max_computer_work_group_size[3];
-     GLint max_uniform_locations;
-     GLint max_framebuffer_width;
-     GLint max_framebuffer_height;
-     GLint max_framebuffer_samples;
-     GLint max_vertex_atomic_counter_buffers;
-     GLint max_fragment_atomic_counter_buffers;
-     GLint max_combined_atomic_counter_buffers;
-     GLint max_vertex_atomic_counters;
-     GLint max_fragment_atomic_counters;
-     GLint max_combined_atomic_counters;
-     GLint max_atomic_counter_buffer_size;
-     GLint max_atomic_counter_buffer_bindings;
-     GLint max_vertex_image_uniforms;
-     GLint max_fragment_image_uniforms;
-     GLint max_combined_image_uniforms;
-     GLint max_vertex_shader_storage_blocks;
-     GLint max_fragment_shader_storage_blocks;
-     GLint max_compute_shader_storage_blocks;
-     GLint max_combined_shader_storage_blocks;
-     GLint max_shader_storage_buffer_bindings;
-     GLint max_shader_storage_block_size;
-     GLint max_combined_shader_output_resources;
-     GLint min_program_texture_gather_offset;
-     GLint max_program_texture_gather_offset;
-     GLint max_sample_mask_words;
-     GLint max_color_texture_samples;
-     GLint max_depth_texture_samples;
-     GLint max_integer_samples;
-     GLint max_vertex_attrib_relative_offset;
-     // GLint max_vertex_attrib_bindings;
-     GLint max_vertex_attrib_stride;
-     GLint max_vertex_texture_image_units;
-     GLint max_vertex_uniform_components;
-     GLint max_vertex_uniform_vectors;
-     GLint max_viewport_dims[2];
-     GLint max_samples;
-     GLint texture_image_units;
-     GLint uniform_buffer_offset_alignment;
-     GLint max_texture_anisotropy;
-
-     // GLint max_atomic_counter_buffer_bindings;
-     // GLint max_shader_storage_buffer_bindings;
-     GLint num_shader_binary_formats;
-     GLint program_binary_formats[8];
-     GLint shader_binary_formats[8];
-     //     GLint uniform_buffer_offset_alignment;
-     //     GLint shader_storage_buffer_offset_alignment;
-     GLfloat aliased_line_width_range[2];
-     GLfloat aliased_point_size_range[2];
-     GLfloat max_texture_log_bias;
-     GLint64 max_element_index;
-     GLint64 max_server_wait_timeout;
-     GLint64 max_combined_fragment_uniform_components;
-     GLint64 max_combined_vertex_uniform_components;
-     GLint64 max_uniform_block_size;
-     //下面实际要作为指针使用，保证与32位应用的兼容性，所以要这样弄
-     GLuint64 vendor;
-     GLuint64 version;
-     GLuint64 renderer;
-     GLuint64 shading_language_version;
-     GLuint64 extensions_gles2;
-     GLuint64 extensions[512];
-     //大概需要512*100+400左右的空间存放字符串，这么大的空间应该是够了
-
-} __attribute__((packed, aligned(1))) Static_Context_Values;
 
 // typedef struct Static_Context_Values1 Static_Context_Values1;
 
@@ -278,7 +136,7 @@ extern volatile int device_interface_run;
 
 extern Static_Context_Values *preload_static_context_value;
 
-extern void *dummy_window_for_sync;
+// extern void *dummy_window_for_sync;
 
 extern int host_opengl_version;
 
@@ -288,7 +146,10 @@ extern int composer_refresh_HZ;
 
 extern QemuThread native_window_render_thread;
 
-extern bool force_show_native_render_window;
+extern int force_show_native_render_window;
+
+
+extern Graphic_Buffer *main_display_gbuffer;
 
 
 void *native_window_thread(void *opaque);
@@ -328,9 +189,11 @@ void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer);
 
 Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
 
-int get_global_gbuffer_type(uint64_t gbuffer_id);
+void opengl_paint_gbuffer(Graphic_Buffer *gbuffer);
 
-void set_global_gbuffer_type(uint64_t gbuffer_id, int type);
+// int get_global_gbuffer_type(uint64_t gbuffer_id);
+
+// void set_global_gbuffer_type(uint64_t gbuffer_id, int type);
 
 void send_message_to_main_window(int message_code, void *data);
 

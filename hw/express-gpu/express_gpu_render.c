@@ -23,6 +23,8 @@
 #include "hw/express-gpu/glv1.h"
 #include "hw/express-gpu/gl_helper.h"
 
+#include "hw/express-gpu/express_sync.h"
+
 #include "ui/console.h"
 #include "ui/input.h"
 #include "sysemu/runstate.h"
@@ -70,7 +72,7 @@ static GHashTable *gbuffer_global_types = NULL;
 
 static volatile int gbuffer_global_map_lock = 0;
 
-static volatile int gbuffer_global_types_lock = 0;
+// static volatile int gbuffer_global_types_lock = 0;
 
 static int calc_screen_hz = 0;
 
@@ -98,7 +100,7 @@ static QemuThread device_interface_thread;
 
 static GLFWwindow *glfw_window = NULL;
 
-void *dummy_window_for_sync = NULL;
+// void *dummy_window_for_sync = NULL;
 
 static GLuint programID = 0;
 static GLuint drawVAO = 0;
@@ -113,16 +115,16 @@ static int window_width = 0;
 static int window_height = 0;
 
 // 显示的内容的实际位置和长宽
-static int display_content_x = 0;
-static int display_content_y = 0;
+static int main_display_content_x = 0;
+static int main_display_content_y = 0;
 
-static int display_content_width = 0;
-static int display_content_height = 0;
+static int main_display_content_width = 0;
+static int main_display_content_height = 0;
 
 int express_gpu_window_width = 0;
 int express_gpu_window_height = 0;
 
-bool force_show_native_render_window = false;
+int force_show_native_render_window = 0;
 
 // guest对应的虚拟显示器的大小
 static int display_width = 0;
@@ -147,11 +149,10 @@ static bool window_need_refresh = false;
 
 // static bool is_click;
 
-static Graphic_Buffer *display_gbuffer;
+Graphic_Buffer *main_display_gbuffer;
 
-static GBuffer_Layers *display_layers;
 
-static int display_composer_layers_id = 0;
+// static int display_composer_layers_id = 0;
 
 volatile int native_render_run = 0;
 volatile int device_interface_run = 0;
@@ -257,7 +258,6 @@ static const int SPECIAL_EXTENSIONS_SIZE = 46 - 1;
 //         /*23*/ "GL_CHROMIUM_bind_uniform_location"};
 // static const int NOT_SUPPORT_EXTENSION_SIZE = 23;
 
-static void opengl_paint(Graphic_Buffer *gbuffer);
 static void *native_window_create(int independ_mode);
 
 // static void g_queue_event_notify(gpointer data, gpointer user_data);
@@ -294,7 +294,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
     ATOMIC_UNLOCK(main_window_event_queue_lock);
     // ATOMIC_UNLOCK(compose_surface_lock);
     // set_compose_surface(NULL, NULL);
-    display_gbuffer = NULL;
+    main_display_gbuffer = NULL;
     teleport_express_should_stop = true;
     device_interface_run = 0;
 
@@ -352,10 +352,10 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 
             glViewport(0, 0, window_width, window_height);
 
-            display_content_x = 0;
-            display_content_y = 0;
-            display_content_width = window_width;
-            display_content_height = window_height;
+            main_display_content_x = 0;
+            main_display_content_y = 0;
+            main_display_content_width = window_width;
+            main_display_content_height = window_height;
             express_printf("set window size %d %d keep scale\n", window_width, window_height);
             glfwSetWindowSize(window, window_width, window_height);
         }
@@ -363,10 +363,10 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
         {
             glViewport(x, y, temp_window_width, temp_window_height);
 
-            display_content_x = x;
-            display_content_y = y;
-            display_content_width = temp_window_width;
-            display_content_height = temp_window_height;
+            main_display_content_x = x;
+            main_display_content_y = y;
+            main_display_content_width = temp_window_width;
+            main_display_content_height = temp_window_height;
         }
 
         express_printf("set touchscreen size %d %d\n", window_width, window_height);
@@ -400,10 +400,11 @@ static int try_destroy_gbuffer(void *data)
         return 0;
     }
 
-    if (display_gbuffer == gbuffer || display_composer_layers_id == gbuffer->layer_id)
+    // if (main_display_gbuffer == gbuffer || display_composer_layers_id == gbuffer->layer_id)
+    if (main_display_gbuffer == gbuffer)
     {
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
-        // display_gbuffer = NULL;
+        // main_display_gbuffer = NULL;
         return 0;
     }
 
@@ -413,23 +414,42 @@ static int try_destroy_gbuffer(void *data)
         remove_gbuffer_from_global_map(gbuffer->gbuffer_id);
     }
 
-    if (gbuffer->usage_type == GBUFFER_TYPE_BITMAP)
-    {
-        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP_NEED_DATA);
-    }
-    else if (gbuffer->usage_type == GBUFFER_TYPE_FBO)
-    {
-        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_FBO_NEED_DATA);
-    }
-    else
-    {
-        set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
-    }
+    // if (gbuffer->usage_type == GBUFFER_TYPE_BITMAP)
+    // {
+    //     set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP_NEED_DATA);
+    // }
+    // else if (gbuffer->usage_type == GBUFFER_TYPE_FBO)
+    // {
+    //     set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_FBO_NEED_DATA);
+    // }
+    // else
+    // {
+    //     set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
+    // }
     destroy_gbuffer(gbuffer);
     printf("gbuffer %llx is dead\n", gbuffer->gbuffer_id);
 
     return 1;
 }
+
+// static void free_gbuffer_layers(GBuffer_Layers *layers, bool need_set)
+// {
+//     if (layers != NULL)
+//     {
+//         if(need_set)
+//         {
+//             for (int i = 0; i < layers->layer_num; i++)
+//             {
+//                 GBuffer_Layer layer = layers->layer[i];
+//                 set_express_sync_id(layer.read_sync_id, true);
+
+//             }
+//         }
+//         g_free(layers);
+//     }
+//     return;
+// }
+
 
 static void handle_child_window_event(void)
 {
@@ -440,14 +460,22 @@ static void handle_child_window_event(void)
     int paint_event_cnt = 0;
     while (child_event != NULL)
     {
+        int64_t start_time = 0;
+
+        if(paint_event_cnt >= 2)
+        {
+            printf("error! too many event %d paint_num %d\n", child_event->event_code, paint_event_cnt);
+        }
+
+        start_time = g_get_real_time();
         switch (child_event->event_code)
         {
         case MAIN_PAINT:
         {
             // #ifdef ENABLE_STATIC_WINDOW_REFRESH
             // #else
-            Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
-            display_gbuffer = gbuffer;
+            // Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+            // main_display_gbuffer = gbuffer;
             window_need_refresh = true;
 
             // opengl_paint(gbuffer);
@@ -456,23 +484,24 @@ static void handle_child_window_event(void)
             // #endif
         }
         break;
-        case MAIN_PAINT_LAYERS:
-        {
-            GBuffer_Layers *layers = (GBuffer_Layers *)child_event->data;
-            if (display_layers != NULL)
-            {
-                g_free(display_layers);
-            }
-            display_composer_layers_id++;
-            display_layers = layers;
-            window_need_refresh = true;
-            paint_event_cnt++;
-            if (paint_event_cnt > 1)
-            {
-                printf("error! paint num %d\n", paint_event_cnt);
-            }
-        }
-        break;
+        // case MAIN_PAINT_LAYERS:
+        // {
+        //     GBuffer_Layers *layers = (GBuffer_Layers *)child_event->data;
+        //     if (display_layers != NULL)
+        //     {
+        //         free_gbuffer_layers(display_layers, paint_event_cnt != 0);
+        //     }
+        //     // display_composer_layers_id++;
+        //     display_layers = layers;
+        //     window_need_refresh = true;
+        //     paint_event_cnt++;
+        //     printf("now main paint layers time %lld\n", start_time/1000);
+        //     if (paint_event_cnt > 1)
+        //     {
+        //         printf("error! paint num %d\n", paint_event_cnt);
+        //     }
+        // }
+        // break;
         case MAIN_CREATE_CHILD_WINDOW:
 
             // context只能是由父线程创建，以进行资源共享
@@ -566,12 +595,18 @@ static void handle_child_window_event(void)
             break;
         }
         g_free(child_event);
+        int64_t end_time = g_get_real_time();
+        if(end_time - start_time > 20000 && child_event != NULL)
+        {
+            printf("warning! slow child_event %d time spend %lld now_time %lld queue_size %d\n", child_event->event_code, (end_time - start_time)/1000, end_time/1000, g_async_queue_length(main_window_event_queue));
+        }
+
 
         ATOMIC_LOCK(main_window_event_queue_lock);
         child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
         ATOMIC_UNLOCK(main_window_event_queue_lock);
-    }
 
+    }
     return;
 }
 
@@ -815,87 +850,100 @@ static void static_value_prepare(void)
     assert(temp_loc < ((char *)preload_static_context_value) + sizeof(Static_Context_Values) + 512 * 100 + 400);
 }
 
-static void opengl_paint_composer_layers(void)
-{
-    GBuffer_Layers *layers = display_layers;
+// static void opengl_paint_composer_layers(void)
+// {
+//     GBuffer_Layers *layers = display_layers;
 
-    if (express_display_info.pixel_height != display_height || express_display_info.pixel_width != display_width)
-    {
-        display_height = express_display_info.pixel_height;
-        display_width = express_display_info.pixel_width;
-    }
+//     if (express_display_info.pixel_height != display_height || express_display_info.pixel_width != display_width)
+//     {
+//         display_height = express_display_info.pixel_height;
+//         display_width = express_display_info.pixel_width;
+//     }
 
-    if (layers != NULL)
-    {
-        glClear(GL_COLOR_BUFFER_BIT);
+//     if (layers != NULL)
+//     {
+//         glClear(GL_COLOR_BUFFER_BIT);
 
-        if (!display_is_open && express_display_switch_open)
-        {
-            return;
-        }
+//         if (!display_is_open && express_display_switch_open)
+//         {
+//             return;
+//         }
 
-        for (int i = 0; i < layers->layer_num; i++)
-        {
-            GBuffer_Layer layer = layers->layer[i];
-            Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
-            express_printf("draw layer gbuffer_id %llx  %d %d %d %d\n", layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height);
-            if (gbuffer != NULL)
-            {
-                gbuffer->layer_id = display_composer_layers_id;
+//         for (int i = 0; i < layers->layer_num; i++)
+//         {
+//             GBuffer_Layer layer = layers->layer[i];
 
-                // 画面不是显示的整个窗口，需要针对性缩放
-                int view_x = (int)((double)layer.x / display_width * display_content_width + display_content_x);
-                // glviewport的(0,0)点在左下角，而正常画面需要显示的是左上角
-                // int view_y = (int)((double)layer.y / display_height * display_content_height + display_content_y);
-                int view_y = (int)((1.0 - (double)(layer.y + layer.height) / display_height) * display_content_height + display_content_y);
+//             printf("composer wait for sync %d\n", layer.write_sync_id);
 
-                GLsizei view_width = (GLsizei)((double)layer.width / display_width * display_content_width);
-                GLsizei view_height = (GLsizei)((double)layer.height / display_height * display_content_height);
+//             wait_for_express_sync(layer.write_sync_id, true);
 
-                // printf("glviewport %d %d %d %d\n",view_x, view_y, view_width, view_height);
-                // printf("display %d %d %d %d\n",display_width, display_height, display_content_width, display_content_height);
-                glViewport(view_x, view_y, view_width, view_height);
+//             Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
+//             printf("draw layer gbuffer_id %llx  %d %d %d %d\n", layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height);
+//             if (gbuffer != NULL)
+//             {
+//                 // gbuffer->layer_id = display_composer_layers_id;
 
-                // 裁剪区域似乎是相对的，相对于渲染区而言的，所以似乎不需要转换 @todo 需要验证
-                // int crop_x = (int)((double)layer.crop_x / display_width * display_content_width + display_content_x);
-                // int crop_y = (int)((double)layer.crop_y / display_height * display_content_height + display_content_y);
-                // int crop_width = (int)((double)layer.crop_width / display_width * display_content_width);
-                // int crop_height = (int)((double)layer.crop_height / display_height * display_content_height);
-                // glScissor(crop_x, crop_y, crop_width, crop_height);
+//                 // 画面不是显示的整个窗口，需要针对性缩放
+//                 int view_x = (int)((double)layer.x / display_width * main_display_content_width + main_display_content_x);
+//                 // glviewport的(0,0)点在左下角，而正常画面需要显示的是左上角
+//                 // int view_y = (int)((double)layer.y / display_height * main_display_content_height + main_display_content_y);
+//                 int view_y = (int)((1.0 - (double)(layer.y + layer.height) / display_height) * main_display_content_height + main_display_content_y);
 
-                if (layer.width == layer.crop_width && layer.height == layer.crop_height && layer.crop_x == 0 && layer.crop_y == 0)
-                {
-                    glDisable(GL_SCISSOR_TEST);
-                }
-                else
-                {
-                    glEnable(GL_SCISSOR_TEST);
-                    glScissor(layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
-                }
+//                 GLsizei view_width = (GLsizei)((double)layer.width / display_width * main_display_content_width);
+//                 GLsizei view_height = (GLsizei)((double)layer.height / display_height * main_display_content_height);
 
-                adjust_blend_type(layer.blend_type);
+//                 // printf("glviewport %d %d %d %d\n",view_x, view_y, view_width, view_height);
+//                 // printf("display %d %d %d %d\n",display_width, display_height, main_display_content_width, main_display_content_height);
+//                 glViewport(view_x, view_y, view_width, view_height);
 
-                if (now_transform_type != layer.transform_type)
-                {
-                    now_transform_type = layer.transform_type;
-                    glUniform1i(program_transform_loc, now_transform_type);
-                }
+//                 // 裁剪区域似乎是相对的，相对于渲染区而言的，所以似乎不需要转换 @todo 需要验证
+//                 // int crop_x = (int)((double)layer.crop_x / display_width * main_display_content_width + main_display_content_x);
+//                 // int crop_y = (int)((double)layer.crop_y / display_height * main_display_content_height + main_display_content_y);
+//                 // int crop_width = (int)((double)layer.crop_width / display_width * main_display_content_width);
+//                 // int crop_height = (int)((double)layer.crop_height / display_height * main_display_content_height);
+//                 // glScissor(crop_x, crop_y, crop_width, crop_height);
 
-                opengl_paint(gbuffer);
-            }
-        }
+//                 if (layer.width == layer.crop_width && layer.height == layer.crop_height && layer.crop_x == 0 && layer.crop_y == 0)
+//                 {
+//                     glDisable(GL_SCISSOR_TEST);
+//                 }
+//                 else
+//                 {
+//                     glEnable(GL_SCISSOR_TEST);
+//                     glScissor(layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
+//                 }
 
-        glFlush();
-    }
-}
+//                 adjust_blend_type(layer.blend_type);
+
+//                 if (now_transform_type != layer.transform_type)
+//                 {
+//                     now_transform_type = layer.transform_type;
+//                     glUniform1i(program_transform_loc, now_transform_type);
+//                 }
+
+//                 opengl_paint(gbuffer);
+
+//                 printf("composer set sync %d\n", layer.read_sync_id);
+
+//                 set_express_sync_id(layer.read_sync_id, true);
+
+//             }
+//         }
+
+//         glFlush();
+//     }
+// }
 
 static void opengl_paint_composer_gbuffer(void)
 {
-    Graphic_Buffer *gbuffer = display_gbuffer;
-    if (gbuffer == NULL)
+    if (main_display_gbuffer == NULL)
     {
         return;
     }
+
+    ATOMIC_LOCK(main_display_gbuffer->is_lock);
+
+    Graphic_Buffer *gbuffer = main_display_gbuffer;
 
     if (display_width != gbuffer->width || display_height == gbuffer->height)
     {
@@ -905,27 +953,31 @@ static void opengl_paint_composer_gbuffer(void)
         // real_window_height = window_height;
         // glViewport(0, 0, window_width, window_height);
     }
-    if (now_transform_type != 0)
-    {
-        now_transform_type = 0;
-        glUniform1i(program_transform_loc, now_transform_type);
-    }
 
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glViewport(display_content_x, display_content_y, display_content_width, display_content_height);
+    glViewport(main_display_content_x, main_display_content_y, main_display_content_width, main_display_content_height);
 
-    opengl_paint(gbuffer);
+    glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
+
+    opengl_paint_gbuffer(gbuffer);
+
+    ATOMIC_UNLOCK(gbuffer->is_lock);
+
+    // int64_t now_time = g_get_real_time();
+    // static int64_t last_display_time = 0;
+    // printf("paint %llx time %lld gap %lld\n", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
+    // last_display_time = now_time;
 
     glFlush();
 }
 
 /**
- * @brief 界面上用于画出图像的函数，实际逻辑为取出d_buffer中的display_texture，然后画出来
+ * @brief 界面上用于画出图像的函数，实际逻辑为取出gbuffer中的display_texture，然后画出来
  *
  * @param d_buffer
  */
-static void opengl_paint(Graphic_Buffer *gbuffer)
+void opengl_paint_gbuffer(Graphic_Buffer *gbuffer)
 {
     if (gbuffer != NULL)
     {
@@ -943,103 +995,26 @@ static void opengl_paint(Graphic_Buffer *gbuffer)
         }
 
         express_printf("draw gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
-        if (gbuffer->data_sync != 0)
-        {
-            // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-            glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
-            if (gbuffer->delete_sync != 0)
-            {
-                glDeleteSync(gbuffer->delete_sync);
-            }
-            gbuffer->delete_sync = gbuffer->data_sync;
-            gbuffer->data_sync = NULL;
-        }
+        // if (gbuffer->data_sync != 0)
+        // {
+        //     // glClientWaitSync(gbuffer->data_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+        //     glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
+        //     if (gbuffer->delete_sync != 0)
+        //     {
+        //         glDeleteSync(gbuffer->delete_sync);
+        //     }
+        //     gbuffer->delete_sync = gbuffer->data_sync;
+        //     gbuffer->data_sync = NULL;
+        // }
 
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        // gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     }
 }
 
-static void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id,
-                                     GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
-{
-    // 忽略一些不是错误的id
-    if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
-        return;
-
-    printf("main debug message(%u):%s\n", id, message);
-    switch (source)
-    {
-    case GL_DEBUG_SOURCE_API:
-        printf("Source: API ");
-        break;
-    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-        printf("Source: Window System ");
-        break;
-    case GL_DEBUG_SOURCE_SHADER_COMPILER:
-        printf("Source: Shader Compiler ");
-        break;
-    case GL_DEBUG_SOURCE_THIRD_PARTY:
-        printf("Source: Third Party ");
-        break;
-    case GL_DEBUG_SOURCE_APPLICATION:
-        printf("Source: APPLICATION ");
-        break;
-    case GL_DEBUG_SOURCE_OTHER:
-        break;
-    }
-
-    switch (type)
-    {
-    case GL_DEBUG_TYPE_ERROR:
-        printf("Type: Error ");
-        break;
-    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-        printf("Type: Deprecated Behaviour ");
-        break;
-    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-        printf("Type: Undefined Behaviour ");
-        break;
-    case GL_DEBUG_TYPE_PORTABILITY:
-        printf("Type: Portability ");
-        break;
-    case GL_DEBUG_TYPE_PERFORMANCE:
-        printf("Type: Performance ");
-        break;
-    case GL_DEBUG_TYPE_MARKER:
-        printf("Type: Marker ");
-        break;
-    case GL_DEBUG_TYPE_PUSH_GROUP:
-        printf("Type: Push Group ");
-        break;
-    case GL_DEBUG_TYPE_POP_GROUP:
-        printf("Type: Pop Group ");
-        break;
-    case GL_DEBUG_TYPE_OTHER:
-        printf("Type: Other ");
-        break;
-    }
-
-    switch (severity)
-    {
-    case GL_DEBUG_SEVERITY_HIGH:
-        printf("Severity: high");
-        break;
-    case GL_DEBUG_SEVERITY_MEDIUM:
-        printf("Severity: medium");
-        break;
-    case GL_DEBUG_SEVERITY_LOW:
-        printf("Severity: low");
-        break;
-    case GL_DEBUG_SEVERITY_NOTIFICATION:
-        printf("Severity: notification");
-        break;
-    }
-    printf("\n");
-}
 
 /**
  * @brief 创建带window的opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
@@ -1142,8 +1117,8 @@ void *native_window_thread(void *opaque)
     display_width = *express_display_pixel_width;
     display_height = *express_display_pixel_height;
 
-    display_content_width = express_gpu_window_width;
-    display_content_height = express_gpu_window_height;
+    main_display_content_width = express_gpu_window_width;
+    main_display_content_height = express_gpu_window_height;
 
     glfw_window = glfwCreateWindow(window_width, window_height, "Trinity", NULL, NULL);
 
@@ -1186,7 +1161,7 @@ void *native_window_thread(void *opaque)
     HGLRC gl_context = glfwGetWGLContext(glfw_window);
     egl_init(dpy_dc, gl_context);
 
-    dummy_window_for_sync = egl_createContext();
+    // dummy_window_for_sync = egl_createContext();
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -1210,6 +1185,7 @@ void *native_window_thread(void *opaque)
 
     program_transform_loc = glGetUniformLocation(programID, "transform_loc");
     now_transform_type = 0;
+    glUniform1i(program_transform_loc, now_transform_type);
 
     express_printf("native windows create!\n");
 
@@ -1265,15 +1241,23 @@ void *native_window_thread(void *opaque)
             handle_child_window_event();
             // printf("start run native thread %d %d\n", force_show_native_render_window, window_is_shown);
 
-            if (force_show_native_render_window == true && window_is_shown == false)
+            if (force_show_native_render_window != 0 && window_is_shown == false)
             {
+                if(force_show_native_render_window == 2)
+                {
+                    // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与安卓系统内逻辑一致，
+                    // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
+                    // 鸿蒙就不翻转了，因为就没有翻转的功能
+                    now_transform_type = FLIP_V;
+                    glUniform1i(program_transform_loc, now_transform_type);
+                }
                 glfwShowWindow(glfw_window);
                 glfwSwapBuffers(glfw_window);
                 window_is_shown = true;
             }
 
             // 在窗口上绘制内容
-            if ((display_gbuffer != NULL || display_layers != NULL) && window_need_refresh)
+            if (main_display_gbuffer != NULL && window_need_refresh)
             {
                 if (!window_is_shown)
                 {
@@ -1285,13 +1269,8 @@ void *native_window_thread(void *opaque)
 
                 window_need_refresh = false;
 
-                if (display_gbuffer != NULL && display_layers != NULL)
-                {
-                    printf(RED("warning! neither display_layers and display_gbuffer is NULL!"));
-                }
-
                 opengl_paint_composer_gbuffer();
-                opengl_paint_composer_layers();
+                // opengl_paint_composer_layers();
 
                 calc_screen_hz += 1;
                 has_refresh = true;
@@ -1304,7 +1283,8 @@ void *native_window_thread(void *opaque)
             }
             else
             {
-                if ((display_gbuffer == NULL && display_layers == NULL) && window_is_shown == true && force_show_native_render_window == false)
+                if ((main_display_gbuffer == NULL) 
+                    && window_is_shown == true && force_show_native_render_window == 0)
                 {
                     window_is_shown = false;
                     printf("hide window\n");
@@ -1410,7 +1390,7 @@ void *native_window_thread(void *opaque)
 
         //         // qemu_input_event_sync();
 
-        //         if (display_gbuffer != NULL)
+        //         if (main_display_gbuffer != NULL)
         //         {
         //             if (sdl2_no_need == 0 && window_width != 0 && window_height != 0)
         //             {
@@ -1420,7 +1400,7 @@ void *native_window_thread(void *opaque)
         //             }
 
         // #ifdef ENABLE_STATIC_WINDOW_REFRESH
-        //             opengl_paint(display_gbuffer);
+        //             opengl_paint(main_display_gbuffer);
         //             glfwSwapBuffers(glfw_window);
         // #endif
         //         }
@@ -1443,7 +1423,7 @@ void *native_window_thread(void *opaque)
         //         {
         //             if (size_has_change == 1)
         //             {
-        //                 opengl_paint(display_gbuffer);
+        //                 opengl_paint(main_display_gbuffer);
         //                 glfwSwapBuffers(glfw_window);
         //             }
         //             continue;
@@ -1585,33 +1565,33 @@ void *native_window_thread(void *opaque)
 //     return;
 // }
 
-// void set_display_gbuffer(Graphic_Buffer *gbuffer)
+// void set_main_display_gbuffer(Graphic_Buffer *gbuffer)
 // {
-//     display_gbuffer = gbuffer;
+//     main_display_gbuffer = gbuffer;
 // }
 
-int get_global_gbuffer_type(uint64_t gbuffer_id)
-{
-    ATOMIC_LOCK(gbuffer_global_types_lock);
-    int type = (int)(uint64_t)g_hash_table_lookup(gbuffer_global_types, (gpointer)(gbuffer_id));
-    ATOMIC_UNLOCK(gbuffer_global_types_lock);
-    return type;
-}
+// int get_global_gbuffer_type(uint64_t gbuffer_id)
+// {
+//     ATOMIC_LOCK(gbuffer_global_types_lock);
+//     int type = (int)(uint64_t)g_hash_table_lookup(gbuffer_global_types, (gpointer)(gbuffer_id));
+//     ATOMIC_UNLOCK(gbuffer_global_types_lock);
+//     return type;
+// }
 
-void set_global_gbuffer_type(uint64_t gbuffer_id, int type)
-{
-    ATOMIC_LOCK(gbuffer_global_types_lock);
-    if (type == GBUFFER_TYPE_NONE)
-    {
-        g_hash_table_remove(gbuffer_global_types, (gpointer)(gbuffer_id));
-    }
-    else
-    {
-        g_hash_table_insert(gbuffer_global_types, (gpointer)(gbuffer_id), GINT_TO_POINTER(type));
-    }
-    ATOMIC_UNLOCK(gbuffer_global_types_lock);
-    return;
-}
+// void set_global_gbuffer_type(uint64_t gbuffer_id, int type)
+// {
+//     ATOMIC_LOCK(gbuffer_global_types_lock);
+//     if (type == GBUFFER_TYPE_NONE)
+//     {
+//         g_hash_table_remove(gbuffer_global_types, (gpointer)(gbuffer_id));
+//     }
+//     else
+//     {
+//         g_hash_table_insert(gbuffer_global_types, (gpointer)(gbuffer_id), GINT_TO_POINTER(type));
+//     }
+//     ATOMIC_UNLOCK(gbuffer_global_types_lock);
+//     return;
+// }
 
 void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer)
 {
@@ -1624,10 +1604,10 @@ Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(gbuffer_global_map, (gpointer)(gbuffer_id));
-    if (gbuffer != NULL)
-    {
-        gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
-    }
+    // if (gbuffer != NULL)
+    // {
+    //     gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
+    // }
     ATOMIC_UNLOCK(gbuffer_global_map_lock);
 
     return gbuffer;

@@ -18,6 +18,8 @@
 #include "hw/express-gpu/egl_sync.h"
 #include "hw/express-gpu/test_trans.h"
 
+#include "hw/express-gpu/express_sync.h"
+
 void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
 {
     Render_Thread_Context *egl_context = (Render_Thread_Context *)context;
@@ -2350,9 +2352,92 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             break;
         }
 
-        int ret = get_global_gbuffer_type(gbuffer_id);
+        // int ret = get_global_gbuffer_type(gbuffer_id);
+        int ret = 0;
+        (void)gbuffer_id;
 
         write_to_guest_mem(all_para[1].data, &ret, 0, out_buf_len);
+    }
+    break;
+
+    case FUNID_EGL_Set_Sync_Flag:
+    {
+        uint64_t sync_id;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (unlikely(para_num < PARA_NUM_Set_Sync_Flag))
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(uint64_t)))
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(temp == NULL))
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        sync_id = *(uint64_t *)(temp);
+
+        set_express_sync_id((int)sync_id, egl_context->opengl_context != NULL);
+    }
+    break;
+    case FUNID_EGL_Wait_Sync:
+    {
+        uint64_t sync_id;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (unlikely(para_num < PARA_NUM_Wait_Sync))
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < sizeof(uint64_t)))
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(temp == NULL))
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        sync_id = *(uint64_t *)(temp);
+
+        wait_for_express_sync((int)sync_id, egl_context->opengl_context != NULL);
     }
     break;
 

@@ -35,6 +35,9 @@ typedef struct Display_Status
 } __attribute__((packed, aligned(4))) Display_Status;
 
 
+
+
+
 extern Display_Info express_display_info;
 
 #define FUNID_Terminate (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 0))
@@ -49,6 +52,10 @@ extern Display_Info express_display_info;
 
 #define FUNID_Sync_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(5)))
 
+#define FUNID_Set_Sync_Flag (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 6))
+
+#define FUNID_Wait_Sync (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 7))
+
 
 #define FUNID_Show_Window (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 10))
 
@@ -60,6 +67,8 @@ extern Display_Info express_display_info;
 
 #define FUNID_Get_Display_Status (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(14)))
 
+#define FUNID_Show_Window_FLIP_V (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 15))
+
 
 #define PARA_NUM_Terminate_Gbuffer 1
 
@@ -70,6 +79,11 @@ extern Display_Info express_display_info;
 #define PARA_NUM_Gbuffer_Upload 1
 
 #define PARA_NUM_Alloc_Gbuffer 2
+
+#define PARA_NUM_Set_Sync_Flag 1
+
+#define PARA_NUM_Wait_Sync 1
+
 
 #define PARA_NUM_Get_Display_Mods 1
 
