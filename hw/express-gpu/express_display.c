@@ -573,7 +573,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
             if (gbuffer != NULL)
             {
                 express_printf("draw layer gbuffer_id %llx  %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d\n",
-                       layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+                               layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
                 // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
                 // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
                 // 两者间可能存在缩放关系
@@ -845,7 +845,6 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, gbuffer->width, gbuffer->height, gbuffer->format, gbuffer->pixel_type, NULL);
 
     unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
 
     glFlush();
 }

@@ -1077,7 +1077,6 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
 
     glFlush();
 
-
     g_free(gbuffer);
 }
 
@@ -1152,7 +1151,6 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
             gbuffer = create_gbuffer_with_context(width, height, hal_format, thread_context, ctx, gbuffer_id);
 
             add_gbuffer_to_global(gbuffer);
-
         }
         else
         {
@@ -1178,7 +1176,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         gbuffer->gbuffer_id = gbuffer_id;
 
         // share texure模式下，eglCreateImage时，当前应该是有opengl上下文的，只是创建的这个image之后交给其他线程使用
-        if(thread_context->opengl_context != share_opengl_context)
+        if (thread_context->opengl_context != share_opengl_context)
         {
             printf("error! eglCreateImage share texture get different opengl_context %llx %llx\n", (uint64_t)thread_context->opengl_context, (uint64_t)share_opengl_context);
         }

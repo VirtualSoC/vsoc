@@ -1428,7 +1428,6 @@ Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun)
     return list;
 }
 
-
 void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
     // 忽略一些不是错误的id
@@ -1518,8 +1517,6 @@ void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum seve
     }
     printf("\n");
 }
-
-
 
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d)
 {

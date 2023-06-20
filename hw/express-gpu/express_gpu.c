@@ -212,7 +212,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             // 注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
             process->surface_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_surface_map_destroy);
-            
+
             process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
             process->thread_cnt = 0;
 

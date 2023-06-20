@@ -51,7 +51,7 @@ int sync_wait_cnt = 0;
 
 void set_express_sync_id(int sync_id, bool need_gpu_sync)
 {
-    express_printf("set sync %d\n",sync_id);
+    express_printf("set sync %d\n", sync_id);
 
     if (sync_id >= MAX_SYNC_NUM * 32 || sync_id < 0)
     {
@@ -88,7 +88,7 @@ void set_express_sync_id(int sync_id, bool need_gpu_sync)
 
 void wait_for_express_sync(int sync_id, bool need_gpu_sync)
 {
-    express_printf("wait for sync %d ",sync_id);
+    express_printf("wait for sync %d ", sync_id);
     if (sync_id >= MAX_SYNC_NUM * 32 || sync_id < 0)
     {
         return;
@@ -125,14 +125,13 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
             }
         }
     }
-    express_printf(" sync %d ok\n",sync_id);
+    express_printf(" sync %d ok\n", sync_id);
 
     int64_t end_time = g_get_real_time();
-    if(end_time - start_time > 10*1000)
+    if (end_time - start_time > 10 * 1000)
     {
-        printf("warning! wait_for_express_sync sync %d spend too long time(%lldms)\n", sync_id, (end_time - start_time)/1000);
+        printf("warning! wait_for_express_sync sync %d spend too long time(%lldms)\n", sync_id, (end_time - start_time) / 1000);
     }
-
 }
 
 static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)

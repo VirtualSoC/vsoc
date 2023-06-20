@@ -6,7 +6,6 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/express_gpu_render.h"
 
-
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
@@ -43,7 +42,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         render_surface_uninit(thread_context->render_double_buffer_read);
 
         express_printf("makecurrent free read surface %llx\n", (uint64_t)thread_context->render_double_buffer_read);
-
 
         if (thread_context->render_double_buffer_read->need_destroy)
         {
@@ -170,7 +168,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
             }
             else
             {
-
             }
         }
         else
@@ -354,7 +351,6 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, opengl_context->draw_fbo0);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
     }
-
 }
 
 EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, uint64_t gbuffer_id, int width, int height, int hal_format, Guest_Mem *ret_invoke_time, Guest_Mem *swap_time)
@@ -492,4 +488,3 @@ EGLBoolean d_eglReleaseTexImage(void *context, EGLDisplay dpy, EGLSurface surfac
 {
     return EGL_FALSE;
 }
-

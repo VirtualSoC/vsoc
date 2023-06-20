@@ -52,7 +52,6 @@ int DSA_enable = 0;
 #endif
 int VSYNC_enable = 0;
 
-
 int express_gpu_window_FPS = 60;
 
 bool express_gpu_keep_window_scale = false;
@@ -70,7 +69,6 @@ static GHashTable *gbuffer_global_map = NULL;
 static GHashTable *gbuffer_global_types = NULL;
 
 static volatile int gbuffer_global_map_lock = 0;
-
 
 static int calc_screen_hz = 0;
 
@@ -130,9 +128,7 @@ static int display_height = 0;
 
 static bool window_need_refresh = false;
 
-
 Graphic_Buffer *main_display_gbuffer;
-
 
 volatile int native_render_run = 0;
 volatile int device_interface_run = 0;
@@ -353,7 +349,6 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
         set_touchscreen_window_size(window_width, window_height);
     }
 
-
     return;
 }
 
@@ -407,7 +402,7 @@ static void handle_child_window_event(void)
     {
         int64_t start_time = 0;
 
-        if(paint_event_cnt >= 2)
+        if (paint_event_cnt >= 2)
         {
             printf("error! too many event %d paint_num %d\n", child_event->event_code, paint_event_cnt);
         }
@@ -516,16 +511,14 @@ static void handle_child_window_event(void)
         }
         g_free(child_event);
         int64_t end_time = g_get_real_time();
-        if(end_time - start_time > 20000 && child_event != NULL)
+        if (end_time - start_time > 20000 && child_event != NULL)
         {
-            printf("warning! slow child_event %d time spend %lld now_time %lld queue_size %d\n", child_event->event_code, (end_time - start_time)/1000, end_time/1000, g_async_queue_length(main_window_event_queue));
+            printf("warning! slow child_event %d time spend %lld now_time %lld queue_size %d\n", child_event->event_code, (end_time - start_time) / 1000, end_time / 1000, g_async_queue_length(main_window_event_queue));
         }
-
 
         ATOMIC_LOCK(main_window_event_queue_lock);
         child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
         ATOMIC_UNLOCK(main_window_event_queue_lock);
-
     }
     return;
 }
@@ -586,7 +579,7 @@ static void static_value_prepare(void)
     //     preload_static_context_value->shader_binary_formats[0]);
 
     //@todo 增加换硬件后暂时移除binary的功能
-    if(!express_gpu_open_shader_binary)
+    if (!express_gpu_open_shader_binary)
     {
         preload_static_context_value->num_program_binary_formats = 0;
         preload_static_context_value->num_shader_binary_formats = 0;
@@ -770,7 +763,6 @@ static void static_value_prepare(void)
     assert(temp_loc < ((char *)preload_static_context_value) + sizeof(Static_Context_Values) + 512 * 100 + 400);
 }
 
-
 static void opengl_paint_composer_gbuffer(void)
 {
     if (main_display_gbuffer == NULL)
@@ -822,7 +814,6 @@ void opengl_paint_gbuffer(Graphic_Buffer *gbuffer)
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
         // printf("paint texture %d\n",gbuffer->data_texture);
 
-
         if (gbuffer->is_writing != 0)
         {
             printf("error! get writing gbuffer when opengl_paint\n");
@@ -835,7 +826,6 @@ void opengl_paint_gbuffer(Graphic_Buffer *gbuffer)
         glDrawArrays(GL_TRIANGLES, 0, 6);
     }
 }
-
 
 /**
  * @brief 创建带window的opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
@@ -982,7 +972,6 @@ void *native_window_thread(void *opaque)
     HGLRC gl_context = glfwGetWGLContext(glfw_window);
     egl_init(dpy_dc, gl_context);
 
-
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         express_printf("load glad error\n");
@@ -1063,7 +1052,7 @@ void *native_window_thread(void *opaque)
 
             if (force_show_native_render_window != 0 && window_is_shown == false)
             {
-                if(force_show_native_render_window == 2)
+                if (force_show_native_render_window == 2)
                 {
                     // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与安卓系统内逻辑一致，
                     // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
@@ -1075,7 +1064,6 @@ void *native_window_thread(void *opaque)
                 glfwSwapBuffers(glfw_window);
                 window_is_shown = true;
                 sdl2_no_need = 1;
-
             }
 
             // 在窗口上绘制内容
@@ -1105,8 +1093,7 @@ void *native_window_thread(void *opaque)
             }
             else
             {
-                if ((main_display_gbuffer == NULL) 
-                    && window_is_shown == true && force_show_native_render_window == 0)
+                if ((main_display_gbuffer == NULL) && window_is_shown == true && force_show_native_render_window == 0)
                 {
                     window_is_shown = false;
                     printf("hide window\n");
@@ -1168,7 +1155,6 @@ void *native_window_thread(void *opaque)
     // qemu_thread_join(&t);
     return NULL;
 }
-
 
 void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer)
 {
