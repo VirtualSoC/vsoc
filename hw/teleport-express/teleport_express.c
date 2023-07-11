@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2020
  *
  */
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/teleport_express.h"
 
 #include "hw/teleport-express/teleport_express_call.h"

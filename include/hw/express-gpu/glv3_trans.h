@@ -1673,6 +1673,7 @@
 
 // #define PARA_NUM_MIN_glFramebufferEGLImage (1)
 
+#include "glv3_decl.h"
 
 void gl3_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call);
 

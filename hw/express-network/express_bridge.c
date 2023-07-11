@@ -89,14 +89,14 @@ static int bridge_socket_listern(int port)
     fd = qemu_socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd < 0)
     {
-        printf("can't create stream socket %d", errno);
+        LOGE("can't create stream socket %d", errno);
         return -1;
     }
 
     ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
     if (ret < 0)
     {
-        printf("can't bind on socket port %d %d\n", port, errno);
+        LOGE("can't bind on socket port %d %d", port, errno);
         closesocket(fd);
 
         return -1;
@@ -104,14 +104,14 @@ static int bridge_socket_listern(int port)
     ret = listen(fd, 0);
     if (ret < 0)
     {
-        printf("can't listen on socket port %d %d", port, errno);
+        LOGE("can't listen on socket port %d %d", port, errno);
         closesocket(fd);
         return -1;
     }
 
     qemu_socket_set_nonblock(fd);
 
-    printf(DEBUG_HEAD "bridge listen fd %d port %d ok\n", fd, port);
+    LOGI("bridge listen fd %d port %d ok", fd, port);
 
     return fd;
 }
@@ -121,7 +121,7 @@ static int bridge_socket_accept(int fd)
     struct sockaddr_in saddr;
     socklen_t addrlen = sizeof(saddr);
     int client_fd = accept(fd, (struct sockaddr *)&saddr, &addrlen);
-    // printf(DEBUG_HEAD "get one connect fd %d\n", client_fd);
+    // LOGI(DEBUG_HEAD "get one connect fd %d", client_fd);
 
     return client_fd;
 }
@@ -139,7 +139,7 @@ static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
     int read_cnt = 0;
     int all_read_cnt = 0;
 
-    // printf("max_write_size %d \n",max_write_size);
+    // LOGI("max_write_size %d",max_write_size);
     do
     {
         int max_guest_size = (head->guest_read_loc - head->host_write_loc + head->data_size - 1) % head->data_size;
@@ -159,7 +159,7 @@ static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
             {
                 return all_read_cnt;
             }
-            printf(DEBUG_HEAD "read fd %d get %d err %d\n", fd, read_cnt, err);
+            LOGE(DEBUG_HEAD "read fd %d get %d err %d", fd, read_cnt, err);
             return -1;
         }
         else if (read_cnt == 0)
@@ -221,7 +221,7 @@ static void *bridge_accept_host_thread(void *opaque)
 
                 if (accept_status == NONE_ACCEPT)
                 {
-                    printf(DEBUG_HEAD "input one connect fd %d\n", get_accept_fd);
+                    LOGI(DEBUG_HEAD "input one connect fd %d", get_accept_fd);
                     write_to_guest_mem(bridge_context->connection_context.guest_data, &get_accept_fd, __builtin_offsetof(Bridge_Accept_Data, accept_fd), sizeof(int));
                     accept_status = GET_ACCEPT;
                     get_accept_fd = 0;
@@ -241,7 +241,7 @@ static void *bridge_accept_host_thread(void *opaque)
 
             if (get_accept_fd != 0)
             {
-                // printf("ready for guest accept\n");
+                // LOGI("ready for guest accept");
                 g_usleep(2000);
                 continue;
             }
@@ -253,13 +253,13 @@ static void *bridge_accept_host_thread(void *opaque)
         if (ret_fd == -1 && (err == EAGAIN || err == EWOULDBLOCK))
         {
             usleep(2000);
-            // printf("ready for accept\n");
+            // LOGI("ready for accept");
             continue;
         }
 
         if (ret_fd > 0)
         {
-            printf(DEBUG_HEAD "get one connect fd %d\n", ret_fd);
+            LOGI(DEBUG_HEAD "get one connect fd %d", ret_fd);
             qemu_socket_set_nonblock(ret_fd);
             g_hash_table_insert(accept_fd_thread_maps, GUINT_TO_POINTER(ret_fd), (gpointer)(uint64_t)guest_thread_id);
             get_accept_fd = ret_fd;
@@ -279,7 +279,7 @@ static void *bridge_accept_host_thread(void *opaque)
         free_copied_guest_mem(bridge_context->connection_context.guest_data);
     }
 
-    printf(DEBUG_HEAD "bridge listen thread exit closefd %d\n", bridge_context->connection_context.socket_fd);
+    LOGI(DEBUG_HEAD "bridge listen thread exit closefd %d", bridge_context->connection_context.socket_fd);
     set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
 
     return NULL;
@@ -305,7 +305,7 @@ static void *bridge_read_host_thread(void *opaque)
             {
                 closesocket(bridge_context->connection_context.socket_fd);
                 bridge_context->status_id = CLOSED_STATUS;
-                printf("error! no guest_mem with read_host_thread\n");
+                LOGE("error! no guest_mem with read_host_thread");
                 return NULL;
             }
         }
@@ -334,13 +334,13 @@ static void *bridge_read_host_thread(void *opaque)
             {
                 need_send_irq = false;
             }
-            // printf("sleep 1000\n");
+            // LOGI("sleep 1000");
             g_usleep(1000);
         }
         else
         {
             // 断开连接
-            printf("recv get close\n");
+            LOGI("recv get close");
             bridge_context->status_id = CLOSED_STATUS;
             break;
         }
@@ -355,7 +355,7 @@ static void *bridge_read_host_thread(void *opaque)
 
     set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
 
-    printf(DEBUG_HEAD "bridge thread exit closefd %d\n", bridge_context->connection_context.socket_fd);
+    LOGI(DEBUG_HEAD "bridge thread exit closefd %d", bridge_context->connection_context.socket_fd);
 
     return NULL;
 }
@@ -383,7 +383,7 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
             int *port_ptr = get_direct_ptr(all_para[0].data, &null_flag);
             if (unlikely(port_ptr == NULL))
             {
-                printf("error BRIDGE_FUN_BIND port NULL\n");
+                LOGE("error BRIDGE_FUN_BIND port NULL");
                 break;
             }
             int ret_fd = bridge_socket_listern(*port_ptr);
@@ -416,12 +416,12 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
             int *port_ptr = get_direct_ptr(all_para[0].data, &null_flag);
             if (unlikely(port_ptr == NULL))
             {
-                printf("error BRIDGE_FUN_BIND port NULL\n");
+                LOGE("error BRIDGE_FUN_BIND port NULL");
                 break;
             }
             uint64_t thread_id = (uint64_t)g_hash_table_lookup(accept_fd_thread_maps, GUINT_TO_POINTER(*port_ptr));
 
-            printf(DEBUG_HEAD "BRIDGE_FUN_CONNECT thread_id %llu %llu, port %d\n", thread_id, context->thread_id, *port_ptr);
+            LOGI(DEBUG_HEAD "BRIDGE_FUN_CONNECT thread_id %llu %llu, port %d", thread_id, context->thread_id, *port_ptr);
             if (thread_id == context->thread_id)
             {
                 bridge_context->connection_context.socket_fd = *port_ptr;
@@ -434,7 +434,7 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
             }
             else
             {
-                printf("error! port id is 0 thread_id %llu %llu, port %d\n", thread_id, context->thread_id, *port_ptr);
+                LOGE("error! port id is 0 thread_id %llu %llu, port %d", thread_id, context->thread_id, *port_ptr);
                 *port_ptr = 0;
             }
         }
@@ -445,7 +445,6 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
         if (para_num == 1 && bridge_context->status_id == CONNECTED_STATUS && bridge_context->connection_context.socket_fd != 0 &&
             all_para[0].data != NULL && all_para[0].data_len != 0)
         {
-            // printf(RED(DEBUG_HEAD "guest send %lld\n"), all_para[0].data_len);
             int num = all_para[0].data->num;
             Scatter_Data *scatter_data = all_para[0].data->scatter_data;
             for (int i = 0; i < num; i++)
@@ -468,14 +467,14 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
     //             // closesocket(bridge_context->connection_context.socket_fd);
     //             // 等待线程退出
     //             qemu_thread_join(&bridge_context->connection_context.read_thread);
-    //             printf(DEBUG_HEAD "wait read thread exit ok %d\n", bridge_context->connection_context.socket_fd);
+    //             LOGI(DEBUG_HEAD "wait read thread exit ok %d", bridge_context->connection_context.socket_fd);
     //         }
     //     }
     // }
     // break;
     default:
     {
-        printf("error bridge fun id %lld\n", fun_id);
+        LOGE("error bridge fun id %lld", fun_id);
     }
     break;
     }
@@ -527,7 +526,7 @@ static bool remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64
         // closesocket(bridge_context->connection_context.socket_fd);
         // 等待线程退出
         qemu_thread_join(&bridge_context->connection_context.read_thread);
-        printf(DEBUG_HEAD "wait read thread exit ok %d\n", bridge_context->connection_context.socket_fd);
+        LOGI(DEBUG_HEAD "wait read thread exit ok %d", bridge_context->connection_context.socket_fd);
     }
 
     return true;

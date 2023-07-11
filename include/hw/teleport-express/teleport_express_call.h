@@ -89,11 +89,15 @@ void release_one_call(Teleport_Express_Call *call, bool notify);
 Guest_Mem *alloc_one_guest_mem(void);
 void release_one_guest_mem(Guest_Mem *mem);
 
+/**
+ * Get a pointer to the guest memory region para is pointing to.
+ * If need_free is non-zero, the caller is responsible for freeing the memory (using g_free).
+*/
+void *call_para_to_ptr(Call_Para para, int *need_free);
 void *get_direct_ptr(Guest_Mem *guest_mem, int *flag);
 void read_from_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 void write_to_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_data, size_t start_loc, size_t length, int is_guest_to_host);
-
 
 
 int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned long long *id, unsigned long long *thread_id, unsigned long long *process_id, unsigned long long *unique_id, unsigned long long *num);

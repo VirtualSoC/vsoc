@@ -38,13 +38,13 @@ typedef struct
 } Render_Thread_Context;
 
 
-#define FUNID_GPU_Gbuffer_Download ((EXPRESS_GPU_DEVICE_ID << 32u) + 5001)
+#define FUNID_GPU_Gbuffer_Host_To_Guest ((EXPRESS_GPU_DEVICE_ID << 32u) + 5001)
 
-#define PARA_NUM_MIN_GPU_Gbuffer_Download (1)
+#define PARA_NUM_MIN_GPU_Gbuffer_Host_To_Guest (1)
 
-#define FUNID_GPU_Gbuffer_Upload ((EXPRESS_GPU_DEVICE_ID << 32u) + 5002)
+#define FUNID_GPU_Gbuffer_Guest_To_Host ((EXPRESS_GPU_DEVICE_ID << 32u) + 5002)
 
-#define PARA_NUM_MIN_GPU_Gbuffer_Upload (1)
+#define PARA_NUM_MIN_GPU_Gbuffer_Guest_To_Host (1)
 
 #define FUNID_GPU_Alloc_Gbuffer ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 25u) + 5003)
 

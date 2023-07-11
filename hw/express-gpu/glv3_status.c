@@ -1,5 +1,8 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 // #define TIMER_LOG
+
+#include <regex.h>
+
 #include "hw/express-gpu/glv3_status.h"
 #include "hw/express-gpu/glv3_resource.h"
 
@@ -16,21 +19,19 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
     {
         if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
-            // printf("conetxt %llx bind 0 framebuffer draw %u\n",(uint64_t)context, draw_fbo0);
+            // LOGI("conetxt %llx bind 0 framebuffer draw %u",(uint64_t)context, draw_fbo0);
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_fbo0);
         }
         if (target == GL_READ_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
-            // printf("conetxt %llx bind 0 framebuffer read %u\n",(uint64_t)context, read_fbo0);
+            // LOGI("conetxt %llx bind 0 framebuffer read %u",(uint64_t)context, read_fbo0);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, read_fbo0);
         }
     }
     else
     {
         glBindFramebuffer(target, framebuffer);
-        // GLenum status = glCheckFramebufferStatus(target) ;
-        // printf("conetxt %llx bind framebuffer %u status %x\n",(uint64_t)context, framebuffer, status);
     }
 }
 
@@ -161,7 +162,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         }
         break;
     default:
-        printf("error target %x buffer %d glBindBuffer\n", target, buffer);
+        LOGE("error target %x buffer %d glBindBuffer", target, buffer);
         break;
     }
 
@@ -201,7 +202,7 @@ void d_glBindBufferRange_special(void *context, GLenum target, GLuint index, GLu
         status->host_shader_storage_buffer = buffer;
         break;
     default:
-        printf("error target %x buffer %d glBindBufferRange\n", target, buffer);
+        LOGE("error target %x buffer %d glBindBufferRange", target, buffer);
         break;
     }
 
@@ -236,7 +237,7 @@ void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLui
         status->host_shader_storage_buffer = buffer;
         break;
     default:
-        printf("error target %x buffer %d glBindBufferBase\n", target, buffer);
+        LOGE("error target %x buffer %d glBindBufferBase", target, buffer);
         break;
     }
 
@@ -269,7 +270,7 @@ void buffer_binding_status_sync(void *context, GLenum target)
             new_buffer = status->host_element_array_buffer;
             need_sync = 1;
         }
-        printf("@todo! buffer sync element array buffer (glDrawElements)!\n");
+        LOGI("@todo! buffer sync element array buffer (glDrawElements)!");
         break;
     case GL_COPY_READ_BUFFER:
         if (status->guest_copy_read_buffer != status->host_copy_read_buffer)
@@ -400,7 +401,7 @@ GLuint get_guest_binding_buffer(void *context, GLenum target)
     case GL_TEXTURE_BUFFER:
         return status->guest_texture_buffer;
     default:
-        printf("error target %x get_guest_binding_buffer\n", target);
+        LOGE("error target %x get_guest_binding_buffer", target);
         break;
     }
     return 0;
@@ -417,7 +418,7 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
     //     real_opengl_context->view_w = width;
     //     real_opengl_context->view_h = height;
     //     glViewport(x, real_opengl_context->view_h - height, width, height);
-    //     printf("context %llx glViewport change y %d w %d h %d\n", (uint64_t)context, real_opengl_context->view_y, width, height);
+    //     LOGI("context %llx glViewport change y %d w %d h %d", (uint64_t)context, real_opengl_context->view_y, width, height);
 
     //     return;
     // }
@@ -452,23 +453,23 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     //调用这个函数的时候，前面肯定有glbindtexture，所以opengl_context肯定存在
     if (opengl_context == NULL)
     {
-        printf("error! opengl_context null when bindEGLImage image id %llx\n", gbuffer_id);
+        LOGE("error! opengl_context null when bindEGLImage image id %llx", gbuffer_id);
         return;
     }
 
     gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
     if (gbuffer == NULL)
     {
-        printf("error! glBindEGLImage with NULL gbuffer when finding in process gbuffer_id %llx target %x\n", gbuffer_id, target);
+        LOGE("error! glBindEGLImage with NULL gbuffer when finding in process gbuffer_id %llx target %x", gbuffer_id, target);
         return;
     }
 
-    // printf("glBindEGLImage gbuffer %llx ptr %llx type %d target-texture(%d)\n",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
+    // LOGI("glBindEGLImage gbuffer %llx ptr %llx type %d target-texture(%d)",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
 
     if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE)
     {
         set_texture_gbuffer_ptr(opengl_context, texture, gbuffer);
-        // printf("glBindEGLImage gbuffer_id %llx when write %d sync %d\n", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
+        // LOGI("glBindEGLImage gbuffer_id %llx when write %d sync %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         if (target == GL_TEXTURE_2D)
         {
@@ -623,7 +624,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         }
         break;
     default:
-        printf("error! glBindBuffer error target %x\n", target);
+        LOGE("error! glBindBuffer error target %x", target);
         break;
     }
 
@@ -633,7 +634,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         {
             // GLuint a = 0;
             // glGetIntegerv(GL_ACTIVE_TEXTURE, &a);
-            // printf("context %llx bind texuture %d active %d\n", (uint64_t)context, texture, a-GL_TEXTURE0);
+            // LOGI("context %llx bind texuture %d active %d", (uint64_t)context, texture, a-GL_TEXTURE0);
             glBindTexture(target, texture);
         }
         else
@@ -677,7 +678,7 @@ void texture_binding_status_sync(void *context, GLenum target)
 
     if (current_active_texture != status->host_current_active_texture)
     {
-        printf("active texture sync host %d guest %d\n", status->host_current_active_texture, current_active_texture);
+        LOGI("active texture sync host %d guest %d", status->host_current_active_texture, current_active_texture);
         status->host_current_active_texture = current_active_texture;
         glActiveTexture(current_active_texture + GL_TEXTURE0);
     }
@@ -690,7 +691,7 @@ void texture_binding_status_sync(void *context, GLenum target)
     {
     case GL_TEXTURE_2D:
         // glGetIntegerv(GL_TEXTURE_BINDING_2D, &temp);
-        // printf("sync texture current %d guest %d host %d real host %d\n",current_active_texture,status->guest_current_texture_2D[current_active_texture], status->host_current_texture_2D[current_active_texture], temp);
+        // LOGI("sync texture current %d guest %d host %d real host %d",current_active_texture,status->guest_current_texture_2D[current_active_texture], status->host_current_texture_2D[current_active_texture], temp);
         if (status->guest_current_texture_2D[current_active_texture] != status->host_current_texture_2D[current_active_texture])
         {
             status->host_current_texture_2D[current_active_texture] = status->guest_current_texture_2D[current_active_texture];
@@ -764,7 +765,7 @@ void texture_binding_status_sync(void *context, GLenum target)
     case GL_TEXTURE_EXTERNAL_OES:
         break;
     default:
-        printf("error texture target %x need sync\n", target);
+        LOGE("error texture target %x need sync", target);
         break;
     }
 
@@ -886,7 +887,7 @@ GLuint get_guest_binding_texture(void *context, GLenum target)
     default:
         break;
     }
-    printf("error! get_guest_binding_texture target %x\n", target);
+    LOGE("error! get_guest_binding_texture target %x", target);
     return 0;
 }
 
@@ -914,7 +915,7 @@ void d_glActiveTexture_special(void *context, GLenum texture)
         // GLuint ac = 0;
         // glGetIntegerv(GL_TEXTURE_BINDING_2D, &tex);
         // glGetIntegerv(GL_ACTIVE_TEXTURE, &ac);
-        // printf("context %llx active texture %d tex %u active %d\n", (uint64_t)context, status->host_current_active_texture, tex, ac-GL_TEXTURE0);
+        // LOGI("context %llx active texture %d tex %u active %d", (uint64_t)context, status->host_current_active_texture, tex, ac-GL_TEXTURE0);
     }
 
     // glActiveTexture(texture);
@@ -1007,7 +1008,7 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     if (now_point == NULL)
     {
         now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
-        printf("error! vao %d cannot find\n", now_vao);
+        LOGE("error! vao %d cannot find", now_vao);
         return;
     }
 
@@ -1057,5 +1058,162 @@ void vao_binding_status_sync(void *context)
 
         status->guest_element_array_buffer = status->guest_vao_ebo;
         status->host_element_array_buffer = status->guest_vao_ebo;
+    }
+}
+
+/**
+ * DebugMessage分发函数。
+ * 为了能同时把debugMessage用于host端调试和guest端需求。
+ * @param userParam host端的回调函数
+*/
+void d_debug_message_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+{
+    Opengl_Context *context = (Opengl_Context *)userParam;
+    // 1. 在host端打印debug信息。如果context为NULL则是主窗口，否则是应用窗口
+    // 忽略一些不是错误的id
+    if (id == 131169 || id == 131185 || id == 131218 || id == 131204 || id == 131154 || id == 131186) {}
+    else if (context != NULL && (severity == GL_DEBUG_SEVERITY_LOW || severity == GL_DEBUG_SEVERITY_NOTIFICATION)) {}
+
+#ifdef ENABLE_OPENGL_PERFORMANCE_WARNING
+
+#else
+    else if (type == GL_DEBUG_TYPE_PERFORMANCE) {}
+#endif
+    else
+    {
+        if (context != NULL) 
+        {
+            LOGI("\ndebug message (id: %u, context %p): %s", id, context, message);
+        }
+        else
+        {
+            LOGI("main debug message (id: %u): %s", id, message);
+        }
+        switch (source)
+        {
+        case GL_DEBUG_SOURCE_API:
+            LOGI("Source: API ");
+            break;
+        case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+            LOGI("Source: Window System ");
+            break;
+        case GL_DEBUG_SOURCE_SHADER_COMPILER:
+            LOGI("Source: Shader Compiler ");
+            break;
+        case GL_DEBUG_SOURCE_THIRD_PARTY:
+            LOGI("Source: Third Party ");
+            break;
+        case GL_DEBUG_SOURCE_APPLICATION:
+            LOGI("Source: APPLICATION ");
+            break;
+        case GL_DEBUG_SOURCE_OTHER:
+            break;
+        }
+
+        switch (type)
+        {
+        case GL_DEBUG_TYPE_ERROR:
+            LOGI("Type: Error ");
+            break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+            LOGI("Type: Deprecated Behaviour ");
+            break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+            LOGI("Type: Undefined Behaviour ");
+            break;
+        case GL_DEBUG_TYPE_PORTABILITY:
+            LOGI("Type: Portability ");
+            break;
+        case GL_DEBUG_TYPE_PERFORMANCE:
+            LOGI("Type: Performance ");
+            break;
+        case GL_DEBUG_TYPE_MARKER:
+            LOGI("Type: Marker ");
+            break;
+        case GL_DEBUG_TYPE_PUSH_GROUP:
+            LOGI("Type: Push Group ");
+            break;
+        case GL_DEBUG_TYPE_POP_GROUP:
+            LOGI("Type: Pop Group ");
+            break;
+        case GL_DEBUG_TYPE_OTHER:
+            LOGI("Type: Other ");
+            break;
+        }
+
+        switch (severity)
+        {
+        case GL_DEBUG_SEVERITY_HIGH:
+            LOGI("Severity: high");
+            break;
+        case GL_DEBUG_SEVERITY_MEDIUM:
+            LOGI("Severity: medium");
+            break;
+        case GL_DEBUG_SEVERITY_LOW:
+            LOGI("Severity: low");
+            break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION:
+            LOGI("Severity: notification");
+            break;
+        }
+        LOGI("");
+    }
+
+    // 2. 向guest端写入debug message
+    if (!context || !(context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) || !(context->debug_message_buffer) || !(context->is_current))
+    {
+        if (context && context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+        {
+            LOGE("error! debug context is not ready for messages: buffer %p is_current %d", context->debug_message_buffer, context->is_current);
+        }
+        return;
+    }
+
+    // 查询guest端读取情况
+    Guest_Mem *guest_mem = (Guest_Mem *)(context->debug_message_buffer);
+    unsigned char *desc_local = NULL;
+    void *no_ptr_buf = NULL;
+    int desc_len = sizeof(RingBufferDesc);
+    int null_flag = 0;
+    desc_local = get_direct_ptr(guest_mem, &null_flag);
+    if (unlikely(desc_local == NULL))
+    {
+        if (desc_len != 0 && null_flag == 0)
+        {
+            desc_local = g_malloc(desc_len);
+            no_ptr_buf = desc_local;
+            read_from_guest_mem(guest_mem, desc_local, 0, desc_len);
+        }
+    }
+    RingBufferDesc *desc = (RingBufferDesc *)desc_local;
+    const size_t block_size = desc->block_size;
+    // express_printf("guest debug ring buffer desc %p block_count %zu block_size %zu read_idx %d write_idx %d\n", desc, desc->block_count, desc->block_size, desc->read_idx, desc->write_idx);
+ 
+    // TODO: 尽力而为做一下id翻译
+    // TODO: 区分来自guest和host端的message。guest端的message不用做id翻译
+
+    // 构建message
+    // 这里是从guest端block_size计算出的max_debug_message_length，也可以直接从host端拿
+    length = min(length, block_size - sizeof(DebugMessageDesc) - 1); 
+    char *data = (char *)g_malloc(block_size);
+    DebugMessageDesc *local_data = (DebugMessageDesc *)data;
+    local_data->length = length;
+    local_data->source = source;
+    local_data->type = type;
+    local_data->id = id;
+    local_data->severity = severity;
+    memcpy(data + sizeof(DebugMessageDesc), message, length);
+    data[sizeof(DebugMessageDesc) + length] = 0; // null-terminated
+
+    // 写回guest内存。
+    // 因为host端开了GL_DEBUG_OUTPUT_SYNCHRONOUS，所以这个函数同一时间只可能被一个线程调用，而且是在gl函数执行完成之前调用的，不会存在并发写入的情况
+    LOGI("host write debug message context %p write_idx %d read_idx %d message length %d", context, desc->write_idx, desc->read_idx, length);
+    write_to_guest_mem(guest_mem, data, sizeof(RingBufferDesc) + (desc->write_idx % desc->block_count) * block_size, block_size);
+    desc->write_idx += 1;
+    write_to_guest_mem(guest_mem, &(desc->write_idx), (uint64_t)&(desc->write_idx) - (uint64_t)desc, sizeof(desc->write_idx));
+
+    g_free(data);
+    if (no_ptr_buf != NULL) {
+        g_free(no_ptr_buf);
     }
 }

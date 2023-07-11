@@ -1,5 +1,9 @@
 {
-    "C_Cpp.intelliSenseEngineFallback": "Enabled",
+    "C_Cpp.intelliSenseEngineFallback": "enabled",
+    "terminal.integrated.defaultProfile.windows": "MinGW64",
+    "files.exclude": {
+        "**/build": true
+    },
     "files.associations": {
         "random": "cpp",
         "gl2.h": "c",
@@ -148,6 +152,7 @@
         "ratio": "c",
         "cerrno": "c",
         "*.code": "c",
+        "my_gl32.h": "c",
         "thread": "c",
         "express_display.h": "c",
         "express_sync.h": "c"

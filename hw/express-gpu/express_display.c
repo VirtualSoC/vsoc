@@ -9,7 +9,7 @@
  *
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_device_common.h"
 
 #include "hw/express-gpu/express_display.h"
@@ -85,7 +85,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     case FUNID_Terminate:
     {
         // do nothing or hide window
-        printf("display terminate\n");
+        LOGI("display terminate");
     }
     break;
     case FUNID_Terminate_Gbuffer:
@@ -134,7 +134,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
                 // set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
                 destroy_gbuffer(gbuffer);
             }
-            printf("terminate gbuffer id %llx\n", info.gbuffer_id);
+            LOGI("terminate gbuffer id %llx", info.gbuffer_id);
         }
     }
     break;
@@ -162,7 +162,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
         if (layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers) != layers_size)
         {
-            printf(RED("error! Gbuffer_Layers' size is not equal to data size num %d calc size %lld layers_size %lld\n"), layers->layer_num, layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers), layers_size);
+            LOGE("error! Gbuffer_Layers' size is not equal to data size num %d calc size %lld layers_size %lld", layers->layer_num, layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers), layers_size);
             g_free(layers);
             break;
         }
@@ -177,21 +177,21 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Show_Window:
     {
-        printf("force_show_native_render_window\n");
+        LOGI("force_show_native_render_window");
         force_show_native_render_window = 1;
     }
     break;
     case FUNID_Show_Window_FLIP_V:
     {
-        printf("force_show_native_render_window-filp_v\n");
+        LOGI("force_show_native_render_window-filp_v");
         force_show_native_render_window = 2;
     }
     break;
-    case FUNID_Gbuffer_Download:
+    case FUNID_Gbuffer_Host_To_Guest:
     {
         Gralloc_Gbuffer_Info info;
 
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Download))
+        if (unlikely(para_num < PARA_NUM_Gbuffer_Host_To_Guest))
         {
             break;
         }
@@ -220,14 +220,14 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
         info = *(Gralloc_Gbuffer_Info *)(temp);
 
-        guest_download_gbuffer_data(info);
+        gbuffer_data_host_to_guest(info);
     }
     break;
-    case FUNID_Gbuffer_Upload:
+    case FUNID_Gbuffer_Guest_To_Host:
     {
         Gralloc_Gbuffer_Info info;
 
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Upload))
+        if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
         {
             break;
         }
@@ -256,7 +256,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
         info = *(Gralloc_Gbuffer_Info *)(temp);
 
-        guest_upload_gbuffer_data(info);
+        gbuffer_data_guest_to_host(info);
     }
     break;
     case FUNID_Alloc_Gbuffer:
@@ -384,7 +384,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         }
 
         write_to_guest_mem(all_para[0].data, &express_display_info, 0, sizeof(Display_Info));
-        // printf("FUNID_Get_Display_Mods\n");
+        // LOGI("FUNID_Get_Display_Mods");
     }
     break;
     case FUNID_Set_Display_Status:
@@ -406,7 +406,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         read_from_guest_mem(all_para[0].data, &status, 0, sizeof(Display_Status));
 
         display_status_change(status);
-        // printf("FUNID_Set_Display_Status\n");
+        // LOGI("FUNID_Set_Display_Status");
     }
     break;
     case FUNID_Get_Display_Status:
@@ -428,7 +428,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     default:
     {
-        printf("error! unknown display invoke id %llx para_num %d\n", call->id, para_num);
+        LOGE("error! unknown display invoke id %llx para_num %d", call->id, para_num);
     }
     }
 
@@ -485,7 +485,7 @@ static void display_context_init(Thread_Context *context)
             sleep_cnt += 1;
             if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
             {
-                printf("wait for native_display_context creating too long!\n");
+                LOGI("wait for native_display_context creating too long!");
             }
         }
 
@@ -628,7 +628,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                     now_transform_type = layer.transform_type;
                     if (now_transform_type != FLIP_V && now_transform_type != ROTATE_NONE)
                     {
-                        printf("error! not support transform_type %d\n", now_transform_type);
+                        LOGE("error! not support transform_type %d", now_transform_type);
                     }
                     glUniform1i(program_transform_loc, now_transform_type);
                 }
@@ -677,7 +677,7 @@ static void display_present(void)
 
     // int64_t now_time = g_get_real_time();
     // static int64_t last_display_time = 0;
-    // printf("display_present %llx time %lld gap %lld\n", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
+    // LOGI("display_present %llx time %lld gap %lld", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
     // last_display_time = now_time;
 
     static int now_screen_hz = 0;
@@ -688,7 +688,7 @@ static void display_present(void)
     if (now_time - last_record_time > 1000000)
     {
         float gen_frame_time_avg = 1.0f * (now_time - last_record_time) / now_screen_hz;
-        printf("composer draw avg %.2f us %.2f FPS\n", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_record_time));
+        LOGD("composer draw avg %.2f us %.2f FPS", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_record_time));
         last_record_time = now_time;
         now_screen_hz = 0;
     }
@@ -696,7 +696,7 @@ static void display_present(void)
 
 void display_status_change(Display_Status status)
 {
-    printf("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u\n",
+    LOGI("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u",
            now_display_status.refresh_rate, status.refresh_rate, now_display_status.power_status, status.power_status,
            now_display_status.backlight, status.backlight);
     if (express_display_switch_open)
@@ -725,41 +725,41 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
     if (gbuffer == NULL)
     {
         gbuffer = create_gbuffer_from_gralloc_info(info, info.gbuffer_id);
-        add_gbuffer_to_global(gbuffer);
         // set_global_gbuffer_type(info.gbuffer_id, GBUFFER_TYPE_NATIVE);
         gbuffer->usage = info.usage;
         gbuffer->pixel_size = info.pixel_size;
         gbuffer->size = info.size;
         gbuffer->stride = info.stride;
         gbuffer->guest_data = mem_data;
-        express_printf("alloc gbuffer size %d mem len %d\n", gbuffer->size, mem_data->all_len);
+        add_gbuffer_to_global(gbuffer);
+        LOGI("alloc gbuffer id %" PRIx64 " size %d mem_len %d width %d height %d stride %d pixel_size %d", gbuffer->gbuffer_id, gbuffer->size, mem_data->all_len, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
     }
     else
     {
-        printf("error! alloc_gbuffer_with_gralloc get no-null gbuffer origin %d %d new %d %d\n", gbuffer->width, gbuffer->height, info.width, info.height);
+        LOGE("error! alloc_gbuffer_with_gralloc get non-null gbuffer origin %d %d new %d %d", gbuffer->width, gbuffer->height, info.width, info.height);
         free_copied_guest_mem(mem_data);
     }
 
     if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
     {
-        printf("error! alloc_gbuffer_with_gralloc gbuffer data size error width height stride pixel_size %d %d %d %d origin %d %d %d %d", info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
+        LOGE("alloc_gbuffer_with_gralloc gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d origin %d %d %d %d", gbuffer->gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
         return;
     }
 }
 
-void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
 {
     Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
 
     if (gbuffer == NULL)
     {
-        printf("error! guest_upload_gbuffer_data get null gbuffer\n");
+        LOGE("error! gbuffer_data_guest_to_host get null gbuffer: id %" PRIx64 "", info.gbuffer_id);
         return;
     }
 
     if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
     {
-        printf("error! guest_upload_gbuffer_data gbuffer data size error width height stride pixel_size %d %d %d %d origin %d %d %d %d", info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
+        LOGE("gbuffer_data_guest_to_host gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d origin %d %d %d %d", info.gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
         return;
     }
 
@@ -775,11 +775,11 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
 
     int all_pixel_size = row_byte_len * info.height;
 
-    // printf("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d\n", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
+    // LOGI("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
 
     if (all_pixel_size > mem_data->all_len)
     {
-        printf("error! guest_upload_gbuffer_data len error! row %d height %d get len %d\n", row_byte_len, info.height, mem_data->all_len);
+        LOGE("error! gbuffer_data_guest_to_host len error! row %d height %d get len %d", row_byte_len, info.height, mem_data->all_len);
         return;
     }
 
@@ -788,7 +788,7 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
     {
         un_pack_buffer_size = all_pixel_size;
         glBufferData(GL_PIXEL_UNPACK_BUFFER, un_pack_buffer_size, NULL, GL_STREAM_DRAW);
-        printf("glBufferData new gbuffer size %d\n", un_pack_buffer_size);
+        LOGI("glBufferData new gbuffer size %d", un_pack_buffer_size);
     }
     else
     {
@@ -816,7 +816,7 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, all_pixel_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
-    printf("guest_upload_gbuffer_data id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
+    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
            gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     // GraphicBuffer里的图片是正的，放到纹理里要倒个个
@@ -849,19 +849,19 @@ void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info)
     glFlush();
 }
 
-void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info)
+void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
 {
     Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
 
     if (gbuffer == NULL)
     {
-        printf("error! guest_download_gbuffer_data get null gbuffer\n");
+        LOGE("error! gbuffer_data_host_to_guest get null gbuffer");
         return;
     }
 
     if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
     {
-        printf("error! guest download gbuffer data size error width height stride pixel_size %d %d %d %d origin %d %d %d %d",
+        LOGE("error! guest download gbuffer data size error width height stride pixel_size %d %d %d %d origin %d %d %d %d",
                info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
         return;
     }
@@ -878,11 +878,11 @@ void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info)
 
     int all_pixel_size = row_byte_len * info.height;
 
-    // printf("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d\n", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
+    // LOGI("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
 
     if (all_pixel_size > mem_data->all_len)
     {
-        printf("error! guest_download_gbuffer_data len error! row %d height %d get len %d\n", row_byte_len, info.height, mem_data->all_len);
+        LOGE("error! gbuffer_data_host_to_guest len error! row %d height %d get len %d", row_byte_len, info.height, mem_data->all_len);
         return;
     }
 
@@ -919,11 +919,11 @@ void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info)
     GLint error = glGetError();
     if (error != 0)
     {
-        printf("error %x when d_glReadGraphicBuffer width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
+        LOGE("error %x when d_glReadGraphicBuffer width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
                error, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
     }
 
-    printf("guest_download_gbuffer_data id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d\n",
+    LOGI("gbuffer_data_host_to_guest id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
            gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, all_pixel_size, GL_MAP_READ_BIT);

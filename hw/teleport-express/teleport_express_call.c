@@ -8,7 +8,6 @@
  * @copyright Copyright (c) 2022
  *
  */
-
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_device_common.h"
 
@@ -246,7 +245,7 @@ void write_to_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t l
     {
         return;
     }
-    express_printf("write_to_guest_mem length %llu all_len %d\n", length, guest->all_len);
+    express_printf("write_to_guest_mem start_loc %llu length %llu all_len %d\n", start_loc, length, guest->all_len);
 
     Scatter_Data *guest_data = guest->scatter_data;
     if (unlikely(length == 0 || host == NULL || length > guest->all_len))
@@ -254,7 +253,6 @@ void write_to_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t l
         printf("write_to_guest_mem error host %llx len %d %lld\n", (uint64_t)host, guest->all_len, length);
         return;
     }
-    express_printf("write_to_guest_mem %llu,%llu\n", start_loc, length);
     host_guest_buffer_exchange(guest_data, (unsigned char *)host, start_loc, length, 0);
 }
 
@@ -315,7 +313,7 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
                 else
                 {
 
-                    express_printf("memcpy data %lx index %d loc %d len %llu,host %lx loc %d remain %llu\n", guest_data[guest_index].data, guest_index, guest_loc, guest_data[guest_index].len, host_data, host_loc, remain_len);
+                    express_printf("memcpy data %lx index %d loc %d len %llu, host %lx loc %d remain %llu\n", guest_data[guest_index].data, guest_index, guest_loc, guest_data[guest_index].len, host_data, host_loc, remain_len);
 
                     if (last_data != guest_data[guest_index].data)
                     {
@@ -726,4 +724,23 @@ bool call_is_interrupt(Teleport_Express_Call *call)
     return t_flag == 2;
     // read_from_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, id), 8);
     // printf("write flag id %llu %llu\n", t_flag, call->thread_id);
+}
+
+void *call_para_to_ptr(Call_Para para, int *need_free) {
+    size_t ptr_len = 0;
+    unsigned char *ptr = NULL;
+
+    ptr_len = para.data_len;
+
+    int null_flag = 0;
+    ptr = get_direct_ptr(para.data, &null_flag);
+    if (unlikely(ptr == NULL)) {
+        if (ptr_len != 0 && null_flag == 0) {
+            ptr = g_malloc(ptr_len);
+            *need_free = 1;
+            read_from_guest_mem(para.data, ptr, 0, para.data_len);
+        }
+    }
+
+    return ptr;
 }

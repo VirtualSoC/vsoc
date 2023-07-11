@@ -26,7 +26,7 @@ void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
     if (len >= 1024)
     {
         len = 1023;
-        printf("error, glGetString string too long %x %s", name, static_string);
+        LOGE("error, glGetString string too long %x %s", name, static_string);
     }
     memcpy(buffer, static_string, len);
     //#1024
@@ -40,7 +40,7 @@ void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *b
     if (len >= 1024)
     {
         len = 1023;
-        printf("error, glGetStringi string too long %x %u %s", name, index, static_string);
+        LOGE("error, glGetStringi string too long %x %u %s", name, index, static_string);
     }
     memcpy(buffer, static_string, len);
 }
@@ -188,19 +188,17 @@ void resource_context_destroy(Resource_Context *resources)
 
 // int context_num = 0;
 
-void *get_native_opengl_context(int independ_mode)
+void *get_native_opengl_context(int context_flags)
 {
     void *native_context = NULL;
 
     ATOMIC_LOCK(native_context_pool_locker);
     GList *first = g_list_first(native_context_pool);
     ATOMIC_UNLOCK(native_context_pool_locker);
-    if (first == NULL || independ_mode == 1 || first->data == NULL)
+    if (first == NULL || (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT) || first->data == NULL)
     {
-        if (independ_mode == 1)
-        {
-            native_context = (void *)0xffffff;
-        }
+        // 给主窗口发消息的时候只能输入一个参数，所以窗口模式用flag方式传入
+        native_context = (void*)context_flags;
 
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
         // 不能在子线程中创建context，不然会为空
@@ -218,19 +216,40 @@ void *get_native_opengl_context(int independ_mode)
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
         //等待window真正的建立起来
         int sleep_cnt = 0;
-        while (native_context == NULL || native_context == (void *)0xffffff)
+        while (native_context == NULL || native_context == (void*)context_flags)
         {
             g_usleep(1000);
             sleep_cnt += 1;
             if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
             {
-                printf("wait for window creating too long! ptr %llx\n", (uint64_t)&native_context);
+                LOGI("wait for window creating too long! ptr %llx", (uint64_t)&native_context);
             }
         }
-        printf("waiting for context creating %d\n", sleep_cnt);
+        LOGI("waiting for context creating %d", sleep_cnt);
+    }
+    else if (context_flags & GL_CONTEXT_FLAG_DEBUG_BIT || context_flags & GL_CONTEXT_FLAG_ROBUST_ACCESS_BIT)
+    {
+        // 特殊窗口类型，直接创建新的context
+        native_context = (void*)context_flags;
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
+
+        //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
+        //等待window真正的建立起来
+        int sleep_cnt = 0;
+        while (native_context == NULL || native_context == (void*)context_flags)
+        {
+            g_usleep(1000);
+            sleep_cnt += 1;
+            if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
+            {
+                LOGI("wait for window creating too long! ptr %llx", (uint64_t)&native_context);
+            }
+        }
+        LOGI("waiting for context creating %d", sleep_cnt);
     }
     else
     {
+        // 复用空闲context
         native_context = first->data;
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_remove(native_context_pool, native_context);
@@ -247,16 +266,16 @@ void *get_native_opengl_context(int independ_mode)
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
     // context_num++;
-    // printf("context_num %d\n",context_num);
+    // LOGI("context_num %d",context_num);
     return native_context;
 }
 
-void release_native_opengl_context(void *native_context, int independ_mode)
+void release_native_opengl_context(void *native_context, int context_flags)
 {
     //假如已经保存有闲置的超过MAX_PRELOAD_CONTEXT_NUM个context，则新释放的context直接销毁，否则保存下来
     //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建MAX_PRELOAD_CONTEXT_NUM个备用的
 
-    if (native_context_pool_size < MAX_PRELOAD_CONTEXT_NUM && independ_mode == 0)
+    if (native_context_pool_size < MAX_PRELOAD_CONTEXT_NUM && !(context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT))
     {
         ATOMIC_LOCK(native_context_pool_locker);
         native_context_pool = g_list_append(native_context_pool, NULL);
@@ -268,9 +287,9 @@ void release_native_opengl_context(void *native_context, int independ_mode)
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
     // context_num--;
-    // printf("context_num %d\n",context_num);
+    // LOGI("context_num %d",context_num);
 
-    if (independ_mode == 1)
+    if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
         glfwSetWindowShouldClose(native_context, 1);
         glfwDestroyWindow(native_context);
@@ -281,7 +300,7 @@ void release_native_opengl_context(void *native_context, int independ_mode)
     }
 }
 
-Opengl_Context *opengl_context_create(Opengl_Context *share_context, int independ_mode)
+Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context_flags)
 {
     Opengl_Context *opengl_context = g_malloc0(sizeof(Opengl_Context));
     opengl_context->is_current = 0;
@@ -289,7 +308,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     opengl_context->window = NULL;
     opengl_context->is_using_external_program = 0;
     opengl_context->share_context = share_context;
-    opengl_context->independ_mode = independ_mode;
+    opengl_context->context_flags = context_flags;
 
     // opengl_context->bind_image = NULL;
 
@@ -346,12 +365,17 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     //要在opengl_context里创建window，因为opengl环境保存在window里
     // #ifdef USE_GLFW_AS_WGL
     // send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(opengl_context->window));
-    opengl_context->window = get_native_opengl_context(independ_mode);
+    opengl_context->window = get_native_opengl_context(context_flags);
+
+    if (opengl_context->window == NULL)
+    {
+        LOGE("error! opengl context window create failed! context %p context flags %d", opengl_context, context_flags);
+    }
     // #else
     // 不能在子线程中创建context，不然会为空
     //     opengl_context->window = egl_createContext();
     // #endif
-    // printf("send message create window opengl context %llx window_ptr %llx\n", (uint64_t)opengl_context, &(opengl_context->window));
+    // LOGI("send message create window opengl context %llx window_ptr %llx", (uint64_t)opengl_context, &(opengl_context->window));
 
     Share_Resources *share_resources = NULL;
     if (share_context != NULL)
@@ -384,6 +408,8 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int indepen
     opengl_context->draw_texi_vbo = 0;
     opengl_context->draw_texi_vao = 0;
     opengl_context->draw_texi_ebo = 0;
+
+    opengl_context->debug_message_buffer = NULL;
 
     return opengl_context;
 }
@@ -428,7 +454,7 @@ void opengl_context_init(Opengl_Context *context)
             glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
         }
 
-        // printf("context %llx init vao %d\n",(uint64_t)context, vao0);
+        // LOGI("context %llx init vao %d",(uint64_t)context, vao0);
 
         temp_host_vao = vao0;
         create_host_map_ids(map_status, 1, &temp_guest_vao, &temp_host_vao);
@@ -510,7 +536,7 @@ void opengl_context_destroy(Opengl_Context *context)
     // g_free(texture_status->guest_current_texture_unit);
     // g_free(texture_status->host_current_texture_unit);
 
-    if (opengl_context->independ_mode == 1)
+    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
         glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
     }
@@ -553,7 +579,7 @@ void opengl_context_destroy(Opengl_Context *context)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-    if (opengl_context->independ_mode == 1)
+    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
         glfwHideWindow(opengl_context->window);
         glfwMakeContextCurrent(NULL);
@@ -563,7 +589,14 @@ void opengl_context_destroy(Opengl_Context *context)
         express_printf("context %llx windows %llx makecurrent null\n", (uint64_t)opengl_context, opengl_context->window);
         egl_makeCurrent(NULL);
     }
-    release_native_opengl_context(opengl_context->window, opengl_context->independ_mode);
+
+    if ((opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) && (opengl_context->debug_message_buffer))
+    {
+        free_copied_guest_mem((Guest_Mem *)opengl_context->debug_message_buffer);
+        opengl_context->debug_message_buffer = NULL;
+    }
+
+    release_native_opengl_context(opengl_context->window, opengl_context->context_flags);
 }
 
 //下面这三个函数都是销毁函数，不提供外部调用，只用来给g_hash_table_new_full用

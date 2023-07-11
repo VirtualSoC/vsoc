@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "hw/express-gpu/glv3_program.h"
 #include "hw/express-gpu/glv3_resource.h"
@@ -26,7 +26,7 @@ int init_program_data(GLuint program)
 
     glGetProgramiv(program, GL_LINK_STATUS, &link_status);
 
-    // printf("link program %d\n",program);
+    // LOGI("link program %d",program);
     int buf_len;
     GLchar *program_data;
 
@@ -36,13 +36,13 @@ int init_program_data(GLuint program)
 
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLen);
 
-        printf("GL_INFO_LOG_LENGTH %d\n", infoLen);
+        LOGI("GL_INFO_LOG_LENGTH %d", infoLen);
 
         if (infoLen > 1)
         {
             char *infoLog = (char *)malloc(sizeof(char) * infoLen);
             glGetProgramInfoLog(program, infoLen, NULL, infoLog);
-            printf("Error linking program:\n%s\n", infoLog);
+            LOGE("error linking program:\n%s", infoLog);
             free(infoLog);
         }
 
@@ -86,7 +86,7 @@ int init_program_data(GLuint program)
             if (shader_type == GL_COMPUTE_SHADER)
             {
                 glGetProgramiv(program, GL_COMPUTE_WORK_GROUP_SIZE, group_size);
-                // printf("computer shader size %d\n", shader_cnt);
+                // LOGI("computer shader size %d", shader_cnt);
                 // break;
             }
         }
@@ -215,7 +215,7 @@ int init_program_data(GLuint program)
             GLenum error = glGetError();
             if (error != GL_NO_ERROR)
             {
-                printf("error when create program\n");
+                LOGE("error when create program");
             }
         }
 
@@ -271,7 +271,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     if (program_data_map == NULL || program == 0)
     {
 
-        printf("error! program_data_map %llx program %d", (uint64_t)program_data_map, program);
+        LOGE("error! program_data_map %llx program %d", (uint64_t)program_data_map, program);
         return;
     }
 
@@ -279,7 +279,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
 
     if (save_program_data == NULL)
     {
-        printf("error! save_program_data NULL program %u", program);
+        LOGE("error! save_program_data NULL program %u", program);
         return;
     }
 
@@ -417,7 +417,7 @@ int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len)
     }
     if (len - origin_copy_len < 0)
     {
-        printf("error! len %d origin %d\n origin:\n%s\nnow:%s\n", len, origin_copy_len, dst, origin);
+        LOGE("error! len %d origin %d\n origin:\n%s\nnow:%s", len, origin_copy_len, dst, origin);
     }
     assert(len - origin_copy_len >= 0);
     memcpy(dst + now_copy_len, origin + origin_copy_len, len - origin_copy_len);
@@ -432,7 +432,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     static const char SHADOW_SAMPLER_EXTENSION[] = "#extension GL_NV_shadow_samplers_cube : enable\n";
     static const char USE_EXTERNAL_UNIFORM[] = "if(has_EGL_image_external==1){";
 
-    // printf("gl shader source %d before count%d:\n%s\n",shader, count, string[0]);
+    // LOGI("gl shader source %d before count%d:\n%s",shader, count, string[0]);
 
     int has_find_external = 0;
     int has_version = 0;
@@ -598,7 +598,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         new_string1[loc] = 0;
         length[0] = loc;
         string[0] = new_string1;
-        // printf("%s\n", new_string1);
+        // LOGI("%s", new_string1);
     }
 
     GLint shader_type;
@@ -606,22 +606,25 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
     if (has_find_external == 1 && shader_type == GL_FRAGMENT_SHADER)
     {
-        const char *out_loc = NULL;
+        const char *out_loc = NULL, *temp_loc = NULL;
         for (int i = 0; i < count; i++)
         {
-            out_loc = strstr(string[i], "out ");
-            if (out_loc != NULL && (unsigned long long)(out_loc - string[i]) <= (unsigned long long)length[i])
+            temp_loc = strstr(string[i], "out");
+            while (temp_loc != NULL && (unsigned long long)(temp_loc - string[i]) <= (unsigned long long)length[i])
             {
-                if (isspace(*(out_loc - 1)))
+                if ((temp_loc == string[i] || isspace(*(temp_loc - 1))) && isspace(*(temp_loc + 3)))
                 {
+                    out_loc = temp_loc;
                     break;
                 }
+                temp_loc = strstr(temp_loc + 1, "out");
             }
         }
-        if (out_loc == NULL)
-        {
+        if (out_loc == NULL) {
+            express_printf("glShaderSource null out_loc shader id %d type %x out_loc '%.10s'\n", shader, shader_type, out_loc);
             out_loc = "out vec4 gl_FragColor;";
         }
+
         char default_out_string[200];
 
         get_default_out(out_loc, default_out_string);
@@ -636,7 +639,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
             if (string_loc != NULL && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
             {
-                // printf("find main\n");
+                // LOGI("find main");
                 while (string_loc[0] != '{' && (unsigned long long)(string_loc - string[i]) <= (unsigned long long)length[i])
                 {
                     string_loc++;
@@ -660,13 +663,13 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
 
                 length[i] = offset;
                 string[i] = new_string2;
-                // printf("shadersource:\n%s\n", string[i]);
+                // LOGI("host shadersource %d:\n%s", i, string[i]);
             }
         }
     }
 
     glShaderSource(shader, count, (const GLchar *const *)string, length);
-    // printf("\ngl shader %d source after count %d context %llx:\n%s\n", shader, count, (uint64_t)context, string[0]);
+    // LOGI("\ngl shader %d source after count %d context %llx:\n%s", shader, count, (uint64_t)context, string[0]);
 
     if (new_string1 != NULL)
     {
@@ -678,15 +681,18 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     }
 }
 
-static int GLSL_VERSION_SIZE = 7;
+static int GLSL_VERSION_SIZE = 9;
 static const char *GLSL_VERSION[] = {
-    "430",
+    "460",
     "330",
-    "300 es",
-    "310 es",
     "100",
+    "320 es",
+    "310 es",
+    "300 es",
+    "430",
     "440",
-    "450"};
+    "450"
+};
 
 void change_GLSL_version(char *start, char *end, int try_cnt)
 {
@@ -728,7 +734,19 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
 
     if (error != GL_NO_ERROR)
     {
-        printf("glCompileShader %x guest %u host %u\n", error, guest_id, host_id);
+        GLint length;
+        
+        glGetShaderiv(host_id, GL_SHADER_SOURCE_LENGTH, &length);
+        char buf[length + 1];        
+        glGetShaderSource(host_id, length + 1, NULL, buf);
+        
+        glGetShaderiv(host_id, GL_INFO_LOG_LENGTH, &length);
+        char info_buf[length + 1];
+        glGetShaderInfoLog(host_id, length + 1, NULL, info_buf);
+
+        LOGE("glCompileShader error %x guest %u host %u", error, guest_id, host_id);
+        LOGI("shader source:\n%s", buf);
+        LOGI("compile info:\n%s", info_buf);
     }
 
     GLint compiled;
@@ -763,7 +781,7 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
                 glShaderSource(host_id, 1, (const char *const *)&source, &source_len);
                 glCompileShader(host_id);
                 glGetShaderiv(host_id, GL_COMPILE_STATUS, &compiled);
-                // printf("try change(%d) source compiled %d:%s\n", try_cnt, compiled, source);
+                // LOGI("try change(%d) source compiled %d:%s", try_cnt, compiled, source);
                 if (compiled)
                 {
                     break;
@@ -773,7 +791,11 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
         }
         if (!compiled)
         {
-            printf("shader compile error! shader source:\n%s\nerror info:\n%s\n", source, info_log);
+            GLint shader_type;
+            glGetShaderiv(host_id, GL_SHADER_TYPE, &shader_type);
+
+            LOGE("shader compile error type %x guest id %u host id %u!", shader_type, guest_id, host_id);
+            LOGI("shader source :\n%s\nerror info:\n%s", source, info_log);
         }
 
         g_free(source);

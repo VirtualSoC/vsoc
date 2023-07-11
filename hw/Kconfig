@@ -72,7 +72,7 @@ source express-gpu/Kconfig
 source express-input/Kconfig
 source express-sensor/Kconfig
 source express-network/Kconfig
-
+source express-camera/Kconfig
 
 
 # Symbols used by multiple targets

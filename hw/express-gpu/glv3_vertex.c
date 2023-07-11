@@ -1,5 +1,4 @@
 // #define STD_DEBUG_LOG
-// #define STD_DEBUG_LOG_GLOBAL_ON
 #include "hw/express-gpu/glv3_vertex.h"
 #include "hw/express-gpu/glv3_status.h"
 
@@ -176,7 +175,7 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
         // if(status->guest_array_buffer != 0)
         // {
         //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-        //     printf("error! %s vbo guest %d host %d but now %d\n",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
+        //     LOGE("error! %s vbo guest %d host %d but now %d",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
         // }
 
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
@@ -211,7 +210,7 @@ void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint s
         // {
         //     GLint vbo;
         //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-        //     printf("error! %s vbo guest %d host %d but now %d\n",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
+        //     LOGE("error! %s vbo guest %d host %d but now %d",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
         // }
 
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
@@ -243,7 +242,7 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
         // {
         //     GLint vbo;
         //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-        //     printf("error! %s vbo guest %d host %d but now %d\n",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
+        //     LOGE("error! %s vbo guest %d host %d but now %d",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
         // }
 
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
@@ -277,7 +276,7 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
         // {
         //     GLint vbo;
         //     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-        //     printf("error! %s vbo guest %d host %d but now %d\n",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
+        //     LOGE("error! %s vbo guest %d host %d but now %d",__FUNCTION__, status->guest_array_buffer, status->host_array_buffer, vbo);
         // }
 
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
@@ -304,13 +303,13 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
     }
     else
     {
+#ifdef STD_DEBUG_LOG
         GLint ebo = 0;
         GLint vbo = 0;
-#ifdef STD_DEBUG_LOG_GLOBAL_ON
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-#endif
         express_printf("%llx d_glVertexAttribPointer_with_bound index %u size %d type %x normalized %d stride %d pointer %llx ebo %d vbo %d\n", (uint64_t)context, index, size, type, normalized, stride, pointer, ebo, vbo);
+#endif
 
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)pointer);
     }
@@ -331,7 +330,7 @@ void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size
     {
         GLint ebo = 0;
         GLint vbo = 0;
-#ifdef STD_DEBUG_LOG_GLOBAL_ON
+#ifdef STD_DEBUG_LOG
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
 #endif
@@ -405,7 +404,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-#ifdef STD_DEBUG_LOG_GLOBAL_ON
+#ifdef STD_DEBUG_LOG
     GLint cu_vao = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &cu_vao);
     express_printf("%llx glDrawArrays mode %x first %d count %d vao %d\n", (uint64_t)context, mode, first, count, cu_vao);
@@ -436,7 +435,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
             glActiveTexture(GL_TEXTURE0);
 
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
 
         glDrawArrays(mode, first, count);
@@ -464,7 +463,7 @@ void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLs
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -479,7 +478,7 @@ void d_glDrawArraysInstanced_origin(void *context, GLenum mode, GLint first, GLs
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         glDrawArraysInstanced(mode, first, count, instancecount);
         if (opengl_context->is_using_external_program == 1)
@@ -506,7 +505,7 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -517,25 +516,44 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
     }
     else
     {
+#ifdef STD_DEBUG_LOG
         GLint ebo = 0;
         GLint vbo = 0;
-#ifdef STD_DEBUG_LOG_GLOBAL_ON
         glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
-#endif
         express_printf("drawElements %x %d %x %lx vbo %d ebo %d\n", mode, (int)count, type, indices, vbo, ebo);
+#endif
 
         if (opengl_context->is_using_external_program == 1)
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         // GLuint pre_array;
         // glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &pre_array);
-        // printf("pre array vao %d\n",pre_array);
+        // LOGI("pre array vao %d",pre_array);
         // glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_array);
-        // printf("pre array ebo %d\n",pre_array);
+        // LOGI("pre array ebo %d",pre_array);
+
+        if (express_gpu_gl_debug_enable)
+        {
+            GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+            if (status != GL_FRAMEBUFFER_COMPLETE)
+            {
+                GLint fbo;
+                glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &fbo);
+                LOGE("error! context %llx draw framebuffer %u not complete! status %x error %x",(uint64_t)context, fbo, status, glGetError());
+
+                GLint color0, color1, depth, stencil, depth_stencil;
+                glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &color0);
+                glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &color1);
+                glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &depth);
+                glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &stencil);
+                glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &depth_stencil);
+                LOGI("    attachment type: color0 %x color1 %x depth %x stencil %x depth_stencil %x", color0, color1, depth, stencil, depth_stencil);
+            }
+        }
 
         glDrawElements(mode, count, type, (void *)indices);
         if (opengl_context->is_using_external_program == 1)
@@ -705,7 +723,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -720,7 +738,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
 
         glDrawElements(mode, count, type, (const void *)(uint64_t)buffer_loc);
@@ -765,7 +783,7 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -780,7 +798,7 @@ void d_glDrawElementsInstanced_without_bound(void *context, GLenum mode, GLsizei
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
 
         glDrawElementsInstanced(mode, count, type, (const void *)(uint64_t)buffer_loc, instancecount);
@@ -820,7 +838,7 @@ void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei co
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -835,7 +853,7 @@ void d_glDrawElementsInstanced_with_bound(void *context, GLenum mode, GLsizei co
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         glDrawElementsInstanced(mode, count, type, (void *)indices, instancecount);
         if (opengl_context->is_using_external_program == 1)
@@ -863,7 +881,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -878,7 +896,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         glDrawRangeElements(mode, start, end, count, type, (void *)indices);
         if (opengl_context->is_using_external_program == 1)
@@ -909,7 +927,7 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -924,7 +942,7 @@ void d_glDrawRangeElements_without_bound(void *context, GLenum mode, GLuint star
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         glDrawRangeElements(mode, start, end, count, type, (const void *)(uint64_t)buffer_loc);
         if (opengl_context->is_using_external_program == 1)
@@ -969,7 +987,7 @@ void d_glDrawArraysIndirect_with_bound(void *context, GLenum mode, GLintptr indi
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -1013,7 +1031,7 @@ void d_glDrawArraysIndirect_without_bound(void *context, GLenum mode, const void
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -1055,7 +1073,7 @@ void d_glDrawElementsIndirect_with_bound(void *context, GLenum mode, GLenum type
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -1099,7 +1117,7 @@ void d_glDrawElementsIndirect_without_bound(void *context, GLenum mode, GLenum t
             status->host_current_texture_2D[0] = status->current_texture_external;
 
             // status->host_current_texture_unit[0] = status->current_texture_external;
-            // printf("use external texture %d\n", opengl_context->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
         else
         {
@@ -1123,3 +1141,325 @@ void d_glDrawElementsIndirect_without_bound(void *context, GLenum mode, GLenum t
         }
     }
 }
+
+void d_glDrawElementsBaseVertex_with_bound(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices, GLint basevertex)
+{
+
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    {
+        vao_binding_status_sync(context);
+        // buffer_binding_status_sync(context, GL_ELEMENT_ARRAY_BUFFER);
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTextureUnit(0, status->current_texture_external);
+            status->host_current_texture_2D[0] = status->current_texture_external;
+
+            // status->host_current_texture_unit[0] = status->current_texture_external;
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        else
+        {
+            texture_unit_status_sync(context, -1);
+        }
+
+        glDrawElementsBaseVertex(mode, count, type, (void *)indices, basevertex);
+    }
+    else
+    {
+        GLuint ebo = 0;
+        GLuint vbo = 0;
+#ifdef STD_DEBUG_LOG
+        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
+#endif
+        express_printf("drawElements %x %d %x %lx vbo %u ebo %u\n", mode, (int)count, type, indices, vbo, ebo);
+
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        // GLuint pre_array;
+        // glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &pre_array);
+        // LOGI("pre array vao %d",pre_array);
+        // glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &pre_array);
+        // LOGI("pre array ebo %d",pre_array);
+
+        glDrawElementsBaseVertex(mode, count, type, (void *)indices, basevertex);
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+            glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
+        }
+    }
+}
+
+void d_glDrawElementsBaseVertex_without_bound(void *context, GLenum mode, GLsizei count, GLenum type, const void *indices, GLint basevertex)
+{
+
+    int len = count * gl_sizeof(type);
+
+    express_printf("drawElements without %x %d %x %lx len %d\n", mode, (int)count, type, indices, len);
+
+    vao_binding_status_sync(context);
+
+    GLint buffer_loc = set_indices_data(context, (void *)indices, len);
+
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    {
+
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTextureUnit(0, status->current_texture_external);
+            status->host_current_texture_2D[0] = status->current_texture_external;
+
+            // status->host_current_texture_unit[0] = status->current_texture_external;
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        else
+        {
+            texture_unit_status_sync(context, -1);
+        }
+
+        glDrawElementsBaseVertex(mode, count, type, (const void *)(uint64_t)buffer_loc, basevertex);
+    }
+    else
+    {
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+
+        glDrawElementsBaseVertex(mode, count, type, (const void *)(uint64_t)buffer_loc, basevertex);
+
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+            glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
+        }
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+    // // @todo 这里根据数据的长度来决定到底是采用普通模式还是缓冲区模式，需要测试哪个长度更节约时间
+    // if(len<40000){
+    //     glDrawElementsBaseVertex(mode,count,type,indices, basevertex);
+    // }else{
+    //     set_attrib_point_index(context,indices,len);
+
+    //     glDrawElementsBaseVertex(mode,count,type,0, basevertex);
+    //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
+    // }
+}
+
+void d_glDrawRangeElementsBaseVertex_with_bound(void *context, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, GLsizeiptr indices, GLint basevertex)
+{
+    //这里的start和end不会对此时的操作有影响，因为只要在那个范围内了，该传输过去还是得传输过去，只是最后会不会用的问题
+
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    {
+        vao_binding_status_sync(context);
+        // buffer_binding_status_sync(context, GL_ELEMENT_ARRAY_BUFFER);
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTextureUnit(0, status->current_texture_external);
+            status->host_current_texture_2D[0] = status->current_texture_external;
+
+            // status->host_current_texture_unit[0] = status->current_texture_external;
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        else
+        {
+            texture_unit_status_sync(context, -1);
+        }
+
+        glDrawRangeElementsBaseVertex(mode, start, end, count, type, (void *)indices, basevertex);
+    }
+    else
+    {
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        glDrawRangeElementsBaseVertex(mode, start, end, count, type, (void *)indices, basevertex);
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+            glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
+        }
+    }
+}
+
+void d_glDrawRangeElementsBaseVertex_without_bound(void *context, GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void *indices, GLint basevertex)
+{
+
+    int len = count * gl_sizeof(type);
+
+    vao_binding_status_sync(context);
+
+    GLint buffer_loc = set_indices_data(context, (void *)indices, len);
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    {
+
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTextureUnit(0, status->current_texture_external);
+            status->host_current_texture_2D[0] = status->current_texture_external;
+
+            // status->host_current_texture_unit[0] = status->current_texture_external;
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        else
+        {
+            texture_unit_status_sync(context, -1);
+        }
+
+        glDrawRangeElementsBaseVertex(mode, start, end, count, type, (const void *)(uint64_t)buffer_loc, basevertex);
+    }
+    else
+    {
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        glDrawRangeElementsBaseVertex(mode, start, end, count, type, (const void *)(uint64_t)buffer_loc, basevertex);
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+            glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
+        }
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+
+    // // @todo 这里根据数据的长度来决定到底是采用普通模式还是缓冲区模式，需要测试哪个长度更节约时间
+    // if(len<40000){
+    //     glDrawRangeElementsBaseVertex(mode, start, end, count, type, indices, basevertex);
+    // }else{
+    //     set_attrib_point_index(context,indices,len);
+
+    //     glDrawRangeElementsBaseVertex(mode, start, end, count, type, 0, basevertex);
+    //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
+    // }
+}
+
+void d_glDrawElementsInstancedBaseVertex_with_bound(void *context, GLenum mode, GLsizei count, GLenum type, GLsizeiptr indices, GLsizei instancecount, GLint basevertex)
+{
+
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    {
+        vao_binding_status_sync(context);
+        // buffer_binding_status_sync(context, GL_ELEMENT_ARRAY_BUFFER);
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTextureUnit(0, status->current_texture_external);
+            status->host_current_texture_2D[0] = status->current_texture_external;
+
+            // status->host_current_texture_unit[0] = status->current_texture_external;
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        else
+        {
+            texture_unit_status_sync(context, -1);
+        }
+
+        glDrawElementsInstancedBaseVertex(mode, count, type, (void *)indices, instancecount, basevertex);
+    }
+    else
+    {
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        glDrawElementsInstancedBaseVertex(mode, count, type, (void *)indices, instancecount, basevertex);
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+            glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
+        }
+    }
+}
+
+void d_glDrawElementsInstancedBaseVertex_without_bound(void *context, GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei instancecount, GLint basevertex)
+{
+
+    int len = count * gl_sizeof(type);
+
+    vao_binding_status_sync(context);
+
+    GLint buffer_loc = set_indices_data(context, (void *)indices, len);
+
+    Opengl_Context *opengl_context = (Opengl_Context *)context;
+    Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    {
+
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTextureUnit(0, status->current_texture_external);
+            status->host_current_texture_2D[0] = status->current_texture_external;
+
+            // status->host_current_texture_unit[0] = status->current_texture_external;
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+        else
+        {
+            texture_unit_status_sync(context, -1);
+        }
+
+        glDrawElementsInstancedBaseVertex(mode, count, type, (const void *)(uint64_t)buffer_loc, instancecount, basevertex);
+    }
+    else
+    {
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
+            // LOGI("use external texture %d", opengl_context->current_texture_external);
+        }
+
+        glDrawElementsInstancedBaseVertex(mode, count, type, (const void *)(uint64_t)buffer_loc, instancecount, basevertex);
+
+        if (opengl_context->is_using_external_program == 1)
+        {
+            glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
+            glActiveTexture(status->host_current_active_texture + GL_TEXTURE0);
+        }
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+
+    // // @todo 这里根据数据的长度来决定到底是采用普通模式还是缓冲区模式，需要测试哪个长度更节约时间
+    // if(len<40000){
+    //     glDrawElementsInstancedBaseVertex(mode,count,type,indices,instancecount, basevertex);
+    // }else{
+    //     set_attrib_point_index(context,indices,len);
+    //     glDrawElementsInstancedBaseVertex(mode,count,type,0,instancecount, basevertex);
+    //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,0);
+    // }
+}
+

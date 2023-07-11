@@ -15,9 +15,8 @@
 #define EXPRESS_GYROSCOPE_DEVICE_ID ((uint64_t)7)
 #define EXPRESS_GPS_DEVICE_ID ((uint64_t)8)
 #define EXPRESS_MICROPHONE_DEVICE_ID ((uint64_t)9)
-
 #define EXPRESS_DISPLAY_DEVICE_ID ((uint64_t)10)
-
+#define EXPRESS_CAMERA_DEVICE_ID ((uint64_t)11)
 
 #define EXPRESS_BRIDGE_DEVICE_ID ((uint64_t)40)
 

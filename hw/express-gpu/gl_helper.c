@@ -44,7 +44,10 @@ int pixel_size_calc(GLenum format, GLenum type)
             return sizeof(char) * 4;
         case GL_RGBA_INTEGER:
             return sizeof(char) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
+
         break;
     case GL_UNSIGNED_BYTE:
         switch (format)
@@ -85,8 +88,10 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_RGBA_INTEGER:
             return sizeof(unsigned char) * 4;
         case GL_BGRA_EXT:
-            // case GL_BGRA8_EXT:
+        case GL_BGRA8_EXT:
             return sizeof(unsigned char) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
         break;
     case GL_SHORT:
@@ -104,6 +109,8 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_RGBA16I:
         case GL_RGBA_INTEGER:
             return sizeof(short) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
         break;
     case GL_UNSIGNED_SHORT:
@@ -115,6 +122,7 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_R16UI:
         case GL_RED_INTEGER:
             return sizeof(unsigned short);
+        case GL_RG:
         case GL_RG16UI:
         case GL_RG_INTEGER:
             return sizeof(unsigned short) * 2;
@@ -124,6 +132,8 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_RGBA16UI:
         case GL_RGBA_INTEGER:
             return sizeof(unsigned short) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
         break;
     case GL_INT:
@@ -141,6 +151,8 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_RGBA32I:
         case GL_RGBA_INTEGER:
             return sizeof(int) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
         break;
     case GL_UNSIGNED_INT:
@@ -148,7 +160,7 @@ int pixel_size_calc(GLenum format, GLenum type)
         {
         case GL_DEPTH_COMPONENT16:
         case GL_DEPTH_COMPONENT24:
-        // case GL_DEPTH_COMPONENT32_OES:
+        case GL_DEPTH_COMPONENT32_OES:
         case GL_DEPTH_COMPONENT:
             return sizeof(unsigned int);
         case GL_R32UI:
@@ -163,18 +175,20 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_RGBA32UI:
         case GL_RGBA_INTEGER:
             return sizeof(unsigned int) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
         break;
     case GL_UNSIGNED_SHORT_4_4_4_4:
     case GL_UNSIGNED_SHORT_5_5_5_1:
     case GL_UNSIGNED_SHORT_5_6_5:
-        // case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
-        // case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
+    case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
+    case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
         return sizeof(unsigned short);
     case GL_UNSIGNED_INT_10F_11F_11F_REV:
     case GL_UNSIGNED_INT_5_9_9_9_REV:
     case GL_UNSIGNED_INT_2_10_10_10_REV:
-        // case GL_UNSIGNED_INT_24_8_OES:
+    case GL_UNSIGNED_INT_24_8_OES:
         return sizeof(unsigned int);
     case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
         return sizeof(float) + sizeof(unsigned int);
@@ -184,13 +198,13 @@ int pixel_size_calc(GLenum format, GLenum type)
         case GL_DEPTH_COMPONENT32F:
         case GL_DEPTH_COMPONENT:
             return sizeof(float);
-        // case GL_ALPHA32F_EXT:
+        case GL_ALPHA32F_EXT:
         case GL_ALPHA:
             return sizeof(float);
-        // case GL_LUMINANCE32F_EXT:
+        case GL_LUMINANCE32F_EXT:
         case GL_LUMINANCE:
             return sizeof(float);
-        // case GL_LUMINANCE_ALPHA32F_EXT:
+        case GL_LUMINANCE_ALPHA32F_EXT:
         case GL_LUMINANCE_ALPHA:
             return sizeof(float) * 2;
         case GL_RED:
@@ -209,19 +223,21 @@ int pixel_size_calc(GLenum format, GLenum type)
             return sizeof(float) * 4;
         case GL_RGBA32F:
             return sizeof(float) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
         break;
     case GL_HALF_FLOAT:
-        // case GL_HALF_FLOAT_OES:
+    case GL_HALF_FLOAT_OES:
         switch (format)
         {
-        // case GL_ALPHA16F_EXT:
+        case GL_ALPHA16F_EXT:
         case GL_ALPHA:
             return sizeof(unsigned short);
-        // case GL_LUMINANCE16F_EXT:
+        case GL_LUMINANCE16F_EXT:
         case GL_LUMINANCE:
             return sizeof(unsigned short);
-        // case GL_LUMINANCE_ALPHA16F_EXT:
+        case GL_LUMINANCE_ALPHA16F_EXT:
         case GL_LUMINANCE_ALPHA:
             return sizeof(unsigned short) * 2;
         case GL_RED:
@@ -240,8 +256,12 @@ int pixel_size_calc(GLenum format, GLenum type)
             return sizeof(unsigned short) * 4;
         case GL_RGBA16F:
             return sizeof(unsigned short) * 4;
+        default:
+            LOGE("error! pixel_size_calc type %x format %x", type, format);
         }
         break;
+    default:
+        LOGE("error! pixel_size_calc type %x format %x", type, format);
     }
 
     return 0;
@@ -378,13 +398,16 @@ size_t gl_sizeof(GLenum type)
     case GL_UNSIGNED_INT_IMAGE_CUBE:
     case GL_UNSIGNED_INT_IMAGE_2D_ARRAY:
     case GL_UNSIGNED_INT_ATOMIC_COUNTER:
+    case GL_UNSIGNED_INT_IMAGE_BUFFER:
+    case GL_IMAGE_BUFFER:
+    case GL_INT_IMAGE_BUFFER:
         retval = 4;
         break;
     case GL_UNSIGNED_SHORT_4_4_4_4:
     case GL_UNSIGNED_SHORT_5_5_5_1:
     case GL_UNSIGNED_SHORT_5_6_5:
-        // case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
-        // case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
+    case GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT:
+    case GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT:
         retval = 2;
         break;
     case GL_INT_2_10_10_10_REV:
@@ -398,12 +421,17 @@ size_t gl_sizeof(GLenum type)
         retval = 4 + 4;
         break;
     default:
-        printf("**** ERROR unknown type 0x%x (%s,%d)\n", type, __FUNCTION__, __LINE__);
+        LOGI("**** ERROR unknown type 0x%x (%s,%d)", type, __FUNCTION__, __LINE__);
         retval = 4;
     }
     return retval;
 }
 
+/**
+ * 查询pname对应的元素个数。
+ * 可以是估计值，保证估计值比实际值大（避免写越界）
+ * 和host端必须保持一致
+*/
 size_t gl_pname_size(GLenum pname)
 {
     size_t s = 0;
@@ -422,7 +450,7 @@ size_t gl_pname_size(GLenum pname)
     case GL_MAX_TEXTURE_STACK_DEPTH:
     case GL_IMPLEMENTATION_COLOR_READ_FORMAT_OES:
     case GL_IMPLEMENTATION_COLOR_READ_TYPE_OES:
-    // case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
+    case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
     case GL_MAX_TEXTURE_SIZE:
     // case GL_TEXTURE_GEN_MODE_OES:
     case GL_TEXTURE_ENV_MODE:
@@ -536,8 +564,8 @@ size_t gl_pname_size(GLenum pname)
     case GL_TEXTURE_2D:
     case GL_TEXTURE_BASE_LEVEL:
     case GL_TEXTURE_BINDING_2D:
+    case GL_TEXTURE_BINDING_EXTERNAL_OES:
     case GL_TEXTURE_BINDING_CUBE_MAP:
-    // case GL_TEXTURE_BINDING_EXTERNAL_OES:
     case GL_TEXTURE_COMPARE_FUNC:
     case GL_TEXTURE_COMPARE_MODE:
     case GL_TEXTURE_COORD_ARRAY:
@@ -608,7 +636,6 @@ size_t gl_pname_size(GLenum pname)
     case GL_MAX_3D_TEXTURE_SIZE:
     case GL_MAX_ARRAY_TEXTURE_LAYERS:
     case GL_MAX_CUBE_MAP_TEXTURE_SIZE:
-    // case GL_NUM_SHADER_BINARY_FORMATS:
     case GL_SHADER_COMPILER:
     case GL_MAX_VERTEX_ATTRIBS:
     case GL_MAX_VERTEX_UNIFORM_VECTORS:
@@ -636,9 +663,6 @@ size_t gl_pname_size(GLenum pname)
     case GL_QUERY_RESULT:
     case GL_QUERY_RESULT_AVAILABLE:
     case GL_READ_BUFFER:
-        // case GL_NUM_PROGRAM_BINARY_FORMATS:
-        // case GL_PROGRAM_BINARY_FORMATS:
-
     case GL_ACTIVE_ATOMIC_COUNTER_BUFFERS:
     case GL_ACTIVE_ATTRIBUTES:
     case GL_ACTIVE_ATTRIBUTE_MAX_LENGTH:
@@ -663,6 +687,15 @@ size_t gl_pname_size(GLenum pname)
     case GL_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS:
     case GL_TRANSFORM_FEEDBACK_SEPARATE_COMPONENTS:
     case GL_VALIDATE_STATUS:
+    case GL_ACTIVE_RESOURCES:
+    case GL_MAX_IMAGE_UNITS:
+    case GL_FRAMEBUFFER_DEFAULT_WIDTH:
+    case GL_FRAMEBUFFER_DEFAULT_HEIGHT:
+    case GL_FRAMEBUFFER_DEFAULT_SAMPLES:
+    case GL_FRAMEBUFFER_DEFAULT_FIXED_SAMPLE_LOCATIONS:
+    case GL_FRAMEBUFFER_DEFAULT_LAYERS:
+    case GL_MAX_NAME_LENGTH:
+    case GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT:
         s = 1;
         break;
     case GL_ALIASED_LINE_WIDTH_RANGE:
@@ -698,6 +731,8 @@ size_t gl_pname_size(GLenum pname)
     case GL_COLOR_WRITEMASK:
     case GL_AMBIENT_AND_DIFFUSE:
     case GL_BLEND_COLOR:
+    case GL_TEXTURE_BORDER_COLOR:
+    case GL_TEXTURE_BUFFER_OFFSET_ALIGNMENT:
         s = 4;
         break;
     case GL_MODELVIEW_MATRIX:
@@ -705,9 +740,6 @@ size_t gl_pname_size(GLenum pname)
     case GL_TEXTURE_MATRIX:
         s = 16;
         break;
-    // case GL_COMPRESSED_TEXTURE_FORMATS:
-    //     s = 16;
-    //     break;
     case GL_MAX_ELEMENTS_VERTICES:
     case GL_MAX_VERTEX_UNIFORM_COMPONENTS:
     case GL_MAX_VERTEX_UNIFORM_BLOCKS:
@@ -747,10 +779,6 @@ size_t gl_pname_size(GLenum pname)
     case GL_TRANSFORM_FEEDBACK_BUFFER_START:
     case GL_TRANSFORM_FEEDBACK_BUFFER_SIZE:
     case GL_TRANSFORM_FEEDBACK_PAUSED:
-    case GL_ACTIVE_RESOURCES:
-    case GL_MAX_IMAGE_UNITS:
-        s = 1;
-        break;
     case GL_MAX_ELEMENT_INDEX:
         s = 2;
         break;
@@ -787,12 +815,55 @@ size_t gl_pname_size(GLenum pname)
     case GL_COMPRESSED_TEXTURE_FORMATS:
         s = 128;
         break;
-    case GL_NUM_COMPRESSED_TEXTURE_FORMATS:
+    case GL_MAX_COMPUTE_UNIFORM_BLOCKS:
+    case GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS:
+    case GL_MAX_COMPUTE_IMAGE_UNIFORMS:
+    case GL_MAX_COMPUTE_SHARED_MEMORY_SIZE:
+    case GL_MAX_COMPUTE_UNIFORM_COMPONENTS:
+    case GL_MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS:
+    case GL_MAX_COMPUTE_ATOMIC_COUNTERS:
+    case GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS:
+    case GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS:
+    case GL_MAX_UNIFORM_LOCATIONS:
+    case GL_MAX_FRAMEBUFFER_WIDTH:
+    case GL_MAX_FRAMEBUFFER_HEIGHT:
+    case GL_MAX_FRAMEBUFFER_SAMPLES:
+    case GL_MAX_VERTEX_ATOMIC_COUNTER_BUFFERS:
+    case GL_MAX_FRAGMENT_ATOMIC_COUNTER_BUFFERS:
+    case GL_MAX_COMBINED_ATOMIC_COUNTER_BUFFERS:
+    case GL_MAX_VERTEX_ATOMIC_COUNTERS:
+    case GL_MAX_FRAGMENT_ATOMIC_COUNTERS:
+    case GL_MAX_COMBINED_ATOMIC_COUNTERS:
+    case GL_MAX_ATOMIC_COUNTER_BUFFER_SIZE:
+    case GL_MAX_VERTEX_IMAGE_UNIFORMS:
+    case GL_MAX_FRAGMENT_IMAGE_UNIFORMS:
+    case GL_MAX_COMBINED_IMAGE_UNIFORMS:
+    case GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS:
+    case GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS:
+    case GL_MAX_COMPUTE_SHADER_STORAGE_BLOCKS:
+    case GL_MAX_COMBINED_SHADER_STORAGE_BLOCKS:
+    case GL_MAX_SHADER_STORAGE_BLOCK_SIZE:
+    case GL_MAX_COMBINED_SHADER_OUTPUT_RESOURCES:
+    case GL_MIN_PROGRAM_TEXTURE_GATHER_OFFSET:
+    case GL_MAX_PROGRAM_TEXTURE_GATHER_OFFSET:
+    case GL_MAX_SAMPLE_MASK_WORDS:
+    case GL_MAX_COLOR_TEXTURE_SAMPLES:
+    case GL_MAX_DEPTH_TEXTURE_SAMPLES:
+    case GL_MAX_INTEGER_SAMPLES:
+    case GL_MAX_VERTEX_ATTRIB_RELATIVE_OFFSET:
+    case GL_MAX_VERTEX_ATTRIB_BINDINGS:
+    case GL_MAX_VERTEX_ATTRIB_STRIDE:
+    case GL_MAJOR_VERSION:
+    case GL_MINOR_VERSION:
         s = 1;
         break;
+    case GL_MAX_COMPUTE_WORK_GROUP_COUNT:
+    case GL_MAX_COMPUTE_WORK_GROUP_SIZE:
+        s = 3;
+        break;
     default:
-        printf("gl_pname_size: unknow pname 0x%08x\n", pname);
-        s = 1; // assume 1
+        LOGW("warning! gl_pname_size unknown pname 0x%08x", pname);
+        s = 4; // 估计一个比较大的值
     }
     return s;
 }
@@ -872,33 +943,33 @@ void prepare_integer_value(Static_Context_Values *s_values)
     glGetIntegerv(GL_MAX_VERTEX_ATTRIB_BINDINGS, (GLint *)temp_int_value);
     s_values->max_vertex_attrib_bindings = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_UNIFORM_BLOCKS, (GLint *)temp_int_value);
-    s_values->max_computer_uniform_blocks = temp_int_value[0];
+    s_values->max_compute_uniform_blocks = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
-    s_values->max_computer_texture_image_units = temp_int_value[0];
+    s_values->max_compute_texture_image_units = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_IMAGE_UNIFORMS, (GLint *)temp_int_value);
-    s_values->max_computer_image_uniforms = temp_int_value[0];
+    s_values->max_compute_image_uniforms = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE, (GLint *)temp_int_value);
-    s_values->max_computer_sharde_memory_size = temp_int_value[0];
+    s_values->max_compute_shared_memory_size = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
-    s_values->max_computer_uniform_components = temp_int_value[0];
+    s_values->max_compute_uniform_components = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
-    s_values->max_computer_atomic_counter_buffers = temp_int_value[0];
+    s_values->max_compute_atomic_counter_buffers = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_ATOMIC_COUNTERS, (GLint *)temp_int_value);
-    s_values->max_computer_atomic_counters = temp_int_value[0];
+    s_values->max_compute_atomic_counters = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMBINED_COMPUTE_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
     s_values->max_combined_compute_uniform_components = temp_int_value[0];
     glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, (GLint *)temp_int_value);
-    s_values->max_computer_work_group_invocations = temp_int_value[0];
+    s_values->max_compute_work_group_invocations = temp_int_value[0];
 
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, (GLint *)(temp_int_value));
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, (GLint *)(temp_int_value + 1));
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, (GLint *)(temp_int_value + 2));
-    memcpy(s_values->max_computer_work_group_count, temp_int_array, 3 * sizeof(int));
+    memcpy(s_values->max_compute_work_group_count, temp_int_array, 3 * sizeof(int));
 
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, (GLint *)(temp_int_value));
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, (GLint *)(temp_int_value + 1));
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, (GLint *)(temp_int_value + 2));
-    memcpy(s_values->max_computer_work_group_size, temp_int_array, 3 * sizeof(int));
+    memcpy(s_values->max_compute_work_group_size, temp_int_array, 3 * sizeof(int));
 
     glGetIntegerv(GL_MAX_UNIFORM_LOCATIONS, (GLint *)temp_int_value);
     s_values->max_uniform_locations = temp_int_value[0];
@@ -1020,6 +1091,101 @@ void prepare_integer_value(Static_Context_Values *s_values)
     s_values->max_texture_anisotropy = temp_int_value[0];
     // s_values->uniform_buffer_offset_alignment = 1;
 
+    glGetIntegerv(GL_LAYER_PROVOKING_VERTEX, (GLint *)temp_int_value);
+    s_values->layer_provoking_vertex = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_geometry_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_UNIFORM_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_geometry_uniform_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_GEOMETRY_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_combined_geometry_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_INPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_geometry_input_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_OUTPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_geometry_output_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_OUTPUT_VERTICES, (GLint *)temp_int_value);
+    s_values->max_geometry_output_vertices = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_TOTAL_OUTPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_geometry_total_output_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_SHADER_INVOCATIONS, (GLint *)temp_int_value);
+    s_values->max_geometry_shader_invocations = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->max_geometry_texture_image_units = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_geometry_atomic_counter_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_ATOMIC_COUNTERS, (GLint *)temp_int_value);
+    s_values->max_geometry_atomic_counters = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_IMAGE_UNIFORMS, (GLint *)temp_int_value);
+    s_values->max_geometry_image_uniforms = temp_int_value[0];
+    glGetIntegerv(GL_MAX_GEOMETRY_SHADER_STORAGE_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_geometry_shader_storage_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_FRAMEBUFFER_LAYERS, (GLint *)temp_int_value);
+    s_values->max_framebuffer_layers = temp_int_value[0];
+
+    glGetIntegerv(GL_MAX_PATCH_VERTICES, (GLint *)temp_int_value);
+    s_values->max_patch_vertices = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_GEN_LEVEL, (GLint *)temp_int_value);
+    s_values->max_tess_gen_level = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_control_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->max_tess_control_texture_image_units = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_TEXTURE_IMAGE_UNITS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_texture_image_units = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_OUTPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_control_output_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_PATCH_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_patch_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_TOTAL_OUTPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_control_total_output_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_OUTPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_output_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_UNIFORM_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_tess_control_uniform_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_UNIFORM_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_uniform_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_INPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_control_input_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_INPUT_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_input_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_TESS_CONTROL_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_combined_tess_control_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_COMBINED_TESS_EVALUATION_UNIFORM_COMPONENTS, (GLint *)temp_int_value);
+    s_values->max_combined_tess_evaluation_uniform_components = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_tess_control_atomic_counter_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_ATOMIC_COUNTER_BUFFERS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_atomic_counter_buffers = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_ATOMIC_COUNTERS, (GLint *)temp_int_value);
+    s_values->max_tess_control_atomic_counters = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_ATOMIC_COUNTERS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_atomic_counters = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_IMAGE_UNIFORMS, (GLint *)temp_int_value);
+    s_values->max_tess_control_image_uniforms = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_IMAGE_UNIFORMS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_image_uniforms = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_CONTROL_SHADER_STORAGE_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_tess_control_shader_storage_blocks = temp_int_value[0];
+    glGetIntegerv(GL_MAX_TESS_EVALUATION_SHADER_STORAGE_BLOCKS, (GLint *)temp_int_value);
+    s_values->max_tess_evaluation_shader_storage_blocks = temp_int_value[0];
+    
+    glGetIntegerv(GL_MAX_DEBUG_MESSAGE_LENGTH, (GLint *)temp_int_value);
+    s_values->max_debug_message_length = temp_int_value[0];
+    glGetIntegerv(GL_MAX_DEBUG_LOGGED_MESSAGES, (GLint *)temp_int_value);
+    s_values->max_debug_logged_messages = temp_int_value[0];
+    glGetIntegerv(GL_MAX_DEBUG_GROUP_STACK_DEPTH, (GLint *)temp_int_value);
+    s_values->max_debug_group_stack_depth = temp_int_value[0];
+    glGetIntegerv(GL_MAX_LABEL_LENGTH, (GLint *)temp_int_value);
+    s_values->max_label_length = temp_int_value[0];
+
+    GLboolean temp_boolean_value;
+    glGetBooleanv(GL_PRIMITIVE_RESTART_FOR_PATCHES_SUPPORTED,
+                  &temp_boolean_value);
+    s_values->primitive_restart_for_patches_supported = temp_boolean_value;
+
+
     GLfloat temp_float_value[2];
     glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, temp_float_value);
     s_values->aliased_line_width_range[0] = temp_float_value[0];
@@ -1027,8 +1193,17 @@ void prepare_integer_value(Static_Context_Values *s_values)
     glGetFloatv(GL_ALIASED_POINT_SIZE_RANGE, temp_float_value);
     s_values->aliased_point_size_range[0] = temp_float_value[0];
     s_values->aliased_point_size_range[1] = temp_float_value[1];
+    glGetFloatv(GL_SMOOTH_LINE_WIDTH_RANGE, temp_float_value);
+    s_values->smooth_line_width_range[0] = temp_float_value[0];
+    s_values->smooth_line_width_range[1] = temp_float_value[1];
+    glGetFloatv(GL_SMOOTH_LINE_WIDTH_GRANULARITY, temp_float_value);
+    s_values->smooth_line_width_granularity = temp_float_value[0];
     glGetFloatv(GL_MAX_TEXTURE_LOD_BIAS, temp_float_value);
     s_values->max_texture_log_bias = temp_float_value[0];
+    glGetFloatv(GL_MIN_FRAGMENT_INTERPOLATION_OFFSET, temp_float_value);
+    s_values->min_fragment_interpolation_offset = temp_float_value[0];
+    glGetFloatv(GL_MAX_FRAGMENT_INTERPOLATION_OFFSET, temp_float_value);
+    s_values->max_fragment_interpolation_offset = temp_float_value[0];
 
     GLint64 temp_int64_value;
     glGetInteger64v(GL_MAX_ELEMENT_INDEX, &temp_int64_value);
@@ -1041,6 +1216,8 @@ void prepare_integer_value(Static_Context_Values *s_values)
     s_values->max_combined_fragment_uniform_components = temp_int64_value;
     glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &temp_int64_value);
     s_values->max_uniform_block_size = temp_int64_value;
+    glGetInteger64v(GL_FRAGMENT_INTERPOLATION_OFFSET_BITS, &temp_int64_value);
+    s_values->fragment_interpolation_offset_bits = temp_int64_value;
 
     return;
 }
@@ -1315,7 +1492,7 @@ void adjust_blend_type(int blend_type)
     default:
     {
         glDisable(GL_BLEND);
-        printf(YELLOW("unknown blend type %d\n"), blend_type);
+        LOGW("unknown blend type %d", blend_type);
     }
     break;
     }
@@ -1447,23 +1624,23 @@ void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum seve
     }
 #endif
 
-    printf("\ndebug message(%u):%s\n", id, message);
+    LOGI("\ndebug message(%u):%s", id, message);
     switch (source)
     {
     case GL_DEBUG_SOURCE_API:
-        printf("Source: API ");
+        LOGI("Source: API ");
         break;
     case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-        printf("Source: Window System ");
+        LOGI("Source: Window System ");
         break;
     case GL_DEBUG_SOURCE_SHADER_COMPILER:
-        printf("Source: Shader Compiler ");
+        LOGI("Source: Shader Compiler ");
         break;
     case GL_DEBUG_SOURCE_THIRD_PARTY:
-        printf("Source: Third Party ");
+        LOGI("Source: Third Party ");
         break;
     case GL_DEBUG_SOURCE_APPLICATION:
-        printf("Source: APPLICATION ");
+        LOGI("Source: APPLICATION ");
         break;
     case GL_DEBUG_SOURCE_OTHER:
         break;
@@ -1472,62 +1649,62 @@ void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum seve
     switch (type)
     {
     case GL_DEBUG_TYPE_ERROR:
-        printf("Type: Error ");
+        LOGI("Type: Error ");
         break;
     case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-        printf("Type: Deprecated Behaviour ");
+        LOGI("Type: Deprecated Behaviour ");
         break;
     case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-        printf("Type: Undefined Behaviour ");
+        LOGI("Type: Undefined Behaviour ");
         break;
     case GL_DEBUG_TYPE_PORTABILITY:
-        printf("Type: Portability ");
+        LOGI("Type: Portability ");
         break;
     case GL_DEBUG_TYPE_PERFORMANCE:
-        printf("Type: Performance ");
+        LOGI("Type: Performance ");
         break;
     case GL_DEBUG_TYPE_MARKER:
-        printf("Type: Marker ");
+        LOGI("Type: Marker ");
         break;
     case GL_DEBUG_TYPE_PUSH_GROUP:
-        printf("Type: Push Group ");
+        LOGI("Type: Push Group ");
         break;
     case GL_DEBUG_TYPE_POP_GROUP:
-        printf("Type: Pop Group ");
+        LOGI("Type: Pop Group ");
         break;
     case GL_DEBUG_TYPE_OTHER:
-        printf("Type: Other ");
+        LOGI("Type: Other ");
         break;
     }
 
     switch (severity)
     {
     case GL_DEBUG_SEVERITY_HIGH:
-        printf("Severity: high");
+        LOGI("Severity: high");
         break;
     case GL_DEBUG_SEVERITY_MEDIUM:
-        printf("Severity: medium");
+        LOGI("Severity: medium");
         break;
     case GL_DEBUG_SEVERITY_LOW:
-        printf("Severity: low");
+        LOGI("Severity: low");
         break;
     case GL_DEBUG_SEVERITY_NOTIFICATION:
-        printf("Severity: notification");
+        LOGI("Severity: notification");
         break;
     }
-    printf("\n");
+    LOGI("");
 }
 
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d)
 {
-    printf("glTestInt asyn %d,%u,%f,%lf\n", a, b, c, d);
+    LOGI("glTestInt asyn %d,%u,%f,%lf", a, b, c, d);
     fflush(stdout);
 }
 
 void glPrintfAsyn(GLint a, GLuint size, GLdouble c, const GLchar *out_string)
 {
 
-    printf("glPrintfAsyn asyn string %d,%u,%lf,%s\n", a, size, c, out_string);
+    LOGI("glPrintfAsyn asyn string %d,%u,%lf,%s", a, size, c, out_string);
     return;
 }
 
@@ -1539,52 +1716,52 @@ GLint glTestInt1(GLint a, GLuint b)
 }
 GLuint glTestInt2(GLint a, GLuint b)
 {
-    printf("glTestInt2 %d,%u\n", a, b);
+    LOGI("glTestInt2 %d,%u", a, b);
     fflush(stdout);
     return 4000001200u;
 }
 
 GLint64 glTestInt3(GLint64 a, GLuint64 b)
 {
-    printf("glTestInt3 %lld,%llu\n", a, b);
+    LOGI("glTestInt3 %lld,%llu", a, b);
     fflush(stdout);
     return 453489431344456;
 }
 GLuint64 glTestInt4(GLint64 a, GLuint64 b)
 {
-    printf("glTestInt4 %lld,%llu\n", a, b);
+    LOGI("glTestInt4 %lld,%llu", a, b);
     fflush(stdout);
     return 436004354364364345;
 }
 
 GLfloat glTestInt5(GLint a, GLuint b)
 {
-    printf("glTestInt5 %d,%u\n", a, b);
+    LOGI("glTestInt5 %d,%u", a, b);
     fflush(stdout);
     return 3.1415926;
 }
 GLdouble glTestInt6(GLint a, GLuint b)
 {
-    printf("glTestInt6 %d,%u\n", a, b);
+    LOGI("glTestInt6 %d,%u", a, b);
     fflush(stdout);
     return 3.1415926535;
 }
 
 // void glTestPointer1(GLint a, const GLint *b)
 // {
-//     printf("glTestPointer1 %d ", a);
+//     LOGI("glTestPointer1 %d ", a);
 //     for (int i = 0; i < 10; i++)
 //     {
-//         printf("%d ", b[i]);
+//         LOGI("%d ", b[i]);
 //     }
-//     printf("\n");
+//     LOGI("");
 //     fflush(stdout);
 //     return;
 // }
 
 // void glTestPointer2(GLint a, const GLint *b, GLint *c)
 // {
-//     printf("glTestPointer2 %d %d\n", a, *b);
+//     LOGI("glTestPointer2 %d %d", a, *b);
 //     for (int i = 0; i < 10; i++)
 //     {
 //         c[i] = b[i];
@@ -1595,7 +1772,7 @@ GLdouble glTestInt6(GLint a, GLuint b)
 
 // GLint glTestPointer4(GLint a, const GLint *b, GLint *c)
 // {
-//     printf("glTestPointer4 %d,%d\n", a, *b);
+//     LOGI("glTestPointer4 %d,%d", a, *b);
 //     for (int i = 0; i < 1000; i++)
 //     {
 //         c[i] = b[i];
@@ -1610,7 +1787,7 @@ GLdouble glTestInt6(GLint a, GLuint b)
 //     int len;
 //     char *temp = g_malloc(a * sizeof(int));
 //     memset(temp, 0, a * sizeof(int));
-//     printf("glTestPointer3 %d\n", a);
+//     LOGI("glTestPointer3 %d", a);
 //     read_from_guest_mem((Guest_Mem *)b, temp, 0, a * sizeof(int));
 
 //     char *temp_s[100];
@@ -1619,7 +1796,7 @@ GLdouble glTestInt6(GLint a, GLuint b)
 //     {
 //         loc += sprintf(temp_s + loc, "%d ", temp[i]);
 //     }
-//     printf("glTestPointer3 %s\n", temp_s);
+//     LOGI("glTestPointer3 %s", temp_s);
 
 //     write_to_guest_mem((Guest_Mem *)c, temp, 0, a * sizeof(int));
 
@@ -1629,10 +1806,10 @@ GLdouble glTestInt6(GLint a, GLuint b)
 
 void glTestString(GLint a, GLint count, const GLchar *const *strings, GLint buf_len, GLchar *char_buf)
 {
-    printf("glTestString %d %d %d\nString:\n", a, count, buf_len);
+    LOGI("glTestString %d %d %d\nString:", a, count, buf_len);
     for (int i = 0; i < count; i++)
     {
-        printf("%s\n", strings[i]);
+        LOGI("%s", strings[i]);
     }
     const char *t = "printf ok!";
     memcpy(char_buf, t, strlen(t));
@@ -1648,7 +1825,7 @@ void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
 
     if (buf_len < 100)
     {
-        printf("glPrintf %d %s\n", buf_len, temp);
+        LOGI("glPrintf %d %s", buf_len, temp);
     }
     else
     {
@@ -1662,11 +1839,11 @@ void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
         }
         if (flag == 0)
         {
-            printf("glPrintf check error!\n");
+            LOGI("glPrintf check error!");
         }
         else
         {
-            printf("glPrintf check ok!\n");
+            LOGI("glPrintf check ok!");
         }
     }
     g_free(temp);
@@ -1682,7 +1859,7 @@ void d_glPrintf(void *context, GLint buf_len, const GLchar *out_string)
 
 void d_glInOutTest(void *context, GLint a, GLint b, const GLchar *e, GLint *c, GLdouble *d, GLsizei buf_len, GLchar *f)
 {
-    // printf("glInOutTest %d,%d   buf_len%llu\n",a,b,buf_len);
+    // LOGI("glInOutTest %d,%d   buf_len%llu",a,b,buf_len);
     // *c=78646313;
     // *d=3.141592653543;
 

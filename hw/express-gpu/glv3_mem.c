@@ -49,7 +49,7 @@ GLuint get_guest_buffer_binding_id(void *context, GLenum target)
     case GL_SHADER_STORAGE_BUFFER:
         return status->guest_shader_storage_buffer;
     default:
-        printf("get_guest_buffer_binding_id error target %x\n", target);
+        LOGI("get_guest_buffer_binding_id error target %x", target);
         return 0;
     }
     return 0;
@@ -169,7 +169,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
     if (bind_buffer == 0)
     {
-        printf("d_glBufferSubData_custom target %x\n", target);
+        LOGI("d_glBufferSubData_custom target %x", target);
     }
 
     if (guest_mem->all_len == 0)
@@ -236,7 +236,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     //     GLint all_size = 0;
 
     //     glGetNamedBufferParameteriv(bind_buffer, GL_BUFFER_SIZE, &all_size);
-    //     printf("glBufferSubData context %llx error %x target %x buffer %d offset %d size %d all size %d\n", (uint64_t)context, error, target, bind_buffer, (int)offset, (int)size, (int)all_size);
+    //     LOGI("glBufferSubData context %llx error %x target %x buffer %d offset %d size %d all size %d", (uint64_t)context, error, target, bind_buffer, (int)offset, (int)size, (int)all_size);
     // }
 }
 
@@ -289,7 +289,7 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     {
         //@todo 可能之前map过，然后切换绑定对象了，这个时候会发生什么需要测试
         //@todo 假如维持绑定的过程中出现了对象被删除或者调用了glBufferData时，会自动取消映射，这个需要特殊处理，现阶段先假定都是正常unmap的
-        printf("error! map_res is not NULL!\n");
+        LOGE("error! map_res is not NULL!");
     }
 
     map_res->access = access;
@@ -308,7 +308,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
     Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)));
     if (map_res == NULL)
     {
-        printf("error! unmap get NULL map_res!\n");
+        LOGE("error! unmap get NULL map_res!");
         return GL_FALSE;
     }
 
@@ -341,12 +341,12 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
         map_res = g_malloc(sizeof(Guest_Host_Map));
         memset(map_res, 0, sizeof(Guest_Host_Map));
         g_hash_table_insert(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)), (gpointer)map_res);
-        printf("error! flush data get NULL map_res!\n");
+        LOGE("error! flush data get NULL map_res!");
         return;
     }
     if (map_res->host_data == NULL)
     {
-        printf("error! host data get NULL!\n");
+        LOGE("error! host data get NULL!");
         return;
     }
     if (map_res->access & GL_MAP_WRITE_BIT)

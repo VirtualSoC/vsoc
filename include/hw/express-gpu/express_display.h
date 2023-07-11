@@ -46,9 +46,9 @@ extern Display_Info express_display_info;
 
 #define FUNID_Alloc_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, HOST_SYNC_FUN_ID(2)))
 
-#define FUNID_Gbuffer_Download (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(3)))
+#define FUNID_Gbuffer_Host_To_Guest (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(3)))
 
-#define FUNID_Gbuffer_Upload (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 4))
+#define FUNID_Gbuffer_Guest_To_Host (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 4))
 
 #define FUNID_Sync_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(5)))
 
@@ -74,9 +74,9 @@ extern Display_Info express_display_info;
 
 #define PARA_NUM_Commit_Composer_Layer 1
 
-#define PARA_NUM_Gbuffer_Download 1
+#define PARA_NUM_Gbuffer_Host_To_Guest 1
 
-#define PARA_NUM_Gbuffer_Upload 1
+#define PARA_NUM_Gbuffer_Guest_To_Host 1
 
 #define PARA_NUM_Alloc_Gbuffer 2
 
@@ -93,8 +93,8 @@ extern Display_Info express_display_info;
 
 extern int display_is_open;
 
-void guest_upload_gbuffer_data(Gralloc_Gbuffer_Info info);
-void guest_download_gbuffer_data(Gralloc_Gbuffer_Info info);
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info);
+void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
 
 #endif

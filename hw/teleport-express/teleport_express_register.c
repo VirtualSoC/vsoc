@@ -62,7 +62,7 @@ static void push_to_device(Teleport_Express_Call *call)
         call->callback(call, 0);
         return;
     }
-    express_printf("\033[31mpush to %s device %llx id %llx \033[0m\n", device_info->name, device_id, call->id);
+    express_printf("push to %s device %llx id %llx\n", device_info->name, device_id, call->id);
 
     Device_Context *device_context = device_info->get_device_context(device_id, thread_id, process_id, unique_id, device_info);
     if(unlikely(device_context == NULL))

@@ -1,24 +1,65 @@
 #ifndef QEMU_EXPRESS_LOG_H
 #define QEMU_EXPRESS_LOG_H
 
+#include "qemu/osdep.h"
+#include "qemu/log.h"
+#include "qemu/thread.h"
+#include "pthread.h"
 
+// define this in a .c file before including this header enables debug log for that file locally.
+// #define STD_DEBUG_LOG
 
-// #define STD_DEBUG_LOG_GLOBAL_ON
+// uncomment the following line to disable debug logging globally. only warnings and errors will be logged then.
+// #undef STD_DEBUG_LOG
 
+// uncomment the following line to enable debug logging globally, regardless of verbosity and per-file options.
+// #define STD_DEBUG_LOG_OVERRIDE_ENABLE
 
-#ifdef STD_DEBUG_LOG
-#ifdef STD_DEBUG_LOG_GLOBAL_ON
-#define express_printf printf
+#define HOST_LOG_LEVEL_ERROR 1
+#define HOST_LOG_LEVEL_WARN 2
+#define HOST_LOG_LEVEL_INFO 3
+#define HOST_LOG_LEVEL_DEBUG 4
+
+#ifdef CONFIG_GETTID
+#define CURRENT_TID() gettid()
+#elif defined(SYS_gettid)
+#define CURRENT_TID() syscall(SYS_gettid)
+#elif defined(__WIN32__)
+#include <processthreadsapi.h>
+#define CURRENT_TID() GetCurrentThreadId()
 #else
-#define express_printf null_printf
+#warning "thread id query not supported in the current system!"
+#define CURRENT_TID() (-1)
 #endif
-#else
-#define express_printf null_printf
-#endif
+
+static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 
 #define RED(a) "\033[31m" a "\033[0m"
 #define GREEN(a) "\033[32m" a "\033[0m"
 #define YELLOW(a) "\033[33m" a "\033[0m"
+
+#define _host_log(level, fmt, ...)                                                      \
+    {                                                                                   \
+        qemu_log("%s %lld %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
+                 _level_chars[level], __FILE__, __LINE__, ##__VA_ARGS__, 10);                               \
+    }
+#define _host_log_debug_nolf(fmt, ...)                                                  \
+    {                                                                                   \
+        qemu_log("%s %lld %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
+    }
+
+#define LOGD(fmt, ...) _host_log(HOST_LOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
+#define LOGI(fmt, ...) _host_log(HOST_LOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
+#define LOGW(fmt, ...) _host_log(HOST_LOG_LEVEL_WARN, YELLOW(fmt), ##__VA_ARGS__)
+#define LOGE(fmt, ...) _host_log(HOST_LOG_LEVEL_ERROR, RED(fmt), ##__VA_ARGS__)
+
+#if defined(STD_DEBUG_LOG) || defined(STD_DEBUG_LOG_OVERRIDE_ENABLE)
+#define express_printf _host_log_debug_nolf
+#else
+#define express_printf null_printf
+#undef LOGD
+#define LOGD null_printf
+#endif
 
 #ifdef TIMER_LOG
 

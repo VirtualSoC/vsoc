@@ -19,3 +19,4 @@ GTAGS
 *.log
 /.history/
 log.txt
+.vscode

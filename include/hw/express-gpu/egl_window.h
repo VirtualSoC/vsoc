@@ -4,10 +4,6 @@
 #include "wglext.h"
 
 
-
-
-
-
 typedef void (*WGLproc)(void);
 
 typedef BOOL(WINAPI *PFN_wglSwapInterval)(int);
@@ -32,8 +28,13 @@ typedef BOOL(WINAPI *PFN_wglChoosePixelFormat)(HDC, const int *piAttribList, con
 
 
 void egl_init(void *dpy, void *father_context);
-void *egl_createContext(void);
-void egl_makeCurrent(void *context);
+void *egl_createContext(int context_flags);
+
+/**
+ * Attempt to make current the context specified.
+ * return 0 on success, or a platform-dependent code on error.
+*/
+int egl_makeCurrent(void *context);
 void egl_destroyContext(void *context);
 
 #endif
