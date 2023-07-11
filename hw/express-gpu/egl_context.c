@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "hw/express-gpu/egl_context.h"
 #include "hw/express-gpu/glv3_context.h"
@@ -43,28 +43,42 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         real_share_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(share_context));
     }
 
-    int independ_mode = 0;
+    int context_flags = 0;
 
     for (int i = 0; attrib_list[i] != EGL_NONE; i += 2)
     {
-        if (attrib_list[i] == 0xffffff && attrib_list[i + 1] == 0xffffff)
+        if (attrib_list[i] == DGL_CONTEXT_INDEPENDENT_MODE && attrib_list[i + 1] == EGL_TRUE)
         {
-            independ_mode = 1;
+            context_flags |= DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT;
+        }
+        if (attrib_list[i] == EGL_CONTEXT_OPENGL_DEBUG && attrib_list[i + 1] == EGL_TRUE)
+        {
+            context_flags |= GL_CONTEXT_FLAG_DEBUG_BIT;
+        }
+        // host端context创建时默认使用EGL_GL_NO_RESET_NOTIFICATION，这里只需要检查EGL_LOSE_CONTEXT_ON_RESET即可。
+        // if (attrib_list[i] == EGL_CONTEXT_OPENGL_ROBUST_ACCESS && attrib_list[i+1] == EGL_TRUE)
+        // {
+        //     context_flags |= GL_CONTEXT_FLAG_ROBUST_ACCESS_BIT;
+        //     // robust_access_strategy 默认是EGL_NO_RESET_NOTIFICATION
+        //     robust_access_strategy = EGL_NO_RESET_NOTIFICATION;
+        // }
+        if (attrib_list[i] == EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY && attrib_list[i + 1] == EGL_LOSE_CONTEXT_ON_RESET)
+        {
+            context_flags |= GL_CONTEXT_FLAG_ROBUST_ACCESS_BIT;
         }
     }
 
     if(express_gpu_independ_window_enable)
     {
-        independ_mode = 1;
+        context_flags |= DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT;
     }
 
-    Opengl_Context *opengl_context = opengl_context_create(real_share_context, independ_mode);
+    Opengl_Context *opengl_context = opengl_context_create(real_share_context, context_flags);
     for (int i = 0; attrib_list[i] != EGL_NONE; i += 2)
     {
         express_printf("eglcontext %llx attrib_list %x %x\n", (uint64_t)opengl_context, attrib_list[i], attrib_list[i + 1]);
     }
 
-    // todo:attrib有些什么设置？无论是关于窗口的啥设置的话，得留到makecurrent的时候，那时候才有窗口，才知道如何设置
     express_printf("#%llx context create share %llx\n", (uint64_t)opengl_context, (uint64_t)real_share_context);
     express_printf("context create guest %llx host %llx\n", (uint64_t)guest_context, (uint64_t)opengl_context);
 
@@ -84,4 +98,54 @@ EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
     express_printf("context remove guest %llx\n", (uint64_t)ctx);
     g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(ctx));
     return EGL_TRUE;
+}
+
+/**
+ * 在host端记录guest端映射过来的buffer
+*/
+void d_eglCreateDebugMessageBuffer(void *context, EGLContext guest_gl_context, void *guest_mem) 
+{
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    Process_Context *process_context = thread_context->process_context;
+    Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(guest_gl_context));
+
+    if (real_opengl_context == NULL || (real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) == 0)
+    {
+        LOGE("attempt to create debug message buffer on non-debug context %p guest context %p context flag %x, ignoring.", real_opengl_context, guest_gl_context, real_opengl_context->context_flags);
+        return;
+    }
+    real_opengl_context->debug_message_buffer = guest_mem;
+    express_printf("create debug message buffer context %p guest context %p context flag %x buffer %p\n", real_opengl_context, guest_gl_context, real_opengl_context->context_flags, guest_mem);
+}
+
+/**
+ * 解除占用并删除guest端映射过来的buffer
+*/
+void d_eglDestroyDebugMessageBuffer(void *context, EGLContext guest_gl_context, void *guest_mem) 
+{
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    Process_Context *process_context = thread_context->process_context;
+    Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(guest_gl_context));
+
+    if (real_opengl_context == NULL)
+    {
+        // context might have already been destroyed
+        return;
+    }
+    if (!(real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT))
+    {
+        LOGE("error! attempt to destroy debug message buffer on non-debug context %p guest context %p context flag %x, ignoring.", real_opengl_context, guest_gl_context, real_opengl_context->context_flags);
+        return;
+    }
+    if (real_opengl_context->is_current)
+    {
+        glDebugMessageCallback(NULL, NULL);
+    }
+    
+    if ((real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) && real_opengl_context->debug_message_buffer)
+    {
+        free_copied_guest_mem((Guest_Mem *)real_opengl_context->debug_message_buffer);
+        real_opengl_context->debug_message_buffer = NULL;
+    }
+    express_printf("destroy debug message buffer context %p guest context %p context flag %x\n", real_opengl_context, guest_gl_context, real_opengl_context->context_flags);
 }

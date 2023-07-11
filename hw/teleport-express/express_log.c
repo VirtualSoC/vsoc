@@ -9,10 +9,7 @@
  *
  */
 
-// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
-
-#include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/teleport-express/teleport_express_call.h"
 
@@ -20,14 +17,14 @@
 
 #define LOG_FILE_SIZE (8 * 1024 * 1024)
 
-Device_Log_Setting_Info express_device_log_setting_info={
+Device_Log_Setting_Info express_device_log_setting_info= {
     .express_gpu_debug_level = 1,
     .express_gpu_log_to_host = 1,
     .express_gpu_log_with_buffer = 0,
     .express_gpu_open_opengl_trace = 0,
 };
 
-static uint32_t crc_32_tab[] = {/* CRC polynomial 0xedb88320 */
+static const uint32_t crc_32_tab[] = {/* CRC polynomial 0xedb88320 */
                                 0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
                                 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
                                 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
@@ -81,7 +78,7 @@ static gint64 t_last = 0;
 static char *copy_test_buf = NULL;
 static int copy_test_buf_len = 0;
 
-static GTimeZone *time_zone;
+static GTimeZone *time_zone = NULL;
 
 void call_printf_flush(void);
 void log_init(struct Thread_Context *context);
@@ -94,7 +91,6 @@ void log_init(struct Thread_Context *context);
  */
 int null_printf(const char *a, ...)
 {
-    // express_printf("%s\n",a);
     return 0;
 }
 
@@ -139,11 +135,12 @@ static Thread_Context *get_log_thread_context(uint64_t device_id, uint64_t threa
 }
 
 static char time_str[1024];
-static unsigned long long time_cnt = 0;
 
 char *get_now_time(void)
 {
-    time_cnt++;
+    static uint64_t time_cnt = 0;
+
+    if (!time_zone) return "";
     gint64 t_int = g_get_real_time();
     GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_int / 1000000);
 
@@ -151,7 +148,7 @@ char *get_now_time(void)
     // GDateTime *tz = g_date_time_to_local(t);
     GDateTime *tz = g_date_time_to_timezone(t, time_zone);
     gchar *t_s1 = g_date_time_format(tz, "%F %T");
-    sprintf(time_str, "%s.%06lld  %llu ", t_s1, t_int % 1000000, time_cnt);
+    sprintf(time_str, "%s.%06lld  %llu ", t_s1, t_int % 1000000, qatomic_fetch_inc(&time_cnt));
     g_free(t_s1);
     g_date_time_unref(t);
     g_date_time_unref(tz);
@@ -178,9 +175,8 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
     unsigned long thread_id = call->thread_id;
     // unsigned long process_id=call->process_id;
 
-    static int64_t count = 0;
-    count++;
-    express_printf("log count %lld\n", count);
+    static uint64_t count = 0;
+    // express_printf("log count %lld\n", qatomic_fetch_inc(&count));
     if (fun_id == 1)
     {
         gint64 t_int = g_get_real_time();
@@ -195,11 +191,11 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
                 loc = 0;
                 t_last = t_int;
             }
-            int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#LOG_GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
-            express_printf("#LOG_GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
+            int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
+            // express_printf("#GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
             loc += num;
             read_from_guest_mem(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
-            express_printf("%s\n", print_buf + loc);
+            // express_printf("%s\n", print_buf + loc);
             loc += all_para[0].data_len;
 
             //假如需要保证日志的完整性就要移除下面的注释（例如直接crash了日志在缓存里没保留下来的情况）

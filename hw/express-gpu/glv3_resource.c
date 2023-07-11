@@ -63,7 +63,7 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
         // {
         //     continue;
         // }
-        // printf("create texture id %d %d\n",(int)guest_ids[i],(int)host_ids[i]);
+        // LOGI("create texture id %d %d",(int)guest_ids[i],(int)host_ids[i]);
         status->resource_id_map[guest_ids[i]] = host_ids[i];
         status->resource_is_init[guest_ids[i]] = 0;
         if (status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
@@ -120,7 +120,7 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
         {
             if (guest_ids[i] != 0)
             {
-                printf("error remove! %u %u origin %llu\n", guest_ids[i], status->max_id, status->max_id != 0 ? status->resource_id_map[guest_ids[i]] : 0);
+                LOGE("error remove! %u %u origin %llu", guest_ids[i], status->max_id, status->max_id != 0 ? status->resource_id_map[guest_ids[i]] : 0);
             }
             continue;
         }
@@ -178,7 +178,7 @@ long long get_host_resource_id(Resource_Map_Status *status, unsigned int id)
 
     if (host_id == 0 && id != 0)
     {
-        printf("error! cannot get id %d\n", id);
+        LOGE("error! cannot get id %d", id);
     }
     return host_id;
 }
@@ -218,7 +218,7 @@ unsigned long long get_host_texture_id(void *context, unsigned int id)
     // long long t = get_host_resource_id(map_status, id);
     // if(t == 0 && id != 0)
     // {
-    //     printf("%llx error texture id %d\n",(uint64_t)context, id);
+    //     LOGI("%llx error texture id %d",(uint64_t)context, id);
     // }
     return get_host_resource_id(map_status, id);
 }
@@ -242,7 +242,7 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
         {
             glGenBuffers(1, &host_id);
         }
-        // printf("create buffer not in host %u guest %u\n",host_id,id);
+        // LOGI("create buffer not in host %u guest %u",host_id,id);
         unsigned long long host_id_long = host_id;
         int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
         if (ret == 0)
@@ -274,7 +274,7 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
 //         {
 //             glGenBuffers(1, &host_id);
 //         }
-//         // printf("create buffer not in host %u guest %u\n",host_id,id);
+//         // LOGI("create buffer not in host %u guest %u",host_id,id);
 //         unsigned long long host_id_long = host_id;
 //         int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
 //         if (ret == 0)
@@ -301,7 +301,7 @@ char set_host_texture_init(void *context, unsigned int id)
         // texture不存在的话。不允许创建新的
         //  unsigned int host_id;
         //  glGenTextures(1, &host_id);
-        //  printf("create buffer not in host %u guest %u\n",host_id,id);
+        //  LOGI("create buffer not in host %u guest %u",host_id,id);
         //  unsigned long long host_id_long = host_id;
         //  int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
         //  if (ret == 0)
@@ -490,7 +490,7 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
     // for(int i = 0 ;i<n && loc<985;i++){
     //     loc+=sprintf(temp+loc,"host %u guest %u ",host_buffers[i],textures[i]);
     // }
-    // printf("%s\n",temp);
+    // LOGI("%s",temp);
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
     {
@@ -640,7 +640,7 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
     {
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
 
-        // printf("context %llx create framebuffer guest %u host %u\n",(uint64_t)context,framebuffers[i],host_buffers[i]);
+        // LOGI("context %llx create framebuffer guest %u host %u",(uint64_t)context,framebuffers[i],host_buffers[i]);
     }
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
@@ -862,7 +862,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
 
     // for(int i = 0;i<n;i++)
     // {
-    //     printf("context %llx delete texture guest %u host %u\n",(uint64_t)context,textures[i],host_buffers[i]);
+    //     LOGI("context %llx delete texture guest %u host %u",(uint64_t)context,textures[i],host_buffers[i]);
     // }
 
     glDeleteTextures(n, host_buffers);
@@ -887,7 +887,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     // for(int i = 0 ;i<n && loc<985;i++){
     //     loc+=sprintf(temp+loc,"host %u guest %u ",host_buffers[i],textures[i]);
     // }
-    // printf("%s\n",temp);
+    // LOGI("%s",temp);
 
     remove_host_map_ids(map_status, n, textures);
 }
@@ -961,7 +961,7 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
     get_host_resource_ids(map_status, n, framebuffers, host_buffers);
     // for(int i = 0;i<n;i++)
     // {
-    //     printf("context %llx delete framebuffer guest %u host %u\n",(uint64_t)context,framebuffers[i],host_buffers[i]);
+    //     LOGI("context %llx delete framebuffer guest %u host %u",(uint64_t)context,framebuffers[i],host_buffers[i]);
     // }
     glDeleteFramebuffers(n, host_buffers);
     g_free(host_buffers);

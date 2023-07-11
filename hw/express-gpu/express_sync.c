@@ -103,7 +103,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
             DWORD ret = WaitForSingleObject(sync_event, 1);
             if (ret == WAIT_FAILED)
             {
-                printf("wait for sync failed! error code: %lld", (int64_t)GetLastError());
+                LOGI("wait for sync failed! error code: %lld", (int64_t)GetLastError());
                 break;
             }
 #else
@@ -130,7 +130,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     int64_t end_time = g_get_real_time();
     if (end_time - start_time > 10 * 1000)
     {
-        printf("warning! wait_for_express_sync sync %d spend too long time(%lldms)\n", sync_id, (end_time - start_time) / 1000);
+        LOGW("warning! wait_for_express_sync sync %d spend too long time (%lldms)", sync_id, (end_time - start_time) / 1000);
     }
 }
 
@@ -140,7 +140,7 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
     {
         free_copied_guest_mem(static_sync_context.guest_buffer);
     }
-    printf("sync register buffer\n");
+    LOGI("sync register buffer");
     static_sync_context.guest_buffer = data;
 
     int null_flag = 0;
@@ -149,7 +149,7 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
     if (null_flag != 0 && static_sync_context.sync_data == NULL)
     {
         Scatter_Data *guest_data = data->scatter_data;
-        printf("error! sync_buffer_register cannot get direct_ptr mem num %d first mem size %lld\n", data->num, guest_data->len);
+        LOGE("error! sync_buffer_register cannot get direct_ptr mem num %d first mem size %lld", data->num, guest_data->len);
     }
 }
 

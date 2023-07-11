@@ -136,21 +136,20 @@ volatile int device_interface_run = 0;
 static QemuConsole *input_receive_con = NULL;
 
 static const char GPU_VENDOR[] = "ARM";
-static const char GPU_VERSION[] = "OpenGL ES 3.1 (";
+static const char GPU_VERSION[] = "OpenGL ES 3.2 (";
 static const char GPU_RENDERER[] = "Mali-G77";
-static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.10";
+static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.20";
 
-// google devide info
+// google device info
 //  static const GLubyte GPU_VENDOR[] = "Google (";
 //  static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
 //  static const GLubyte GPU_RENDERER[] = "Android Emulator OpenGL ES Translator (";
 //  static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
 
 static const int OPENGL_MAJOR_VERSION = 3;
-static const int OPENGL_MINOR_VERSION = 1;
+static const int OPENGL_MINOR_VERSION = 2;
 
-static const char *SPECIAL_EXTENSIONS[] =
-    {
+static const char *SPECIAL_EXTENSIONS[] = {
         /*1*/ "GL_OES_EGL_image",
         /*2*/ "GL_OES_EGL_image_external",
         /*3*/ "GL_OES_EGL_sync",
@@ -167,7 +166,6 @@ static const char *SPECIAL_EXTENSIONS[] =
         /*13*/ "GL_KHR_texture_compression_astc_hdr",
         /*14*/ "GL_OES_vertex_array_object",
         // /*14*/ "GL_EXT_shader_framebuffer_fetch",   //这个暂时看情况支持，webview用它来混合，会着色器中使用变量gl_LastFragData
-        // /*15*/ "GL_EXT_multisampled_render_to_texture",  //这个暂时不能有，因为它需要支持相关函数 这个具体涉及到glFramebufferTexture2DMultisampleEXT函数，这个函数是tile-based GPU使用TBDR渲染特有的，用来节省带宽，IMR模式的PC上没有，所以没法启用。glFramebufferTexture2DMultisampleEXT这个函数被PUBG在抗锯齿时用到了
         /*16*/ "GL_EXT_color_buffer_float",
         /*17*/ "GL_EXT_color_buffer_half_float",
         /*18*/ "GL_OES_element_index_uint",
@@ -198,10 +196,81 @@ static const char *SPECIAL_EXTENSIONS[] =
         /*44*/ "GL_EXT_copy_image",
         /*45*/ "GL_EXT_texture_buffer",
         /*46*/ "GL_OES_vertex_half_float",
+        
+        /* --- Android Extension Pack, as required by GLES 3.2 --- */
+        "GL_ANDROID_extension_pack_es31a",
 
-        // /*40*/ "GL_EXT_texture_format_BGRA8888", pc很可能是不支持的
+        "GL_KHR_blend_equation_advanced",
+        "GL_EXT_shader_io_blocks",
+        
+        "GL_EXT_texture_sRGB_decode",
+        "GL_KHR_debug",
+
+        "GL_OES_sample_shading", // -> GL_ARB_sample_shading
+        "GL_OES_sample_variables", // -> GL_ARB_sample_shading
+        "GL_OES_texture_stencil8", // -> GL_ARB_texture_stencil8
+        "GL_EXT_geometry_shader", // -> GL_ARB_geometry_shader4
+        "GL_EXT_gpu_shader5", // -> GL_ARB_gpu_shader5
+        "GL_OES_shader_multisample_interpolation", // -> GL_ARB_gpu_shader5
+        "GL_EXT_tessellation_shader", // -> GL_ARB_tessellation_shader
+        "GL_EXT_texture_border_clamp", // -> GL_ARB_texture_border_clamp
+        "GL_EXT_texture_cube_map_array", // -> GL_ARB_texture_cube_map_array
+        "GL_OES_shader_image_atomic", // -> GL_ARB_shader_image_load_store
+        "GL_EXT_draw_buffers_indexed", // -> GL_EXT_draw_buffers2 + GL_ARB_draw_buffers_blend
+        "GL_OES_texture_storage_multisample_2d_array", 
+
+        "GL_EXT_primitive_bounding_box",
+        "GL_OES_primitive_bounding_box",
+
+        /* --- GLES 3.2 额外要求的扩展 --- */
+        "GL_KHR_robustness",
+        "GL_KHR_robust_buffer_access_behavior",
+
+        // mumu模拟器12的额外扩展
+        "GL_OES_copy_image",
+        "GL_EXT_draw_elements_base_vertex",
+        "GL_OES_geometry_shader",
+        "GL_OES_shader_io_blocks",
+        "GL_OES_texture_border_clamp", // -> GL_ARB_texture_border_clamp
+        "GL_OES_texture_buffer",
+        "GL_OES_texture_cube_map_array", // -> GL_ARB_texture_cube_map_array
+        "GL_OES_surfaceless_context", // -> EGL_KHR_surfaceless_context
+
+        // "GL_EXT_EGL_image_external_wrap_modes",
+        // "GL_EXT_debug_marker",
+        // "GL_EXT_discard_framebuffer",
+        // "GL_EXT_draw_buffers",
+        // "GL_EXT_float_blend",
+        // "GL_EXT_frag_depth",
+        // "GL_EXT_instanced_arrays",
+        // "GL_EXT_multi_draw_indirect",
+        // /*15*/ "GL_EXT_multisampled_render_to_texture",  // 这个暂时不能有，因为它需要支持相关函数 这个具体涉及到glFramebufferTexture2DMultisampleEXT函数，这个函数是tile-based GPU使用TBDR渲染特有的，用来节省带宽，IMR模式的PC上没有，所以没法启用。glFramebufferTexture2DMultisampleEXT这个函数被PUBG在抗锯齿时用到了
+        // "GL_EXT_occlusion_query_boolean",
+        // "GL_EXT_read_format_bgra",
+        // "GL_EXT_sRGB",
+        // "GL_EXT_shader_texture_bptc",
+        // "GL_EXT_shader_texture_dxt1",
+        // "GL_EXT_shader_texture_rgtc",
+        // "GL_EXT_shader_texture_s3tc",
+        // "GL_EXT_shader_texture_s3tc_srgb",
+        // "GL_EXT_texture_filter_anisotropic",
+        // /*40*/ "GL_EXT_texture_format_BGRA8888", // pc很可能是不支持的
+        // "GL_EXT_texture_rg",
+        // "GL_EXT_texture_storage",
+        // "GL_OES_compressed_EAC_R11_signed_texture",
+        // "GL_OES_compressed_EAC_R11_unsigned_texture",
+        // "GL_OES_compressed_EAC_RG11_signed_texture",
+        // "GL_OES_compressed_EAC_RG11_unsigned_texture",
+        // "GL_OES_compressed_ETC2_RGB8_texture",
+        // "GL_OES_compressed_ETC2_RGBA8_texture",
+        // "GL_OES_compressed_ETC2_punchthroughA_RGBA8_texture",
+        // "GL_OES_compressed_ETC2_punchthroughA_sRGB8_alpha_texture",
+        // "GL_OES_compressed_ETC2_sRGB8_alpha8_texture",
+        // "GL_OES_compressed_ETC2_sRGB8_texture",
+        // "GL_OES_depth_texture_cube_map",
+        // "GL_OES_texture_3D",
 };
-static const int SPECIAL_EXTENSIONS_SIZE = 46 - 1;
+static const int SPECIAL_EXTENSIONS_SIZE = 74;
 
 // 支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
 //  static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
@@ -234,7 +303,7 @@ static const int SPECIAL_EXTENSIONS_SIZE = 46 - 1;
 //         /*23*/ "GL_CHROMIUM_bind_uniform_location"};
 // static const int NOT_SUPPORT_EXTENSION_SIZE = 23;
 
-static void *native_window_create(int independ_mode);
+static void *native_window_create(int context_flags);
 
 // static void g_queue_event_notify(gpointer data, gpointer user_data);
 
@@ -250,7 +319,7 @@ static void close_window_callback(GLFWwindow *window)
 {
     gint64 now_time = g_get_real_time();
 
-    // printf("shutdown time %lld\n",now_time);
+    // LOGI("shutdown time %lld",now_time);
     glfwSetWindowShouldClose(window, GLFW_FALSE);
     if (now_time - last_click_time < 500000)
     {
@@ -265,7 +334,7 @@ static void close_window_callback(GLFWwindow *window)
 
 static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
-    printf("notify shutdown! %lld\n", g_get_real_time());
+    LOGI("notify shutdown! %lld", g_get_real_time());
 
     ATOMIC_UNLOCK(main_window_event_queue_lock);
     // ATOMIC_UNLOCK(compose_surface_lock);
@@ -281,16 +350,16 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
         int wait_cnt = 0;
         while (native_render_run == -1 && wait_cnt < 200)
         {
-            // printf("wait thread close \n");
+            // LOGI("wait thread close ");
             g_usleep(5000);
             wait_cnt++;
         }
         if (native_render_run == -1)
         {
-            printf("wait time too long!\n");
+            LOGI("wait time too long!");
         }
 
-        // printf("wait thread close done %d\n",native_render_run);
+        // LOGI("wait thread close done %d",native_render_run);
     }
 }
 
@@ -386,7 +455,7 @@ static int try_destroy_gbuffer(void *data)
     }
 
     destroy_gbuffer(gbuffer);
-    printf("gbuffer %llx is dead\n", gbuffer->gbuffer_id);
+    LOGI("gbuffer %llx is dead", gbuffer->gbuffer_id);
 
     return 1;
 }
@@ -404,7 +473,7 @@ static void handle_child_window_event(void)
 
         if (paint_event_cnt >= 2)
         {
-            printf("error! too many event %d paint_num %d\n", child_event->event_code, paint_event_cnt);
+            LOGE("error! too many event %d paint_num %d", child_event->event_code, paint_event_cnt);
         }
 
         start_time = g_get_real_time();
@@ -424,18 +493,13 @@ static void handle_child_window_event(void)
                 void **window_ptr = (void **)child_event->data;
                 if (window_ptr == NULL)
                 {
+                    LOGW("warning: create child window empty window_ptr");
                     break;
                 }
-                // printf("create window\n");
-                // printf("start create window ptr %llx\n", window_ptr);
-                int independ_mode = 0;
-                if (*window_ptr != NULL)
-                {
-                    independ_mode = 1;
-                }
+                // LOGI("create window");
+                // LOGI("start create window ptr %llx", window_ptr);
 
-                *window_ptr = (void *)native_window_create(independ_mode);
-                // printf("create window time %lld window %llx\n", g_get_real_time() - t, *window_ptr);
+                *window_ptr = (void *)native_window_create((int)*window_ptr);
             }
 
             break;
@@ -449,7 +513,7 @@ static void handle_child_window_event(void)
             }
             else
             {
-                // printf("real destroy gbuffer %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
+                // LOGI("real destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, gbuffer);
                 dying_gbuffer = dying_list_append(dying_gbuffer, gbuffer);
             }
         }
@@ -459,7 +523,7 @@ static void handle_child_window_event(void)
             Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
             if (gbuffer != NULL)
             {
-                // printf("real cancel gbuffer delete %llx ptr %llx\n", gbuffer->gbuffer_id, gbuffer);
+                // LOGI("real cancel gbuffer delete %llx ptr %llx", gbuffer->gbuffer_id, gbuffer);
                 dying_gbuffer = dying_list_remove(dying_gbuffer, gbuffer);
             }
         }
@@ -513,7 +577,7 @@ static void handle_child_window_event(void)
         int64_t end_time = g_get_real_time();
         if (end_time - start_time > 20000 && child_event != NULL)
         {
-            printf("warning! slow child_event %d time spend %lld now_time %lld queue_size %d\n", child_event->event_code, (end_time - start_time) / 1000, end_time / 1000, g_async_queue_length(main_window_event_queue));
+            LOGW("warning! slow child_event %d time spend %lld now_time %lld queue_size %d", child_event->event_code, (end_time - start_time) / 1000, end_time / 1000, g_async_queue_length(main_window_event_queue));
         }
 
         ATOMIC_LOCK(main_window_event_queue_lock);
@@ -540,7 +604,7 @@ static void static_value_prepare(void)
     GLenum error = glGetError();
     if (error != GL_NO_ERROR)
     {
-        printf("error when creating static vaules %x\n", error);
+        LOGE("error when creating static vaules %x", error);
     }
     // 下面三个值之所以要限定范围，是因为guest端有个固定大小的数组，这个最大值是数组的最大大小
     if (preload_static_context_value->max_vertex_attribs > 32)
@@ -571,9 +635,9 @@ static void static_value_prepare(void)
 
     // for(int i = 0; i<preload_static_context_value->num_compressed_texture_formats && i<128;i++)
     // {
-    //     printf("support compress texture%d %x \n",i, preload_static_context_value->compressed_texture_formats[i]);
+    //     LOGI("support compress texture%d %x ",i, preload_static_context_value->compressed_texture_formats[i]);
     // }
-    // printf("binary formats num %d eg %d shader formats num %d eg %d\n",preload_static_context_value->num_program_binary_formats,
+    // LOGI("binary formats num %d eg %d shader formats num %d eg %d",preload_static_context_value->num_program_binary_formats,
     //     preload_static_context_value->program_binary_formats[0],
     //     preload_static_context_value->num_shader_binary_formats,
     //     preload_static_context_value->shader_binary_formats[0]);
@@ -614,7 +678,7 @@ static void static_value_prepare(void)
     // temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    printf("\ngl vendor:%s\n", (char *)gl_string);
+    LOGI("\ngl vendor:%s", (char *)gl_string);
 
     gl_string = (const char *)glGetString(GL_VERSION);
 
@@ -639,7 +703,7 @@ static void static_value_prepare(void)
     temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    printf("gl version:%s\n", string_loc + (unsigned long)(preload_static_context_value->version));
+    LOGI("gl version:%s", string_loc + (unsigned long)(preload_static_context_value->version));
 
     gl_string = (const char *)glGetString(GL_RENDERER);
     preload_static_context_value->renderer = (unsigned long long)(temp_loc - string_loc);
@@ -652,14 +716,14 @@ static void static_value_prepare(void)
     // temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    printf("gl renderer:%s\n", (char *)gl_string);
+    LOGI("gl renderer:%s", (char *)gl_string);
 
     preload_static_context_value->shading_language_version = (unsigned long long)(temp_loc - string_loc);
     memcpy(temp_loc, GPU_SHADER_LANGUAGE_VERSION, sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1);
     temp_loc += sizeof(GPU_SHADER_LANGUAGE_VERSION) - 1;
     *temp_loc = 0;
     temp_loc++;
-    printf("gl shading_language_version:%s\n", string_loc + (unsigned long)(preload_static_context_value->shading_language_version));
+    LOGI("gl shading_language_version:%s", string_loc + (unsigned long)(preload_static_context_value->shading_language_version));
 
     char *extensions_start = temp_loc;
 
@@ -678,7 +742,7 @@ static void static_value_prepare(void)
 
         if (express_gpu_gl_debug_enable)
         {
-            printf("host extension %d %s\n", i, gl_string);
+            LOGI("host extension %d %s", i, gl_string);
         }
 
         if (strstr(gl_string, "GL_EXT_direct_state_access") != NULL)
@@ -711,7 +775,7 @@ static void static_value_prepare(void)
         // memcpy(temp_loc, gl_string, strlen(gl_string));
         // temp_loc += strlen(gl_string);
         // *temp_loc = 0;
-        // printf("%d %s\n", i, temp_loc - strlen(gl_string));
+        // LOGI("%d %s", i, temp_loc - strlen(gl_string));
         // temp_loc++;
     }
 
@@ -720,7 +784,7 @@ static void static_value_prepare(void)
         DSA_enable = 0;
     }
 
-    printf("host gl %d DSA_enable %d\n", host_opengl_version, DSA_enable);
+    LOGI("host gl %d DSA_enable %d", host_opengl_version, DSA_enable);
 
     // num_extensions -= no_need_extensions_cnt;
 
@@ -758,7 +822,7 @@ static void static_value_prepare(void)
     preload_static_context_value->extensions_gles2 = (unsigned long long)(extensions_start - string_loc + extensions_len);
     if (express_gpu_gl_debug_enable)
     {
-        printf("extensions len %d num %d: %s|\n", extensions_len, num_extensions, string_loc + (unsigned long)(preload_static_context_value->extensions_gles2));
+        LOGI("extensions len %d num %d: %s|", extensions_len, num_extensions, string_loc + (unsigned long)(preload_static_context_value->extensions_gles2));
     }
     assert(temp_loc < ((char *)preload_static_context_value) + sizeof(Static_Context_Values) + 512 * 100 + 400);
 }
@@ -795,7 +859,7 @@ static void opengl_paint_composer_gbuffer(void)
 
     // int64_t now_time = g_get_real_time();
     // static int64_t last_display_time = 0;
-    // printf("paint %llx time %lld gap %lld\n", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
+    // LOGI("paint %llx time %lld gap %lld", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
     // last_display_time = now_time;
 
     glFlush();
@@ -804,19 +868,19 @@ static void opengl_paint_composer_gbuffer(void)
 /**
  * @brief 界面上用于画出图像的函数，实际逻辑为取出gbuffer中的display_texture，然后画出来
  *
- * @param d_buffer
+ * @param gbuffer
  */
 void opengl_paint_gbuffer(Graphic_Buffer *gbuffer)
 {
     if (gbuffer != NULL)
     {
-        // printf("opengl_paint gbuffer %llx texture %d\n", gbuffer->gbuffer_id, gbuffer->data_texture);
+        // LOGI("opengl_paint gbuffer %llx texture %d", gbuffer->gbuffer_id, gbuffer->data_texture);
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
-        // printf("paint texture %d\n",gbuffer->data_texture);
+        // LOGI("paint texture %d",gbuffer->data_texture);
 
         if (gbuffer->is_writing != 0)
         {
-            printf("error! get writing gbuffer when opengl_paint\n");
+            LOGE("error! get writing gbuffer when opengl_paint");
         }
 
         express_printf("draw gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
@@ -830,16 +894,16 @@ void opengl_paint_gbuffer(Graphic_Buffer *gbuffer)
 /**
  * @brief 创建带window的opengl的context，这个创建过程是在主界面线程中进行的，通过消息机制来实现
  *
- * @param independ_mode 是否需要单独窗口模式
+ * @param context_flags context的模式，例如单独窗口（非OpenGL原生）、debug context、robust context
  */
-static void *native_window_create(int independ_mode)
+static void *native_window_create(int context_flags)
 {
 
     void *child_window = NULL;
     static int windows_cnt = 0;
     int cnt = windows_cnt++;
 
-    if (independ_mode == 1)
+    if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
         char name[100];
         sprintf(name, "opengl-child-window%d", cnt);
@@ -847,29 +911,28 @@ static void *native_window_create(int independ_mode)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-        // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+        glfwWindowHint(GLFW_CONTEXT_ROBUSTNESS, GLFW_LOSE_CONTEXT_ON_RESET);
 
         // 因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
         child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
 
         if (child_window == NULL)
         {
             const char *s = NULL;
             int ret = glfwGetError(&s);
-            express_printf("error code %d detail %s", ret, s);
+            LOGE("error code %d detail %s", ret, s);
         }
     }
     else
     {
-        child_window = egl_createContext();
+        child_window = egl_createContext(context_flags);
     }
 
     assert(child_window != NULL);
 
-    // express_printf("create windows surface %lx\n", d_buffer);
-    // todo 根据配置设置窗口属性
+    express_printf("native window create success %p context flag %x\n", child_window, context_flags);
+    
     return child_window;
 }
 
@@ -974,7 +1037,7 @@ void *native_window_thread(void *opaque)
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-        express_printf("load glad error\n");
+        LOGI("load glad error");
         return NULL;
     }
 
@@ -1022,7 +1085,7 @@ void *native_window_thread(void *opaque)
     {
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallback(gl_debug_output, NULL);
+        glDebugMessageCallback(d_debug_message_callback, NULL);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
     }
 
@@ -1048,7 +1111,7 @@ void *native_window_thread(void *opaque)
             // express_input_device_sync();
 
             handle_child_window_event();
-            // printf("start run native thread %d %d\n", force_show_native_render_window, window_is_shown);
+            // LOGI("start run native thread %d %d", force_show_native_render_window, window_is_shown);
 
             if (force_show_native_render_window != 0 && window_is_shown == false)
             {
@@ -1096,7 +1159,7 @@ void *native_window_thread(void *opaque)
                 if ((main_display_gbuffer == NULL) && window_is_shown == true && force_show_native_render_window == 0)
                 {
                     window_is_shown = false;
-                    printf("hide window\n");
+                    LOGI("hide window");
                     glfwHideWindow(glfw_window);
 
                     sdl2_no_need = 0;
@@ -1123,7 +1186,7 @@ void *native_window_thread(void *opaque)
         {
             need_sleep_time = 0;
         }
-        // printf("remain_sleep_time %lld\n", remain_sleep_time);
+        // LOGI("remain_sleep_time %lld", remain_sleep_time);
 
         if (now_time - last_calc_time > 1000000)
         {
@@ -1136,7 +1199,7 @@ void *native_window_thread(void *opaque)
             }
             else
             {
-                printf("screen draw avg %.2f us %.2f FPS\n", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
+                // LOGI("screen draw avg %.2f us %.2f FPS", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
             }
 
             frame_draw_time = 0;
@@ -1148,7 +1211,7 @@ void *native_window_thread(void *opaque)
     glfwMakeContextCurrent(NULL);
     glfwDestroyWindow(glfw_window);
 
-    printf("native windows close!\n");
+    LOGI("native windows close!");
 
     // 当他返回0时表示窗口被关掉了
     native_render_run = 0;

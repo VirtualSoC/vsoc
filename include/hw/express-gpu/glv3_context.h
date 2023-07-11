@@ -179,7 +179,10 @@ typedef struct Resource_Context
     // query objects
     Resource_Map_Status *query_resource;
 
+    // objects sharable among contexts
     Share_Resources *share_resources;
+    
+    // container objects exclusive to each opengl context
     Exclusive_Resources *exclusive_resources;
 
 } Resource_Context;
@@ -193,8 +196,6 @@ typedef struct Opengl_Context
     Bound_Buffer bound_buffer_status;
 
     Resource_Context resource_status;
-
-
 
 
     void *share_context;
@@ -229,13 +230,15 @@ typedef struct Opengl_Context
 
     GLuint enable_scissor;
 
-    int independ_mode;
+    GLint context_flags;
     // Window_Buffer *current_external_gbuffer_id;
     // GLenum current_target;
 
     GLuint draw_texi_vao;
     GLuint draw_texi_vbo;
     GLuint draw_texi_ebo;
+
+    void *debug_message_buffer;
 } Opengl_Context;
 
 typedef struct Guest_Host_Map
@@ -307,15 +310,15 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
 
 void resource_context_destroy(Resource_Context *resources);
 
-Opengl_Context *opengl_context_create(Opengl_Context *share_context, int independ_mode);
+Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context_flags);
 
 
 void opengl_context_init(Opengl_Context *context);
 
 void opengl_context_destroy(Opengl_Context *context);
 
-void *get_native_opengl_context(int independ_mode);
+void *get_native_opengl_context(int context_flags);
 
-void release_native_opengl_context(void *native_context, int independ_mode);
+void release_native_opengl_context(void *native_context, int context_flags);
 
 #endif

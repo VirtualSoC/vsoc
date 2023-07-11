@@ -1,8 +1,12 @@
-#include "hw/express-gpu/egl_window.h"
-#include "hw/teleport-express/express_log.h"
+// #define STD_DEBUG_LOG
 
 #include <glib.h>
 #include <stdio.h>
+#include <stdint.h>
+
+#include "hw/express-gpu/egl_define.h"
+#include "hw/express-gpu/egl_window.h"
+#include "hw/teleport-express/express_log.h"
 
 PFN_wglSwapInterval wglSwapInterval;
 PFN_wglCreateContextAttribs wglCreateContextAttribs;
@@ -36,8 +40,6 @@ static int static_pixel_format;
 
 static int static_pbuffer_attribs[3];
 
-static int static_context_attribs[1];
-
 WGLproc load_wgl_fun(const char *name);
 
 WGLproc load_wgl_fun(const char *name)
@@ -47,7 +49,7 @@ WGLproc load_wgl_fun(const char *name)
         opengl_dll_moudle = LoadLibraryA("opengl32.dll");
         if (opengl_dll_moudle == NULL)
         {
-            printf("error! no opengl dll!\n");
+            LOGE("error! no opengl dll!");
         }
     }
 
@@ -85,7 +87,7 @@ void egl_init(void *dpy, void *father_context)
 
     if (wglCreateContextAttribs == NULL)
     {
-        printf("note! wglCreateContextAttribs is NULL! \n");
+        LOGI("note! wglCreateContextAttribs is NULL! ");
     }
 
     context_dc_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
@@ -116,7 +118,7 @@ void egl_init(void *dpy, void *father_context)
     nFromat = 0;
     if (!wglChoosePixelFormat(main_window_hdc, iattribs, fattribs, 1, pFormats, &nFromat) || nFromat == 0)
     {
-        printf("error! cannot choose pixel format!\n");
+        LOGE("error! cannot choose pixel format!");
         exit(-1);
     }
 
@@ -125,23 +127,56 @@ void egl_init(void *dpy, void *father_context)
     static_pbuffer_attribs[0] = WGL_PBUFFER_LARGEST_ARB;
     static_pbuffer_attribs[1] = 1;
     static_pbuffer_attribs[2] = 0;
-
-    static_context_attribs[0] = 0;
 }
 
-void *egl_createContext(void)
+void *egl_createContext(int context_flags)
 {
     HPBUFFERARB pbuffer = wglCreatePbuffer(main_window_hdc, static_pixel_format, 1, 1, static_pbuffer_attribs);
     HDC pbuffer_dc = wglGetPbufferDC(pbuffer);
     HGLRC context = NULL;
+    
+    // 构造wgl的attrib_list
+    // 注意，wgl的context flag和gl的不完全一致，所以要映射一下
+    int attrib_list[10];
+    int *ptr = attrib_list;
+
+    int wgl_context_flags = 0;
+    wgl_context_flags |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
+    if (context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+    {
+        wgl_context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
+    }
+    if (context_flags & GL_CONTEXT_FLAG_ROBUST_ACCESS_BIT)
+    {
+        *ptr = WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB;
+        *(ptr + 1) = WGL_LOSE_CONTEXT_ON_RESET_ARB;
+        ptr += 2;
+    }
+    else 
+    {
+        // EGL_NO_RESET_NOTIFICATION对guest来说是透明的，所以默认开启
+        *ptr = WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB;
+        *(ptr + 1) = WGL_NO_RESET_NOTIFICATION_ARB;
+        ptr += 2;
+    }
+    *ptr = WGL_CONTEXT_FLAGS_ARB;
+    *(ptr + 1) = wgl_context_flags;
+    ptr += 2;
+
+    *ptr = 0; // end of attrib list
+
     if (wglCreateContextAttribs == NULL)
     {
         context = wglCreateContext(pbuffer_dc);
         wglShareLists(main_window_context, context);
+        if (context_flags != 0) 
+        {
+            LOGW("warning! context flag %x not supported by wgl, ignoring.", context_flags);
+        }
     }
     else
     {
-        context = wglCreateContextAttribs(pbuffer_dc, main_window_context, static_context_attribs);
+        context = wglCreateContextAttribs(pbuffer_dc, main_window_context, attrib_list);
     }
     if (context != NULL)
     {
@@ -152,12 +187,12 @@ void *egl_createContext(void)
     {
         wglReleasePbufferDC(pbuffer, pbuffer_dc);
         wglDestroyPbuffer(pbuffer);
-        printf("error! create context null! error is %llx\n", (unsigned long long)GetLastError());
+        LOGE("error! create context null! error is %llx", (unsigned long long)GetLastError());
     }
     return context;
 }
 
-void egl_makeCurrent(void *context)
+int egl_makeCurrent(void *context)
 {
     if (context != NULL)
     {
@@ -165,13 +200,17 @@ void egl_makeCurrent(void *context)
         int ret = wglMakeCurrent(pbuffer_dc, (HGLRC)context);
         if (ret == 0)
         {
-            printf("error! makecurrent window %llx failed error %llu\n", (uint64_t)context, (unsigned long long)GetLastError());
+            int last_error = (int)GetLastError();
+            LOGE("error! makecurrent window %llx failed error %d", (uint64_t)context, last_error);
+            return -last_error;
         }
     }
     else
     {
-        wglMakeCurrent(NULL, NULL);
+        BOOL succ = wglMakeCurrent(NULL, NULL);
+        if (succ != TRUE) return -1;
     }
+    return EGL_TRUE;
 }
 
 void egl_destroyContext(void *context)
@@ -180,8 +219,8 @@ void egl_destroyContext(void *context)
     if (context != NULL)
     {
         gint64 t = g_get_real_time();
-        // printf("destroy ");
-        printf("destroy window %llx\n", (uint64_t)context);
+        // LOGI("destroy ");
+        LOGI("destroy window %llx", (uint64_t)context);
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);
         HPBUFFERARB pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
 

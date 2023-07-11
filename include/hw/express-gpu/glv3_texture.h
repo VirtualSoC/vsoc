@@ -48,4 +48,6 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
 
 // void d_glActiveTexture_special(void *context, GLenum texture);
 
+#include "glv3_decl.h"
+
 #endif

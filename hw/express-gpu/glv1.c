@@ -132,7 +132,7 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
         if (status->host_vao != opengl_context->draw_texi_vao)
         {
             glBindVertexArray(opengl_context->draw_texi_vao);
-            // printf("glv1 bind vao %d\n",opengl_context->draw_texi_vao);
+            // LOGI("glv1 bind vao %d",opengl_context->draw_texi_vao);
 
             status->host_vao = opengl_context->draw_texi_vao;
             status->host_vao_ebo = opengl_context->draw_texi_ebo;
@@ -177,7 +177,7 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
             glEnableVertexAttribArray(1);
         }
 
-        // printf("glv1 draw texture %d x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f\n",opengl_context->current_texture_2D[opengl_context->current_active_texture], x, y, z, width, height, left_x, right_x, bottom_y, top_y);
+        // LOGI("glv1 draw texture %d x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f",opengl_context->current_texture_2D[opengl_context->current_active_texture], x, y, z, width, height, left_x, right_x, bottom_y, top_y);
 
         GLint now_texture_target;
         glGetIntegerv(GL_ACTIVE_TEXTURE, &now_texture_target);
@@ -259,12 +259,12 @@ void prepare_draw_texi(void)
         {
             GLint infoLen = 0;
             glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &infoLen);
-            printf("GL_INFO_LOG_LENGTH %d\n", infoLen);
+            LOGI("GL_INFO_LOG_LENGTH %d", infoLen);
             if (infoLen > 1)
             {
                 char *infoLog = (char *)malloc(sizeof(char) * infoLen);
                 glGetProgramInfoLog(program_id, infoLen, NULL, infoLog);
-                printf("Error linking program:\n%s\n", infoLog);
+                LOGE("error linking program:\n%s", infoLog);
                 free(infoLog);
             }
         }

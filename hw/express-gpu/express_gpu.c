@@ -9,7 +9,7 @@
  *
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_device_common.h"
 
 #include "hw/teleport-express/express_log.h"
@@ -57,11 +57,11 @@ static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Telepor
 
     switch (call->id)
     {
-    case FUNID_GPU_Gbuffer_Download:
+    case FUNID_GPU_Gbuffer_Host_To_Guest:
     {
         Gralloc_Gbuffer_Info info;
 
-        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Download))
+        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Host_To_Guest))
         {
             break;
         }
@@ -74,14 +74,14 @@ static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Telepor
 
         read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
 
-        guest_download_gbuffer_data(info);
+        gbuffer_data_host_to_guest(info);
     }
     break;
-    case FUNID_GPU_Gbuffer_Upload:
+    case FUNID_GPU_Gbuffer_Guest_To_Host:
     {
         Gralloc_Gbuffer_Info info;
 
-        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Upload))
+        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Guest_To_Host))
         {
             break;
         }
@@ -94,7 +94,7 @@ static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Telepor
 
         read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
 
-        guest_upload_gbuffer_data(info);
+        gbuffer_data_guest_to_host(info);
     }
     break;
     case FUNID_GPU_Alloc_Gbuffer:
@@ -121,7 +121,7 @@ static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Telepor
     break;
     default:
     {
-        printf("error! unknown gpu gbuffer invoke id %llx para_num %d\n", call->id, para_num);
+        LOGE("error! unknown gpu gbuffer invoke id %llx para_num %d", call->id, para_num);
     }
     }
 
@@ -172,12 +172,13 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
         // express_printf("gl decode invoke %llu context %llx\n", fun_id, render_context->opengl_context);
         gl3_decode_invoke(render_context, call);
     }
-    if (render_context->opengl_context != NULL && express_gpu_gl_debug_enable)
+    if (express_gpu_gl_debug_enable && render_context->opengl_context != NULL && render_context->opengl_context->is_current)
     {
         GLenum error_code = glGetError();
-        if (error_code != GL_NO_ERROR)
+        while (error_code != GL_NO_ERROR)
         {
-            printf("#fun_id %llu context %llx get error %x\n", fun_id, (uint64_t)render_context->opengl_context, error_code);
+            LOGE("#fun_id %llu context %llx gl error %x", fun_id, (uint64_t)render_context->opengl_context, error_code);
+            error_code = glGetError();
         }
     }
     return;
@@ -312,7 +313,7 @@ static void gbuffer_map_destroy(gpointer data)
 {
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
 
-    printf("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d\n", gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
+    LOGI("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d", gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
 
     //@todo 没有context时，能不能delete sync？所以暂时让主线程去释放sync
     if (gbuffer->usage_type == GBUFFER_TYPE_TEXTURE)
@@ -333,7 +334,7 @@ static void gbuffer_map_destroy(gpointer data)
     {
         // 其他类型的gbuffer真实释放由display线程完成
     }
-    // printf("send destroy gbuffer %llx message\n",gbuffer->gbuffer_id);
+    // LOGI("send destroy gbuffer %llx message",gbuffer->gbuffer_id);
 
     return;
 }
@@ -365,7 +366,7 @@ static void render_context_destroy(Thread_Context *context)
         g_hash_table_destroy(process_context->surface_map);
 
         // image删除，这里主要是为了释放gbuffer映射
-        //  printf("destroy process context\n");
+        //  LOGI("destroy process context");
         g_hash_table_destroy(process_context->gbuffer_map);
 
         // send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);

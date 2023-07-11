@@ -2,7 +2,7 @@
 #include "hw/express-gpu/device_interface_window.h"
 
 #define TIMER_LOG
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/express-sensor/express_battery.h"
@@ -144,7 +144,7 @@ GLFWwindow *window = NULL;
 
 void handle_battery_change(int property, int value)
 {
-    printf("Device_interface::current_battery: %d\n", value);
+    LOGI("Device_interface::current_battery: %d", value);
 
     express_battery_status_changed(property, value);
     sync_express_battery_status();
@@ -163,7 +163,7 @@ static void handle_mic_change(bool value)
 
 void handle_accelerometer_change(int property, int value)
 {
-    printf("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", cur_acc.scale, cur_acc.x, cur_acc.y, cur_acc.z);
+    LOGI("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d", cur_acc.scale, cur_acc.x, cur_acc.y, cur_acc.z);
 
     express_accel_status_changed(property, value);
     sync_express_accel_status();
@@ -171,24 +171,24 @@ void handle_accelerometer_change(int property, int value)
 
 void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, int y, int z)
 {
-    printf("Device_interface::magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d\n", scale_x, scale_y, scale_z, x, y, z);
+    LOGI("Device_interface::magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d", scale_x, scale_y, scale_z, x, y, z);
 }
 
 void handle_light_change(float scale, int input)
 {
-    printf("Device_interface::light scale: %.2f, input: %d\n", scale, input);
+    LOGI("Device_interface::light scale: %.2f, input: %d", scale, input);
 }
 
 void handle_gyroscope_change(int property, int value)
 {
-    printf("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", cur_gyro.scale, cur_gyro.x, cur_gyro.y, cur_gyro.z);
+    LOGI("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d", cur_gyro.scale, cur_gyro.x, cur_gyro.y, cur_gyro.z);
     express_gyro_status_changed(property, value);
     sync_express_gyro_status();
 }
 
 void handle_gps_change(int property, int value)
 {
-    printf("Device_interface::gps latitude: %.6f, longitude: %.6f\n", cur_gps.lat, cur_gps.lon);
+    LOGI("Device_interface::gps latitude: %.6f, longitude: %.6f", cur_gps.lat, cur_gps.lon);
     express_gps_status_changed(property, value);
     sync_express_gps_status();
 }
@@ -745,7 +745,7 @@ void *interface_window_thread(void *data)
     window = glfwCreateWindow(1, 1, "Device Input", NULL, NULL);
     if (window == NULL)
     {
-        printf("Device_interface::Failed to create window\n");
+        LOGI("Device_interface::Failed to create window");
         return NULL;
     }
 
@@ -804,7 +804,7 @@ void *interface_window_thread(void *data)
         remain_sleep_time = 1000000 / 60 - (now_time - frame_start_time);
         frame_start_time = now_time;
 
-        // printf("need sleep %lld remain_sleep_time %lld\n",need_sleep_time,remain_sleep_time);
+        // LOGI("need sleep %lld remain_sleep_time %lld",need_sleep_time,remain_sleep_time);
 
         // glfwSwapBuffers(window);
         if (!show_imgui || *(all_interface_data.run) == 0)
@@ -825,7 +825,7 @@ void *interface_window_thread(void *data)
     glfwDestroyWindow(window);
     // glfw will only terminate once, it would be terminate in our main window thread
     // glfwTerminate();
-    printf("Device_interface::Destroy window\n");
+    LOGI("Device_interface::Destroy window");
 
     return NULL;
 }

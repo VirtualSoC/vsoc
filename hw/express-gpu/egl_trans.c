@@ -2242,7 +2242,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         {
             break;
         }
-        // printf("enter egltp \n");
+        // LOGI("enter egltp ");
         void *data = all_para[0].data;
         size_t len = all_para[0].data_len;
         test_no_copy(data, len);
@@ -2327,6 +2327,116 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         sync_id = *(uint64_t *)(temp);
 
         wait_for_express_sync((int)sync_id, egl_context->opengl_context != NULL);
+    }
+    break;
+
+    case FUNID_eglCreateDebugMessageBuffer:
+
+    {
+
+        /* Define variables */
+        EGLContext guest_gl_context;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (unlikely(para_num < PARA_NUM_MIN_eglCreateDebugMessageBuffer))
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < 8 * 1))
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(temp == NULL))
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        guest_gl_context = *(uint64_t *)(temp + temp_loc);
+        temp_loc += sizeof(EGLContext);
+
+        /* Check length */
+        if (unlikely(temp_len < temp_loc))
+        {
+            break;
+        }
+
+        Guest_Mem *mem = copy_guest_mem_from_call(call, 2);
+
+        d_eglCreateDebugMessageBuffer(egl_context, guest_gl_context, mem);
+    }
+    break;
+
+    case FUNID_eglDestroyDebugMessageBuffer:
+
+    {
+
+        /* Define variables */
+        EGLContext guest_gl_context;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (unlikely(para_num < PARA_NUM_MIN_eglDestroyDebugMessageBuffer))
+        {
+            break;
+        }
+
+        size_t temp_len = 0;
+        unsigned char *temp = NULL;
+
+        temp_len = all_para[0].data_len;
+        if (unlikely(temp_len < 8 * 1))
+        {
+            break;
+        }
+
+        int null_flag = 0;
+        temp = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(temp == NULL))
+        {
+            if (temp_len != 0 && null_flag == 0)
+            {
+                temp = g_malloc(temp_len);
+                no_ptr_buf = temp;
+                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        unsigned int temp_loc = 0;
+
+        guest_gl_context = *(uint64_t *)(temp + temp_loc);
+        temp_loc += sizeof(EGLContext);
+
+        /* Check length */
+        if (unlikely(temp_len < temp_loc))
+        {
+            break;
+        }
+
+        Guest_Mem *mem = copy_guest_mem_from_call(call, 2);
+
+        d_eglDestroyDebugMessageBuffer(egl_context, guest_gl_context, mem);
     }
     break;
 

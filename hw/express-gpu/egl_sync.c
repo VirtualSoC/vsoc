@@ -48,6 +48,6 @@ EGLBoolean d_eglWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint fla
 
 EGLint d_eglClientWaitSync(void *context, EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout)
 {
-    // printf("eglClientWaitSync guest_sync %d no host sync\n", guest_sync_int);
+    // LOGI("eglClientWaitSync guest_sync %d no host sync", guest_sync_int);
     return EGL_FALSE;
 }

@@ -8,7 +8,7 @@
 #include "hw/express-gpu/express_gpu.h"
 
 #define MAX_OUT_BUF_LEN 4096
-#define FUNID_eglMakeCurrent ((EXPRESS_GPU_DEVICE_ID << 32u) + 10013)
+#define FUNID_eglMakeCurrent ((EXPRESS_GPU_DEVICE_ID << 32u) + (((uint64_t)0x1) << 24u) + 10013)
 
 #define PARA_NUM_MIN_eglMakeCurrent (1)
 

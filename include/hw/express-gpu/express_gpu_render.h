@@ -16,6 +16,8 @@
 
 #include "hw/express-gpu/egl_surface.h"
 
+#include "hw/express-gpu/glv3_decl.h"
+
 #define SPECIAL_SCREEN_SYNC_HZ 60
 
 #define WM_USER_PAINT WM_USER + 10
@@ -39,12 +41,10 @@
 #define GBUFFER_TYPE_WINDOW 1
 #define GBUFFER_TYPE_TEXTURE 2
 
-
-
 #define ATOMIC_LOCK(s)                                              \
      int atomic_cnt = 1;                                            \
      while (qatomic_cmpxchg(&(s), 0, 1) == 1 && atomic_cnt < 10000) \
-          if(atomic_cnt % 10 == 0) printf("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
+          if(atomic_cnt % 10 == 0) LOGD("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
 
 // #define ATOMIC_SET_USED(s) ATOMIC_LOCK(s)
