@@ -20,3 +20,5 @@ GTAGS
 /.history/
 log.txt
 .vscode
+.cache
+compile_commands.json

@@ -47,7 +47,8 @@ typedef struct Teleport_Express_PCI{
     bool display_switch_open;
 
     bool open_shader_binary;
-
+    
+    char *ruim_file;
 
 } Teleport_Express_PCI;
 

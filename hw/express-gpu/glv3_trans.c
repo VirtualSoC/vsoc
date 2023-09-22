@@ -28,6 +28,14 @@
 #include "hw/express-gpu/gl_helper.h"
 
 #include "hw/express-gpu/glv1.h"
+#include "hw/teleport-express/express_event.h"
+
+#ifndef _WIN32
+#define max(a, b)                       \
+  (((a) > (b)) ? (a) : (b))
+#define min(a, b)                       \
+  (((a) < (b)) ? (a) : (b))
+#endif
 
 // 更新：下面的描述已经过时，仅供参考
 // 1. guest端需要同步的函数

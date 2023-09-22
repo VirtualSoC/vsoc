@@ -1,6 +1,6 @@
 #ifndef QEMU_EXPRESS_LOG_H
 #define QEMU_EXPRESS_LOG_H
-
+#include <stdio.h>
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "qemu/thread.h"

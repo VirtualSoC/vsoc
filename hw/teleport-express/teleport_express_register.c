@@ -5,6 +5,7 @@
 #include "qemu/atomic.h"
 
 #include "hw/teleport-express/express_log.h"
+#include "hw/teleport-express/express_event.h"
 
 static VirtIODevice *in_teleport_express = NULL;
 
@@ -18,7 +19,7 @@ bool now_can_set_event = true;
 #ifdef _WIN32
 HANDLE input_event = NULL;
 #else
-
+void *input_event = NULL;
 #endif
 
 void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int len);
@@ -136,6 +137,7 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
 #ifdef _WIN32
         SetEvent(input_event);
 #else
+        set_event(input_event);
 #endif
         express_printf("slow input_event!\n");
     }
@@ -194,10 +196,11 @@ void *input_sync_thread(void *opaque)
 #ifdef _WIN32
     input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 #else
-
+    input_event = create_event(0,0);
 #endif
     while (!teleport_express_should_stop)
     {
+        #ifdef _WIN32
         // 有一个中断时，之后的1ms超时内的中断都不再使能中断的打断，以防止中断过于频繁
         DWORD ret = WaitForSingleObject(input_event, 1);
         if (ret == WAIT_TIMEOUT)
@@ -209,15 +212,34 @@ void *input_sync_thread(void *opaque)
             express_printf("intrupted by event\n");
             now_can_set_event = false;
         }
-
+    #else    
+        int ret=wait_event(input_event,1);
+        if(ret == 0){
+            now_can_set_event = true;
+        }
+        else{
+            now_can_set_event = false;
+        }
+    #endif
         Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
         if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
         {
+            // Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
+            // if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
+            // {
+            //     register_input_buffer_call(in_teleport_express, g->in_data_queue);
+            //     qatomic_set(&(g->register_input_vq_locker), 0);
+            // }
             register_input_buffer_call(in_teleport_express, g->in_data_queue);
             qatomic_set(&(g->register_input_vq_locker), 0);
+
         }
     }
+#ifdef _WIN32
     CloseHandle(input_event);
+#else
+    delete_event(input_event);
+#endif
     return NULL;
 }
 

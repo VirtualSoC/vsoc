@@ -6,6 +6,96 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/express_gpu_render.h"
 
+// void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+// {
+//     // 忽略一些不是错误的id
+//     if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
+//         return;
+//     if (severity == GL_DEBUG_SEVERITY_LOW || severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+//     {
+//         return;
+//     }
+
+// #ifdef ENABLE_OPENGL_PERFORMANCE_WARNING
+
+// #else
+//     if (type == GL_DEBUG_TYPE_PERFORMANCE)
+//     {
+//         return;
+//     }
+// #endif
+
+//     printf("\ndebug message(%u):%s\n", id, message);
+//     switch (source)
+//     {
+//     case GL_DEBUG_SOURCE_API:
+//         printf("Source: API ");
+//         break;
+//     case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+//         printf("Source: Window System ");
+//         break;
+//     case GL_DEBUG_SOURCE_SHADER_COMPILER:
+//         printf("Source: Shader Compiler ");
+//         break;
+//     case GL_DEBUG_SOURCE_THIRD_PARTY:
+//         printf("Source: Third Party ");
+//         break;
+//     case GL_DEBUG_SOURCE_APPLICATION:
+//         printf("Source: APPLICATION ");
+//         break;
+//     case GL_DEBUG_SOURCE_OTHER:
+//         break;
+//     }
+
+//     switch (type)
+//     {
+//     case GL_DEBUG_TYPE_ERROR:
+//         printf("Type: Error ");
+//         break;
+//     case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+//         printf("Type: Deprecated Behaviour ");
+//         break;
+//     case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+//         printf("Type: Undefined Behaviour ");
+//         break;
+//     case GL_DEBUG_TYPE_PORTABILITY:
+//         printf("Type: Portability ");
+//         break;
+//     case GL_DEBUG_TYPE_PERFORMANCE:
+//         printf("Type: Performance ");
+//         break;
+//     case GL_DEBUG_TYPE_MARKER:
+//         printf("Type: Marker ");
+//         break;
+//     case GL_DEBUG_TYPE_PUSH_GROUP:
+//         printf("Type: Push Group ");
+//         break;
+//     case GL_DEBUG_TYPE_POP_GROUP:
+//         printf("Type: Pop Group ");
+//         break;
+//     case GL_DEBUG_TYPE_OTHER:
+//         printf("Type: Other ");
+//         break;
+//     }
+
+//     switch (severity)
+//     {
+//     case GL_DEBUG_SEVERITY_HIGH:
+//         printf("Severity: high");
+//         break;
+//     case GL_DEBUG_SEVERITY_MEDIUM:
+//         printf("Severity: medium");
+//         break;
+//     case GL_DEBUG_SEVERITY_LOW:
+//         printf("Severity: low");
+//         break;
+//     case GL_DEBUG_SEVERITY_NOTIFICATION:
+//         printf("Severity: notification");
+//         break;
+//     }
+//     printf("\n");
+// }
+
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
@@ -57,8 +147,9 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     {
         // thread_context->opengl_context->draw_surface = NULL;
         express_printf("makecurrent context change %llx guest %llx %d window %llx\n", (uint64_t)thread_context->opengl_context, (uint64_t)thread_context->opengl_context->guest_context, thread_context->opengl_context->need_destroy, (uint64_t)thread_context->opengl_context->window);
-
+#ifndef __APPLE__
         glDebugMessageCallback(NULL, NULL);
+#endif
         thread_context->opengl_context->is_current = 0;
         if (thread_context->opengl_context->need_destroy)
         {
@@ -94,14 +185,26 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glfwMakeContextCurrent((GLFWwindow *)real_opengl_context->window);
         if (real_surface_draw != NULL && real_surface_draw->type == WINDOW_SURFACE && real_surface_draw->width > 10 && real_surface_draw->height > 10)
         {
+            #ifdef __APPLE__
+            THREAD_CONTROL_BEGIN
+            #endif
             express_printf("glfwSetWindowSize surface width %d height %d width %d height %d\n", real_surface_draw->width, real_surface_draw->height, width, height);
             glfwSetWindowSize(real_opengl_context->window, width, height);
             glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
             glfwShowWindow((GLFWwindow *)real_opengl_context->window);
+            #ifdef __APPLE__
+            THREAD_CONTROL_END
+            #endif
         }
         else
         {
+            #ifdef __APPLE__
+            THREAD_CONTROL_BEGIN
+            #endif
             glfwHideWindow((GLFWwindow *)real_opengl_context->window);
+            #ifdef __APPLE__
+            THREAD_CONTROL_END
+            #endif
         }
     }
     else
@@ -112,10 +215,12 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (express_gpu_gl_debug_enable || real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
     {
+    #ifdef _WIN32        
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallback(d_debug_message_callback, real_opengl_context);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+    #endif
     }
 
     // 然后设置当前的surface和context
@@ -200,6 +305,11 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         if (real_surface_draw->gbuffer != NULL)
         {
             real_surface_draw->gbuffer->is_writing = 0;
+// #ifdef _WIN32
+//             SetEvent(real_surface_draw->gbuffer->writing_ok_event);
+// #else
+//             set_event(real_surface_draw->gbuffer->writing_ok_event);
+// #endif
         }
 
         real_surface_draw->gbuffer = gbuffer;
@@ -358,6 +468,21 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
     }
 
     gbuffer->is_writing = 0;
+
+//     if (temp_sync != 0)
+//     {
+//         glDeleteSync(temp_sync);
+//     }
+
+//     express_printf("gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
+
+//     // glFinish();
+//     glFlush();
+// #ifdef _WIN32
+//     SetEvent(gbuffer->writing_ok_event);
+// #else
+//     set_event(gbuffer->writing_ok_event);
+// #endif
 
     if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {

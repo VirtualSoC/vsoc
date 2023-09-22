@@ -136,9 +136,19 @@ volatile int device_interface_run = 0;
 static QemuConsole *input_receive_con = NULL;
 
 static const char GPU_VENDOR[] = "ARM";
-static const char GPU_VERSION[] = "OpenGL ES 3.2 (";
+#ifdef _WIN32
+static const char GPU_VERSION[] = "OpenGL ES 3.1 (";
+#else
+static const char GPU_VERSION[] = "OpenGL ES 3.0 (";
+#endif
 static const char GPU_RENDERER[] = "Mali-G77";
+
+#ifdef _WIN32
 static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.20";
+#else
+static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.0";
+#endif
+
 
 // google device info
 //  static const GLubyte GPU_VENDOR[] = "Google (";
@@ -147,7 +157,11 @@ static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.20";
 //  static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
 
 static const int OPENGL_MAJOR_VERSION = 3;
+#ifdef _WIN32
 static const int OPENGL_MINOR_VERSION = 2;
+#else
+static const int OPENGL_MINOR_VERSION = 0;
+#endif
 
 static const char *SPECIAL_EXTENSIONS[] = {
         /*1*/ "GL_OES_EGL_image",
@@ -490,7 +504,12 @@ static void handle_child_window_event(void)
 
             // context只能是由父线程创建，以进行资源共享
             {
+            #ifdef __APPLE__
+                __block void **window_ptr = (Window_Buffer *)child_event->data;
+            #else
                 void **window_ptr = (void **)child_event->data;
+            #endif
+
                 if (window_ptr == NULL)
                 {
                     LOGW("warning: create child window empty window_ptr");
@@ -498,8 +517,14 @@ static void handle_child_window_event(void)
                 }
                 // LOGI("create window");
                 // LOGI("start create window ptr %llx", window_ptr);
-
+            #ifdef __APPLE__
+                THREAD_CONTROL_BEGIN
+            #endif 
                 *window_ptr = (void *)native_window_create((int)*window_ptr);
+            #ifdef __APPLE__    
+                THREAD_CONTROL_END
+            #endif 
+
             }
 
             break;
@@ -968,8 +993,17 @@ void *native_window_thread(void *opaque)
     // GetClientRect(render_hwnd, &rcParent);
 
     // 初始化glfw
-    if (!glfwInit())
+    #ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+    #endif
+    if (!glfwInit()){
+    #ifdef __APPLE__ 
+        exit(-1);
+    #else
         return NULL;
+    #endif
+    }
+
 
     if (express_device_input_window_enable)
     {
@@ -977,13 +1011,21 @@ void *native_window_thread(void *opaque)
         qemu_thread_create(&device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
     }
 
+#ifdef _WIN32
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+#endif    
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 
+#ifdef _WIN32
     if (express_gpu_gl_debug_enable)
     {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     }
+#endif
 
     // 创建一个窗口，这个window也是context
     window_width = express_gpu_window_width;
@@ -1001,7 +1043,12 @@ void *native_window_thread(void *opaque)
         express_printf("create window error %x\n", glfwGetError(NULL));
 
         glfwTerminate();
+    #ifdef __APPLE__    
+        exit(-1);
+    #else
         return NULL;
+    #endif
+
     }
 
     // 键盘事件
@@ -1025,15 +1072,32 @@ void *native_window_thread(void *opaque)
 
     glfwSetWindowCloseCallback(glfw_window, close_window_callback);
 
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif
+
     glfwMakeContextCurrent(glfw_window);
 
     glfwSwapInterval(0);
 
     set_touchscreen_window_size(window_width, window_height);
 
+#ifdef __APPLE__
+    void *dpy_dc = NULL;
+    void *gl_context = (void *)glfwGetNSGLContext(glfw_window);
+#endif
+#ifdef __linux__
+    void *dpy_dc = (void *)glfwGetEGLDisplay();
+    void *gl_context = (void *)glfwGetEGLContext(glfw_window);
+#endif
+#ifdef _WIN32
     HDC dpy_dc = GetDC(glfwGetWin32Window(glfw_window));
     HGLRC gl_context = glfwGetWGLContext(glfw_window);
+#endif
+
+#ifndef USE_GLFW_AS_WGL
     egl_init(dpy_dc, gl_context);
+#endif
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -1083,10 +1147,12 @@ void *native_window_thread(void *opaque)
 
     if (express_gpu_gl_debug_enable)
     {
+    #ifdef _WIN32
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallback(d_debug_message_callback, NULL);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+    #endif
     }
 
     gint64 frame_start_time = g_get_real_time();
@@ -1104,7 +1170,14 @@ void *native_window_thread(void *opaque)
         do
         {
             // 处理各种输入事件、opengl事件
+            #ifdef __APPLE__
+            THREAD_CONTROL_BEGIN
+            #endif
+            //处理各种输入事件、opengl事件
             glfwWaitEventsTimeout(0.001);
+            #ifdef __APPLE__
+            THREAD_CONTROL_END
+            #endif
 
             sync_express_touchscreen_input((bool)display_is_open || !express_display_switch_open);
             sync_express_keyboard_input((bool)display_is_open || !express_display_switch_open);
@@ -1209,7 +1282,13 @@ void *native_window_thread(void *opaque)
 
     // qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
     glfwMakeContextCurrent(NULL);
+    #ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+    #endif
     glfwDestroyWindow(glfw_window);
+    #ifdef __APPLE__
+    THREAD_CONTROL_END
+    #endif
 
     LOGI("native windows close!");
 

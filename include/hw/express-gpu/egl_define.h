@@ -23,6 +23,11 @@ typedef void *EGLNativeDisplayType;
 typedef struct egl_native_pixmap_t *EGLNativePixmapType;
 typedef struct ANativeWindow *EGLNativeWindowType;
 
+#elif defined(__APPLE__)
+
+typedef int   EGLNativeDisplayType;
+typedef void *EGLNativePixmapType;
+typedef void *EGLNativeWindowType;
 #else
 #error "Platform not recognized"
 #endif

@@ -1,5 +1,6 @@
 #ifndef DEVICE_INTERFACE_H
 #define DEVICE_INTERFACE_H
+#include "hw/express-network/express_modem.h"
 #define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
 #define CIMGUI_USE_GLFW
 #define CIMGUI_USE_OPENGL3
@@ -82,6 +83,8 @@ typedef struct Light_Data {
     int input;
 } Light_Data;
 
+#include "include/hw/express-network/em_input.h"
+
 typedef struct Device_Interface_Data{
     Accelerometer_Data *acc_data;
     Magnetic_Data *mag_data;
@@ -97,5 +100,6 @@ void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, 
 void handle_light_change(float scale,int input);
 void handle_gyroscope_change(int property, int value);
 void handle_gps_change(int property, int value);
+void handle_modem_change(int slot, int property);
 
 #endif

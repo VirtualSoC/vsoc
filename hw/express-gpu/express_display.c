@@ -527,10 +527,12 @@ static void display_context_init(Thread_Context *context)
 
         if (express_gpu_gl_debug_enable)
         {
+            #ifndef __APPLE
             glEnable(GL_DEBUG_OUTPUT);
             glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
             glDebugMessageCallback(gl_debug_output, NULL);
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+            #endif
         }
     }
 }

@@ -1,0 +1,1868 @@
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x414fd0b1]
+[    0.000000] Linux version 5.10.97 (di@di) (OHOS (dev) clang version 12.0.1 (llvm-project 36cd053e15efa7279486950b67ba695714d7f9a1), GNU ld (Linaro_Binutils-2019.12) 2.28.2.20170706) #1 SMP PREEMPT Fri May 19 00:48:06 CST 2023
+[    0.000000] Machine model: linux,dummy-virt
+[    0.000000] NUMA: No NUMA configuration found
+[    0.000000] NUMA: Faking a node at [mem 0x0000000040000000-0x000000013fffffff]
+[    0.000000] NUMA: NODE_DATA [mem 0x13f7f4a80-0x13f7f6fff]
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000040000000-0x00000000ffffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   [mem 0x0000000100000000-0x000000013fffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x000000013fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x000000013fffffff]
+[    0.000000] cma: Reserved 32 MiB at 0x00000000fe000000
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: Trusted OS migration not required
+[    0.000000] psci: SMC Calling Convention v1.0
+[    0.000000] percpu: Embedded 24 pages/cpu s57832 r8192 d32280 u98304
+[    0.000000] Detected PIPT I-cache on CPU0
+[    0.000000] CPU features: kernel page table isolation forced ON by KASLR
+[    0.000000] CPU features: detected: Kernel page table isolation (KPTI)
+[    0.000000] CPU features: detected: Hardware dirty bit management
+[    0.000000] CPU features: detected: Spectre-v4
+[    0.000000] CPU features: detected: Spectre-BHB
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 1032192
+[    0.000000] Policy zone: Normal
+[    0.000000] Kernel command line: hardware=qemu ohos.required_mount.system=/dev/block/vdb@/usr@ext4@ro,barrier=1@wait,required ohos.required_mount.vendor=/dev/block/vdc@/vendor@ext4@ro,barrier=1@wait,required ohos.required_mount.data=/dev/block/vdd@/data@ext4@nosuid,nodev,noatime,barrier=1,data=ordered,noauto_da_alloc@wait,reservedsize=104857600,required
+[    0.000000] Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+[    0.000000] software IO TLB: mapped [mem 0x00000000fa000000-0x00000000fe000000] (64MB)
+[    0.000000] Memory: 3977140K/4194304K available (15422K kernel code, 3628K rwdata, 9084K rodata, 6592K init, 957K bss, 184396K reserved, 32768K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU event tracing is enabled.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=128 to nr_cpu_ids=2.
+[    0.000000] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] GICv2m: range[mem 0x08020000-0x08020fff], SPI[80:143]
+[    0.000000] random: get_random_bytes called from start_kernel+0x1c0/0x398 with crng_init=0
+[    0.000000] arch_timer: cp15 timer(s) running at 62.50MHz (virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x1cd42e208c, max_idle_ns: 881590405314 ns
+[    0.000750] sched_clock: 56 bits at 62MHz, resolution 16ns, wraps every 4398046511096ns
+[    0.011096] Console: colour dummy device 80x25
+[    0.013212] printk: console [tty0] enabled
+[    0.016822] Calibrating delay loop (skipped), value calculated using timer frequency.. 125.00 BogoMIPS (lpj=62500)
+[    0.017106] pid_max: default: 32768 minimum: 301
+[    0.020634] LSM: Security Framework initializing
+[    0.023112] SELinux:  Initializing.
+[    0.024680] Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.024978] Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.094198] /cpus/cpu-map: empty cluster
+[    0.110268] rcu: Hierarchical SRCU implementation.
+[    0.121488] smp: Bringing up secondary CPUs ...
+[    0.126472] Detected PIPT I-cache on CPU1
+[    0.127566] CPU1: Booted secondary processor 0x0000000001 [0x414fd0b1]
+[    0.133404] smp: Brought up 1 node, 2 CPUs
+[    0.133516] SMP: Total of 2 processors activated.
+[    0.133580] CPU features: detected: Privileged Access Never
+[    0.133612] CPU features: detected: LSE atomic instructions
+[    0.133640] CPU features: detected: User Access Override
+[    0.133726] CPU features: detected: 32-bit EL0 Support
+[    0.133792] CPU features: detected: Common not Private translations
+[    0.133822] CPU features: detected: RAS Extension Support
+[    0.133870] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.133922] CPU features: detected: CRC32 instructions
+[    0.133950] CPU features: detected: Speculative Store Bypassing Safe (SSBS)
+[    0.282504] CPU: All CPU(s) started at EL1
+[    0.293638] alternatives: patching kernel code
+[    0.403038] devtmpfs: initialized
+[    0.435652] Registered cp15_barrier emulation handler
+[    0.436264] Registered setend emulation handler
+[    0.436714] KASLR enabled
+[    0.440546] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+[    0.441242] futex hash table entries: 512 (order: 3, 32768 bytes, linear)
+[    0.452168] pinctrl core: initialized pinctrl subsystem
+[    0.471240] bbox:[info][blackbox_core.c:262] wait for log part [/data] begin!
+[    0.483828] NET: Registered protocol family 16
+[    0.501412] DMA: preallocated 512 KiB GFP_KERNEL pool for atomic allocations
+[    0.501848] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.502552] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.503122] audit: initializing netlink subsys (disabled)
+[    0.506350] audit: type=2000 audit(0.320:1): state=initialized audit_enabled=0 res=1
+[    0.513440] thermal_sys: Registered thermal governor 'fair_share'
+[    0.513704] thermal_sys: Registered thermal governor 'step_wise'
+[    0.513846] thermal_sys: Registered thermal governor 'power_allocator'
+[    0.518660] cpuidle: using governor menu
+[    0.520518] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.521496] ASID allocator initialised with 32768 entries
+[    0.529730] Serial: AMBA PL011 UART driver
+[    0.609726] 9000000.pl011: ttyAMA0 at MMIO 0x9000000 (irq = 47, base_baud = 0) is a PL011 rev1
+[    0.657954] printk: console [ttyAMA0] enabled
+[    0.716944] HugeTLB registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.717650] HugeTLB registered 32.0 MiB page size, pre-allocated 0 pages
+[    0.718046] HugeTLB registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.718498] HugeTLB registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.752288] cryptd: max_cpu_qlen set to 1000
+[    0.801660] iommu: Default domain type: Translated 
+[    0.805792] SCSI subsystem initialized
+[    0.809558] usbcore: registered new interface driver usbfs
+[    0.810610] usbcore: registered new interface driver hub
+[    0.811182] usbcore: registered new device driver usb
+[    0.814050] pps_core: LinuxPPS API ver. 1 registered
+[    0.814556] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.815158] PTP clock support registered
+[    0.815880] EDAC MC: Ver: 3.0.0
+[    0.827174] FPGA manager framework
+[    0.828738] Advanced Linux Sound Architecture Driver Initialized.
+[    0.853646] clocksource: Switched to clocksource arch_sys_counter
+[    0.859608] VFS: Disk quotas dquot_6.6.0
+[    0.860194] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.915764] NET: Registered protocol family 2
+[    0.918948] IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.930310] tcp_listen_portaddr_hash hash table entries: 2048 (order: 4, 81920 bytes, linear)
+[    0.931690] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.933796] TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[    0.935712] TCP: Hash tables configured (established 32768 bind 32768)
+[    0.938376] UDP hash table entries: 2048 (order: 5, 196608 bytes, linear)
+[    0.939734] UDP-Lite hash table entries: 2048 (order: 5, 196608 bytes, linear)
+[    0.942544] NET: Registered protocol family 1
+[    0.948894] RPC: Registered named UNIX socket transport module.
+[    0.949956] RPC: Registered udp transport module.
+[    0.950318] RPC: Registered tcp transport module.
+[    0.950592] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    0.951474] PCI: CLS 0 bytes, default 64
+[    0.961172] Trying to unpack rootfs image as initramfs...
+[    1.093336] Freeing initrd memory: 1560K
+[    1.101564] hw perfevents: enabled with armv8_pmuv3 PMU driver, 7 counters available
+[    1.102690] kvm [1]: HYP mode not available
+[    1.137088] Initialise system trusted keyrings
+[    1.140758] workingset: timestamp_bits=42 max_order=20 bucket_order=0
+[    1.162880]  hmdfs: hmdfs_init_configfs() init configfs
+[    1.171618] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    1.176876] NFS: Registering the id_resolver key type
+[    1.177834] Key type id_resolver registered
+[    1.178230] Key type id_legacy registered
+[    1.179822] nfs4filelayout_init: NFSv4 File Layout Driver Registering...
+[    1.180344] nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
+[    1.181576] ntfs: driver 2.1.32 [Flags: R/O].
+[    1.182650] jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
+[    1.185392] SGI XFS with security attributes, no debug enabled
+[    1.191214] 9p: Installing v9fs 9p2000 file system support
+[    1.231290] NET: Registered protocol family 38
+[    1.231924] Key type asymmetric registered
+[    1.232250] Asymmetric key parser 'x509' registered
+[    1.233226] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 243)
+[    1.233838] io scheduler mq-deadline registered
+[    1.234496] io scheduler kyber registered
+[    1.260438] pl061_gpio 9030000.pl061: PL061 GPIO chip registered
+[    1.265940] pci-host-generic 4010000000.pcie: host bridge /pcie@10000000 ranges:
+[    1.267814] pci-host-generic 4010000000.pcie:       IO 0x003eff0000..0x003effffff -> 0x0000000000
+[    1.274016] pci-host-generic 4010000000.pcie:      MEM 0x0010000000..0x003efeffff -> 0x0010000000
+[    1.274678] pci-host-generic 4010000000.pcie:      MEM 0x8000000000..0xffffffffff -> 0x8000000000
+[    1.276522] pci-host-generic 4010000000.pcie: ECAM at [mem 0x4010000000-0x401fffffff] for [bus 00-ff]
+[    1.278184] pci-host-generic 4010000000.pcie: PCI host bridge to bus 0000:00
+[    1.278978] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    1.279404] pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    1.279748] pci_bus 0000:00: root bus resource [mem 0x10000000-0x3efeffff]
+[    1.280252] pci_bus 0000:00: root bus resource [mem 0x8000000000-0xffffffffff]
+[    1.282420] pci 0000:00:00.0: [1b36:0008] type 00 class 0x060000
+[    1.288678] pci 0000:00:01.0: [1af4:1000] type 00 class 0x020000
+[    1.289476] pci 0000:00:01.0: reg 0x10: [io  0x0000-0x001f]
+[    1.289862] pci 0000:00:01.0: reg 0x14: [mem 0x00000000-0x00000fff]
+[    1.290308] pci 0000:00:01.0: reg 0x20: [mem 0x00000000-0x00003fff 64bit pref]
+[    1.290864] pci 0000:00:01.0: reg 0x30: [mem 0x00000000-0x0003ffff pref]
+[    1.291784] pci 0000:00:02.0: [8086:2668] type 00 class 0x040300
+[    1.292330] pci 0000:00:02.0: reg 0x10: [mem 0x00000000-0x00003fff]
+[    1.293166] pci 0000:00:03.0: [1af4:1060] type 00 class 0x038000
+[    1.293668] pci 0000:00:03.0: reg 0x14: [mem 0x00000000-0x00000fff]
+[    1.294056] pci 0000:00:03.0: reg 0x20: [mem 0x00000000-0x00003fff 64bit pref]
+[    1.297942] pci 0000:00:01.0: BAR 6: assigned [mem 0x10000000-0x1003ffff pref]
+[    1.299014] pci 0000:00:01.0: BAR 4: assigned [mem 0x8000000000-0x8000003fff 64bit pref]
+[    1.299646] pci 0000:00:02.0: BAR 0: assigned [mem 0x10040000-0x10043fff]
+[    1.300298] pci 0000:00:03.0: BAR 4: assigned [mem 0x8000004000-0x8000007fff 64bit pref]
+[    1.300788] pci 0000:00:01.0: BAR 1: assigned [mem 0x10044000-0x10044fff]
+[    1.301164] pci 0000:00:03.0: BAR 1: assigned [mem 0x10045000-0x10045fff]
+[    1.301924] pci 0000:00:01.0: BAR 0: assigned [io  0x1000-0x101f]
+[    1.350756] virtio-pci 0000:00:01.0: enabling device (0000 -> 0003)
+[    1.355090] virtio-pci 0000:00:03.0: enabling device (0000 -> 0002)
+[    1.470998] enter modprobe express_cdev express_bridge 
+[    1.489488] Serial: 8250/16550 driver, 10 ports, IRQ sharing enabled
+[    1.518720] SuperH (H)SCI(F) driver initialized
+[    1.522240] msm_serial: driver initialized
+[    1.536482] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    1.568064] brd: module loaded
+[    1.613336] loop: module loaded
+[    1.631756] virtio_blk virtio0: [vda] 18930 512-byte logical blocks (9.69 MB/9.24 MiB)
+[    1.632946] vda: detected capacity change from 0 to 9692160
+[    1.633198] express request_module express_cdev ret 256
+[    1.673854] virtio_blk virtio1: [vdb] 4096000 512-byte logical blocks (2.10 GB/1.95 GiB)
+[    1.675804] vdb: detected capacity change from 0 to 2097152000
+[    1.718000] virtio_blk virtio2: [vdc] 204800 512-byte logical blocks (105 MB/100 MiB)
+[    1.719556] vdc: detected capacity change from 0 to 104857600
+[    1.749290] virtio_blk virtio3: [vdd] 2048000 512-byte logical blocks (1.05 GB/1000 MiB)
+[    1.750016] vdd: detected capacity change from 0 to 1048576000
+[    1.762588] zram: Added device: zram0
+[    1.764470] lkdtm: No crash points registered, enable through debugfs
+[    1.770108] megasas: 07.714.04.00-rc1
+[    1.781378] physmap-flash 0.flash: physmap platform flash device: [mem 0x00000000-0x03ffffff]
+[    1.784378] 0.flash: Found 2 x16 devices at 0x0 in 32-bit bank. Manufacturer ID 0x000000 Chip ID 0x000000
+[    1.785994] Intel/Sharp Extended Query Table at 0x0031
+[    1.788130] Using buffer write method
+[    1.789476] physmap-flash 0.flash: physmap platform flash device: [mem 0x04000000-0x07ffffff]
+[    1.791322] 0.flash: Found 2 x16 devices at 0x0 in 32-bit bank. Manufacturer ID 0x000000 Chip ID 0x000000
+[    1.792346] Intel/Sharp Extended Query Table at 0x0031
+[    1.793314] Using buffer write method
+[    1.794210] Concatenating MTD devices:
+[    1.794468] (0): "0.flash"
+[    1.794658] (1): "0.flash"
+[    1.804190] into device "0.flash"
+[    1.844578] tun: Universal TUN/TAP device driver, 1.6
+[    1.863338] VFIO - User Level meta-driver version: 0.3
+[    1.872348] ehci_hcd: USB 2.0 'Enhanced' Host Controller (EHCI) Driver
+[    1.873014] ehci-pci: EHCI PCI platform driver
+[    1.873880] ehci-platform: EHCI generic platform driver
+[    1.874892] ehci-orion: EHCI orion driver
+[    1.875528] ehci-exynos: EHCI Exynos driver
+[    1.876298] ohci_hcd: USB 1.1 'Open' Host Controller (OHCI) Driver
+[    1.876856] ohci-platform: OHCI generic platform driver
+[    1.877886] ohci-exynos: OHCI Exynos driver
+[    1.883464] usbcore: registered new interface driver uas
+[    1.884196] usbcore: registered new interface driver usb-storage
+[    1.890584] usbcore: registered new interface driver usbtouchscreen
+[    1.899866] rtc-pl031 9010000.pl031: registered as rtc0
+[    1.903212] rtc-pl031 9010000.pl031: setting system clock to 2023-06-26T06:34:12 UTC (1687761252)
+[    1.906648] i2c /dev entries driver
+[    1.929758] sdhci: Secure Digital Host Controller Interface driver
+[    1.930236] sdhci: Copyright(c) Pierre Ossman
+[    1.931894] Synopsys Designware Multimedia Card Interface Driver
+[    1.937642] sdhci-pltfm: SDHCI platform and OF driver helper
+[    1.943536] ledtrig-cpu: registered to indicate activity on CPUs
+[    1.947144] hid: raw HID events driver (C) Jiri Kosina
+[    1.949800] usbcore: registered new interface driver usbhid
+[    1.950484] usbhid: USB HID core driver
+[    1.952146] ashmem: initialized
+[    1.952578] 	 register hilog error -16
+[    1.953206] 	 hilog_init Start-16
+[    1.954570] zrhung hung_wp_screen_init start
+[    1.956746] zrhung hung_wp_screen_init done
+[    1.971208] access_token_id: access_tokenid init success
+[    1.978276] usbcore: registered new interface driver snd-usb-audio
+[    1.991450] xt_time: kernel timezone is -0000
+[    1.992874] Initializing XFRM netlink socket
+[    1.993760] NET: Registered protocol family 17
+[    1.994522] NET: Registered protocol family 15
+[    2.003130] 9pnet: Installing 9P2000 support
+[    2.004192] Key type dns_resolver registered
+[    2.005584] core_ctl: Creating CPU group 0
+[    2.006676] core_ctl: Init CPU0 state
+[    2.007002] core_ctl: Init CPU1 state
+[    2.016208] registered taskstats version 1
+[    2.016644] Loading compiled-in X.509 certificates
+[    2.025746] run reclaimacct_init successfully
+[    2.026244] enabled
+[    2.026434] Key type ._fscrypt registered
+[    2.027022] Key type .fscrypt registered
+[    2.027336] Key type fscrypt-provisioning registered
+[    2.062546] input: gpio-keys as /devices/platform/gpio-keys/input/input0
+[    2.078758] [I/osal_cdev] register hdf class success
+[    2.080762] [I/osal_cdev] add cdev dev_mgr success
+[    2.080762] 
+[    2.082782] [I/osal_cdev] add cdev devsvc_mgr success
+[    2.082782] 
+[    2.084140] [I/devmgr_service] start svcmgr result 0
+[    2.085510] [I/hcs_blob_if] CheckHcsBlobLength: the blobLength: 46052, byteAlign: 1
+[    2.095056] [I/device_node] launch devnode 
+[    2.096186] [I/linux_gpio_adapter] LinuxGpioMatchProbe: find gpio chip(start:504, count:8)
+[    2.098218] [I/gpio_manager] GpioManagerAdd: start:504 count:8 added success
+[    2.098998] [I/linux_gpio_adapter] LinuxGpioMatchProbe: add gpio controller(start:504, count:8) succeed
+[    2.100790] [I/linux_gpio_adapter] LinuxGpioInit: dev service: init done!
+[    2.102646] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_PLATFORM_EMMC
+[    2.104034] [E/devhost_service_clnt] failed to AddDevice HDF_PLATFORM_MMC_0, ret = -207
+[    2.104914] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_PLATFORM_WATCHDOG
+[    2.105654] [E/devhost_service_clnt] failed to AddDevice HDF_PLATFORM_WATCHDOG_0, ret = -207
+[    2.106688] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_PLATFORM_RTC
+[    2.107350] [E/devhost_service_clnt] failed to AddDevice HDF_PLATFORM_RTC, ret = -207
+[    2.108304] [I/device_node] launch devnode HDF_PLATFORM_UART_1
+[    2.108872] [I/hdf_uart_adapter] HdfUartBind: entry
+[    2.109928] [I/hdf_uart_adapter] HdfUartInit: entry
+[    2.112918] [I/osal_cdev] add cdev HDF_PLATFORM_UART_1 success
+[    2.112918] 
+[    2.114970] [I/device_node] launch devnode HDF_PLATFORM_UART_0
+[    2.115342] [I/hdf_uart_adapter] HdfUartBind: entry
+[    2.119066] [I/hdf_uart_adapter] HdfUartInit: entry
+[    2.119720] [I/device_node] launch devnode HDF_PLATFORM_I2C_MANAGER
+[    2.120696] [I/i2c_core] I2cManagerBind: Enter!
+[    2.123630] [I/osal_cdev] add cdev HDF_PLATFORM_I2C_MANAGER success
+[    2.123630] 
+[    2.125472] [I/device_node] launch devnode 
+[    2.125882] [I/i2c_linux_adapter] LinuxI2cInit: Enter
+[    2.126874] [I/i2c_linux_adapter] LinuxI2cInit: done
+[    2.127370] [I/device_node] launch devnode HDF_PLATFORM_SPI_3
+[    2.128052] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceBind: entry
+[    2.132894] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceInit: entry
+[    2.134078] [I/device_node] launch devnode HDF_PLATFORM_SPI_2
+[    2.134432] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceBind: entry
+[    2.135186] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceInit: entry
+[    2.135766] [I/device_node] launch devnode HDF_PLATFORM_SPI_1
+[    2.136120] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceBind: entry
+[    2.137000] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceInit: entry
+[    2.137450] [I/device_node] launch devnode HDF_PLATFORM_SPI_0
+[    2.138076] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceBind: entry
+[    2.138444] [I/HDF_SPI_LINUX_ADAPTER] HdfSpiDeviceInit: entry
+[    2.139490] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_PLATFORM_SDIO
+[    2.140480] [E/devhost_service_clnt] failed to AddDevice HDF_PLATFORM_MMC_2, ret = -207
+[    2.141124] [I/device_node] launch devnode HDF_PLATFORM_PWM_4
+[    2.141542] [I/pwm_adapter] HdfPwmInit: entry
+[    2.142342] [I/device_node] launch devnode HDF_PLATFORM_PWM_3
+[    2.142680] [I/pwm_adapter] HdfPwmInit: entry
+[    2.143062] [I/device_node] launch devnode HDF_PLATFORM_PWM_2
+[    2.143820] [I/pwm_adapter] HdfPwmInit: entry
+[    2.144264] [I/device_node] launch devnode HDF_PLATFORM_PWM_1
+[    2.144640] [I/pwm_adapter] HdfPwmInit: entry
+[    2.145380] [I/device_node] launch devnode HDF_PLATFORM_PWM_0
+[    2.145832] [I/pwm_adapter] HdfPwmInit: entry
+[    2.146162] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_MIPI_TX
+[    2.147000] [E/devhost_service_clnt] failed to AddDevice HDF_MIPI_TX, ret = -207
+[    2.148016] [I/device_node] launch devnode hdf_kevent
+[    2.150916] [I/kevent] HdfKeventDriverInit:register pm notifier success
+[    2.151712] [I/kevent] HdfKeventDriverInit:register fb notifier success
+[    2.153164] [I/osal_cdev] add cdev hdf_kevent success
+[    2.153164] 
+[    2.153776] [I/device_node] launch devnode hdf_light
+[    2.163034] [E/gpio_manager] GpioCntlrGetByGpio: gpio 147 is not in any controllers!
+[    2.164218] [E/gpio_core] GpioCntlrSetDir: cntlr is NULL!
+[    2.164806] [E/hdf_light_driver] SetLightGpioDir: set red light's gpio failed
+[    2.165674] [E/hdf_light_driver] InitLightDriver: set light gpio dir fail!
+[    2.166558] [I/device_node] release devnode hdf_light
+[    2.169450] [E/devmgr_service] devmgr detach device 9000101 not found
+[    2.170702] [E/devhost_service_clnt] failed to AddDevice hdf_light, ret = -204
+[    2.171574] [I/device_node] launch devnode hdf_misc_vibrator
+[    2.174936] [I/osal_cdev] add cdev hdf_misc_vibrator success
+[    2.174936] 
+[    2.175830] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_DRV2605L_VIBRATOR
+[    2.176672] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_DRV2605L_VIBRATOR not found
+[    2.177622] [E/devhost_service_clnt] failed to AddDevice hdf_misc_drv2605l_vibrator, ret = -207
+[    2.178346] [I/device_node] launch devnode hdf_misc_linear_vibrator
+[    2.179716] [E/gpio_manager] GpioCntlrGetByGpio: gpio 154 is not in any controllers!
+[    2.180554] [E/gpio_core] GpioCntlrSetDir: cntlr is NULL!
+[    2.181038] [E/hdf_vibrator_driver] InitLinearVibratorDriver: set vibrator gpio fail
+[    2.181892] [I/device_node] release devnode hdf_misc_linear_vibrator
+[    2.182452] [E/devmgr_service] devmgr detach device 8000201 not found
+[    2.183334] [E/devhost_service_clnt] failed to AddDevice hdf_misc_linear_vibrator, ret = -204
+[    2.184146] [I/device_node] launch devnode hdf_usb_pnp_notify_service
+[    2.184968] [I/USB_PNP_NOTIFY] UsbPnpNotifyBind: Enter!
+[    2.185498] [I/USB_PNP_NOTIFY] UsbPnpNotifyInit: Enter!
+[    2.190892] [I/osal_cdev] add cdev hdf_usb_pnp_notify_service success
+[    2.190892] 
+[    2.192098] [I/device_node] launch devnode hdf_sensor_manager_ap
+[    2.192726] [I/hdf_sensor_commom] InitSensorDevManager: init sensor manager successfully
+[    2.194218] [I/osal_cdev] add cdev hdf_sensor_manager_ap success
+[    2.194218] 
+[    2.194746] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_SENSOR_MAGNETIC
+[    2.195772] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_SENSOR_MAGNETIC not found
+[    2.196424] [E/devhost_service_clnt] failed to AddDevice hdf_sensor_magnetic, ret = -207
+[    2.197354] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_SENSOR_PROXIMITY
+[    2.197874] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_SENSOR_PROXIMITY not found
+[    2.198330] [E/devhost_service_clnt] failed to AddDevice hdf_sensor_proximity, ret = -207
+[    2.199502] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_SENSOR_ALS
+[    2.200178] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_SENSOR_ALS not found
+[    2.201042] [E/devhost_service_clnt] failed to AddDevice hdf_sensor_als, ret = -207
+[    2.201582] [I/device_node] launch devnode sensor_accel
+[    2.203336] [I/hdf_sensor_accel_driver] AccelInitDriver: Init accel driver success
+[    2.205262] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_SENSOR_MAGNETIC_LSM303
+[    2.206606] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_SENSOR_MAGNETIC_LSM303 not found
+[    2.207282] [E/devhost_service_clnt] failed to AddDevice hdf_magnetic_lsm303, ret = -207
+[    2.208302] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_SENSOR_PROXIMITY_APDS9960
+[    2.209238] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_SENSOR_PROXIMITY_APDS9960 not found
+[    2.209946] [E/devhost_service_clnt] failed to AddDevice hdf_proximity_apds9960, ret = -207
+[    2.210972] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_SENSOR_ALS_BH1745
+[    2.211670] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_SENSOR_ALS_BH1745 not found
+[    2.212662] [E/devhost_service_clnt] failed to AddDevice hdf_als_bh1745, ret = -207
+[    2.213334] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_SENSOR_ACCEL_MXC6655XA
+[    2.214394] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_SENSOR_ACCEL_MXC6655XA not found
+[    2.215060] [E/devhost_service_clnt] failed to AddDevice hdf_accel_mxc6655xa, ret = -207
+[    2.215952] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_WIFI
+[    2.216520] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_WIFI not found
+[    2.217318] [E/devhost_service_clnt] failed to AddDevice hdfwifi, ret = -207
+[    2.218114] [I/device_node] launch devnode hdf_input_host
+[    2.219650] [I/HDF_LOG_TAG] HdfInputManagerInit: enter
+[    2.220778] [I/HDF_LOG_TAG] HdfInputManagerInit: exit succ
+[    2.226140] [I/osal_cdev] add cdev hdf_input_host success
+[    2.226140] 
+[    2.226912] [I/device_node] launch devnode hdf_input_event1
+[    2.228462] [I/HDF_LOG_TAG] HdfTouchDriverProbe: enter
+[    2.230042] [E/HDF_LOG_TAG] TouchSetupBus: open i2c1 failed
+[    2.230864] [I/device_node] release devnode hdf_input_event1
+[    2.231360] [E/HDF_LOG_TAG] HdfTouchDriverRelease: param is null
+[    2.232068] [E/devmgr_service] devmgr detach device 3000201 not found
+[    2.232504] [E/devhost_service_clnt] failed to AddDevice hdf_input_event1, ret = -204
+[    2.232944] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HDF_TOUCH_GT911
+[    2.233858] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HDF_TOUCH_GT911 not found
+[    2.234556] [E/devhost_service_clnt] failed to AddDevice hdf_touch_gt911_service, ret = -207
+[    2.235612] [I/device_node] launch devnode 
+[    2.236164] [I/HDF_LOG_TAG] LoadCachedHid: exit
+[    2.237026] [I/device_node] launch devnode hdf_bl
+[    2.237494] [I/HDF_DISP] BacklightInit success
+[    2.238982] [I/osal_cdev] add cdev hdf_bl success
+[    2.238982] 
+[    2.239732] [I/device_node] launch devnode 
+[    2.240800] [E/pwm_adapter] HdfPwmOpen: pwm_request pwm1 fail
+[    2.241312] [E/pwm_core] PwmDeviceGet: open failed, ret -1
+[    2.242012] [E/pwm_if] PwmOpen: PwmDeviceGet failed, ret: -1
+[    2.242428] [E/HDF_DISP] BlPwmDevInit: PwmOpen failed
+[    2.242754] [E/HDF_DISP] BlPwmEntryInit: BlPwmDevInit fail
+[    2.243344] [I/device_node] release devnode 
+[    2.243712] [E/devmgr_service] devmgr detach device 2000501 not found
+[    2.244154] [E/devhost_service_clnt] failed to AddDevice , ret = -204
+[    2.245076] [I/device_node] launch devnode 
+[    2.245506] [E/HDF_DISP] PanelEntryInit of_find_compatible_node fail
+[    2.246058] [I/device_node] release devnode 
+[    2.246408] [E/devmgr_service] devmgr detach device 2000404 not found
+[    2.246914] [E/devhost_service_clnt] failed to AddDevice , ret = -204
+[    2.247632] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver LCD_ICN9700
+[    2.248256] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver LCD_ICN9700 not found
+[    2.249252] [E/devhost_service_clnt] failed to AddDevice , ret = -207
+[    2.249644] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver HI351XX_DISP
+[    2.250390] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver HI351XX_DISP not found
+[    2.250946] [E/devhost_service_clnt] failed to AddDevice , ret = -207
+[    2.251908] [I/device_node] launch devnode hdf_disp
+[    2.252452] [E/HDF_DISP] HdfDispEntryInit: panelManager is null!
+[    2.253122] [I/device_node] release devnode hdf_disp
+[    2.253564] [E/devmgr_service] devmgr detach device 2000201 not found
+[    2.253934] [E/devhost_service_clnt] failed to AddDevice hdf_disp, ret = -204
+[    2.255726] [I/device_node] launch devnode 
+[    2.257422] [E/HDF_DISP] HdfDrmPanelEntryInit manager is null
+[    2.258068] [I/device_node] release devnode 
+[    2.258448] [E/devmgr_service] devmgr detach device 2000101 not found
+[    2.259242] [E/devhost_service_clnt] failed to AddDevice , ret = -204
+[    2.259806] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver DMA_RK3568
+[    2.260496] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver DMA_RK3568 not found
+[    2.261056] [E/devhost_service_clnt] failed to AddDevice dma_service_0, ret = -207
+[    2.262024] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver DSP_RK3568
+[    2.262570] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver DSP_RK3568 not found
+[    2.263222] [E/devhost_service_clnt] failed to AddDevice dsp_service_0, ret = -207
+[    2.263808] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver CODEC_RK817
+[    2.264716] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver CODEC_RK817 not found
+[    2.265236] [E/devhost_service_clnt] failed to AddDevice codec_service_1, ret = -207
+[    2.265992] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver CODEC_RK809
+[    2.266608] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver CODEC_RK809 not found
+[    2.267396] [E/devhost_service_clnt] failed to AddDevice codec_service_0, ret = -207
+[    2.267972] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver DAI_RK3568
+[    2.268702] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver DAI_RK3568 not found
+[    2.269256] [E/devhost_service_clnt] failed to AddDevice dai_service, ret = -207
+[    2.270356] [I/device_node] launch devnode hdf_audio_codec_primary_dev11
+[    2.271026] [I/HDF_AUDIO_KADM] [AudioDriverBind][line:293]: success.
+[    2.272072] [E/HDF_AUDIO_KADM] [AudioSeekCpuDaiDevice][line:199]: daiController is empty.
+[    2.273196] [I/HDF_AUDIO_KADM] [AudioPlatformDevInit][line:104]: success.
+[    2.273776] [I/HDF_AUDIO_KADM] [AudioCpuDaiDevInit][line:195]: success.
+[    2.274576] [I/HDF_AUDIO_KADM] [AudioCodecDevInit][line:74]: success.
+[    2.275094] [I/HDF_AUDIO_KADM] [AudioCodecDaiDevInit][line:165]: success.
+[    2.275506] [I/HDF_AUDIO_KADM] [AudioDspDevInit][line:135]: success.
+[    2.276642] [I/HDF_AUDIO_KADM] [AudioDspDaiDevInit][line:226]: success.
+[    2.277196] [I/HDF_AUDIO_KADM] [AudioDriverInit][line:369]: success.
+[    2.278906] [I/osal_cdev] add cdev hdf_audio_codec_primary_dev11 success
+[    2.278906] 
+[    2.279764] [I/device_node] launch devnode hdf_audio_codec_primary_dev0
+[    2.280674] [I/HDF_AUDIO_KADM] [AudioDriverBind][line:293]: success.
+[    2.281136] [E/HDF_AUDIO_KADM] [AudioSeekCpuDaiDevice][line:199]: daiController is empty.
+[    2.281810] [I/HDF_AUDIO_KADM] [AudioPlatformDevInit][line:104]: success.
+[    2.282320] [I/HDF_AUDIO_KADM] [AudioCpuDaiDevInit][line:195]: success.
+[    2.282812] [I/HDF_AUDIO_KADM] [AudioCodecDevInit][line:74]: success.
+[    2.283716] [I/HDF_AUDIO_KADM] [AudioCodecDaiDevInit][line:165]: success.
+[    2.284268] [I/HDF_AUDIO_KADM] [AudioDspDevInit][line:135]: success.
+[    2.285046] [I/HDF_AUDIO_KADM] [AudioDspDaiDevInit][line:226]: success.
+[    2.285558] [I/HDF_AUDIO_KADM] [AudioDriverInit][line:369]: success.
+[    2.287296] [I/osal_cdev] add cdev hdf_audio_codec_primary_dev0 success
+[    2.287296] 
+[    2.288184] [I/device_node] launch devnode hdf_audio_control
+[    2.289106] [I/HDF_AUDIO_KADM] [AudioControlBind][line:453]: success.
+[    2.289814] [I/HDF_AUDIO_KADM] [AudioControlInit][line:460]: success.
+[    2.291846] [I/osal_cdev] add cdev hdf_audio_control success
+[    2.291846] 
+[    2.292830] [I/device_node] launch devnode hdf_audio_capture
+[    2.293366] [I/HDF_AUDIO_KADM] [AudioStreamBind][line:1489]: success!
+[    2.294324] [I/HDF_AUDIO_KADM] [AudioStreamInit][line:1509]: Success!
+[    2.295776] [I/osal_cdev] add cdev hdf_audio_capture success
+[    2.295776] 
+[    2.296390] [I/device_node] launch devnode hdf_audio_render
+[    2.296842] [I/HDF_AUDIO_KADM] [AudioStreamBind][line:1489]: success!
+[    2.297472] [I/HDF_AUDIO_KADM] [AudioStreamInit][line:1509]: Success!
+[    2.298938] [I/osal_cdev] add cdev hdf_audio_render success
+[    2.298938] 
+[    2.299738] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver AUDIO_ANALOG_HEADSET
+[    2.300736] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver AUDIO_ANALOG_HEADSET not found
+[    2.301306] [E/devhost_service_clnt] failed to AddDevice analog_headset_service, ret = -207
+[    2.302392] [I/device_node] launch devnode hdf_uevent_ut
+[    2.303822] [I/osal_cdev] add cdev hdf_uevent_ut success
+[    2.303822] 
+[    2.304532] [I/device_node] launch devnode pm_ut_service
+[    2.305336] [I/pm_driver_test] HdfPmDriverBind enter
+[    2.306148] [I/pm_driver_test] HdfPmDriverInit enter!
+[    2.306676] [I/pm_driver_test] HdfPmDriverInit register power listener, ret = 0
+[    2.309416] [I/osal_cdev] add cdev pm_ut_service success
+[    2.309416] 
+[    2.310070] [I/device_node] launch devnode sample_service
+[    2.313326] [I/sample_driver_test] HdfSampleDriverInit::enter!
+[    2.313982] [I/sample_driver_test] HdfSampleDriverInit:register power listener, ret = 0
+[    2.315934] [I/osal_cdev] add cdev sample_service success
+[    2.315934] 
+[    2.316690] [I/device_node] launch devnode khdf_ut
+[    2.318194] [I/osal_cdev] add cdev khdf_ut success
+[    2.318194] 
+[    2.318986] [I/device_node] launch devnode 
+[    2.332044] [I/hdf_sensor_commom] AddSensorDevice: register sensor name[sensor_test] success
+[    2.334216] [I/hdf_sensor_test_c] InitSensorDriverTest: init sensor test driver success
+[    2.335200] [I/device_node] launch devnode UART_TEST
+[    2.336018] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver PLATFORM_MIPI_DSI_TEST
+[    2.336594] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver PLATFORM_MIPI_DSI_TEST not found
+[    2.337596] [E/devhost_service_clnt] failed to AddDevice PLATFORM_MIPI_DSI_TEST, ret = -207
+[    2.338086] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver PLATFORM_SDIO_TEST
+[    2.338846] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver PLATFORM_SDIO_TEST not found
+[    2.339464] [E/devhost_service_clnt] failed to AddDevice SDIO_TEST, ret = -207
+[    2.340320] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver PLATFORM_EMMC_TEST
+[    2.341422] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver PLATFORM_EMMC_TEST not found
+[    2.342034] [E/devhost_service_clnt] failed to AddDevice EMMC_TEST, ret = -207
+[    2.343066] [I/device_node] launch devnode SPI_TEST
+[    2.344392] [I/device_node] launch devnode I2C_TEST
+[    2.345856] [I/osal_cdev] add cdev I2C_TEST success
+[    2.345856] 
+[    2.346428] [I/device_node] launch devnode GPIO_TEST
+[    2.347212] [E/hcs_tree_if] HcsGetUint16 failed, the attr of gpioTestTwo is NULL, or the value is NULL, the value is default value
+[    2.348122] [E/HDF_LOG_TAG] GpioTestReadConfig: failed to read gpioTestTwo!
+[    2.348932] [E/HDF_LOG_TAG] GpioTestBind: failed to read config!
+[    2.349410] [E/device_node] bind driver PLATFORM_GPIO_TEST failed
+[    2.349772] [I/device_node] release devnode GPIO_TEST
+[    2.350376] [E/devmgr_service] devmgr detach device a000201 not found
+[    2.350864] [E/devhost_service_clnt] failed to AddDevice GPIO_TEST, ret = -204
+[    2.351586] [I/HDF_LOG_TAG] HdfDriverManagerGetDriver:try to dynamic load driver PLATFORM_WATCHDOG_TEST
+[    2.352336] [E/HDF_LOG_TAG] HdfDriverManagerGetDriver:driver PLATFORM_WATCHDOG_TEST not found
+[    2.353176] [E/devhost_service_clnt] failed to AddDevice WATCHDOG_TEST, ret = -207
+[    2.353832] [I/device_node] launch devnode PWM_TEST
+[    2.355176] [I/hdf_power_manager] HdfPmTaskQueueInit HdfTaskQueueCreate success
+[    2.358020] ALSA device list:
+[    2.358788]   No soundcards found.
+[    2.364946] uart-pl011 9000000.pl011: no DMA platform data
+[    2.454170] Freeing unused kernel memory: 6592K
+[    2.463162] Run /init as init process
+[    2.583600] [pid=1][Init][INFO][init.c:226]Start init first stage.
+[    2.587332] random: init: uninitialized urandom read (8 bytes read)
+[    2.593170] random: init: uninitialized urandom read (8 bytes read)
+[    2.594112] random: modprobe: uninitialized urandom read (8 bytes read)
+[    2.606216] [pid=1][ueventd][ERROR][ueventd.c:347]Failed get default_boot_device value from cmdline
+[    2.807370] [pid=1][ueventd][INFO][ueventd.c:174]/dev/block/vdd match with required partition vdd success, now handle it
+[    2.916888] [pid=1][ueventd][INFO][ueventd.c:174]/dev/block/vdc match with required partition vdc success, now handle it
+[    2.991658] [pid=1][ueventd][INFO][ueventd.c:174]/dev/block/vdb match with required partition vdb success, now handle it
+[    3.764836] [pid=1][Init][INFO][init_mount.c:30]Mount required partitions
+[    3.766810] [pid=1][BEGET][INFO][fstab_mount.c:339]No valid slot value found from parameter, try to get it from cmdline
+[    3.768360] [pid=1][BEGET][INFO][fstab_mount.c:310]Failed to get bootslots value from cmdline
+[    3.841594] EXT4-fs (vdb): mounted filesystem without journal. Opts: barrier=1
+[    3.850680] [pid=1][BEGET][INFO][fstab_mount.c:407]Mount /dev/block/vdb to /usr successful
+[    3.850940] [pid=1][BEGET][INFO][fstab_mount.c:339]No valid slot value found from parameter, try to get it from cmdline
+[    3.852430] [pid=1][BEGET][INFO][fstab_mount.c:310]Failed to get bootslots value from cmdline
+[    3.854146] [pid=1][BEGET][ERROR][fstab_mount.c:220]resize2fs is not exists.
+[    3.855576] [pid=1][BEGET][ERROR][fstab_mount.c:390]Failed to resize2fs dir /dev/block/vdd , ret = -1
+[    3.857488] [pid=1][BEGET][ERROR][fstab_mount.c:252]e2fsck is not exists.
+[    3.859292] [pid=1][BEGET][ERROR][fstab_mount.c:394]Failed to e2fsck dir /dev/block/vdd , ret = -1
+[    4.004196] EXT4-fs (vdd): recovery complete
+[    4.008460] EXT4-fs (vdd): mounted filesystem with ordered data mode. Opts: barrier=1,data=ordered,noauto_da_alloc
+[    4.009630] [pid=1][BEGET][INFO][fstab_mount.c:407]Mount /dev/block/vdd to /data successful
+[    4.009794] [pid=1][BEGET][INFO][fstab_mount.c:339]No valid slot value found from parameter, try to get it from cmdline
+[    4.011298] [pid=1][BEGET][INFO][fstab_mount.c:310]Failed to get bootslots value from cmdline
+[    4.034150] EXT4-fs (vdc): mounted filesystem without journal. Opts: barrier=1
+[    4.036060] [pid=1][BEGET][INFO][fstab_mount.c:407]Mount /dev/block/vdc to /vendor successful
+[    4.048376] [pid=1][Init][INFO][init.c:204]Start init second stage.
+[    4.185656] [pid=1][Init][INFO][switch_root.c:191]SwitchRoot to /usr finish
+[    4.334670] random: fast init done
+[    4.411022] express_cdev create express chardev
+[    4.411340] express_cdev alloc_chrdev_region ret 0
+[    4.412090] express_cdev cdev_add ret 0 0 major 505 0
+[    4.469500] [pid=1][LoopEvent][INFO][le_signal.c:74]LE_AddSignal 17 0
+[    4.472568] [pid=1][LoopEvent][INFO][le_signal.c:74]LE_AddSignal 15 1
+[    4.480344] [pid=1][Init][INFO][init.c:90]Init fd holder socket done
+[    4.495088] [pid=1][BEGET][ERROR][fstab.c:332]Failed to get fstab item from mount point " /misc "
+[    4.496598] [pid=1][BEGET][INFO][fstab.c:513]Mount point not found, try to get path by device name.
+[    4.497934] [pid=1][BEGET][ERROR][reboot_misc.c:77]Failed to get misc path
+[    4.499514] [pid=1][Init][INFO][init_group_manager.c:198]boot start device.boot.group
+[    4.513926] [pid=1][Init][INFO][init.c:306]Executing hook [0:0] cost [12271]us, return 0.
+[    4.515858] [pid=1][Init][INFO][init.c:306]Executing hook [0:0] cost [660]us, return 0.
+[    4.516988] [pid=1][Init][INFO][init.c:306]Executing hook [0:0] cost [79]us, return 0.
+[    4.518632] [pid=1][PARAM][INFO][param_service.c:375]InitParamService pipe: /dev/unix/socket/paramservice.
+[    4.522764] [pid=1][PARAM][INFO][param_base.c:78]Init parameter dac success
+[    4.524336] [pid=1][PARAM][INFO][param_base.c:265]AddWorkSpace param_storage spaceSize: 81920 onlyRead false
+[    4.680712] express request_module express_bridge ret 0
+[    4.691892] [pid=1][PARAM][WARNING][param_dac.c:301]Invalid user for 'uhdf_driver' gid 3066 uid -1
+[    4.694180] bbox:[info][blackbox_core.c:267] wait for log part [/data] end!
+[    4.704104] [pid=1][PARAM][WARNING][param_dac.c:301]Invalid user for 'appspawn' gid 4000 uid -1
+[    4.712126] [pid=1][Init][INFO][init_group_manager.c:68]Parse group config /system/etc/device.boot.group.cfg
+[    4.718498] [pid=1][Init][INFO][init.c:390]boot init finish.
+[    4.728308] [pid=1][PARAM][ERROR][param_server.c:56]Get ohos.boot.bootgroup parameter value is null.
+[    4.729354] [pid=1][PARAM][ERROR][param_server.c:56]Get ohos.boot.reboot_reason parameter value is null.
+[    4.730104] [pid=1][PARAM][ERROR][param_server.c:56]Get ohos.boot.bootslots parameter value is null.
+[    4.731628] [pid=1][Init][ERROR][init_utils.c:185]Failed to read file /sys/block/mmcblk0/device/cid
+[    4.732696] [pid=1][PARAM][ERROR][param_server.c:64]Read sn from /sys/block/mmcblk0/device/cid file failed!
+[    4.733862] [pid=1][Init][ERROR][init_utils.c:185]Failed to read file /proc/bootdevice/cid
+[    4.734964] [pid=1][PARAM][ERROR][param_server.c:64]Read sn from /proc/bootdevice/cid file failed!
+[    4.735866] [pid=1][PARAM][INFO][param_server.c:218]load parameters from build 
+[    4.737296] [pid=1][PARAM][INFO][param_server.c:204]Load default parameters from /system/etc/param/ohos_const.
+[    4.750920] [pid=1][PARAM][INFO][param_server.c:204]Load default parameters from /chipset/etc/param.
+[    4.773254] [pid=1][PARAM][WARNING][param_dac.c:129]Invalid dac for 'sys.usb.config' gid -1 uid 3023
+[    4.774556] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /chipset/etc/param/usb.para.dac
+[    4.776026] [pid=1][PARAM][INFO][param_server.c:204]Load default parameters from /system/etc/param.
+[    4.876564] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 20 success /system/etc/param/language_config.para.dac
+[    4.885794] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 16 success /system/etc/param/samgr.para.dac
+[    4.900428] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 18 success /system/etc/param/memmgr.para.dac
+[    4.906884] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/time.para.dac
+[    4.916624] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/audio_config.para.dac
+[    4.923774] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/accessibility.para.dac
+[    4.929180] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/hiview.para.dac
+[    4.935534] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/useriam.para.dac
+[    4.941910] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/access_token.para.dac
+[    4.958608] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 20 success /system/etc/param/appfwk.para.dac
+[    4.969720] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 18 success /system/etc/param/hdc.para.dac
+[    4.980062] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/inputmethod.para.dac
+[    4.984816] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/wms.para.dac
+[    4.990032] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/hitrace.para.dac
+[    5.031768] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 27 success /system/etc/param/ohos.para.dac
+[    5.038574] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/pasteboard.para.dac
+[    5.043258] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/devicemanager.para.dac
+[    5.048394] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 15 success /system/etc/param/customization.para.dac
+[    5.054098] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 15 success /system/etc/param/screenlock.para.dac
+[    5.059078] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 14 success /system/etc/param/multimodalinput.para.dac
+[    5.065178] [pid=1][PARAM][INFO][param_dac.c:150]Load parameter label total 16 success /system/etc/param/hilog.para.dac
+[    5.067284] [pid=1][Init][INFO][init.c:306]Executing hook [30:0] cost [70]us, return 0.
+[    5.085246] [pid=1][Init][INFO][init_config.c:87]Import /etc/init.usb.cfg  ...
+[    5.096456] [pid=1][Init][INFO][init_config.c:87]Import /vendor/etc/init.qemu.usb.cfg  ...
+[    5.101144] [pid=1][Init][INFO][init_config.c:87]Import /etc/init.usb.configfs.cfg  ...
+[    5.102502] [pid=1][Init][ERROR][init_utils.c:134]Unexpected config file " /etc/init.usb.configfs.cfg ", check if it exist. if exist, check file size
+[    5.103384] [pid=1][Init][ERROR][init_config.c:48]Failed to read file content /etc/init.usb.configfs.cfg
+[    5.105018] [pid=1][Init][INFO][init_config.c:87]Import /vendor/etc/init.qemu.cfg  ...
+[    5.107752] [pid=1][Init][ERROR][init_config.c:52]Failed to parse json file /vendor/etc/init.qemu.cfg
+[    5.127738] [pid=1][Init][INFO][init_group_manager.c:303]Found services:hiview in job group
+[    5.137142] [pid=1][Init][INFO][init_group_manager.c:303]Found service:useriam in job group
+[    5.237138] [pid=1][Init][ERROR][init_service_manager.c:251]Failed to get gid for faultloggerd
+[    5.238586] [pid=1][Init][WARNING][init_service_manager.c:287]Parse service faultloggerd gid failed from item "faultloggerd".
+[    5.241174] [pid=1][Init][INFO][init_group_manager.c:303]Found services:faultloggerd in job group
+[    5.250498] [pid=1][Init][INFO][init_group_manager.c:303]Found service:distributedsched in job group
+[    5.269580] [pid=1][Init][INFO][init_group_manager.c:303]Found pulseaudio:restartaudio_policy_service in job group
+[    5.363620] [pid=1][Init][INFO][init_group_manager.c:303]Found services:hidumper_service in job group
+[    5.421250] [pid=1][Init][INFO][init_group_manager.c:303]Found services:restartrender_service in job group
+[    5.437234] [pid=1][Init][INFO][init_group_manager.c:303]Found services:foundation in job group
+[    5.438578] [pid=1][Init][INFO][init_group_manager.c:303]Found services:restartfoundation in job group
+[    5.489422] [pid=1][Init][INFO][init_group_manager.c:303]Found services:distributeddata in job group
+[    5.521950] [pid=1][Init][ERROR][init_service_manager.c:251]Failed to get gid for d-bms
+[    5.523138] [pid=1][Init][WARNING][init_service_manager.c:287]Parse service d-bms gid failed from item "dbms".
+[    5.524556] [pid=1][Init][INFO][init_group_manager.c:303]Found services:d-bms in job group
+[    5.535894] [pid=1][Init][INFO][init_group_manager.c:303]Found services:accountmgr in job group
+[    5.578490] [pid=1][Init][ERROR][init_utils.c:87]Failed to decode uid for thermal
+[    5.579216] [pid=1][Init][ERROR][init_service_manager.c:834]Failed to get uid for service thermal_protector
+[    5.593486] [pid=1][Init][INFO][init_service_socket.c:142]CreateSocket NWebSpawn success
+[    5.594730] [pid=1][Init][INFO][init_service_socket.c:195]Watcher socket fd 12 for service nwebspawn
+[    5.646590] [pid=1][Init][INFO][init_group_manager.c:303]Found services:wifi_manager_service in job group
+[    5.659202] [pid=1][Init][INFO][init_group_manager.c:303]Found services:pasteboard_service in job group
+[    5.679202] [pid=1][Init][INFO][init_service_socket.c:142]CreateSocket ueventd success
+[    5.689492] [pid=1][Init][INFO][init_group_manager.c:303]Found services:dhardware in job group
+[    5.788540] [pid=1][Init][INFO][init.c:406]boot parse config file done.
+[    5.796512] [pid=1][Init][INFO][init.c:266]boot job pre-init start.
+[    5.803834] [pid=1][Init][INFO][init_service_manager.c:1084]Start service ueventd
+[    5.827008] [pid=1][Init][INFO][init_common_service.c:385]Service ueventd(pid 167) started
+[    5.831300] [pid=167][Init][ERROR][init_service.c:122]Set service ueventd token id 0 failed ret -2 err 2.
+[    5.832662] [pid=1][Init][INFO][init_service_manager.c:1084]Start service watchdog_service
+[    5.833674] [pid=167][Init][ERROR][init_common_service.c:299]Set service ueventd access token failed
+[    5.836690] [pid=1][Init][INFO][init_common_service.c:385]Service watchdog_service(pid 168) started
+[    5.840822] [pid=1][Init][INFO][init_cmds.c:291]Mount partitions from fstab file " /vendor/etc/fstab.qemu "
+[    5.846556] [pid=167][Init][INFO][init_service.c:91]exec service /system/bin/ueventd
+[    5.847970] [pid=167][Init][INFO][init_service.c:94] (null)
+[    5.856690] [pid=168][Init][ERROR][init_service.c:122]Set service watchdog_service token id 0 failed ret -2 err 2.
+[    5.857642] [pid=168][Init][ERROR][init_common_service.c:299]Set service watchdog_service access token failed
+[    5.862012] [pid=168][Init][INFO][init_service.c:91]exec service /system/bin/watchdog_service
+[    5.863188] [pid=168][Init][INFO][init_service.c:94] 10
+[    5.868832] [pid=1][BEGET][ERROR][fstab_mount.c:370]Unsupported file system " none "
+[    5.871056] [pid=1][BEGET][INFO][fstab_mount.c:64]Execute /system/bin/resize2fs begin
+[    5.872774] [pid=168][Init][INFO][init_service.c:94] 20
+[    5.873466] [pid=168][Init][INFO][init_service.c:94] (null)
+[    6.052608] [pid=167][ueventd][INFO][ueventd_main.c:71]Ueventd started, trigger uevent
+[    6.056596] [pid=167][ueventd][ERROR][ueventd.c:347]Failed get default_boot_device value from cmdline
+[    6.107314] [pid=1][BEGET][INFO][fstab_mount.c:79]Execute /system/bin/resize2fs end
+[    6.109038] [pid=1][BEGET][INFO][fstab_mount.c:64]Execute /system/bin/e2fsck begin
+[    6.253680] [pid=1][BEGET][ERROR][fstab_mount.c:77]Command /system/bin/e2fsck failed with status 8
+[    6.255988] [pid=1][BEGET][INFO][fstab_mount.c:79]Execute /system/bin/e2fsck end
+[    6.257540] [pid=1][BEGET][ERROR][fstab_mount.c:394]Failed to e2fsck dir /dev/block/vdd , ret = 8
+[    6.260772] [pid=1][BEGET][WARNING][fstab_mount.c:289]Mount /dev/block/vdd to /data busy, ignore
+[    6.262312] [pid=1][BEGET][INFO][fstab_mount.c:407]Mount /dev/block/vdd to /data successful
+[    6.265442] [pid=1][Init][INFO][init_cmds.c:293]Mount partitions from fstab file " /vendor/etc/fstab.qemu " finish ret 0
+[    6.283220] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.288848] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.294066] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.298904] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.306212] [pid=1][PARAM][INFO][param_persistadp.c:45]Load persist param, from file /data/service/el1/startup/parameters/persist_parameters
+[    6.312976] [pid=1][PARAM][INFO][param_persistadp.c:64]LoadPersistParam from file /data/service/el1/startup/parameters/persist_parameters paramNum 18
+[    6.348708] [pid=1][PLUGIN][INFO][bootchart_static.c:25]bootchart disabled.
+[    6.351108] [pid=1][Init][INFO][init_hook.c:197]Can not get log level from param, keep the original loglevel.
+[    6.354936] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/access_token_id, err 2.
+[    6.356722] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /dev/access_token_id " to 0666, err=2
+[    6.361460] [pid=1][Init][ERROR][init_common_cmds.c:455]Failed to mount for /sys/kernel/tracing, err 2.
+[    6.382350] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.424394] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_input_host, err 2.
+[    6.428924] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_input_event1, err 2.
+[    6.431658] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_input_event2, err 2.
+[    6.434638] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_input_event3, err 2.
+[    6.437168] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_input_event4, err 2.
+[    6.442794] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_input_event5, err 2.
+[    6.445758] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_input_event6, err 2.
+[    6.449038] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/dev_mgr, err 2.
+[    6.454712] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_kevent, err 2.
+[    6.457648] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_audio_render, err 2.
+[    6.460896] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_audio_capture, err 2.
+[    6.463608] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_audio_control, err 2.
+[    6.466552] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_sensor_manager_ap, err 2.
+[    6.469398] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_misc_vibrator, err 2.
+[    6.472438] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_light, err 2.
+[    6.476130] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/mpp_service, err 2.
+[    6.478984] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/rga, err 2.
+[    6.481676] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video0, err 2.
+[    6.484410] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video1, err 2.
+[    6.487376] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video2, err 2.
+[    6.492330] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video3, err 2.
+[    6.495082] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video4, err 2.
+[    6.497654] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video5, err 2.
+[    6.500336] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video6, err 2.
+[    6.503196] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video7, err 2.
+[    6.505940] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/video8, err 2.
+[    6.508716] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdfwifi, err 2.
+[    6.511830] [pid=1][Init][INFO][init.c:271]boot job pre-init finish diff 715325 us.
+[    6.515240] [pid=1][Init][INFO][init.c:266]boot job init start.
+[    6.525446] [pid=1][BEGET][INFO][sandbox.c:372]Parse sandbox cfg file is /system/etc/sandbox/system-sandbox.json
+[    6.530058] [pid=1][BEGET][INFO][sandbox.c:228]Get src-path is null
+[    6.533440] [pid=1][BEGET][INFO][sandbox.c:413]Mount point ' /mnt/sandbox/system ' already exist, no need to mkdir
+[    6.540574] [pid=1][BEGET][WARNING][sandbox.c:448]Not configure mount rec, must configure mount rec flag.
+[    6.542238] [pid=1][BEGET][INFO][sandbox.c:413]Mount point ' /mnt/sandbox/system/sys/kernel/debug ' already exist, no need to mkdir
+[    6.545760] [pid=1][BEGET][WARNING][sandbox.c:448]Not configure mount rec, must configure mount rec flag.
+[    6.549408] [pid=1][Init][ERROR][init_utils.c:380]Create directory " /mnt/sandbox/system/sys/kernel/debug/tracing " failed, err = 1
+[    6.550824] [pid=1][BEGET][ERROR][sandbox.c:418]Failed MakeDirRecursive /mnt/sandbox/system/sys/kernel/debug/tracing, err=1
+[    6.552070] [pid=1][BEGET][ERROR][sandbox.c:437]Failed make /mnt/sandbox/system/sys/kernel/debug/tracing dir.
+[    6.553532] [pid=1][BEGET][WARNING][sandbox.c:484]Failed bind mount /sys/kernel/debug/tracing to /mnt/sandbox/system/sys/kernel/debug/tracing.
+[    6.582668] [pid=1][BEGET][INFO][sandbox.c:372]Parse sandbox cfg file is /system/etc/sandbox/chipset-sandbox.json
+[    6.586166] [pid=1][BEGET][INFO][sandbox.c:228]Get src-path is null
+[    6.589160] [pid=1][BEGET][INFO][sandbox.c:413]Mount point ' /mnt/sandbox/chipset ' already exist, no need to mkdir
+[    6.598896] [pid=1][BEGET][WARNING][sandbox.c:448]Not configure mount rec, must configure mount rec flag.
+[    6.600818] [pid=1][BEGET][INFO][sandbox.c:413]Mount point ' /mnt/sandbox/chipset/sys/kernel/debug ' already exist, no need to mkdir
+[    6.602046] [pid=1][BEGET][WARNING][sandbox.c:448]Not configure mount rec, must configure mount rec flag.
+[    6.605132] [pid=1][Init][ERROR][init_utils.c:380]Create directory " /mnt/sandbox/chipset/sys/kernel/debug/tracing " failed, err = 1
+[    6.606370] [pid=1][BEGET][ERROR][sandbox.c:418]Failed MakeDirRecursive /mnt/sandbox/chipset/sys/kernel/debug/tracing, err=1
+[    6.607630] [pid=1][BEGET][ERROR][sandbox.c:437]Failed make /mnt/sandbox/chipset/sys/kernel/debug/tracing dir.
+[    6.608570] [pid=1][BEGET][WARNING][sandbox.c:484]Failed bind mount /sys/kernel/debug/tracing to /mnt/sandbox/chipset/sys/kernel/debug/tracing.
+[    6.629514] [pid=1][Init][ERROR][init_common_cmds.c:258]Failed to get real path /system/etc/prop.default
+[    6.675364] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.678122] Registered swp emulation handler
+[    6.739952] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.743238] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.744288] [pid=1][Init][INFO][init_service_manager.c:1084]Start service hilogd
+[    6.746498] [pid=1][Init][INFO][init_common_service.c:385]Service hilogd(pid 171) started
+[    6.750012] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /dev/mali0 " to 0666, err=2
+[    6.755280] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/mali0, err 2.
+[    6.760784] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.769940] [pid=171][Init][INFO][init_service.c:125]Set service hilogd token id 671631082 ok.
+[    6.772992] [pid=171][Init][INFO][init_service_socket.c:142]CreateSocket hilogInput success
+[    6.785066] [pid=171][Init][INFO][init_service_socket.c:142]CreateSocket hilogControl success
+[    6.787894] [pid=171][Init][INFO][init_service_socket.c:142]CreateSocket hilogOutput success
+[    6.802970] [pid=171][Init][INFO][init_service.c:91]exec service /system/bin/hilogd
+[    6.805100] [pid=171][Init][INFO][init_service.c:94] (null)
+[    6.865932] [pid=1][Init][ERROR][init_common_cmds.c:554]Failed unlink -rf err=30.
+[    6.880398] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/frz/cgroup.proc, err 2.
+[    6.925956] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.928982] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    6.934674] [pid=1][Init][INFO][init.c:271]boot job init finish diff 417958 us.
+[    6.936782] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-1-000 start.
+[    6.937594] [pid=1][Init][INFO][init_service_manager.c:1084]Start service hdf_devmgr
+[    6.943152] [pid=1][Init][INFO][init_common_service.c:385]Service hdf_devmgr(pid 172) started
+[    6.947558] [pid=1][Init][INFO][init_service_manager.c:1084]Start service appspawn
+[    6.959010] [pid=1][Init][INFO][init_common_service.c:385]Service appspawn(pid 173) started
+[    6.971998] [pid=1][Init][INFO][init_service_manager.c:1084]Start service device_manager
+[    6.979042] [pid=173][Init][INFO][init_service.c:125]Set service appspawn token id 671794853 ok.
+[    6.982450] [pid=173][Init][INFO][init_service.c:91]exec service /system/bin/appspawn
+[    6.983294] [pid=173][Init][INFO][init_service.c:94] --process-name com.ohos.appspawn.startup --start-flags daemon --type standard 
+[    6.984248] [pid=173][Init][INFO][init_service.c:94] --sandbox-switch on --bundle-name com.ohos.appspawn.startup --app-operate-type operate 
+[    6.985078] [pid=173][Init][INFO][init_service.c:94] --render-command command --app-launch-type singleton --app-visible true
+[    6.986292] [pid=173][Init][INFO][init_service.c:94] (null)
+[    6.993688] [pid=1][Init][INFO][init_common_service.c:385]Service device_manager(pid 174) started
+[    6.995466] [pid=172][Init][INFO][init_service.c:125]Set service hdf_devmgr token id 671242032 ok.
+[    7.003798] [pid=174][Init][INFO][init_service.c:125]Set service device_manager token id 671631037 ok.
+[    7.007192] [pid=172][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devmgr
+[    7.016974] [pid=172][Init][INFO][init_service.c:94] (null)
+[    7.076674] [pid=1][Init][INFO][init_service_manager.c:1084]Start service samgr
+[    7.186096] [pid=174][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[    7.186720] [pid=174][Init][INFO][init_service.c:94] /system/profile/device_manager.xml
+[    7.187540] [pid=174][Init][INFO][init_service.c:94] (null)
+[    7.207614] [pid=175][Init][INFO][init_service.c:125]Set service samgr token id 671928536 ok.
+[    7.220430] [pid=175][Init][INFO][init_service.c:91]exec service /system/bin/samgr
+[    7.225044] [pid=175][Init][INFO][init_service.c:94] (null)
+[    7.376574] [pid=1][Init][INFO][init_common_service.c:385]Service samgr(pid 175) started
+[    7.405652] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-1-000 finish diff 468888 us.
+[    7.407550] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-1-001 start.
+[    7.416778] [pid=1][Init][INFO][init_service_manager.c:1084]Start service storage_daemon
+[    7.431244] [pid=1][Init][INFO][init_common_service.c:385]Service storage_daemon(pid 176) started
+[    7.478796] [pid=176][Init][INFO][init_service.c:125]Set service storage_daemon token id 672130431 ok.
+[    7.487348] [pid=1][Init][INFO][init_service_manager.c:1084]Start service param_watcher
+[    7.501970] [pid=176][Init][INFO][init_service.c:91]exec service /system/bin/storage_daemon
+[    7.511962] [pid=1][Init][INFO][init_common_service.c:385]Service param_watcher(pid 177) started
+[    7.522388] [pid=176][Init][INFO][init_service.c:94] (null)
+[    7.536724] [pid=177][Init][INFO][init_service.c:125]Set service param_watcher token id 671112113 ok.
+[    7.551370] [pid=1][Init][INFO][init_service_manager.c:1084]Start service storage_manager
+[    7.559358] [pid=1][Init][INFO][init_common_service.c:385]Service storage_manager(pid 178) started
+[    7.568272] [pid=1][Init][INFO][init_service_manager.c:1084]Start service hiview
+[    7.574102] [pid=177][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[    7.583774] [pid=178][Init][INFO][init_service.c:125]Set service storage_manager token id 671221549 ok.
+[    7.589778] [pid=1][Init][INFO][init_common_service.c:385]Service hiview(pid 179) started
+[    7.609738] [pid=178][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[    7.611164] [pid=177][Init][INFO][init_service.c:94] /system/profile/param_watcher.xml
+[    7.613268] [pid=177][Init][INFO][init_service.c:94] (null)
+[    7.638748] [pid=179][Init][INFO][init_service.c:125]Set service hiview token id 671235286 ok.
+[    7.661774] [pid=178][Init][INFO][init_service.c:94] /system/profile/storage_manager.xml
+[    7.663364] [pid=178][Init][INFO][init_service.c:94] (null)
+[    7.709416] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-1-001 finish diff 245335 us.
+[    7.716152] [pid=1][Init][INFO][init.c:266]boot job post-init start.
+[    7.718832] [pid=1][PARAM][WARNING][trigger_processor.c:351]Can not find trigger early-fs
+[    7.723436] [pid=1][PARAM][WARNING][trigger_processor.c:351]Can not find trigger fs
+[    7.726312] [pid=1][PARAM][WARNING][trigger_processor.c:351]Can not find trigger firmware_mounts_complete
+[    7.738234] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/buffer_size_kb " to 0666, err=2
+[    7.739772] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/saved_cmdlines_size " to 0666, err=2
+[    7.742688] [pid=179][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    7.758812] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/trace " to 0666, err=2
+[    7.760350] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/trace_clock " to 0666, err=2
+[    7.796246] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/trace_marker " to 0222, err=2
+[    7.798558] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/tracing_on " to 0666, err=2
+[    7.805946] [pid=179][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    7.832132] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_lock/enable " to 0666, err=2
+[    7.836224] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_locked/enable " to 0666, err=2
+[    7.839826] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_unlock/enable " to 0666, err=2
+[    7.843672] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_transaction/enable " to 0666, e
+[    7.848078] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_transaction_received/enable " t
+[    7.851188] [pid=179][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    7.851850] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_transaction_alloc_buf/enable " 
+[    7.858074] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/cgroup/enable " to 0666, err=2
+[    7.868300] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/cpufreq_interactive/enable " to 0666, err=2
+[    7.888824] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/dma_fence/enable " to 0666, err=2
+[    7.925236] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/fence/enable " to 0666, err=2
+[    7.935042] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/enable " to 0666, err=2
+[    7.962282] [pid=179][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    7.982336] [pid=179][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    7.985652] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_read/enable " to 0666, err=2
+[    8.003660] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_write/enable " to 0666, err=2
+[    8.005950] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_result/enable " to 0666, err=2
+[    8.031104] [pid=179][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    8.047708] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_reply/enable " to 0666, err=2
+[    8.049152] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_read/enable " to 0666, err=2
+[    8.088942] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_write/enable " to 0666, err=2
+[    8.099574] [pid=179][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[    8.117406] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_result/enable " to 0666, err=2
+[    8.119142] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_reply/enable " to 0666, err=2
+[    8.165780] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/kmem/rss_stat/enable " to 0666, err=2
+[    8.168048] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/kmem/ion_heap_grow/enable " to 0666, err=2
+[    8.183430] [pid=179][Init][INFO][init_service_socket.c:142]CreateSocket hisysevent success
+[    8.241344] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/kmem/ion_heap_shrink/enable " to 0666, err=2
+[    8.258468] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/lowmemorykiller/enable " to 0666, err=2
+[    8.297834] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/lowmemorykiller/lowmemory_kill/enable " to 06
+[    8.332010] [pid=179][Init][INFO][init_service.c:91]exec service /system/bin/hiview
+[    8.332252] [pid=179][Init][INFO][init_service.c:94] (null)
+[    8.374862] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/mm_event/mm_event_record/enable " to 0666, er
+[    8.380698] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/oom/oom_score_adj_update/enable " to 0666, er
+[    8.456688] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/cpu_frequency/enable " to 0666, err=2
+[    8.457262] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/cpu_idle/enable " to 0666, err=2
+[    8.463220] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/clock_set_rate/enable " to 0666, err=2
+[    8.469850] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/cpu_frequency_limits/enable " to 0666, 
+[    8.506002] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/gpu_frequency/enable " to 0666, err=2
+[    8.506594] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_switch/enable " to 0666, err=2
+[    8.541870] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_wakeup/enable " to 0666, err=2
+[    8.565560] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_blocked_reason/enable " to 0666, 
+[    8.578108] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_cpu_hotplug/enable " to 0666, err
+[    8.628422] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_pi_setprio/enable " to 0666, err=2
+[    8.628820] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_process_exit/enable " to 0666, er
+[    8.649500] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_waking/enable " to 0666, err=2
+[    8.650190] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/signal/signal_generate/enable " to 0666, err=2
+[    8.651690] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/signal/signal_deliver/enable " to 0666, err=2
+[    8.687132] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sync/enable " to 0666, err=2
+[    8.718402] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/task/task_rename/enable " to 0666, err=2
+[    8.719952] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/task/task_newtask/enable " to 0666, err=2
+[    8.754946] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_direct_reclaim_begin/enable 
+[    8.793364] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_direct_reclaim_end/enable " 
+[    8.810954] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_kswapd_wake/enable " to 0666
+[    8.840126] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_kswapd_sleep/enable " to 066
+[    8.842180] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/block/block_rq_issue/enable " to 0666, err=2
+[    8.842860] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/block/block_rq_complete/enable " to 0666, err
+[    8.902404] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_da_write_begin/enable " to 0666, er
+[    8.920562] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_da_write_end/enable " to 0666, err=2
+[    8.965994] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_es_lookup_extent_enter/enable " to 
+[    9.015610] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_es_lookup_extent_exit/enable " to 0
+[    9.037006] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_load_inode/enable " to 0666, err=2
+[    9.039586] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_sync_file_enter/enable " to 0666, e
+[    9.082848] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_sync_file_exit/enable " to 0666, er
+[    9.107628] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_get_data_block/enable " to 0666, er
+[    9.130028] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_iget/enable " to 0666, err=2
+[    9.130870] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_sync_file_enter/enable " to 0666, e
+[    9.162434] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_sync_file_exit/enable " to 0666, er
+[    9.164112] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_write_begin/enable " to 0666, err=2
+[    9.164432] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_write_end/enable " to 0666, err=2
+[    9.200014] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/filemap/mm_filemap_add_to_page_cache/enable "
+[    9.203462] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/filemap/mm_filemap_delete_from_page_cache/ena
+[    9.231720] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/options/overwrite " to 0666, err=2
+[    9.232440] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/options/print-tgid " to 0666, err=2
+[    9.253524] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/options/record-tgid " to 0666, err=2
+[    9.273650] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu0/trace " to 0666, err=2
+[    9.304366] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu1/trace " to 0666, err=2
+[    9.354662] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu2/trace " to 0666, err=2
+[    9.419964] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu3/trace " to 0666, err=2
+[    9.421552] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu4/trace " to 0666, err=2
+[    9.423026] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu5/trace " to 0666, err=2
+[    9.462448] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu6/trace " to 0666, err=2
+[    9.475528] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu7/trace " to 0666, err=2
+[    9.503198] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu8/trace " to 0666, err=2
+[    9.528310] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu9/trace " to 0666, err=2
+[    9.554606] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu10/trace " to 0666, err=2
+[    9.559216] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu11/trace " to 0666, err=2
+[    9.607386] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu12/trace " to 0666, err=2
+[    9.620038] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu13/trace " to 0666, err=2
+[    9.666572] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu14/trace " to 0666, err=2
+[    9.736570] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu15/trace " to 0666, err=2
+[    9.759938] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/buffer_size_kb " to 0666, err=2
+[    9.761888] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/saved_cmdlines_size " to 0666, err=2
+[    9.805570] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/trace " to 0666, err=2
+[    9.807110] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/trace_clock " to 0666, err=2
+[    9.836380] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/trace_marker " to 0222, err=2
+[    9.837978] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/tracing_on " to 0666, err=2
+[    9.873136] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_lock/enable " to 0666, err=2
+[    9.874700] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_locked/enable " to 0666, err=2
+[    9.914062] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_unlock/enable " to 0666, err=2
+[    9.931666] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_transaction/enable " to 0666, err=2
+[    9.978688] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_transaction_received/enable " to 0666
+[   10.034440] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_transaction_alloc_buf/enable " to 066
+[   10.075722] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/cgroup/enable " to 0666, err=2
+[   10.126722] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/cpufreq_interactive/enable " to 0666, err=2
+[   10.128874] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/dma_fence/enable " to 0666, err=2
+[   10.168670] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/fence/enable " to 0666, err=2
+[   10.170280] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/enable " to 0666, err=2
+[   10.213184] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_read/enable " to 0666, err=2
+[   10.235058] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_write/enable " to 0666, err=2
+[   10.236768] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_result/enable " to 0666, err=2
+[   10.279040] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_reply/enable " to 0666, err=2
+[   10.298024] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_read/enable " to 0666, err=2
+[   10.307076] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_write/enable " to 0666, err=2
+[   10.336070] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_result/enable " to 0666, err=2
+[   10.338234] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_reply/enable " to 0666, err=2
+[   10.382288] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/kmem/rss_stat/enable " to 0666, err=2
+[   10.383916] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/kmem/ion_heap_grow/enable " to 0666, err=2
+[   10.385928] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.422542] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/kmem/ion_heap_shrink/enable " to 0666, err=2
+[   10.422872] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/lowmemorykiller/enable " to 0666, err=2
+[   10.434170] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/lowmemorykiller/lowmemory_kill/enable " to 0666, er
+[   10.436776] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/mm_event/mm_event_record/enable " to 0666, err=2
+[   10.437098] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/oom/oom_score_adj_update/enable " to 0666, err=2
+[   10.477378] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/cpu_frequency/enable " to 0666, err=2
+[   10.492626] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/cpu_idle/enable " to 0666, err=2
+[   10.505090] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/clock_set_rate/enable " to 0666, err=2
+[   10.506804] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/cpu_frequency_limits/enable " to 0666, err=2
+[   10.509620] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.545244] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/gpu_frequency/enable " to 0666, err=2
+[   10.545566] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_switch/enable " to 0666, err=2
+[   10.562626] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_wakeup/enable " to 0666, err=2
+[   10.566578] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.585092] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_blocked_reason/enable " to 0666, err=2
+[   10.585426] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_cpu_hotplug/enable " to 0666, err=2
+[   10.608062] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_pi_setprio/enable " to 0666, err=2
+[   10.609804] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_process_exit/enable " to 0666, err=2
+[   10.628808] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.649506] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_waking/enable " to 0666, err=2
+[   10.650422] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/signal/signal_generate/enable " to 0666, err=2
+[   10.651920] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/signal/signal_deliver/enable " to 0666, err=2
+[   10.680684] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sync/enable " to 0666, err=2
+[   10.684924] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.700488] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/task/task_rename/enable " to 0666, err=2
+[   10.700804] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/task/task_newtask/enable " to 0666, err=2
+[   10.730670] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_direct_reclaim_begin/enable " to 0
+[   10.737662] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.752532] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_direct_reclaim_end/enable " to 066
+[   10.754172] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_kswapd_wake/enable " to 0666, err=2
+[   10.754480] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_kswapd_sleep/enable " to 0666, err
+[   10.790732] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.794224] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/block/block_rq_issue/enable " to 0666, err=2
+[   10.794974] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/block/block_rq_complete/enable " to 0666, err=2
+[   10.796658] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_da_write_begin/enable " to 0666, err=2
+[   10.832944] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_da_write_end/enable " to 0666, err=2
+[   10.843910] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.867990] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_es_lookup_extent_enter/enable " to 0666, 
+[   10.893488] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_es_lookup_extent_exit/enable " to 0666, e
+[   10.899532] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.934436] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_load_inode/enable " to 0666, err=2
+[   10.934748] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_sync_file_enter/enable " to 0666, err=2
+[   10.950920] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_sync_file_exit/enable " to 0666, err=2
+[   10.952848] binder: 172:172 transaction failed 29189/-22, size 0-0 line 3020
+[   10.979128] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_get_data_block/enable " to 0666, err=2
+[   10.979454] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_iget/enable " to 0666, err=2
+[   10.999064] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_sync_file_enter/enable " to 0666, err=2
+[   11.000780] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_sync_file_exit/enable " to 0666, err=2
+[   11.028560] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_write_begin/enable " to 0666, err=2
+[   11.049194] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_write_end/enable " to 0666, err=2
+[   11.084170] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/filemap/mm_filemap_add_to_page_cache/enable " to 06
+[   11.099828] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/filemap/mm_filemap_delete_from_page_cache/enable " 
+[   11.124634] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/options/overwrite " to 0666, err=2
+[   11.124942] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/options/print-tgid " to 0666, err=2
+[   11.143960] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/options/record-tgid " to 0666, err=2
+[   11.161628] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu0/trace " to 0666, err=2
+[   11.183920] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu1/trace " to 0666, err=2
+[   11.196174] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu2/trace " to 0666, err=2
+[   11.197754] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu3/trace " to 0666, err=2
+[   11.199058] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu4/trace " to 0666, err=2
+[   11.239008] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu5/trace " to 0666, err=2
+[   11.257326] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu6/trace " to 0666, err=2
+[   11.275684] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu7/trace " to 0666, err=2
+[   11.298126] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu8/trace " to 0666, err=2
+[   11.325834] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu9/trace " to 0666, err=2
+[   11.343234] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu10/trace " to 0666, err=2
+[   11.364488] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu11/trace " to 0666, err=2
+[   11.414968] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu12/trace " to 0666, err=2
+[   11.432688] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu13/trace " to 0666, err=2
+[   11.462972] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu14/trace " to 0666, err=2
+[   11.498580] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu15/trace " to 0666, err=2
+[   11.514722] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/buffer_size_kb " to 0666, err=2
+[   11.545006] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/saved_cmdlines_size " to 0666, err=2
+[   11.562614] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/trace " to 0666, err=2
+[   11.578434] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/trace_clock " to 0666, err=2
+[   11.601170] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/trace_marker " to 0222, err=2
+[   11.619318] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/tracing_on " to 0666, err=2
+[   11.635414] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_lock/enable " to 0666, err=2
+[   11.660600] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_locked/enable " to 0666, err=2
+[   11.684012] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_unlock/enable " to 0666, err=2
+[   11.718980] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_transaction/enable " to 0666, e
+[   11.812216] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_transaction_received/enable " t
+[   11.825308] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/binder/binder_transaction_alloc_buf/enable " 
+[   11.853268] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/cgroup/enable " to 0666, err=2
+[   11.853590] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/cpufreq_interactive/enable " to 0666, err=2
+[   11.877306] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/dma_fence/enable " to 0666, err=2
+[   11.894082] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/fence/enable " to 0666, err=2
+[   11.916076] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/enable " to 0666, err=2
+[   11.941550] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_read/enable " to 0666, err=2
+[   11.970414] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_write/enable " to 0666, err=2
+[   11.998970] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_result/enable " to 0666, err=2
+[   12.026340] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/i2c_reply/enable " to 0666, err=2
+[   12.046142] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_read/enable " to 0666, err=2
+[   12.080306] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_write/enable " to 0666, err=2
+[   12.106316] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_result/enable " to 0666, err=2
+[   12.131608] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/i2c/smbus_reply/enable " to 0666, err=2
+[   12.154084] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/kmem/rss_stat/enable " to 0666, err=2
+[   12.183060] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/kmem/ion_heap_grow/enable " to 0666, err=2
+[   12.200354] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/kmem/ion_heap_shrink/enable " to 0666, err=2
+[   12.230238] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/lowmemorykiller/enable " to 0666, err=2
+[   12.250718] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/lowmemorykiller/lowmemory_kill/enable " to 06
+[   12.288516] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/mm_event/mm_event_record/enable " to 0666, er
+[   12.381548] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/oom/oom_score_adj_update/enable " to 0666, er
+[   12.423530] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/cpu_frequency/enable " to 0666, err=2
+[   12.424148] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/cpu_idle/enable " to 0666, err=2
+[   12.454244] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/clock_set_rate/enable " to 0666, err=2
+[   12.476058] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/cpu_frequency_limits/enable " to 0666, 
+[   12.522286] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/power/gpu_frequency/enable " to 0666, err=2
+[   12.522616] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_switch/enable " to 0666, err=2
+[   12.554618] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_wakeup/enable " to 0666, err=2
+[   12.583536] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_blocked_reason/enable " to 0666, 
+[   12.618020] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_cpu_hotplug/enable " to 0666, err
+[   12.640262] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_pi_setprio/enable " to 0666, err=2
+[   12.640602] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_process_exit/enable " to 0666, er
+[   12.685328] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sched/sched_waking/enable " to 0666, err=2
+[   12.685714] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/signal/signal_generate/enable " to 0666, err=2
+[   12.713172] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/signal/signal_deliver/enable " to 0666, err=2
+[   12.740070] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/sync/enable " to 0666, err=2
+[   12.764758] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/task/task_rename/enable " to 0666, err=2
+[   12.786812] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/task/task_newtask/enable " to 0666, err=2
+[   12.808328] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_direct_reclaim_begin/enable 
+[   12.841222] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_direct_reclaim_end/enable " 
+[   12.875768] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_kswapd_wake/enable " to 0666
+[   12.898202] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/vmscan/mm_vmscan_kswapd_sleep/enable " to 066
+[   12.914164] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/block/block_rq_issue/enable " to 0666, err=2
+[   12.954922] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/block/block_rq_complete/enable " to 0666, err
+[   13.002534] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_da_write_begin/enable " to 0666, er
+[   13.039304] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_da_write_end/enable " to 0666, err=2
+[   13.040156] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_es_lookup_extent_enter/enable " to 
+[   13.084966] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_es_lookup_extent_exit/enable " to 0
+[   13.101142] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_load_inode/enable " to 0666, err=2
+[   13.101514] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_sync_file_enter/enable " to 0666, e
+[   13.144970] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/ext4/ext4_sync_file_exit/enable " to 0666, er
+[   13.168500] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_get_data_block/enable " to 0666, er
+[   13.195776] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_iget/enable " to 0666, err=2
+[   13.196112] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_sync_file_enter/enable " to 0666, e
+[   13.263894] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_sync_file_exit/enable " to 0666, er
+[   13.296288] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_write_begin/enable " to 0666, err=2
+[   13.296624] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/f2fs/f2fs_write_end/enable " to 0666, err=2
+[   13.319986] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/filemap/mm_filemap_add_to_page_cache/enable "
+[   13.355334] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/events/filemap/mm_filemap_delete_from_page_cache/ena
+[   13.390756] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/options/overwrite " to 0666, err=2
+[   13.391094] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/options/print-tgid " to 0666, err=2
+[   13.425556] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/options/record-tgid " to 0666, err=2
+[   13.427916] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu0/trace " to 0666, err=2
+[   13.472626] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu1/trace " to 0666, err=2
+[   13.516142] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu2/trace " to 0666, err=2
+[   13.544784] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu3/trace " to 0666, err=2
+[   13.593712] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu4/trace " to 0666, err=2
+[   13.621902] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu5/trace " to 0666, err=2
+[   13.655756] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu6/trace " to 0666, err=2
+[   13.684388] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu7/trace " to 0666, err=2
+[   13.720148] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu8/trace " to 0666, err=2
+[   13.724246] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu9/trace " to 0666, err=2
+[   13.788424] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu10/trace " to 0666, err=2
+[   13.835302] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu11/trace " to 0666, err=2
+[   13.918640] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu12/trace " to 0666, err=2
+[   13.960034] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu13/trace " to 0666, err=2
+[   13.988386] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu14/trace " to 0666, err=2
+[   14.003488] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing/per_cpu/cpu15/trace " to 0666, err=2
+[   14.055742] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/buffer_size_kb " to 0666, err=2
+[   14.075548] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/saved_cmdlines_size " to 0666, err=2
+[   14.102762] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/trace " to 0666, err=2
+[   14.148602] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/trace_clock " to 0666, err=2
+[   14.163252] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/trace_marker " to 0222, err=2
+[   14.193174] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/tracing_on " to 0666, err=2
+[   14.254074] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_lock/enable " to 0666, err=2
+[   14.266452] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_locked/enable " to 0666, err=2
+[   14.300606] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_unlock/enable " to 0666, err=2
+[   14.333590] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_transaction/enable " to 0666, err=2
+[   14.375166] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_transaction_received/enable " to 0666
+[   14.418958] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/binder/binder_transaction_alloc_buf/enable " to 066
+[   14.448758] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/cgroup/enable " to 0666, err=2
+[   14.449406] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/cpufreq_interactive/enable " to 0666, err=2
+[   14.480366] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/dma_fence/enable " to 0666, err=2
+[   14.508258] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/fence/enable " to 0666, err=2
+[   14.553610] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/enable " to 0666, err=2
+[   14.638438] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_read/enable " to 0666, err=2
+[   14.648942] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_write/enable " to 0666, err=2
+[   14.683858] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_result/enable " to 0666, err=2
+[   14.716058] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/i2c_reply/enable " to 0666, err=2
+[   14.736946] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_read/enable " to 0666, err=2
+[   14.756314] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_write/enable " to 0666, err=2
+[   14.799780] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_result/enable " to 0666, err=2
+[   14.804616] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/i2c/smbus_reply/enable " to 0666, err=2
+[   14.807062] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/kmem/rss_stat/enable " to 0666, err=2
+[   14.811636] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/kmem/ion_heap_grow/enable " to 0666, err=2
+[   14.816706] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/kmem/ion_heap_shrink/enable " to 0666, err=2
+[   14.818732] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/lowmemorykiller/enable " to 0666, err=2
+[   14.822558] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/lowmemorykiller/lowmemory_kill/enable " to 0666, er
+[   14.828044] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/mm_event/mm_event_record/enable " to 0666, err=2
+[   14.830076] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/oom/oom_score_adj_update/enable " to 0666, err=2
+[   14.835692] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/cpu_frequency/enable " to 0666, err=2
+[   14.862834] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/cpu_idle/enable " to 0666, err=2
+[   14.865422] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/clock_set_rate/enable " to 0666, err=2
+[   14.868160] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/cpu_frequency_limits/enable " to 0666, err=2
+[   14.896142] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/power/gpu_frequency/enable " to 0666, err=2
+[   14.914660] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_switch/enable " to 0666, err=2
+[   14.931988] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_wakeup/enable " to 0666, err=2
+[   14.952220] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_blocked_reason/enable " to 0666, err=2
+[   14.967224] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_cpu_hotplug/enable " to 0666, err=2
+[   15.002304] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_pi_setprio/enable " to 0666, err=2
+[   15.030612] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_process_exit/enable " to 0666, err=2
+[   15.109618] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sched/sched_waking/enable " to 0666, err=2
+[   15.118714] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/signal/signal_generate/enable " to 0666, err=2
+[   15.141802] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/signal/signal_deliver/enable " to 0666, err=2
+[   15.203082] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/sync/enable " to 0666, err=2
+[   15.206980] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/task/task_rename/enable " to 0666, err=2
+[   15.273468] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/task/task_newtask/enable " to 0666, err=2
+[   15.297346] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_direct_reclaim_begin/enable " to 0
+[   15.315546] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_direct_reclaim_end/enable " to 066
+[   15.331098] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_kswapd_wake/enable " to 0666, err=2
+[   15.331438] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/vmscan/mm_vmscan_kswapd_sleep/enable " to 0666, err
+[   15.345224] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/block/block_rq_issue/enable " to 0666, err=2
+[   15.384020] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/block/block_rq_complete/enable " to 0666, err=2
+[   15.397492] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_da_write_begin/enable " to 0666, err=2
+[   15.424106] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_da_write_end/enable " to 0666, err=2
+[   15.438790] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_es_lookup_extent_enter/enable " to 0666, 
+[   15.487382] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_es_lookup_extent_exit/enable " to 0666, e
+[   15.502902] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_load_inode/enable " to 0666, err=2
+[   15.503216] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_sync_file_enter/enable " to 0666, err=2
+[   15.525604] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/ext4/ext4_sync_file_exit/enable " to 0666, err=2
+[   15.577938] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_get_data_block/enable " to 0666, err=2
+[   15.586748] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_iget/enable " to 0666, err=2
+[   15.604156] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_sync_file_enter/enable " to 0666, err=2
+[   15.637064] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_sync_file_exit/enable " to 0666, err=2
+[   15.651490] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_write_begin/enable " to 0666, err=2
+[   15.668420] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/f2fs/f2fs_write_end/enable " to 0666, err=2
+[   15.686876] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/filemap/mm_filemap_add_to_page_cache/enable " to 06
+[   15.703054] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/events/filemap/mm_filemap_delete_from_page_cache/enable " 
+[   15.720902] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/options/overwrite " to 0666, err=2
+[   15.721226] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/options/print-tgid " to 0666, err=2
+[   15.749546] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/options/record-tgid " to 0666, err=2
+[   15.766148] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu0/trace " to 0666, err=2
+[   15.781844] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu1/trace " to 0666, err=2
+[   15.793532] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu2/trace " to 0666, err=2
+[   15.813192] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu3/trace " to 0666, err=2
+[   15.818436] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu4/trace " to 0666, err=2
+[   15.839754] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu5/trace " to 0666, err=2
+[   15.856460] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu6/trace " to 0666, err=2
+[   15.876266] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu7/trace " to 0666, err=2
+[   15.892844] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu8/trace " to 0666, err=2
+[   15.902970] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu9/trace " to 0666, err=2
+[   15.921712] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu10/trace " to 0666, err=2
+[   15.981924] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu11/trace " to 0666, err=2
+[   15.992816] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu12/trace " to 0666, err=2
+[   16.004162] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu13/trace " to 0666, err=2
+[   16.019608] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu14/trace " to 0666, err=2
+[   16.038784] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/tracing/per_cpu/cpu15/trace " to 0666, err=2
+[   16.100244] [pid=1][Init][INFO][init_service_manager.c:1084]Start service storage_daemon
+[   16.114790] [pid=1][Init][ERROR][init_common_service.c:353]Service storage_daemon already started
+[   16.124546] [pid=1][Init][ERROR][init_common_cmds.c:455]Failed to mount for /config, err 16.
+[   16.182128] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.189774] [pid=1][Init][INFO][init_service_manager.c:1084]Start service udevd_service
+[   16.228366] [pid=1][Init][INFO][init_common_service.c:385]Service udevd_service(pid 211) started
+[   16.255508] [pid=1][Init][INFO][init_service_manager.c:1084]Start service mmi_uinput_service
+[   16.268056] [pid=1][Init][INFO][init_common_service.c:385]Service mmi_uinput_service(pid 212) started
+[   16.315692] [pid=211][Init][INFO][init_service.c:125]Set service udevd_service token id 671676568 ok.
+[   16.319162] [pid=211][Init][INFO][init_service.c:91]exec service /system/bin/udevd
+[   16.330632] [pid=1][Init][INFO][init_service_manager.c:1084]Start service multimodalinput
+[   16.341684] [pid=1][Init][INFO][init_common_service.c:385]Service multimodalinput(pid 214) started
+[   16.345662] [pid=212][Init][INFO][init_service.c:125]Set service mmi_uinput_service token id 671781687 ok.
+[   16.350770] [pid=211][Init][INFO][init_service.c:94] (null)
+[   16.379708] [pid=212][Init][INFO][init_service.c:91]exec service /system/bin/uinput_inject
+[   16.387280] [pid=214][Init][INFO][init_service.c:125]Set service multimodalinput token id 671706439 ok.
+[   16.400974] [pid=212][Init][INFO][init_service.c:94] (null)
+[   16.403776] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /sys/kernel/debug/tracing " to 0755, err=2
+[   16.405370] [pid=1][BEGET][INFO][fstab.c:431]LoadFscryptPolicy start
+[   16.432472] [pid=1][BEGET][ERROR][fstab.c:433]LoadFscryptPolicy:buf or fscrypt policy is empty
+[   16.433542] [pid=1][Init][WARNING][init_cmds.c:440]Init fscrypt failed, not enable fscrypt
+[   16.439866] [pid=214][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   16.441180] [pid=214][Init][INFO][init_service.c:94] /system/profile/multimodalinput.xml
+[   16.442194] [pid=214][Init][INFO][init_service.c:94] (null)
+[   16.503254] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.603102] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.661606] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.691842] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.727938] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.796234] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.850106] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.853234] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.917628] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.936378] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   16.982110] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   17.019164] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   17.058252] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   17.091066] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   17.141870] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   17.143290] [pid=1][Init][INFO][init_cmds.c:99]Sync exec: /system/bin/sdc
+[   21.442538] [pid=1][Init][INFO][init_cmds.c:112]Sync exec: /system/bin/sdc result 0 1
+[   21.502858] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.534038] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.562354] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.610522] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.630012] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.671178] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.698658] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.734462] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.784516] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.810080] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.843870] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.892416] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.944626] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   21.970110] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.019864] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.044470] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.065706] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.098690] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.133342] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.211972] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.240910] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.267338] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.297662] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.333682] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.360364] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/fscklogs/log, err 2.
+[   22.378940] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /dev/fscklogs/log " to 0770, err=2
+[   22.429894] [pid=1][Init][ERROR][init_common_cmds.c:376]Failed to change mode " /dev/fuse " to 0660, err=2
+[   22.478010] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.519478] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.535044] [pid=1][Init][INFO][init_service_manager.c:1084]Start service deviceauth_service
+[   22.550538] [pid=1][Init][INFO][init_common_service.c:385]Service deviceauth_service(pid 221) started
+[   22.621832] [pid=221][Init][INFO][init_service.c:125]Set service deviceauth_service token id 671657485 ok.
+[   22.644418] [pid=221][Init][INFO][init_service.c:91]exec service /system/bin/deviceauth_service
+[   22.654980] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.663996] [pid=221][Init][INFO][init_service.c:94] (null)
+[   22.705562] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.731176] [pid=1][Init][INFO][init_service_manager.c:1084]Start service accessibility
+[   22.745140] [pid=1][Init][INFO][init_common_service.c:385]Service accessibility(pid 222) started
+[   22.811244] [pid=222][Init][INFO][init_service.c:125]Set service accessibility token id 671451045 ok.
+[   22.841212] [pid=222][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   22.843000] [pid=222][Init][INFO][init_service.c:94] /system/profile/accessibility.xml
+[   22.854550] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.880798] [pid=222][Init][INFO][init_service.c:94] (null)
+[   22.895724] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   22.934392] [pid=1][Init][ERROR][init_common_cmds.c:554]Failed unlink /data/data/.pulse_dir/runtime/pid err=2.
+[   23.010570] [pid=1][Init][INFO][init_service_manager.c:1084]Start service pulseaudio
+[   23.035174] [pid=1][Init][INFO][init_common_service.c:385]Service pulseaudio(pid 223) started
+[   23.071310] [pid=223][Init][INFO][init_service.c:125]Set service pulseaudio token id 671433591 ok.
+[   23.122112] [pid=223][Init][INFO][init_service_socket.c:142]CreateSocket native success
+[   23.132140] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.183954] [pid=223][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   23.207962] [pid=223][Init][INFO][init_service.c:94] /system/profile/pulseaudio.xml
+[   23.209804] [pid=223][Init][INFO][init_service.c:94] (null)
+[   23.214104] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.268292] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.357982] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.428412] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.506282] udevd[211]: starting eudev-3.2.10
+[   23.524506] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.524716] [pid=1][Init][INFO][init_service_manager.c:1084]Start service resource_schedule_service
+[   23.543282] [pid=1][Init][INFO][init_common_service.c:385]Service resource_schedule_service(pid 224) started
+[   23.585648] [pid=224][Init][INFO][init_service.c:125]Set service resource_schedule_service token id 671974477 ok.
+[   23.613448] [pid=224][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   23.614200] [pid=224][Init][INFO][init_service.c:94] /system/profile/resource_schedule_service.xml
+[   23.625798] [pid=224][Init][INFO][init_service.c:94] (null)
+[   23.652178] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.680954] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   23.681640] [pid=1][Init][INFO][init_service_manager.c:1084]Start service memmgrservice
+[   23.705292] [pid=1][Init][INFO][init_common_service.c:385]Service memmgrservice(pid 226) started
+[   23.772476] [pid=226][Init][INFO][init_service.c:125]Set service memmgrservice token id 671448365 ok.
+[   24.278878] [pid=226][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   24.558418] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   24.586526] [pid=226][Init][INFO][init_service.c:94] /system/profile/memmgrservice.xml
+[   24.767780] [pid=226][Init][INFO][init_service.c:94] (null)
+[   25.412240] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   25.812910] [pid=1][Init][INFO][init_service_manager.c:1084]Start service bluetooth_service
+[   26.074506] hrtimer: interrupt took 4696992 ns
+[   26.103708] [pid=232][Init][INFO][init_service.c:125]Set service bluetooth_service token id 671795868 ok.
+[   26.256026] [pid=1][Init][INFO][init_common_service.c:385]Service bluetooth_service(pid 232) started
+[   26.636362] [pid=232][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   26.637638] [pid=232][Init][INFO][init_service.c:94] /system/profile/bluetooth_service.xml
+[   26.638592] [pid=232][Init][INFO][init_service.c:94] (null)
+[   26.932280] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   27.480080] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   27.568370] [pid=1][Init][INFO][init_service_manager.c:1084]Start service device_usage_stats_service
+[   27.719334] [pid=1][Init][INFO][init_common_service.c:385]Service device_usage_stats_service(pid 235) started
+[   28.155438] [pid=235][Init][INFO][init_service.c:125]Set service device_usage_stats_service token id 671685100 ok.
+[   28.477200] [pid=235][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   28.497474] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   28.762344] [pid=235][Init][INFO][init_service.c:94] /system/profile/device_usage_stats_service.xml
+[   28.870052] [pid=235][Init][INFO][init_service.c:94] (null)
+[   28.924786] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   29.023978] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   29.025216] [pid=1][Init][INFO][init_service_manager.c:1084]Start service huks_service
+[   29.066414] [pid=1][Init][INFO][init_common_service.c:385]Service huks_service(pid 238) started
+[   29.108618] [pid=238][Init][INFO][init_service.c:125]Set service huks_service token id 671706933 ok.
+[   29.138224] [pid=1][Init][INFO][init_service_manager.c:1084]Start service locationhub
+[   29.166250] [pid=1][Init][INFO][init_common_service.c:385]Service locationhub(pid 239) started
+[   29.217358] [pid=239][Init][INFO][init_service.c:125]Set service locationhub token id 671303098 ok.
+[   29.225046] [pid=238][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   29.226082] [pid=238][Init][INFO][init_service.c:94] /system/profile/huks_service.xml
+[   29.306292] [pid=239][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   29.310110] [pid=238][Init][INFO][init_service.c:94] (null)
+[   29.330540] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   29.351632] [pid=239][Init][INFO][init_service.c:94] /system/profile/locationhub.xml
+[   29.354322] [pid=239][Init][INFO][init_service.c:94] (null)
+[   29.453176] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   29.462610] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   29.558160] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   29.720262] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   29.986234] [SCHED_RTG] config[0] = 1
+[   29.988068] [SCHED_RTG] config[1] = 65535
+[   29.988486] [SCHED_RTG] config[2] = 65535
+[   29.999570] [SCHED_RTG] enabled!
+[   30.289684] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   30.352342] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   30.521748] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   30.641446] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   30.679454] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   30.867826] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   30.959076] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   30.998944] [pid=1][Init][INFO][init_service_manager.c:1084]Start service hdf_devhost
+[   31.058902] [pid=1][Init][ERROR][init_service_manager.c:1089]Cannot find service hdf_devhost.
+[   31.104758] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_disp, err 2.
+[   31.156300] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/hdf_dsoftbus, err 2.
+[   31.278534] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /sys/class/backlight/backlight/brightness, err 2.
+[   31.434056] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   31.592988] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   31.618844] [pid=1][Init][ERROR][init_utils.c:87]Failed to decode uid for thermal
+[   31.696408] [pid=1][Init][ERROR][init_common_cmds.c:307]SetOwner invalid uid :thermal.
+[   31.750662] [pid=1][Init][ERROR][init_common_cmds.c:356]Failed to change owner /data/service/el0/thermal, err 17.
+[   31.816426] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   31.896412] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   31.970922] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   32.093168] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   32.289808] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   32.515870] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   32.551130] [pid=1][Init][INFO][init_service_manager.c:1084]Start service netmanager
+[   32.606448] [pid=1][Init][INFO][init_common_service.c:385]Service netmanager(pid 261) started
+[   32.691420] [pid=261][Init][INFO][init_service.c:125]Set service netmanager token id 671350720 ok.
+[   32.731390] [pid=261][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   32.766466] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   32.801074] [pid=261][Init][INFO][init_service.c:94] /system/profile/netmanager.xml
+[   32.803368] [pid=261][Init][INFO][init_service.c:94] (null)
+[   32.851272] [pid=1][Init][INFO][init_service_manager.c:1084]Start service telephony_sa
+[   32.903794] [pid=1][Init][INFO][init_common_service.c:385]Service telephony_sa(pid 262) started
+[   32.989588] [pid=262][Init][INFO][init_service.c:125]Set service telephony_sa token id 671678144 ok.
+[   33.060700] [pid=262][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   33.074908] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   33.105082] [pid=262][Init][INFO][init_service.c:94] /system/profile/telephony.xml
+[   33.175552] [pid=262][Init][INFO][init_service.c:94] (null)
+[   33.194478] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   33.239822] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   33.508338] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /sys/class/leds/red/brightness, err 2.
+[   33.565770] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /sys/class/leds/green/brightness, err 2.
+[   33.756960] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /sys/class/leds/blue/brightness, err 2.
+[   33.824578] [pid=1][Init][ERROR][init_common_cmds.c:319]Failed to change owner for /dev/block/by-name/misc, err 2.
+[   33.984196] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   34.055356] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   34.056976] [pid=1][Init][ERROR][init_common_cmds.c:455]Failed to mount for /config, err 16.
+[   34.250488] [pid=1][Init][ERROR][init_common_cmds.c:338]Create directory '/config/usb_gadget/g1' failed, err=2.
+[   34.275930] [pid=1][Init][ERROR][init_common_cmds.c:338]Create directory '/config/usb_gadget/g1/strings/0x409' failed, err=2.
+[   34.403236] [pid=1][Init][ERROR][init_common_cmds.c:258]Failed to get real path /sys/block/mmcblk0/device/cid
+[   34.406060] [pid=1][Init][ERROR][init_common_cmds.c:338]Create directory '/config/usb_gadget/g1/functions/ffs.hdc' failed, err=2.
+[   34.423146] [pid=1][Init][ERROR][init_common_cmds.c:338]Create directory '/config/usb_gadget/g1/configs/b.1' failed, err=2.
+[   34.435998] [pid=1][Init][ERROR][init_common_cmds.c:338]Create directory '/config/usb_gadget/g1/configs/b.1/strings/0x409' failed, err=2.
+[   34.461462] [pid=1][Init][ERROR][init_cmds.c:229]DoSymlink: link /config/usb_gadget/g1/configs/b.1 to /config/usb_gadget/g1/os_desc/b.1 failed: 2
+[   34.482106] [pid=1][Init][ERROR][init_common_cmds.c:455]Failed to mount for /dev/usb-ffs/hdc, err 19.
+[   34.520262] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   34.563700] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   34.565488] [pid=1][Init][INFO][init_service_manager.c:1084]Start service bgtaskmgr_service
+[   34.600696] [pid=264][Init][INFO][init_service.c:125]Set service bgtaskmgr_service token id 671688242 ok.
+[   34.615432] [pid=1][Init][INFO][init_common_service.c:385]Service bgtaskmgr_service(pid 264) started
+[   34.670244] [pid=264][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   34.721422] [pid=264][Init][INFO][init_service.c:94] /system/profile/bgtaskmgr_service.xml
+[   34.723878] [pid=264][Init][INFO][init_service.c:94] (null)
+[   34.729600] [pid=1][Init][INFO][init_service_manager.c:1084]Start service msdp_sa
+[   34.756622] [pid=1][Init][INFO][init_common_service.c:385]Service msdp_sa(pid 265) started
+[   34.781692] [pid=265][Init][INFO][init_service.c:125]Set service msdp_sa token id 672028138 ok.
+[   34.892594] [pid=265][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   34.902854] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   34.906828] [pid=265][Init][INFO][init_service.c:94] /system/profile/msdp.xml
+[   34.907664] [pid=265][Init][INFO][init_service.c:94] (null)
+[   34.922226] [pid=1][Init][INFO][init_service_manager.c:1084]Start service screenlock_server
+[   34.965316] [pid=1][Init][INFO][init_common_service.c:385]Service screenlock_server(pid 266) started
+[   35.027912] [pid=1][Init][INFO][init_service_manager.c:1084]Start service edm_sa
+[   35.034558] [pid=266][Init][INFO][init_service.c:125]Set service screenlock_server token id 671652979 ok.
+[   35.071508] [pid=266][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   35.119580] [pid=1][Init][INFO][init_common_service.c:385]Service edm_sa(pid 268) started
+[   35.125320] [pid=266][Init][INFO][init_service.c:94] /system/profile/screenlock_server.xml
+[   35.151384] [pid=266][Init][INFO][init_service.c:94] (null)
+[   35.167710] [pid=268][Init][INFO][init_service.c:125]Set service edm_sa token id 671302984 ok.
+[   35.182278] [pid=268][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   35.183678] [pid=268][Init][INFO][init_service.c:94] /system/profile/edm.xml
+[   35.230980] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   35.248560] [pid=268][Init][INFO][init_service.c:94] (null)
+[   35.317680] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   35.436236] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   35.487020] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   35.558410] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   35.560110] [pid=1][Init][INFO][init_cmds.c:99]Sync exec: /system/bin/chown
+[   38.024968] [pid=1][Init][INFO][init_cmds.c:112]Sync exec: /system/bin/chown result 0 1
+[   38.032448] [pid=1][Init][INFO][init_service_manager.c:1084]Start service wallpaper_service
+[   38.036750] [pid=1][Init][INFO][init_common_service.c:385]Service wallpaper_service(pid 282) started
+[   38.109222] [pid=282][Init][INFO][init_service.c:125]Set service wallpaper_service token id 671590476 ok.
+[   38.146838] [pid=282][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   38.150446] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   38.174592] [pid=282][Init][INFO][init_service.c:94] /system/profile/wallpaper_service.xml
+[   38.180042] [pid=282][Init][INFO][init_service.c:94] (null)
+[   38.201250] [pid=1][Init][INFO][init_cmds.c:99]Sync exec: /system/bin/chown
+[   40.544260] [pid=1][Init][INFO][init_cmds.c:112]Sync exec: /system/bin/chown result 0 1
+[   40.545726] [pid=1][Init][INFO][init_service_manager.c:1084]Start service time_service
+[   40.549894] [pid=1][Init][INFO][init_common_service.c:385]Service time_service(pid 297) started
+[   40.563588] [pid=1][Init][ERROR][init_common_cmds.c:338]Create directory '/config/usb_gadget/g1/functions/mass_storage.usb' failed, err=2.
+[   40.574106] [pid=297][Init][INFO][init_service.c:125]Set service time_service token id 671806618 ok.
+[   40.665284] [pid=297][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   40.698928] [pid=297][Init][INFO][init_service.c:94] /system/profile/time_service.xml
+[   40.701850] [pid=297][Init][INFO][init_service.c:94] (null)
+[   40.710494] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   40.759226] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   40.813730] [pid=1][Init][INFO][init_service_manager.c:1084]Start service audio_policy
+[   40.845150] [pid=1][Init][INFO][init_common_service.c:385]Service audio_policy(pid 301) started
+[   40.934534] [pid=301][Init][INFO][init_service.c:125]Set service audio_policy token id 671937142 ok.
+[   40.941978] [pid=1][Init][INFO][init.c:271]boot job post-init finish diff 33227370 us.
+[   40.963430] [pid=301][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   41.012784] [pid=301][Init][INFO][init_service.c:94] /system/profile/audio_policy.xml
+[   41.014872] [pid=301][Init][INFO][init_service.c:94] (null)
+[   41.179072] [pid=1][Init][ERROR][init_signal_handler.c:46]Child process watchdog_service(pid 168) exit with code : 1
+[   41.354354] [pid=1][Init][INFO][init_signal_handler.c:51]SigHandler, SIGCHLD received, Service:watchdog_service pid:168 uid:1100 status:256.
+[   41.391002] [pid=1][Init][ERROR][init_signal_handler.c:46]Child process hiview(pid 179) exit with code : 255
+[   41.407416] [pid=1][Init][INFO][init_signal_handler.c:51]SigHandler, SIGCHLD received, Service:hiview pid:179 uid:1100 status:65280.
+[   41.459056] [pid=1][Init][ERROR][init_signal_handler.c:46]Child process Unknown(pid 213) exit with code : 0
+[   41.472354] [pid=1][Init][INFO][init_signal_handler.c:51]SigHandler, SIGCHLD received, Service:Unknown pid:213 uid:1100 status:0.
+[   41.475578] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-000 start.
+[   41.524908] [pid=1][Init][INFO][init_service_manager.c:1084]Start service fingerprint_auth_host
+[   41.529256] [pid=1][Init][INFO][init_common_service.c:385]Service fingerprint_auth_host(pid 302) started
+[   41.602648] [pid=1][Init][INFO][init_service_manager.c:1084]Start service user_auth_host
+[   41.620794] [pid=302][Init][INFO][init_service.c:125]Set service fingerprint_auth_host token id 671786155 ok.
+[   41.666504] [pid=302][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   41.670790] [pid=1][Init][INFO][init_common_service.c:385]Service user_auth_host(pid 305) started
+[   41.687922] [pid=302][Init][INFO][init_service.c:94] 18
+[   41.690348] [pid=302][Init][INFO][init_service.c:94] fingerprint_auth_host
+[   41.692148] [pid=302][Init][INFO][init_service.c:94] (null)
+[   41.715802] [pid=1][Init][INFO][init_service_manager.c:1084]Start service pin_auth_host
+[   41.720214] [pid=305][Init][INFO][init_service.c:125]Set service user_auth_host token id 671348928 ok.
+[   41.744292] [pid=305][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   41.810110] [pid=306][Init][INFO][init_service.c:125]Set service pin_auth_host token id 671404269 ok.
+[   41.830800] [pid=305][Init][INFO][init_service.c:94] 17
+[   41.848816] [pid=305][Init][INFO][init_service.c:94] user_auth_host
+[   41.849470] [pid=305][Init][INFO][init_service.c:94] (null)
+[   41.863648] [pid=306][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   41.909342] [pid=306][Init][INFO][init_service.c:94] 16
+[   41.911346] [pid=306][Init][INFO][init_service.c:94] pin_auth_host
+[   41.915446] [pid=306][Init][INFO][init_service.c:94] (null)
+[   42.057790] [pid=1][Init][INFO][init_common_service.c:385]Service pin_auth_host(pid 306) started
+[   42.111368] [pid=1][Init][INFO][init_service_manager.c:1084]Start service face_auth_host
+[   42.147500] [pid=311][Init][INFO][init_service.c:125]Set service face_auth_host token id 671516319 ok.
+[   42.149264] [pid=1][Init][INFO][init_common_service.c:385]Service face_auth_host(pid 311) started
+[   42.213264] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-000 finish diff 737688 us.
+[   42.217716] [pid=311][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   42.240904] [pid=1][PARAM][INFO][param_service.c:175]Handle set param msgId 1 pid 175 key: bootevent.samgr.ready
+[   42.248212] [pid=311][Init][INFO][init_service.c:94] 15
+[   42.266296] [pid=311][Init][INFO][init_service.c:94] face_auth_host
+[   42.266966] [pid=311][Init][INFO][init_service.c:94] (null)
+[   42.356728] [pid=1][PARAM][INFO][param_service.c:175]Handle set param msgId 1 pid 177 key: bootevent.param_watcher.started
+[   42.387150] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-001 start.
+[   42.438360] [pid=1][Init][INFO][init_service_manager.c:1084]Start service codec_host
+[   42.472278] [pid=1][Init][INFO][init_common_service.c:385]Service codec_host(pid 315) started
+[   42.497982] [pid=315][Init][INFO][init_service.c:125]Set service codec_host token id 671327808 ok.
+[   42.504638] [pid=1][Init][INFO][init_service_manager.c:1084]Start service light_host
+[   42.553410] [pid=315][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   42.592496] [pid=315][Init][INFO][init_service.c:94] 13
+[   42.596434] [pid=315][Init][INFO][init_service.c:94] codec_host
+[   42.601848] [pid=315][Init][INFO][init_service.c:94] (null)
+[   42.709762] [pid=1][Init][INFO][init_common_service.c:385]Service light_host(pid 317) started
+[   42.745314] [pid=317][Init][INFO][init_service.c:125]Set service light_host token id 671741371 ok.
+[   42.764782] [pid=1][Init][INFO][init_service_manager.c:1084]Start service vibrator_host
+[   42.790392] [pid=317][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   42.840250] [pid=317][Init][INFO][init_service.c:94] 12
+[   42.842160] [pid=317][Init][INFO][init_service.c:94] light_host
+[   42.843056] [pid=317][Init][INFO][init_service.c:94] (null)
+[   42.873994] [pid=1][Init][INFO][init_common_service.c:385]Service vibrator_host(pid 318) started
+[   42.921386] [pid=318][Init][INFO][init_service.c:125]Set service vibrator_host token id 671385977 ok.
+[   42.952054] [pid=1][Init][INFO][init_service_manager.c:1084]Start service sensor_host
+[   42.964090] [pid=318][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   42.965538] [pid=318][Init][INFO][init_service.c:94] 11
+[   43.000916] [pid=1][Init][INFO][init_common_service.c:385]Service sensor_host(pid 319) started
+[   43.043252] [pid=318][Init][INFO][init_service.c:94] vibrator_host
+[   43.058400] [pid=318][Init][INFO][init_service.c:94] (null)
+[   43.069470] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-001 finish diff 682244 us.
+[   43.080984] [pid=319][Init][INFO][init_service.c:125]Set service sensor_host token id 672087073 ok.
+[   43.108602] [pid=1][PARAM][INFO][param_service.c:175]Handle set param msgId 1 pid 173 key: bootevent.appspawn.started
+[   43.118150] [pid=319][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   43.174152] [pid=319][Init][INFO][init_service.c:94] 10
+[   43.175908] [pid=319][Init][INFO][init_service.c:94] sensor_host
+[   43.177220] [pid=319][Init][INFO][init_service.c:94] (null)
+[   43.213640] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-002 start.
+[   43.214528] [pid=1][Init][INFO][init_service_manager.c:1084]Start service input_user_host
+[   43.282364] [pid=1][Init][INFO][init_common_service.c:385]Service input_user_host(pid 320) started
+[   43.328392] [pid=1][Init][INFO][init_service_manager.c:1084]Start service camera_host
+[   43.341500] [pid=320][Init][INFO][init_service.c:125]Set service input_user_host token id 671210986 ok.
+[   43.372330] [pid=1][Init][INFO][init_common_service.c:385]Service camera_host(pid 321) started
+[   43.386122] [pid=320][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   43.401600] [pid=321][Init][INFO][init_service.c:125]Set service camera_host token id 671998182 ok.
+[   43.419554] [pid=1][Init][INFO][init_service_manager.c:1084]Start service audio_hdi_server_host
+[   43.430274] [pid=320][Init][INFO][init_service.c:94] 8
+[   43.432392] [pid=320][Init][INFO][init_service.c:94] input_user_host
+[   43.446150] [pid=321][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   43.482894] [pid=1][Init][INFO][init_common_service.c:385]Service audio_hdi_server_host(pid 322) started
+[   43.488332] [pid=320][Init][INFO][init_service.c:94] (null)
+[   43.509778] [pid=322][Init][INFO][init_service.c:125]Set service audio_hdi_server_host token id 671764390 ok.
+[   43.511628] [pid=321][Init][INFO][init_service.c:94] 7
+[   43.514230] [pid=321][Init][INFO][init_service.c:94] camera_host
+[   43.516188] [pid=321][Init][INFO][init_service.c:94] (null)
+[   43.526618] [pid=1][Init][INFO][init_service_manager.c:1084]Start service wifi_host
+[   43.577046] [pid=322][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   43.625442] [pid=322][Init][INFO][init_service.c:94] 6
+[   43.627566] [pid=322][Init][INFO][init_service.c:94] audio_hdi_server_host
+[   43.628642] [pid=322][Init][INFO][init_service.c:94] (null)
+[   43.659826] [pid=1][Init][INFO][init_common_service.c:385]Service wifi_host(pid 324) started
+[   43.706982] [pid=324][Init][INFO][init_service.c:125]Set service wifi_host token id 671639341 ok.
+[   43.728628] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-002 finish diff 515126 us.
+[   43.801842] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-003 start.
+[   43.812672] [pid=324][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   43.813770] [pid=324][Init][INFO][init_service.c:94] 5
+[   43.814684] [pid=324][Init][INFO][init_service.c:94] wifi_host
+[   43.851670] [pid=1][Init][INFO][init_service_manager.c:1084]Start service power_host
+[   43.854922] [pid=1][Init][INFO][init_common_service.c:385]Service power_host(pid 326) started
+[   43.887044] [pid=324][Init][INFO][init_service.c:94] (null)
+[   43.897552] [pid=326][Init][INFO][init_service.c:125]Set service power_host token id 671981723 ok.
+[   43.915266] [pid=1][Init][INFO][init_service_manager.c:1084]Start service usb_host
+[   43.954676] [pid=326][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   43.984382] [pid=1][Init][INFO][init_common_service.c:385]Service usb_host(pid 327) started
+[   44.018742] [pid=326][Init][INFO][init_service.c:94] 4
+[   44.020792] [pid=326][Init][INFO][init_service.c:94] power_host
+[   44.027114] [pid=326][Init][INFO][init_service.c:94] (null)
+[   44.064364] [pid=327][Init][INFO][init_service.c:125]Set service usb_host token id 671102113 ok.
+[   44.074048] [pid=1][Init][INFO][init_service_manager.c:1084]Start service blue_host
+[   44.089148] [pid=327][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   44.250714] [pid=1][Init][INFO][init_common_service.c:385]Service blue_host(pid 328) started
+[   44.280374] [pid=327][Init][INFO][init_service.c:94] 3
+[   44.283606] [pid=327][Init][INFO][init_service.c:94] usb_host
+[   44.317842] [pid=327][Init][INFO][init_service.c:94] (null)
+[   44.339994] [pid=1][Init][INFO][init_service_manager.c:1084]Start service disp_gralloc_host
+[   44.341660] [pid=328][Init][INFO][init_service.c:125]Set service blue_host token id 672032181 ok.
+[   44.366896] [pid=328][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   44.431046] [pid=328][Init][INFO][init_service.c:94] 1
+[   44.446280] [pid=331][Init][INFO][init_service.c:125]Set service disp_gralloc_host token id 672063012 ok.
+[   44.455948] [pid=1][Init][INFO][init_common_service.c:385]Service disp_gralloc_host(pid 331) started
+[   44.478420] [pid=328][Init][INFO][init_service.c:94] blue_host
+[   44.485522] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-003 finish diff 683879 us.
+[   44.507740] [pid=328][Init][INFO][init_service.c:94] (null)
+[   44.538192] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-004 start.
+[   44.538966] [pid=1][Init][INFO][init_service_manager.c:1084]Start service time_service
+[   44.566916] [pid=331][Init][INFO][init_service.c:91]exec service /vendor/bin/hdf_devhost
+[   44.568610] [pid=331][Init][INFO][init_service.c:94] 9
+[   44.569824] [pid=331][Init][INFO][init_service.c:94] disp_gralloc_host
+[   44.570552] [pid=331][Init][INFO][init_service.c:94] (null)
+[   44.589186] [pid=1][Init][ERROR][init_common_service.c:353]Service time_service already started
+[   44.591362] [pid=1][Init][INFO][init_service_manager.c:1084]Start service wifi_hal_service
+[   44.668634] [pid=1][Init][INFO][init_common_service.c:385]Service wifi_hal_service(pid 332) started
+[   44.686204] [pid=1][Init][INFO][init_service_manager.c:1084]Start service locationhub
+[   44.689830] [pid=332][Init][INFO][init_service.c:125]Set service wifi_hal_service token id 672083440 ok.
+[   44.774496] [pid=1][Init][ERROR][init_common_service.c:353]Service locationhub already started
+[   44.810252] [pid=332][Init][INFO][init_service.c:91]exec service /system/bin/wifi_hal_service
+[   44.823586] [pid=1][Init][INFO][init_service_manager.c:1084]Start service device_usage_stats_service
+[   44.826146] [pid=1][Init][ERROR][init_common_service.c:353]Service device_usage_stats_service already started
+[   44.844270] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-004 finish diff 306549 us.
+[   44.924440] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-005 start.
+[   44.973538] [pid=1][Init][INFO][init_service_manager.c:1084]Start service pasteboard_service
+[   44.976988] [pid=1][Init][INFO][init_common_service.c:385]Service pasteboard_service(pid 333) started
+[   45.043040] [pid=332][Init][INFO][init_service.c:94] (null)
+[   45.087918] [pid=333][Init][INFO][init_service.c:125]Set service pasteboard_service token id 671626140 ok.
+[   45.229580] [pid=1][Init][INFO][init_service_manager.c:1084]Start service wallpaper_service
+[   45.258946] [pid=1][Init][ERROR][init_common_service.c:353]Service wallpaper_service already started
+[   45.261880] [pid=1][Init][INFO][init_service_manager.c:1084]Start service wifi_manager_service
+[   45.332008] [pid=333][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   45.341094] [pid=1][Init][INFO][init_common_service.c:385]Service wifi_manager_service(pid 334) started
+[   45.352638] [pid=334][Init][INFO][init_service.c:125]Set service wifi_manager_service token id 672082438 ok.
+[   45.408854] [pid=1][Init][INFO][init_service_manager.c:1084]Start service installs
+[   45.452160] [pid=333][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   45.457452] [pid=1][Init][INFO][init_common_service.c:385]Service installs(pid 335) started
+[   45.501662] [pid=335][Init][INFO][init_service.c:125]Set service installs token id 671365925 ok.
+[   45.510164] [pid=333][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   45.512306] [pid=333][Init][INFO][init_service.c:94] /system/profile/pasteboard_service.xml
+[   45.534140] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-005 finish diff 609736 us.
+[   45.554440] [pid=334][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   45.597428] [pid=335][Init][INFO][init_service.c:91]exec service /system/bin/installs
+[   45.599112] [pid=335][Init][INFO][init_service.c:94] (null)
+[   45.640862] [pid=333][Init][INFO][init_service.c:94] (null)
+[   45.648382] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-006 start.
+[   45.717590] [pid=1][Init][INFO][init_service_manager.c:1084]Start service camera_service
+[   45.733926] [pid=334][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   45.735320] [pid=334][Init][INFO][init_service.c:94] /system/profile/wifi_manager_service.xml
+[   45.736308] [pid=334][Init][INFO][init_service.c:94] (null)
+[   45.811178] [pid=1][Init][INFO][init_common_service.c:385]Service camera_service(pid 336) started
+[   45.941602] [pid=1][Init][INFO][init_service_manager.c:1084]Start service bluetooth_service
+[   46.018414] [pid=336][Init][INFO][init_service.c:125]Set service camera_service token id 671610222 ok.
+[   46.085462] [pid=1][Init][ERROR][init_common_service.c:353]Service bluetooth_service already started
+[   46.137022] [pid=336][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   46.138630] [pid=336][Init][INFO][init_service.c:94] /system/profile/camera_service.xml
+[   46.159394] [pid=1][Init][INFO][init_service_manager.c:1084]Start service accesstoken_service
+[   46.202816] [pid=1][Init][INFO][init_common_service.c:385]Service accesstoken_service(pid 339) started
+[   46.204354] [pid=336][Init][INFO][init_service.c:94] (null)
+[   46.269016] [pid=1][Init][INFO][init_service_manager.c:1084]Start service memmgrservice
+[   46.270284] [pid=1][Init][ERROR][init_common_service.c:353]Service memmgrservice already started
+[   46.297058] [pid=339][Init][INFO][init_service.c:125]Set service accesstoken_service token id 671643649 ok.
+[   46.385196] [pid=339][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   46.387786] [pid=339][Init][INFO][init_service.c:94] /system/profile/accesstoken_service.xml
+[   46.391796] [pid=339][Init][INFO][init_service.c:94] (null)
+[   46.512956] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-006 finish diff 720276 us.
+[   46.719100] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-007 start.
+[   46.721846] [pid=1][Init][INFO][init_service_manager.c:1084]Start service telephony_sa
+[   46.854496] [pid=1][Init][ERROR][init_common_service.c:353]Service telephony_sa already started
+[   46.937910] [pid=1][Init][INFO][init_service_manager.c:1084]Start service distributedfiledaemon
+[   46.941854] [pid=1][Init][INFO][init_common_service.c:385]Service distributedfiledaemon(pid 343) started
+[   47.137944] [pid=1][Init][INFO][init_service_manager.c:1084]Start service accountmgr
+[   47.164414] [pid=343][Init][INFO][init_service.c:125]Set service distributedfiledaemon token id 671564047 ok.
+[   47.294874] [pid=343][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   47.296242] [pid=343][Init][INFO][init_service.c:94] /system/profile/distributedfiledaemon.xml
+[   47.300066] [pid=343][Init][INFO][init_service.c:94] (null)
+[   47.566678] [pid=1][Init][INFO][init_common_service.c:385]Service accountmgr(pid 354) started
+[   47.624320] [pid=354][Init][INFO][init_service.c:125]Set service accountmgr token id 671201592 ok.
+[   47.716830] [pid=1][Init][INFO][init_service_manager.c:1084]Start service privacy_service
+[   48.017788] [pid=354][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   48.432432] [pid=354][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   48.477106] [pid=1][Init][INFO][init_common_service.c:385]Service privacy_service(pid 362) started
+[   48.504198] [pid=362][Init][INFO][init_service.c:125]Set service privacy_service token id 671406977 ok.
+[   48.536522] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-007 finish diff 1817410 us.
+[   48.563492] [pid=354][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   48.587428] [pid=362][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   48.588370] [pid=362][Init][INFO][init_service.c:94] /system/profile/privacy_service.xml
+[   48.589654] [pid=362][Init][INFO][init_service.c:94] (null)
+[   48.728504] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-008 start.
+[   48.776844] [pid=354][Init][ERROR][init_common_service.c:205]Failed to open /dev/cpuset/foreground/tasks.
+[   48.801774] [pid=1][Init][INFO][init_service_manager.c:1084]Start service resource_schedule_service
+[   48.804700] [pid=1][Init][ERROR][init_common_service.c:353]Service resource_schedule_service already started
+[   48.931408] [pid=354][Init][ERROR][init_common_service.c:205]Failed to open /dev/stune/foreground/tasks.
+[   48.943934] [pid=1][Init][INFO][init_service_manager.c:1084]Start service distributeddata
+[   49.020354] [pid=1][Init][INFO][init_common_service.c:385]Service distributeddata(pid 367) started
+[   49.038508] [pid=354][Init][ERROR][init_common_service.c:205]Failed to open /dev/blkio/foreground/tasks.
+[   49.148848] [pid=367][Init][INFO][init_service.c:125]Set service distributeddata token id 672000297 ok.
+[   49.151040] [pid=354][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   49.228476] [pid=1][Init][INFO][init_service_manager.c:1084]Start service edm_sa
+[   49.249824] [pid=354][Init][INFO][init_service.c:94] /system/profile/accountmgr.xml
+[   49.252010] [pid=354][Init][INFO][init_service.c:94] (null)
+[   49.360572] [pid=1][Init][ERROR][init_common_service.c:353]Service edm_sa already started
+[   49.363994] [pid=1][Init][INFO][init_service_manager.c:1084]Start service sensors
+[   49.493400] [pid=1][Init][INFO][init_common_service.c:385]Service sensors(pid 376) started
+[   49.571622] [pid=367][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   49.633436] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-008 finish diff 904688 us.
+[   49.669970] [pid=376][Init][INFO][init_service.c:125]Set service sensors token id 671367751 ok.
+[   49.675052] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-009 start.
+[   49.695066] [pid=367][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   49.724160] [pid=1][Init][INFO][init_service_manager.c:1084]Start service screenlock_server
+[   49.761178] [pid=367][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   49.802804] [pid=376][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   49.806912] [pid=1][Init][ERROR][init_common_service.c:353]Service screenlock_server already started
+[   49.809994] [pid=1][Init][INFO][init_service_manager.c:1084]Start service media_service
+[   49.867758] [pid=376][Init][INFO][init_service.c:94] /system/profile/sensors.xml
+[   49.869934] [pid=376][Init][INFO][init_service.c:94] (null)
+[   49.889090] [pid=1][Init][INFO][init_common_service.c:385]Service media_service(pid 377) started
+[   49.914664] [pid=367][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   49.978054] [pid=1][Init][INFO][init_service_manager.c:1084]Start service foundation
+[   49.990592] [pid=377][Init][INFO][init_service.c:125]Set service media_service token id 671425369 ok.
+[   49.993950] [pid=367][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   50.065530] [pid=367][Init][INFO][init_cmds.c:99]Sync exec: /system/bin/chmod
+[   50.113440] [pid=377][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   50.131806] [pid=1][Init][INFO][init_common_service.c:385]Service foundation(pid 379) started
+[   50.159082] [pid=377][Init][INFO][init_service.c:94] /system/profile/media_service.xml
+[   50.169628] [pid=379][Init][INFO][init_service.c:125]Set service foundation token id 671998955 ok.
+[   50.189794] [pid=377][Init][INFO][init_service.c:94] (null)
+[   50.206080] [pid=1][Init][INFO][init_service_manager.c:1084]Start service softbus_server
+[   50.304306] [pid=1][Init][INFO][init_common_service.c:385]Service softbus_server(pid 381) started
+[   50.320714] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   50.374936] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-009 finish diff 699860 us.
+[   50.389280] [pid=381][Init][INFO][init_service.c:125]Set service softbus_server token id 671404190 ok.
+[   50.393982] [pid=379][Init][ERROR][init_common_cmds.c:338]Create directory '/data/storage/el1/bundle' failed, err=2.
+[   50.444524] [pid=381][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   50.446712] [pid=379][Init][ERROR][init_common_cmds.c:338]Create directory '/data/storage/el2/base' failed, err=2.
+[   50.470102] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-010 start.
+[   50.487780] [pid=379][Init][ERROR][init_common_cmds.c:338]Create directory '/data/storage/el2/database' failed, err=2.
+[   50.523498] [pid=1][Init][INFO][init_service_manager.c:1084]Start service bootanimation
+[   50.525878] [pid=381][Init][INFO][init_service.c:94] /system/profile/softbus_server.xml
+[   50.528108] [pid=381][Init][INFO][init_service.c:94] (null)
+[   50.574954] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   50.587184] [pid=1][Init][INFO][init_common_service.c:385]Service bootanimation(pid 384) started
+[   50.716432] [pid=384][Init][INFO][init_service.c:125]Set service bootanimation token id 671943039 ok.
+[   50.729936] [pid=1][Init][INFO][init_service_manager.c:1084]Start service render_service
+[   50.784746] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   50.795430] [pid=384][Init][INFO][init_service.c:91]exec service /system/bin/bootanimation
+[   50.797900] [pid=384][Init][INFO][init_service.c:94] (null)
+[   50.821290] [pid=1][Init][INFO][init_common_service.c:385]Service render_service(pid 386) started
+[   50.955796] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   50.962170] [pid=386][Init][INFO][init_service.c:125]Set service render_service token id 671764777 ok.
+[   51.073644] [pid=1][Init][INFO][init_service_manager.c:1084]Start service hidumper_service
+[   51.117922] [pid=386][Init][INFO][init_service.c:91]exec service /system/bin/render_service
+[   51.123700] [pid=386][Init][INFO][init_service.c:94] (null)
+[   51.353786] [pid=1][Init][INFO][init_common_service.c:385]Service hidumper_service(pid 389) started
+[   51.466346] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   51.995718] [pid=1][Init][INFO][init_service_manager.c:1084]Start service netmanager
+[   52.045326] [pid=389][Init][INFO][init_service.c:125]Set service hidumper_service token id 672124479 ok.
+[   52.288796] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   52.355848] [pid=1][Init][ERROR][init_common_service.c:353]Service netmanager already started
+[   52.363634] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-010 finish diff 1893544 us.
+[   52.758766] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-011 start.
+[   52.866276] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   53.053976] [pid=1][Init][INFO][init_service_manager.c:1084]Start service netsysnative
+[   53.117958] express_cdev file ffff80001002d000 open by 386 386
+[   53.797972] express_cdev file ffff800010055000 open by 386 386
+[   53.801396] express_cdev release gbuffer 0 ptr ffff800010055000 has_sent 0 device_id 0 tid 386 pid 386
+[   53.802184] express_cdev relase ok ffff800010055000
+[   53.809492] express_cdev file ffff80001005d000 open by 386 386
+[   53.879024] express_cdev file ffff800010065000 open by 386 386
+[   54.035282] [pid=389][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   54.044676] [pid=1][Init][INFO][init_common_service.c:385]Service netsysnative(pid 401) started
+[   54.089816] express_cdev file ffff80001006d000 open by 386 386
+[   54.091164] express_cdev gbuffer_id 0 create_gbuffer_vmem 28672
+[   54.092650] express_cdev gbuffer_id 0 info ffff80001006d000 tid 386 pid 386 mm:(____ptrval____) mmap size 28672 page_num 7 pgoff 0 prot 29273397577912259 addr ffff8000102b5000 start ffff9238f000
+[   54.255106] [pid=1][Init][INFO][init_service_manager.c:1084]Start service inputmethod_service
+[   54.265708] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   54.432908] [pid=401][Init][INFO][init_service.c:125]Set service netsysnative token id 671575189 ok.
+[   54.533196] [pid=401][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   54.573936] [pid=379][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   54.633712] [pid=389][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   54.665988] [pid=379][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   54.667330] [pid=379][Init][INFO][init_service.c:94] /system/profile/foundation.xml
+[   54.672064] [pid=379][Init][INFO][init_service.c:94] (null)
+[   54.943530] [pid=401][Init][INFO][init_service.c:94] /system/profile/netsysnative.xml
+[   54.944256] [pid=401][Init][INFO][init_service.c:94] (null)
+[   55.236108] [pid=1][Init][INFO][init_common_service.c:385]Service inputmethod_service(pid 407) started
+[   55.397486] [pid=389][Init][INFO][init_service.c:94] /system/profile/hidumper_service.xml
+[   55.398946] [pid=389][Init][INFO][init_service.c:94] (null)
+[   55.496506] [pid=1][Init][INFO][init_service_manager.c:1084]Start service msdp_sa
+[   55.497614] [pid=1][Init][ERROR][init_common_service.c:353]Service msdp_sa already started
+[   55.627604] [pid=407][Init][INFO][init_service.c:125]Set service inputmethod_service token id 671168954 ok.
+[   55.811020] [pid=1][Init][INFO][init_service_manager.c:1084]Start service ui_service
+[   56.413874] [pid=1][Init][INFO][init_common_service.c:385]Service ui_service(pid 415) started
+[   56.445506] [pid=407][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   56.447268] [pid=407][Init][INFO][init_service.c:94] /system/profile/inputmethod_service.xml
+[   56.627356] [pid=415][Init][INFO][init_service.c:125]Set service ui_service token id 671668418 ok.
+[   56.670464] [pid=407][Init][INFO][init_service.c:94] (null)
+[   56.769208] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-011 finish diff 3864050 us.
+[   56.772028] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-012 start.
+[   56.865614] [pid=415][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   57.022912] [pid=1][Init][INFO][init_service_manager.c:1084]Start service distributedsched
+[   57.048806] [pid=415][Init][INFO][init_service.c:94] /system/profile/ui_service.xml
+[   57.133652] [pid=415][Init][INFO][init_service.c:94] (null)
+[   57.148690] [pid=1][Init][INFO][init_common_service.c:385]Service distributedsched(pid 423) started
+[   57.281708] [pid=1][Init][INFO][init_service_manager.c:1084]Start service av_session
+[   57.386240] [pid=423][Init][INFO][init_service.c:125]Set service distributedsched token id 671945697 ok.
+[   57.547746] [pid=1][Init][INFO][init_common_service.c:385]Service av_session(pid 427) started
+[   57.752922] [pid=427][Init][INFO][init_service.c:125]Set service av_session token id 671319896 ok.
+[   58.011856] [pid=423][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   58.016044] [pid=1][Init][INFO][init_service_manager.c:1084]Start service faultloggerd
+[   58.021316] [pid=427][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   58.022490] [pid=427][Init][INFO][init_service.c:94] /system/profile/av_session.xml
+[   58.023342] [pid=427][Init][INFO][init_service.c:94] (null)
+[   58.118920] [pid=423][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   58.121348] [pid=1][Init][INFO][init_common_service.c:385]Service faultloggerd(pid 429) started
+[   58.243058] [pid=429][Init][INFO][init_service.c:125]Set service faultloggerd token id 671727237 ok.
+[   58.252926] random: crng init done
+[   58.254564] random: 7 urandom warning(s) missed due to ratelimiting
+[   58.349712] [pid=423][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   58.399826] [pid=1][Init][INFO][init_service_manager.c:1084]Start service bgtaskmgr_service
+[   58.485952] [pid=1][Init][ERROR][init_common_service.c:353]Service bgtaskmgr_service already started
+[   58.543656] [pid=423][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   58.544668] [pid=423][Init][INFO][init_service.c:94] /system/profile/distributedsched.xml
+[   58.572070] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-012 finish diff 1799840 us.
+[   58.680182] [pid=423][Init][INFO][init_service.c:94] (null)
+[   58.780194] [pid=429][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   58.900408] [pid=1][Init][INFO][init.c:266]boot job boot-service:service-2-013 start.
+[   59.003308] [pid=1][Init][INFO][init_service_manager.c:1084]Start service accessibility
+[   59.004552] [pid=1][Init][ERROR][init_common_service.c:353]Service accessibility already started
+[   59.010282] [pid=429][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   59.108494] [pid=1][Init][INFO][init_service_manager.c:1084]Start service deviceauth_service
+[   59.110060] [pid=1][Init][ERROR][init_common_service.c:353]Service deviceauth_service already started
+[   59.226176] [pid=429][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   59.290800] [pid=1][Init][INFO][init_service_manager.c:1084]Start service useriam
+[   59.413758] [pid=429][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   59.457330] [pid=1][Init][INFO][init_common_service.c:385]Service useriam(pid 430) started
+[   59.614484] [pid=429][Init][INFO][init_service_socket.c:142]CreateSocket faultloggerd.server success
+[   59.625534] [pid=430][Init][INFO][init_service.c:125]Set service useriam token id 672080907 ok.
+[   59.759886] [pid=1][Init][INFO][init.c:271]boot job boot-service:service-2-013 finish diff 859735 us.
+[   59.956998] [pid=429][Init][INFO][init_service.c:91]exec service /system/bin/faultloggerd
+[   60.095192] [pid=429][Init][INFO][init_service.c:94] (null)
+[   60.161110] [pid=430][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   60.381844] [pid=430][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   60.382704] [pid=430][Init][INFO][init_service.c:94] /system/profile/useriam.xml
+[   60.616646] [pid=430][Init][INFO][init_service.c:94] (null)
+[   60.869310] [I/kevent] HdfKeventDriverOpen:kevent usecount=1
+[   61.907112] [pid=1][Init][INFO][init_service_manager.c:1084]Start service hdcd
+[   62.116588] [pid=1][Init][INFO][init_common_service.c:385]Service hdcd(pid 443) started
+[   62.230818] [pid=443][Init][INFO][init_service.c:125]Set service hdcd token id 806242895 ok.
+[   62.353138] [pid=443][Init][INFO][init_service_socket.c:142]CreateSocket hdcd success
+[   62.592834] [pid=367][Init][INFO][init_cmds.c:112]Sync exec: /system/bin/chmod result 0 1
+[   62.608408] [pid=367][Init][INFO][init_cmds.c:99]Sync exec: /system/bin/chown
+[   62.942954] [pid=443][Init][INFO][init_service.c:91]exec service /system/bin/hdcd
+[   62.944754] [pid=443][Init][INFO][init_service.c:94] (null)
+[   62.984706] [I/USB_PNP_NOTIFY] UsbPnpNotifyDispatch: received cmd = 20
+[   63.189906] [I/USB_PNP_NOTIFY] UsbPnpNotifyDispatch: received cmd = 42
+[   64.279004] express_cdev auto_free_timer free ffff800010055000
+[   64.313244] [pid=1][Init][INFO][init_service_manager.c:1084]Start service hdcd
+[   64.446094] [pid=1][Init][ERROR][init_common_service.c:353]Service hdcd already started
+[   68.201702] [I/USB_PNP_NOTIFY] UsbPnpNotifyDispatch: received cmd = 20
+[   68.271042] [I/USB_PNP_NOTIFY] UsbPnpNotifyDispatch: received cmd = 42
+[   69.028340] [I/kevent] HdfKeventDriverOpen:kevent usecount=2
+[   69.964930] [pid=367][Init][INFO][init_cmds.c:112]Sync exec: /system/bin/chown result 0 1
+[   69.966226] [pid=367][Init][INFO][init_cmds.c:99]Sync exec: /system/bin/chmod
+[   72.111286] [pid=167][ueventd][INFO][ueventd_main.c:38]poll ueventd socket timeout, ueventd exit
+[   72.116480] [pid=1][Init][ERROR][init_signal_handler.c:46]Child process ueventd(pid 167) exit with code : 0
+[   72.118068] [pid=1][Init][INFO][init_signal_handler.c:51]SigHandler, SIGCHLD received, Service:ueventd pid:167 uid:1004 status:0.
+[   75.056540] [pid=367][Init][INFO][init_cmds.c:112]Sync exec: /system/bin/chmod result 0 1
+[   75.253302] [pid=367][Init][ERROR][init_common_service.c:205]Failed to open /dev/stune/foreground/tasks.
+[   75.338314] [pid=367][Init][ERROR][init_common_service.c:205]Failed to open /dev/blkio/foreground/tasks.
+[   75.375736] [pid=367][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   75.426028] [pid=367][Init][INFO][init_service.c:94] /system/profile/distributeddata.xml
+[   75.465312] [pid=367][Init][INFO][init_service.c:94] (null)
+[   81.874086] purgemm: Sum: 0 pined in 0 pages
+[   82.182186] purgemm: Sum: 0 pined in 0 pages
+[   94.252802] [pid=1][PARAM][INFO][param_service.c:175]Handle set param msgId 1 pid 430 key: bootevent.useriam.fwkready
+[   94.595464] [pid=1][PARAM][INFO][param_service.c:175]Handle set param msgId 2 pid 430 key: bootevent.useriam.fwkready
+[   95.211890] [pid=1][Init][INFO][fscrypt_control.c:391]Fscrypt have not enabled
+[   95.245474] [pid=1][Init][INFO][init_service_manager.c:1084]Start service pinauth
+[   95.352736] [pid=1][Init][INFO][init_common_service.c:385]Service pinauth(pid 629) started
+[   95.491784] [pid=629][Init][INFO][init_service.c:125]Set service pinauth token id 671599009 ok.
+[   95.769454] [pid=629][Init][INFO][init_service.c:91]exec service /system/bin/sa_main
+[   95.786592] [pid=629][Init][INFO][init_service.c:94] /system/profile/pinauth.xml

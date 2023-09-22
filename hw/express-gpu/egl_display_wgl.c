@@ -1,4 +1,5 @@
-// #define STD_DEBUG_LOG
+#ifdef _WIN32
+#define STD_DEBUG_LOG ;
 #include "hw/express-gpu/egl_display_wgl.h"
 #include "hw/teleport-express/express_log.h"
 #include <wingdi.h>
@@ -289,3 +290,4 @@ Egl_Display_WGL default_wgl_display;
 // {
 //     return DefWindowProc(hwnd, u_msg, w_param, l_param);
 // }
+#endif
