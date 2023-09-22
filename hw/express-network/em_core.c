@@ -1437,12 +1437,8 @@ enableGoldfishPhysicalChannelConfigUnsol( const char*  cmd, Express_Modem *modem
 static const char*
 handleRadioPower( const char*  cmd, Express_Modem *modem )
 {
-    int fun = -1, rst = -1;
-    sscanf(cmd, "+CFUN=%d,%d", &fun, &rst);
-
-    if (rst != 0) {
-        goto CFUN_error;
-    }
+    int fun = -1;
+    sscanf(cmd, "+CFUN=%d", &fun);
 
     if (fun == 0) {
         /* turn radio off */
