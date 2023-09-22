@@ -9,7 +9,14 @@
 #include "glad/glad.h"
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/express_gpu.h"
+#include "hw/teleport-express/express_event.h"
 
+#ifdef __APPLE__
+#define max(a, b)                       \
+  (((a) > (b)) ? (a) : (b))
+#define min(a, b)                       \
+  (((a) < (b)) ? (a) : (b))
+#endif
 void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
 {
     GLuint draw_fbo0 = ((Opengl_Context *)context)->draw_fbo0;

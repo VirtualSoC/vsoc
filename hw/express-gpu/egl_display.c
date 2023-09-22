@@ -2,6 +2,7 @@
 
 Egl_Display *default_egl_display;
 
+#ifdef __WIN32
 /**
  * @brief 初始化Egl_Display
  *
@@ -42,6 +43,7 @@ void init_configs(Egl_Display *display)
     add_window_independent_config(display, EGL_STENCIL_SIZE, stencil_vals, NUM_STENCILE_VAL);
     add_window_independent_config(display, EGL_SAMPLES, sample_vals, NUM_SAMPLE_VAL);
 }
+#endif
 
 EGLBoolean add_config(Egl_Display *display, eglConfig *config)
 {

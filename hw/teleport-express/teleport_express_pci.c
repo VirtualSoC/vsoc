@@ -55,6 +55,8 @@ static Property teleport_express_base_properties[] = {
 
     DEFINE_PROP_BOOL("shader_binary", Teleport_Express_PCI, open_shader_binary, true),
 
+    DEFINE_PROP_STRING("ruim_file", Teleport_Express_PCI, ruim_file),
+
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -293,6 +295,8 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     express_display_switch_open = express_pci->display_switch_open;
 
     express_gpu_open_shader_binary = express_pci->open_shader_binary;
+
+    express_ruim_file = express_pci->ruim_file;
 
     if (local_error)
     {

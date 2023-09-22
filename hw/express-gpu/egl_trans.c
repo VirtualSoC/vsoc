@@ -21,6 +21,7 @@
 #include "hw/express-gpu/express_sync.h"
 
 void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
+
 {
     Render_Thread_Context *egl_context = (Render_Thread_Context *)context;
 

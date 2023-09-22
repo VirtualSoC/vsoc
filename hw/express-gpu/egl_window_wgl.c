@@ -1,3 +1,4 @@
+#ifdef _WIN32
 // #define STD_DEBUG_LOG
 
 #include <glib.h>
@@ -234,3 +235,4 @@ void egl_destroyContext(void *context)
         express_printf("destroy window ok %lld\n", g_get_real_time() - t);
     }
 }
+#endif

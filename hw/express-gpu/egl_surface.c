@@ -17,6 +17,7 @@
 #include "hw/express-gpu/express_gpu_render.h"
 #include "hw/express-gpu/express_gpu.h"
 #include "hw/express-gpu/glv3_resource.h"
+#include "hw/teleport-express/express_event.h"
 
 Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height, int surface_type);
 
@@ -58,7 +59,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     connect_gbuffer_to_surface(next_draw_gbuffer, surface);
 
     GLenum attachments[] = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMENT};
-    glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 3, attachments);
+    //glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 3, attachments);
 
     surface->gbuffer = next_draw_gbuffer;
 
@@ -789,7 +790,12 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     // creater_window等于空意味着底下各种资源之前都没申请过，因此需要申请
     Graphic_Buffer *gbuffer = g_malloc0(sizeof(Graphic_Buffer));
 
-    // gbuffer->writing_ok_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+// #ifdef _WIN32
+//     gbuffer->writing_ok_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+// #else
+//     gbuffer->writing_ok_event = create_event(0, 0);
+// #endif
+
     gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
     ;
     gbuffer->usage_type = GBUFFER_TYPE_WINDOW;
@@ -1099,6 +1105,12 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
     }
 
     glFlush();
+
+// #ifdef _WIN32
+//     CloseHandle(gbuffer->writing_ok_event);
+// #else
+//     delete_event(gbuffer->writing_ok_event);
+// #endif
 
     g_free(gbuffer);
 }

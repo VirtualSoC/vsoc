@@ -1,8 +1,9 @@
 
 #include "hw/express-gpu/device_interface_window.h"
+#include "hw/express-gpu/cimgui/cimgui.h"
 
 #define TIMER_LOG
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/express-sensor/express_battery.h"
@@ -10,6 +11,15 @@
 #include "hw/express-sensor/express_gyro.h"
 #include "hw/express-sensor/express_gps.h"
 #include "hw/express-sensor/express_mic.h"
+#include "hw/express-network/express_modem.h"
+
+#ifdef __APPLE__
+#include <dispatch/dispatch.h>
+#define THREAD_CONTROL_BEGIN \
+dispatch_sync(dispatch_get_main_queue(), ^{ 
+#define THREAD_CONTROL_END \
+}); 
+#endif
 
 #define IM_COL32_R_SHIFT 0
 #define IM_COL32_G_SHIFT 8
@@ -136,6 +146,33 @@ const char *battery_status_name[] = {
     "FULL",
 };
 
+// EXPRESS_MODEM_SIGNAL_QUALITY
+const char *modem_signal_quality[] = {
+    "NONE",
+    "POOR",
+    "MODERATE",
+    "GOOD",
+    "GREAT"
+};
+
+const char *modem_data_network_type[] = {
+    "UNKNOWN",
+    "GPRS",
+    "EDGE",
+    "UMTS",
+    "LTE",
+    "NR"
+};
+
+const char *modem_registration_type[] = {
+    "UNREGISTERED",
+    "HOME",
+    "SEARCHING",
+    "DENIED",
+    "UNKNOWN",
+    "ROAMING"
+};
+
 static Magnetic_Data cur_mag = {.scale_x = 0, .scale_y = 0, .scale_z = 0, .x = 0, .y = 0, .z = 0};
 static Light_Data cur_light = {.scale = 0, .input = 0};
 static ImVec2 window_size;
@@ -144,7 +181,7 @@ GLFWwindow *window = NULL;
 
 void handle_battery_change(int property, int value)
 {
-    LOGI("Device_interface::current_battery: %d", value);
+    printf("Device_interface::current_battery: %d\n", value);
 
     express_battery_status_changed(property, value);
     sync_express_battery_status();
@@ -163,7 +200,7 @@ static void handle_mic_change(bool value)
 
 void handle_accelerometer_change(int property, int value)
 {
-    LOGI("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d", cur_acc.scale, cur_acc.x, cur_acc.y, cur_acc.z);
+    printf("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", cur_acc.scale, cur_acc.x, cur_acc.y, cur_acc.z);
 
     express_accel_status_changed(property, value);
     sync_express_accel_status();
@@ -171,26 +208,32 @@ void handle_accelerometer_change(int property, int value)
 
 void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, int y, int z)
 {
-    LOGI("Device_interface::magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d", scale_x, scale_y, scale_z, x, y, z);
+    printf("Device_interface::magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d\n", scale_x, scale_y, scale_z, x, y, z);
 }
 
 void handle_light_change(float scale, int input)
 {
-    LOGI("Device_interface::light scale: %.2f, input: %d", scale, input);
+    printf("Device_interface::light scale: %.2f, input: %d\n", scale, input);
 }
 
 void handle_gyroscope_change(int property, int value)
 {
-    LOGI("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d", cur_gyro.scale, cur_gyro.x, cur_gyro.y, cur_gyro.z);
+    printf("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", cur_gyro.scale, cur_gyro.x, cur_gyro.y, cur_gyro.z);
     express_gyro_status_changed(property, value);
     sync_express_gyro_status();
 }
 
 void handle_gps_change(int property, int value)
 {
-    LOGI("Device_interface::gps latitude: %.6f, longitude: %.6f", cur_gps.lat, cur_gps.lon);
+    printf("Device_interface::gps latitude: %.6f, longitude: %.6f\n", cur_gps.lat, cur_gps.lon);
     express_gps_status_changed(property, value);
     sync_express_gps_status();
+}
+
+void handle_modem_change(int slot, int property)
+{
+    express_modem_status_changed(slot, property);
+    sync_express_modem_status();
 }
 
 static void glfw_error_callback(int error, const char *description)
@@ -684,6 +727,107 @@ static void draw_window(bool *show_imgui)
             LISTEN_INPUT_CHANGE(handle_light_change, cur_light.scale, cur_light.input)
         }
 
+        // Radio
+        if (igCollapsingHeader_TreeNodeFlags("Radio", 0))
+        {
+            // igText("RSSI:");
+            // igSameLine(0.0f, -1.0f);
+            // igSliderInt("dBm", &cur_modem.rssi, -112, -50, "%d", 0);
+            // if (igIsItemDeactivatedAfterEdit()) {
+            //     handle_modem_change(EXPRESS_MODEM_RSSI, cur_modem.rssi);
+            // };
+            int slot = 0;
+#define EM_GET_ADDR(status) express_modem_get_status_field(slot, EXPRESS_MODEM_##status)
+
+            igText("Quality:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            igCombo_Str_arr("##signalstrength", EM_GET_ADDR(SIGNAL_QUALITY), modem_signal_quality, 5, 5);
+            igSameLine(0.0f, -1.0f);
+            igText("Network type:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            if (igCombo_Str_arr("##networktype", EM_GET_ADDR(DATA_NETWORK), modem_data_network_type, 6, 6))
+                handle_modem_change(slot, EXPRESS_MODEM_DATA_NETWORK);
+
+            igText("Voice state:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            if (igCombo_Str_arr("##voicestate", EM_GET_ADDR(VOICE_STATE), modem_registration_type, 6, 6))
+                handle_modem_change(slot, EXPRESS_MODEM_VOICE_STATE);
+            igSameLine(0.0f, -1.0f);
+            igText("Data state:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            if (igCombo_Str_arr("##datastate", EM_GET_ADDR(DATA_STATE), modem_registration_type, 6, 6))
+                handle_modem_change(slot, EXPRESS_MODEM_DATA_STATE);
+
+            AOperator op;
+            
+            op = EM_GET_ADDR(OPERATOR_HOME);
+            igText("Home Operator Name:");
+            igSameLine(0.0f, -1.0f);
+            igText("Long:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.15f);
+            igInputText("##homeOpLongName", op->name[0], 16, 0, NULL, NULL);
+            igSameLine(0.0f, -1.0f);
+            igText("Short:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            igInputText("##homeOpShortName", op->name[1], 16, 0, NULL, NULL);
+            igSameLine(0.0f, -1.0f);
+            igText("Numeric:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            igInputText("##homeOpNumericName", op->name[2], 16, 0, NULL, NULL);
+            // TODO: Set callback function here when implementing emulated Huawei Modem
+
+            op = EM_GET_ADDR(OPERATOR_ROAMING);
+            igText("Roam Operator Name:");
+            igSameLine(0.0f, -1.0f);
+            igText("Long:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.15f);
+            igInputText("##roamOpLongName", op->name[0], 16, 0, NULL, NULL);
+            igSameLine(0.0f, -1.0f);
+            igText("Short:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            igInputText("##roamOpShortName", op->name[1], 16, 0, NULL, NULL);
+            igSameLine(0.0f, -1.0f);
+            igText("Numeric:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            igInputText("##roamOpNumericName", op->name[2], 16, 0, NULL, NULL);
+            // TODO: Set callback function here when implementing emulated Huawei Modem
+
+            igText("Area Code:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            igInputInt("##modem_ac", EM_GET_ADDR(AREA_CODE), 0, 0, 0);
+            LISTEN_INPUT_CHANGE(handle_modem_change, slot, EXPRESS_MODEM_AREA_CODE);
+            igSameLine(0.0f, -1.0f);
+            igText("Cell ID:");
+            igSameLine(0.0f, -1.0f);
+            igSetNextItemWidth(window_size.x * 0.1f);
+            igInputInt("##modem_cell", EM_GET_ADDR(CELL_ID), 0, 0, 0);
+            LISTEN_INPUT_CHANGE(handle_modem_change, slot, EXPRESS_MODEM_CELL_ID);
+
+            igText("From:");
+            igSameLine(0.0f, -1.0f);
+            igInputText("##from_number", EM_GET_ADDR(FROM_NUMBER), 31, 0, NULL, NULL);
+
+            ImVec2 text_input_size = {0, 0};
+            igInputTextMultiline("##sms_message", EM_GET_ADDR(INPUT_SMS_STR), MAX_SMS_MSG_SIZE, text_input_size, 0, NULL, NULL);
+            igText("Send SMS to emulator:");
+            igSameLine(0.0f, -1.0f);
+            ImVec2 button_size = {0, 0};
+            if (igButton("Send", button_size)) {
+                handle_modem_change(slot, EXPRESS_MODEM_RECEIVE_SMS);
+            }
+        }
+
         igText("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO()->Framerate, igGetIO()->Framerate);
         igEnd();
     }
@@ -701,11 +845,21 @@ static void draw_window(bool *show_imgui)
 }
 
 void *interface_window_thread(void *data)
-{
+{   
+// #ifdef __APPLE__
+//     THREAD_CONTROL_BEGIN
+// #endif
     all_interface_data.run = (int *)data;
 
+#ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+#endif
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif
+
     // GLFW already be initialized in our qemu main thread
     // if (!glfwInit())
     // {
@@ -720,8 +874,11 @@ void *interface_window_thread(void *data)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 #elif defined(__APPLE__)
+    
     // GL 3.2 + GLSL 150
     const char *glsl_version = "#version 150";
+    THREAD_CONTROL_BEGIN
+    
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // 3.2+ only
@@ -745,9 +902,17 @@ void *interface_window_thread(void *data)
     window = glfwCreateWindow(1, 1, "Device Input", NULL, NULL);
     if (window == NULL)
     {
-        LOGI("Device_interface::Failed to create window");
+        printf("Device_interface::Failed to create window\n");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
+
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif
 
     glfwMakeContextCurrent(window);
     // 这个没用
@@ -784,12 +949,22 @@ void *interface_window_thread(void *data)
         ioptr = igGetIO();
 
         // TIMER_START(draw);
+#ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+#endif       
         draw_window(&show_imgui);
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif
         // TIMER_END(draw);
         // TIMER_OUTPUT(draw, 100);
-
+#ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+#endif 
         glfwWaitEvents();
-
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif 
         gint64 now_time = g_get_real_time();
 
         gint64 need_sleep_time = 1000000 / 60 - (now_time - frame_start_time) + remain_sleep_time - 1000;
@@ -804,7 +979,7 @@ void *interface_window_thread(void *data)
         remain_sleep_time = 1000000 / 60 - (now_time - frame_start_time);
         frame_start_time = now_time;
 
-        // LOGI("need sleep %lld remain_sleep_time %lld",need_sleep_time,remain_sleep_time);
+        // printf("need sleep %lld remain_sleep_time %lld\n",need_sleep_time,remain_sleep_time);
 
         // glfwSwapBuffers(window);
         if (!show_imgui || *(all_interface_data.run) == 0)
@@ -815,17 +990,23 @@ void *interface_window_thread(void *data)
             break;
         }
     }
-
+#ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+#endif
     // clean up
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     igDestroyContext(NULL);
 
     glfwMakeContextCurrent(NULL);
+
     glfwDestroyWindow(window);
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif   
     // glfw will only terminate once, it would be terminate in our main window thread
     // glfwTerminate();
-    LOGI("Device_interface::Destroy window");
+    printf("Device_interface::Destroy window\n");
 
     return NULL;
 }

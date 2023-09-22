@@ -208,7 +208,11 @@ void prepare_draw_texi(void)
     if (draw_texi_program == 0)
     {
         //数组取地址不是字符串指针的指针，所以这里不要用数组
+#ifdef _WIN32
         const char *vShaderCode = "#version 300 es\n"
+#else
+        const char *vShaderCode = "#version 330\n"
+#endif
                                   "layout(location = 0) in vec3 a_pos;\n"
                                   "layout(location = 1) in vec2 atex_coord;\n"
                                   "out vec2 tex_coord;\n"
@@ -218,7 +222,11 @@ void prepare_draw_texi(void)
                                   "    tex_coord = atex_coord;\n"
                                   "}\n";
 
+#ifdef _WIN32
         const char *fShaderCode = "#version 300 es\n"
+#else
+        const char *fShaderCode = "#version 330\n"
+#endif
                                   "precision mediump float;\n"
                                   "out vec4 frag_color;\n"
                                   "in vec2 tex_coord;\n"

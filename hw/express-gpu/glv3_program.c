@@ -426,6 +426,133 @@ int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len)
     return now_copy_len;
 }
 
+static void match_and_replace(GRegex *regex, char *string, char *replace) {
+    GMatchInfo *match_info;
+    int start_pos = 0, end_pos = 0;
+    g_regex_match(regex, string, 0, &match_info);
+    while (g_match_info_matches(match_info)) {
+        g_match_info_fetch_pos(match_info, 0, &start_pos, &end_pos);
+        if (end_pos - start_pos != strlen(replace)) {
+            printf("Error matching!");
+            return;
+        }
+        memcpy(string + start_pos, replace, strlen(replace));
+        g_match_info_next(match_info, NULL);
+    }
+    g_match_info_free(match_info);
+}
+
+static char *adjust_shader_for_core_profile(GLuint shader, char *shader_source, int source_length, int *adjusted_length) {
+    static const char STR_VERSION_CORE[] = "#version 330";
+    static const char STR_VERSION[] = "#version 330\n";
+    GRegex *REG_VERSION = g_regex_new("#version *(\\d*) *(\\w*)\\s", 0, 0, NULL);
+
+    GRegex *REG_FRAGMENT_OUT = g_regex_new("\\s+out +\\S+ +\\S+ *;\\s+", 0, 0, NULL);
+    static const char STR_FRAGMENT_OUT[] = "out vec4 FragColor;\n";
+
+    GRegex *REG_FRAG_COLOR   =   g_regex_new("gl_FragColor", 0, 0, NULL);
+    static const char STR_FRAG_COLOR_OUT[] = "   FragColor";
+
+    GRegex *REG_ATTRIBUTE   =  g_regex_new("attribute", 0, 0, NULL);
+    static const char STR_IN_ATTRIBUTE[] = "in       ";
+
+    GRegex *REG_VARYING   =  g_regex_new("varying", 0, 0, NULL);
+    static const char STR_IN_VARING[]  = "in     ";
+    static const char STR_OUT_VARING[] = "out    ";
+
+    GRegex *REG_TEXTUREXD = g_regex_new("texture[1-9]D", 0, 0, NULL);
+    static const char STR_TEXTUREXD[] = "  texture";
+
+    GRegex *REG_TEXTURECUBE = g_regex_new("textureCube", 0, 0, NULL);
+    static const char STR_TEXTURECube[] = "    texture";
+
+    GRegex *REG_TEXTUREXD_LOD = g_regex_new("texture[1-9]DLod", 0, 0, NULL);
+    static const char STR_TEXTUREXD_LOD[] = "  textureLod";
+
+    GRegex *REG_TEXTUREXD_GRAD = g_regex_new("texture[1-9]DGrad", 0, 0, NULL);
+    static const char STR_TEXTUREXD_GRAD[] = "  textureGrad";
+
+    GLenum shader_type;
+    glGetShaderiv(shader, GL_SHADER_TYPE, &shader_type);
+
+    char *adjusted_source = (char *)malloc(source_length + 1);
+    memcpy(adjusted_source, shader_source, source_length);
+    adjusted_source[source_length] = 0;
+    *adjusted_length = source_length;
+
+    // 检查Version String是否符合Core Profile（目前统一要求是兼容性最好的#version 330）
+    GMatchInfo *match_info;
+    g_regex_match(REG_VERSION, adjusted_source, 0, &match_info);
+    // 由于之前已经对没有添加Version String的shader做过添加处理，所以不再检查是否会发生无法匹配的情况
+    assert(g_match_info_matches(match_info) == TRUE);
+    gchar *version_num = g_match_info_fetch(match_info, 1);
+    gchar *version_suffix = g_match_info_fetch(match_info, 2);
+    if (strcmp(version_num, "330") || strcmp(version_suffix, "")) {
+        // 说明version string不符合要求，需要调整
+        int start_pos = 0, end_pos = 0, length = 0, min_length = strlen(STR_VERSION), space_length = 0;
+        g_match_info_fetch_pos(match_info, 0, &start_pos, &end_pos);
+        length = end_pos - start_pos;
+        space_length = length - min_length;
+        assert(space_length >= 0);
+        char *spaces = (char *)malloc(space_length);
+        memset(spaces, ' ', space_length);
+        memcpy(adjusted_source + start_pos, STR_VERSION, min_length);
+        memcpy(adjusted_source + start_pos + min_length, spaces, space_length);
+        free(spaces);
+    }
+    g_free(version_num);
+    g_free(version_suffix);
+    g_match_info_free(match_info);
+
+    // 检查Fragment Shader是否已经包含out变量
+    if (shader_type == GL_FRAGMENT_SHADER) {
+        g_regex_match(REG_FRAGMENT_OUT, adjusted_source, 0, &match_info);
+        if (!g_match_info_matches(match_info)) { // 未包含out变量则需要添加out变量，并全局替换gl_FragColor为新变量
+            // 找到Version String
+            g_match_info_free(match_info);
+            g_regex_match(REG_VERSION, adjusted_source, 0, &match_info);
+            int start_pos = 0, end_pos = 0;
+            g_match_info_fetch_pos(match_info, 0, &start_pos, &end_pos);
+            g_match_info_free(match_info);
+
+            GString *string = g_string_new(adjusted_source);
+            g_string_insert_len(string, end_pos, STR_FRAGMENT_OUT, -1);
+            adjusted_source = (char *)realloc(adjusted_source, string->len + 1);
+            strcpy(adjusted_source, string->str);
+            *adjusted_length = string->len;
+            assert(adjusted_source[*adjusted_length] == 0);
+            g_string_free(string, TRUE);
+
+            match_and_replace(REG_FRAG_COLOR, adjusted_source, STR_FRAG_COLOR_OUT);
+        } else 
+            g_match_info_free(match_info);
+
+        match_and_replace(REG_VARYING, adjusted_source, STR_IN_VARING);
+    }
+
+    if (shader_type == GL_VERTEX_SHADER) {
+        match_and_replace(REG_ATTRIBUTE, adjusted_source, STR_IN_ATTRIBUTE);
+        match_and_replace(REG_VARYING, adjusted_source, STR_OUT_VARING);
+    } 
+
+    match_and_replace(REG_TEXTUREXD, adjusted_source, STR_TEXTUREXD);
+    match_and_replace(REG_TEXTURECUBE, adjusted_source, STR_TEXTURECube);
+    match_and_replace(REG_TEXTUREXD_LOD, adjusted_source, STR_TEXTUREXD_LOD);
+    match_and_replace(REG_TEXTUREXD_GRAD, adjusted_source, STR_TEXTUREXD_GRAD);
+
+    g_regex_unref(REG_VERSION);
+    g_regex_unref(REG_FRAGMENT_OUT);
+    g_regex_unref(REG_FRAG_COLOR);
+    g_regex_unref(REG_ATTRIBUTE);
+    g_regex_unref(REG_VARYING);
+    g_regex_unref(REG_TEXTUREXD);
+    g_regex_unref(REG_TEXTURECUBE);
+    g_regex_unref(REG_TEXTUREXD_GRAD);
+    g_regex_unref(REG_TEXTUREXD_LOD);
+
+    return adjusted_source;
+}
+
 void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, GLchar **string)
 {
     static const char DEFAULT_VERSION[] = "#version 330\n";
@@ -668,8 +795,25 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         }
     }
 
+#ifdef __APPLE__
+    GLchar **adjusted_sources = (GLchar **)malloc(count * sizeof(GLchar *));
+    GLint *adjusted_length = (GLint *)malloc(count * sizeof(GLint));
+    for (int i = 0; i < count; i++) {
+        char *adjusted_source = adjust_shader_for_core_profile(shader, string[i], length[i], adjusted_length + i);
+        adjusted_sources[i] = adjusted_source;
+    }
+    //printf("gl shader source count %d:\n%s\n", count, adjusted_sources[0]);
+    glShaderSource(shader, count, adjusted_sources, adjusted_length);
+    for (int i = 0; i < count; i++) {
+        free(adjusted_sources[i]);
+    }
+    free(adjusted_sources);
+    free(adjusted_length);
+#else
     glShaderSource(shader, count, (const GLchar *const *)string, length);
-    // LOGI("\ngl shader %d source after count %d context %llx:\n%s", shader, count, (uint64_t)context, string[0]);
+#endif
+
+    // printf("\ngl shader %d source after count %d context %llx:\n%s\n", shader, count, (uint64_t)context, string[0]);
 
     if (new_string1 != NULL)
     {

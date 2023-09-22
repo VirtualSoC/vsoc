@@ -16,6 +16,7 @@
 
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_device_ctrl.h"
+#include "hw/teleport-express/express_event.h"
 
 //这是VirtQueueElement里面的实际东西
 // typedef struct VirtQueueElement
@@ -53,7 +54,7 @@ typedef struct
 #ifdef _WIN32
     HANDLE win_event;
 #else
-
+    void *win_event;
 #endif
 } RECYCLE_EVENT;
 
@@ -108,7 +109,7 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
 #ifdef _WIN32
     context->data_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 #else
-
+    context->data_event = create_event(0, 0);
 #endif
 
     express_printf("ready to create thread\n");
@@ -184,7 +185,10 @@ void init_distribute_event(void)
         recycle_event.win_event = CreateEvent(NULL, FALSE, FALSE, NULL);
     }
 #else
-
+    if (recycle_event.win_event == NULL)
+    {
+        recycle_event.win_event = create_event(0, 0);
+    }
 #endif
 }
 
@@ -200,7 +204,10 @@ void wake_up_distribute(void)
         SetEvent(recycle_event.win_event);
     }
 #else
-
+    if (recycle_event.win_event != NULL)
+    {
+        set_event(recycle_event.win_event);
+    }
 #endif
 }
 
@@ -216,7 +223,10 @@ void distribute_wait(void)
         WaitForSingleObject(recycle_event.win_event, 1);
     }
 #else
-
+    if (recycle_event.win_event != NULL)
+    {
+        wait_event(recycle_event.win_event, 1);
+    }
 #endif
 }
 

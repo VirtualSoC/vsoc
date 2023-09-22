@@ -34,7 +34,11 @@
  * by filing a bug against product "EGL" component "Registry".
  */
 
+#ifdef _WIN32 
 #include <KHR/khrplatform.h>
+#else
+#include "KHR/khrplatform.h"
+#endif
 
 /* Macros used in EGL function prototype declarations.
  *
@@ -107,6 +111,11 @@ typedef Window   EGLNativeWindowType;
 typedef void* EGLNativeWindowType;
 typedef void* EGLNativePixmapType;
 typedef void* EGLNativeDisplayType;
+#elif defined(__APPLE__)
+
+typedef int   EGLNativeDisplayType;
+typedef void *EGLNativePixmapType;
+typedef void *EGLNativeWindowType;
 
 #else
 #error "Platform not recognized"

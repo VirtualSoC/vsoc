@@ -17,6 +17,7 @@
 #define EXPRESS_MICROPHONE_DEVICE_ID ((uint64_t)9)
 #define EXPRESS_DISPLAY_DEVICE_ID ((uint64_t)10)
 #define EXPRESS_CAMERA_DEVICE_ID ((uint64_t)11)
+#define EXPRESS_MODEM_DEVICE_ID ((uint64_t)12)
 
 #define EXPRESS_BRIDGE_DEVICE_ID ((uint64_t)40)
 
@@ -166,7 +167,7 @@ typedef struct Thread_Context
 #ifdef _WIN32
     HANDLE data_event;
 #else
-
+    void *data_event;
 #endif
 
     //给特定设备用来标记当前thread是否初始化完成的标志
@@ -285,6 +286,8 @@ extern int *express_display_phy_height;
 extern bool express_display_switch_open;
 
 extern bool express_gpu_open_shader_binary;
+
+extern char *express_ruim_file;
 
 void express_device_init_common(Express_Device_Info *info);
 

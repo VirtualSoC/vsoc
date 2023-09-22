@@ -1,10 +1,31 @@
 #ifndef QEMU_EXPRESS_GPU_RENDER_H
 #define QEMU_EXPRESS_GPU_RENDER_H
+#ifdef __APPLE__
+#include <dispatch/dispatch.h>
+#endif
+#include "qemu/atomic.h"
+
+#include "glad/glad.h"
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#define GLFW_EXPOSE_NATIVE_WGL
+#else
+#define GLFW_EXPOSE_NATIVE_COCOA
+#define GLFW_EXPOSE_NATIVE_NSGL
+#endif
 
 #include "qemu/atomic.h"
 
+// #define GLFW_EXPOSE_NATIVE_WIN32
+// #define GLFW_EXPOSE_NATIVE_WGL
+
+#ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_EXPOSE_NATIVE_WGL
+#else
+#define GLFW_EXPOSE_NATIVE_COCOA
+#define GLFW_EXPOSE_NATIVE_NSGL
+#endif
 
 #include "glad/glad.h"
 #include "hw/express-gpu/GLFW/glfw3.h"
@@ -144,5 +165,18 @@ void opengl_paint_gbuffer(Graphic_Buffer *gbuffer);
 
 void send_message_to_main_window(int message_code, void *data);
 
+// void set_display_gbuffer(Graphic_Buffer *gbuffer);
+
+// bool should_give_up_gpu();
+#ifdef __APPLE__
+#define THREAD_CONTROL_BEGIN \
+dispatch_sync(dispatch_get_main_queue(), ^{ 
+#define THREAD_CONTROL_END \
+}); 
+
+#else
+#define THREAD_CONTROL_BEGIN
+#define THREAD_CONTROL_END
+#endif
 
 #endif

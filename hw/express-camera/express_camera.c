@@ -706,7 +706,11 @@ int list_cameras(void)
                 // "video=" is the prefix for DirectShow, 
                 // if you are using other drivers, you may need to change this
                 CameraProp prop;
+                #ifdef _WIN32
                 strcpy_s(prop.name, sizeof(prop.name), device_info->device_description);
+                #else
+                strcpy(prop.name, device_info->device_description);
+                #endif
                 prop.camera_id = camera_count;
 
                 // todo: query the real capabilities of the camera

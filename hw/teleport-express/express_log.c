@@ -13,7 +13,7 @@
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/teleport-express/teleport_express_call.h"
 
-#define LOG_DIR "log//call"
+#define LOG_DIR "log/call"
 
 #define LOG_FILE_SIZE (8 * 1024 * 1024)
 

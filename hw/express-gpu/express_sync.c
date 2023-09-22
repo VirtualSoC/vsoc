@@ -13,6 +13,7 @@
 
 #include "hw/express-gpu/express_sync.h"
 #include "hw/express-gpu/express_gpu_render.h"
+#include "hw/teleport-express/express_event.h"
 
 typedef struct Sync_Flag_Data
 {
@@ -35,7 +36,7 @@ static Sync_Context static_sync_context;
 #ifdef _WIN32
 HANDLE sync_event = NULL;
 #else
-
+void *sync_event = NULL;
 #endif
 
 int sync_wait_cnt = 0;
@@ -75,7 +76,7 @@ void set_express_sync_id(int sync_id, bool need_gpu_sync)
 #ifdef _WIN32
             SetEvent(sync_event);
 #else
-
+            set_event(sync_event);
 #endif
         }
         int old_waitting_cnt = 0;
@@ -107,7 +108,13 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
                 break;
             }
 #else
-
+            qatomic_add(&sync_wait_cnt, 1);
+            int ret = wait_event(sync_event, 1);
+            if (ret == -1)
+            {
+                LOGI("wait for sync failed!");
+                break;
+            }
 #endif
         }
 
@@ -160,7 +167,7 @@ static Device_Context *get_sync_context(uint64_t device_id, uint64_t thread_id, 
 #ifdef _WIN32
         sync_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 #else
-
+        sync_event = create_event(0,0);
 #endif
     }
 

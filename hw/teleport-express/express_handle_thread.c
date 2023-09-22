@@ -14,6 +14,7 @@
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_handle_thread.h"
 #include "hw/teleport-express/teleport_express_call.h"
+#include "hw/teleport-express/express_event.h"
 
 /**
  * @brief 从context的环形缓冲区中pop出一个call，若没有call，则会阻塞直到下一个call到达，这个只在thread运行函数中使用
@@ -35,7 +36,14 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
             WaitForSingleObject(context->data_event, INFINITE);
         }
 #else
-
+        if (context->data_event != NULL)
+        {
+            wait_event(context->data_event, 0xffffffff);
+        }
+        if(teleport_express_should_stop)
+        {
+            return NULL;
+        }
 #endif
 
         if (teleport_express_should_stop)
@@ -55,7 +63,10 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
         SetEvent(context->data_event);
     }
 #else
-
+    if (context->data_event != NULL)
+    {
+        set_event(context->data_event);
+    }
 #endif
 
     return ret;
@@ -79,7 +90,10 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
             WaitForSingleObject(context->data_event, INFINITE);
         }
 #else
-
+        if (context->data_event != NULL)
+        {
+            wait_event(context->data_event, 0xffffffff);
+        }
 #endif
 
         if (teleport_express_should_stop)
@@ -91,6 +105,7 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
     {
         printf("error push find not null\n");
     }
+    //LOGI("pushing call event id %d",call->id);
     context->call_buf[context->write_loc] = call;
 
     context->write_loc = (context->write_loc + 1) % CALL_BUF_SIZE;
@@ -102,7 +117,10 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
         SetEvent(context->data_event);
     }
 #else
-
+    if (context->data_event != NULL)
+    {
+        set_event(context->data_event);
+    }
 #endif
 
     return;
@@ -134,6 +152,13 @@ void *handle_thread_run(void *opaque)
             return NULL;
         }
 
+        if(!call)
+        {
+            LOGE("teleport express call is null!");
+            return NULL;
+
+        }
+
         if (call->is_end)
         {
             express_printf("thread context %llx call end thread_id %lld process_id %lld\n", (uint64_t)context, call->thread_id, call->process_id);
@@ -156,7 +181,7 @@ void *handle_thread_run(void *opaque)
         CloseHandle(context->data_event);
     }
 #else
-
+    delete_event(context->data_event);
 #endif
 
     if (context->context_destroy != NULL)

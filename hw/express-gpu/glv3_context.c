@@ -291,8 +291,15 @@ void release_native_opengl_context(void *native_context, int context_flags)
 
     if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
+        #ifdef __APPLE__
+        THREAD_CONTROL_BEGIN
+        #endif
         glfwSetWindowShouldClose(native_context, 1);
         glfwDestroyWindow(native_context);
+        #ifdef __APPLE__
+        THREAD_CONTROL_END
+        #endif
+
     }
     else
     {
@@ -470,7 +477,12 @@ void opengl_context_init(Opengl_Context *context)
         //这两个选项在gles中是默认开启，这样能够在着色器中获取到一些内建变量，所以在gl中要手动开启
         glEnable(GL_PROGRAM_POINT_SIZE);
         glEnable(GL_POINT_SPRITE);
-
+#ifdef __APPLE__
+        glPointSize(10.0f);
+        // 启用混合
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#endif
         //这个非常重要，不然很多游戏非常暗，因为他们用了SRGB纹理
         glEnable(GL_FRAMEBUFFER_SRGB);
 
