@@ -44,7 +44,7 @@ static const char *DCODEC_ID_MAPPING[] = {
 #define EXPRESS_CODEC_DEVICE_NAME "/dev/express_codec"
 
 #ifndef EXPRESS_CODEC_DEVICE_ID
-#define EXPRESS_CODEC_DEVICE_ID ((uint64_t)12)
+#define EXPRESS_CODEC_DEVICE_ID ((uint64_t)13)
 #endif
 
 #ifndef GET_DEVICE_ID
