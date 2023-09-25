@@ -9,7 +9,7 @@
  *
  */
 // #define STD_DEBUG_LOG
-// #define TIMER_LOG
+#define TIMER_LOG
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 
@@ -379,6 +379,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
 
 void window_size_change_callback(GLFWwindow *window, int width, int height)
 {
+    //printf("width and height %d %d\n",width,height);
     window_need_refresh = true;
 
     // 需要保证画面比例不变
@@ -406,6 +407,7 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 
         if (express_gpu_keep_window_scale)
         {
+            //printf("set window size %d %d  %d %d %d %d %d %dkeep scale\n", window_width, window_height,temp_window_width,temp_window_height,display_width,display_height,x,y);
             window_width = temp_window_width;
             window_height = temp_window_height;
 
@@ -415,8 +417,22 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
             main_display_content_y = 0;
             main_display_content_width = window_width;
             main_display_content_height = window_height;
-            express_printf("set window size %d %d keep scale\n", window_width, window_height);
+            //express_printf("set window size %d %d keep scale\n", window_width, window_height);
+
+    #ifdef __APPLE__
+            // if(window_width>0 && window_height>0)
+            // {
+            //     glfwSetWindowSize(window, window_width, window_height);
+            // }
+            // else
+            // {
+            glfwSetWindowSize(window, 960, 540);
+            //glfwSetWindowSize(window, temp_window_width,temp_window_height);
+            //}
+    #else
             glfwSetWindowSize(window, window_width, window_height);
+    #endif
+
         }
         else
         {
@@ -429,7 +445,12 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
         }
 
         express_printf("set touchscreen size %d %d\n", window_width, window_height);
-        set_touchscreen_window_size(window_width, window_height);
+    #ifdef __APPLE__
+            set_touchscreen_window_size(960, 540);
+    #else
+            set_touchscreen_window_size(window_width, window_height);
+    #endif
+        
     }
 
     return;
@@ -1123,7 +1144,7 @@ void *native_window_thread(void *opaque)
     now_transform_type = 0;
     glUniform1i(program_transform_loc, now_transform_type);
 
-    express_printf("native windows create!\n");
+    LOGI("native windows create!\n");
 
     // if (VSYNC_enable == 0)
     // {

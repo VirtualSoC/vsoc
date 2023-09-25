@@ -377,7 +377,7 @@ void express_touchscreen_mouse_scroll_handle(GLFWwindow *window, double xoffset,
                 scroll_yoffset += temp_yoffset;
             }
         }
-        printf("scroll_yoffset %d\n", scroll_yoffset);
+        express_printf("scroll_yoffset %d\n", scroll_yoffset);
 
         now_scroll_ypos1 = now_finger_ypos + scroll_yoffset;
         now_scroll_ypos2 = now_finger_ypos - scroll_yoffset;

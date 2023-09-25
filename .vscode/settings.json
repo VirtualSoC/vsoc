@@ -157,7 +157,15 @@
         "express_display.h": "c",
         "locale": "c",
         "express_event.h": "c",
-        "express_sync.h": "c"
+        "express_sync.h": "c",
+        "pthread.h": "c",
+        "__locale": "c",
+        "ios": "c",
+        "miniaudio.h": "c",
+        "avdevice.h": "c",
+        "avcodec.h": "c",
+        "avformat.h": "c",
+        "imgutils.h": "c"
     },
     "cmake.configureOnOpen": false
 }

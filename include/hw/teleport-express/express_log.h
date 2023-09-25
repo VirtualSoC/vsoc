@@ -7,13 +7,13 @@
 #include "pthread.h"
 
 // define this in a .c file before including this header enables debug log for that file locally.
-// #define STD_DEBUG_LOG
+//#define STD_DEBUG_LOG
 
 // uncomment the following line to disable debug logging globally. only warnings and errors will be logged then.
 // #undef STD_DEBUG_LOG
 
 // uncomment the following line to enable debug logging globally, regardless of verbosity and per-file options.
-// #define STD_DEBUG_LOG_OVERRIDE_ENABLE
+//#define STD_DEBUG_LOG_OVERRIDE_ENABLE
 
 #define HOST_LOG_LEVEL_ERROR 1
 #define HOST_LOG_LEVEL_WARN 2
@@ -27,9 +27,17 @@
 #elif defined(__WIN32__)
 #include <processthreadsapi.h>
 #define CURRENT_TID() GetCurrentThreadId()
+#elif defined(__APPLE__)
+#define CURRENT_TID() GetCurrentThreadIdOnMac()
+static int64_t GetCurrentThreadIdOnMac()
+{
+    int64_t pid = -1;
+    pthread_threadid_np(NULL, &pid);
+    return pid;
+}
 #else
 #warning "thread id query not supported in the current system!"
-#define CURRENT_TID() (-1)
+#define CURRENT_TID() -1
 #endif
 
 static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
@@ -40,12 +48,12 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 
 #define _host_log(level, fmt, ...)                                                      \
     {                                                                                   \
-        qemu_log("%s %lld %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
+        printf("%s %lld %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
                  _level_chars[level], __FILE__, __LINE__, ##__VA_ARGS__, 10);                               \
     }
 #define _host_log_debug_nolf(fmt, ...)                                                  \
     {                                                                                   \
-        qemu_log("%s %lld %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
+        printf("%s %lld %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
     }
 
 #define LOGD(fmt, ...) _host_log(HOST_LOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)

@@ -17,6 +17,7 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_status.h"
 
+
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavutil/imgutils.h"
@@ -33,13 +34,22 @@
 #define MAX_CAPTURE_FPS 30
 #define SHOW_CAMERA_CAPTURE_WINDOW 1
 #define CAMERA_LOG_LEVEL AV_LOG_FATAL
+//#define CAMERA_LOG_LEVEL AV_LOG_DEBUG
 
 #ifdef __WIN32__
 // Directshow only works on windows
 #define SYSTEM_LIBRARY_NAME "dshow"
 #define HW_ACCELERATION AV_HWDEVICE_TYPE_D3D11VA
 #else // todo: macOS/linux library name
-#define SYSTEM_LIBRARY_NAME "v4l2"
+#define SYSTEM_LIBRARY_NAME "avfoundation"
+#endif
+
+#ifdef __APPLE__
+#include <dispatch/dispatch.h>
+#define THREAD_CONTROL_BEGIN \
+dispatch_sync(dispatch_get_main_queue(), ^{ 
+#define THREAD_CONTROL_END \
+}); 
 #endif
 
 enum Camera_Status { CAMERA_STATUS_IDLE, CAMERA_STATUS_STREAMING };
@@ -98,6 +108,8 @@ static GArray *camera_list = NULL;
 static GHashTable *camera_thread_contexts_map = NULL;
 static int camera_count = 0;
 
+//static GLuint programObject;
+
 static void error_callback(int error, const char* description)
 {
     LOGE("glfw error: %s", description);
@@ -105,39 +117,61 @@ static void error_callback(int error, const char* description)
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+    THREAD_CONTROL_BEGIN
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+    THREAD_CONTROL_END
 }
 
 // using OpenGL to convert YUV to RGB
 static int init_opengl(Camera_Context *context, int width, int height)
 {
+    //THREAD_CONTROL_BEGIN
     // inform express-gpu to create shared child window
     context->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
     // context->window = glfwCreateWindow(width, height, "Camera Capturing", NULL, NULL);
     if (!context->window) {
         LOGE("create shared child window failed!");
-        return -1;
+        //return -1;
+        exit(-1);
     }
+#ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+#endif
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
     glfwSetWindowSize(context->window, width, height);
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif
     glfwSetErrorCallback(error_callback);
     glfwSetKeyCallback(context->window, key_callback);
     glfwMakeContextCurrent(context->window);
     glfwSwapInterval(1);
+#ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+#endif
 #ifdef SHOW_CAMERA_CAPTURE_WINDOW
     glfwShowWindow(context->window);
 #else
     glfwHideWindow(context->window);
 #endif
-
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif
+    glViewport(0, 0, 480, 640);
     // required, since get_native_opengl_context() creates a 1x1 window by default
-    glViewport(0, 0, width, height);
-
-    glDebugMessageCallback(d_debug_message_callback, NULL);
     
+    //glViewport(0, 0, width, height);
+    
+#ifdef _WIN32
+    glDebugMessageCallback(d_debug_message_callback, NULL);
+#endif    
     char vShaderStr[] =
+    #ifdef _WIN32
         "#version 310 es\n"
+    #else
+        "#version 330\n"
+    #endif
         "layout (location = 0) in vec2 position;\n"
         "layout (location = 1) in vec2 texCoords;\n"
         "out vec2 TexCoords;\n"
@@ -147,6 +181,27 @@ static int init_opengl(Camera_Context *context, int width, int height)
         "    TexCoords = texCoords;\n"
         "}\n";
 
+    #ifdef __APPLE__
+    char fShaderStr[] =
+        "#version 310 es\n"
+        "#version 330\n"
+        "precision mediump float;                     \n"
+        "in vec2 TexCoords;\n"
+        "out vec4 color;\n"
+        "uniform sampler2D texture_yuyv;\n" // 新的 YUYV422 采样器
+        "void main(){\n"
+        "   vec3 yuv;\n"
+        "   vec3 rgb;\n"
+        "   vec4 yuyv = texture(texture_yuyv, TexCoords);\n"
+        "   yuv.x = yuyv.r;\n"
+        "   yuv.y = yuyv.g - 0.5;\n"
+        "   yuv.z = yuyv.a - 0.5;\n"
+        "   rgb.r = yuv.x + 1.402 * yuv.z;\n"
+        "   rgb.g = yuv.x - 0.39465 * yuv.y - 0.58060 * yuv.z;\n"
+        "   rgb.b = yuv.x + 2.03211 * yuv.y;\n"
+        "   color = vec4(rgb, 1.0);\n"
+        "}\n";
+    #else
     char fShaderStr[] =
         "#version 310 es\n"
         "precision mediump float;                     \n"
@@ -180,17 +235,28 @@ static int init_opengl(Camera_Context *context, int width, int height)
         "   }"
         "   color = vec4(rgb,1.0);\n"
         "}\n";
+    #endif
 
     GLuint programObject = glCreateProgram();
     if (programObject == 0)
     {
+        #ifdef _WIN32
         return -1;
+        #else
+        exit(-1);
+        #endif
     }
 
+    
+    LOGI("going to compile shader!");
     GLuint vertexShader = load_shader(GL_VERTEX_SHADER, vShaderStr);
     GLuint fragmentShader = load_shader(GL_FRAGMENT_SHADER, fShaderStr);
-    if(vertexShader == -1 || fragmentShader == -1)
-        return -1;
+    LOGI("loaded shader %d %d",vertexShader,fragmentShader);
+    if(vertexShader == -1 || fragmentShader == -1){
+        //return -1;
+        exit(-1);
+    }
+        
 
     glAttachShader(programObject, vertexShader);
     glAttachShader(programObject, fragmentShader);
@@ -201,9 +267,10 @@ static int init_opengl(Camera_Context *context, int width, int height)
     glGetProgramiv(programObject, GL_LINK_STATUS, &linked);
     if (!linked)
     {
-        return -1;
+        //return -1;
+        exit(-1);
     }
-
+    //THREAD_CONTROL_END
     GLfloat quadVertices[] = {// Vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
                               // Positions   // TexCoords
                               -1.0f, 1.0f, 0.0f, 1.0f,
@@ -221,6 +288,7 @@ static int init_opengl(Camera_Context *context, int width, int height)
     glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
+    //THREAD_CONTROL_END
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)0);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid *)(2 * sizeof(GLfloat)));
@@ -232,10 +300,14 @@ static int init_opengl(Camera_Context *context, int width, int height)
     glUseProgram(programObject);
 
     glClearColor(0, 0, 0, 1);
+
+#ifdef _WIN32
     context->texture_loc[0] = glGetUniformLocation(programObject, "texture_y");
     context->texture_loc[1] = glGetUniformLocation(programObject, "texture_u");
     context->texture_loc[2] = glGetUniformLocation(programObject, "texture_v");
     context->color_type_loc = glGetUniformLocation(programObject, "yuv_type");
+#endif
+
     return 0;
 }
 
@@ -248,6 +320,38 @@ static int opengl_yuv2rgb(Camera_Context *context, AVFrame *input_frame, BufferD
     // in ffmpeg YUV422 frame, the Y, U and V data are stored in data[0], data[1] and data[2] respectively
     // and the linesize[0], linesize[1] and linesize[2] are the size of each line in data[0], data[1] and data[2] respectively
     // linessize[1] and linsssize[2] are the same, and linessize[0] is twice as large as linessize[1] and linessize[2]
+
+#ifdef __APPLE__
+    // uint8_t *uyvyData = frame->data[0];
+    // int width = frame->width;
+    // int height = frame->height;
+
+    // for (int y = 0; y < height; y++) {
+    //     for (int x = 0; x < width; x += 2) {
+    //         int offset = y * frame->linesize[0] + x * 2;
+
+    //         uint8_t u = uyvyData[offset];     // U 值
+    //         uint8_t y1 = uyvyData[offset + 1]; // Y1 值
+    //         uint8_t v = uyvyData[offset + 2];  // V 值
+    //         uint8_t y2 = uyvyData[offset + 3]; // Y2 值
+
+    //         // 在这里可以使用 UYVY422 数据执行相关操作
+    //     }
+    // }
+
+    // 创建一个纹理
+    GLuint textureYUV;
+    glGenTextures(1, &textureYUV);
+
+    // 绑定并设置 YUV 纹理
+    glBindTexture(GL_TEXTURE_2D, textureYUV);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, input_frame->linesize[0], input_frame->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, input_frame->data[0]);
+#else
+
     glUniform1i(context->color_type_loc, input_frame->format);
     GLuint texture[3];
     glActiveTexture(GL_TEXTURE1);
@@ -290,8 +394,10 @@ static int opengl_yuv2rgb(Camera_Context *context, AVFrame *input_frame, BufferD
         
         glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, input_frame->linesize[2], input_frame->height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, input_frame->data[2]);
     }
+#endif
 
     glClear(GL_COLOR_BUFFER_BIT);
+
 
     if (desc->type == CAMERA_BUFFER_HW) {
         // draw to gbuffer data_fbo
@@ -300,6 +406,10 @@ static int opengl_yuv2rgb(Camera_Context *context, AVFrame *input_frame, BufferD
         if (gbuffer == NULL)
         {
             CameraProp *prop = &g_array_index(camera_list, CameraProp, context->camera_id);
+            #ifdef __APPLE__
+            prop->width=640;
+            prop->height=480;
+            #endif
             LOGI("camera %d create g_buffer with gbuffer_id %llx width %d height %d", context->camera_id, desc->id, prop->width, prop->height);
             gbuffer = create_gbuffer(prop->width, prop->height, 0 /* sampler num */,
                           GL_RGB,
@@ -359,6 +469,17 @@ static int opengl_yuv2rgb(Camera_Context *context, AVFrame *input_frame, BufferD
 
     glfwSwapBuffers(context->window);
 
+    // GLfloat colorValue[4];
+    // GLfloat rgbValue[3];
+    // GLfloat yuvValue[3];
+    // glGetUniformfv(programObject, context->color_loc, colorValue);
+    // glGetUniformfv(programObject, context->rgb_loc, rgbValue);
+    // glGetUniformfv(programObject, context->yuv_loc, yuvValue);
+    // // 输出color的值
+    // LOGI("Color value: %f, %f, %f, %f", colorValue[0], colorValue[1], colorValue[2], colorValue[3]);
+    // LOGI("Color value: %f, %f, %f", rgbValue[0], rgbValue[1], rgbValue[2]);
+    // LOGI("Color value: %f, %f, %f", yuvValue[0], yuvValue[1], yuvValue[2]);
+
     GLenum error = glGetError();
     if (error != GL_NO_ERROR) {
         LOGE("gl error %x!", error);
@@ -399,13 +520,26 @@ static void set_camera_capabilties(CameraProp *prop)
     }
 
     sprintf(ff_name, "video=%s", prop->name);
-
+#ifdef _WIN32
     ret = avformat_open_input(&format_context, ff_name, input_format, NULL);
+#else
+
+    AVDictionary *options = NULL;
+    av_dict_set(&options, "framerate", "30", 0);
+    av_dict_set(&options, "video_size", "640x480", 0);
+    av_dict_set(&options, "pixel_format", "yuyv422", 0);
+    char *inputPath = "0";
+
+    ret = avformat_open_input(&format_context, inputPath, input_format, &options);
+    av_dict_free(&options);
+#endif
     if (ret < 0) {
         av_strerror(ret, error_msg, 256);
-        LOGE("avformat_open_input failed: %s", error_msg);
+        LOGE("avformat_open_input failed: %s %d", error_msg,ret);
         return;
     }
+    
+
     ret = avformat_find_stream_info(format_context, NULL);
     if (ret < 0) {
         av_strerror(ret, error_msg, 256);
@@ -423,18 +557,25 @@ static void set_camera_capabilties(CameraProp *prop)
         LOGE("avcodec_find_decoder failed");
         return;
     }
+
+
+
     codec_context = avcodec_alloc_context3(codec);
     if (!codec_context) {
         LOGE("avcodec_alloc_context3 failed");
         return;
     }
-
+    //codec_context->width = format_context->streams[stream_index]->codecpar->width;
+    //codec_context->height = format_context->streams[stream_index]->codecpar->height;
     ret = avcodec_parameters_to_context(codec_context, format_context->streams[stream_index]->codecpar);
     if (ret < 0) {
         LOGE("error: Could not copy codec parameters to context");
         return ;
     }
-
+#ifdef _WIN32
+    codec_context->width = 640;
+    codec_context->height = 480;
+#endif
     if (avcodec_open2(codec_context, codec, NULL) < 0) {
         LOGE("error: Could not open codec");
         return ;
@@ -488,32 +629,57 @@ static void *camera_capturing_thread(void *opaque)
     input_format = av_find_input_format(SYSTEM_LIBRARY_NAME);
     if (!input_format) {
         LOGE("error: Could not find input format");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
     sprintf(framerate_str, "%d", MAX_CAPTURE_FPS);
     sprintf(frame_size_str, "%dx%d", prop->width, prop->height);
     av_dict_set_int(&options, "rtbufsize", 3041280 * 100, 0);
     // must set video_size and r(stands for frame rate)
+
+#ifdef _WIN32
     av_dict_set(&options, "video_size", frame_size_str, 0);
     av_dict_set(&options, "r", framerate_str, 0);
+#endif
 
     char ff_name[70];
     if (prop->name[0] == 0) {
         LOGE("error: Camera name is NULL");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
 
+#ifdef __APPLE__
     sprintf(ff_name, "video=%s", prop->name);
-
+    av_dict_set(&options, "framerate", "30", 0);
+    av_dict_set(&options, "video_size", "640x480", 0);
+    av_dict_set(&options, "pixel_format", "yuyv422", 0);
+    ret = avformat_open_input(&format_context, "0", input_format, &options);
+#else
     ret = avformat_open_input(&format_context, ff_name, input_format, &options);
+#endif
     if (ret < 0) {
         av_strerror(ret,error_msg,256);
         LOGE("error: Could not open input, %s",error_msg);
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
     if (avformat_find_stream_info(format_context, NULL) < 0) {
         LOGE("error: Could not find stream information");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
     av_dump_format(format_context, 0, ff_name, 0);
     
@@ -521,45 +687,89 @@ static void *camera_capturing_thread(void *opaque)
 
     if (stream_index < 0) {
         LOGE("error: Could not find video stream");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
 
     codec = avcodec_find_decoder(format_context->streams[stream_index]->codecpar->codec_id);
     if (!codec) {
         LOGE("error: Could not find decoder");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
     
     codec_context = avcodec_alloc_context3(codec);
     if (!codec_context) {
         LOGE("error: Could not allocate codec context");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
     
     ret = avcodec_parameters_to_context(codec_context, format_context->streams[stream_index]->codecpar);
     if (ret < 0) {
         LOGE("error: Could not copy codec parameters to context");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
 
     if (avcodec_open2(codec_context, codec, NULL) < 0) {
         LOGE("error: Could not open codec");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
 
     // allocate frame
     frame = av_frame_alloc();
     if (!frame) {
         LOGE("error: Could not allocate frame");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
-    
+    //THREAD_CONTROL_BEGIN
+    //init_opengl(context, codec_context->width, codec_context->height);
+#ifdef __APPLE__
+    codec_context->width=640;
+    codec_context->height=480;
+    codec_context->pix_fmt = AV_PIX_FMT_YUYV422;
+    codec_context->sw_pix_fmt = AV_PIX_FMT_YUYV422;
+#endif
+    //LOGI("going to init_opengl with %d %d",codec_context->width,codec_context->height);
     ret = init_opengl(context, codec_context->width, codec_context->height);
     if (ret < 0) {
         LOGE("error: Could not initialize OpenGL");
+    #ifdef __APPLE__
+        exit(-1);
+    #else
         return NULL;
+    #endif
     }
+    //THREAD_CONTROL_END
+#ifdef __APPLE__
+    THREAD_CONTROL_BEGIN
+#endif
+    //LOGI("going to show window!%d %d",codec_context->width,codec_context->height);
     glfwShowWindow(context->window);
+#ifdef __APPLE__
+    THREAD_CONTROL_END
+#endif
 
     // TODO: support more pixel format and resolution
     // currently only support RGB24 and fixed framesize
@@ -579,20 +789,36 @@ static void *camera_capturing_thread(void *opaque)
     context->sw_buffer = (uint8_t *)calloc(1,codec_context->width * codec_context->height * 2);
     g_async_queue_ref(context->frame_queue);
     // Read packets from input device
+    //THREAD_CONTROL_BEGIN
     while (context->status == CAMERA_STATUS_STREAMING) {
+    #ifdef __APPLE__
+        THREAD_CONTROL_BEGIN
+    #endif
         if (glfwWindowShouldClose(context->window) || glfwGetKey(context->window, GLFW_KEY_ESCAPE)) {
             glfwHideWindow(context->window);
         }
+    #ifdef __APPLE__
+        THREAD_CONTROL_END
+    #endif
         ret = av_read_frame(format_context, &packet);
+        if (ret < 0) {
+                char error_msg[256] = {0};
+                av_strerror(ret, error_msg, 256);
+                LOGE("Failed to av_read_frame %d %s",ret,error_msg);
+                continue;
+        }
         if (packet.stream_index == stream_index) {
             // Decode packet
             ret = avcodec_send_packet(codec_context, &packet);
             if (ret < 0) {
-                LOGE("Failed to send packet for decoding");
-                break;
+                char error_msg[256] = {0};
+                av_strerror(ret, error_msg, 256);
+                LOGE("Failed to send packet for decoding %d %s",ret,error_msg);
+                continue;
             }
             while (ret >= 0) {
                 ret = avcodec_receive_frame(codec_context, frame);
+                LOGI("linesize is %d",frame->linesize[0]);
                 if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
                     av_frame_unref(frame);
                     break;
@@ -601,6 +827,7 @@ static void *camera_capturing_thread(void *opaque)
                     av_frame_unref(frame);
                     break;
                 }
+                LOGI("decode packet!");
                 BufferDesc *desc = (BufferDesc *)g_async_queue_try_pop(context->frame_queue);
                 // Convert frame to RGB, it could used swscale libraries in FFMPEG for better compatibility
                 if(desc == NULL)
@@ -642,11 +869,23 @@ static void *camera_capturing_thread(void *opaque)
     avformat_free_context(format_context);
 
     LOGI("camera release_native_opengl_context");
+
+#ifdef __WIN32
+    THREAD_CONTROL_BEGIN
+#endif
     glfwHideWindow(context->window);
+#ifdef __WIN32
+    THREAD_CONTROL_END
+#endif
     glfwMakeContextCurrent(NULL);
+   
+
     release_native_opengl_context(context->window, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
     free(context->sw_buffer);
     g_async_queue_unref(context->frame_queue);
+    
+
+
     return NULL;
 }
 
@@ -670,6 +909,60 @@ static void free_queue_entry(gpointer data)
 */
 int list_cameras(void)
 {
+#ifdef __APPLE__
+    if (camera_list != NULL) {
+        LOGW("camera_list not null, refreshing cameras.");
+        g_array_unref(camera_list);
+        camera_list = NULL;
+        camera_count = 0;
+    }
+
+    const AVInputFormat *input_format = NULL;
+    AVDeviceInfoList *device_info_list = av_mallocz(sizeof(AVDeviceInfoList));
+    char error_msg[256] = {0};
+    int ret;
+    avdevice_register_all();
+
+    // DirectShow is the windows camera driver, only works on windows
+    // input_format = av_find_input_format(SYSTEM_LIBRARY_NAME);
+    // //printf("format %s\n",input_format->long_name);
+    // if (!input_format) {
+    //     LOGE("av_find_input_format failed");
+    //     return -1;
+    // }
+    listAvfoundationDevices(device_info_list);
+
+   // printf("number is %d\n",device_info_list->nb_devices);
+    //ret = avdevice_list_input_sources(input_format, NULL, NULL, &device_info_list);
+    // if (ret < 0) {
+    //     av_strerror(ret, error_msg, 256);
+    //     LOGE("avdevice_list_input_sources failed: %s %d", error_msg,ret);
+    //     return -1;
+    // }
+
+    //printf("nubmer of devices is:%d\n",device_info_list->nb_devices);
+    // allocate the camera_list base on the number of video devices
+    camera_list = g_array_new(false, true, sizeof(CameraProp));
+    for (int i = 0; i < device_info_list->nb_devices; ++i) {
+        AVDeviceInfo *device_info = device_info_list->devices[i];
+        CameraProp prop;
+        strcpy(prop.name, device_info->device_name);
+        prop.camera_id = camera_count;
+
+        // todo: query the real capabilities of the camera
+        set_camera_capabilties(&prop);
+
+        LOGI("discovered camera id %d: %s", camera_count, prop.name);
+        g_array_append_val(camera_list, prop);
+        ++camera_count;
+
+        break;
+    }
+
+    LOGI("list_cameras: found %d cameras.", camera_count);
+
+    return camera_count;
+#else
     if (camera_list != NULL) {
         LOGW("camera_list not null, refreshing cameras.");
         g_array_unref(camera_list);
@@ -706,11 +999,7 @@ int list_cameras(void)
                 // "video=" is the prefix for DirectShow, 
                 // if you are using other drivers, you may need to change this
                 CameraProp prop;
-                #ifdef _WIN32
                 strcpy_s(prop.name, sizeof(prop.name), device_info->device_description);
-                #else
-                strcpy(prop.name, device_info->device_description);
-                #endif
                 prop.camera_id = camera_count;
 
                 // todo: query the real capabilities of the camera
@@ -728,6 +1017,8 @@ int list_cameras(void)
     LOGI("list_cameras: found %d cameras.", camera_count);
 
     return camera_count;
+
+#endif
 }
 
 static void camera_output_call_handle(struct Thread_Context *context, Teleport_Express_Call *call)
@@ -859,6 +1150,7 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
 
 static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
+    LOGI("in get_camera_thread_context");
     if (camera_thread_contexts_map == NULL)
     {
         // first time thread safety?

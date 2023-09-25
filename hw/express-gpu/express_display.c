@@ -527,7 +527,7 @@ static void display_context_init(Thread_Context *context)
 
         if (express_gpu_gl_debug_enable)
         {
-            #ifndef __APPLE
+            #ifdef _WIN32
             glEnable(GL_DEBUG_OUTPUT);
             glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
             glDebugMessageCallback(gl_debug_output, NULL);

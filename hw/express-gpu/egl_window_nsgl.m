@@ -1,8 +1,11 @@
-#include "hw/express-gpu/egl_window.h"
 #include <glib.h>
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdint.h>
+
+#include "hw/express-gpu/egl_define.h"
+#include "hw/express-gpu/egl_window.h"
+#include "hw/teleport-express/express_log.h"
 
 #include "hw/express-gpu/egl_define.h"
 #include "hw/express-gpu/egl_window.h"
@@ -45,7 +48,9 @@ void *egl_createContext()
 {
     id context = [[NSOpenGLContext alloc] initWithFormat:static_pixelFormat shareContext:main_window_context];
     
-    printf("create context from NSGL\n");
+    //LOGI("create context from NSGL\n");
+    express_printf("create context from NSGL2!\n");
+    //printf("create context from NSGL3\n");
     if (context != nil)
     {
         // g_hash_table_insert(context_pbuffer_map, (gpointer)context, pbuffer);

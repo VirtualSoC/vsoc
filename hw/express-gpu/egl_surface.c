@@ -31,7 +31,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
 
     Graphic_Buffer *now_draw_gbuffer = surface->gbuffer;
 
-    express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
+    //express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
 
     Graphic_Buffer *next_draw_gbuffer = NULL;
 

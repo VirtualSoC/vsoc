@@ -303,7 +303,7 @@ void common_device_irq_release(Device_Context *device_context)
 {
     device_context->irq_enabled = false;
 
-    printf("irq release %s\n", device_context->device_info->name);
+    express_printf("irq release %s\n", device_context->device_info->name);
 
     Teleport_Express_Call *origin_call = NULL;
     if ((origin_call = qatomic_xchg(&device_context->irq_call, 1)) != NULL)
@@ -315,11 +315,11 @@ void common_device_irq_release(Device_Context *device_context)
             // 在irq_call被release函数获取时，不可能存在进一步的中断注入，因而也不可能出现中断的重置，所以可以放心设置为NULL
             // 其他情况意味着在等待下一次中断重置过程中
             qatomic_xchg(&device_context->irq_call, NULL);
-            printf("%s irq_release\n", device_context->device_info->name);
+            express_printf("%s irq_release\n", device_context->device_info->name);
         }
         else
         {
-            printf("error! %s release twice!\n", device_context->device_info->name);
+            express_printf("error! %s release twice!\n", device_context->device_info->name);
         }
     }
 
@@ -334,20 +334,20 @@ int set_express_device_irq(Device_Context *device_context, int buf_index, int le
 {
     if (!device_context->irq_enabled)
     {
-        printf("%s irq is not enabled!\n", device_context->device_info->name);
+        express_printf("%s irq is not enabled!\n", device_context->device_info->name);
         return IRQ_NOT_ENABLE;
     }
 
     Teleport_Express_Call *origin_call = NULL;
     if ((origin_call = qatomic_xchg(&device_context->irq_call, NULL)) == NULL)
     {
-        printf("%s irq not ok!\n", device_context->device_info->name);
+        express_printf("%s irq not ok!\n", device_context->device_info->name);
         return IRQ_NOT_READY;
     }
 
     if (origin_call == (void *)1)
     {
-        printf("%s has been released!\n", device_context->device_info->name);
+        express_printf("%s has been released!\n", device_context->device_info->name);
         return IRQ_RELEASED;
     }
 
