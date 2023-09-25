@@ -30,21 +30,14 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
 //注意：不要用qemu_event*相关的函数，这系列函数在并发时有bug，会导致event丢失
 // qemu_event_reset(&(context->data_event));
 // qemu_event_wait(&(context->data_event));
+        if (context->data_event != NULL)
+        {
 #ifdef _WIN32
-        if (context->data_event != NULL)
-        {
             WaitForSingleObject(context->data_event, INFINITE);
-        }
 #else
-        if (context->data_event != NULL)
-        {
             wait_event(context->data_event, 0xffffffff);
-        }
-        if(teleport_express_should_stop)
-        {
-            return NULL;
-        }
 #endif
+        }
 
         if (teleport_express_should_stop)
         {
@@ -52,6 +45,12 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
         }
     }
     Teleport_Express_Call *ret = context->call_buf[context->read_loc];
+
+    if (ret == NULL) {
+        LOGW("call_pop obtained empty call!");
+        return NULL;
+    }
+
     context->call_buf[context->read_loc] = NULL;
 
     context->read_loc = (context->read_loc + 1) % CALL_BUF_SIZE;
@@ -80,21 +79,17 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
  */
 void call_push(Thread_Context *context, Teleport_Express_Call *call)
 {
-
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
 //缓冲区为满
+        if (context->data_event != NULL)
+        {
 #ifdef _WIN32
-        if (context->data_event != NULL)
-        {
             WaitForSingleObject(context->data_event, INFINITE);
-        }
 #else
-        if (context->data_event != NULL)
-        {
             wait_event(context->data_event, 0xffffffff);
-        }
 #endif
+        }
 
         if (teleport_express_should_stop)
         {
@@ -152,11 +147,9 @@ void *handle_thread_run(void *opaque)
             return NULL;
         }
 
-        if(!call)
+        if (call == NULL)
         {
-            LOGE("teleport express call is null!");
-            return NULL;
-
+            continue;
         }
 
         if (call->is_end)

@@ -18,9 +18,9 @@
 #define EXPRESS_DISPLAY_DEVICE_ID ((uint64_t)10)
 #define EXPRESS_CAMERA_DEVICE_ID ((uint64_t)11)
 #define EXPRESS_MODEM_DEVICE_ID ((uint64_t)12)
+#define EXPRESS_CODEC_DEVICE_ID ((uint64_t)13)
 
 #define EXPRESS_BRIDGE_DEVICE_ID ((uint64_t)40)
-
 
 #define EXPRESS_SYNC_DEVICE_ID ((uint64_t)50)
 

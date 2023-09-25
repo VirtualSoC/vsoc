@@ -1175,7 +1175,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
     Graphic_Buffer *gbuffer = NULL;
 
-    if (target == EGL_NATIVE_BUFFER_ANDROID)
+    if (target == EGL_NATIVE_BUFFER_ANDROID || target == EGL_NATIVE_BUFFER_OHOS)
     {
 
         gbuffer = get_gbuffer_from_global_map(gbuffer_id);

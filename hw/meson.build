@@ -68,6 +68,7 @@ subdir('tricore')
 subdir('xtensa')
 
 subdir('teleport-express')
+subdir('express-codec')
 subdir('express-gpu')
 subdir('express-input')
 subdir('express-sensor')

@@ -106,8 +106,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
 
-    express_printf("make current guest draw %llx read %llx context %llx\n", (uint64_t)draw, (uint64_t)read, (uint64_t)ctx);
-    express_printf("make current host draw %llx read %llx context %llx\n", (uint64_t)real_surface_draw, (uint64_t)real_surface_read, (uint64_t)real_opengl_context);
+    express_printf("makecurrent guest draw %llx read %llx context %llx\n", (uint64_t)draw, (uint64_t)read, (uint64_t)ctx);
+    express_printf("makecurrent host draw %llx read %llx context %llx\n", (uint64_t)real_surface_draw, (uint64_t)real_surface_read, (uint64_t)real_opengl_context);
 
     if (thread_context->opengl_context == real_opengl_context && thread_context->render_double_buffer_draw == real_surface_draw && thread_context->render_double_buffer_read == real_surface_read)
     {
@@ -146,7 +146,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if (thread_context->opengl_context != NULL && thread_context->opengl_context != real_opengl_context)
     {
         // thread_context->opengl_context->draw_surface = NULL;
-        express_printf("makecurrent context change %llx guest %llx %d window %llx\n", (uint64_t)thread_context->opengl_context, (uint64_t)thread_context->opengl_context->guest_context, thread_context->opengl_context->need_destroy, (uint64_t)thread_context->opengl_context->window);
+        express_printf("makecurrent context change %llx guest %llx need_destroy %d window %llx\n", (uint64_t)thread_context->opengl_context, (uint64_t)thread_context->opengl_context->guest_context, thread_context->opengl_context->need_destroy, (uint64_t)thread_context->opengl_context->window);
 #ifndef __APPLE__
         glDebugMessageCallback(NULL, NULL);
 #endif
@@ -162,9 +162,8 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     {
         if (thread_context->opengl_context != NULL)
         {
-            express_printf("thread %llx context %llx makecurrent window %llx null\n", thread_context, thread_context->opengl_context, thread_context->opengl_context->window);
+            express_printf("thread %llx context %llx window %llx makecurrent null\n", thread_context, thread_context->opengl_context, thread_context->opengl_context->window);
         }
-        express_printf("#%llx makecurrent null read %llx draw %llx\n", real_opengl_context, real_surface_read, real_surface_draw);
         if (thread_context->opengl_context != NULL && thread_context->opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
         {
             glfwMakeContextCurrent(NULL);
@@ -188,7 +187,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
             #ifdef __APPLE__
             THREAD_CONTROL_BEGIN
             #endif
-            express_printf("glfwSetWindowSize surface width %d height %d width %d height %d\n", real_surface_draw->width, real_surface_draw->height, width, height);
+            LOGI("independent window width %d height %d width %d height %d", real_surface_draw->width, real_surface_draw->height, width, height);
             glfwSetWindowSize(real_opengl_context->window, width, height);
             glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
             glfwShowWindow((GLFWwindow *)real_opengl_context->window);
@@ -319,7 +318,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (real_surface_draw == NULL && real_surface_read == NULL)
     {
-        express_printf("host create surfaceless context %llx", (uint64_t)ctx);
+        LOGI("host create surfaceless context %llx", (uint64_t)ctx);
         real_opengl_context->read_fbo0 = 0;
         real_opengl_context->draw_fbo0 = 0;
         return EGL_TRUE;
@@ -612,7 +611,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
         double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);
-        // LOGI("%llx surface draw %.2lfHz", (uint64_t)real_surface, hz);
+        LOGD("%llx surface draw %.2lfHz", (uint64_t)real_surface, hz);
         real_surface->now_screen_hz = 0;
 
         real_surface->last_calc_time = now_time;

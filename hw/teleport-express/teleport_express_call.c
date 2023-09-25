@@ -216,15 +216,15 @@ void *get_direct_ptr(Guest_Mem *guest_mem, int *flag)
  */
 void read_from_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t length)
 {
-    if (unlikely(guest == NULL || guest->all_len == 0))
+    if (unlikely(guest == NULL || guest->all_len == 0 || length == 0))
     {
         return;
     }
     express_printf("read_from_guest_mem length %llu all_len %d\n", length, guest->all_len);
     Scatter_Data *guest_data = guest->scatter_data;
-    if (unlikely(length == 0 || host == NULL || length > guest->all_len))
+    if (unlikely(host == NULL || length > guest->all_len))
     {
-        printf("read_from_guest_mem error host %llx len %d %lld\n", (uint64_t)host, guest->all_len, length);
+        LOGE("read_from_guest_mem error host %llx len %d %lld", (uint64_t)host, guest->all_len, length);
         return;
     }
 
@@ -250,7 +250,7 @@ void write_to_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t l
     Scatter_Data *guest_data = guest->scatter_data;
     if (unlikely(length == 0 || host == NULL || length > guest->all_len))
     {
-        printf("write_to_guest_mem error host %llx len %d %lld\n", (uint64_t)host, guest->all_len, length);
+        LOGE("write_to_guest_mem error host %llx len %d %lld", (uint64_t)host, guest->all_len, length);
         return;
     }
     host_guest_buffer_exchange(guest_data, (unsigned char *)host, start_loc, length, 0);
@@ -321,7 +321,7 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
                     }
                     else
                     {
-                        printf("error map data! same scatter data pointer");
+                        LOGE("error map data! same scatter data pointer");
                     }
 
                     memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, guest_data[guest_index].len - guest_loc);
@@ -367,7 +367,7 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
 
     if (unlikely(guest_mem == NULL))
     {
-        printf("error! guest_mem alloc return NULL!\n");
+        LOGE("error! guest_mem alloc return NULL!");
         return 0;
     }
 
@@ -419,7 +419,7 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
         {
             if (unlikely(flag_buf == NULL))
             {
-                printf("error! null flag_buf\n");
+                LOGE("error! null flag_buf");
                 return 0;
             }
             *id = flag_buf->id;
@@ -482,7 +482,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
                 // TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(call->elem_header);
                 release_one_call(call, false);
                 call = NULL;
-                printf(YELLOW("fill para error first elem %u,%u remain_elem_num %llu index %d\n"), elem->elem.in_num, elem->elem.out_num, para_num, index);
+                LOGW("fill para error first elem %u,%u remain_elem_num %llu index %d", elem->elem.in_num, elem->elem.out_num, para_num, index);
                 break;
             }
             call->elem_tail->next = elem;
@@ -495,14 +495,14 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
                 //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
                 VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, elem, 1, next);
                 TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(elem);
-                printf("fill error %u %u\n", elem->elem.in_num, elem->elem.out_num);
+                LOGE("fill error %u %u", elem->elem.in_num, elem->elem.out_num);
                 return NULL;
             }
 
             call = alloc_one_call();
             if (call == NULL)
             {
-                printf("error! alloc call return NULL!\n");
+                LOGE("error! alloc call return NULL!");
             }
             call->elem_header = elem;
             call->elem_tail = elem;
@@ -560,11 +560,11 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
                 call = NULL;
                 if (elem == NULL)
                 {
-                    printf(YELLOW("fill para error NULL %d index %d\n"), cnt_timeout, index);
+                    LOGW("fill para error NULL %d index %d", cnt_timeout, index);
                 }
                 else
                 {
-                    printf(YELLOW("fill para error %u,%u index %d\n"), elem->elem.in_num, elem->elem.out_num, index);
+                    LOGW("fill para error %u,%u index %d", elem->elem.in_num, elem->elem.out_num, index);
                 }
                 break;
             }
@@ -688,7 +688,7 @@ void guest_null_ptr_init(VirtQueue *vq)
     }
     else
     {
-        printf("error! null ptr cannot be init!\n");
+        LOGE("error! null ptr cannot be init!");
     }
     virtqueue_push(vq, elem, 1);
 }

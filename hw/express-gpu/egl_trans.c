@@ -2371,7 +2371,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         unsigned int temp_loc = 0;
 
-        guest_gl_context = *(uint64_t *)(temp + temp_loc);
+        guest_gl_context = *(void **)(temp + temp_loc);
         temp_loc += sizeof(EGLContext);
 
         /* Check length */
@@ -2426,7 +2426,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         unsigned int temp_loc = 0;
 
-        guest_gl_context = *(uint64_t *)(temp + temp_loc);
+        guest_gl_context = *(void **)(temp + temp_loc);
         temp_loc += sizeof(EGLContext);
 
         /* Check length */

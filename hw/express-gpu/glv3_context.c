@@ -198,7 +198,7 @@ void *get_native_opengl_context(int context_flags)
     if (first == NULL || (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT) || first->data == NULL)
     {
         // 给主窗口发消息的时候只能输入一个参数，所以窗口模式用flag方式传入
-        native_context = (void*)context_flags;
+        native_context = (void*)(intptr_t)context_flags;
 
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
         // 不能在子线程中创建context，不然会为空
@@ -216,7 +216,7 @@ void *get_native_opengl_context(int context_flags)
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
         //等待window真正的建立起来
         int sleep_cnt = 0;
-        while (native_context == NULL || native_context == (void*)context_flags)
+        while (native_context == NULL || native_context == (void*)(intptr_t)context_flags)
         {
             g_usleep(1000);
             sleep_cnt += 1;
@@ -230,13 +230,13 @@ void *get_native_opengl_context(int context_flags)
     else if (context_flags & GL_CONTEXT_FLAG_DEBUG_BIT || context_flags & GL_CONTEXT_FLAG_ROBUST_ACCESS_BIT)
     {
         // 特殊窗口类型，直接创建新的context
-        native_context = (void*)context_flags;
+        native_context = (void*)(intptr_t)context_flags;
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
 
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
         //等待window真正的建立起来
         int sleep_cnt = 0;
-        while (native_context == NULL || native_context == (void*)context_flags)
+        while (native_context == NULL || native_context == (void*)(intptr_t)context_flags)
         {
             g_usleep(1000);
             sleep_cnt += 1;
