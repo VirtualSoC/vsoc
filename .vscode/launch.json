@@ -6,8 +6,8 @@
             "name": "Launch-quick",
             "type": "cppdbg",
             "request": "launch",
-            "targetArchitecture": "x64",
-            "program": "${workspaceFolder}\\build\\qemu-system-x86_64.exe",
+            "targetArchitecture": "x86_64",
+            "program": "${workspaceFolder}/build/qemu-system-x86_64",
             // "args": [
             //     "-accel", "hax",
             //     "-m", "6096",
@@ -26,20 +26,18 @@
             //     "-display", "none"
             // ],
             "args": [
-                "-accel", "whpx,kernel-irqchip=off",
+                "-accel", "hax",
                 "-cpu", "android64",
-                "-m", "6096",
-                "-smp", "6", 
-                "-machine", "usb=on", 
-                "-device", "usb-kbd",
+                "-m", "4096",
+                "-smp", "2", 
                 "-audiodev", "dsound,id=hda",
                 "-device", "intel-hda",
                 "-device", "hda-output,audiodev=hda",
                 "-net", "nic", 
-                "-hda", "D:/hda_t.img",
-                "-cdrom", "D:/android_x86_64.iso",
+                "-hda", "../hda.img",
+                "-cdrom", "../android_x86_64.iso",
                 "-serial", "stdio",
-                "-device", "teleport,touchscreen=on,scroll_is_zoom=on,right_click_is_two_finger=on,scroll_ratio=10,keyboard=on,finger_replay=off,window_width=1280,window_height=720,keep_window_scale=on,independ_window=on,gl=on,gl_debug=on,gl_log_level=1,gl_log_to_host=on,buffer_log=off,opengl_trace=off,display_width=1920,display_height=1080,phy_width=1920,phy_height=1080,display_switch=off,device_input_window=off,battery=on,mic=on,accel=on,gps=on,gyro=on,bridge=on", 
+                "-device", "teleport,touchscreen=on,scroll_is_zoom=on,right_click_is_two_finger=on,scroll_ratio=10,keyboard=on,finger_replay=off,window_width=1280,window_height=720,keep_window_scale=on,independ_window=off,gl=on,gl_debug=off,gl_log_level=5,gl_log_to_host=off,buffer_log=off,opengl_trace=off,display_width=1920,display_height=1080,phy_width=1920,phy_height=1080,display_switch=off,device_input_window=off,battery=off,mic=off,accel=off,gps=off,gyro=off,bridge=on,camera=on", 
             ],
             // "program": "${workspaceFolder}\\build\\qemu-system-aarch64.exe",
             // "args" :[
@@ -81,21 +79,22 @@
             // ],
 
             "stopAtEntry": false,
+            "stopAtConnect": false,
             "cwd": "${workspaceFolder}/build",
-            "environment": [{
-                "name": "PATH",
-                "value": "C:/msys64/mingw64/bin;C:/msys64/mingw64/lib;C:/msys64/usr/local/bin;C:/msys64/usr/bin;C:/msys64/bin:C:/Windows/System32;C:/Windows;C:/Windows/System32/Wbem;C:/Windows/System32/WindowsPowerShell/v1.0/;C:/msys64/usr/bin/site_perl;C:/msys64/usr/bin/vendor_perl;C:/msys64/usr/bin/core_perl;"
-            }],
+            // "environment": [{
+            //     "name": "PATH",
+            //     "value": "C:/msys64/mingw64/bin;C:/msys64/mingw64/lib;C:/msys64/usr/local/bin;C:/msys64/usr/bin;C:/msys64/bin:C:/Windows/System32;C:/Windows;C:/Windows/System32/Wbem;C:/Windows/System32/WindowsPowerShell/v1.0/;C:/msys64/usr/bin/site_perl;C:/msys64/usr/bin/vendor_perl;C:/msys64/usr/bin/core_perl;"
+            // }],
             "externalConsole": true,
-            "MIMode" : "gdb",
-            "miDebuggerPath": "C:/msys64/mingw64/bin/gdb-multiarch.exe",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
+            "MIMode" : "lldb",
+            // "miDebuggerPath": "C:/msys64/mingw64/bin/gdb-multiarch.exe",
+            // "setupCommands": [
+            //     {
+            //         "description": "Enable pretty-printing for gdb",
+            //         "text": "-enable-pretty-printing",
+            //         "ignoreFailures": true
+            //     }
+            // ],
             // "logging": { "engineLogging": true },
         },
     ]

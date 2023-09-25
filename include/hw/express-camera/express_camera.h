@@ -6,6 +6,7 @@
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
+#include "libavdevice/avdevice.h"
 
 /*
  *	M I S C E L L A N E O U S
@@ -301,4 +302,5 @@ enum v4l2_colorspace {
 };
 
 int list_cameras(void);
+void listAvfoundationDevices(AVDeviceInfoList *deviceList);
 #endif

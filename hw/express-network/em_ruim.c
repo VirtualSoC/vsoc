@@ -57,8 +57,10 @@ Ruim *ruim_create_from_file(const char *filename)
             }
         }
         fclose(file);
+#ifdef _WIN32
     } else if (errno == ENOENT) {
         LOGW("Ruim file %s not exist, using empty ruim config", filename);
+#endif
     } else {
         LOGE("Failed to open file %s: %s", filename, strerror(errno));
     }

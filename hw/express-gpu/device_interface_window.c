@@ -3,7 +3,7 @@
 #include "hw/express-gpu/cimgui/cimgui.h"
 
 #define TIMER_LOG
-#define STD_DEBUG_LOG
+//#define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/express-sensor/express_battery.h"
@@ -12,6 +12,14 @@
 #include "hw/express-sensor/express_gps.h"
 #include "hw/express-sensor/express_mic.h"
 #include "hw/express-network/express_modem.h"
+
+#ifdef __APPLE__
+#include <dispatch/dispatch.h>
+#define THREAD_CONTROL_BEGIN \
+dispatch_sync(dispatch_get_main_queue(), ^{ 
+#define THREAD_CONTROL_END \
+}); 
+#endif
 
 #ifdef __APPLE__
 #include <dispatch/dispatch.h>
@@ -181,7 +189,7 @@ GLFWwindow *window = NULL;
 
 void handle_battery_change(int property, int value)
 {
-    printf("Device_interface::current_battery: %d\n", value);
+    LOGI("Device_interface::current_battery: %d\n", value);
 
     express_battery_status_changed(property, value);
     sync_express_battery_status();
@@ -200,7 +208,7 @@ static void handle_mic_change(bool value)
 
 void handle_accelerometer_change(int property, int value)
 {
-    printf("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", cur_acc.scale, cur_acc.x, cur_acc.y, cur_acc.z);
+    LOGI("Device_interface::accelerometer scale: %.2f, x: %d, y: %d, z: %d\n", cur_acc.scale, cur_acc.x, cur_acc.y, cur_acc.z);
 
     express_accel_status_changed(property, value);
     sync_express_accel_status();
@@ -208,12 +216,12 @@ void handle_accelerometer_change(int property, int value)
 
 void handle_magnetic_change(float scale_x, float scale_y, float scale_z, int x, int y, int z)
 {
-    printf("Device_interface::magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d\n", scale_x, scale_y, scale_z, x, y, z);
+    LOGI("Device_interface::magnetic scale x: %.2f, scale y: %.2f, scale z: %.2f, x: %d, y: %d, z:%d\n", scale_x, scale_y, scale_z, x, y, z);
 }
 
 void handle_light_change(float scale, int input)
 {
-    printf("Device_interface::light scale: %.2f, input: %d\n", scale, input);
+    LOGI("Device_interface::light scale: %.2f, input: %d\n", scale, input);
 }
 
 void handle_gyroscope_change(int property, int value)
@@ -297,7 +305,7 @@ static void igToggleButton(const char *str_id, bool *v, void (*func)(bool value)
     {
         ImVec4 out, color1 = {0.85f, 0.85f, 0.85f, 1.0f}, color2 = {0.56f, 0.83f, 0.26f, 1.0f};
         igImLerp_Vec4(&out, color1, color2, t);
-        col_bg = igGetColorU32_Vec4(out);
+         col_bg = igGetColorU32_Vec4(out);
     }
 
     ImVec2 filled = {p.x + width, p.y + height};

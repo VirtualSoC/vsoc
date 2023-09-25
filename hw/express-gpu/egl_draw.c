@@ -381,6 +381,12 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
         return EGL_FALSE;
     }
     Opengl_Context *real_opengl_context = thread_context->opengl_context;
+    
+    if (real_opengl_context == NULL)
+    {
+        LOGE("eglswapbuffers on null opengl context! thread_context %p", thread_context);
+        return EGL_FALSE;
+    }
     // LOGI("context %llx swapbuffer",real_opengl_context);
 
     if (real_surface != thread_context->render_double_buffer_draw)
@@ -436,6 +442,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
     {
         // 不可能不在自己进程下
         LOGE("error! context %llx queuebuffer id %llx not exist!", (uint64_t)opengl_context, (uint64_t)gbuffer_id);
+
         return;
     }
 

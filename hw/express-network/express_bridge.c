@@ -9,7 +9,7 @@
  *
  */
 
-#define STD_DEBUG_LOG
+//#define STD_DEBUG_LOG
 
 // #define BRIDGE_VERBOSE_OUTPUT
 

@@ -77,7 +77,7 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                ))
 
 glfw = cc.find_library('glfw')
-glew = cc.find_library('GLEW',dirs:'/opt/homebrew/lib')
+glew = cc.find_library('GLEW')
 #opengl32 = cc.find_library('opengl32')
 opengl32 = dependency('appleframeworks', modules : ['OpenGL'])
 Cocoa = dependency('appleframeworks', modules: ['Cocoa', 'CoreVideo'],
@@ -85,7 +85,7 @@ Cocoa = dependency('appleframeworks', modules: ['Cocoa', 'CoreVideo'],
 IOKit = dependency('appleframeworks', modules: 'IOKit')
 AppKit = dependency('appleframeworks', modules: 'AppKit')
 CoreFoundation = dependency('appleframeworks', modules: 'CoreFoundation')
-cimgui = cc.find_library('cimgui',dirs: '/usr/local',static:false)
+cimgui = cc.find_library('cimgui')
 express_gpu.add(cimgui)
 express_gpu.add(glfw)
 express_gpu.add(glew)
