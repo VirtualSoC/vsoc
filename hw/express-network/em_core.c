@@ -2986,9 +2986,13 @@ handleRequestCurrentTime(const char *cmd, Express_Modem *modem)
     // Format time as a string
     strftime(formattedTime, sizeof(formattedTime), "%Y/%m/%d,%H:%M:%S", timeInfo);
 
+#ifndef __WIN32__
     int tz_offset_hours = timeInfo->tm_gmtoff / 3600;
-
     return em_printf(modem, "+CCLK: \"%s%+d\"", formattedTime, tz_offset_hours);
+#else
+    // msys2 env does not support tm_gmtoff
+    return em_printf(modem, "+CCLK: \"%s\"", formattedTime);
+#endif
 }
 
 /* a function used to deal with a non-trivial request */

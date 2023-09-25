@@ -36,14 +36,16 @@ int init_program_data(GLuint program)
 
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &infoLen);
 
-        LOGI("GL_INFO_LOG_LENGTH %d", infoLen);
-
         if (infoLen > 1)
         {
             char *infoLog = (char *)malloc(sizeof(char) * infoLen);
             glGetProgramInfoLog(program, infoLen, NULL, infoLog);
             LOGE("error linking program:\n%s", infoLog);
             free(infoLog);
+        }
+        else
+        {
+            LOGW("linking program with empty info! gl error %x", glGetError());
         }
 
         return 0;

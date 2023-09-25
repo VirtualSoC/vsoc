@@ -536,15 +536,14 @@ static void handle_child_window_event(void)
                     LOGW("warning: create child window empty window_ptr");
                     break;
                 }
-                // LOGI("create window");
                 // LOGI("start create window ptr %llx", window_ptr);
             #ifdef __APPLE__
                 THREAD_CONTROL_BEGIN
-            #endif 
-                *window_ptr = (void *)native_window_create((int)*window_ptr);
-            #ifdef __APPLE__    
+            #endif
+                *window_ptr = (void *)native_window_create((int)(intptr_t)*window_ptr);
+            #ifdef __APPLE__
                 THREAD_CONTROL_END
-            #endif 
+            #endif
 
             }
 
@@ -724,7 +723,7 @@ static void static_value_prepare(void)
     // temp_loc++;
     *temp_loc = 0;
     temp_loc++;
-    LOGI("\ngl vendor:%s", (char *)gl_string);
+    LOGI("gl vendor:%s", (char *)gl_string);
 
     gl_string = (const char *)glGetString(GL_VERSION);
 
@@ -957,7 +956,10 @@ static void *native_window_create(int context_flags)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
 
-        glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+        if (express_gpu_gl_debug_enable)
+        {
+            glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+        }
         glfwWindowHint(GLFW_CONTEXT_ROBUSTNESS, GLFW_LOSE_CONTEXT_ON_RESET);
 
         // 因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
@@ -1046,6 +1048,7 @@ void *native_window_thread(void *opaque)
     {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     }
+    glfwWindowHint(GLFW_CONTEXT_ROBUSTNESS, GLFW_LOSE_CONTEXT_ON_RESET);
 #endif
 
     // 创建一个窗口，这个window也是context
@@ -1293,7 +1296,7 @@ void *native_window_thread(void *opaque)
             }
             else
             {
-                // LOGI("screen draw avg %.2f us %.2f FPS", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
+                LOGD("screen draw avg %.2f us %.2f FPS", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
             }
 
             frame_draw_time = 0;

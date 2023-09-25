@@ -41,6 +41,8 @@ static int static_pixel_format;
 
 static int static_pbuffer_attribs[3];
 
+extern bool express_gpu_gl_debug_enable;
+
 WGLproc load_wgl_fun(const char *name);
 
 WGLproc load_wgl_fun(const char *name)
@@ -142,24 +144,16 @@ void *egl_createContext(int context_flags)
     int *ptr = attrib_list;
 
     int wgl_context_flags = 0;
-    wgl_context_flags |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
-    if (context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+    if ((context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) || express_gpu_gl_debug_enable)
     {
         wgl_context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
     }
-    if (context_flags & GL_CONTEXT_FLAG_ROBUST_ACCESS_BIT)
-    {
-        *ptr = WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB;
-        *(ptr + 1) = WGL_LOSE_CONTEXT_ON_RESET_ARB;
-        ptr += 2;
-    }
-    else 
-    {
-        // EGL_NO_RESET_NOTIFICATION对guest来说是透明的，所以默认开启
-        *ptr = WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB;
-        *(ptr + 1) = WGL_NO_RESET_NOTIFICATION_ARB;
-        ptr += 2;
-    }
+
+    // robust access对guest来说是透明的，所以默认开启
+    wgl_context_flags |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
+    *ptr = WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB;
+    *(ptr + 1) = WGL_LOSE_CONTEXT_ON_RESET_ARB;
+    ptr += 2;
     *ptr = WGL_CONTEXT_FLAGS_ARB;
     *(ptr + 1) = wgl_context_flags;
     ptr += 2;
@@ -168,11 +162,14 @@ void *egl_createContext(int context_flags)
 
     if (wglCreateContextAttribs == NULL)
     {
-        context = wglCreateContext(pbuffer_dc);
-        wglShareLists(main_window_context, context);
         if (context_flags != 0) 
         {
             LOGW("warning! context flag %x not supported by wgl, ignoring.", context_flags);
+        }
+        context = wglCreateContext(pbuffer_dc);
+        bool succ = wglShareLists(main_window_context, context);
+        if (!succ) {
+            LOGE("wglShareLists failed with error %x", (unsigned int)GetLastError());
         }
     }
     else
@@ -188,7 +185,7 @@ void *egl_createContext(int context_flags)
     {
         wglReleasePbufferDC(pbuffer, pbuffer_dc);
         wglDestroyPbuffer(pbuffer);
-        LOGE("error! create context null! error is %llx", (unsigned long long)GetLastError());
+        LOGE("wgl create context failed with error %x", (unsigned int)GetLastError());
     }
     return context;
 }

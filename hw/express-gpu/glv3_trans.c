@@ -23632,7 +23632,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             GLboolean color_writemask[4] = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
             GLboolean depth_writemask = GL_TRUE;
             glGetBooleanv(GL_DEPTH_WRITEMASK, &depth_writemask);
-            glGetBooleanv(GL_COLOR_WRITEMASK, &color_writemask);
+            glGetBooleanv(GL_COLOR_WRITEMASK, color_writemask);
 
             // clear the colors
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);

@@ -135,7 +135,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     express_printf(" sync %d ok\n", sync_id);
 
     int64_t end_time = g_get_real_time();
-    if (end_time - start_time > 10 * 1000)
+    if (end_time - start_time > 50 * 1000)
     {
         LOGW("warning! wait_for_express_sync sync %d spend too long time (%lldms)", sync_id, (end_time - start_time) / 1000);
     }

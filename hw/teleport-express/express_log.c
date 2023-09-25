@@ -78,8 +78,6 @@ static gint64 t_last = 0;
 static char *copy_test_buf = NULL;
 static int copy_test_buf_len = 0;
 
-static GTimeZone *time_zone = NULL;
-
 void call_printf_flush(void);
 void log_init(struct Thread_Context *context);
 /**
@@ -105,14 +103,6 @@ void log_init(struct Thread_Context *context)
     {
         print_buf = g_malloc(LOG_FILE_SIZE);
         memset(print_buf, 0, LOG_FILE_SIZE);
-        t_last = g_get_real_time();
-        GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_last / 1000000);
-        GDateTime *tz = g_date_time_to_local(t);
-
-        time_zone = g_date_time_get_timezone(tz);
-
-        g_date_time_unref(t);
-        g_date_time_unref(tz);
     }
 }
 
@@ -138,7 +128,18 @@ static char time_str[1024];
 
 char *get_now_time(void)
 {
-    static uint64_t time_cnt = 0;
+    static GTimeZone *time_zone = NULL;
+
+    if (time_zone == NULL) {
+        t_last = g_get_real_time();
+        GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_last / 1000000);
+        GDateTime *tz = g_date_time_to_local(t);
+
+        time_zone = g_date_time_get_timezone(tz);
+
+        g_date_time_unref(t);
+        g_date_time_unref(tz);
+    }
 
     if (!time_zone) return "";
     gint64 t_int = g_get_real_time();
@@ -148,7 +149,7 @@ char *get_now_time(void)
     // GDateTime *tz = g_date_time_to_local(t);
     GDateTime *tz = g_date_time_to_timezone(t, time_zone);
     gchar *t_s1 = g_date_time_format(tz, "%F %T");
-    sprintf(time_str, "%s.%06lld  %llu ", t_s1, t_int % 1000000, qatomic_fetch_inc(&time_cnt));
+    sprintf(time_str, "%s.%06lld ", t_s1, t_int % 1000000);
     g_free(t_s1);
     g_date_time_unref(t);
     g_date_time_unref(tz);
@@ -176,7 +177,6 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
     // unsigned long process_id=call->process_id;
 
     static uint64_t count = 0;
-    // express_printf("log count %lld\n", qatomic_fetch_inc(&count));
     if (fun_id == 1)
     {
         gint64 t_int = g_get_real_time();
@@ -192,10 +192,9 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
                 t_last = t_int;
             }
             int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
-            // express_printf("#GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
             loc += num;
             read_from_guest_mem(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
-            // express_printf("%s\n", print_buf + loc);
+            // printf("#GUEST %s %ld %ld: %s\n", get_now_time(), process_id, thread_id, print_buf + loc);
             loc += all_para[0].data_len;
 
             //假如需要保证日志的完整性就要移除下面的注释（例如直接crash了日志在缓存里没保留下来的情况）

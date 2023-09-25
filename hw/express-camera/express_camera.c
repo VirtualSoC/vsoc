@@ -9,7 +9,7 @@
  *
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 #include "hw/express-camera/express_camera.h"
 #include "hw/express-gpu/express_gpu_render.h"
@@ -502,7 +502,6 @@ static void set_camera_capabilties(CameraProp *prop)
     char error_msg[256] = {0};
     int ret;
     
-    avformat_network_init();
     avdevice_register_all();
 
     av_log_set_level(CAMERA_LOG_LEVEL);
@@ -1026,7 +1025,7 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
 
     Camera_Context *camera_context = &(((Camera_Thread_Context *)context)->ctx);
     Call_Para all_para[6];
-    int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    get_para_from_call(call, all_para, MAX_PARA_NUM);
     int camera_id = camera_context->camera_id;
 
     if(camera_context == NULL) {

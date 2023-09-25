@@ -471,12 +471,12 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         return;
     }
 
-    // LOGI("glBindEGLImage gbuffer %llx ptr %llx type %d target-texture(%d)",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
+    LOGD("glBindEGLImage gbuffer %llx ptr %llx type %d target-texture(%d)",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
 
     if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE)
     {
         set_texture_gbuffer_ptr(opengl_context, texture, gbuffer);
-        // LOGI("glBindEGLImage gbuffer_id %llx when write %d sync %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
+        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         if (target == GL_TEXTURE_2D)
         {

@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include "qemu/osdep.h"
 #include "qemu/log.h"
-#include "qemu/thread.h"
-#include "pthread.h"
 
 // define this in a .c file before including this header enables debug log for that file locally.
 //#define STD_DEBUG_LOG
@@ -19,6 +17,7 @@
 #define HOST_LOG_LEVEL_WARN 2
 #define HOST_LOG_LEVEL_INFO 3
 #define HOST_LOG_LEVEL_DEBUG 4
+#define HOST_LOG_LEVEL_VERBOSE 5
 
 #ifdef CONFIG_GETTID
 #define CURRENT_TID() gettid()
@@ -56,6 +55,7 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
         printf("%s %lld %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
     }
 
+#define LOGV(fmt, ...) _host_log(HOST_LOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
 #define LOGD(fmt, ...) _host_log(HOST_LOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
 #define LOGI(fmt, ...) _host_log(HOST_LOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
 #define LOGW(fmt, ...) _host_log(HOST_LOG_LEVEL_WARN, YELLOW(fmt), ##__VA_ARGS__)
@@ -67,6 +67,8 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 #define express_printf null_printf
 #undef LOGD
 #define LOGD null_printf
+#undef LOGV
+#define LOGV null_printf
 #endif
 
 #ifdef TIMER_LOG

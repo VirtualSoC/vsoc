@@ -81,6 +81,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
     }
     else
     {
+        GLint padding = -min(point_data->buffer_len[index] - point_data->remain_buffer_len[index] - (GLint)offset, 0);
 
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
 
@@ -106,9 +107,9 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             point_data->buffer_loc[index] = 0;
-            point_data->remain_buffer_len[index] = max_len * 2 - max_len;
+            point_data->remain_buffer_len[index] = alloc_size - max_len;
         }
-        else if (length > point_data->remain_buffer_len[index])
+        else if (padding + length > point_data->remain_buffer_len[index])
         {
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, 0, point_data->buffer_len[index],
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
@@ -120,29 +121,22 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
 
             point_data->buffer_loc[index] = 0;
             point_data->remain_buffer_len[index] = point_data->buffer_len[index] - max_len;
-
-            // glBufferData(GL_ARRAY_BUFFER, point_data->buffer_len[index], NULL, GL_STREAM_DRAW);
-            // map_pointer=glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
-            //     GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
-
-            // read_from_guest_mem((Guest_Mem *)pointer,map_pointer,0,length);
-            // glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
-
-            // point_data->buffer_loc[index]=0;
-            // point_data->remain_buffer_len[index]=max_len*2-max_len;
         }
         else
         {
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER,
-                                           point_data->buffer_len[index] - point_data->remain_buffer_len[index], length,
+                                           point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
 
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
-            point_data->buffer_loc[index] = point_data->buffer_len[index] - point_data->remain_buffer_len[index] - offset;
-            point_data->remain_buffer_len[index] -= length;
+            // sometimes different offsets are used on the same host vbo, causing accesses of negative vbo indices and therefore undefined behaviour 
+            // therefore some padding is added to avoid negative buffer_loc
+            // fixes flickering icons in OpenHarmony 4.0 on Intel graphics cards.
+            point_data->buffer_loc[index] = point_data->buffer_len[index] - point_data->remain_buffer_len[index] + padding - offset;
+            point_data->remain_buffer_len[index] -= length + padding;
         }
 
         express_printf("attrib point loc %d %d index %d offset %d len %d\n", point_data->buffer_loc[index], point_data->buffer_loc[index] + length, index, offset, length);
@@ -229,6 +223,15 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
     Attrib_Point *point_data = bound_buffer->attrib_point;
     Buffer_Status *status = &(bound_buffer->buffer_status);
 
+    if (offset + point_data->buffer_loc[index_father] < 0)
+    {
+        LOGE("d_glVertexAttribPointer_offset negative loc %lld! offset %lld index_father %u buffer_loc %d", offset + point_data->buffer_loc[index_father], offset, index_father, point_data->buffer_loc[index_father]);
+    }
+    else 
+    {
+        LOGD("d_glVertexAttribPointer_offset loc %lld offset %lld index_father %u buffer_loc %d", offset + point_data->buffer_loc[index_father], offset, index_father, point_data->buffer_loc[index_father]);
+    }
+
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         express_printf("pointer offset vao %d %d obj %d  index %u size %d type %x stride %d offset %u real offset %d\n",
@@ -247,7 +250,6 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
 
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
 
-        express_printf("pointer offset %lld\n", offset + point_data->buffer_loc[index_father]);
         glVertexAttribPointer(index, size, type, normalized, stride, (const void *)(offset + point_data->buffer_loc[index_father]));
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);

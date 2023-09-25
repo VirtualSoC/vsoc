@@ -540,6 +540,8 @@ typedef void (EGLAPIENTRYP PFNEGLSETBLOBCACHEFUNCSANDROIDPROC)(EGLDisplay dpy, E
 #define EGL_NATIVE_BUFFER_ANDROID		0x3140
 #endif
 
+#define EGL_NATIVE_BUFFER_OHOS		0x34E1
+
 #ifndef EGL_ANDROID_native_fence_sync
 #define EGL_ANDROID_native_fence_sync 1
 #define EGL_SYNC_NATIVE_FENCE_ANDROID		0x3144
