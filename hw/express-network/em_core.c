@@ -2990,8 +2990,8 @@ handleRequestCurrentTime(const char *cmd, Express_Modem *modem)
     int tz_offset_hours = timeInfo->tm_gmtoff / 3600;
     return em_printf(modem, "+CCLK: \"%s%+d\"", formattedTime, tz_offset_hours);
 #else
-    // msys2 env does not support tm_gmtoff
-    return em_printf(modem, "+CCLK: \"%s\"", formattedTime);
+    // msys2 env does not support tm_gmtoff, default to +8
+    return em_printf(modem, "+CCLK: \"%s+8\"", formattedTime);
 #endif
 }
 
