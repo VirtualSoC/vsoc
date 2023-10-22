@@ -31705,7 +31705,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glDebugMessageControl(source, type, severity, count, ids, enabled);
+#endif
     }
     break;
 
@@ -31767,7 +31769,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glPushDebugGroup(source, id, length, message);
+#endif
     }
     break;
 
@@ -31781,7 +31785,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glPopDebugGroup();
+#endif
     }
     break;
 
@@ -31843,7 +31849,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glObjectLabel(identifier, name, length, label);
+#endif
     }
     break;
 
@@ -31901,7 +31909,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glObjectPtrLabel((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)ptr), length, label);
+#endif
     }
     break;
 
@@ -31987,7 +31997,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glGetObjectLabel(identifier, name, bufSize, length, label);
+#endif
 
         write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -32075,7 +32087,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glGetObjectPtrLabel((GLsync)get_host_sync_id(opengl_context, (unsigned int)(uint64_t)ptr), bufSize, length, label);
+#endif
 
         write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
@@ -32152,7 +32166,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+#ifndef __APPLE__
         glDebugMessageInsert(source, type, id, severity, length, buf);
+#endif
     }
     break;
 
