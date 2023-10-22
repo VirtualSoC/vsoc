@@ -13,7 +13,9 @@
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/teleport-express/teleport_express_call.h"
 
-#define LOG_DIR "log/call"
+#include <glib/gstdio.h>
+
+#define LOG_DIR "log/"
 
 #define LOG_FILE_SIZE (8 * 1024 * 1024)
 
@@ -103,6 +105,19 @@ void log_init(struct Thread_Context *context)
     {
         print_buf = g_malloc(LOG_FILE_SIZE);
         memset(print_buf, 0, LOG_FILE_SIZE);
+        t_last = g_get_real_time();
+        GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_last / 1000000);
+        GDateTime *tz = g_date_time_to_local(t);
+
+        time_zone = g_date_time_get_timezone(tz);
+
+        g_date_time_unref(t);
+        g_date_time_unref(tz);
+
+        if (!g_file_test(LOG_DIR, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)) {
+            /* Create the log folder */
+            g_assert(g_mkdir(LOG_DIR, 0755) == 0);
+        }
     }
 }
 
@@ -243,7 +258,7 @@ void call_printf_flush(void)
     char file_name[100];
     static char now_file_name[100];
     static FILE *fd = NULL;
-    sprintf(file_name, "%s_%.16s.log", LOG_DIR, get_now_time());
+    sprintf(file_name, "%s/call_%.16s.log", LOG_DIR, get_now_time());
 
     for (int i = 0; file_name[i] != 0; i++)
     {
