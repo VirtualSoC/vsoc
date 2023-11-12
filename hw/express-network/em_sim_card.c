@@ -11,7 +11,7 @@
 
 #include "hw/express-network/em_sim_card.h"
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 #include <assert.h>

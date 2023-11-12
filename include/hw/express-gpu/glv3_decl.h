@@ -404,8 +404,8 @@ typedef struct DebugMessageDesc {
 } __attribute__((packed, aligned(4))) DebugMessageDesc;
 
 typedef struct RingBufferDesc {
-    size_t block_count;
-    size_t block_size;
+    int block_count;
+    int block_size;
     int read_idx;
     int write_idx;
 } __attribute__((packed, aligned(4))) RingBufferDesc;

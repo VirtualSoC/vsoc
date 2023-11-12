@@ -13,21 +13,6 @@
 #include "hw/express-sensor/express_mic.h"
 #include "hw/express-network/express_modem.h"
 
-#ifdef __APPLE__
-#include <dispatch/dispatch.h>
-#define THREAD_CONTROL_BEGIN \
-dispatch_sync(dispatch_get_main_queue(), ^{ 
-#define THREAD_CONTROL_END \
-}); 
-#endif
-
-#ifdef __APPLE__
-#include <dispatch/dispatch.h>
-#define THREAD_CONTROL_BEGIN \
-dispatch_sync(dispatch_get_main_queue(), ^{ 
-#define THREAD_CONTROL_END \
-}); 
-#endif
 
 #define IM_COL32_R_SHIFT 0
 #define IM_COL32_G_SHIFT 8
@@ -854,19 +839,14 @@ static void draw_window(bool *show_imgui)
 
 void *interface_window_thread(void *data)
 {   
-// #ifdef __APPLE__
-//     THREAD_CONTROL_BEGIN
-// #endif
     all_interface_data.run = (int *)data;
 
-#ifdef __APPLE__
     THREAD_CONTROL_BEGIN
-#endif
+
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
-#ifdef __APPLE__
+
     THREAD_CONTROL_END
-#endif
 
     // GLFW already be initialized in our qemu main thread
     // if (!glfwInit())
@@ -918,9 +898,7 @@ void *interface_window_thread(void *data)
     #endif
     }
 
-#ifdef __APPLE__
     THREAD_CONTROL_END
-#endif
 
     glfwMakeContextCurrent(window);
     // 这个没用
@@ -957,22 +935,22 @@ void *interface_window_thread(void *data)
         ioptr = igGetIO();
 
         // TIMER_START(draw);
-#ifdef __APPLE__
-    THREAD_CONTROL_BEGIN
-#endif       
+
+        THREAD_CONTROL_BEGIN
+
         draw_window(&show_imgui);
-#ifdef __APPLE__
-    THREAD_CONTROL_END
-#endif
+
+        THREAD_CONTROL_END
+
         // TIMER_END(draw);
         // TIMER_OUTPUT(draw, 100);
-#ifdef __APPLE__
-    THREAD_CONTROL_BEGIN
-#endif 
+
+        THREAD_CONTROL_BEGIN
+
         glfwWaitEvents();
-#ifdef __APPLE__
+
     THREAD_CONTROL_END
-#endif 
+
         gint64 now_time = g_get_real_time();
 
         gint64 need_sleep_time = 1000000 / 60 - (now_time - frame_start_time) + remain_sleep_time - 1000;
@@ -998,9 +976,9 @@ void *interface_window_thread(void *data)
             break;
         }
     }
-#ifdef __APPLE__
+
     THREAD_CONTROL_BEGIN
-#endif
+
     // clean up
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -1009,9 +987,9 @@ void *interface_window_thread(void *data)
     glfwMakeContextCurrent(NULL);
 
     glfwDestroyWindow(window);
-#ifdef __APPLE__
+
     THREAD_CONTROL_END
-#endif   
+
     // glfw will only terminate once, it would be terminate in our main window thread
     // glfwTerminate();
     printf("Device_interface::Destroy window\n");

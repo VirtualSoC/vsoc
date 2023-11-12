@@ -33,13 +33,11 @@
 #define EXPRESS_RELEASE_IRQ_FUN_ID (1000002)
 
 
-
 //存放call的缓冲区大小
 #define CALL_BUF_SIZE 512
 
 #define INPUT_DEVICE_TYPE 1
 #define OUTPUT_DEVICE_TYPE 2
-
 
 
 // device设备的id在高4字节，需要调用的函数id在低3字节，设备id决定到底哪个线程去处理，函数id决定怎么处理，中间一个字节的每个位决定函数处理是异步同步等信息
@@ -63,7 +61,16 @@
     }
 
 
-
+#ifdef __APPLE__
+#include <dispatch/dispatch.h>
+#define THREAD_CONTROL_BEGIN \
+dispatch_sync(dispatch_get_main_queue(), ^{ 
+#define THREAD_CONTROL_END \
+});
+#else
+#define THREAD_CONTROL_BEGIN
+#define THREAD_CONTROL_END
+#endif
 
 
 

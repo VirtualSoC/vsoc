@@ -11,7 +11,7 @@
 
 #include "hw/express-network/em_remote_call.h"
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #define EM_DEBUG_SOCKET
 #include "hw/teleport-express/express_log.h"
 
@@ -335,13 +335,13 @@ remote_call_event( void*  opaque, int  events )
                 int  c = call->buff[nn];
                 if (c < 32) {
                     if (c == '\n')
-                        LOGS("\\n")
+                        LOGS("\\n");
                     else if (c == '\t')
-                        LOGS("\\t")
+                        LOGS("\\t");
                     else if (c == '\r')
-                        LOGS("\\r")
+                        LOGS("\\r");
                     else
-                        LOGS("\\x%02x", c)
+                        LOGS("\\x%02x", c);
                 } else
                     LOGS("%c", c);
             }

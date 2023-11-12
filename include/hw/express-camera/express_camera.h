@@ -8,6 +8,11 @@
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "libavdevice/avdevice.h"
 
+// these values need to be consistent with the guest configuration (if exists)
+#define MAX_CAPTURE_FPS 30
+#define DEFAULT_FRAME_WIDTH 1280
+#define DEFAULT_FRAME_HEIGHT 720
+
 /*
  *	M I S C E L L A N E O U S
  */

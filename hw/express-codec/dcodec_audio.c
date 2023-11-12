@@ -33,25 +33,20 @@ static void fill_eos_output_buffer(DCodecComponent *_context);
 static void adjust_audio_params(DCodecAudio *context);
 static bool get_omx_channel_mapping(uint32_t numChannels, OMX_AUDIO_CHANNELTYPE map[]);
 
-DCodecComponent* dcodec_audio_init_component(enum OMX_AUDIO_CODINGTYPE codingType) {
+DCodecComponent* dcodec_audio_init_component(enum OMX_AUDIO_CODINGTYPE codingType, NotifyCallbackFunc notify) {
     DCodecAudio *context = g_malloc0(sizeof(DCodecAudio));
     LOGI("dcodec_audio_init_component() component %p codingType %d", context, codingType);
 
-    bool found = false;
     enum AVCodecID codec_id = AV_CODEC_ID_NONE;
 
     for (int i = 0; i < sCodingMapLen; i++) {
         if (sCodingMap[i].mCodingType == codingType) {
             codec_id = sCodingMap[i].mCodecID;
-            found = true;
         }
-    }
-    if (!found) {
-        LOGW("warning! OMX coding type %x not supported by us!", codingType);
     }
 
     // init base component
-    int ret = dcodec_init_component((DCodecComponent *)context);
+    int ret = dcodec_init_component((DCodecComponent *)context, notify);
     if (ret != ERR_OK) {
         LOGE("error %d when creating dcodec base component", ret);
         g_free(context);
@@ -117,9 +112,13 @@ OMX_ERRORTYPE dcodec_audio_destroy_component(DCodecComponent *_context) {
         fclose(context->raw_fd);
     }
 #endif
-
     av_channel_layout_uninit(&context->mAudioSrcChannelLayout);
     av_channel_layout_uninit(&context->mAudioTgtChannelLayout);
+
+    if (context->mSwrCtx) {
+        swr_free(&context->mSwrCtx);
+        context->mSwrCtx = NULL;
+    }
 
     dcodec_deinit_component(_context);
     g_free(context);
@@ -879,9 +878,8 @@ static int open_decoder(DCodecComponent *_context) {
     mCtx->skip_frame        = AVDISCARD_DEFAULT;
     mCtx->skip_idct         = AVDISCARD_DEFAULT;
     mCtx->skip_loop_filter  = AVDISCARD_DEFAULT;
-    mCtx->flags |= AV_CODEC_FLAG_BITEXACT;
+    mCtx->flags2 |= AV_CODEC_FLAG2_FAST;
     // mCtx->error_concealment = 3;
-    // mCtx->flags2 |= AV_CODEC_FLAG2_FAST;
 
 #ifdef STD_DEBUG_LOG
     mCtx->debug = 1;
@@ -940,7 +938,7 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
 
     if (desc->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
         LOGW("extradata config ignored when the decoder is open");
-        dcodec_return_buffer_to_guest(_context, g_queue_pop_head(_context->input_buffers));
+        dcodec_return_buffer(_context, g_queue_pop_head(_context->input_buffers));
         return ERR_OK;
     }
 
@@ -965,17 +963,18 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
          desc->nTimeStamp, desc->nFlags);
 
     if (desc->nFlags & OMX_BUFFERFLAG_EOS) {
-        LOGD("input eos seen, switching to INPUT_EOS_SEEN.");
+        LOGD("input eos seen, flushing buffers");
 
         if (mCtx->codec->capabilities & AV_CODEC_CAP_DELAY) {
             LOGD("codec capability AV_CODEC_CAP_DELAY detected, sending EOS packet.");
             ret = decode_audio(context, NULL);
             CHECK_EQ(ret, ERR_OK);
         }
+        avcodec_flush_buffers(mCtx);
         _context->mStatus = INPUT_EOS_SEEN;
     }
 
-    dcodec_return_buffer_to_guest(_context, g_queue_pop_head(_context->input_buffers));
+    dcodec_return_buffer(_context, g_queue_pop_head(_context->input_buffers));
     return ERR_OK;
 }
 
@@ -993,10 +992,11 @@ static int decode_audio(DCodecAudio *context, BufferDesc *desc) {
         mPkt->data = NULL;
         mPkt->size = 0;
     }
-    else if (desc->nFilledLen == 0) { // ffmpeg does not accept empty packets
+    else if (desc->nFilledLen == 0) { // empty packets will cause mischief with ffmpeg
         return ERR_NO_FRM;
     }
     else {
+        CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
         CHECK_LE(desc->nFilledLen, sizeof(context->mAudioBuffer));
         read_from_guest_mem(desc->data, context->mAudioBuffer, desc->nOffset, desc->nFilledLen); // avoid memcpys caused by EAGAIN
         mPkt->data = context->mAudioBuffer;
@@ -1040,16 +1040,16 @@ static int resample_audio(DCodecAudio *context) {
 
     // create if we're reconfiguring, if the format changed mid-stream, or
     // if the output format is actually different
-    if ((context->mReconfiguring && context->base.mSwrCtx) || (!(context->base.mSwrCtx)
+    if ((context->mReconfiguring && context->mSwrCtx) || (!(context->mSwrCtx)
             && (mFrame->format != context->mAudioSrcFmt
                 || (unsigned int)mFrame->sample_rate != context->mAudioSrcFreq
                 || context->mAudioSrcFmt != context->mAudioTgtFmt
                 || context->mAudioSrcFreq != context->mAudioTgtFreq))) {
         LOGI("format/configuration change detected, configuring audio resampler.");
 
-        swr_alloc_set_opts2(&context->base.mSwrCtx, &context->mAudioTgtChannelLayout, context->mAudioTgtFmt, context->mAudioTgtFreq, &mFrame->ch_layout, (enum AVSampleFormat)mFrame->format, mFrame->sample_rate, 0, NULL);
+        swr_alloc_set_opts2(&context->mSwrCtx, &context->mAudioTgtChannelLayout, context->mAudioTgtFmt, context->mAudioTgtFreq, &mFrame->ch_layout, (enum AVSampleFormat)mFrame->format, mFrame->sample_rate, 0, NULL);
 
-        if (!(context->base.mSwrCtx) || swr_init(context->base.mSwrCtx) < 0) {
+        if (!(context->mSwrCtx) || swr_init(context->mSwrCtx) < 0) {
             LOGE("Cannot create sample rate converter for conversion "
                     "of %d Hz %s %d channels to %d Hz %s %d channels!",
                     mFrame->sample_rate,
@@ -1086,7 +1086,7 @@ static int resample_audio(DCodecAudio *context) {
         context->mReconfiguring = false;
     }
 
-    struct SwrContext *mSwrCtx = context->base.mSwrCtx;
+    struct SwrContext *mSwrCtx = context->mSwrCtx;
 
     if (mSwrCtx) {
         const uint8_t **in = (const uint8_t **)mFrame->extended_data;
@@ -1139,7 +1139,12 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     if (context->mResampledDataSize == 0) {
         // read a new frame
         ret = avcodec_receive_frame(mCtx, mFrame);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        if (ret == AVERROR_EOF && _context->mStatus != OUTPUT_EOS_SENT) {
+            fill_eos_output_buffer(_context);
+            _context->mStatus = OUTPUT_EOS_SENT;
+            return ERR_OK;
+        }
+        else if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             return ERR_NO_FRM;
         }
         else if (ret < 0) {
@@ -1189,7 +1194,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
          desc->nTimeStamp, desc->nFlags);
 
-    dcodec_return_buffer_to_guest(_context, desc);
+    dcodec_return_buffer(_context, desc);
     return ERR_OK;
 }
 
@@ -1203,8 +1208,7 @@ static void fill_eos_output_buffer(DCodecComponent *_context) {
     desc->nFilledLen = 0;
     desc->nFlags |= OMX_BUFFERFLAG_EOS;
 
-    dcodec_return_buffer_to_guest(_context, desc);
-    dcodec_return_all_buffers_to_guest(_context);
+    dcodec_return_buffer(_context, desc);
 }
 
 static void adjust_audio_params(DCodecAudio *context) {

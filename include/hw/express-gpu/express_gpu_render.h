@@ -168,15 +168,5 @@ void send_message_to_main_window(int message_code, void *data);
 // void set_display_gbuffer(Graphic_Buffer *gbuffer);
 
 // bool should_give_up_gpu();
-#ifdef __APPLE__
-#define THREAD_CONTROL_BEGIN \
-dispatch_sync(dispatch_get_main_queue(), ^{ 
-#define THREAD_CONTROL_END \
-}); 
-
-#else
-#define THREAD_CONTROL_BEGIN
-#define THREAD_CONTROL_END
-#endif
 
 #endif

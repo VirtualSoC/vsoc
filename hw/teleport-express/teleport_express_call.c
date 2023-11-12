@@ -243,6 +243,7 @@ void write_to_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t l
 {
     if (unlikely(guest == NULL))
     {
+        LOGE("write_to_guest_mem guest_mem is null!");
         return;
     }
     express_printf("write_to_guest_mem start_loc %llu length %llu all_len %d\n", start_loc, length, guest->all_len);
@@ -635,6 +636,7 @@ Guest_Mem *copy_guest_mem_from_call(Teleport_Express_Call *call, int index)
 
         return save_mem;
     }
+    LOGE("cpoy_guest_mem_from_call supplied para %d greater than total paras %d!", index, para_num);
     return NULL;
 }
 

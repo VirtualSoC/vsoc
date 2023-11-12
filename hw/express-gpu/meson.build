@@ -34,7 +34,7 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
 
 glfw = cc.find_library('glfw3')
 opengl32 = cc.find_library('opengl32')
-cimgui = cc.find_library('cimgui',dirs:'C:\Users\86189\Desktop\cimgui',static:false)
+cimgui = cc.find_library('cimgui')
 express_gpu.add(cimgui)
 express_gpu.add(glfw)
 express_gpu.add(opengl32)

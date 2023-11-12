@@ -3,19 +3,18 @@ express_codec = ss.source_set()
 express_codec.add(when: 'CONFIG_EXPRESS_CODEC',
                if_true: files(
                     'express_codec.c',
-                    'dcodec.c',
                     'dcodec_component.c',
                     'dcodec_audio.c',
                     'dcodec_video.c',
                ))
 
-avcodec = cc.find_library('libavcodec')
-avdevice = cc.find_library('libavdevice')
-avfilter = cc.find_library('libavfilter')
-avformat = cc.find_library('libavformat')
-avutil = cc.find_library('libavutil')
-swresample = cc.find_library('libswresample')
-swscale = cc.find_library('libswscale')
+avcodec = cc.find_library('avcodec')
+avdevice = cc.find_library('avdevice')
+avfilter = cc.find_library('avfilter')
+avformat = cc.find_library('avformat')
+avutil = cc.find_library('avutil')
+swresample = cc.find_library('swresample')
+swscale = cc.find_library('swscale')
 
 express_codec.add(avcodec)
 express_codec.add(avdevice)

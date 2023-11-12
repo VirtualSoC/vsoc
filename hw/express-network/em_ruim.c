@@ -18,7 +18,7 @@
 #include <errno.h>
 #include <string.h>
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 typedef struct Ruim {

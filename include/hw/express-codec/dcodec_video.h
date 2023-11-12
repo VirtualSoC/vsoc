@@ -2,6 +2,8 @@
 
 #include "dcodec_component.h"
 
+#include "hw/express-gpu/express_gpu_render.h"
+
 typedef struct CodecProfileLevel {
     OMX_U32 mProfile;
     OMX_U32 mLevel;
@@ -19,27 +21,15 @@ enum CropSettingsMode {
     kCropChanged,
 };
 
-enum {
-    kStoreMetaDataExtensionIndex = OMX_IndexVendorStartUnused + 1,
-    kPrepareForAdaptivePlaybackIndex,
-    kDescribeColorAspectsIndex,
-    kDescribeHdrStaticInfoIndex,
-};
-
 typedef struct DCodecVideo {
     DCodecComponent base;
-
-    OMX_VIDEO_CODINGTYPE mCodingType;
 
     // output format
     bool mIsAdaptive;
     uint32_t mAdaptiveMaxWidth, mAdaptiveMaxHeight;
     uint32_t mWidth, mHeight;
     uint32_t mCropLeft, mCropTop, mCropWidth, mCropHeight;
-    OMX_COLOR_FORMATTYPE mOutputFormat;
-
-    uint32_t mMinInputBufferSize;
-    uint32_t mMinCompressionRatio;
+    OMX_COLOR_FORMATTYPE mTgtPixelFormat;
 
     const CodecProfileLevel *mProfileLevels;
     size_t mNumProfileLevels;
@@ -48,11 +38,17 @@ typedef struct DCodecVideo {
 
     int32_t mStride;
 
-    uint8_t mVideoBuffer[CODEC_VIDEO_OUTPUT_BUFFER_SIZE];
+    uint8_t *mVideoBuffer;
 
+    GLFWwindow* window;
+    GLuint mUnpackBuffer;
+    GLint mUnpackBufferSize;
+    GLsync mUnpackBufferSync;
+    GLuint mDebugTexture;
+    GLuint mDebugFbo;
 } DCodecVideo;
 
-DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingType);
+DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify);
 OMX_ERRORTYPE dcodec_video_reset_component(DCodecComponent *_context);
 OMX_ERRORTYPE dcodec_video_destroy_component(DCodecComponent *_context);
 OMX_ERRORTYPE dcodec_video_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);

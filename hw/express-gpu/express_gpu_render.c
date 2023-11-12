@@ -137,7 +137,7 @@ static QemuConsole *input_receive_con = NULL;
 
 static const char GPU_VENDOR[] = "ARM";
 #ifdef _WIN32
-static const char GPU_VERSION[] = "OpenGL ES 3.1 (";
+static const char GPU_VERSION[] = "OpenGL ES 3.2 (";
 #else
 static const char GPU_VERSION[] = "OpenGL ES 3.0 (";
 #endif
@@ -537,14 +537,12 @@ static void handle_child_window_event(void)
                     break;
                 }
                 // LOGI("start create window ptr %llx", window_ptr);
-            #ifdef __APPLE__
-                THREAD_CONTROL_BEGIN
-            #endif
-                *window_ptr = (void *)native_window_create((int)(intptr_t)*window_ptr);
-            #ifdef __APPLE__
-                THREAD_CONTROL_END
-            #endif
 
+                THREAD_CONTROL_BEGIN
+
+                *window_ptr = (void *)native_window_create((int)(intptr_t)*window_ptr);
+
+                THREAD_CONTROL_END
             }
 
             break;
@@ -955,7 +953,8 @@ static void *native_window_create(int context_flags)
 
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
         if (express_gpu_gl_debug_enable)
         {
             glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
@@ -1016,9 +1015,7 @@ void *native_window_thread(void *opaque)
     // GetClientRect(render_hwnd, &rcParent);
 
     // 初始化glfw
-    #ifdef __APPLE__
     THREAD_CONTROL_BEGIN
-    #endif
     if (!glfwInit()){
     #ifdef __APPLE__ 
         exit(-1);
@@ -1026,7 +1023,6 @@ void *native_window_thread(void *opaque)
         return NULL;
     #endif
     }
-
 
     if (express_device_input_window_enable)
     {
@@ -1096,9 +1092,7 @@ void *native_window_thread(void *opaque)
 
     glfwSetWindowCloseCallback(glfw_window, close_window_callback);
 
-#ifdef __APPLE__
     THREAD_CONTROL_END
-#endif
 
     glfwMakeContextCurrent(glfw_window);
 
@@ -1194,14 +1188,12 @@ void *native_window_thread(void *opaque)
         do
         {
             // 处理各种输入事件、opengl事件
-            #ifdef __APPLE__
             THREAD_CONTROL_BEGIN
-            #endif
+
             //处理各种输入事件、opengl事件
             glfwWaitEventsTimeout(0.001);
-            #ifdef __APPLE__
+
             THREAD_CONTROL_END
-            #endif
 
             sync_express_touchscreen_input((bool)display_is_open || !express_display_switch_open);
             sync_express_keyboard_input((bool)display_is_open || !express_display_switch_open);
@@ -1306,13 +1298,12 @@ void *native_window_thread(void *opaque)
 
     // qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
     glfwMakeContextCurrent(NULL);
-    #ifdef __APPLE__
+
     THREAD_CONTROL_BEGIN
-    #endif
+
     glfwDestroyWindow(glfw_window);
-    #ifdef __APPLE__
+
     THREAD_CONTROL_END
-    #endif
 
     LOGI("native windows close!");
 

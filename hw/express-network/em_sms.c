@@ -12,7 +12,7 @@
 #include "hw/express-network/em_sms.h"
 #include "hw/express-network/express_modem.h"
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #define DEBUG_HEAD "express_modem "
 
