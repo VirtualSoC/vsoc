@@ -13,7 +13,7 @@
  **/
 
 #include "hw/express-network/em_utils.h"
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 #include <stdio.h>

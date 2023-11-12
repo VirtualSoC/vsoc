@@ -15,16 +15,6 @@
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-codec/dcodec_component.h"
 
-#include "libavutil/hwcontext.h"
-#include "libavutil/opt.h"
-#include "libavutil/pixdesc.h"
-// #ifdef LIBAV_CONFIG_H
-// #include "avtools/avconv.h"
-// #else
-// #include "ffmpeg.h"
-// #endif
-
-static void dcodec_process_buffers(DCodecComponent *context);
 static void dcodec_av_log_callback(void *ptr, int level, const char *fmt,
                                    va_list vl);
 static void sanitize(uint8_t *line);
@@ -33,7 +23,7 @@ static void sanitize(uint8_t *line);
  * @brief Initializes the given dcodec component.
  * @return ERR_OK if success, or a non-zero error code on error.
  */
-int dcodec_init_component(DCodecComponent *context) {
+int dcodec_init_component(DCodecComponent *context, NotifyCallbackFunc notify) {
     context->input_buffers = g_queue_new();
     context->output_buffers = g_queue_new();
 
@@ -62,23 +52,27 @@ int dcodec_init_component(DCodecComponent *context) {
     context->mFrame = mFrame;
     context->mPkt = mPkt;
     context->mStatus = AWAITING_INPUT;
-    context->mSignalledError = false;
+
+    if (notify != NULL) {
+        context->notify = notify;
+    }
+    else {
+        context->notify = dcodec_notify_null;
+    }
 
     return ERR_OK;
 }
 
 /**
- * @brief Resets the dcodec component to idle state.
+ * @brief resets the codec component to idle state
  * @return ERR_OK if success, or a non-zero error code on error.
  */
 int dcodec_reset_component(DCodecComponent *context) {
-    dcodec_return_all_buffers_to_guest(context);
     if (context->mCtx && avcodec_is_open(context->mCtx)) {
         // make sure that the next buffer output does not depend on fragments from the last one decoded
         avcodec_flush_buffers(context->mCtx);
     }
     context->mStatus = AWAITING_INPUT;
-    context->mSignalledError = false;
 
     return ERR_OK;
 }
@@ -117,46 +111,46 @@ void dcodec_deinit_component(DCodecComponent *context) {
         av_packet_free(&context->mPkt);
         context->mPkt = NULL;
     }
-#ifdef LIBAV_CONFIG_H
-#else
-    if (context->mSwrCtx) {
-        swr_free(&context->mSwrCtx);
-        context->mSwrCtx = NULL;
-    }
-#endif
 }
 
 /**
  * @brief notify the guest and releases the host-side buffer descriptor.
 */
-void dcodec_return_buffer_to_guest(DCodecComponent *context, BufferDesc *desc) {
+void dcodec_return_buffer(DCodecComponent *context, BufferDesc *desc) {
     if (desc->type & CODEC_BUFFER_TYPE_INPUT) {
-        dcodec_notify(context, OMX_EventEmptyBufferDone, 0, desc->nTimeStamp, desc->id, desc->nFlags);
+        context->notify(context, OMX_EventEmptyBufferDone, 0, desc->nTimeStamp, desc->id, desc->nFlags);
     }
     if (desc->type & CODEC_BUFFER_TYPE_OUTPUT) {
-        dcodec_notify(context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+        context->notify(context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
     }
     dcodec_free_buffer_desc(desc);
 }
 
-void dcodec_return_all_buffers_to_guest(DCodecComponent *context) {
-    LOGD("returning all buffers, current queue length: input %d output %d", g_queue_get_length(context->input_buffers), g_queue_get_length(context->output_buffers));
-
-    while (!g_queue_is_empty(context->input_buffers)) {
-        dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->input_buffers));
+/**
+ * Returns all the buffers in the queue specified.
+ * if (type & CODEC_BUFFER_TYPE_INPUT), flushes all input buffers;
+ * if (type & CODEC_BUFFER_TYPE_OUTPUT), flushes all output buffers.
+ */
+void dcodec_flush_buffers(DCodecComponent *context, int type) {
+    if (type & CODEC_BUFFER_TYPE_INPUT) {
+        while (!g_queue_is_empty(context->input_buffers)) {
+            dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
+        }
     }
-    while (!g_queue_is_empty(context->output_buffers)) {
-        dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->output_buffers));
+    if (type & CODEC_BUFFER_TYPE_OUTPUT) {
+        while (!g_queue_is_empty(context->output_buffers)) {
+            dcodec_return_buffer(context, g_queue_pop_head(context->output_buffers));
+        }
     }
 }
 
-void dcodec_free_buffer_desc(void *desc) {
-    BufferDesc *_desc = desc;
-    if (!_desc) {
+void dcodec_free_buffer_desc(void *_desc) {
+    BufferDesc *desc = _desc;
+    if (!desc) {
         return;
     }
-    if (_desc->data) {
-        free_copied_guest_mem(_desc->data);
+    if (desc->data && (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM)) {
+        free_copied_guest_mem(desc->data);
     }
     g_free(_desc);
 }
@@ -171,29 +165,28 @@ OMX_ERRORTYPE dcodec_send_command(DCodecComponent *context, OMX_COMMANDTYPE cmd,
                 and the individual port index for nData2, even if the flush resulted from using a value 
                 of OMX_ALL for nParam. */
             if (param == OMX_ALL || param == CODEC_INPUT_PORT_INDEX) {
-                while (!g_queue_is_empty(context->input_buffers)) {
-                    dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->input_buffers));
-                }
-                dcodec_notify(context, OMX_EventCmdComplete, OMX_CommandFlush, CODEC_INPUT_PORT_INDEX, 0, 0);
+                dcodec_flush_buffers(context, CODEC_BUFFER_TYPE_INPUT);
+                dcodec_reset_component(context); // flush codec in case the user seeks 
+                context->notify(context, OMX_EventCmdComplete, OMX_CommandFlush, CODEC_INPUT_PORT_INDEX, 0, 0);
             }
             if (param == OMX_ALL || param == CODEC_OUTPUT_PORT_INDEX) {
-                while (!g_queue_is_empty(context->output_buffers)) {
-                    dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->output_buffers));
-                }
-                dcodec_notify(context, OMX_EventCmdComplete, OMX_CommandFlush, CODEC_OUTPUT_PORT_INDEX, 0, 0);
+                dcodec_flush_buffers(context, CODEC_BUFFER_TYPE_OUTPUT);
+                context->notify(context, OMX_EventCmdComplete, OMX_CommandFlush, CODEC_OUTPUT_PORT_INDEX, 0, 0);
             }
             break;
         }
         case OMX_CommandStateSet: {
-            if (param != OMX_StateIdle && param != OMX_StateLoaded) {
+            if (param != OMX_StateIdle && param != OMX_StateExecuting) {
                 LOGE("error! attempt to set component to unsupported state %x", param);
                 break;
             }
-            dcodec_return_all_buffers_to_guest(context);
-            if (param == OMX_StateLoaded) { // further reset ffmpeg
-                dcodec_reset_component(context);
+            if (param == OMX_StateExecuting) {
+                // for now, nothing needs to be done
+                break;
             }
-            dcodec_notify(context, OMX_EventCmdComplete, OMX_CommandStateSet, param, 0, 0);
+            dcodec_flush_buffers(context, CODEC_BUFFER_TYPE_INPUT | CODEC_BUFFER_TYPE_OUTPUT);
+            dcodec_reset_component(context);
+            context->notify(context, OMX_EventCmdComplete, OMX_CommandStateSet, param, 0, 0);
             break;
         }
 
@@ -205,16 +198,31 @@ OMX_ERRORTYPE dcodec_send_command(DCodecComponent *context, OMX_COMMANDTYPE cmd,
     return OMX_ErrorNone;
 }
 
+/**
+ * convenient wrapper for throwing an error to the client 
+*/
 void dcodec_notify_error(DCodecComponent *context, OMX_ERRORTYPE type) {
-    dcodec_notify(context, OMX_EventError, type, 0, 0, 0);
+    context->notify(context, OMX_EventError, type, 0, 0, 0);
 }
 
-void dcodec_notify(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
+/**
+ * the default callback handler for a decoder without any callbacks specified
+ * it just prints a debug message and exits
+*/
+void dcodec_notify_null(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
+    LOGD("codec null notify event %x data1 %d data2 %d ptr %" PRIx64 " flags %x", event, data1, data2, data, flags);
+}
+
+/**
+ * the default callback handler for a guest-initiated decoder
+ * notifies the guest of the event
+*/
+void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
     int header[3]; // size, host_idx, guest_idx;
 
-    while (!context->dma_buf) {
-        g_usleep(1000);
-        LOGD("waiting for dma_buf to be registered...");
+    if (!context->dma_buf) {
+        LOGE("dcodec_notify on null dma_buf!");
+        return;
     }
 
     while (true) {
@@ -247,16 +255,12 @@ void dcodec_notify(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1,
 
     // guest-side already has polling, but polling can be laggy
     // use interrupts on important events to reduce delay
-    if (event == (OMX_EVENTTYPE)OMX_EventFillBufferDone && event == OMX_EventCmdComplete) {
+    if (event == OMX_EventCmdComplete) {
         set_express_device_irq((Device_Context *)context, header[1], sizeof(CodecCallbackData));
     }
 }
 
 OMX_ERRORTYPE dcodec_process_this_buffer(DCodecComponent *context, OMX_INOUT BufferDesc *desc) {
-
-    if (context->mStatus == OUTPUT_EOS_SENT) {
-        LOGW("context status is OUTPUT_EOS_SENT, buffer %" PRIx64 " will not be processed!", desc->id);
-    }
 
     if (desc->type & CODEC_BUFFER_TYPE_INPUT) { // input buffer
         g_queue_push_tail(context->input_buffers, desc);
@@ -271,7 +275,7 @@ OMX_ERRORTYPE dcodec_process_this_buffer(DCodecComponent *context, OMX_INOUT Buf
     return OMX_ErrorNone;
 }
 
-static void dcodec_process_buffers(DCodecComponent *context) {
+void dcodec_process_buffers(DCodecComponent *context) {
     GQueue *input_buffers = context->input_buffers;
     GQueue *output_buffers = context->output_buffers;
     bool did_something = true;
@@ -289,18 +293,16 @@ static void dcodec_process_buffers(DCodecComponent *context) {
         }
     }
 
-    // todo: should we allow decoding to continue even if an error is signaled?
-    // todo: allow decoding to continue when the user seeks back
-    while ((context->mStatus == INPUT_DATA_AVAILABLE || context->mStatus == INPUT_EOS_SEEN) && did_something) {
+    while ((context->mStatus != AWAITING_INPUT && context->mStatus != ERROR_SIGNALED) && did_something) {
         // if nothing is done in this iteration, break the loop and exit
         did_something = false;
 
         // empty one input buffer
-        if (context->mStatus == INPUT_DATA_AVAILABLE && !g_queue_is_empty(input_buffers)) {
+        if (!g_queue_is_empty(input_buffers)) {
             if (context->open_decoder(context) != ERR_OK) {
                 context->mStatus = ERROR_SIGNALED;
                 dcodec_notify_error((DCodecComponent *)context, OMX_ErrorUndefined);
-                return;
+                break;
             }
 
             err = context->empty_one_input_buffer(context);
@@ -308,9 +310,9 @@ static void dcodec_process_buffers(DCodecComponent *context) {
                 LOGE("error %d occurred while emptying one input buffer!", err);
                 context->mStatus = ERROR_SIGNALED;
                 dcodec_notify_error((DCodecComponent *)context, OMX_ErrorUndefined);
-                return;
+                break;
             }
-            if (err == ERR_OK) {
+            else if (err == ERR_OK) {
                 did_something = true;
             }
         }
@@ -331,11 +333,14 @@ static void dcodec_process_buffers(DCodecComponent *context) {
             did_something = true;
         }
 
-        if (context->mStatus == INPUT_EOS_SEEN && g_queue_is_empty(input_buffers) && !g_queue_is_empty(output_buffers)) {
-            context->fill_eos_output_buffer(context);
-            dcodec_return_all_buffers_to_guest(context);
-            context->mStatus = OUTPUT_EOS_SENT;
-            LOGD("eos output buffer sent, switching to state OUTPUT_EOS_SENT.");
+        // in the following cases, it is possible that we will not receive any more buffers
+        // therefore we have to wait and fill the buffers to avoid deadlock
+        // because of the single-threaded nature of the decoder
+        // case 1: slow decoder, input/output queue are both full
+        // case 2: eos frame has not finished decoding yet
+        if (g_queue_get_length(output_buffers) != 0 && 
+           (g_queue_get_length(input_buffers) != 0 || context->mStatus == INPUT_EOS_SEEN)) {
+            g_usleep(1000);
             did_something = true;
         }
     }
@@ -419,11 +424,13 @@ int dcodec_handle_extradata(DCodecComponent *context) {
     memset(vorbisHeaderLen, 0, sizeof(vorbisHeaderLen));
 
     while (desc && (desc->nFlags & OMX_BUFFERFLAG_CODECCONFIG)) {
+        CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
+
         if (mCtx->codec_id == AV_CODEC_ID_VORBIS) {
             uint8_t *header = (uint8_t *)av_mallocz(desc->nFilledLen);
             if (!header) {
                 LOGE("error allocating memory for vorbis extradata");
-                dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->input_buffers));
+                dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
                 return ERR_OOM;
             }
 
@@ -443,7 +450,7 @@ int dcodec_handle_extradata(DCodecComponent *context) {
             } 
             else {
                 LOGE("error! invalid vorbis extradata config index %d", header[0]);
-                dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->input_buffers));
+                dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
                 return ERR_INVALID_PARAM;
             }
             vorbisHeaderStart[index] = header;
@@ -456,7 +463,7 @@ int dcodec_handle_extradata(DCodecComponent *context) {
                 mCtx->extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
             if (unlikely(!mCtx->extradata)) {
                 LOGE("ffmpeg failed to alloc extradata memory.");
-                dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->input_buffers));
+                dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
                 return ERR_OOM;
             }
 
@@ -464,7 +471,7 @@ int dcodec_handle_extradata(DCodecComponent *context) {
             memset(mCtx->extradata + mCtx->extradata_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
             LOGD("extradata setup complete size %d", mCtx->extradata_size);
         }
-        dcodec_return_buffer_to_guest(context, g_queue_pop_head(context->input_buffers));
+        dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
         desc = g_queue_peek_head(context->input_buffers);
     }
 
@@ -489,4 +496,34 @@ int dcodec_handle_extradata(DCodecComponent *context) {
     }
 
     return ERR_OK;
+}
+
+OMX_COLOR_FORMATTYPE pixel_format_av_to_omx(enum AVPixelFormat format) {
+    switch (format) {
+        case AV_PIX_FMT_RGB24: return OMX_COLOR_Format24bitRGB888;
+        case AV_PIX_FMT_RGBA: return OMX_COLOR_Format32BitRGBA8888;
+        case AV_PIX_FMT_RGB565: return OMX_COLOR_Format16bitRGB565;
+        case AV_PIX_FMT_YUV420P: return OMX_COLOR_FormatYUV420Planar;
+        case AV_PIX_FMT_YUYV422: return OMX_COLOR_FormatYCbYCr;
+        case AV_PIX_FMT_NV12: return OMX_COLOR_FormatYUV420SemiPlanar;
+        default: {
+            LOGE("unknown pixel format %d", format);
+            return OMX_COLOR_FormatUnused;
+        }
+    }
+}
+
+enum AVPixelFormat pixel_format_omx_to_av(OMX_COLOR_FORMATTYPE format) {
+    switch (format) {
+        case OMX_COLOR_Format24bitRGB888: return AV_PIX_FMT_RGB24;
+        case OMX_COLOR_Format32BitRGBA8888: return AV_PIX_FMT_RGBA;
+        case OMX_COLOR_Format16bitRGB565: return AV_PIX_FMT_RGB565;
+        case OMX_COLOR_FormatYUV420Planar: return AV_PIX_FMT_YUV420P;
+        case OMX_COLOR_FormatYCbYCr: return AV_PIX_FMT_YUYV422;
+        case OMX_COLOR_FormatYUV420SemiPlanar: return AV_PIX_FMT_NV12;
+        default: {
+            LOGE("unknown pixel format %d", format);
+            return AV_PIX_FMT_NONE;
+        }
+    }
 }

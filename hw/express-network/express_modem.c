@@ -13,7 +13,7 @@
 #include "hw/express-network/em_core.h"
 #include "hw/express-network/em_input.h"
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/express-network/express_bridge.h"

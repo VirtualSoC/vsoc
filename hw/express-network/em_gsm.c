@@ -11,7 +11,7 @@
 
 #include "hw/express-network/em_gsm.h"
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 
 #include <stdlib.h>

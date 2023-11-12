@@ -30,13 +30,15 @@ typedef struct DCodecAudio {
     enum AVSampleFormat mAudioSrcFmt;
     enum AVSampleFormat mAudioTgtFmt;
 
+    struct SwrContext *mSwrCtx;
+
 #ifdef STD_DEBUG_LOG
     FILE *raw_fd;
 #endif
 
 } DCodecAudio;
 
-DCodecComponent* dcodec_audio_init_component(enum OMX_AUDIO_CODINGTYPE codingType);
+DCodecComponent* dcodec_audio_init_component(enum OMX_AUDIO_CODINGTYPE codingType, NotifyCallbackFunc notify);
 OMX_ERRORTYPE dcodec_audio_reset_component(DCodecComponent *_context);
 OMX_ERRORTYPE dcodec_audio_destroy_component(DCodecComponent *_context);
 OMX_ERRORTYPE dcodec_audio_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);

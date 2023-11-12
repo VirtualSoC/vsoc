@@ -291,15 +291,13 @@ void release_native_opengl_context(void *native_context, int context_flags)
 
     if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
-        #ifdef __APPLE__
+
         THREAD_CONTROL_BEGIN
-        #endif
+
         glfwSetWindowShouldClose(native_context, 1);
         glfwDestroyWindow(native_context);
-        #ifdef __APPLE__
-        THREAD_CONTROL_END
-        #endif
 
+        THREAD_CONTROL_END
     }
     else
     {

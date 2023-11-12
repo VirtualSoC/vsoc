@@ -28,11 +28,7 @@
 #include "libswscale/swscale.h"
 #include "libavutil/opt.h"
 #include "libavcodec/avfft.h"
-#ifdef LIBAV_CONFIG_H
-#include "libavresample/avresample.h"
-#else
 #include "libswresample/swresample.h"
-#endif
 
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
@@ -40,23 +36,27 @@
 #include "hw/teleport-express/teleport_express_call.h"
 #include "dcodec_shared.h"
 
+#ifndef _WIN32
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#endif
 
-enum CodecStatus {
+typedef enum CodecStatus {
     // the codec is awaiting input
     AWAITING_INPUT,
 
     // input data is available
     INPUT_DATA_AVAILABLE,
 
-    // the codec has seen the eos buffer, and will flush all the output buffers
+    // the codec has seen the eos buffer
     INPUT_EOS_SEEN,
-    
+
     // all buffers have been processed
     OUTPUT_EOS_SENT,
-    
+
     // an error occurred while processing the buffers
     ERROR_SIGNALED,
-};
+} CodecStatus;
 
 enum {
     ERR_INPUT_QUEUE_FULL    = 2,
@@ -74,23 +74,31 @@ enum {
 };
 
 typedef struct DCodecComponent DCodecComponent;
+typedef void (*NotifyCallbackFunc)(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags);
 
 struct DCodecComponent {
     Device_Context device_context;
 
+    // buffer queues contain buffers that are not processed yet
     GQueue *input_buffers;
     GQueue *output_buffers;
 
     AVCodecContext *mCtx;
-    struct SwrContext *mSwrCtx;
     AVFrame *mFrame;
     AVPacket *mPkt;
 
-    enum CodecStatus mStatus;
-    bool mSignalledError;
+    // status of the codec
+    // ref. enum CodecStatus for details
+    CodecStatus mStatus;
 
+    // field reserved for clients
+    // this field will not be accessed by the codec
+    uint64_t mAppPrivate;
+
+    // DMA buffer used to implement callbacks
     Guest_Mem *dma_buf;
 
+    // private function pointers
     OMX_ERRORTYPE (*reset_component)(DCodecComponent *_context);
     OMX_ERRORTYPE (*destroy_component)(DCodecComponent *context);
     OMX_ERRORTYPE (*get_parameter)(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
@@ -100,16 +108,21 @@ struct DCodecComponent {
     int (*empty_one_input_buffer)(DCodecComponent *_context);
     int (*fill_one_output_buffer)(DCodecComponent *_context);
     void (*fill_eos_output_buffer)(DCodecComponent *_context);
+    NotifyCallbackFunc notify;
 };
 
-int dcodec_init_component(DCodecComponent *context);
+int dcodec_init_component(DCodecComponent *context, NotifyCallbackFunc notify);
 int dcodec_reset_component(DCodecComponent *context);
 void dcodec_deinit_component(DCodecComponent *context);
-void dcodec_return_buffer_to_guest(DCodecComponent *context, BufferDesc *desc);
-void dcodec_return_all_buffers_to_guest(DCodecComponent *context);
+void dcodec_return_buffer(DCodecComponent *context, BufferDesc *desc);
+void dcodec_flush_buffers(DCodecComponent *context, int type);
 void dcodec_free_buffer_desc(void *desc);
 OMX_ERRORTYPE dcodec_send_command(DCodecComponent *context, OMX_COMMANDTYPE cmd, OMX_U32 param, OMX_U64 data);
 void dcodec_notify_error(DCodecComponent *context, OMX_ERRORTYPE type);
-void dcodec_notify(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags);
+void dcodec_notify_null(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags);
+void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags);
 OMX_ERRORTYPE dcodec_process_this_buffer(DCodecComponent *context, OMX_INOUT BufferDesc *desc);
+void dcodec_process_buffers(DCodecComponent *context);
 int dcodec_handle_extradata(DCodecComponent *context);
+OMX_COLOR_FORMATTYPE pixel_format_av_to_omx(enum AVPixelFormat format);
+enum AVPixelFormat pixel_format_omx_to_av(OMX_COLOR_FORMATTYPE format);

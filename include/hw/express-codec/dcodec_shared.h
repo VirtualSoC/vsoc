@@ -78,28 +78,18 @@ static const char *DCODEC_ID_MAPPING[] = {
 #define CODEC_AUDIO_OUTPUT_BUFFER_SIZE (32 * 1024)
 #define CODEC_VIDEO_INPUT_BUFFER_COUNT 4
 #define CODEC_VIDEO_OUTPUT_BUFFER_COUNT 4
-#define CODEC_VIDEO_OUTPUT_BUFFER_SIZE (3840 * 2160 * 3) // todo: determine / negotiate max buffer size
 
-#define CODEC_DEFAULT_PIXEL_FORMAT_FFMPEG AV_PIX_FMT_RGB24
-#define CODEC_DEFAULT_PIXEL_FORMAT_OMX OMX_COLOR_Format24bitRGB888
 #define CODEC_DEFAULT_PIXEL_FORMAT_ANDROID ((OMX_COLOR_FORMATTYPE)3) // HAL_PIXEL_FORMAT_RGB_888
-#define CODEC_DEFAULT_PIXEL_FORMAT_GL GL_RGB8
-#define CODEC_DEFAULT_PIXEL_TYPE_GL GL_UNSIGNED_BYTE
-#define CODEC_DEFAULT_PIXEL_SIZE 3
+#define CODEC_DEFAULT_PIXEL_FORMAT_OHOS ((OMX_COLOR_FORMATTYPE)12) // PIXEL_FMT_RGBA_8888
 
-enum {
-    OMX_EventEmptyBufferDone = 0x7F100000,
-    OMX_EventFillBufferDone = 0x7F100001,
-    OMX_IndexParamVideoDcodecDefinition = 0x7F100002,
-    OMX_IndexParamAudioDcodecDefinition = 0x7F100003, // reserved
-};
+// dcodec-exclusive event types that unifies EmptyBufferDone/FillBufferDone/Notify events
+// for usage, consult dcodec_return_buffer
+#define OMX_EventEmptyBufferDone ((OMX_EVENTTYPE)0x7f100000)
+#define OMX_EventFillBufferDone ((OMX_EVENTTYPE)0x7f100001)
 
-enum BufferType { 
-    CODEC_BUFFER_TYPE_SW = 0x1,
-    CODEC_BUFFER_TYPE_HW = 0x2,
-    CODEC_BUFFER_TYPE_INPUT = 0x4,
-    CODEC_BUFFER_TYPE_OUTPUT = 0x8,
-};
+// dcodec-exclusive codec parameter types
+#define OMX_IndexParamVideoDcodecDefinition ((OMX_INDEXTYPE)0x7f100002)
+#define OMX_IndexParamAudioDcodecDefinition ((OMX_INDEXTYPE)0x7f100003) // currently unused
 
 typedef struct OMX_VIDEO_DCODECDEFINITIONTYPE {
     uint32_t nPortIndex;
@@ -108,10 +98,32 @@ typedef struct OMX_VIDEO_DCODECDEFINITIONTYPE {
     uint32_t eColorFormat;
 } OMX_VIDEO_DCODECDEFINITIONTYPE;
 
+enum BufferType {
+    // input buffer to be emptied by the codec
+    CODEC_BUFFER_TYPE_INPUT = 0x1,
+
+    // output buffer to be filled by the codec
+    CODEC_BUFFER_TYPE_OUTPUT = 0x2,
+
+    // this indicates that the buffer stores guest memory
+    // .data field of BufferDesc objects stores Guest_Mem*
+    CODEC_BUFFER_TYPE_GUEST_MEM = 0x10,
+
+    // gbuffer
+    // .id field stores gbuffer id; .data field is unused
+    CODEC_BUFFER_TYPE_GBUFFER = 0x20,
+
+    // AVPacket
+    // .data field stores AVPacket* . The client should be responsible for
+    // freeing the AVPacket* after use
+    CODEC_BUFFER_TYPE_AVPACKET = 0x40,
+};
+
 typedef struct BufferDesc {
     uint32_t type; // buffer type
     uint64_t id; // buffer id
-    uint64_t header; // ptr to actual header
+    uint64_t header; // ptr to guest header (if it is a guest buffer)
+    int sync_id; // sync id of the corresponding gbuffer (if exists)
 
     // the following fields are copied from header
     uint32_t nAllocLen;          /**< size of the buffer allocated, in bytes */
@@ -128,9 +140,10 @@ typedef struct BufferDesc {
                                 of the preceding buffer.*/
     uint32_t nFlags;             /**< buffer specific flags */
 
-#ifdef EXPRESS_DEVICE_COMMON_H
-    // host-only
-    Guest_Mem *data; // pointer to guest data
+#ifdef QEMU_OSDEP_H
+    // host-only pointer to data. the actual interpretation of the data depends on the type of buffer
+    // see enum BufferType for details
+    void *data;
 #endif
 } __attribute__((packed, aligned(4))) BufferDesc;
 
@@ -210,7 +223,6 @@ static uint32_t get_omx_param_size(OMX_INDEXTYPE index) {
             return sizeof(OMX_VIDEO_PARAM_FFMPEGTYPE);
 
         default: {
-            LOGD("get_omx_param_size unrecognized index 0x%x!", index);
             return 0;
         }
     }

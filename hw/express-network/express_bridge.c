@@ -187,11 +187,11 @@ static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
         else if (read_cnt == 0)
         {
             int err = errno;
-            LOGE("recv get 0 errno %d\n", err);
             if (err == EINTR || err == EWOULDBLOCK || err == EAGAIN)
             {
                 return all_read_cnt;
             }
+            LOGE("recv get 0 errno %d", err);
             return -1;
         }
 

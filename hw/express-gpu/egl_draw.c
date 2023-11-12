@@ -184,26 +184,22 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         glfwMakeContextCurrent((GLFWwindow *)real_opengl_context->window);
         if (real_surface_draw != NULL && real_surface_draw->type == WINDOW_SURFACE && real_surface_draw->width > 10 && real_surface_draw->height > 10)
         {
-            #ifdef __APPLE__
             THREAD_CONTROL_BEGIN
-            #endif
+
             LOGI("independent window width %d height %d width %d height %d", real_surface_draw->width, real_surface_draw->height, width, height);
             glfwSetWindowSize(real_opengl_context->window, width, height);
             glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
             glfwShowWindow((GLFWwindow *)real_opengl_context->window);
-            #ifdef __APPLE__
+
             THREAD_CONTROL_END
-            #endif
         }
         else
         {
-            #ifdef __APPLE__
             THREAD_CONTROL_BEGIN
-            #endif
+
             glfwHideWindow((GLFWwindow *)real_opengl_context->window);
-            #ifdef __APPLE__
+
             THREAD_CONTROL_END
-            #endif
         }
     }
     else
