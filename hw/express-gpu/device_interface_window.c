@@ -211,14 +211,14 @@ void handle_light_change(float scale, int input)
 
 void handle_gyroscope_change(int property, int value)
 {
-    printf("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d\n", cur_gyro.scale, cur_gyro.x, cur_gyro.y, cur_gyro.z);
+    LOGI("Device_interface::gyroscope scale: %.2f, x: %d, y: %d, z: %d", cur_gyro.scale, cur_gyro.x, cur_gyro.y, cur_gyro.z);
     express_gyro_status_changed(property, value);
     sync_express_gyro_status();
 }
 
 void handle_gps_change(int property, int value)
 {
-    printf("Device_interface::gps latitude: %.6f, longitude: %.6f\n", cur_gps.lat, cur_gps.lon);
+    LOGI("Device_interface::gps latitude: %.6f, longitude: %.6f", cur_gps.lat, cur_gps.lon);
     express_gps_status_changed(property, value);
     sync_express_gps_status();
 }
@@ -873,11 +873,11 @@ void *interface_window_thread(void *data)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);           // Required on Mac
 #else
     // GL 3.0 + GLSL 130
-    const char *glsl_version = "#version 130";
+    const char *glsl_version = "#version 150";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    // glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
@@ -890,7 +890,7 @@ void *interface_window_thread(void *data)
     window = glfwCreateWindow(1, 1, "Device Input", NULL, NULL);
     if (window == NULL)
     {
-        printf("Device_interface::Failed to create window\n");
+        LOGE("Device_interface::Failed to create window");
     #ifdef __APPLE__
         exit(-1);
     #else
@@ -992,7 +992,7 @@ void *interface_window_thread(void *data)
 
     // glfw will only terminate once, it would be terminate in our main window thread
     // glfwTerminate();
-    printf("Device_interface::Destroy window\n");
+    LOGI("Device_interface::Destroy window");
 
     return NULL;
 }
