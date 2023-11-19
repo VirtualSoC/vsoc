@@ -109,8 +109,7 @@
 #define PARA_NUM_MIN_eglDestroySync (1)
 
 //image create的地方和使用的地方很可能不在一个线程上，所以这个要进行同步操作，同时也需要flush
-//--更新：不需要了，假如真的是第一次创建创建的，那会去调用getType来进行同步
-#define FUNID_eglCreateImage ((EXPRESS_GPU_DEVICE_ID << 32u) + 10038)
+#define FUNID_eglCreateImage ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10038)
 
 #define PARA_NUM_MIN_eglCreateImage (1)
 

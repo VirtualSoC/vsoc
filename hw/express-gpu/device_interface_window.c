@@ -231,7 +231,7 @@ void handle_modem_change(int slot, int property)
 
 static void glfw_error_callback(int error, const char *description)
 {
-    // fprintf(stderr, "Device_interface::Glfw Error %d: %s\n", error, description);
+    LOGE("Device_interface::Glfw Error %d: %s", error, description);
     return;
 }
 
@@ -876,14 +876,9 @@ void *interface_window_thread(void *data)
     const char *glsl_version = "#version 150";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);  // 3.2+ only
 #endif
 
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
-    glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE);
     glfwMakeContextCurrent(NULL);
 
     // Create glfw window with graphics context

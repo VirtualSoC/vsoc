@@ -2901,6 +2901,17 @@ handleExtendSystemInfoQuery( const char*  cmd, Express_Modem *modem )
 }
 
 static const char*
+handleExtendSystemConfigure( const char*  cmd, Express_Modem *modem )
+{
+    ATCommandType type = get_command_type(cmd, "^SYSCFGEX");
+    if (type == AT_READ_CMD) {
+        EM_RET("^SYSCFGEX: \"00\",3FFFFFFF,1,2,7FFFFFFFFFFFFFFF\r\n");
+    } else {
+        EM_RET("ERROR: Unsupported");
+    }
+}
+
+static const char*
 handleIndicateNewMessage(const char *cmd, Express_Modem *modem)
 {
     ATCommandType type = get_command_type(cmd, "+CNMI");
@@ -2982,13 +2993,14 @@ handleRequestCurrentTime(const char *cmd, Express_Modem *modem)
     // Format time as a string
     strftime(formattedTime, sizeof(formattedTime), "%Y/%m/%d,%H:%M:%S", timeInfo);
 
-#ifndef __WIN32__
+#ifdef __APPLE__
     int tz_offset_hours = timeInfo->tm_gmtoff / 3600;
-    return em_printf(modem, "+CCLK: \"%s%+d\"", formattedTime, tz_offset_hours);
 #else
-    // msys2 env does not support tm_gmtoff, default to +8
-    return em_printf(modem, "+CCLK: \"%s+8\"", formattedTime);
+    // XXX: hard-coding here
+    int tz_offset_hours = 8;
 #endif
+
+    return em_printf(modem, "+CCLK: \"%s%+d\"", formattedTime, tz_offset_hours);
 }
 
 /* a function used to deal with a non-trivial request */
@@ -3181,6 +3193,7 @@ static const struct {
 
     /* Open Harmony OS RIL */
     {"^SYSINFOEX", NULL, handleExtendSystemInfoQuery },
+    {"!^SYSCFGEX", NULL, handleExtendSystemConfigure },
 
     /* end of list */
     {NULL, NULL, NULL}
