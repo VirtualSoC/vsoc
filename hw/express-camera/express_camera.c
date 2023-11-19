@@ -293,8 +293,8 @@ static void *camera_capturing_thread(void *opaque)
 
     int warmup_count = -1;
     while (context->status == CAMERA_STATUS_STREAMING) {
-        // allocate some time slice to the decoder for fastest buffer retrieval
-        // dcodec_process_buffers(context);
+        // allocate some time slice to the decoder for faster buffer retrieval
+        dcodec_process_buffers(codec);
 
         // then read frame
         ret = av_read_frame(format_context, &packet);

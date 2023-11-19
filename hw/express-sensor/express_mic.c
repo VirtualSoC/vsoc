@@ -75,7 +75,7 @@ int start_capture_from_file(char *path)
     result = ma_decoder_init_file(path, &static_mic_context.decoder_config, &static_mic_context.decoder);
     if (result != MA_SUCCESS)
     {
-        printf("Could not load file: %s\n", path);
+        LOGE("Could not load file: %s", path);
         return -2;
     }
     static_mic_context.dev_config = ma_device_config_init(ma_device_type_playback);
@@ -87,7 +87,7 @@ int start_capture_from_file(char *path)
     result = ma_device_init(NULL, &static_mic_context.dev_config, &static_mic_context.dev);
     if (result != MA_SUCCESS)
     {
-        printf("Failed to initialize capture device.\n");
+        LOGE("Failed to initialize capture device.");
         ma_decoder_uninit(&static_mic_context.decoder);
         return -2;
     }
@@ -97,7 +97,7 @@ int start_capture_from_file(char *path)
     {
         ma_device_uninit(&static_mic_context.dev);
         ma_decoder_uninit(&static_mic_context.decoder);
-        printf("Failed to start device.\n");
+        LOGE("Failed to start device.");
         return -3;
     }
     static_mic_context.from_file = true;
@@ -116,7 +116,7 @@ int start_capture(void)
     result = ma_device_init(NULL, &static_mic_context.dev_config, &static_mic_context.dev);
     if (result != MA_SUCCESS)
     {
-        printf("Failed to initialize capture device.\n");
+        LOGE("Failed to initialize capture device.");
         return -2;
     }
 
@@ -124,7 +124,7 @@ int start_capture(void)
     if (result != MA_SUCCESS)
     {
         ma_device_uninit(&static_mic_context.dev);
-        printf("Failed to start device.\n");
+        LOGE("Failed to start device.");
         return -3;
     }
     static_mic_context.from_file = false;
@@ -151,7 +151,7 @@ void express_mic_status_changed(const void *buf, int size)
     static_mic_context.data.size = size;
     static_mic_context.need_sync = true;
     gettimeofday(&now, NULL);
-    printf("frame time : %ld , data size: %d\n",
+    LOGD("frame time : %ld , data size: %d",
            (now.tv_sec - static_mic_context.last_send_time.tv_sec) * 1000000 + now.tv_usec - static_mic_context.last_send_time.tv_usec,
            size);
     static_mic_context.last_send_time = now;
@@ -184,7 +184,7 @@ static void mic_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t pr
     {
         free_copied_guest_mem(static_mic_context.guest_buffer);
     }
-    printf("mic register buffer\n");
+    LOGI("mic register buffer");
     static_mic_context.guest_buffer = data;
 }
 
