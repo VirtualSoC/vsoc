@@ -28,7 +28,6 @@ typedef struct DCodecVideo {
     bool mIsAdaptive;
     uint32_t mAdaptiveMaxWidth, mAdaptiveMaxHeight;
     uint32_t mWidth, mHeight;
-    uint32_t mCropLeft, mCropTop, mCropWidth, mCropHeight;
     OMX_COLOR_FORMATTYPE mTgtPixelFormat;
 
     const CodecProfileLevel *mProfileLevels;
@@ -36,9 +35,8 @@ typedef struct DCodecVideo {
 
     struct SwsContext *mImgConvertCtx;
 
-    int32_t mStride;
-
     uint8_t *mVideoBuffer;
+    GHashTable *mPacketMap;
 
     GLFWwindow* window;
     GLuint mUnpackBuffer;

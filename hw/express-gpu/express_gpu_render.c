@@ -382,6 +382,12 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
     //printf("width and height %d %d\n",width,height);
     window_need_refresh = true;
 
+    // macos retina screen handling
+    float xscale = 1, yscale = 1;
+#ifdef __APPLE__
+    glfwGetWindowContentScale(window, &xscale, &yscale);
+#endif
+
     // 需要保证画面比例不变
     if (window_width != width || window_height != height)
     {
@@ -419,20 +425,7 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
             main_display_content_height = window_height;
             //express_printf("set window size %d %d keep scale\n", window_width, window_height);
 
-    #ifdef __APPLE__
-            // if(window_width>0 && window_height>0)
-            // {
-            //     glfwSetWindowSize(window, window_width, window_height);
-            // }
-            // else
-            // {
-            glfwSetWindowSize(window, 960, 540);
-            //glfwSetWindowSize(window, temp_window_width,temp_window_height);
-            //}
-    #else
-            glfwSetWindowSize(window, window_width, window_height);
-    #endif
-
+            glfwSetWindowSize(window, window_width / xscale, window_height / yscale);
         }
         else
         {
@@ -445,12 +438,7 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
         }
 
         express_printf("set touchscreen size %d %d\n", window_width, window_height);
-    #ifdef __APPLE__
-            set_touchscreen_window_size(960, 540);
-    #else
-            set_touchscreen_window_size(window_width, window_height);
-    #endif
-        
+        set_touchscreen_window_size(window_width / xscale, window_height / yscale);
     }
 
     return;
@@ -954,12 +942,17 @@ static void *native_window_create(int context_flags)
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+#ifdef __APPLE__
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+#else
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+
         if (express_gpu_gl_debug_enable)
         {
             glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
         }
         glfwWindowHint(GLFW_CONTEXT_ROBUSTNESS, GLFW_LOSE_CONTEXT_ON_RESET);
+#endif
 
         // 因为咱们是使用的fbo来绘制，因此窗口大小设为1就行了
         child_window = (void *)glfwCreateWindow(1, 1, name, NULL, glfw_window);
@@ -1024,22 +1017,15 @@ void *native_window_thread(void *opaque)
     #endif
     }
 
-    if (express_device_input_window_enable)
-    {
-        device_interface_run = 1;
-        qemu_thread_create(&device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
-    }
-
-#ifdef _WIN32
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-#endif    
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+#ifdef __APPLE__
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-
-#ifdef _WIN32
+#else
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
     if (express_gpu_gl_debug_enable)
     {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
@@ -1088,8 +1074,14 @@ void *native_window_thread(void *opaque)
     glfwSetCursorEnterCallback(glfw_window, express_touchscreen_entered_handle);
 
     // 设置窗口大小可以自由调整
+    float xscale = 1, yscale = 1;
+#ifdef __APPLE__
+    // macos retina screen handling
+    glfwGetWindowContentScale(glfw_window, &xscale, &yscale);
+#endif
+    glfwSetWindowSize(glfw_window, window_width / xscale, window_height / yscale);
+    set_touchscreen_window_size(window_width / xscale, window_height / yscale);
     glfwSetFramebufferSizeCallback(glfw_window, window_size_change_callback);
-
     glfwSetWindowCloseCallback(glfw_window, close_window_callback);
 
     THREAD_CONTROL_END
@@ -1098,7 +1090,11 @@ void *native_window_thread(void *opaque)
 
     glfwSwapInterval(0);
 
-    set_touchscreen_window_size(window_width, window_height);
+    if (express_device_input_window_enable)
+    {
+        device_interface_run = 1;
+        qemu_thread_create(&device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
+    }
 
 #ifdef __APPLE__
     void *dpy_dc = NULL;

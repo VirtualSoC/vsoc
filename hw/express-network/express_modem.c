@@ -148,7 +148,7 @@ static void *em_thread(void *opaque)
 static Express_Device_Info express_modem_info = {
     .enable_default = true,
     .name = "express-modem",
-    // .option_name = "modem",
+    .option_name = "modem",
     .device_id = EXPRESS_MODEM_DEVICE_ID,
     .device_type = INPUT_DEVICE_TYPE | OUTPUT_DEVICE_TYPE,
 

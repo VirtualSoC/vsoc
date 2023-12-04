@@ -131,18 +131,19 @@ static AVFormatContext* open_camera(CameraProp *prop) {
     }
     else {
         sprintf(frame_size_str, "%dx%d", DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT);
-        sprintf(rtbufsize_str, "%d", DEFAULT_FRAME_WIDTH * DEFAULT_FRAME_HEIGHT * 2);
         av_dict_set(&options, "video_size", frame_size_str, 0);
-        av_dict_set(&options, "rtbufsize", rtbufsize_str, 0);
+        av_dict_set(&options, "fflags", "nobuffer", 0);
+        av_dict_set(&options, "preset", "ultrafast", 0);
+        av_dict_set(&options, "max_delay", "0", 0);
+        av_dict_set(&options, "tune", "zerolatency", 0);
     }
 
     sprintf(framerate_str, "%d", MAX_CAPTURE_FPS);
+    av_dict_set(&options, "framerate", framerate_str, 0);
 
 #ifdef _WIN32
-    av_dict_set(&options, "r", framerate_str, 0);
     snprintf(ff_name, 64, "video=%s", prop->name);
 #else
-    av_dict_set(&options, "framerate", framerate_str, 0);
     snprintf(ff_name, 64, "%s", prop->name);
     av_dict_set(&options, "pixel_format", "nv12", 0);
 #endif
@@ -288,10 +289,10 @@ static void *camera_capturing_thread(void *opaque)
     codec->set_parameter(codec, OMX_IndexParamVideoDcodecDefinition, &out_def);
 
     codec->mCtx->flags |= AV_CODEC_FLAG_LOW_DELAY; // low delay for camera
+    codec->mCtx->pkt_timebase = format_context->streams[stream_index]->time_base;
 
     g_async_queue_ref(context->frame_queue);
 
-    int warmup_count = -1;
     while (context->status == CAMERA_STATUS_STREAMING) {
         // allocate some time slice to the decoder for faster buffer retrieval
         dcodec_process_buffers(codec);
@@ -313,19 +314,10 @@ static void *camera_capturing_thread(void *opaque)
 
         // send output buffer first
         BufferDesc *desc = (BufferDesc *)g_async_queue_try_pop(context->frame_queue);
-        if (desc != NULL) {
-            if (warmup_count == -1) { // this is the first output buffer
-                warmup_count = 4;
-            }
-            dcodec_process_this_buffer(codec, desc);
-        }
-        else if (warmup_count <= 0) { // only pass camera input to decoder when there are output buffers
-            av_packet_unref(&packet);
+        if (desc == NULL) {
             continue;
         }
-        else {
-            warmup_count--;
-        }
+        dcodec_process_this_buffer(codec, desc);
 
         // send input packet to codec
         desc = g_malloc(sizeof(BufferDesc));
@@ -334,6 +326,8 @@ static void *camera_capturing_thread(void *opaque)
         desc->data = &packet;
         desc->nAllocLen = packet.size;
         desc->nFilledLen = packet.size;
+        desc->nOffset = 0;
+        desc->nTimeStamp = packet.pts;
         desc->nFlags = OMX_BUFFERFLAG_ENDOFFRAME;
 
         dcodec_process_this_buffer(codec, desc);

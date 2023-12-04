@@ -108,13 +108,6 @@ static int bridge_socket_listern(int port)
         return -1;
     }
 
-    opt = 1;
-    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    if (ret < 0) {
-        perror("setsockopt failed");
-        exit(EXIT_FAILURE);
-    }
-
     ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
     if (ret < 0)
     {

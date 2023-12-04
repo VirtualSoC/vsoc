@@ -90,26 +90,26 @@ void dcodec_deinit_component(DCodecComponent *context) {
 
     AVCodecContext *mCtx = context->mCtx;
     if (mCtx) {
-        if (!(mCtx->extradata)) {
+        if (mCtx->extradata) {
             av_free(mCtx->extradata);
             mCtx->extradata = NULL;
             mCtx->extradata_size = 0;
         }
-
+        if (mCtx->hw_device_ctx) {
+            av_buffer_unref(&mCtx->hw_device_ctx);
+        }
         if (avcodec_is_open(mCtx)) {
             avcodec_flush_buffers(mCtx);
             avcodec_close(mCtx);
         }
-        av_free(mCtx);
+        avcodec_free_context(&mCtx);
         context->mCtx = NULL;
     }
     if (context->mFrame) {
         av_frame_free(&context->mFrame);
-        context->mFrame = NULL;
     }
     if (context->mPkt) {
         av_packet_free(&context->mPkt);
-        context->mPkt = NULL;
     }
 }
 
@@ -427,7 +427,7 @@ int dcodec_handle_extradata(DCodecComponent *context) {
         CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
 
         if (mCtx->codec_id == AV_CODEC_ID_VORBIS) {
-            uint8_t *header = (uint8_t *)av_mallocz(desc->nFilledLen);
+            uint8_t *header = (uint8_t *)av_malloc(desc->nFilledLen);
             if (!header) {
                 LOGE("error allocating memory for vorbis extradata");
                 dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
