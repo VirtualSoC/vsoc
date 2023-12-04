@@ -873,8 +873,8 @@ static int open_decoder(DCodecComponent *_context) {
     }
 
     // set default ctx params
-    mCtx->workaround_bugs   = 1;
-    mCtx->idct_algo         = 0;
+    mCtx->workaround_bugs   = FF_BUG_AUTODETECT;
+    mCtx->idct_algo         = FF_IDCT_AUTO;
     mCtx->skip_frame        = AVDISCARD_DEFAULT;
     mCtx->skip_idct         = AVDISCARD_DEFAULT;
     mCtx->skip_loop_filter  = AVDISCARD_DEFAULT;

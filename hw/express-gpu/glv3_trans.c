@@ -30032,8 +30032,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
-        GLenum ret = glGetGraphicsResetStatus();
-        *ret_ptr = ret;
+        // Intel cards do not support glGetGraphicsResetStatus.
+        // return GL_NO_ERROR should work
+        *ret_ptr = GL_NO_ERROR;
 
         write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
 

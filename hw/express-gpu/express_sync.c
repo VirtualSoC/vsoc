@@ -18,7 +18,7 @@
 typedef struct Sync_Flag_Data
 {
     volatile uint32_t guest_waitting_cnt;
-    uint32_t sync_status_id[MAX_SYNC_NUM];
+    uint32_t sync_status_id[MAX_SYNC_NUM]; // bitmap, to save DMA space
 } __attribute__((packed, aligned(4))) Sync_Flag_Data;
 
 GLsync gpu_sync_id[MAX_SYNC_NUM * 32];
@@ -52,10 +52,11 @@ int sync_wait_cnt = 0;
 
 void set_express_sync_id(int sync_id, bool need_gpu_sync)
 {
-    express_printf("set sync %d\n", sync_id);
+    LOGD("set sync %d", sync_id);
 
     if (sync_id >= MAX_SYNC_NUM * 32 || sync_id < 0)
     {
+        LOGE("invalid sync id %d!", sync_id);
         return;
     }
     if (static_sync_context.sync_data != NULL)
@@ -89,9 +90,10 @@ void set_express_sync_id(int sync_id, bool need_gpu_sync)
 
 void wait_for_express_sync(int sync_id, bool need_gpu_sync)
 {
-    express_printf("wait for sync %d ", sync_id);
+    LOGD("wait for sync %d", sync_id);
     if (sync_id >= MAX_SYNC_NUM * 32 || sync_id < 0)
     {
+        LOGE("invalid sync id %d!", sync_id);
         return;
     }
     int64_t start_time = g_get_real_time();
@@ -132,7 +134,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
             }
         }
     }
-    express_printf(" sync %d ok\n", sync_id);
+    LOGD("sync %d ok", sync_id);
 
     int64_t end_time = g_get_real_time();
     if (end_time - start_time > 50 * 1000)

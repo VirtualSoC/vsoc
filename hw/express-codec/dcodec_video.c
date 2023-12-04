@@ -1,13 +1,14 @@
 // #define STD_DEBUG_LOG
 // #define STD_DEBUG_INDEPENDENT_WINDOW
+
 #include "hw/teleport-express/express_log.h"
-
 #include "hw/express-codec/dcodec_video.h"
-
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_status.h"
 #include "hw/express-gpu/express_sync.h"
+
+#define MAX_SW_VIDEO_DIMENSION 1280
 
 static const struct VideoCodingMapEntry {
     OMX_VIDEO_CODINGTYPE mCodingType;
@@ -42,12 +43,18 @@ static const CodecProfileLevel kAVCProfileLevels[] = {
     { OMX_VIDEO_AVCProfileHigh,     OMX_VIDEO_AVCLevel52 },
 };
 
-static AVCodec *find_decoder(enum AVCodecID codec_id);
+static int find_decoder(AVCodecContext *mCtx);
 static int open_decoder(DCodecComponent *_context);
 static int empty_one_input_buffer(DCodecComponent *_context);
 static int decode_video(DCodecVideo *context, BufferDesc *desc);
 static int fill_one_output_buffer(DCodecComponent *_context);
 static void fill_eos_output_buffer(DCodecComponent *_context);
+
+static void free_avpacket(gpointer pkt) {
+    if (pkt != NULL) {
+        av_packet_free((AVPacket **)&pkt);
+    }
+}
 
 DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify) {
     DCodecVideo *context = g_malloc0(sizeof(DCodecVideo));
@@ -98,14 +105,9 @@ DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingTyp
     context->mAdaptiveMaxHeight = 0;
     context->mWidth = 1920;
     context->mHeight = 1080;
-    context->mCropLeft = 0;
-    context->mCropTop = 0;
-    context->mCropWidth = 1920;
-    context->mCropHeight = 1080;
     context->mProfileLevels = codec_profile_levels;
     context->mNumProfileLevels = codec_array_size;
     context->mImgConvertCtx = NULL;
-    context->mStride = context->mWidth;
     context->mTgtPixelFormat = OMX_COLOR_Format24bitRGB888;
 
     AVCodecContext *mCtx = context->base.mCtx;
@@ -117,35 +119,10 @@ DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingTyp
     mCtx->width = context->mWidth;
     mCtx->height = context->mHeight;
 
-    // inform express-gpu to create shared child window
-#ifdef STD_DEBUG_INDEPENDENT_WINDOW
-    context->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
-#else
-    context->window = get_native_opengl_context(0);
-#endif
-    if (!context->window) {
-        LOGE("create shared child window failed!");
-    }
-#ifdef STD_DEBUG_INDEPENDENT_WINDOW
-    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
-    glfwMakeContextCurrent(context->window);
-    glfwSwapInterval(0);
-
-    glGenTextures(1, &context->mDebugTexture);
-    glGenFramebuffers(1 /* num */, &context->mDebugFbo);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, context->mDebugFbo);
-    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, context->mDebugTexture, 0);
-#else
-    egl_makeCurrent(context->window);
-#endif
-
-    glGenBuffers(1, &context->mUnpackBuffer);
-
     return (DCodecComponent *)context;
 }
 
 OMX_ERRORTYPE dcodec_video_reset_component(DCodecComponent *_context) {
-    DCodecVideo *context = (DCodecVideo *)_context;
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
     THREAD_CONTROL_BEGIN
     glfwHideWindow(context->window);
@@ -169,12 +146,23 @@ OMX_ERRORTYPE dcodec_video_destroy_component(DCodecComponent *_context) {
         context->mUnpackBufferSync = NULL;
     }
 
-    glDeleteFramebuffers(1 /* num */, &context->mDebugFbo);
-    glDeleteTextures(1, &context->mDebugTexture);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-    glDeleteBuffers(1, &context->mUnpackBuffer);
-    egl_makeCurrent(NULL);
-    release_native_opengl_context(context->window, 0);
+    if (context->window) {
+        // the decoder has been opened before
+        glDeleteFramebuffers(1 /* num */, &context->mDebugFbo);
+        glDeleteTextures(1, &context->mDebugTexture);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glDeleteBuffers(1, &context->mUnpackBuffer);
+        egl_makeCurrent(NULL);
+#ifdef STD_DEBUG_INDEPENDENT_WINDOW
+        release_native_opengl_context(context->window, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+#else
+        release_native_opengl_context(context->window, 0);
+#endif
+    }
+
+    if (context->mPacketMap) {
+        g_hash_table_destroy(context->mPacketMap);
+    }
 
     av_free(context->mVideoBuffer);
 
@@ -266,7 +254,7 @@ OMX_ERRORTYPE dcodec_video_set_parameter(DCodecComponent *_context, OMX_IN OMX_I
                 _context->mCtx->width = newWidth;
                 _context->mCtx->height = newHeight;
             }
-            LOGI("set OMX_IndexParamVideoDcodecDefinition on port %d width=%d height=%d format=%d", newParams->nPortIndex, newWidth, newHeight, newParams->eColorFormat);
+            LOGI("set OMX_IndexParamVideoDcodecDefinition on port %d width=%d height=%d format=0x%d", newParams->nPortIndex, newWidth, newHeight, newParams->eColorFormat);
             return OMX_ErrorNone;
         }
 
@@ -343,34 +331,47 @@ OMX_ERRORTYPE dcodec_video_set_parameter(DCodecComponent *_context, OMX_IN OMX_I
 }
 
 /**
- * finds hw/sw codecs matching the given codec_id and return the hw one if possible
- * adapted from av_find_codec_by_name()
-*/
-static AVCodec* find_decoder(enum AVCodecID codec_id) {
-    static const char *hwaccels[] = {
-        "d3d11va",     // windows
-        "vaapi",       // linux
-        "videotoolbox" // macOS
-    };
-
-    static const int hwaccels_len = sizeof(hwaccels) / sizeof(hwaccels[0]);
-
+  * finds hw/sw codecs matching the given codec_id and use the hw one if appropriate
+  */
+static int find_decoder(AVCodecContext *mCtx) {
     AVCodec *codec_hw = NULL, *codec_sw = NULL, *codec = NULL;
     void *i = 0;
 
     while ((codec = av_codec_iterate(&i))) {
-        if (codec->id != codec_id || !av_codec_is_decoder(codec)) {
+        if (codec->id != mCtx->codec_id || !av_codec_is_decoder(codec)) {
             continue;
         }
-        for (int j = 0; j < hwaccels_len; j++) {
-            if (strstr(codec->name, hwaccels[j]) != NULL) {
-                codec_hw = codec;
-                break;
-            }
+        // qsv doesn't play nice with h264, use other options for now
+        if (strstr(codec->name, "h264_qsv") != NULL) {
+            continue;
+        }
+        LOGD("find_decoder find codec: %s", codec->name);
+        // hwaccel codecs: h264_cuvid, mjpeg_qsv, etc.
+        if (strstr(codec->name, "_") != NULL) {
+            codec_hw = codec;
+            break;
         }
         codec_sw = codec;
     }
-    return codec_hw ? codec_hw : codec_sw;
+    if (!codec_sw && !codec_hw) {
+        // codec not supported
+        LOGE("find_decoder: codec_id %d not supported", mCtx->codec_id);
+    }
+    if (codec_hw && !codec_sw) {
+        mCtx->codec = codec_hw;
+        return ERR_OK;
+    }
+    if (codec_sw && !codec_hw) {
+        mCtx->codec = codec_sw;
+        return ERR_OK;
+    }
+    if ((mCtx->flags & AV_CODEC_FLAG_LOW_DELAY) && mCtx->width <= MAX_SW_VIDEO_DIMENSION && mCtx->height <= MAX_SW_VIDEO_DIMENSION) {
+        // CPU decoding is faster when the video is small
+        mCtx->codec = codec_sw;
+        return ERR_OK;
+    }
+    mCtx->codec = codec_hw;
+    return ERR_OK;
 }
 
 static int open_decoder(DCodecComponent *_context) {
@@ -386,20 +387,24 @@ static int open_decoder(DCodecComponent *_context) {
     }
 
     // find decoder
-    mCtx->codec = find_decoder(mCtx->codec_id);
-    if (!(mCtx->codec)) {
-        LOGE("ffmpeg video decoder failed to find codec");
+    int err = find_decoder(mCtx);
+    if (err < 0) {
         return ERR_CODEC_NOT_FOUND;
     }
 
     // set default ctx params
-    mCtx->workaround_bugs   = 1;
-    mCtx->idct_algo         = 0;
+    mCtx->workaround_bugs   = FF_BUG_AUTODETECT;
+    mCtx->idct_algo         = FF_IDCT_AUTO;
     mCtx->skip_frame        = AVDISCARD_DEFAULT;
     mCtx->skip_idct         = AVDISCARD_DEFAULT;
     mCtx->skip_loop_filter  = AVDISCARD_DEFAULT;
     mCtx->flags2 |= AV_CODEC_FLAG2_FAST;
     // mCtx->error_concealment = 3;
+
+    if (mCtx->pkt_timebase.num == 0 || mCtx->pkt_timebase.den == 0) {
+        // default timebase: microsecond
+        mCtx->pkt_timebase = AV_TIME_BASE_Q;
+    }
 
 #ifdef STD_DEBUG_LOG
     mCtx->debug = 1;
@@ -416,16 +421,42 @@ static int open_decoder(DCodecComponent *_context) {
     LOGD("open ffmpeg video decoder (%s), width %d height %d",
            mCtx->codec->name, mCtx->width, mCtx->height);
 
-    int err = avcodec_open2(mCtx, mCtx->codec, NULL);
+    err = avcodec_open2(mCtx, mCtx->codec, NULL);
     if (err < 0) {
         LOGE("ffmpeg video decoder failed to initialize (%s).", av_err2str(err));
         return ERR_DECODER_OPEN_FAILED;
     }
 
+    LOGI("open ffmpeg video decoder (%s) success, width %d height %d",
+            mCtx->codec->name, mCtx->width, mCtx->height);
+
     context->mVideoBuffer = av_realloc(context->mVideoBuffer, av_image_get_buffer_size(pixel_format_omx_to_av(context->mTgtPixelFormat), context->mWidth, context->mHeight, 1));
 
-    LOGD("open ffmpeg video decoder (%s) success, width %d height %d",
-            mCtx->codec->name, mCtx->width, mCtx->height);
+    // inform express-gpu to create shared child window
+#ifdef STD_DEBUG_INDEPENDENT_WINDOW
+    context->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+#else
+    context->window = get_native_opengl_context(0);
+#endif
+    if (!context->window) {
+        LOGE("create shared child window failed!");
+        return ERR_DECODER_OPEN_FAILED;
+    }
+#ifdef STD_DEBUG_INDEPENDENT_WINDOW
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
+    glfwMakeContextCurrent(context->window);
+    glfwSwapInterval(0);
+
+    glGenTextures(1, &context->mDebugTexture);
+    glGenFramebuffers(1 /* num */, &context->mDebugFbo);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, context->mDebugFbo);
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, context->mDebugTexture, 0);
+#else
+    egl_makeCurrent(context->window);
+#endif
+
+    glGenBuffers(1, &context->mUnpackBuffer);
+    context->mPacketMap = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, free_avpacket);
 
     return ERR_OK;
 }
@@ -450,6 +481,7 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
 
     // a negative error code is returned if an error occurred during decoding
     if (ret < 0) {
+        dcodec_return_buffer(_context, g_queue_pop_head(_context->input_buffers));
         return ret;
     }
     else if (ret == ERR_INPUT_QUEUE_FULL) {
@@ -492,9 +524,29 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
         mPkt = (AVPacket *)desc->data;
     }
     else if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
-        read_from_guest_mem(desc->data, context->mVideoBuffer, desc->nOffset, desc->nFilledLen);
-        mPkt->data = context->mVideoBuffer;
-        mPkt->size = desc->nFilledLen;
+        mPkt = (AVPacket *)g_hash_table_lookup(context->mPacketMap, (gpointer)desc->id);
+        if (!mPkt) {
+            mPkt = av_packet_alloc();
+            uint8_t *buf = av_malloc(min(desc->nFilledLen * 2, desc->nAllocLen));
+            read_from_guest_mem(desc->data, buf, desc->nOffset, desc->nFilledLen);
+            av_packet_from_data(mPkt, buf, desc->nFilledLen);
+            g_hash_table_insert(context->mPacketMap, (gpointer)desc->id, (gpointer)mPkt);
+        }
+        else {
+            if (av_buffer_is_writable(mPkt->buf)) {
+                if (mPkt->buf->size < desc->nFilledLen) {
+                    int newSize = min(desc->nFilledLen * 2, desc->nAllocLen) + AV_INPUT_BUFFER_PADDING_SIZE;
+                    LOGD("av_buffer_realloc %d -> %d", mPkt->buf->size, newSize);
+                    av_buffer_realloc(&mPkt->buf, newSize);
+                    mPkt->data = mPkt->buf->data;
+                }
+                read_from_guest_mem(desc->data, mPkt->buf->data, desc->nOffset, desc->nFilledLen);
+                mPkt->size = desc->nFilledLen;
+            }
+            else {
+                LOGE("error! av_buffer id %" PRIx64 " is not writable!", desc->id);
+            }
+        }
         mPkt->pts = desc->nTimeStamp;
         mPkt->dts = desc->nTimeStamp;
     }
@@ -506,7 +558,7 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
         return ERR_NO_FRM;
     }
 
-    LOGD("avcodec_send_packet pkt size %d pts %lld", mPkt->size, mPkt->pts);
+    LOGD("avcodec_send_packet pkt size %d pts %lld desc %" PRIx64 "", mPkt->size, mPkt->pts, desc);
 
     ret = avcodec_send_packet(mCtx, mPkt);
     if (ret == AVERROR_EOF || ret == AVERROR_INVALIDDATA) {
@@ -532,7 +584,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
 
     // read one frame at a time
     int ret = avcodec_receive_frame(mCtx, mFrame);
-    if (ret == AVERROR_EOF && _context->mStatus != OUTPUT_EOS_SENT) {
+    if (ret == AVERROR_EOF && _context->mStatus == INPUT_EOS_SEEN) {
         fill_eos_output_buffer(_context);
         _context->mStatus = OUTPUT_EOS_SENT;
         return ERR_OK;
@@ -545,21 +597,10 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         return ERR_DECODE_FAILED;
     }
 
-    int64_t pts = AV_NOPTS_VALUE;
-    
-    //process timestamps
-    pts = mFrame->best_effort_timestamp;
-    if (pts == AV_NOPTS_VALUE) {
-        pts = 0;
-    }
-    LOGD("mFrame pts: %lld pkt_dts: %lld best effort: %lld. used %lld", mFrame->pts, mFrame->pkt_dts, mFrame->best_effort_timestamp, pts);
-
-    uint8_t *dst = context->mVideoBuffer;
     uint32_t bufferWidth = max(context->mIsAdaptive ? context->mAdaptiveMaxWidth : 0, context->mWidth);
     uint32_t bufferHeight = max(context->mIsAdaptive ? context->mAdaptiveMaxHeight : 0, context->mHeight);
     uint8_t *data[4] = {0};
     int linesize[4] = {0};
-    enum AVPixelFormat avDstFmt = pixel_format_omx_to_av(context->mTgtPixelFormat);
     int glPixFmt = GL_RGB;
     int glPixType = GL_UNSIGNED_BYTE;
     int glIntFmt = GL_RGB8;
@@ -568,7 +609,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             glPixFmt = GL_RGB;
             glPixType = GL_UNSIGNED_BYTE;
             glIntFmt = GL_RGB8;
-            data[0] = dst;
+            data[0] = context->mVideoBuffer;
             linesize[0] = bufferWidth * 3;
             break;
         }
@@ -576,7 +617,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             glPixFmt = GL_RGBA;
             glPixType = GL_UNSIGNED_BYTE;
             glIntFmt = GL_RGBA8;
-            data[0] = dst;
+            data[0] = context->mVideoBuffer;
             linesize[0] = bufferWidth * 4;
             break;
         }
@@ -584,13 +625,17 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             glPixFmt = GL_RGB;
             glPixType = GL_UNSIGNED_SHORT_5_6_5;
             glIntFmt = GL_RGB8;
-            data[0] = dst;
+            data[0] = context->mVideoBuffer;
             linesize[0] = bufferWidth * 2;
             break;
         }
         case OMX_COLOR_FormatYUV420Planar: { // android guests only support yuv buffers in sw mode
-            data[0] = dst;
-            data[1] = dst + bufferWidth * bufferHeight;
+            if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
+                LOGE("format error! yuv textures are currently unsupported!");
+                return ERR_SWS_FAILED;
+            }
+            data[0] = context->mVideoBuffer;
+            data[1] = data[0] + bufferWidth * bufferHeight;
             data[2] = data[1] + (bufferWidth / 2  * bufferHeight / 2);
             linesize[0] = bufferWidth;
             linesize[1] = bufferWidth / 2;
@@ -598,53 +643,37 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             break;
         }
         default: {
-            LOGE("scaling error! target omx pixel format %d not supported!", context->mTgtPixelFormat);
+            LOGE("format error! target omx pixel format %d not supported!", context->mTgtPixelFormat);
             return ERR_SWS_FAILED;
         }
     }
 
-    LOGD("sws_scale frame_width=%d frame_height=%d buffer_width=%d buffer_height=%d ctx_width=%d ctx_height=%d mIsAdaptive=%d src_format=%s tgt_format=%s",
-          mFrame->width, mFrame->height, bufferWidth, bufferHeight, mCtx->width, mCtx->height, context->mIsAdaptive, av_get_pix_fmt_name(mFrame->format), av_get_pix_fmt_name(avDstFmt));
-
-    int outputSize = av_image_get_buffer_size(avDstFmt, bufferWidth, bufferHeight, 1);
-    int sws_flags = SWS_FAST_BILINEAR;
-    context->mImgConvertCtx = sws_getCachedContext(context->mImgConvertCtx,
-           mFrame->width, mFrame->height, (enum AVPixelFormat)mFrame->format, mCtx->width, mCtx->height,
-           avDstFmt, sws_flags, NULL, NULL, NULL);
-    if (context->mImgConvertCtx == NULL) {
-        LOGE("Cannot initialize the conversion context");
-        return ERR_SWS_FAILED;
+    //process timestamps
+    int64_t pts = mFrame->best_effort_timestamp;
+    if (pts == AV_NOPTS_VALUE) {
+        pts = 0;
     }
-    sws_scale(context->mImgConvertCtx, mFrame->data, mFrame->linesize,
-            0, mFrame->height, data, linesize);
+    desc->nTimeStamp = pts;
 
+    LOGD("mFrame pts: %lld pkt_dts: %lld best effort: %lld. used %lld", mFrame->pts, mFrame->pkt_dts, mFrame->best_effort_timestamp, pts);
+
+    enum AVPixelFormat avDstFmt = pixel_format_omx_to_av(context->mTgtPixelFormat);
+    int outputSize = av_image_get_buffer_size(avDstFmt, bufferWidth, bufferHeight, 1);
     CHECK_GE(desc->nAllocLen, outputSize);
     desc->nFilledLen = outputSize;
-    desc->nTimeStamp = pts;
     if (mFrame->key_frame) {
         desc->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
     }
 
     LOGD("fill_one_output_buffer() on buffer type %x id %" PRIx64 " nAllocLen %u "
-         "nFilledLen %u nOffset %u nTimeStamp %lld nFlags %x",
+         "nFilledLen %u nOffset %u nTimeStamp %lld nFlags %x sync_id %d",
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
-         desc->nTimeStamp, desc->nFlags);
+         desc->nTimeStamp, desc->nFlags, desc->sync_id);
 
-    // write data to output buffer
-    if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
-        write_to_guest_mem(desc->data, context->mVideoBuffer, 0, desc->nFilledLen);
-#ifdef STD_DEBUG_INDEPENDENT_WINDOW
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        glBindTexture(GL_TEXTURE_2D, context->mDebugTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, context->mVideoBuffer);
-        glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, context->mDebugTexture, 0);
-        glBlitFramebuffer(0, 0, context->mWidth, context->mHeight, 0, 0, context->mWidth, context->mHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        THREAD_CONTROL_BEGIN
-        glfwSwapBuffers(context->window);
-        THREAD_CONTROL_END
-#endif
-    }
-    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
+    // prepare for DMA if the target is gbuffer
+    if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
+        // notify the guest ahead of time
+        _context->notify(context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
         Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         if (gbuffer == NULL) {
             LOGD("create_gbuffer with id %llx width %d height %d pixtype %x pixfmt %x intfmt %x", desc->id, context->mWidth, context->mHeight, glPixType, glPixFmt, glIntFmt);
@@ -674,9 +703,43 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             context->mUnpackBufferSize = outputSize;
         }
 
-        // upload data to GPU
-        GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, outputSize, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-        memcpy(map_pointer, context->mVideoBuffer, outputSize);
+        // mmap. packed RGB(A) formats only require data[0] to be set.
+        data[0] = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, outputSize, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+    }
+
+    context->mImgConvertCtx = sws_getCachedContext(context->mImgConvertCtx,
+           mFrame->width, mFrame->height, (enum AVPixelFormat)mFrame->format, mCtx->width, mCtx->height,
+           avDstFmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+    if (context->mImgConvertCtx == NULL) {
+        LOGE("Cannot initialize sws context");
+        return ERR_SWS_FAILED;
+    }
+
+    LOGD("sws_scale frame_width=%d frame_height=%d buffer_width=%d buffer_height=%d ctx_width=%d ctx_height=%d mIsAdaptive=%d src_format=%s tgt_format=%s",
+          mFrame->width, mFrame->height, bufferWidth, bufferHeight, mCtx->width, mCtx->height, context->mIsAdaptive, av_get_pix_fmt_name(mFrame->format), av_get_pix_fmt_name(avDstFmt));
+
+    sws_scale(context->mImgConvertCtx, mFrame->data, mFrame->linesize,
+            0, mFrame->height, data, linesize);
+    av_frame_unref(mFrame);
+
+    // write data to output buffer
+    if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
+        write_to_guest_mem(desc->data, context->mVideoBuffer, 0, desc->nFilledLen);
+        _context->notify(context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+#ifdef STD_DEBUG_INDEPENDENT_WINDOW
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glBindTexture(GL_TEXTURE_2D, context->mDebugTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, context->mVideoBuffer);
+        glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, context->mDebugTexture, 0);
+        glBlitFramebuffer(0, 0, context->mWidth, context->mHeight, 0, 0, context->mWidth, context->mHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        THREAD_CONTROL_BEGIN
+        glfwSwapBuffers(context->window);
+        THREAD_CONTROL_END
+#endif
+    }
+    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
+        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
+        CHECK(gbuffer != NULL);
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
@@ -700,7 +763,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     else {
         LOGE("output buffer type %x not supported yet!", desc->type);
     }
-    dcodec_return_buffer(_context, g_queue_pop_head(_context->output_buffers));
+    dcodec_free_buffer_desc(g_queue_pop_head(_context->output_buffers));
     return ERR_OK;
 }
 

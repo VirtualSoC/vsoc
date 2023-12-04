@@ -263,6 +263,10 @@ void call_printf_flush(void)
         fd = fopen(file_name, "a+");
     }
 
+    if (fd == NULL) {
+        return;
+    }
+
     print_buf[loc] = '\n';
     print_buf[loc + 1] = '\n';
     fwrite(print_buf, sizeof(char), loc + 2, fd);
