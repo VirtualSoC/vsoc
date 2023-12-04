@@ -48,7 +48,7 @@ extern Display_Info express_display_info;
 
 #define FUNID_Gbuffer_Host_To_Guest (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(3)))
 
-#define FUNID_Gbuffer_Guest_To_Host (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 4))
+#define FUNID_Gbuffer_Guest_To_Host (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(4)))
 
 #define FUNID_Sync_Gbuffer (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, SYNC_FUN_ID(5)))
 

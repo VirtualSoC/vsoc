@@ -1187,9 +1187,6 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
             add_gbuffer_to_global(gbuffer);
         }
-        else
-        {
-        }
     }
     else
     {

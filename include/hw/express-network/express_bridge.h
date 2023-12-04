@@ -1,8 +1,6 @@
 #ifndef EXPRESS_BRIDGE_H
 #define EXPRESS_BRIDGE_H
 
-#include "hw/teleport-express/express_log.h"
-
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/teleport-express/teleport_express_distribute.h"

@@ -718,6 +718,7 @@ void display_status_change(Display_Status status)
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
 {
     Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
+    LOGI("alloc_gbuffer_with_gralloc id %" PRIx64 " width %d height %d size %d", info.gbuffer_id, info.width, info.height, info.size);
 
     if (info.width == 0 || info.height == 0 || info.size == 0)
     {
@@ -738,14 +739,31 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
     }
     else
     {
-        LOGE("error! alloc_gbuffer_with_gralloc get non-null gbuffer origin %d %d new %d %d", gbuffer->width, gbuffer->height, info.width, info.height);
-        free_copied_guest_mem(mem_data);
-    }
+        // a host copy exists. probably allocated by eglCreateImage.
+        // check if the info is compatible, and update the info
+        if (info.width != gbuffer->width || info.height != gbuffer->height)
+        {
+            LOGE("alloc_gbuffer_with_gralloc gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d origin %d %d %d %d", gbuffer->gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
+            return;
+        }
 
-    if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
-    {
-        LOGE("alloc_gbuffer_with_gralloc gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d origin %d %d %d %d", gbuffer->gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
-        return;
+        // update gbuffer info
+        if (gbuffer->stride == 0) {
+            gbuffer->stride = info.stride;
+        }
+
+        if (gbuffer->pixel_size == 0) {
+            gbuffer->pixel_size = info.pixel_size;
+        }
+
+        if (gbuffer->guest_data == NULL) {
+            gbuffer->guest_data = mem_data;
+        }
+        else {
+            LOGW("alloc_gbuffer_with_gralloc gbuffer %" PRIx64 "already has guest mem, discarding previous copy");
+            free_copied_guest_mem(gbuffer->guest_data);
+            gbuffer->guest_data = mem_data;
+        }
     }
 }
 
@@ -761,7 +779,12 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
 
     if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
     {
-        LOGE("gbuffer_data_guest_to_host gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d origin %d %d %d %d", info.gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
+        LOGE("gbuffer_data_guest_to_host gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d, local %d %d %d %d", info.gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
+        return;
+    }
+
+    if (gbuffer->guest_data == NULL) {
+        LOGE("error! gbuffer_data_guest_to_host with null guest_data!");
         return;
     }
 
