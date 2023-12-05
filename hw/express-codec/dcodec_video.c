@@ -745,7 +745,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
         glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, NULL);
         glBindTexture(GL_TEXTURE_2D, 0);
-        set_express_sync_id(desc->sync_id, true);
+        signal_express_sync(desc->sync_id, true);
 
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
         glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, gbuffer->data_texture, 0);

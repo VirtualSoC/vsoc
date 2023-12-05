@@ -10,7 +10,7 @@
 #define MAX_SYNC_NUM 512
 
 
-void set_express_sync_id(int sync_id, bool need_gpu_sync);
+void signal_express_sync(int sync_id, bool need_gpu_sync);
 void wait_for_express_sync(int sync_id, bool need_gpu_sync);
 
 

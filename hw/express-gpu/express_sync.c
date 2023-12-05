@@ -50,7 +50,7 @@ int sync_wait_cnt = 0;
         qatomic_cmpxchg(&(flag_data->sync_status_id[sync_id / 32]), temp_sync_status, (temp_sync_status | (1L << (sync_id % 32)))); \
     } while (!SYNC_FLAG_SIGNAL(flag_data, sync_id))
 
-void set_express_sync_id(int sync_id, bool need_gpu_sync)
+void signal_express_sync(int sync_id, bool need_gpu_sync)
 {
     LOGD("set sync %d", sync_id);
 

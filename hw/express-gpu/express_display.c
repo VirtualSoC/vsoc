@@ -29,11 +29,6 @@ static Thread_Context *static_display_context = NULL;
 
 static void *native_display_context = NULL;
 
-static GLuint un_pack_buffer;
-static int un_pack_buffer_size = 0;
-
-static GLsync unpack_buffer_sync = NULL;
-
 static Display_Status now_display_status;
 
 static GLuint programID = 0;
@@ -88,56 +83,6 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         LOGI("display terminate");
     }
     break;
-    case FUNID_Terminate_Gbuffer:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Terminate_Gbuffer))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (unlikely(temp == NULL))
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);
-                no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        info = *(Gralloc_Gbuffer_Info *)(temp);
-
-        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
-        if (gbuffer != NULL)
-        {
-            if (gbuffer->is_dying == 1)
-            {
-                gbuffer->remain_life_time = 3;
-            }
-            else
-            {
-                remove_gbuffer_from_global_map(info.gbuffer_id);
-                // set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_NONE);
-                destroy_gbuffer(gbuffer);
-            }
-            LOGI("terminate gbuffer id %llx", info.gbuffer_id);
-        }
-    }
-    break;
     case FUNID_Commit_Composer_Layer:
     {
 
@@ -187,116 +132,6 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         force_show_native_render_window = 2;
     }
     break;
-    case FUNID_Gbuffer_Host_To_Guest:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Host_To_Guest))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (unlikely(temp == NULL))
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);
-                no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        info = *(Gralloc_Gbuffer_Info *)(temp);
-
-        gbuffer_data_host_to_guest(info);
-    }
-    break;
-    case FUNID_Gbuffer_Guest_To_Host:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (unlikely(temp == NULL))
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);
-                no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        info = *(Gralloc_Gbuffer_Info *)(temp);
-
-        gbuffer_data_guest_to_host(info);
-    }
-    break;
-    case FUNID_Alloc_Gbuffer:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Alloc_Gbuffer))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (unlikely(temp == NULL))
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);
-                no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        info = *(Gralloc_Gbuffer_Info *)(temp);
-
-        Guest_Mem *gbuffer_data = copy_guest_mem_from_call(call, 2);
-
-        alloc_gbuffer_with_gralloc(info, gbuffer_data);
-    }
-    break;
     case FUNID_Set_Sync_Flag:
     {
         uint64_t sync_id;
@@ -330,7 +165,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
         sync_id = *(uint64_t *)(temp);
 
-        set_express_sync_id((int)sync_id, true);
+        signal_express_sync((int)sync_id, true);
     }
     break;
     case FUNID_Wait_Sync:
@@ -491,10 +326,6 @@ static void display_context_init(Thread_Context *context)
 
         egl_makeCurrent(native_display_context);
 
-        glGenBuffers(1, &un_pack_buffer);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, un_pack_buffer);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, un_pack_buffer);
-
         display_write_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
                                                0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
         display_read_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
@@ -541,8 +372,6 @@ static void display_context_destroy(Thread_Context *context)
 {
     if (native_display_context != NULL)
     {
-        glDeleteBuffers(1, &un_pack_buffer);
-
         egl_makeCurrent(NULL);
         egl_destroyContext(native_display_context);
         native_display_context = NULL;
@@ -639,7 +468,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 
                 express_printf("composer set sync %d\n", layer.read_sync_id);
 
-                set_express_sync_id(layer.read_sync_id, true);
+                signal_express_sync(layer.read_sync_id, true);
             }
         }
 
@@ -713,260 +542,6 @@ void display_status_change(Display_Status status)
             display_is_open = 1;
         }
     }
-}
-
-void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
-{
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
-    LOGI("alloc_gbuffer_with_gralloc id %" PRIx64 " width %d height %d size %d", info.gbuffer_id, info.width, info.height, info.size);
-
-    if (info.width == 0 || info.height == 0 || info.size == 0)
-    {
-        return;
-    }
-
-    if (gbuffer == NULL)
-    {
-        gbuffer = create_gbuffer_from_gralloc_info(info, info.gbuffer_id);
-        // set_global_gbuffer_type(info.gbuffer_id, GBUFFER_TYPE_NATIVE);
-        gbuffer->usage = info.usage;
-        gbuffer->pixel_size = info.pixel_size;
-        gbuffer->size = info.size;
-        gbuffer->stride = info.stride;
-        gbuffer->guest_data = mem_data;
-        add_gbuffer_to_global(gbuffer);
-        LOGI("alloc gbuffer id %" PRIx64 " size %d mem_len %d width %d height %d stride %d pixel_size %d", gbuffer->gbuffer_id, gbuffer->size, mem_data->all_len, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
-    }
-    else
-    {
-        // a host copy exists. probably allocated by eglCreateImage.
-        // check if the info is compatible, and update the info
-        if (info.width != gbuffer->width || info.height != gbuffer->height)
-        {
-            LOGE("alloc_gbuffer_with_gralloc gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d origin %d %d %d %d", gbuffer->gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
-            return;
-        }
-
-        // update gbuffer info
-        if (gbuffer->stride == 0) {
-            gbuffer->stride = info.stride;
-        }
-
-        if (gbuffer->pixel_size == 0) {
-            gbuffer->pixel_size = info.pixel_size;
-        }
-
-        if (gbuffer->guest_data == NULL) {
-            gbuffer->guest_data = mem_data;
-        }
-        else {
-            LOGW("alloc_gbuffer_with_gralloc gbuffer %" PRIx64 "already has guest mem, discarding previous copy");
-            free_copied_guest_mem(gbuffer->guest_data);
-            gbuffer->guest_data = mem_data;
-        }
-    }
-}
-
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
-{
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
-
-    if (gbuffer == NULL)
-    {
-        LOGE("error! gbuffer_data_guest_to_host get null gbuffer: id %" PRIx64 "", info.gbuffer_id);
-        return;
-    }
-
-    if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
-    {
-        LOGE("gbuffer_data_guest_to_host gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d, local %d %d %d %d", info.gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
-        return;
-    }
-
-    if (gbuffer->guest_data == NULL) {
-        LOGE("error! gbuffer_data_guest_to_host with null guest_data!");
-        return;
-    }
-
-    Guest_Mem *mem_data = gbuffer->guest_data;
-
-    int real_width = info.width;
-    if (real_width % (info.stride) != 0)
-    {
-        real_width = (real_width / info.stride + 1) * info.stride;
-    }
-
-    int row_byte_len = info.pixel_size * info.width;
-
-    int all_pixel_size = row_byte_len * info.height;
-
-    // LOGI("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
-
-    if (all_pixel_size > mem_data->all_len)
-    {
-        LOGE("error! gbuffer_data_guest_to_host len error! row %d height %d get len %d", row_byte_len, info.height, mem_data->all_len);
-        return;
-    }
-
-    // 因为通过map上传的过程为异步的，所以这里假如fence未完成的话，需要重新bufferdata，以实现缓冲区孤立，避免同步（即避免需要同步等待gl用完这个缓冲区)
-    if (un_pack_buffer_size < all_pixel_size)
-    {
-        un_pack_buffer_size = all_pixel_size;
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, un_pack_buffer_size, NULL, GL_STREAM_DRAW);
-        LOGI("glBufferData new gbuffer size %d", un_pack_buffer_size);
-    }
-    else
-    {
-        GLint sync_status = GL_SIGNALED;
-        GLsizei sync_status_len;
-        if (unpack_buffer_sync != NULL)
-        {
-            glGetSynciv(unpack_buffer_sync, GL_SYNC_STATUS, sizeof(GLint), &sync_status_len, &sync_status);
-        }
-
-        if (sync_status == GL_UNSIGNALED)
-        {
-            glBufferData(GL_PIXEL_UNPACK_BUFFER, un_pack_buffer_size, NULL, GL_STREAM_DRAW);
-            // GLenum ret = glClientWaitSync(unpack_buffer_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-            // glGetSynciv(unpack_buffer_sync, GL_SYNC_STATUS, sizeof(GLint), &sync_status_len, &sync_status);
-            express_printf("glBufferData no sync new gbuffer size %d\n", un_pack_buffer_size);
-        }
-    }
-
-    if (unpack_buffer_sync != NULL)
-    {
-        glDeleteSync(unpack_buffer_sync);
-        unpack_buffer_sync = NULL;
-    }
-
-    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, all_pixel_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-
-    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
-           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
-
-    // GraphicBuffer里的图片是正的，放到纹理里要倒个个
-    // -- 不用倒个了，因为合成的时候，普通窗口都进行了倒个，然后显示的时候，又进行了倒个
-    if (info.stride != row_byte_len)
-    {
-        for (int i = 0; i < info.height; i++)
-        {
-            // read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * info.stride, row_byte_len);
-            read_from_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
-        }
-    }
-    else
-    {
-        read_from_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
-        // for (int i = 0; i < info.height; i++)
-        // {
-        //     read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
-        // }
-    }
-
-    glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-    glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-
-    // 这时候是立即返回的，后续会进行dma传输
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, gbuffer->width, gbuffer->height, gbuffer->format, gbuffer->pixel_type, NULL);
-
-    unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-    glFlush();
-}
-
-void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
-{
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
-
-    if (gbuffer == NULL)
-    {
-        LOGE("error! gbuffer_data_host_to_guest get null gbuffer");
-        return;
-    }
-
-    if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
-    {
-        LOGE("error! guest download gbuffer data size error width height stride pixel_size %d %d %d %d origin %d %d %d %d",
-               info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
-        return;
-    }
-
-    Guest_Mem *mem_data = gbuffer->guest_data;
-
-    int real_width = info.width;
-    if (real_width % (info.stride) != 0)
-    {
-        real_width = (real_width / info.stride + 1) * info.stride;
-    }
-
-    int row_byte_len = info.pixel_size * info.width;
-
-    int all_pixel_size = row_byte_len * info.height;
-
-    // LOGI("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
-
-    if (all_pixel_size > mem_data->all_len)
-    {
-        LOGE("error! gbuffer_data_host_to_guest len error! row %d height %d get len %d", row_byte_len, info.height, mem_data->all_len);
-        return;
-    }
-
-    if (un_pack_buffer_size < all_pixel_size)
-    {
-        un_pack_buffer_size = all_pixel_size;
-        glBufferData(GL_PIXEL_PACK_BUFFER, un_pack_buffer_size, NULL, GL_STREAM_DRAW);
-    }
-    else
-    {
-        GLint sync_status = GL_SIGNALED;
-        GLsizei sync_status_len;
-        if (unpack_buffer_sync != NULL)
-        {
-            glGetSynciv(unpack_buffer_sync, GL_SYNC_STATUS, sizeof(GLint), &sync_status_len, &sync_status);
-        }
-
-        if (sync_status == GL_UNSIGNALED)
-        {
-            glBufferData(GL_PIXEL_PACK_BUFFER, un_pack_buffer_size, NULL, GL_STREAM_DRAW);
-        }
-    }
-
-    if (unpack_buffer_sync != NULL)
-    {
-        glDeleteSync(unpack_buffer_sync);
-        unpack_buffer_sync = NULL;
-    }
-
-    glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-
-    glGetTexImage(GL_TEXTURE_2D, 0, gbuffer->format, gbuffer->pixel_type, 0);
-
-    GLint error = glGetError();
-    if (error != 0)
-    {
-        LOGE("error %x when d_glReadGraphicBuffer width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
-               error, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
-    }
-
-    LOGI("gbuffer_data_host_to_guest id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
-           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
-
-    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, all_pixel_size, GL_MAP_READ_BIT);
-
-    if (info.stride != row_byte_len)
-    {
-        for (int i = 0; i < info.height; i++)
-        {
-            // read_from_guest_mem(guest_mem, map_pointer + (height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
-            write_to_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
-        }
-    }
-    else
-    {
-        write_to_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
-    }
-
-    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 }
 
 static Express_Device_Info express_gpu_info = {

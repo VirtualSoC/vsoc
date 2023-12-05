@@ -47,89 +47,6 @@ static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
 
-static void gbuffer_decode_invoke(Render_Thread_Context *render_context, Teleport_Express_Call *call)
-{
-    Call_Para all_para[5];
-    size_t temp_len;
-    int para_num = get_para_from_call(call, all_para, 5);
-
-    g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(call->unique_id));
-
-    switch (call->id)
-    {
-    case FUNID_GPU_Gbuffer_Host_To_Guest:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Host_To_Guest))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
-
-        gbuffer_data_host_to_guest(info);
-    }
-    break;
-    case FUNID_GPU_Gbuffer_Guest_To_Host:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_MIN_GPU_Gbuffer_Guest_To_Host))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
-
-        gbuffer_data_guest_to_host(info);
-    }
-    break;
-    case FUNID_GPU_Alloc_Gbuffer:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_MIN_GPU_Alloc_Gbuffer))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        read_from_guest_mem(all_para[0].data, &info, 0, sizeof(Gralloc_Gbuffer_Info));
-
-        Guest_Mem *gbuffer_data = copy_guest_mem_from_call(call, 2);
-
-        alloc_gbuffer_with_gralloc(info, gbuffer_data);
-    }
-    break;
-    default:
-    {
-        LOGE("error! unknown gpu gbuffer invoke id %llx para_num %d", call->id, para_num);
-    }
-    }
-
-    call->callback(call, 1);
-
-    return;
-}
-
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
  *
@@ -162,13 +79,8 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 
         cluster_decode_invoke(call, context, (EXPRESS_DECODE_FUN)decode_invoke);
     }
-    else if (fun_id > 5000)
-    {
-        gbuffer_decode_invoke(render_context, call);
-    }
     else
     {
-
         // express_printf("gl decode invoke %llu context %llx\n", fun_id, render_context->opengl_context);
         gl3_decode_invoke(render_context, call);
     }

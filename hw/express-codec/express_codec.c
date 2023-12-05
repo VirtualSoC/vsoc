@@ -19,24 +19,6 @@
 
 static GHashTable *g_codec_thread_contexts = NULL;
 
-static char *para_to_ptr(Call_Para para, int *need_free) {
-    size_t ptr_len = 0;
-    unsigned char *ptr = NULL;
-
-    ptr_len = para.data_len;
-
-    int null_flag = 0;
-    ptr = get_direct_ptr(para.data, &null_flag);
-    if (unlikely(ptr == NULL)) {
-        if (ptr_len != 0 && null_flag == 0) {
-            ptr = g_malloc(ptr_len);
-            *need_free = 1;
-            read_from_guest_mem(para.data, ptr, 0, para.data_len);
-        }
-    }
-
-    return ptr;
-}
 
 static void dcodec_master_switch(struct Thread_Context *_context,
                           Teleport_Express_Call *call) {
@@ -69,7 +51,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
         int need_free = 0;
         char *_ptr;
-        _ptr = para_to_ptr(all_para[0], &need_free);
+        _ptr = call_para_to_ptr(all_para[0], &need_free);
         int _idx = 0;
 
         isVideo = *(int *)(_ptr + _idx);
@@ -110,7 +92,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
         int need_free = 0;
         char *_ptr;
-        _ptr = para_to_ptr(all_para[0], &need_free);
+        _ptr = call_para_to_ptr(all_para[0], &need_free);
         int _idx = 0;
 
         cmd = *(OMX_COMMANDTYPE *)(_ptr + _idx);
@@ -133,7 +115,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
         int need_free = 0;
         char *_ptr;
-        _ptr = para_to_ptr(all_para[0], &need_free);
+        _ptr = call_para_to_ptr(all_para[0], &need_free);
         int _idx = 0;
 
         index = *(int *)(_ptr + _idx);
@@ -162,7 +144,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
         int need_free = 0;
         char *_ptr;
-        _ptr = para_to_ptr(all_para[0], &need_free);
+        _ptr = call_para_to_ptr(all_para[0], &need_free);
         int _idx = 0;
 
         index = *(int *)(_ptr + _idx);
@@ -195,7 +177,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
         int need_free = 0;
         char *_ptr;
-        _ptr = para_to_ptr(all_para[0], &need_free);
+        _ptr = call_para_to_ptr(all_para[0], &need_free);
         int _idx = 0;
 
         sync_id = *(uint64_t *)(_ptr + _idx);
@@ -204,7 +186,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
         if (need_free)
             g_free(_ptr);
 
-        set_express_sync_id((int)sync_id, false);
+        signal_express_sync((int)sync_id, false);
     }
     break;
 
@@ -214,7 +196,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
         int need_free = 0;
         char *_ptr;
-        _ptr = para_to_ptr(all_para[0], &need_free);
+        _ptr = call_para_to_ptr(all_para[0], &need_free);
         int _idx = 0;
 
         sync_id = *(uint64_t *)(_ptr + _idx);

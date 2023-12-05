@@ -9,7 +9,7 @@
  *
  */
 
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/egl_display.h"
@@ -40,10 +40,10 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
         next_draw_gbuffer = get_gbuffer_from_global_map(gbuffer_id);
         if (next_draw_gbuffer == NULL)
         {
-            express_printf("create gbuffer_id %llx when surface %llx swapbuffer context %llx width %d height %d\n", gbuffer_id, surface, (uint64_t)opengl_context, width, height);
+            LOGD("create gbuffer_id %" PRIx64 " when surface %p swapbuffer context %p width %d height %d", gbuffer_id, surface, opengl_context, width, height);
             next_draw_gbuffer = create_gbuffer_from_hal(width, height, hal_format, surface, gbuffer_id);
 
-            express_printf("create gbuffer when swapbuffer gbuffer %llx gbuffer\n", gbuffer_id, next_draw_gbuffer);
+            LOGD("create gbuffer when swapbuffer gbuffer %" PRIx64 " ptr %p", gbuffer_id, next_draw_gbuffer);
 
             add_gbuffer_to_global(next_draw_gbuffer);
         }
@@ -569,101 +569,6 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
     }
 
     return gbuffer;
-}
-
-Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id)
-{
-
-    int sampler_num = 0;
-    int format = GL_RGBA;
-    int pixel_type = GL_UNSIGNED_BYTE;
-    int internal_format = GL_RGBA8;
-    int depth_internal_format = 0;
-    int stencil_internal_format = 0;
-    int width = info.width;
-    int height = info.height;
-
-    if (info.format == EXPRESS_PIXEL_RGBA8888 || info.format == EXPRESS_PIXEL_RGBX8888)
-    {
-        internal_format = GL_RGBA8;
-        format = GL_RGBA;
-        pixel_type = GL_UNSIGNED_BYTE;
-        // row_byte_len = width * 4;
-    }
-    else if (info.format == EXPRESS_PIXEL_RGB888)
-    {
-        internal_format = GL_RGB8;
-        format = GL_RGB;
-        pixel_type = GL_UNSIGNED_BYTE;
-        // row_byte_len = width * 3;
-    }
-    else if (info.format == EXPRESS_PIXEL_RGB565)
-    {
-        internal_format = GL_RGB565;
-        format = GL_RGB;
-        pixel_type = GL_UNSIGNED_SHORT_5_6_5;
-        // row_byte_len = width * 2;
-    }
-    else if (info.format == EXPRESS_PIXEL_RGBA5551 || info.format == EXPRESS_PIXEL_RGBX5551)
-    {
-        internal_format = GL_RGB5_A1;
-        format = GL_RGBA;
-        pixel_type = GL_UNSIGNED_SHORT_5_5_5_1;
-        // GL_UNSIGNED_SHORT_5_5_5_1
-        // row_byte_len = width * 2;
-    }
-    else if (info.format == EXPRESS_PIXEL_RGBA4444 || info.format == EXPRESS_PIXEL_RGBX4444)
-    {
-        internal_format = GL_RGBA4;
-        format = GL_RGBA;
-        pixel_type = GL_UNSIGNED_SHORT_4_4_4_4;
-        // row_byte_len = width * 2;
-    }
-    else if (info.format == EXPRESS_PIXEL_BGRA8888 || info.format == EXPRESS_PIXEL_BGRX8888)
-    {
-        // LOGI("EGLImage with g_buffer_id %llx need format BGRA_8888!!!", (uint64_t)g_buffer_id);
-        internal_format = GL_RGBA8;
-        format = GL_BGRA;
-        pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
-        // row_byte_len = width * 4;
-    }
-    else if (info.format == EXPRESS_PIXEL_BGR565)
-    {
-        internal_format = GL_RGB565;
-        format = GL_BGR;
-        pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
-        // row_byte_len = width * 2;
-    }
-    else if (info.format == EXPRESS_PIXEL_RGBA1010102)
-    {
-        internal_format = GL_RGB10_A2;
-        format = GL_RGBA;
-        pixel_type = GL_UNSIGNED_INT_2_10_10_10_REV;
-        // row_byte_len = width * 2;
-    }
-    else if (info.format == EXPRESS_PIXEL_R8)
-    {
-        internal_format = GL_R8;
-        format = GL_RED;
-        pixel_type = GL_UNSIGNED_BYTE;
-        // row_byte_len = width * 2;
-    }
-    else
-    {
-        internal_format = GL_RGBA8;
-        format = GL_RGBA;
-        pixel_type = GL_UNSIGNED_INT;
-        // row_byte_len = width * 4;
-        LOGE("error! unknown gralloc format %d!!!", info.format);
-    }
-
-    return create_gbuffer(width, height, sampler_num,
-                          format,
-                          pixel_type,
-                          internal_format,
-                          depth_internal_format,
-                          stencil_internal_format,
-                          gbuffer_id);
 }
 
 Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id)

@@ -1,0 +1,4 @@
+config EXPRESS_MEM
+    bool
+    default y
+    depends on TELEPORT_EXPRESS

@@ -68,6 +68,7 @@ source xtensa/Kconfig
 
 
 source teleport-express/Kconfig
+source express-mem/Kconfig
 source express-codec/Kconfig
 source express-gpu/Kconfig
 source express-input/Kconfig

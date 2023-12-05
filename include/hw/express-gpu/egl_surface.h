@@ -209,8 +209,6 @@ typedef struct Window_Buffer
 
 Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *thread_context, EGLContext ctx, uint64_t gbuffer_id);
 
-Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
-
 Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id);
 
 Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num, 

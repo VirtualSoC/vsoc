@@ -204,7 +204,7 @@ static void init_express_driver_names(Teleport_Express_PCI *express_pci)
     g_hash_table_foreach(all_register_device_info, fill_kernel_driver_name, express_pci);
     kernel_load_express_driver_names[driver_names_len] = 0;
 
-    printf("init_express_driver_names |%s|\n", kernel_load_express_driver_names);
+    printf("init_express_driver_names | %s|\n", kernel_load_express_driver_names);
 
     return;
 }

@@ -20,9 +20,15 @@
 #define EXPRESS_MODEM_DEVICE_ID ((uint64_t)12)
 #define EXPRESS_CODEC_DEVICE_ID ((uint64_t)13)
 
+#define EXPRESS_WIFI_DEVICE_ID ((u64)20)
+
+#define EXPRESS_NET_DEVICE_ID ((u64)30)
+
 #define EXPRESS_BRIDGE_DEVICE_ID ((uint64_t)40)
 
 #define EXPRESS_SYNC_DEVICE_ID ((uint64_t)50)
+
+#define EXPRESS_MEM_DEVICE_ID ((uint64_t)60)
 
 //保留的fun_id，其他设备不可使用
 #define EXPRESS_TERMINATE_FUN_ID (0)

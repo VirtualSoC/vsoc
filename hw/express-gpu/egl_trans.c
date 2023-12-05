@@ -2287,7 +2287,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         sync_id = *(uint64_t *)(temp);
 
-        set_express_sync_id((int)sync_id, egl_context->opengl_context != NULL);
+        signal_express_sync((int)sync_id, egl_context->opengl_context != NULL);
     }
     break;
     case FUNID_EGL_Wait_Sync:
