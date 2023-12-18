@@ -118,6 +118,10 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
                 break;
             }
 #endif
+            if (sync_wait_cnt != 0 && sync_wait_cnt % 1000 == 0) {
+                // helps debugging deadlocks
+                LOGI("still waiting for sync %d after %d ms...", sync_id, sync_wait_cnt);
+            }
         }
 
         if (need_gpu_sync)
@@ -126,11 +130,9 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
             {
                 glWaitSync(gpu_sync_id[sync_id], 0, GL_TIMEOUT_IGNORED);
 
-                // @todo 目前sync只能wait一次，没法wait两次，核心是因为不知道什么时候sync终结
-                // 所以要么需要加个sync终结函数，要么sync不删除，等待轮了一圈后再删除
-                // 先试试看轮了一圈不删除会不会有什么影响
-                // glDeleteSync(gpu_sync_id[sync_id]);
-                // gpu_sync_id[sync_id] = NULL;
+                // a second wait_sync on the same id will skip gpu sync
+                glDeleteSync(gpu_sync_id[sync_id]);
+                gpu_sync_id[sync_id] = NULL;
             }
         }
     }
