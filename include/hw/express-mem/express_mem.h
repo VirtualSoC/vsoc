@@ -24,14 +24,20 @@ typedef struct Gralloc_Gbuffer_Info
 #define FUNID_Gbuffer_Guest_To_Host (DEVICE_FUN_ID(EXPRESS_MEM_DEVICE_ID, 4))
 #define FUNID_Mem_Signal_Sync (DEVICE_FUN_ID(EXPRESS_MEM_DEVICE_ID, 5))
 #define FUNID_Mem_Wait_Sync (DEVICE_FUN_ID(EXPRESS_MEM_DEVICE_ID, 6))
+#define FUNID_Update_Gbuffer_Location (DEVICE_FUN_ID(EXPRESS_MEM_DEVICE_ID, 7))
 
 #define PARA_NUM_Terminate_Gbuffer 1
-#define PARA_NUM_Commit_Composer_Layer 1
+#define PARA_NUM_Alloc_Gbuffer 2
 #define PARA_NUM_Gbuffer_Host_To_Guest 1
 #define PARA_NUM_Gbuffer_Guest_To_Host 1
-#define PARA_NUM_Alloc_Gbuffer 2
+#define PARA_NUM_Mem_Signal_Sync 1
+#define PARA_NUM_Mem_Wait_Sync 1
+#define PARA_NUM_Update_Gbuffer_Location 1
 
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info);
+void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, int write);
+MemoryType predict_gbuffer_location(Graphic_Buffer *gbuffer);
+
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id);
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
 Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);

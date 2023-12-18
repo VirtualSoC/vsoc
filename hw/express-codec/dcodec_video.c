@@ -7,6 +7,7 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_status.h"
 #include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_mem.h"
 
 #define MAX_SW_VIDEO_DIMENSION 1280
 
@@ -741,6 +742,8 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         CHECK(gbuffer != NULL);
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+
+        predict_gbuffer_location(gbuffer);
 
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
         glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, NULL);

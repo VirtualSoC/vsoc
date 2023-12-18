@@ -84,6 +84,26 @@ typedef enum {
 #define MAX_COMPOSER_LIFE_TIME (MAX_WINDOW_LIFE_TIME*10)
 
 
+typedef enum MemoryType {
+    // uninitialized
+    EXPRESS_MEM_TYPE_UNKNOWN = 0x00,
+
+    // guest memory mask
+    EXPRESS_MEM_TYPE_GUEST_MASK = 0x0f,
+
+    // guest memory type, should be casted to Guest_Mem*
+    EXPRESS_MEM_TYPE_GUEST_MEM = 0x01,
+
+    // host memory mask
+    EXPRESS_MEM_TYPE_HOST_MASK = 0xf0,
+
+    // gbuffer, should be casted to Graphic_Buffer*
+    EXPRESS_MEM_TYPE_GBUFFER = 0x10,
+
+    // host CPU memory type
+    EXPRESS_MEM_TYPE_HOST_MEM = 0x20,
+} MemoryType;
+
 
 typedef struct Graphic_Buffer{
 
@@ -144,6 +164,10 @@ typedef struct Graphic_Buffer{
      int size;
 
      Guest_Mem *guest_data;
+
+     int pid;
+     MemoryType location;
+     GHashTable *locations;
 
 } Graphic_Buffer;
 

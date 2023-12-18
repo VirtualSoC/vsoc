@@ -832,6 +832,9 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     // LOGD("create gbuffer id " PRIx64 " texture %d width %d height %d format %d", gbuffer->gbuffer_id, gbuffer->data_texture,gbuffer->width, gbuffer->height, gbuffer->format);
 
+    gbuffer->location = EXPRESS_MEM_TYPE_UNKNOWN;
+    gbuffer->locations = g_hash_table_new(g_direct_hash, g_direct_equal);
+
     return gbuffer;
 }
 
@@ -1016,6 +1019,8 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
 // #else
 //     delete_event(gbuffer->writing_ok_event);
 // #endif
+
+    g_hash_table_destroy(gbuffer->locations);
 
     g_free(gbuffer);
 }

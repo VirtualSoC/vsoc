@@ -1,4 +1,4 @@
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_device_common.h"
 
@@ -14,9 +14,78 @@ static void *g_gl_context = NULL;
 
 static GLuint unpack_buffer;
 static int unpack_buffer_size = 0;
-
 static GLsync unpack_buffer_sync = NULL;
 
+
+static const char *memtype_to_str(MemoryType loc) {
+    switch (loc) {
+        case EXPRESS_MEM_TYPE_UNKNOWN:
+            return "unknown";
+        case EXPRESS_MEM_TYPE_GUEST_MEM:
+            return "guest_mem";
+        case EXPRESS_MEM_TYPE_GBUFFER:
+            return "gbuffer";
+        case EXPRESS_MEM_TYPE_HOST_MEM:
+            return "host_mem";
+        default:
+            return "error";
+    }
+}
+
+/**
+ * update the gbuffer location
+ * used at the beginning of every gbuffer access
+ */
+void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, int write) {
+    if (gbuffer == NULL) {
+        LOGE("update_gbuffer_location got null gbuffer!");
+        return;
+    }
+    if (gbuffer->locations == NULL) {
+        LOGE("gbuffer %" PRIx64 " location tracking not enabled!", gbuffer->gbuffer_id);
+        return;
+    }
+
+    if (write) {
+        gbuffer->location = loc;
+        gbuffer->pid = pid;
+        LOGD("gbuffer %" PRIx64 " pid %d write %s", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location));
+        return;
+    } // else read
+
+    /**
+     * identifier: 64-bit, format as follows.
+     * 0 -------- 31 32 -------- 63 
+     *     tid          location
+     */
+    uint64_t id = gbuffer->location | ((uint64_t)gbuffer->pid << 32);
+    MemoryType pred_loc = (MemoryType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
+    if (loc == pred_loc) {
+        LOGD("gbuffer %" PRIx64 " pid %d prefetch %s -> %s succ!", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc));
+    }
+    else {
+        LOGD("gbuffer %" PRIx64 " pid %d prefetch %s -> %s (actual %s) fail!", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc), memtype_to_str(loc));
+        g_hash_table_insert(gbuffer->locations, GUINT_TO_POINTER(id), GUINT_TO_POINTER(loc));
+    }
+}
+
+/**
+ * used at the end of every gbuffer access
+*/
+MemoryType predict_gbuffer_location(Graphic_Buffer *gbuffer) {
+    if (gbuffer == NULL) {
+        LOGE("predict_gbuffer_location got null gbuffer!");
+        return EXPRESS_MEM_TYPE_UNKNOWN;
+    }
+    if (gbuffer->locations == NULL) {
+        LOGE("gbuffer %" PRIx64 " location tracking not enabled!", gbuffer->gbuffer_id);
+        return EXPRESS_MEM_TYPE_UNKNOWN;
+    }
+    uint64_t id = gbuffer->location | ((uint64_t)gbuffer->pid << 32);
+    MemoryType pred_loc = (MemoryType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
+    LOGD("gbuffer %" PRIx64 " pid %d predict prefetch %s -> %s?", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc));
+    return pred_loc;
+}
 
 static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *call)
 {
@@ -86,6 +155,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
     case FUNID_Gbuffer_Guest_To_Host:
     {
         Gralloc_Gbuffer_Info info;
+        int sync_id;
 
         if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
         {
@@ -101,7 +171,14 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         ptr = call_para_to_ptr(all_para[0], &need_free);
         info = *(Gralloc_Gbuffer_Info *)(ptr);
 
-        gbuffer_data_guest_to_host(info);
+        if (need_free) {
+            g_free(ptr);
+        }
+
+        ptr = call_para_to_ptr(all_para[1], &need_free);
+        sync_id = (int)(uint32_t)*(uint64_t *)(ptr);
+
+        gbuffer_data_guest_to_host(info, sync_id);
     }
     break;
     case FUNID_Alloc_Gbuffer:
@@ -131,7 +208,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
     {
         uint64_t sync_id;
 
-        if (unlikely(para_num < PARA_NUM_Set_Sync_Flag))
+        if (unlikely(para_num < PARA_NUM_Mem_Signal_Sync))
         {
             break;
         }
@@ -145,14 +222,14 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         ptr = call_para_to_ptr(all_para[0], &need_free);
         sync_id = *(uint64_t *)(ptr);
 
-        signal_express_sync((int)sync_id, true);
+        signal_express_sync((int)sync_id, false);
     }
     break;
     case FUNID_Mem_Wait_Sync:
     {
         uint64_t sync_id;
 
-        if (unlikely(para_num < PARA_NUM_Wait_Sync))
+        if (unlikely(para_num < PARA_NUM_Mem_Wait_Sync))
         {
             break;
         }
@@ -169,9 +246,37 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         wait_for_express_sync((int)sync_id, true);
     }
     break;
+    case FUNID_Update_Gbuffer_Location:
+    {
+        uint64_t gbuffer_id;
+        int pid;
+        int write;
+
+        if (unlikely(para_num < PARA_NUM_Update_Gbuffer_Location))
+        {
+            break;
+        }
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < 3 * sizeof(int64_t)))
+        {
+            break;
+        }
+
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        gbuffer_id = *(uint64_t *)(ptr);
+        pid = *(int *)(ptr + 8);
+        write = *(int *)(ptr + 16);
+
+        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        if (gbuffer) {
+            update_gbuffer_location(gbuffer, write ? EXPRESS_MEM_TYPE_GBUFFER : EXPRESS_MEM_TYPE_GUEST_MEM, pid, write);
+        }
+    }
+    break;
     default:
     {
-        LOGE("error! codec function id %d not recognized!", GET_FUN_ID(call->id));
+        LOGE("error! function id %d not recognized!", GET_FUN_ID(call->id));
     }
 
     }
@@ -231,7 +336,6 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
 
     if (gbuffer == NULL)
     {
-        // fixme: race condition that can cause memory leak
         gbuffer = create_gbuffer_from_gralloc_info(info, info.gbuffer_id);
         gbuffer->guest_data = mem_data;
         add_gbuffer_to_global(gbuffer);
@@ -368,25 +472,25 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
     return gbuffer;
 }
 
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
 {
     Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
 
     if (gbuffer == NULL)
     {
         LOGE("error! gbuffer_data_guest_to_host get null gbuffer: id %" PRIx64 "", info.gbuffer_id);
-        return;
+        goto SIGNAL_SYNC;
     }
 
     if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
     {
         LOGE("gbuffer_data_guest_to_host gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d, local %d %d %d %d", info.gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
-        return;
+        goto SIGNAL_SYNC;
     }
 
     if (gbuffer->guest_data == NULL) {
         LOGE("error! gbuffer_data_guest_to_host with null guest_data!");
-        return;
+        goto SIGNAL_SYNC;
     }
 
     Guest_Mem *mem_data = gbuffer->guest_data;
@@ -406,7 +510,7 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
     if (all_pixel_size > mem_data->all_len)
     {
         LOGE("error! gbuffer_data_guest_to_host len error! row %d height %d get len %d", row_byte_len, info.height, mem_data->all_len);
-        return;
+        goto SIGNAL_SYNC;
     }
 
     // 因为通过map上传的过程为异步的，所以这里假如fence未完成的话，需要重新bufferdata，以实现缓冲区孤立，避免同步（即避免需要同步等待gl用完这个缓冲区)
@@ -442,8 +546,8 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, all_pixel_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
-    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
-           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
+    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d sync_id %d",
+           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len, sync_id);
 
     // GraphicBuffer里的图片是正的，放到纹理里要倒个个
     // -- 不用倒个了，因为合成的时候，普通窗口都进行了倒个，然后显示的时候，又进行了倒个
@@ -473,6 +577,12 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
     unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     glFlush();
+
+SIGNAL_SYNC:
+    if (sync_id != -1) {
+        signal_express_sync(sync_id, true);
+    }
+
 }
 
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
