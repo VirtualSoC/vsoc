@@ -155,7 +155,6 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
     case FUNID_Gbuffer_Guest_To_Host:
     {
         Gralloc_Gbuffer_Info info;
-        int sync_id;
 
         if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
         {
@@ -171,14 +170,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         ptr = call_para_to_ptr(all_para[0], &need_free);
         info = *(Gralloc_Gbuffer_Info *)(ptr);
 
-        if (need_free) {
-            g_free(ptr);
-        }
-
-        ptr = call_para_to_ptr(all_para[1], &need_free);
-        sync_id = (int)(uint32_t)*(uint64_t *)(ptr);
-
-        gbuffer_data_guest_to_host(info, sync_id);
+        gbuffer_data_guest_to_host(info);
     }
     break;
     case FUNID_Alloc_Gbuffer:
@@ -222,7 +214,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         ptr = call_para_to_ptr(all_para[0], &need_free);
         sync_id = *(uint64_t *)(ptr);
 
-        signal_express_sync((int)sync_id, false);
+        signal_express_sync((int)sync_id, true);
     }
     break;
     case FUNID_Mem_Wait_Sync:
@@ -472,25 +464,25 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
     return gbuffer;
 }
 
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
 {
     Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
 
     if (gbuffer == NULL)
     {
         LOGE("error! gbuffer_data_guest_to_host get null gbuffer: id %" PRIx64 "", info.gbuffer_id);
-        goto SIGNAL_SYNC;
+        return;
     }
 
     if (info.width != gbuffer->width || info.height != gbuffer->height || info.stride != gbuffer->stride || info.pixel_size != gbuffer->pixel_size)
     {
         LOGE("gbuffer_data_guest_to_host gbuffer info not matching: id %" PRIx64 " width %d height %d stride %d pixel_size %d, local %d %d %d %d", info.gbuffer_id, info.width, info.height, info.stride, info.pixel_size, gbuffer->width, gbuffer->height, gbuffer->stride, gbuffer->pixel_size);
-        goto SIGNAL_SYNC;
+        return;
     }
 
     if (gbuffer->guest_data == NULL) {
         LOGE("error! gbuffer_data_guest_to_host with null guest_data!");
-        goto SIGNAL_SYNC;
+        return;
     }
 
     Guest_Mem *mem_data = gbuffer->guest_data;
@@ -510,7 +502,7 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
     if (all_pixel_size > mem_data->all_len)
     {
         LOGE("error! gbuffer_data_guest_to_host len error! row %d height %d get len %d", row_byte_len, info.height, mem_data->all_len);
-        goto SIGNAL_SYNC;
+        return;
     }
 
     // 因为通过map上传的过程为异步的，所以这里假如fence未完成的话，需要重新bufferdata，以实现缓冲区孤立，避免同步（即避免需要同步等待gl用完这个缓冲区)
@@ -546,8 +538,8 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, all_pixel_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
-    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d sync_id %d",
-           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len, sync_id);
+    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
+           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     // GraphicBuffer里的图片是正的，放到纹理里要倒个个
     // -- 不用倒个了，因为合成的时候，普通窗口都进行了倒个，然后显示的时候，又进行了倒个
@@ -577,12 +569,6 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
     unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 
     glFlush();
-
-SIGNAL_SYNC:
-    if (sync_id != -1) {
-        signal_express_sync(sync_id, true);
-    }
-
 }
 
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)

@@ -37,7 +37,7 @@ typedef struct Gralloc_Gbuffer_Info
 void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, int write);
 MemoryType predict_gbuffer_location(Graphic_Buffer *gbuffer);
 
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id);
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info);
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
 Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
