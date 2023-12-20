@@ -163,7 +163,8 @@ typedef struct Graphic_Buffer{
      int usage;
      int size;
 
-     Guest_Mem *guest_data;
+     Guest_Mem *guest_data; // storage for EXPRESS_MEM_TYPE_GUEST_MEM
+     void *host_data; // storage for EXPRESS_MEM_TYPE_HOST_MEM
 
      int pid;
      MemoryType location;

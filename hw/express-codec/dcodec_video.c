@@ -671,6 +671,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
          desc->nTimeStamp, desc->nFlags, desc->sync_id);
 
+    MemoryType pred_loc = EXPRESS_MEM_TYPE_UNKNOWN;
     // prepare for DMA if the target is gbuffer
     if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
         // notify the guest ahead of time
@@ -689,23 +690,36 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             add_gbuffer_to_global(gbuffer);
         }
 
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, context->mUnpackBuffer);
+        update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_HOST_MEM, CURRENT_TID(), true);
+        pred_loc = predict_gbuffer_location(gbuffer);
 
-        GLint sync_status = GL_SIGNALED;
-        if (context->mUnpackBufferSync)
-        {
-            glGetSynciv(context->mUnpackBufferSync, GL_SYNC_STATUS, sizeof(GLint), NULL, &sync_status);
-            glDeleteSync(context->mUnpackBufferSync);
+        if (pred_loc == EXPRESS_MEM_TYPE_HOST_MEM || pred_loc == EXPRESS_MEM_TYPE_UNKNOWN) {
+            // unknown defaults to host mem (we use swscale by CPU, so lazy copy)
+            pred_loc = EXPRESS_MEM_TYPE_HOST_MEM;
+            gbuffer->host_data = g_realloc(gbuffer->host_data, outputSize);
+            data[0] = gbuffer->host_data;
+        } else if (pred_loc != EXPRESS_MEM_TYPE_GBUFFER) {
+            LOGE("error! gbuffer location %x is currently not supported by the codec");
+        } else {
+            update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_GBUFFER, CURRENT_TID(), true);
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, context->mUnpackBuffer);
+
+            GLint sync_status = GL_SIGNALED;
+            if (context->mUnpackBufferSync)
+            {
+                glGetSynciv(context->mUnpackBufferSync, GL_SYNC_STATUS, sizeof(GLint), NULL, &sync_status);
+                glDeleteSync(context->mUnpackBufferSync);
+            }
+
+            if (sync_status != GL_SIGNALED || context->mUnpackBufferSize < outputSize)
+            {
+                glBufferData(GL_PIXEL_UNPACK_BUFFER, outputSize, NULL, GL_STREAM_DRAW);
+                context->mUnpackBufferSize = outputSize;
+            }
+
+            // mmap. packed RGB(A) formats only require data[0] to be set.
+            data[0] = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, outputSize, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
         }
-
-        if (sync_status != GL_SIGNALED || context->mUnpackBufferSize < outputSize)
-        {
-            glBufferData(GL_PIXEL_UNPACK_BUFFER, outputSize, NULL, GL_STREAM_DRAW);
-            context->mUnpackBufferSize = outputSize;
-        }
-
-        // mmap. packed RGB(A) formats only require data[0] to be set.
-        data[0] = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, outputSize, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
     }
 
     context->mImgConvertCtx = sws_getCachedContext(context->mImgConvertCtx,
@@ -738,12 +752,10 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         THREAD_CONTROL_END
 #endif
     }
-    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
+    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER && pred_loc == EXPRESS_MEM_TYPE_GBUFFER) {
         Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         CHECK(gbuffer != NULL);
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-
-        predict_gbuffer_location(gbuffer);
 
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
         glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, NULL);
@@ -762,6 +774,9 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         if (error != GL_NO_ERROR) {
             LOGE("codec gl error %x!", error);
         }
+    }
+    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER && pred_loc == EXPRESS_MEM_TYPE_HOST_MEM) {
+        signal_express_sync(desc->sync_id, true);
     }
     else {
         LOGE("output buffer type %x not supported yet!", desc->type);

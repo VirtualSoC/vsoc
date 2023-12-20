@@ -1022,6 +1022,10 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
 
     g_hash_table_destroy(gbuffer->locations);
 
+    if (gbuffer->host_data != NULL) {
+        g_free(gbuffer->host_data);
+    }
+
     g_free(gbuffer);
 }
 
