@@ -136,12 +136,6 @@ OMX_ERRORTYPE dcodec_vdec_reset_component(DCodecComponent *_context) {
     return dcodec_reset_component(_context);
 }
 
-static gboolean release_tex_cu(gpointer key, gpointer value, gpointer user_data) {
-    GLuint glbuf = (GLuint)key;
-    glDeleteBuffers(1, &glbuf);
-    return TRUE;
-}
-
 OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context) {
     DCodecVideo *context = (DCodecVideo *)_context;
 
@@ -393,11 +387,6 @@ static int open_decoder(DCodecComponent *_context) {
         return ERR_OK;
     }
 
-    // only accept extradata configs before we open the decoder
-    if (dcodec_handle_extradata(_context) != ERR_OK) {
-        return ERR_EXTRADATA_FAILED;
-    }
-
     // set default ctx params
     mCtx->workaround_bugs   = FF_BUG_AUTODETECT;
     mCtx->idct_algo         = FF_IDCT_AUTO;
@@ -452,6 +441,14 @@ static int open_decoder(DCodecComponent *_context) {
         return ERR_CODEC_NOT_FOUND;
     }
 
+    // qsv doesn't play nice with h264 / h265 extradata, use workaround
+    if ((strstr(mCtx->codec->name, "h264_qsv") == NULL) && (strstr(mCtx->codec->name, "h265_qsv") == NULL)) {
+        // only accept extradata configs before we open the decoder
+        if (dcodec_handle_extradata(_context) != ERR_OK) {
+            return ERR_EXTRADATA_FAILED;
+        }
+    } 
+
     LOGD("open ffmpeg video decoder (%s), width %d height %d",
            mCtx->codec->name, mCtx->width, mCtx->height);
 
@@ -479,13 +476,52 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
 
     BufferDesc *desc = g_queue_peek_head(_context->input_buffers);
 
-    if (desc->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
-        LOGW("extradata config ignored when the decoder is open");
-        dcodec_return_buffer(_context, g_queue_pop_head(_context->input_buffers));
-        return ERR_OK;
-    }
+    // 1. dcodec_handle_extradata() 参考487这个while循环 改成拼接extradata
+    // 2. 这个函数里特判一下是不是h2645_qsv，如果是的话发第一个包的时候把extradata拼在第一个包前面，参考496行
+    if ((strstr(mCtx->codec->name, "h264_qsv") != NULL) || (strstr(mCtx->codec->name, "h265_qsv") != NULL)) {
+        uint8_t *extra_buf = av_mallocz(1);
+        int extra_bufsize = 0;
 
-    ret = decode_video(context, desc);
+        while (desc->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
+            CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
+            extra_buf = av_realloc(extra_buf, extra_bufsize + desc->nFilledLen);
+            read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
+            extra_bufsize = extra_bufsize + desc->nFilledLen;
+            dcodec_return_buffer(_context, g_queue_pop_head(_context->input_buffers));
+            desc = g_queue_peek_head(_context->input_buffers);
+        }
+        AVPacket *new_packet = av_packet_alloc();
+        BufferDesc *new_desc = g_malloc(sizeof(BufferDesc));
+        if (extra_bufsize != 0) {
+            extra_buf = av_realloc(extra_buf, extra_bufsize + desc->nFilledLen);
+            read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
+            extra_bufsize = extra_bufsize + desc->nFilledLen;
+            av_packet_from_data(new_packet, extra_buf, extra_bufsize);
+            // send input packet to codec
+            new_desc->type = CODEC_BUFFER_TYPE_INPUT | CODEC_BUFFER_TYPE_AVPACKET;
+            new_desc->id = desc->id;
+            new_desc->data = new_packet;
+            new_desc->nAllocLen = extra_bufsize;
+            new_desc->nFilledLen = extra_bufsize;
+            new_desc->nOffset = 0;
+            new_desc->nTimeStamp = desc->nTimeStamp;
+            new_desc->nFlags = desc->nFlags;
+            desc = new_desc;
+        }
+
+        ret = decode_video(context, desc);
+
+        g_free(new_desc);
+        av_packet_free(&new_packet);
+    }
+    else {
+        if (desc->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
+            LOGW("extradata config ignored when the decoder is open");
+            dcodec_return_buffer(_context, g_queue_pop_head(_context->input_buffers));
+            return ERR_OK;
+        }
+        ret = decode_video(context, desc);
+    }
 
     // a negative error code is returned if an error occurred during decoding
     if (ret < 0) {

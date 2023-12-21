@@ -433,6 +433,8 @@ int dcodec_handle_extradata(DCodecComponent *context) {
     memset(vorbisHeaderStart, 0, sizeof(vorbisHeaderStart));
     memset(vorbisHeaderLen, 0, sizeof(vorbisHeaderLen));
 
+    uint8_t *extra_buf = av_mallocz(1);
+    int extra_bufsize = 0;
     while (desc && (desc->nFlags & OMX_BUFFERFLAG_CODECCONFIG)) {
         CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
 
@@ -467,19 +469,11 @@ int dcodec_handle_extradata(DCodecComponent *context) {
             vorbisHeaderLen[index] = desc->nFilledLen;
         }
         else {
-            int orig_extradata_size = mCtx->extradata_size;
-            mCtx->extradata_size += desc->nFilledLen;
-            mCtx->extradata = (uint8_t *)av_realloc(mCtx->extradata,
-                mCtx->extradata_size + AV_INPUT_BUFFER_PADDING_SIZE);
-            if (unlikely(!mCtx->extradata)) {
-                LOGE("ffmpeg failed to alloc extradata memory.");
-                dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
-                return ERR_OOM;
-            }
-
-            read_from_guest_mem(desc->data, mCtx->extradata + orig_extradata_size, desc->nOffset, desc->nFilledLen);
-            memset(mCtx->extradata + mCtx->extradata_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);
-            LOGD("extradata setup complete size %d", mCtx->extradata_size);
+            extra_buf = av_realloc(extra_buf, extra_bufsize + desc->nFilledLen);
+            read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
+            extra_bufsize = extra_bufsize + desc->nFilledLen;
+            mCtx->extradata_size = extra_bufsize;
+            mCtx->extradata = extra_buf;
         }
         dcodec_return_buffer(context, g_queue_pop_head(context->input_buffers));
         desc = g_queue_peek_head(context->input_buffers);
