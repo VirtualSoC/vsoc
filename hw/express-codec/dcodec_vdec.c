@@ -2,7 +2,7 @@
 // #define STD_DEBUG_INDEPENDENT_WINDOW
 
 #include "hw/teleport-express/express_log.h"
-#include "hw/express-codec/dcodec_video.h"
+#include "hw/express-codec/dcodec_vdec.h"
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_status.h"
@@ -57,9 +57,9 @@ static void free_avpacket(gpointer pkt) {
     }
 }
 
-DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify) {
+DCodecComponent* dcodec_vdec_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify) {
     DCodecVideo *context = g_malloc0(sizeof(DCodecVideo));
-    LOGI("dcodec_video_init_component() component %p codingType %x", context, codingType);
+    LOGI("dcodec_vdec_init_component() component %p codingType %x", context, codingType);
 
     enum AVCodecID codec_id = AV_CODEC_ID_NONE;
 
@@ -77,10 +77,10 @@ DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingTyp
         return NULL;
     }
 
-    context->base.reset_component = dcodec_video_reset_component;
-    context->base.destroy_component = dcodec_video_destroy_component;
-    context->base.get_parameter = dcodec_video_get_parameter;
-    context->base.set_parameter = dcodec_video_set_parameter;
+    context->base.reset_component = dcodec_vdec_reset_component;
+    context->base.destroy_component = dcodec_vdec_destroy_component;
+    context->base.get_parameter = dcodec_vdec_get_parameter;
+    context->base.set_parameter = dcodec_vdec_set_parameter;
     context->base.open_decoder = open_decoder;
     context->base.empty_one_input_buffer = empty_one_input_buffer;
     context->base.fill_one_output_buffer = fill_one_output_buffer;
@@ -123,7 +123,7 @@ DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingTyp
     return (DCodecComponent *)context;
 }
 
-OMX_ERRORTYPE dcodec_video_reset_component(DCodecComponent *_context) {
+OMX_ERRORTYPE dcodec_vdec_reset_component(DCodecComponent *_context) {
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
     THREAD_CONTROL_BEGIN
     glfwHideWindow(context->window);
@@ -133,7 +133,7 @@ OMX_ERRORTYPE dcodec_video_reset_component(DCodecComponent *_context) {
     return dcodec_reset_component(_context);
 }
 
-OMX_ERRORTYPE dcodec_video_destroy_component(DCodecComponent *_context) {
+OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context) {
     DCodecVideo *context = (DCodecVideo *)_context;
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
     THREAD_CONTROL_BEGIN
@@ -172,9 +172,9 @@ OMX_ERRORTYPE dcodec_video_destroy_component(DCodecComponent *_context) {
     return OMX_ErrorNone;
 }
 
-OMX_ERRORTYPE dcodec_video_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
+OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
-    LOGD("dcodec_video_get_parameter index:0x%x", index);
+    LOGD("dcodec_vdec_get_parameter index:0x%x", index);
 
     switch ((int)index) {
         case OMX_IndexParamVideoWmv:
@@ -223,17 +223,17 @@ OMX_ERRORTYPE dcodec_video_get_parameter(DCodecComponent *_context, OMX_IN OMX_I
         }
 
         default: {
-            LOGE("dcodec_video_get_parameter unrecognized index 0x%x!", index);
+            LOGE("dcodec_vdec_get_parameter unrecognized index 0x%x!", index);
             return OMX_ErrorUnsupportedIndex;
         }
     }
     return OMX_ErrorNone;
 }
 
-OMX_ERRORTYPE dcodec_video_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
+OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
     const int32_t indexFull = index;
-    LOGD("dcodec_video_set_parameter index:0x%x", index);
+    LOGD("dcodec_vdec_set_parameter index:0x%x", index);
 
     switch (indexFull) {
         case OMX_IndexParamVideoDcodecDefinition:
@@ -325,7 +325,7 @@ OMX_ERRORTYPE dcodec_video_set_parameter(DCodecComponent *_context, OMX_IN OMX_I
         }
 
         default: {
-            LOGE("dcodec_video_set_parameter unrecognized index 0x%x!", index);
+            LOGE("dcodec_vdec_set_parameter unrecognized index 0x%x!", index);
             return OMX_ErrorUnsupportedIndex;
         }
     }
@@ -335,7 +335,7 @@ OMX_ERRORTYPE dcodec_video_set_parameter(DCodecComponent *_context, OMX_IN OMX_I
   * finds hw/sw codecs matching the given codec_id and use the hw one if appropriate
   */
 static int find_decoder(AVCodecContext *mCtx) {
-    AVCodec *codec_hw = NULL, *codec_sw = NULL, *codec = NULL;
+    const AVCodec *codec_hw = NULL, *codec_sw = NULL, *codec = NULL;
     void *i = 0;
 
     while ((codec = av_codec_iterate(&i))) {
@@ -675,7 +675,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     // prepare for DMA if the target is gbuffer
     if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
         // notify the guest ahead of time
-        _context->notify(context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+        _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
         Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         if (gbuffer == NULL) {
             LOGD("create_gbuffer with id %llx width %d height %d pixtype %x pixfmt %x intfmt %x", desc->id, context->mWidth, context->mHeight, glPixType, glPixFmt, glIntFmt);
@@ -740,7 +740,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     // write data to output buffer
     if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
         write_to_guest_mem(desc->data, context->mVideoBuffer, 0, desc->nFilledLen);
-        _context->notify(context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+        _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         glBindTexture(GL_TEXTURE_2D, context->mDebugTexture);

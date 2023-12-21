@@ -14,7 +14,7 @@
 #include "hw/express-codec/express_codec.h"
 #include "hw/express-codec/dcodec_component.h"
 #include "hw/express-codec/dcodec_shared.h"
-#include "hw/express-codec/dcodec_video.h"
+#include "hw/express-codec/dcodec_vdec.h"
 #include "hw/express-codec/dcodec_audio.h"
 
 static GHashTable *g_codec_thread_contexts = NULL;
@@ -64,7 +64,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
             g_free(_ptr);
 
         if (isVideo) {
-            ((Codec_Thread_Context *)_context)->component = dcodec_video_init_component(codingType, dcodec_notify_guest);
+            ((Codec_Thread_Context *)_context)->component = dcodec_vdec_init_component(codingType, dcodec_notify_guest);
         }
         else {
             ((Codec_Thread_Context *)_context)->component = dcodec_audio_init_component(codingType, dcodec_notify_guest);

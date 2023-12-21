@@ -46,9 +46,9 @@ typedef struct DCodecVideo {
     GLuint mDebugFbo;
 } DCodecVideo;
 
-DCodecComponent* dcodec_video_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify);
-OMX_ERRORTYPE dcodec_video_reset_component(DCodecComponent *_context);
-OMX_ERRORTYPE dcodec_video_destroy_component(DCodecComponent *_context);
-OMX_ERRORTYPE dcodec_video_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
-OMX_ERRORTYPE dcodec_video_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
-OMX_ERRORTYPE dcodec_video_process_this_buffer(DCodecComponent *_context, OMX_INOUT BufferDesc *desc);
+DCodecComponent* dcodec_vdec_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify);
+OMX_ERRORTYPE dcodec_vdec_reset_component(DCodecComponent *_context);
+OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context);
+OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
+OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
+OMX_ERRORTYPE dcodec_vdec_process_this_buffer(DCodecComponent *_context, OMX_INOUT BufferDesc *desc);

@@ -5,7 +5,7 @@ express_codec.add(when: 'CONFIG_EXPRESS_CODEC',
                     'express_codec.c',
                     'dcodec_component.c',
                     'dcodec_audio.c',
-                    'dcodec_video.c',
+                    'dcodec_vdec.c',
                ))
 
 avcodec = cc.find_library('avcodec')

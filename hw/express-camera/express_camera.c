@@ -12,7 +12,7 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-camera/express_camera.h"
-#include "hw/express-codec/dcodec_video.h"
+#include "hw/express-codec/dcodec_vdec.h"
 
 #include "libavformat/avformat.h"
 #include "libavdevice/avdevice.h"
@@ -263,7 +263,7 @@ static void *camera_capturing_thread(void *opaque)
     }
 
     AVCodecParameters *codecpar = format_context->streams[stream_index]->codecpar;
-    DCodecComponent *codec = dcodec_video_init_component(OMX_VIDEO_CodingAutoDetect, camera_codec_notify);
+    DCodecComponent *codec = dcodec_vdec_init_component(OMX_VIDEO_CodingAutoDetect, camera_codec_notify);
     if (!codec) {
         LOGE("error: codec init failed!");
         return NULL;
@@ -338,7 +338,7 @@ static void *camera_capturing_thread(void *opaque)
     avformat_close_input(&format_context);
     avformat_free_context(format_context);
 
-    dcodec_video_destroy_component(codec);
+    dcodec_vdec_destroy_component(codec);
     g_async_queue_unref(context->frame_queue);
 
     return NULL;
