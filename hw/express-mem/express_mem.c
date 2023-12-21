@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_device_common.h"
 
@@ -17,7 +17,7 @@ static int unpack_buffer_size = 0;
 static GLsync unpack_buffer_sync = NULL;
 
 
-static const char *memtype_to_str(MemoryType loc) {
+const char *memtype_to_str(MemoryType loc) {
     switch (loc) {
         case EXPRESS_MEM_TYPE_UNKNOWN:
             return "unknown";

@@ -34,6 +34,7 @@ typedef struct Gralloc_Gbuffer_Info
 #define PARA_NUM_Mem_Wait_Sync 1
 #define PARA_NUM_Update_Gbuffer_Location 1
 
+const char *memtype_to_str(MemoryType loc);
 void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, int write);
 MemoryType predict_gbuffer_location(Graphic_Buffer *gbuffer);
 

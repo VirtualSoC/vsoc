@@ -10,6 +10,7 @@
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/express_gpu.h"
 #include "hw/teleport-express/express_event.h"
+#include "hw/express-mem/express_mem.h"
 
 #ifdef __APPLE__
 #define max(a, b)                       \
@@ -487,15 +488,19 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
             status->current_external_gbuffer = gbuffer;
         }
         if (gbuffer->location == EXPRESS_MEM_TYPE_HOST_MEM && gbuffer->host_data != NULL) {
-            // sync data from EXPRESS_MEM_TYPE_HOST_MEM to EXPRESS_MEM_TYPE_HOST_GBUFFER
-            LOGI("sync texture: EXPRESS_MEM_TYPE_HOST_MEM -> EXPRESS_MEM_TYPE_HOST_GBUFFER");
+            // sync data from host mem to gpu mem
+            LOGD("gbuffer %" PRIx64 " sync data: %s -> %s", gbuffer->gbuffer_id, memtype_to_str(gbuffer->location), memtype_to_str(EXPRESS_MEM_TYPE_GBUFFER));
             GLuint prev_texture = 0;
+            GLuint prev_unpack = 0;
             glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&prev_texture);
+            glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&prev_unpack);
             glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
             glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, gbuffer->host_data);
 
             glBindTexture(GL_TEXTURE_2D, prev_texture);
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, prev_unpack);
         }
         update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_GBUFFER, CURRENT_TID(), false);
     }
