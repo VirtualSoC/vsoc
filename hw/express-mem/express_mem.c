@@ -156,6 +156,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
     case FUNID_Gbuffer_Guest_To_Host:
     {
         Gralloc_Gbuffer_Info info;
+        uint64_t sync_id;
 
         if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
         {
@@ -171,7 +172,14 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         ptr = call_para_to_ptr(all_para[0], &need_free);
         info = *(Gralloc_Gbuffer_Info *)(ptr);
 
-        gbuffer_data_guest_to_host(info);
+        if (need_free) {
+            g_free(ptr);
+        }
+
+        ptr = call_para_to_ptr(all_para[1], &need_free);
+        sync_id = *(uint64_t *)(ptr);
+
+        gbuffer_data_guest_to_host(info, (int)(uint32_t)sync_id);
     }
     break;
     case FUNID_Alloc_Gbuffer:
@@ -472,7 +480,44 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
     return gbuffer;
 }
 
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
+static void guest_to_host_dma_task(MemTransferTask *task, void *mapped_addr) {
+    Graphic_Buffer *gbuffer = task->dst_data;
+    Guest_Mem *mem_data = task->src_data;
+
+    int real_width = gbuffer->width;
+    if (real_width % (gbuffer->stride) != 0)
+    {
+        real_width = (real_width / gbuffer->stride + 1) * gbuffer->stride;
+    }
+
+    int row_byte_len = gbuffer->pixel_size * gbuffer->width;
+
+    int all_pixel_size = row_byte_len * gbuffer->height;
+
+    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
+           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
+
+    // GraphicBuffer里的图片是正的，放到纹理里要倒个个
+    // -- 不用倒个了，因为合成的时候，普通窗口都进行了倒个，然后显示的时候，又进行了倒个
+    if (gbuffer->stride != row_byte_len)
+    {
+        for (int i = 0; i < gbuffer->height; i++)
+        {
+            // read_from_guest_mem(mem_data, mapped_addr + (gbuffer->height - i - 1) * row_byte_len, i * gbuffer->stride, row_byte_len);
+            read_from_guest_mem(mem_data, mapped_addr + i * row_byte_len, i * gbuffer->stride, row_byte_len);
+        }
+    }
+    else
+    {
+        read_from_guest_mem(mem_data, mapped_addr, 0, all_pixel_size);
+        // for (int i = 0; i < gbuffer->height; i++)
+        // {
+        //     read_from_guest_mem(mem_data, mapped_addr + (gbuffer->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+        // }
+    }
+}
+
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
 {
     Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
 
@@ -493,90 +538,7 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info)
         return;
     }
 
-    Guest_Mem *mem_data = gbuffer->guest_data;
-
-    int real_width = info.width;
-    if (real_width % (info.stride) != 0)
-    {
-        real_width = (real_width / info.stride + 1) * info.stride;
-    }
-
-    int row_byte_len = info.pixel_size * info.width;
-
-    int all_pixel_size = row_byte_len * info.height;
-
-    // LOGI("GraphicBuffer data width %d height %d row_byte_len %d guest_row_byte_len %d", egl_image->width, egl_image->height, row_byte_len, guest_row_byte_len);
-
-    if (all_pixel_size > mem_data->all_len)
-    {
-        LOGE("error! gbuffer_data_guest_to_host len error! row %d height %d get len %d", row_byte_len, info.height, mem_data->all_len);
-        return;
-    }
-
-    // 因为通过map上传的过程为异步的，所以这里假如fence未完成的话，需要重新bufferdata，以实现缓冲区孤立，避免同步（即避免需要同步等待gl用完这个缓冲区)
-    if (unpack_buffer_size < all_pixel_size)
-    {
-        unpack_buffer_size = all_pixel_size;
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, unpack_buffer_size, NULL, GL_STREAM_DRAW);
-        LOGI("glBufferData new gbuffer size %d", unpack_buffer_size);
-    }
-    else
-    {
-        GLint sync_status = GL_SIGNALED;
-        GLsizei sync_status_len;
-        if (unpack_buffer_sync != NULL)
-        {
-            glGetSynciv(unpack_buffer_sync, GL_SYNC_STATUS, sizeof(GLint), &sync_status_len, &sync_status);
-        }
-
-        if (sync_status == GL_UNSIGNALED)
-        {
-            glBufferData(GL_PIXEL_UNPACK_BUFFER, unpack_buffer_size, NULL, GL_STREAM_DRAW);
-            // GLenum ret = glClientWaitSync(unpack_buffer_sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
-            // glGetSynciv(unpack_buffer_sync, GL_SYNC_STATUS, sizeof(GLint), &sync_status_len, &sync_status);
-            express_printf("glBufferData no sync new gbuffer size %d\n", unpack_buffer_size);
-        }
-    }
-
-    if (unpack_buffer_sync != NULL)
-    {
-        glDeleteSync(unpack_buffer_sync);
-        unpack_buffer_sync = NULL;
-    }
-
-    GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, all_pixel_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-
-    LOGI("gbuffer_data_guest_to_host id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
-           gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
-
-    // GraphicBuffer里的图片是正的，放到纹理里要倒个个
-    // -- 不用倒个了，因为合成的时候，普通窗口都进行了倒个，然后显示的时候，又进行了倒个
-    if (info.stride != row_byte_len)
-    {
-        for (int i = 0; i < info.height; i++)
-        {
-            // read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * info.stride, row_byte_len);
-            read_from_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
-        }
-    }
-    else
-    {
-        read_from_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
-        // for (int i = 0; i < info.height; i++)
-        // {
-        //     read_from_guest_mem(mem_data, map_pointer + (info.height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
-        // }
-    }
-
-    glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-    glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-
-    // 这时候是立即返回的，后续会进行dma传输
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, gbuffer->width, gbuffer->height, gbuffer->format, gbuffer->pixel_type, NULL);
-
-    unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-
-    glFlush();
+    mem_transfer_async(EXPRESS_MEM_TYPE_GBUFFER, EXPRESS_MEM_TYPE_GUEST_MEM, gbuffer, gbuffer->guest_data, gbuffer->size, gbuffer->guest_data->all_len, sync_id, guest_to_host_dma_task, NULL);
 }
 
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
@@ -675,10 +637,24 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
 }
 
 /**
- * initiate shared memory transfer using express-mem workers
+ * initiate shared memory transfer using express-mem workers.
+ * for the arguments, see struct MemTransferTask.
 */
-void mem_transfer_async(MemTransferTask *task) {
-    LOGI("transfer_async received task: %s (size %d) -> %s (size %d); pending tasks: %u", memtype_to_str(task->src_loc), task->src_len, memtype_to_str(task->dst_loc), task->dst_len, g_thread_pool_unprocessed(g_pool));
+void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *dst_data, void *src_data, int dst_len, int src_len, int sync_id, DMAFuncType dma_func, void *private_data) {
+    // task will be freed in express_mem_worker()
+    MemTransferTask *task = g_malloc0(sizeof(MemTransferTask));
+    task->dst_loc = dst_loc;
+    task->src_loc = src_loc;
+    task->dst_data = dst_data;
+    task->src_data = src_data;
+    task->dst_len = dst_len;
+    task->src_len = src_len;
+    task->sync_id = sync_id;
+    task->dma_func = dma_func;
+    task->private_data = private_data;
+
+    LOGI("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
+
     g_thread_pool_push(g_pool, (gpointer)task, NULL);
 }
 

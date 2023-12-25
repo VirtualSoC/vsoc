@@ -36,6 +36,7 @@ static void *begin_dma_to_gbuffer(int map_size) {
         g_unpack_buffer_sync = NULL;
     }
 
+    // 因为通过map上传的过程为异步的，所以这里假如fence未完成的话，需要重新bufferdata，以实现缓冲区孤立，避免同步（即避免需要同步等待gl用完这个缓冲区)
     if (sync_status != GL_SIGNALED || g_unpack_buffer_size < map_size)
     {
         glBufferData(GL_PIXEL_UNPACK_BUFFER, map_size, NULL, GL_STREAM_DRAW);
@@ -71,18 +72,18 @@ void express_mem_worker(gpointer data, gpointer user_data) {
     MemTransferTask *task = data;
     if (task == NULL) {
         LOGE("task is null!");
-        return;
+        goto RELEASE;
     }
     if (task->src_loc == task->dst_loc) {
-        LOGE("src_loc is the same as dst_loc!");
-        return;
+        LOGE("src_loc is the same as dst_loc, ignoring.");
+        goto RELEASE;
     }
     switch (task->dst_loc) {
         case EXPRESS_MEM_TYPE_GBUFFER: {
             void *mapped_addr = begin_dma_to_gbuffer(task->dst_len);
             if (mapped_addr != NULL) {
                 if (task->dma_func)
-                    task->dma_func(task);
+                    task->dma_func(task, mapped_addr);
                 else
                     LOGE("no dma_func provided!");
             }
@@ -97,5 +98,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
     if (task->sync_id > 0) {
         signal_express_sync(task->sync_id, task->src_loc == EXPRESS_MEM_TYPE_GBUFFER || task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER);
     }
+
+RELEASE:
     g_free(task);
 }

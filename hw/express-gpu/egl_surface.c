@@ -830,6 +830,10 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     gbuffer->height = height;
     gbuffer->sampler_num = sampler_num;
 
+    gbuffer->pixel_size = pixel_size_calc(format, pixel_type);
+    gbuffer->stride = width * gbuffer->pixel_size;
+    gbuffer->size = width * height * gbuffer->pixel_size;
+
     // LOGD("create gbuffer id " PRIx64 " texture %d width %d height %d format %d", gbuffer->gbuffer_id, gbuffer->data_texture,gbuffer->width, gbuffer->height, gbuffer->format);
 
     gbuffer->location = EXPRESS_MEM_TYPE_UNKNOWN;

@@ -166,7 +166,7 @@ typedef struct {
 
 #ifdef OMX_Core_h
 // also used to determine if the host supports a param
-static uint32_t get_omx_param_size(OMX_INDEXTYPE index) {
+static inline uint32_t get_omx_param_size(OMX_INDEXTYPE index) {
     switch ((int)index) {
         case OMX_IndexParamAudioPcm:
             return sizeof(OMX_AUDIO_PARAM_PCMMODETYPE);

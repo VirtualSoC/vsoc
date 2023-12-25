@@ -19,7 +19,7 @@ typedef struct Gralloc_Gbuffer_Info
 
 struct MemTransferTask;
 typedef struct MemTransferTask MemTransferTask;
-typedef void (*DMAFuncType)(MemTransferTask *task);
+typedef void (*DMAFuncType)(MemTransferTask *task, void *mapped_addr);
 
 struct MemTransferTask {
     // the destination of the transfer
@@ -28,17 +28,17 @@ struct MemTransferTask {
     // the source of the transfer
     ExpressMemType src_loc;
 
-    // the length of the destination data
-    int dst_len;
-
-    // the length of the source data
-    int src_len;
-
     // handle to destination data
     void *dst_data;
 
     // handle to source data
     void *src_data;
+
+    // the length of the destination data
+    int dst_len;
+
+    // the length of the source data
+    int src_len;
 
     // (optional) sync_id to signal after the transfer
     int sync_id;
@@ -62,7 +62,7 @@ struct MemTransferTask {
 #define PARA_NUM_Terminate_Gbuffer 1
 #define PARA_NUM_Alloc_Gbuffer 2
 #define PARA_NUM_Gbuffer_Host_To_Guest 1
-#define PARA_NUM_Gbuffer_Guest_To_Host 1
+#define PARA_NUM_Gbuffer_Guest_To_Host 2
 #define PARA_NUM_Mem_Signal_Sync 1
 #define PARA_NUM_Mem_Wait_Sync 1
 #define PARA_NUM_Update_Gbuffer_Location 1
@@ -71,12 +71,15 @@ const char *memtype_to_str(ExpressMemType loc);
 void update_gbuffer_location(Graphic_Buffer *gbuffer, ExpressMemType loc, int pid, int write);
 ExpressMemType predict_gbuffer_location(Graphic_Buffer *gbuffer);
 
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info);
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id);
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
 Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
 
-void mem_transfer_async(MemTransferTask *task);
+void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc,
+                        void *dst_data, void *src_data, int dst_len,
+                        int src_len, int sync_id, DMAFuncType dma_func,
+                        void *private_data);
 void express_mem_worker(gpointer data, gpointer user_data);
 
 #endif
