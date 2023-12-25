@@ -17,6 +17,39 @@ typedef struct Gralloc_Gbuffer_Info
     int usage;
 } __attribute__((packed, aligned(4))) Gralloc_Gbuffer_Info;
 
+struct MemTransferTask;
+typedef struct MemTransferTask MemTransferTask;
+typedef void (*DMAFuncType)(MemTransferTask *task);
+
+struct MemTransferTask {
+    // the destination of the transfer
+    ExpressMemType dst_loc;
+
+    // the source of the transfer
+    ExpressMemType src_loc;
+
+    // the length of the destination data
+    int dst_len;
+
+    // the length of the source data
+    int src_len;
+
+    // handle to destination data
+    void *dst_data;
+
+    // handle to source data
+    void *src_data;
+
+    // (optional) sync_id to signal after the transfer
+    int sync_id;
+
+    // (optional) user-provided dma tranfer function
+    // can help reduce memcopy in some cases
+    DMAFuncType dma_func;
+
+    // (optional) user-provided private data passed to dma_func
+    void *private_data;
+};
 
 #define FUNID_Terminate_Gbuffer (DEVICE_FUN_ID(EXPRESS_MEM_DEVICE_ID, SYNC_FUN_ID(1)))
 #define FUNID_Alloc_Gbuffer (DEVICE_FUN_ID(EXPRESS_MEM_DEVICE_ID, HOST_SYNC_FUN_ID(2)))
@@ -34,13 +67,16 @@ typedef struct Gralloc_Gbuffer_Info
 #define PARA_NUM_Mem_Wait_Sync 1
 #define PARA_NUM_Update_Gbuffer_Location 1
 
-const char *memtype_to_str(MemoryType loc);
-void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, int write);
-MemoryType predict_gbuffer_location(Graphic_Buffer *gbuffer);
+const char *memtype_to_str(ExpressMemType loc);
+void update_gbuffer_location(Graphic_Buffer *gbuffer, ExpressMemType loc, int pid, int write);
+ExpressMemType predict_gbuffer_location(Graphic_Buffer *gbuffer);
 
 void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info);
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
 Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
+
+void mem_transfer_async(MemTransferTask *task);
+void express_mem_worker(gpointer data, gpointer user_data);
 
 #endif

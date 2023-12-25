@@ -48,8 +48,8 @@
 
 // device设备的id在高4字节，需要调用的函数id在低3字节，设备id决定到底哪个线程去处理，函数id决定怎么处理，中间一个字节的每个位决定函数处理是异步同步等信息
 //设备id（4字节）|标志位（1字节）|函数id（3字节）
-#define GET_DEVICE_ID(id) ((id) >> 32)
-#define GET_FUN_ID(id) ((id)&0xffffff)
+#define GET_DEVICE_ID(id) ((uint32_t)((id) >> 32))
+#define GET_FUN_ID(id) ((uint32_t)((id)&0xffffff))
 #define FUN_NEED_SYNC(id) (((id) >> 24) & 0x1)
 #define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
 

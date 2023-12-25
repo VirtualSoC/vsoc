@@ -671,7 +671,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
          desc->nTimeStamp, desc->nFlags, desc->sync_id);
 
-    MemoryType pred_loc = EXPRESS_MEM_TYPE_UNKNOWN;
+    ExpressMemType pred_loc = EXPRESS_MEM_TYPE_UNKNOWN;
     // prepare for DMA if the target is gbuffer
     if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
         // notify the guest ahead of time
@@ -699,7 +699,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             gbuffer->host_data = g_realloc(gbuffer->host_data, outputSize);
             data[0] = gbuffer->host_data;
         } else if (pred_loc != EXPRESS_MEM_TYPE_GBUFFER) {
-            LOGE("error! gbuffer location %x is currently not supported by the codec");
+            LOGE("error! gbuffer location %x is currently not supported by the codec", pred_loc);
         } else {
             update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_GBUFFER, CURRENT_TID(), true);
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, context->mUnpackBuffer);

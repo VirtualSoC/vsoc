@@ -84,7 +84,7 @@ typedef enum {
 #define MAX_COMPOSER_LIFE_TIME (MAX_WINDOW_LIFE_TIME*10)
 
 
-typedef enum MemoryType {
+typedef enum ExpressMemType {
     // uninitialized
     EXPRESS_MEM_TYPE_UNKNOWN = 0x00,
 
@@ -102,8 +102,7 @@ typedef enum MemoryType {
 
     // host CPU memory type
     EXPRESS_MEM_TYPE_HOST_MEM = 0x20,
-} MemoryType;
-
+} ExpressMemType;
 
 typedef struct Graphic_Buffer{
 
@@ -167,7 +166,7 @@ typedef struct Graphic_Buffer{
      void *host_data; // storage for EXPRESS_MEM_TYPE_HOST_MEM
 
      int pid;
-     MemoryType location;
+     ExpressMemType location;
      GHashTable *locations;
 
 } Graphic_Buffer;

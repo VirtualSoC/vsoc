@@ -10,14 +10,15 @@
 #include "qemu/atomic.h"
 
 static Thread_Context *g_context = NULL;
-static void *g_gl_context = NULL;
+static GThreadPool *g_pool = NULL;
 
+static void *g_gl_context = NULL;
 static GLuint unpack_buffer;
 static int unpack_buffer_size = 0;
 static GLsync unpack_buffer_sync = NULL;
 
 
-const char *memtype_to_str(MemoryType loc) {
+const char *memtype_to_str(ExpressMemType loc) {
     switch (loc) {
         case EXPRESS_MEM_TYPE_UNKNOWN:
             return "unknown";
@@ -36,7 +37,7 @@ const char *memtype_to_str(MemoryType loc) {
  * update the gbuffer location
  * used at the beginning of every gbuffer access
  */
-void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, int write) {
+void update_gbuffer_location(Graphic_Buffer *gbuffer, ExpressMemType loc, int pid, int write) {
     if (gbuffer == NULL) {
         LOGE("update_gbuffer_location got null gbuffer!");
         return;
@@ -59,7 +60,7 @@ void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, i
      *     tid          location
      */
     uint64_t id = gbuffer->location | ((uint64_t)gbuffer->pid << 32);
-    MemoryType pred_loc = (MemoryType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
+    ExpressMemType pred_loc = (ExpressMemType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
     if (loc == pred_loc) {
         LOGD("gbuffer %" PRIx64 " pid %d prefetch %s -> %s succ!", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc));
     }
@@ -72,7 +73,7 @@ void update_gbuffer_location(Graphic_Buffer *gbuffer, MemoryType loc, int pid, i
 /**
  * used at the end of every gbuffer access
 */
-MemoryType predict_gbuffer_location(Graphic_Buffer *gbuffer) {
+ExpressMemType predict_gbuffer_location(Graphic_Buffer *gbuffer) {
     if (gbuffer == NULL) {
         LOGE("predict_gbuffer_location got null gbuffer!");
         return EXPRESS_MEM_TYPE_UNKNOWN;
@@ -82,7 +83,7 @@ MemoryType predict_gbuffer_location(Graphic_Buffer *gbuffer) {
         return EXPRESS_MEM_TYPE_UNKNOWN;
     }
     uint64_t id = gbuffer->location | ((uint64_t)gbuffer->pid << 32);
-    MemoryType pred_loc = (MemoryType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
+    ExpressMemType pred_loc = (ExpressMemType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
     LOGD("gbuffer %" PRIx64 " pid %d predict prefetch %s -> %s?", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc));
     return pred_loc;
 }
@@ -286,6 +287,13 @@ static Thread_Context *get_mem_thread_context(uint64_t device_id, uint64_t threa
     if (g_context == NULL)
     {
         g_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
+        g_pool = g_thread_pool_new(
+            express_mem_worker, /* worker function */
+            NULL,  /* pool-specific user data */
+            4,     /* max threads */
+            false, /* exclusive */
+            NULL   /* errors */
+        );
     }
     return g_context;
 }
@@ -664,6 +672,14 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
     }
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+}
+
+/**
+ * initiate shared memory transfer using express-mem workers
+*/
+void mem_transfer_async(MemTransferTask *task) {
+    LOGI("transfer_async received task: %s (size %d) -> %s (size %d); pending tasks: %u", memtype_to_str(task->src_loc), task->src_len, memtype_to_str(task->dst_loc), task->dst_len, g_thread_pool_unprocessed(g_pool));
+    g_thread_pool_push(g_pool, (gpointer)task, NULL);
 }
 
 static Express_Device_Info express_mem_info = {

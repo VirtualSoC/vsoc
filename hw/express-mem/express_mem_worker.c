@@ -1,0 +1,101 @@
+/**
+ * express-mem worker thread
+ * dma memory transfer is mostly delegated to mem worker threads
+ * to avoid blocking on device threads
+*/
+
+#define STD_DEBUG_LOG
+#include "hw/express-mem/express_mem.h"
+#include "hw/express-gpu/express_sync.h"
+#include "hw/express-gpu/glv3_context.h"
+
+static __thread void *g_gl_context = NULL;
+static __thread GLuint g_unpack_buffer = 0;
+static __thread int g_unpack_buffer_size = 0;
+static __thread GLsync g_unpack_buffer_sync = NULL;
+
+static void init_worker_gl_context() {
+    g_gl_context = get_native_opengl_context(0);
+    egl_makeCurrent(g_gl_context);
+
+    glGenBuffers(1, &g_unpack_buffer);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, g_unpack_buffer);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, g_unpack_buffer);
+}
+
+static void *begin_dma_to_gbuffer(int map_size) {
+    if (g_gl_context == NULL) {
+        init_worker_gl_context();
+    }
+
+    GLint sync_status = GL_SIGNALED;
+    if (g_unpack_buffer_sync)
+    {
+        glGetSynciv(g_unpack_buffer_sync, GL_SYNC_STATUS, sizeof(GLint), NULL, &sync_status);
+        glDeleteSync(g_unpack_buffer_sync);
+        g_unpack_buffer_sync = NULL;
+    }
+
+    if (sync_status != GL_SIGNALED || g_unpack_buffer_size < map_size)
+    {
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, map_size, NULL, GL_STREAM_DRAW);
+        g_unpack_buffer_size = map_size;
+    }
+
+    // mmap.
+    return glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, map_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+}
+
+static void end_dma_to_gbuffer(Graphic_Buffer *gbuffer) {
+    glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+
+    glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    g_unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    glFlush();
+
+#ifdef STD_DEBUG_LOG
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        LOGE("gl error %x!", error);
+    }
+#endif
+}
+
+/**
+ * internal worker function registered in the thread pool
+*/
+void express_mem_worker(gpointer data, gpointer user_data) {
+    MemTransferTask *task = data;
+    if (task == NULL) {
+        LOGE("task is null!");
+        return;
+    }
+    if (task->src_loc == task->dst_loc) {
+        LOGE("src_loc is the same as dst_loc!");
+        return;
+    }
+    switch (task->dst_loc) {
+        case EXPRESS_MEM_TYPE_GBUFFER: {
+            void *mapped_addr = begin_dma_to_gbuffer(task->dst_len);
+            if (mapped_addr != NULL) {
+                if (task->dma_func)
+                    task->dma_func(task);
+                else
+                    LOGE("no dma_func provided!");
+            }
+            else
+                LOGE("failed to map gbuffer!");
+            end_dma_to_gbuffer((Graphic_Buffer *)task->dst_data);
+        } break;
+        default: {
+            LOGE("worker: dst_loc %s not supported!", memtype_to_str(task->dst_loc));
+        }
+    }
+    if (task->sync_id > 0) {
+        signal_express_sync(task->sync_id, task->src_loc == EXPRESS_MEM_TYPE_GBUFFER || task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER);
+    }
+    g_free(task);
+}

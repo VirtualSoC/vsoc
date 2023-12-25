@@ -48,8 +48,8 @@ static const char *DCODEC_ID_MAPPING[] = {
 #endif
 
 #ifndef GET_DEVICE_ID
-#define GET_DEVICE_ID(id) ((id) >> 32)
-#define GET_FUN_ID(id) ((id)&0xffffff)
+#define GET_DEVICE_ID(id) ((uint32_t)((id) >> 32))
+#define GET_FUN_ID(id) ((uint32_t)((id)&0xffffff))
 
 #define FUN_NEED_SYNC(id) (((id) >> 24) & 0x1)
 #define FUN_HAS_HOST_SYNC(id) (((id) >> 24) & 0x2)
