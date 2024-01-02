@@ -19,7 +19,8 @@ typedef struct Gralloc_Gbuffer_Info
 
 struct MemTransferTask;
 typedef struct MemTransferTask MemTransferTask;
-typedef void (*DMAFuncType)(MemTransferTask *task, void *mapped_addr);
+typedef void (*PreprocessCbType)(MemTransferTask *task, void *mapped_addr);
+typedef void (*PostprocessCbType)(MemTransferTask *task, int retval);
 
 struct MemTransferTask {
     // the destination of the transfer
@@ -43,11 +44,16 @@ struct MemTransferTask {
     // (optional) sync_id to signal after the transfer
     int sync_id;
 
-    // (optional) user-provided dma tranfer function
-    // can help reduce memcopy in some cases
-    DMAFuncType dma_func;
+    // (optional) user-provided preprocess function
+    // will be called from the async thread after DMA mapping, 
+    // but before the actual data transfer
+    PreprocessCbType pre_cb;
 
-    // (optional) user-provided private data passed to dma_func
+    // (optional) user-provided postprocess function
+    // will be called from the async thread when the transfer command is sent
+    PostprocessCbType post_cb;
+
+    // (optional) user-provided private data
     void *private_data;
 };
 
@@ -78,8 +84,8 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
 
 void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc,
                         void *dst_data, void *src_data, int dst_len,
-                        int src_len, int sync_id, DMAFuncType dma_func,
-                        void *private_data);
+                        int src_len, int sync_id, PreprocessCbType pre_cb,
+                        PostprocessCbType post_cb, void *private_data);
 void express_mem_worker(gpointer data, gpointer user_data);
 
 #endif

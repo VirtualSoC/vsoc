@@ -577,6 +577,15 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
     return ERR_OK;
 }
 
+static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
+    Graphic_Buffer *gbuffer = task->dst_data;
+    AVFrame *mFrame = task->src_data;
+    uint8_t *data[1] = { mapped_addr };
+    int linesize[1] = { gbuffer->stride };
+    sws_scale((struct SwsContext *)task->private_data, mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
+    av_frame_free(&mFrame);
+}
+
 static int fill_one_output_buffer(DCodecComponent *_context) {
     DCodecVideo *context = (DCodecVideo *)_context;
     AVCodecContext *mCtx = _context->mCtx;
@@ -588,13 +597,16 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     if (ret == AVERROR_EOF && _context->mStatus == INPUT_EOS_SEEN) {
         fill_eos_output_buffer(_context);
         _context->mStatus = OUTPUT_EOS_SENT;
+        av_frame_unref(mFrame);
         return ERR_OK;
     }
     else if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        av_frame_unref(mFrame);
         return ERR_NO_FRM;
     }
     else if (ret < 0) {
         LOGE("avcodec_receive_frame error %d", ret);
+        av_frame_unref(mFrame);
         return ERR_DECODE_FAILED;
     }
 
@@ -645,6 +657,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         }
         default: {
             LOGE("format error! target omx pixel format %d not supported!", context->mTgtPixelFormat);
+            av_frame_unref(mFrame);
             return ERR_SWS_FAILED;
         }
     }
@@ -666,16 +679,45 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         desc->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
     }
 
+    context->mImgConvertCtx = sws_getCachedContext(context->mImgConvertCtx,
+           mFrame->width, mFrame->height, (enum AVPixelFormat)mFrame->format, mCtx->width, mCtx->height,
+           avDstFmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+    if (context->mImgConvertCtx == NULL) {
+        LOGE("Cannot initialize sws context");
+        av_frame_unref(mFrame);
+        return ERR_SWS_FAILED;
+    }
+
     LOGD("fill_one_output_buffer() on buffer type %x id %" PRIx64 " nAllocLen %u "
          "nFilledLen %u nOffset %u nTimeStamp %lld nFlags %x sync_id %d",
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
          desc->nTimeStamp, desc->nFlags, desc->sync_id);
 
-    ExpressMemType pred_loc = EXPRESS_MEM_TYPE_UNKNOWN;
-    // prepare for DMA if the target is gbuffer
-    if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
+    if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
+        LOGD("sws_scale frame_width=%d frame_height=%d buffer_width=%d buffer_height=%d ctx_width=%d ctx_height=%d mIsAdaptive=%d src_format=%s tgt_format=%s",
+            mFrame->width, mFrame->height, bufferWidth, bufferHeight, mCtx->width, mCtx->height, context->mIsAdaptive, av_get_pix_fmt_name(mFrame->format), av_get_pix_fmt_name(avDstFmt));
+
+        sws_scale(context->mImgConvertCtx, mFrame->data, mFrame->linesize,
+                0, mFrame->height, data, linesize);
+
+        // write data to output buffer
+        write_to_guest_mem(desc->data, context->mVideoBuffer, 0, desc->nFilledLen);
+        _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+#ifdef STD_DEBUG_INDEPENDENT_WINDOW
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glBindTexture(GL_TEXTURE_2D, context->mDebugTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, context->mVideoBuffer);
+        glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, context->mDebugTexture, 0);
+        glBlitFramebuffer(0, 0, context->mWidth, context->mHeight, 0, 0, context->mWidth, context->mHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        THREAD_CONTROL_BEGIN
+        glfwSwapBuffers(context->window);
+        THREAD_CONTROL_END
+#endif
+    }
+    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
         // notify the guest ahead of time
         _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+
         Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         if (gbuffer == NULL) {
             LOGD("create_gbuffer with id %llx width %d height %d pixtype %x pixfmt %x intfmt %x", desc->id, context->mWidth, context->mHeight, glPixType, glPixFmt, glIntFmt);
@@ -690,6 +732,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             add_gbuffer_to_global(gbuffer);
         }
 
+        ExpressMemType pred_loc = EXPRESS_MEM_TYPE_UNKNOWN;
         update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_HOST_MEM, CURRENT_TID(), true);
         pred_loc = predict_gbuffer_location(gbuffer);
 
@@ -698,89 +741,34 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             pred_loc = EXPRESS_MEM_TYPE_HOST_MEM;
             gbuffer->host_data = g_realloc(gbuffer->host_data, outputSize);
             data[0] = gbuffer->host_data;
-        } else if (pred_loc != EXPRESS_MEM_TYPE_GBUFFER) {
-            LOGE("error! gbuffer location %x is currently not supported by the codec", pred_loc);
+
+            LOGD("sws_scale frame_width=%d frame_height=%d buffer_width=%d buffer_height=%d ctx_width=%d ctx_height=%d mIsAdaptive=%d src_format=%s tgt_format=%s",
+                mFrame->width, mFrame->height, bufferWidth, bufferHeight, mCtx->width, mCtx->height, context->mIsAdaptive, av_get_pix_fmt_name(mFrame->format), av_get_pix_fmt_name(avDstFmt));
+
+            sws_scale(context->mImgConvertCtx, mFrame->data, mFrame->linesize,
+                    0, mFrame->height, data, linesize);
+
+            signal_express_sync(desc->sync_id, true);
+        } else if (pred_loc == EXPRESS_MEM_TYPE_GBUFFER) {
+            update_gbuffer_location(gbuffer, pred_loc, CURRENT_TID(), true);
+            mem_transfer_async(pred_loc, EXPRESS_MEM_TYPE_HOST_OPAQUE, gbuffer, av_frame_clone(mFrame), outputSize, outputSize, desc->sync_id, swscale_task_cb, NULL, context->mImgConvertCtx);
+#ifdef STD_DEBUG_INDEPENDENT_WINDOW
+            // todo: fix independent window video display
+            glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, gbuffer->data_texture, 0);
+            glBlitFramebuffer(0, 0, context->mWidth, context->mHeight, 0, 0, context->mWidth, context->mHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+            THREAD_CONTROL_BEGIN
+            glfwSwapBuffers(context->window);
+            THREAD_CONTROL_END
+#endif
         } else {
-            update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_GBUFFER, CURRENT_TID(), true);
-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, context->mUnpackBuffer);
-
-            GLint sync_status = GL_SIGNALED;
-            if (context->mUnpackBufferSync)
-            {
-                glGetSynciv(context->mUnpackBufferSync, GL_SYNC_STATUS, sizeof(GLint), NULL, &sync_status);
-                glDeleteSync(context->mUnpackBufferSync);
-            }
-
-            if (sync_status != GL_SIGNALED || context->mUnpackBufferSize < outputSize)
-            {
-                glBufferData(GL_PIXEL_UNPACK_BUFFER, outputSize, NULL, GL_STREAM_DRAW);
-                context->mUnpackBufferSize = outputSize;
-            }
-
-            // mmap. packed RGB(A) formats only require data[0] to be set.
-            data[0] = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, outputSize, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+            LOGE("error! gbuffer location %x is currently not supported by the codec", pred_loc);
         }
-    }
-
-    context->mImgConvertCtx = sws_getCachedContext(context->mImgConvertCtx,
-           mFrame->width, mFrame->height, (enum AVPixelFormat)mFrame->format, mCtx->width, mCtx->height,
-           avDstFmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
-    if (context->mImgConvertCtx == NULL) {
-        LOGE("Cannot initialize sws context");
-        return ERR_SWS_FAILED;
-    }
-
-    LOGD("sws_scale frame_width=%d frame_height=%d buffer_width=%d buffer_height=%d ctx_width=%d ctx_height=%d mIsAdaptive=%d src_format=%s tgt_format=%s",
-          mFrame->width, mFrame->height, bufferWidth, bufferHeight, mCtx->width, mCtx->height, context->mIsAdaptive, av_get_pix_fmt_name(mFrame->format), av_get_pix_fmt_name(avDstFmt));
-
-    sws_scale(context->mImgConvertCtx, mFrame->data, mFrame->linesize,
-            0, mFrame->height, data, linesize);
-    av_frame_unref(mFrame);
-
-    // write data to output buffer
-    if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
-        write_to_guest_mem(desc->data, context->mVideoBuffer, 0, desc->nFilledLen);
-        _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
-#ifdef STD_DEBUG_INDEPENDENT_WINDOW
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        glBindTexture(GL_TEXTURE_2D, context->mDebugTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, context->mVideoBuffer);
-        glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, context->mDebugTexture, 0);
-        glBlitFramebuffer(0, 0, context->mWidth, context->mHeight, 0, 0, context->mWidth, context->mHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        THREAD_CONTROL_BEGIN
-        glfwSwapBuffers(context->window);
-        THREAD_CONTROL_END
-#endif
-    }
-    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER && pred_loc == EXPRESS_MEM_TYPE_GBUFFER) {
-        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
-        CHECK(gbuffer != NULL);
-        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-
-        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, glIntFmt, context->mWidth, context->mHeight, 0, glPixFmt, glPixType, NULL);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        signal_express_sync(desc->sync_id, true);
-
-#ifdef STD_DEBUG_INDEPENDENT_WINDOW
-        glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, gbuffer->data_texture, 0);
-        glBlitFramebuffer(0, 0, context->mWidth, context->mHeight, 0, 0, context->mWidth, context->mHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-        THREAD_CONTROL_BEGIN
-        glfwSwapBuffers(context->window);
-        THREAD_CONTROL_END
-#endif
-
-        GLenum error = glGetError();
-        if (error != GL_NO_ERROR) {
-            LOGE("codec gl error %x!", error);
-        }
-    }
-    else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER && pred_loc == EXPRESS_MEM_TYPE_HOST_MEM) {
-        signal_express_sync(desc->sync_id, true);
     }
     else {
         LOGE("output buffer type %x not supported yet!", desc->type);
     }
+
+    av_frame_unref(mFrame);
     dcodec_free_buffer_desc(g_queue_pop_head(_context->output_buffers));
     return ERR_OK;
 }

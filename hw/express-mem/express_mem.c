@@ -24,10 +24,14 @@ const char *memtype_to_str(ExpressMemType loc) {
             return "unknown";
         case EXPRESS_MEM_TYPE_GUEST_MEM:
             return "guest_mem";
+        case EXPRESS_MEM_TYPE_GUEST_OPAQUE:
+            return "guest_opaque";
         case EXPRESS_MEM_TYPE_GBUFFER:
             return "gbuffer";
         case EXPRESS_MEM_TYPE_HOST_MEM:
             return "host_mem";
+        case EXPRESS_MEM_TYPE_HOST_OPAQUE:
+            return "host_opaque";
         default:
             return "error";
     }
@@ -538,7 +542,7 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
         return;
     }
 
-    mem_transfer_async(EXPRESS_MEM_TYPE_GBUFFER, EXPRESS_MEM_TYPE_GUEST_MEM, gbuffer, gbuffer->guest_data, gbuffer->size, gbuffer->guest_data->all_len, sync_id, guest_to_host_dma_task, NULL);
+    mem_transfer_async(EXPRESS_MEM_TYPE_GBUFFER, EXPRESS_MEM_TYPE_GUEST_OPAQUE, gbuffer, gbuffer->guest_data, gbuffer->size, gbuffer->guest_data->all_len, sync_id, guest_to_host_dma_task, NULL, NULL);
 }
 
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
@@ -640,7 +644,7 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
  * initiate shared memory transfer using express-mem workers.
  * for the arguments, see struct MemTransferTask.
 */
-void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *dst_data, void *src_data, int dst_len, int src_len, int sync_id, DMAFuncType dma_func, void *private_data) {
+void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *dst_data, void *src_data, int dst_len, int src_len, int sync_id, PreprocessCbType pre_cb, PostprocessCbType post_cb, void *private_data) {
     // task will be freed in express_mem_worker()
     MemTransferTask *task = g_malloc0(sizeof(MemTransferTask));
     task->dst_loc = dst_loc;
@@ -650,7 +654,8 @@ void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *ds
     task->dst_len = dst_len;
     task->src_len = src_len;
     task->sync_id = sync_id;
-    task->dma_func = dma_func;
+    task->pre_cb = pre_cb;
+    task->post_cb = post_cb;
     task->private_data = private_data;
 
     LOGI("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));

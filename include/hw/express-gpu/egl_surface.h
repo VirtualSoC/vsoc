@@ -94,14 +94,20 @@ typedef enum ExpressMemType {
     // guest memory type, should be casted to Guest_Mem*
     EXPRESS_MEM_TYPE_GUEST_MEM = 0x01,
 
+    // guest opaque structure type
+    EXPRESS_MEM_TYPE_GUEST_OPAQUE = 0x08,
+
     // host memory mask
     EXPRESS_MEM_TYPE_HOST_MASK = 0xf0,
 
     // gbuffer, should be casted to Graphic_Buffer*
     EXPRESS_MEM_TYPE_GBUFFER = 0x10,
 
-    // host CPU memory type
+    // host CPU memory type, raw memory addr
     EXPRESS_MEM_TYPE_HOST_MEM = 0x20,
+
+    // host opaque structure type
+    EXPRESS_MEM_TYPE_HOST_OPAQUE = 0x80,
 } ExpressMemType;
 
 typedef struct Graphic_Buffer{

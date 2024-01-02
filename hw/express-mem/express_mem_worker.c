@@ -24,6 +24,7 @@ static void init_worker_gl_context() {
 }
 
 static void *begin_dma_to_gbuffer(int map_size) {
+    map_size += 1000;
     if (g_gl_context == NULL) {
         init_worker_gl_context();
     }
@@ -70,35 +71,60 @@ static void end_dma_to_gbuffer(Graphic_Buffer *gbuffer) {
 */
 void express_mem_worker(gpointer data, gpointer user_data) {
     MemTransferTask *task = data;
+    int ret = 0;
+
     if (task == NULL) {
         LOGE("task is null!");
-        goto RELEASE;
+        ret = -1;
+        goto EXIT;
     }
     if (task->src_loc == task->dst_loc) {
         LOGE("src_loc is the same as dst_loc, ignoring.");
-        goto RELEASE;
+        ret = -1;
+        goto EXIT;
     }
+    if ((task->src_loc == EXPRESS_MEM_TYPE_HOST_OPAQUE || task->dst_loc == EXPRESS_MEM_TYPE_HOST_OPAQUE 
+      || task->src_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE || task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE)
+        && !task->pre_cb) {
+        // opaque memory cannot be transfered without custom code 
+        LOGE("opaque memory type supplied, but no pre_cb is present");
+        ret = -1;
+        goto EXIT;
+    }
+
+    void *mapped_addr = NULL;
+    if (task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER) {
+        mapped_addr = begin_dma_to_gbuffer(task->dst_len);
+        if (!mapped_addr) {
+            LOGE("failed to map gbuffer!");
+            ret = -1;
+            goto EXIT;
+        }
+    }
+
+    if (task->pre_cb)
+        task->pre_cb(task, mapped_addr);
+
     switch (task->dst_loc) {
         case EXPRESS_MEM_TYPE_GBUFFER: {
-            void *mapped_addr = begin_dma_to_gbuffer(task->dst_len);
-            if (mapped_addr != NULL) {
-                if (task->dma_func)
-                    task->dma_func(task, mapped_addr);
-                else
-                    LOGE("no dma_func provided!");
-            }
-            else
-                LOGE("failed to map gbuffer!");
             end_dma_to_gbuffer((Graphic_Buffer *)task->dst_data);
+        } break;
+        case EXPRESS_MEM_TYPE_GUEST_OPAQUE:
+        case EXPRESS_MEM_TYPE_HOST_OPAQUE: {
+            // nop
         } break;
         default: {
             LOGE("worker: dst_loc %s not supported!", memtype_to_str(task->dst_loc));
+            ret = -1;
         }
     }
     if (task->sync_id > 0) {
         signal_express_sync(task->sync_id, task->src_loc == EXPRESS_MEM_TYPE_GBUFFER || task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER);
     }
 
-RELEASE:
+EXIT:
+    if (task->post_cb) {
+        task->post_cb(task, ret);
+    }
     g_free(task);
 }
