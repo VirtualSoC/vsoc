@@ -8,12 +8,12 @@
 #include "hw/express-gpu/egl_display.h"
 #include "hw/express-gpu/egl_surface.h"
 
-typedef struct Process_Context{
+typedef struct Process_Context {
     GHashTable *surface_map;
     GHashTable *context_map;
-    
     GHashTable *gbuffer_map;
 
+    char guest_process_name[16];
     int thread_cnt;
 } Process_Context;
 

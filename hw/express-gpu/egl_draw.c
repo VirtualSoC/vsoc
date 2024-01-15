@@ -96,7 +96,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         {
             THREAD_CONTROL_BEGIN
 
-            LOGI("independent window width %d height %d width %d height %d", real_surface_draw->width, real_surface_draw->height, width, height);
+            LOGI("%s: independent window width %d height %d width %d height %d", process_context->guest_process_name, real_surface_draw->width, real_surface_draw->height, width, height);
             glfwSetWindowSize(real_opengl_context->window, width, height);
             glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
             glfwShowWindow((GLFWwindow *)real_opengl_context->window);
@@ -218,7 +218,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (real_surface_draw == NULL && real_surface_read == NULL)
     {
-        LOGI("host create surfaceless context %llx", (uint64_t)ctx);
+        LOGI("%s: host create surfaceless context %llx", process_context->guest_process_name, (uint64_t)ctx);
         real_opengl_context->read_fbo0 = 0;
         real_opengl_context->draw_fbo0 = 0;
         return EGL_TRUE;
@@ -231,7 +231,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     }
 
     if (express_gpu_gl_debug_enable) {
-        LOGI("real_surface_draw: type %x width %d height %d gbuffer %p gbuffer_id %llu", real_surface_draw->type, real_surface_draw->width, real_surface_draw->height, real_surface_draw->gbuffer, real_surface_draw->gbuffer_id);
+        LOGI("%s: eglMakeCurrent real_surface_draw type %x width %d height %d gbuffer %p gbuffer_id %llu",process_context->guest_process_name, real_surface_draw->type, real_surface_draw->width, real_surface_draw->height, real_surface_draw->gbuffer, real_surface_draw->gbuffer_id);
     }
 
     connect_gbuffer_to_surface(gbuffer, real_surface_draw);

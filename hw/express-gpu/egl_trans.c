@@ -2437,6 +2437,34 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
     }
     break;
 
+    case FUNID_eglSetProcName:
+
+    {
+
+        /* Define variables */
+        char *name;
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (unlikely(para_num < PARA_NUM_MIN_eglSetProcName))
+        {
+            break;
+        }
+
+        int need_free = 0;
+        char *_ptr;
+        _ptr = call_para_to_ptr(all_para[0], &need_free);
+        int _idx = 0;
+
+        name = g_malloc0(all_para[0].data_len);
+        memcpy(name, _ptr, all_para[0].data_len);
+
+        if (need_free)
+            g_free(_ptr);
+
+        d_eglSetProcName(egl_context, name, all_para[0].data_len);
+    }
+    break;
+
     default:
         break;
     }

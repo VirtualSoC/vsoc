@@ -505,7 +505,6 @@ Hardware_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, 
     }
     else if (hal_format == EXPRESS_PIXEL_RGB888 || hal_format == EXPRESS_PIXEL_YUV420888)
     {
-        LOGI("get hal format %d", hal_format);
         internal_format = GL_RGB8;
         format = GL_RGB;
         pixel_type = GL_UNSIGNED_BYTE;
@@ -955,7 +954,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
         if (gbuffer == NULL)
         {
-            LOGI("create image with gbuffer id %" PRIx64 " width %d height %d format %d process_context %" PRIx64, gbuffer_id, width, height, hal_format, (uint64_t)process_context);
+            LOGI("%s: create image with gbuffer id %" PRIx64 " width %d height %d format %d process_context %" PRIx64, process_context->guest_process_name, gbuffer_id, width, height, hal_format, (uint64_t)process_context);
             gbuffer = create_gbuffer_with_context(width, height, hal_format, thread_context, ctx, gbuffer_id);
 
             if (gbuffer != NULL) {

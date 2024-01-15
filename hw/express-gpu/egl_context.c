@@ -79,7 +79,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         express_printf("eglcontext %llx attrib_list %x %x\n", (uint64_t)opengl_context, attrib_list[i], attrib_list[i + 1]);
     }
 
-    LOGI("create context guest %llx host %llx", (uint64_t)guest_context, (uint64_t)opengl_context);
+    LOGI("%s: create context guest %llx host %llx", process_context->guest_process_name, (uint64_t)guest_context, (uint64_t)opengl_context);
     LOGD("#%llx create context share %llx", (uint64_t)opengl_context, (uint64_t)real_share_context);
 
     opengl_context->guest_context = guest_context;
@@ -150,4 +150,12 @@ void d_eglDestroyDebugMessageBuffer(void *context, EGLContext guest_gl_context, 
         real_opengl_context->debug_message_buffer = NULL;
     }
     express_printf("destroy debug message buffer context %p guest context %p context flag %x\n", real_opengl_context, guest_gl_context, real_opengl_context->context_flags);
+}
+
+void d_eglSetProcName(void *context, const char *name, int size) {
+    Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
+    Process_Context *process_context = thread_context->process_context;
+
+    strncpy(process_context->guest_process_name, name, sizeof(process_context->guest_process_name));
+    LOGD("eglSetProcName ctx %p update name %s size %d", context, name, size);
 }

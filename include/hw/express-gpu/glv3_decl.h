@@ -412,6 +412,7 @@ typedef struct RingBufferDesc {
 
 typedef struct Debug_Status {
     void *debug_message_buffer;
+    int debug_message_buffer_fd;
 
     GLDEBUGPROC callback;
     void *user_param;
@@ -439,14 +440,14 @@ GLuint d_glGetDebugMessageLogKHR(void *context, GLuint count, GLsizei bufSize,
                                  GLenum *severities, GLsizei *lengths,
                                  GLchar *messageLog);
 
-#define FUNID_eglCreateDebugMessageBuffer ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10043)
+#define FUNID_eglCreateDebugMessageBuffer ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10052)
 #define PARA_NUM_MIN_eglCreateDebugMessageBuffer 2
 void r_eglCreateDebugMessageBuffer(void *context, void *gl_context,
                                    void *buffer);
 void d_eglCreateDebugMessageBuffer(void *context, void *gl_context,
                                    void *buffer);
 
-#define FUNID_eglDestroyDebugMessageBuffer ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10044)
+#define FUNID_eglDestroyDebugMessageBuffer ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10053)
 #define PARA_NUM_MIN_eglDestroyDebugMessageBuffer 2
 void r_eglDestroyDebugMessageBuffer(void *context, void *gl_context,
                                     void *buffer);
@@ -532,3 +533,8 @@ void d_glGetObjectPtrLabelKHR(void *context, const void *ptr, GLsizei bufSize,
 
 void d_glGetPointerv(void *context, GLenum pname, void **params);
 void d_glGetPointervKHR(void *context, GLenum pname, void **params);
+
+#define FUNID_eglSetProcName ((EXPRESS_GPU_DEVICE_ID << 32u) + 10054)
+#define PARA_NUM_MIN_eglSetProcName 1
+void r_eglSetProcName(void *context, const char *name, int size);
+void d_eglSetProcName(void *context, const char *name, int size);
