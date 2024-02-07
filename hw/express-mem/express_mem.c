@@ -1,4 +1,5 @@
 // #define STD_DEBUG_LOG
+#define MAX_MEM_WORKER_THREADS 4
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_device_common.h"
 
@@ -300,11 +301,11 @@ static Thread_Context *get_mem_thread_context(uint64_t device_id, uint64_t threa
     {
         g_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
         g_pool = g_thread_pool_new(
-            express_mem_worker, /* worker function */
-            NULL,  /* pool-specific user data */
-            4,     /* max threads */
-            false, /* exclusive */
-            NULL   /* errors */
+            express_mem_worker,      /* worker function */
+            NULL,                    /* pool-specific user data */
+            MAX_MEM_WORKER_THREADS,  /* max threads */
+            true,                   /* exclusive */
+            NULL                     /* errors */
         );
     }
     return g_context;
@@ -661,6 +662,14 @@ void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *ds
     LOGI("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
 
     g_thread_pool_push(g_pool, (gpointer)task, NULL);
+}
+
+/**
+ * check if the mem transfer queue is busy.
+ * returns true if size(queue) exceeds size(mem worker threads).
+*/
+bool mem_transfer_is_busy() {
+    return g_thread_pool_unprocessed(g_pool) > MAX_MEM_WORKER_THREADS;
 }
 
 static Express_Device_Info express_mem_info = {

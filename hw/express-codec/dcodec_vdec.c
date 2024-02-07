@@ -578,11 +578,18 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
 }
 
 static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
+    static __thread struct SwsContext * mImgConvertCtx;
     Graphic_Buffer *gbuffer = task->dst_data;
     AVFrame *mFrame = task->src_data;
     uint8_t *data[1] = { mapped_addr };
     int linesize[1] = { gbuffer->stride };
-    sws_scale((struct SwsContext *)task->private_data, mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
+
+    // async tasks should use their own private sws contexts
+    mImgConvertCtx = sws_getCachedContext(mImgConvertCtx,
+           mFrame->width, mFrame->height, AV_PIX_FMT_NV12, gbuffer->width, gbuffer->height,
+           AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+    sws_scale(mImgConvertCtx, mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
+
     av_frame_free(&mFrame);
 }
 
@@ -591,6 +598,10 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     AVCodecContext *mCtx = _context->mCtx;
     AVFrame *mFrame = _context->mFrame;
     BufferDesc *desc = g_queue_peek_head(_context->output_buffers);
+
+    if (mem_transfer_is_busy()) {
+        return ERR_OK;
+    }
 
     // read one frame at a time
     int ret = avcodec_receive_frame(mCtx, mFrame);
