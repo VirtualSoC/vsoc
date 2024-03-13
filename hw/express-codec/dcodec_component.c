@@ -9,7 +9,7 @@
 #undef strncpy
 #include <string.h>
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "glib.h"
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/teleport-express/express_log.h"

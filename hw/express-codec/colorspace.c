@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-codec/colorspace.h"
 
@@ -412,9 +412,9 @@ CsConverter *cs_init(const enum AVPixelFormat dst_fmt, const enum AVPixelFormat 
     CsConverter *conv = g_malloc0(sizeof(CsConverter));
     conv->mFormat = src_fmt;
 
-    uint32_t yWidth, yHeight = 0, yOffsetBytes, yStridePixels = 0, yStrideBytes;
-    uint32_t uWidth, uHeight = 0, uOffsetBytes, uStridePixels = 0, uStrideBytes;
-    uint32_t vWidth, vHeight = 0, vOffsetBytes, vStridePixels = 0, vStrideBytes;
+    uint32_t yWidth = 0, yHeight = 0, yOffsetBytes = 0, yStridePixels = 0, yStrideBytes = 0;
+    uint32_t uWidth = 0, uHeight = 0, uOffsetBytes = 0, uStridePixels = 0, uStrideBytes = 0;
+    uint32_t vWidth = 0, vHeight = 0, vOffsetBytes = 0, vStridePixels = 0, vStrideBytes = 0;
     getYUVOffsets(width, height, src_fmt,
                   &yWidth, &yHeight, &yOffsetBytes, &yStridePixels, &yStrideBytes,
                   &uWidth, &uHeight, &uOffsetBytes, &uStridePixels, &uStrideBytes,
@@ -544,7 +544,7 @@ static void updateYUVGLTex(GLenum texture_unit,
     glGetIntegerv(GL_UNPACK_ALIGNMENT, &unprevAlignment);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, src_buf);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, pixelFormat, pixelType, (void *)offset);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, pixelFormat, pixelType, (void *)(intptr_t)offset);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, unprevAlignment);
     glActiveTexture(GL_TEXTURE0);

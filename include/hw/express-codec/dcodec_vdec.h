@@ -37,7 +37,6 @@ typedef struct DCodecVideo {
     GHashTable *mPacketMap;
 
     CsConverter *mCsConv;
-    int tex_alignment;
 
     GLFWwindow* window;
     GLuint mDebugTexture;
