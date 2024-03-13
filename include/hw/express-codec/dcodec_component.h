@@ -36,6 +36,8 @@
 #include "hw/teleport-express/teleport_express_call.h"
 #include "dcodec_shared.h"
 
+#include "hw/express-gpu/express_gpu_render.h"
+
 #ifndef _WIN32
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -59,6 +61,7 @@ typedef enum CodecStatus {
 } CodecStatus;
 
 enum {
+    ERR_HWACCEL_FAILED      = 3,
     ERR_INPUT_QUEUE_FULL    = 2,
     ERR_NO_FRM              = 1,
     ERR_OK                  = 0,  // No errors
@@ -71,6 +74,7 @@ enum {
     ERR_DECODE_FAILED       = -7,
     ERR_EXTRADATA_FAILED    = -8,
     ERR_SWS_FAILED          = -9,
+    ERR_COLORSPACE_FAILED   = -10,
 };
 
 typedef struct DCodecComponent DCodecComponent;
@@ -108,6 +112,8 @@ struct DCodecComponent {
     int (*empty_one_input_buffer)(DCodecComponent *_context);
     int (*fill_one_output_buffer)(DCodecComponent *_context);
     void (*fill_eos_output_buffer)(DCodecComponent *_context);
+
+    // the notify function should be thread-safe
     NotifyCallbackFunc notify;
 };
 
@@ -126,3 +132,8 @@ void dcodec_process_buffers(DCodecComponent *context);
 int dcodec_handle_extradata(DCodecComponent *context);
 OMX_COLOR_FORMATTYPE pixel_format_av_to_omx(enum AVPixelFormat format);
 enum AVPixelFormat pixel_format_omx_to_av(OMX_COLOR_FORMATTYPE format);
+int pixel_format_to_tex_format(const OMX_COLOR_FORMATTYPE format, int *glIntFmt,
+                               GLenum *glPixFmt, GLenum *glPixType);
+int pixel_format_to_swscale_param(const OMX_COLOR_FORMATTYPE format, int width,
+                                  int height, uint8_t **data,
+                                  int *linesize);

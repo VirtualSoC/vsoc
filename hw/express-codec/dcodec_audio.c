@@ -1026,7 +1026,6 @@ static int decode_audio(DCodecAudio *context, BufferDesc *desc) {
 }
 
 static int resample_audio(DCodecAudio *context) {
-    AVCodecContext *mCtx = context->base.mCtx;
     AVFrame *mFrame = context->base.mFrame;
     size_t dataSize = 0;
     // todo: check if we really need to resample

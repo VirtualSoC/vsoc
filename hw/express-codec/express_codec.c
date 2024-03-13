@@ -19,6 +19,17 @@
 
 static GHashTable *g_codec_thread_contexts = NULL;
 
+static const char *DCODEC_ID_MAPPING[] = {
+    "Reserved",
+    "InitComponent",
+    "ResetComponent",
+    "DestroyComponent",
+    "SendCommand",
+    "GetParameter",
+    "SetParameter",
+    "ProcessThisBuffer",
+    "SetCallbacks",
+};
 
 static void dcodec_master_switch(struct Thread_Context *_context,
                           Teleport_Express_Call *call) {

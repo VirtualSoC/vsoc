@@ -659,6 +659,7 @@ void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *ds
     task->post_cb = post_cb;
     task->private_data = private_data;
 
+    // LOGD("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
     LOGI("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
 
     g_thread_pool_push(g_pool, (gpointer)task, NULL);
@@ -668,7 +669,7 @@ void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *ds
  * check if the mem transfer queue is busy.
  * returns true if size(queue) exceeds size(mem worker threads).
 */
-bool mem_transfer_is_busy() {
+bool mem_transfer_is_busy(void) {
     return g_thread_pool_unprocessed(g_pool) > MAX_MEM_WORKER_THREADS;
 }
 

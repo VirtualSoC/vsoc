@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dcodec_component.h"
+#include "colorspace.h"
 
 #include "hw/express-gpu/express_gpu_render.h"
 
@@ -33,15 +34,12 @@ typedef struct DCodecVideo {
     const CodecProfileLevel *mProfileLevels;
     size_t mNumProfileLevels;
 
-    struct SwsContext *mImgConvertCtx;
-
-    uint8_t *mVideoBuffer;
     GHashTable *mPacketMap;
 
+    CsConverter *mCsConv;
+    int tex_alignment;
+
     GLFWwindow* window;
-    GLuint mUnpackBuffer;
-    GLint mUnpackBufferSize;
-    GLsync mUnpackBufferSync;
     GLuint mDebugTexture;
     GLuint mDebugFbo;
 } DCodecVideo;

@@ -28,18 +28,6 @@
 #define DCODEC_FUN_WaitSync 9
 #define DCODEC_MAX_FUNID DCODEC_FUN_WaitSync
 
-static const char *DCODEC_ID_MAPPING[] = {
-    "Reserved",
-    "InitComponent",
-    "ResetComponent",
-    "DestroyComponent",
-    "SendCommand",
-    "GetParameter",
-    "SetParameter",
-    "ProcessThisBuffer",
-    "SetCallbacks",
-};
-
 // device files
 #define EXPRESS_CODEC_DEVICE_NAME "/dev/express_codec"
 

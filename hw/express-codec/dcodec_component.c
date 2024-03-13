@@ -9,7 +9,7 @@
 #undef strncpy
 #include <string.h>
 
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #include "glib.h"
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/teleport-express/express_log.h"
@@ -27,7 +27,11 @@ int dcodec_init_component(DCodecComponent *context, NotifyCallbackFunc notify) {
     context->input_buffers = g_queue_new();
     context->output_buffers = g_queue_new();
 
-    av_log_set_level(AV_LOG_INFO);
+#ifdef STD_DEBUG_LOG
+    av_log_set_level(AV_LOG_VERBOSE);
+#else
+    av_log_set_level(AV_LOG_WARNING);
+#endif
     av_log_set_callback(dcodec_av_log_callback);
 
     AVCodecContext *mCtx = avcodec_alloc_context3(NULL);
@@ -35,6 +39,7 @@ int dcodec_init_component(DCodecComponent *context, NotifyCallbackFunc notify) {
         LOGE("avcodec_alloc_context3 failed.");
         return ERR_OOM;
     }
+    mCtx->opaque = context; // we can retrieve codec context from the opaque pointer
 
     AVFrame *mFrame = av_frame_alloc();
     if (!mFrame) {
@@ -219,6 +224,7 @@ void dcodec_notify_null(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 d
 */
 void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
     int header[3]; // size, host_idx, guest_idx;
+    static GMutex mutex;
 
     if (!context->dma_buf) {
         LOGE("dcodec_notify on null dma_buf!");
@@ -226,7 +232,9 @@ void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 
     }
 
     while (true) {
+        g_mutex_lock(&mutex);
         read_from_guest_mem(context->dma_buf, header, 0, 3 * sizeof(int));
+        g_mutex_unlock(&mutex);
         if (header[0] != sizeof(CodecDMABuffer)) {
             LOGE("error! dma buffer size does not match! host %d guest %d", sizeof(CodecDMABuffer), header[0]);
             return;
@@ -249,9 +257,11 @@ void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 
 
     LOGD("codec notify (guest idx %d host %d+1) event %x data1 %d data2 %d ptr %" PRIx64 " flags %x", header[2], header[1], event, data1, data2, data, flags);
 
+    g_mutex_lock(&mutex);
     write_to_guest_mem(context->dma_buf, &callback, __builtin_offsetof(CodecDMABuffer, callbacks) + (header[1] % CODEC_CALLBACK_BUFFER_LEN) * sizeof(CodecCallbackData), sizeof(CodecCallbackData));
     header[1] += 1;
     write_to_guest_mem(context->dma_buf, header + 1, __builtin_offsetof(CodecDMABuffer, host_idx), sizeof(int));
+    g_mutex_unlock(&mutex);
 
     // guest-side already has polling, but polling can be laggy
     // use interrupts on important events to reduce delay
@@ -526,4 +536,77 @@ enum AVPixelFormat pixel_format_omx_to_av(OMX_COLOR_FORMATTYPE format) {
             return AV_PIX_FMT_NONE;
         }
     }
+}
+
+/**
+ * gets the opengl texture format corresponding to the pixel format.
+*/
+int pixel_format_to_tex_format(const OMX_COLOR_FORMATTYPE format,
+                                int *glIntFmt, 
+                                GLenum *glPixFmt, 
+                                GLenum *glPixType) {
+    switch (format) {
+        case OMX_COLOR_Format24bitRGB888: {
+            *glIntFmt = GL_RGB8;
+            *glPixFmt = GL_RGB;
+            *glPixType = GL_UNSIGNED_BYTE;
+            break;
+        }
+        case OMX_COLOR_Format32BitRGBA8888: {
+            *glPixFmt = GL_RGBA;
+            *glPixType = GL_UNSIGNED_BYTE;
+            *glIntFmt = GL_RGBA8;
+            break;
+        }
+        case OMX_COLOR_Format16bitRGB565: {
+            *glPixFmt = GL_RGB;
+            *glPixType = GL_UNSIGNED_SHORT_5_6_5;
+            *glIntFmt = GL_RGB8;
+            break;
+        }
+        // desktop GL does not support yuv targets
+        case OMX_COLOR_FormatYUV420Planar:
+        default: {
+            LOGE("pixel_format_to_tex_format error! target omx pixel format %d not supported!", format);
+            return ERR_INVALID_PARAM;
+        }
+    }
+    return ERR_OK;
+}
+
+/**
+ * gets the swscale parameters corresponding to the pixel format.
+*/
+int pixel_format_to_swscale_param(const OMX_COLOR_FORMATTYPE format,
+                                int width,
+                                int height,
+                                uint8_t **data,
+                                int *linesize) {
+    switch (format) {
+        case OMX_COLOR_Format24bitRGB888: {
+            linesize[0] = width * 3;
+            break;
+        }
+        case OMX_COLOR_Format32BitRGBA8888: {
+            linesize[0] = width * 4;
+            break;
+        }
+        case OMX_COLOR_Format16bitRGB565: {
+            linesize[0] = width * 2;
+            break;
+        }
+        case OMX_COLOR_FormatYUV420Planar: {
+            data[1] = data[0] + width * height;
+            data[2] = data[1] + (width / 2  * height / 2);
+            linesize[0] = width;
+            linesize[1] = width / 2;
+            linesize[2] = width / 2;
+            break;
+        }
+        default: {
+            LOGE("pixel_format_to_tex_format error! target omx pixel format %d not supported!", format);
+            return ERR_INVALID_PARAM;
+        }
+    }
+    return ERR_OK;
 }

@@ -101,6 +101,14 @@ void express_mem_worker(gpointer data, gpointer user_data) {
             goto EXIT;
         }
     }
+    else if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_MEM) {
+        mapped_addr = g_malloc(task->dst_len);
+        if (!mapped_addr) {
+            LOGE("failed to map guest mem!");
+            ret = -1;
+            goto EXIT;
+        }
+    }
 
     if (task->pre_cb)
         task->pre_cb(task, mapped_addr);
@@ -109,6 +117,10 @@ void express_mem_worker(gpointer data, gpointer user_data) {
         case EXPRESS_MEM_TYPE_GBUFFER: {
             end_dma_to_gbuffer((Graphic_Buffer *)task->dst_data);
         } break;
+        case EXPRESS_MEM_TYPE_GUEST_MEM: {
+            write_to_guest_mem((Guest_Mem *)task->dst_data, mapped_addr, 0, task->dst_len);
+            g_free(mapped_addr);
+        }
         case EXPRESS_MEM_TYPE_GUEST_OPAQUE:
         case EXPRESS_MEM_TYPE_HOST_OPAQUE: {
             // nop

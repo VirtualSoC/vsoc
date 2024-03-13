@@ -86,7 +86,7 @@ void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc,
                         void *dst_data, void *src_data, int dst_len,
                         int src_len, int sync_id, PreprocessCbType pre_cb,
                         PostprocessCbType post_cb, void *private_data);
-bool mem_transfer_is_busy();
+bool mem_transfer_is_busy(void);
 void express_mem_worker(gpointer data, gpointer user_data);
 
 #endif
