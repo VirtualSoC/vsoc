@@ -48,6 +48,10 @@ static const CodecProfileLevel kAVCProfileLevels[] = {
     { OMX_VIDEO_AVCProfileHigh,     OMX_VIDEO_AVCLevel52 },
 };
 
+// async tasks should use their own private sws contexts
+static __thread struct SwsContext * g_sws_ctx;
+static __thread uint8_t *g_videobuf;
+
 static int setup_decoder(DCodecVideo *context);
 static int open_decoder(DCodecComponent *_context);
 static int empty_one_input_buffer(DCodecComponent *_context);
@@ -138,6 +142,16 @@ OMX_ERRORTYPE dcodec_vdec_reset_component(DCodecComponent *_context) {
 
 OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context) {
     DCodecVideo *context = (DCodecVideo *)_context;
+
+    if (g_sws_ctx) {
+        sws_freeContext(g_sws_ctx);
+        g_sws_ctx = NULL;
+    }
+
+    if (g_videobuf) {
+        av_free(g_videobuf);
+        g_videobuf = NULL;
+    }
 
     if (context->mCsConv) {
         cs_deinit_cuda(context->mCsConv);
@@ -621,9 +635,6 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
 }
 
 static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
-    // async tasks should use their own private sws contexts
-    static __thread struct SwsContext * _sws_ctx;
-    static __thread uint8_t *_videobuf;
     DCodecVideo *context = task->private_data;
     DCodecComponent *_context = (DCodecComponent *)context;
     AVFrame *mFrame = task->src_data;
@@ -631,7 +642,7 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
     uint8_t *data[4] = { mapped_addr };
     int linesize[4] = { 0 };
 
-    _sws_ctx = sws_getCachedContext(_sws_ctx,
+    g_sws_ctx = sws_getCachedContext(g_sws_ctx,
            mFrame->width, mFrame->height, mFrame->format, context->mWidth, context->mHeight,
            avdstfmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
 
@@ -639,8 +650,8 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
         data[0] = (uint8_t *)task->dst_data;
     }
     else if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
-        _videobuf = av_realloc(_videobuf, task->dst_len);
-        data[0] = _videobuf;
+        g_videobuf = av_realloc(g_videobuf, task->dst_len);
+        data[0] = g_videobuf;
     }
 
     if (pixel_format_to_swscale_param(context->mTgtPixelFormat, context->mWidth, context->mHeight, data, linesize) < 0) {
@@ -650,11 +661,11 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
     LOGD("sws_scale frame_width=%d frame_height=%d ctx_width=%d ctx_height=%d mIsAdaptive=%d src_format=%s tgt_format=%s",
         mFrame->width, mFrame->height, context->mWidth, context->mHeight, context->mIsAdaptive, av_get_pix_fmt_name(mFrame->format), av_get_pix_fmt_name(avdstfmt));
 
-    sws_scale(_sws_ctx, mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
+    sws_scale(g_sws_ctx, mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
 
     if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
         BufferDesc *desc = (BufferDesc *)task->dst_data;
-        write_to_guest_mem((Guest_Mem *)desc->data, _videobuf, 0, desc->nFilledLen);
+        write_to_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
         _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
     }
 
