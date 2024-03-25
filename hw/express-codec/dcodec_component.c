@@ -30,7 +30,7 @@ int dcodec_init_component(DCodecComponent *context, NotifyCallbackFunc notify) {
 #ifdef STD_DEBUG_LOG
     av_log_set_level(AV_LOG_VERBOSE);
 #else
-    av_log_set_level(AV_LOG_WARNING);
+    av_log_set_level(AV_LOG_ERROR);
 #endif
     av_log_set_callback(dcodec_av_log_callback);
 
@@ -521,6 +521,7 @@ enum AVPixelFormat pixel_format_omx_to_av(OMX_COLOR_FORMATTYPE format) {
     switch (format) {
         case OMX_COLOR_Format24bitRGB888: return AV_PIX_FMT_RGB24;
         case OMX_COLOR_Format32BitRGBA8888: return AV_PIX_FMT_RGBA;
+        case OMX_COLOR_Format32bitBGRA8888: return AV_PIX_FMT_BGRA;
         case OMX_COLOR_Format16bitRGB565: return AV_PIX_FMT_RGB565;
         case OMX_COLOR_FormatYUV420Planar: return AV_PIX_FMT_YUV420P;
         case OMX_COLOR_FormatYCbYCr: return AV_PIX_FMT_YUYV422;
@@ -548,6 +549,12 @@ int pixel_format_to_tex_format(const OMX_COLOR_FORMATTYPE format,
         }
         case OMX_COLOR_Format32BitRGBA8888: {
             *glPixFmt = GL_RGBA;
+            *glPixType = GL_UNSIGNED_BYTE;
+            *glIntFmt = GL_RGBA8;
+            break;
+        }
+        case OMX_COLOR_Format32bitBGRA8888: {
+            *glPixFmt = GL_BGRA;
             *glPixType = GL_UNSIGNED_BYTE;
             *glIntFmt = GL_RGBA8;
             break;
@@ -582,6 +589,10 @@ int pixel_format_to_swscale_param(const OMX_COLOR_FORMATTYPE format,
             break;
         }
         case OMX_COLOR_Format32BitRGBA8888: {
+            linesize[0] = width * 4;
+            break;
+        }
+        case OMX_COLOR_Format32bitBGRA8888: {
             linesize[0] = width * 4;
             break;
         }

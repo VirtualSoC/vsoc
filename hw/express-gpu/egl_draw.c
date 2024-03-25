@@ -446,7 +446,8 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
     //  egl_image->host_has_data = 1;
     //  ATOMIC_UNLOCK(egl_image->display_texture_is_use);
     //  ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
-    express_printf("#%llx context queue buffer %llx\n", (uint64_t)opengl_context, gbuffer_id);
+    //ztodo 这一帧被绘制到bufferqueue中
+    LOGD("#%llx context queue buffer %" PRIx64 , (uint64_t)opengl_context, gbuffer_id);
 
     if (gbuffer->sampler_num > 1)
     {

@@ -23,7 +23,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
 
 void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
-
+ 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)render_context;
     Opengl_Context *opengl_context = (Opengl_Context *)(thread_context->opengl_context);
 
@@ -31,7 +31,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
 
     Graphic_Buffer *now_draw_gbuffer = surface->gbuffer;
 
-    //express_printf("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
+    LOGD("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
 
     Graphic_Buffer *next_draw_gbuffer = NULL;
 

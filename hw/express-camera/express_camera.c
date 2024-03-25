@@ -86,6 +86,7 @@ static int camera_count = 0;
 static OMX_COLOR_FORMATTYPE pixel_format_v4l2_to_omx(uint32_t format) {
     switch (format) {
         case V4L2_PIX_FMT_RGBA32: return OMX_COLOR_Format32BitRGBA8888;
+        case V4L2_PIX_FMT_ABGR32: return OMX_COLOR_Format32bitBGRA8888;
         case V4L2_PIX_FMT_RGB565: return OMX_COLOR_Format16bitRGB565;
         default: {
             LOGE("unknown v4l2 pixel format %d", format);
@@ -312,11 +313,20 @@ static void *camera_capturing_thread(void *opaque)
             LOGW("camera input packet stream_index %d vs. %d not equal!", packet.stream_index, stream_index);
         }
 
+        // ztodo: obtained frame from camera (through ffmpeg) 
+        // 
+        // timestamp
+        LOGD("obtained frame from camera!");
+
         // send output buffer first
+        // there need to be empty buffers in the camera's bufferqueue
         BufferDesc *desc = (BufferDesc *)g_async_queue_try_pop(context->frame_queue);
         if (desc == NULL) {
+            av_packet_unref(&packet);
             continue;
         }
+        LOGD("processing output buffer with desc id %" PRIx64, desc->id);
+        // get a buffer from bufferqueue
         dcodec_process_this_buffer(codec, desc);
 
         // send input packet to codec
@@ -329,7 +339,8 @@ static void *camera_capturing_thread(void *opaque)
         desc->nOffset = 0;
         desc->nTimeStamp = packet.pts;
         desc->nFlags = OMX_BUFFERFLAG_ENDOFFRAME;
-
+        
+        //decode and put the result into buffer
         dcodec_process_this_buffer(codec, desc);
         av_packet_unref(&packet);
     }
@@ -523,6 +534,10 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
         desc->id = *(uint64_t *)params;
         desc->sync_id = *(int *)(params + 8);
         desc->nAllocLen = av_image_get_buffer_size(pixel_format_omx_to_av(camera_context->pixel_format), prop->width, prop->height, 1);
+
+        // ztodo: guest dequeue buffer, host camera queue buffer into frame_queue. 
+        // timestamp
+        LOGD("guest dequeue buffer, host camera queue buffer into frame_queue with id %" PRIx64, desc->id);
 
         g_async_queue_push(camera_context->frame_queue, (gpointer)desc);
 
