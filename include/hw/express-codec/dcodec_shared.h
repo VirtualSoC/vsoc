@@ -53,7 +53,8 @@
 // ioctls
 #define IOC_MAGIC 0xE6
 #define IOC_ENABLE_CALLBACK _IOW(IOC_MAGIC, 1, int)
-#define IOC_MAXNR 1
+#define IOC_DISABLE_CALLBACK _IOW(IOC_MAGIC, 2, int)
+#define IOC_MAXNR 2
 
 // decoders have one input port and one output port
 #define CODEC_INPUT_PORT_INDEX 0

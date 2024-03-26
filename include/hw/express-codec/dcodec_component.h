@@ -101,6 +101,7 @@ struct DCodecComponent {
 
     // DMA buffer used to implement callbacks
     Guest_Mem *dma_buf;
+    GMutex dma_buf_mutex;
 
     // private function pointers
     OMX_ERRORTYPE (*reset_component)(DCodecComponent *_context);

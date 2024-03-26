@@ -224,19 +224,19 @@ void dcodec_notify_null(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 d
 */
 void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
     int header[3]; // size, host_idx, guest_idx;
-    static GMutex mutex;
 
     if (!context->dma_buf) {
         LOGE("dcodec_notify on null dma_buf!");
         return;
     }
 
+    g_mutex_lock(&context->dma_buf_mutex);
+
     while (true) {
-        g_mutex_lock(&mutex);
         read_from_guest_mem(context->dma_buf, header, 0, 3 * sizeof(int));
-        g_mutex_unlock(&mutex);
         if (header[0] != sizeof(CodecDMABuffer)) {
             LOGE("error! dma buffer size does not match! host %d guest %d", sizeof(CodecDMABuffer), header[0]);
+            g_mutex_unlock(&context->dma_buf_mutex);
             return;
         }
         // "+ 1" must be present in the following code to avoid racing conditions
@@ -257,11 +257,10 @@ void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 
 
     LOGD("codec notify (guest idx %d host %d+1) event %x data1 %d data2 %d ptr %" PRIx64 " flags %x", header[2], header[1], event, data1, data2, data, flags);
 
-    g_mutex_lock(&mutex);
     write_to_guest_mem(context->dma_buf, &callback, __builtin_offsetof(CodecDMABuffer, callbacks) + (header[1] % CODEC_CALLBACK_BUFFER_LEN) * sizeof(CodecCallbackData), sizeof(CodecCallbackData));
     header[1] += 1;
     write_to_guest_mem(context->dma_buf, header + 1, __builtin_offsetof(CodecDMABuffer, host_idx), sizeof(int));
-    g_mutex_unlock(&mutex);
+    g_mutex_unlock(&context->dma_buf_mutex);
 
     // guest-side already has polling, but polling can be laggy
     // use interrupts on important events to reduce delay
