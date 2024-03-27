@@ -181,7 +181,7 @@ OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context) {
 
 OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
-    bool videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
+    int videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
     LOGD("dcodec_vdec_get_parameter index:0x%x", index);
 
     switch ((int)index) {
@@ -241,7 +241,7 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
 OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
     const int32_t indexFull = index;
-    bool videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
+    int videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
     LOGD("dcodec_vdec_set_parameter index:0x%x", index);
 
     switch (indexFull) {

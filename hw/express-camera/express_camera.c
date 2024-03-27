@@ -346,7 +346,7 @@ static void *camera_capturing_thread(void *opaque)
     avformat_close_input(&format_context);
     avformat_free_context(format_context);
 
-    dcodec_vdec_destroy_component(codec);
+    codec->destroy_component(codec);
     g_async_queue_unref(context->frame_queue);
 
     return NULL;
