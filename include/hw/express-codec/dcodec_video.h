@@ -25,7 +25,7 @@ enum CropSettingsMode {
 typedef struct DCodecVideo {
     DCodecComponent base;
 
-    // output format
+    bool mIsDecoder;
     bool mIsAdaptive;
     uint32_t mAdaptiveMaxWidth, mAdaptiveMaxHeight;
     uint32_t mWidth, mHeight;
@@ -49,3 +49,10 @@ OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context);
 OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
 OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
 OMX_ERRORTYPE dcodec_vdec_process_this_buffer(DCodecComponent *_context, OMX_INOUT BufferDesc *desc);
+
+DCodecComponent* dcodec_venc_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify);
+OMX_ERRORTYPE dcodec_venc_reset_component(DCodecComponent *_context);
+OMX_ERRORTYPE dcodec_venc_destroy_component(DCodecComponent *_context);
+OMX_ERRORTYPE dcodec_venc_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
+OMX_ERRORTYPE dcodec_venc_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
+OMX_ERRORTYPE dcodec_venc_process_this_buffer(DCodecComponent *_context, OMX_INOUT BufferDesc *desc);

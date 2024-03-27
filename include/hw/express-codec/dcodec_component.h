@@ -68,10 +68,10 @@ enum {
     ERR_OOM                 = -1, // Out of memmory
     ERR_INVALID_PARAM       = -2,
     ERR_CODEC_NOT_FOUND     = -3,
-    ERR_DECODER_OPEN_FAILED = -4,
+    ERR_CODEC_OPEN_FAILED   = -4,
     ERR_SWR_INIT_FAILED     = -5,
     ERR_RESAMPLE_FAILED     = -6,
-    ERR_DECODE_FAILED       = -7,
+    ERR_CODING_FAILED       = -7,
     ERR_EXTRADATA_FAILED    = -8,
     ERR_SWS_FAILED          = -9,
     ERR_COLORSPACE_FAILED   = -10,
@@ -109,7 +109,7 @@ struct DCodecComponent {
     OMX_ERRORTYPE (*get_parameter)(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
     OMX_ERRORTYPE (*set_parameter)(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
 
-    int (*open_decoder)(DCodecComponent *_context);
+    int (*open_codec)(DCodecComponent *_context);
     int (*empty_one_input_buffer)(DCodecComponent *_context);
     int (*fill_one_output_buffer)(DCodecComponent *_context);
     void (*fill_eos_output_buffer)(DCodecComponent *_context);
@@ -131,6 +131,7 @@ void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 
 OMX_ERRORTYPE dcodec_process_this_buffer(DCodecComponent *context, OMX_INOUT BufferDesc *desc);
 void dcodec_process_buffers(DCodecComponent *context);
 int dcodec_handle_extradata(DCodecComponent *context);
+void dcodec_fill_eos_output_buffer(DCodecComponent *_context);
 OMX_COLOR_FORMATTYPE pixel_format_av_to_omx(enum AVPixelFormat format);
 enum AVPixelFormat pixel_format_omx_to_av(OMX_COLOR_FORMATTYPE format);
 int pixel_format_to_tex_format(const OMX_COLOR_FORMATTYPE format, int *glIntFmt,

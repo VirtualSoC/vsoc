@@ -308,7 +308,7 @@ void dcodec_process_buffers(DCodecComponent *context) {
 
         // empty one input buffer
         if (!g_queue_is_empty(input_buffers)) {
-            if (context->open_decoder(context) != ERR_OK) {
+            if (context->open_codec(context) != ERR_OK) {
                 context->mStatus = ERROR_SIGNALED;
                 dcodec_notify_error((DCodecComponent *)context, OMX_ErrorUndefined);
                 break;
@@ -499,6 +499,18 @@ int dcodec_handle_extradata(DCodecComponent *context) {
     }
 
     return ERR_OK;
+}
+
+void dcodec_fill_eos_output_buffer(DCodecComponent *_context) {
+    BufferDesc *desc = g_queue_pop_head(_context->output_buffers);
+
+    LOGD("video codec fill eos outbuf");
+
+    desc->nTimeStamp = 0;
+    desc->nFilledLen = 0;
+    desc->nFlags |= OMX_BUFFERFLAG_EOS;
+
+    dcodec_return_buffer(_context, desc);
 }
 
 OMX_COLOR_FORMATTYPE pixel_format_av_to_omx(enum AVPixelFormat format) {

@@ -14,7 +14,7 @@
 #include "hw/express-codec/express_codec.h"
 #include "hw/express-codec/dcodec_component.h"
 #include "hw/express-codec/dcodec_shared.h"
-#include "hw/express-codec/dcodec_vdec.h"
+#include "hw/express-codec/dcodec_video.h"
 #include "hw/express-codec/dcodec_audio.h"
 
 static GHashTable *g_codec_thread_contexts = NULL;

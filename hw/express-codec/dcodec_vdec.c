@@ -4,7 +4,7 @@
 // #define STD_DEBUG_INDEPENDENT_WINDOW
 
 #include "hw/teleport-express/express_log.h"
-#include "hw/express-codec/dcodec_vdec.h"
+#include "hw/express-codec/dcodec_video.h"
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_status.h"
@@ -53,11 +53,10 @@ static __thread struct SwsContext * g_sws_ctx;
 static __thread uint8_t *g_videobuf;
 
 static int setup_decoder(DCodecVideo *context);
-static int open_decoder(DCodecComponent *_context);
+static int open_codec(DCodecComponent *_context);
 static int empty_one_input_buffer(DCodecComponent *_context);
 static int decode_video(DCodecVideo *context, BufferDesc *desc);
 static int fill_one_output_buffer(DCodecComponent *_context);
-static void fill_eos_output_buffer(DCodecComponent *_context);
 
 static void free_avpacket(gpointer pkt) {
     if (pkt != NULL) {
@@ -89,10 +88,10 @@ DCodecComponent* dcodec_vdec_init_component(enum OMX_VIDEO_CODINGTYPE codingType
     context->base.destroy_component = dcodec_vdec_destroy_component;
     context->base.get_parameter = dcodec_vdec_get_parameter;
     context->base.set_parameter = dcodec_vdec_set_parameter;
-    context->base.open_decoder = open_decoder;
+    context->base.open_codec = open_codec;
     context->base.empty_one_input_buffer = empty_one_input_buffer;
     context->base.fill_one_output_buffer = fill_one_output_buffer;
-    context->base.fill_eos_output_buffer = fill_eos_output_buffer;
+    context->base.fill_eos_output_buffer = dcodec_fill_eos_output_buffer;
 
     const CodecProfileLevel *codec_profile_levels;
     size_t codec_array_size;
@@ -109,6 +108,7 @@ DCodecComponent* dcodec_vdec_init_component(enum OMX_VIDEO_CODINGTYPE codingType
         codec_array_size = 0;
     }
 
+    context->mIsDecoder = true;
     context->mIsAdaptive = false;
     context->mAdaptiveMaxWidth = 0;
     context->mAdaptiveMaxHeight = 0;
@@ -181,6 +181,7 @@ OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context) {
 
 OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
+    bool videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
     LOGD("dcodec_vdec_get_parameter index:0x%x", index);
 
     switch ((int)index) {
@@ -189,7 +190,7 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             OMX_VIDEO_PARAM_WMVTYPE *profile =
                 (OMX_VIDEO_PARAM_WMVTYPE *)params;
 
-            if (profile->nPortIndex != CODEC_INPUT_PORT_INDEX) {
+            if (profile->nPortIndex != videoPortIndex) {
                 return OMX_ErrorUndefined;
             }
 
@@ -202,7 +203,7 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             OMX_VIDEO_PARAM_RVTYPE *profile =
                 (OMX_VIDEO_PARAM_RVTYPE *)params;
 
-            if (profile->nPortIndex != CODEC_INPUT_PORT_INDEX) {
+            if (profile->nPortIndex != videoPortIndex) {
                 return OMX_ErrorUndefined;
             }
 
@@ -215,7 +216,7 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
                   (OMX_VIDEO_PARAM_PROFILELEVELTYPE *) params;
 
-            if (profileLevel->nPortIndex != CODEC_INPUT_PORT_INDEX) {
+            if (profileLevel->nPortIndex != videoPortIndex) {
                 LOGE("Invalid port index: %" PRIu32, profileLevel->nPortIndex);
                 return OMX_ErrorUnsupportedIndex;
             }
@@ -240,6 +241,7 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
 OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
     const int32_t indexFull = index;
+    bool videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
     LOGD("dcodec_vdec_set_parameter index:0x%x", index);
 
     switch (indexFull) {
@@ -250,8 +252,7 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
 
             uint32_t newWidth = newParams->nFrameWidth;
             uint32_t newHeight = newParams->nFrameHeight;
-            bool outputPort = (newParams->nPortIndex == CODEC_OUTPUT_PORT_INDEX);
-            if (outputPort) {
+            if (newParams->nPortIndex != videoPortIndex) {
                 context->mWidth = newWidth;
                 context->mHeight = newHeight;
                 context->mTgtPixelFormat = (OMX_COLOR_FORMATTYPE)newParams->eColorFormat;
@@ -271,7 +272,7 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             OMX_VIDEO_PARAM_WMVTYPE *profile =
                 (OMX_VIDEO_PARAM_WMVTYPE *)params;
 
-            if (profile->nPortIndex != CODEC_INPUT_PORT_INDEX) {
+            if (profile->nPortIndex != videoPortIndex) {
                 return OMX_ErrorUndefined;
             }
 
@@ -293,7 +294,7 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             OMX_VIDEO_PARAM_RVTYPE *profile =
                 (OMX_VIDEO_PARAM_RVTYPE *)params;
 
-            if (profile->nPortIndex != CODEC_INPUT_PORT_INDEX) {
+            if (profile->nPortIndex != videoPortIndex) {
                 return OMX_ErrorUndefined;
             }
 
@@ -316,7 +317,7 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             OMX_VIDEO_PARAM_FFMPEGTYPE *profile =
                 (OMX_VIDEO_PARAM_FFMPEGTYPE *)params;
 
-            if (profile->nPortIndex != CODEC_INPUT_PORT_INDEX) {
+            if (profile->nPortIndex != videoPortIndex) {
                 return OMX_ErrorUndefined;
             }
 
@@ -394,7 +395,7 @@ static int setup_decoder(DCodecVideo *context) {
     return ERR_OK;
 }
 
-static int open_decoder(DCodecComponent *_context) {
+static int open_codec(DCodecComponent *_context) {
     DCodecVideo *context = (DCodecVideo *)_context;
     AVCodecContext *mCtx = _context->mCtx;
     if (avcodec_is_open(mCtx)) {
@@ -427,7 +428,7 @@ static int open_decoder(DCodecComponent *_context) {
 #endif
     if (!context->window) {
         LOGE("create shared child window failed!");
-        return ERR_DECODER_OPEN_FAILED;
+        return ERR_CODEC_OPEN_FAILED;
     }
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
@@ -469,7 +470,7 @@ static int open_decoder(DCodecComponent *_context) {
     err = avcodec_open2(mCtx, mCtx->codec, NULL);
     if (err < 0) {
         LOGE("ffmpeg video decoder failed to initialize (%s).", av_err2str(err));
-        return ERR_DECODER_OPEN_FAILED;
+        return ERR_CODEC_OPEN_FAILED;
     }
 
     LOGI("open ffmpeg video decoder (%s) success, width %d height %d",
@@ -627,7 +628,7 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
     }
     else if (ret != 0) {
         LOGE("avcodec_send_packet error %d", ret);
-        return ERR_DECODE_FAILED;
+        return ERR_CODING_FAILED;
     }
 
     return ERR_OK;
@@ -698,7 +699,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     // read one frame at a time
     int ret = avcodec_receive_frame(mCtx, mFrame);
     if (ret == AVERROR_EOF && _context->mStatus == INPUT_EOS_SEEN) {
-        fill_eos_output_buffer(_context);
+        _context->fill_eos_output_buffer(_context);
         _context->mStatus = OUTPUT_EOS_SENT;
         av_frame_free(&mFrame);
         return ERR_OK;
@@ -710,7 +711,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     else if (ret < 0) {
         LOGE("avcodec_receive_frame error %d", ret);
         av_frame_free(&mFrame);
-        return ERR_DECODE_FAILED;
+        return ERR_CODING_FAILED;
     }
 
     uint32_t bufferWidth = max(context->mIsAdaptive ? context->mAdaptiveMaxWidth : 0, context->mWidth);
@@ -805,16 +806,4 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     }
 
     return ERR_OK;
-}
-
-static void fill_eos_output_buffer(DCodecComponent *_context) {
-    BufferDesc *desc = g_queue_pop_head(_context->output_buffers);
-
-    LOGD("video decoder fill eos outbuf");
-
-    desc->nTimeStamp = 0;
-    desc->nFilledLen = 0;
-    desc->nFlags |= OMX_BUFFERFLAG_EOS;
-
-    dcodec_return_buffer(_context, desc);
 }

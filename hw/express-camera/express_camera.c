@@ -12,7 +12,7 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-camera/express_camera.h"
-#include "hw/express-codec/dcodec_vdec.h"
+#include "hw/express-codec/dcodec_video.h"
 
 #define CAMERA_FUN_GET_CAMERA_COUNT 1
 #define CAMERA_FUN_START_STREAM 2

@@ -24,12 +24,11 @@ static const struct AudioCodingMapEntry {
 
 static const size_t sCodingMapLen = (sizeof(sCodingMap) / sizeof(sCodingMap[0]));
 
-static int open_decoder(DCodecComponent *_context);
+static int open_codec(DCodecComponent *_context);
 static int empty_one_input_buffer(DCodecComponent *_context);
 static int decode_audio(DCodecAudio *context, BufferDesc *desc);
 static int resample_audio(DCodecAudio *context);
 static int fill_one_output_buffer(DCodecComponent *_context);
-static void fill_eos_output_buffer(DCodecComponent *_context);
 static void adjust_audio_params(DCodecAudio *context);
 static bool get_omx_channel_mapping(uint32_t numChannels, OMX_AUDIO_CHANNELTYPE map[]);
 
@@ -57,10 +56,10 @@ DCodecComponent* dcodec_audio_init_component(enum OMX_AUDIO_CODINGTYPE codingTyp
     context->base.destroy_component = dcodec_audio_destroy_component;
     context->base.get_parameter = dcodec_audio_get_parameter;
     context->base.set_parameter = dcodec_audio_set_parameter;
-    context->base.open_decoder = open_decoder;
+    context->base.open_codec = open_codec;
     context->base.empty_one_input_buffer = empty_one_input_buffer;
     context->base.fill_one_output_buffer = fill_one_output_buffer;
-    context->base.fill_eos_output_buffer = fill_eos_output_buffer;
+    context->base.fill_eos_output_buffer = dcodec_fill_eos_output_buffer;
 
     AVCodecContext *mCtx = context->base.mCtx;
 
@@ -853,7 +852,7 @@ OMX_ERRORTYPE dcodec_audio_set_parameter(DCodecComponent *_context, OMX_IN OMX_I
     }
 }
 
-static int open_decoder(DCodecComponent *_context) {
+static int open_codec(DCodecComponent *_context) {
     DCodecAudio *context = (DCodecAudio *)_context;
     AVCodecContext *mCtx = _context->mCtx;
     if (avcodec_is_open(mCtx)) {
@@ -894,7 +893,7 @@ static int open_decoder(DCodecComponent *_context) {
     int err = avcodec_open2(mCtx, mCtx->codec, NULL);
     if (err < 0) {
         LOGE("ffmpeg audio decoder failed to initialize (%s).", av_err2str(err));
-        return ERR_DECODER_OPEN_FAILED;
+        return ERR_CODEC_OPEN_FAILED;
     }
 
     LOGI("open ffmpeg audio decoder (%s) success, mCtx sample_rate: %d, "
@@ -1013,7 +1012,7 @@ static int decode_audio(DCodecAudio *context, BufferDesc *desc) {
     }
     else if (ret != 0) {
         LOGE("avcodec_send_packet error %d", ret);
-        return ERR_DECODE_FAILED;
+        return ERR_CODING_FAILED;
     }
 
 // #ifdef STD_DEBUG_LOG
@@ -1139,7 +1138,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         // read a new frame
         ret = avcodec_receive_frame(mCtx, mFrame);
         if (ret == AVERROR_EOF && _context->mStatus != OUTPUT_EOS_SENT) {
-            fill_eos_output_buffer(_context);
+            _context->fill_eos_output_buffer(_context);
             _context->mStatus = OUTPUT_EOS_SENT;
             return ERR_OK;
         }
@@ -1195,19 +1194,6 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
 
     dcodec_return_buffer(_context, desc);
     return ERR_OK;
-}
-
-static void fill_eos_output_buffer(DCodecComponent *_context) {
-    DCodecAudio *context = (DCodecAudio *)_context;
-    BufferDesc *desc = g_queue_pop_head(_context->output_buffers);
-
-    LOGD("audio decoder fill eos outbuf");
-
-    desc->nTimeStamp = context->mAudioClock;
-    desc->nFilledLen = 0;
-    desc->nFlags |= OMX_BUFFERFLAG_EOS;
-
-    dcodec_return_buffer(_context, desc);
 }
 
 static void adjust_audio_params(DCodecAudio *context) {
