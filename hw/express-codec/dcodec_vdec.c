@@ -559,7 +559,6 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
             ret = decode_video(context, NULL);
             CHECK_EQ(ret, ERR_OK);
         }
-        avcodec_flush_buffers(mCtx);
         _context->mStatus = INPUT_EOS_SEEN;
     }
 
@@ -612,7 +611,7 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
         LOGE("input buffer %" PRIx64 " type %x not supported!", desc->id, desc->type);
     }
 
-    if (mPkt->size == 0 && desc && !(desc->nFlags & OMX_BUFFERFLAG_ENDOFFRAME)) { // empty packets will cause mischief with ffmpeg
+    if (mPkt->size == 0 && desc) { // empty packets will cause mischief with ffmpeg
         return ERR_NO_FRM;
     }
 
