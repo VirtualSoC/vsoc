@@ -130,10 +130,10 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
             }
             else
             {
+                LOGI("terminate gbuffer id %llx", info.gbuffer_id);
                 remove_gbuffer_from_global_map(info.gbuffer_id);
                 destroy_gbuffer(gbuffer);
             }
-            LOGI("terminate gbuffer id %llx", info.gbuffer_id);
         }
     }
     break;

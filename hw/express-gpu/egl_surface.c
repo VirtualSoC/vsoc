@@ -1155,10 +1155,9 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         }
 
         // texture类型的gbuffer不需要放到global表中，因为这个image只能在自己进程内共享
+        g_hash_table_insert(process_context->gbuffer_map, (gpointer)(gbuffer_id), (gpointer)gbuffer);
     }
     express_printf("createImage gbuffer %llx target %x ptr %llx\n", gbuffer_id, target, gbuffer);
-
-    g_hash_table_insert(process_context->gbuffer_map, (gpointer)(gbuffer_id), (gpointer)gbuffer);
 
     return 1;
 }
@@ -1175,14 +1174,12 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, (gpointer)(gbuffer_id));
 
-    if (gbuffer == NULL)
-    {
-        LOGE("error! destroy eglimage with null!");
-        return EGL_FALSE;
-    }
+    express_printf("destroyImage gbuffer %llx ptr %llx\n", gbuffer_id, gbuffer);
 
-    express_printf("destroyImage gbuffer %llx type %d ptr %llx\n", gbuffer_id, gbuffer->usage_type, gbuffer);
-    g_hash_table_remove(process_context->gbuffer_map, (gpointer)(gbuffer_id));
+    if (gbuffer)
+    {
+        g_hash_table_remove(process_context->gbuffer_map, (gpointer)(gbuffer_id));
+    }
 
     return EGL_TRUE;
 }

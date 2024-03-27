@@ -245,8 +245,8 @@ static void gbuffer_map_destroy(gpointer data)
     else
     {
         // 其他类型的gbuffer真实释放由mem线程完成
+        LOGE("non_texture gbuffer in process context id %" PRIx64 " ptr %p", gbuffer->gbuffer_id, gbuffer);
     }
-    // LOGI("send destroy gbuffer %llx message",gbuffer->gbuffer_id);
 
     return;
 }

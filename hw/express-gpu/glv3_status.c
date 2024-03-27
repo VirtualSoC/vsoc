@@ -466,6 +466,10 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     }
 
     gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+    if (gbuffer == NULL) 
+    {
+        gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+    }
     if (gbuffer == NULL)
     {
         LOGE("error! glBindEGLImage with NULL gbuffer when finding in process %p gbuffer_id %llx target %x", process_context, gbuffer_id, target);
