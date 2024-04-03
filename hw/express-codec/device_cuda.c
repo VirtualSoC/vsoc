@@ -39,13 +39,15 @@ static inline int ff_cuda_check(void *avctx,
 #define CHECK_CU(x) FF_CUDA_CHECK_DL(NULL, g_cu, x)
 
 typedef struct CsConverterCudaInternal {
-    int mTexAlignment;
     CUgraphicsResource mTextureY;
     CUgraphicsResource mTextureU;
     CUgraphicsResource mTextureV;
 } CsConverterCudaInternal;
 
 static void init_global_cu(void) {
+    if (g_cu) {
+        return;
+    }
     // load cuda context
     int ret;
     ret = cuda_load_functions(&g_cu, NULL);
@@ -61,9 +63,6 @@ static void init_cuda_priv(CsConverter *conv) {
     CsConverterCudaInternal *private = g_malloc0(sizeof(CsConverterCudaInternal));
     CUcontext dummy;
     conv->private = private;
-    CHECK_CU(g_cu->cuDeviceGetAttribute(
-        &private->mTexAlignment, 14 /* CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT */,
-        g_cuda_device));
     CHECK_CU(g_cu->cuCtxPushCurrent(g_cuda_ctx));
     CHECK_CU(g_cu->cuGraphicsGLRegisterImage(&private->mTextureY, conv->mTextureY, GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD));
     CHECK_CU(g_cu->cuGraphicsGLRegisterImage(&private->mTextureU, conv->mTextureU, GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_WRITE_DISCARD));
@@ -125,9 +124,8 @@ static void copy_cuda_to_tex(CUgraphicsResource dst, CUdeviceptr src, int pitch,
  * maps data specified in the cuda device ptr to the tex lines.
 */
 int cs_map_cuda(CsConverter *conv, CUdeviceptr *data, int *linesize) {
-    if (!g_cu) {
-        init_global_cu();
-    }
+    init_global_cu();
+
     if (!conv->private) {
         init_cuda_priv(conv);
     }
@@ -143,4 +141,43 @@ int cs_map_cuda(CsConverter *conv, CUdeviceptr *data, int *linesize) {
     copy_cuda_to_tex(private->mTextureY, data[0], linesize[0], height);
     copy_cuda_to_tex(private->mTextureU, data[1], linesize[1], height / 2);
     return ERR_OK;
+}
+
+/**
+ * copies an opengl texture to CUdeviceptr.
+*/
+void copy_tex_to_cuda(CUdeviceptr dst, GLuint src_tex, int *linesize) {
+    init_global_cu();
+    CUgraphicsResource cuda_res;
+    CUarray cuda_array;
+    CUcontext dummy;
+
+    CHECK_CU(g_cu->cuCtxPushCurrent(g_cuda_ctx));
+    CHECK_CU(g_cu->cuGraphicsGLRegisterImage(&cuda_res, src_tex, GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY));
+    CHECK_CU(g_cu->cuGraphicsMapResources(1, &cuda_res, NULL));
+    CHECK_CU(g_cu->cuGraphicsSubResourceGetMappedArray(&cuda_array, cuda_res, 0, 0));
+
+    CUDA_ARRAY_DESCRIPTOR desc;
+    CHECK_CU(g_cu->cuArrayGetDescriptor(&desc, cuda_array));
+    LOGD("cuarray width %zu height %zu format %d channels %u", desc.Width, desc.Height, desc.Format, desc.NumChannels);
+
+    CUDA_MEMCPY2D cpy = {
+        .srcMemoryType = CU_MEMORYTYPE_ARRAY,
+        .dstMemoryType = CU_MEMORYTYPE_DEVICE,
+        .srcArray      = cuda_array,
+        .dstDevice     = dst,
+        .dstPitch      = linesize[0], /* todo */
+        .srcY          = 0,
+        .srcXInBytes   = 0,
+        .dstXInBytes   = 0,
+        .WidthInBytes  = desc.Width * desc.NumChannels,
+        .Height        = desc.Height,
+    };
+
+    LOGD("copy_tex_to_cuda tex %u -> devptr %p pitch %d height %d", src_tex, dst, linesize[0], desc.Height);
+    CHECK_CU(g_cu->cuMemcpy2DAsync(&cpy, NULL));
+
+    CHECK_CU(g_cu->cuGraphicsUnmapResources(1, &cuda_res, NULL));
+    CHECK_CU(g_cu->cuGraphicsUnregisterResource(cuda_res));
+    CHECK_CU(g_cu->cuCtxPopCurrent(&dummy));
 }

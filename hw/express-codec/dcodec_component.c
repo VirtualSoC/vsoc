@@ -538,7 +538,7 @@ enum AVPixelFormat pixel_format_omx_to_av(OMX_COLOR_FORMATTYPE format) {
         case OMX_COLOR_FormatYCbYCr: return AV_PIX_FMT_YUYV422;
         case OMX_COLOR_FormatYUV420SemiPlanar: return AV_PIX_FMT_NV12;
         default: {
-            LOGE("unknown pixel format %d", format);
+            LOGE("unknown pixel format 0x%x", format);
             return AV_PIX_FMT_NONE;
         }
     }

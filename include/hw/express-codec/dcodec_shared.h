@@ -68,9 +68,6 @@
 #define CODEC_VIDEO_INPUT_BUFFER_COUNT 4
 #define CODEC_VIDEO_OUTPUT_BUFFER_COUNT 4
 
-#define CODEC_DEFAULT_PIXEL_FORMAT_ANDROID ((OMX_COLOR_FORMATTYPE)3) // HAL_PIXEL_FORMAT_RGB_888
-#define CODEC_DEFAULT_PIXEL_FORMAT_OHOS ((OMX_COLOR_FORMATTYPE)12) // PIXEL_FMT_RGBA_8888
-
 // dcodec-exclusive event types that unifies EmptyBufferDone/FillBufferDone/Notify events
 // for usage, consult dcodec_return_buffer
 #define OMX_EventEmptyBufferDone ((OMX_EVENTTYPE)0x7f100000)
@@ -85,7 +82,9 @@ typedef struct OMX_VIDEO_DCODECDEFINITIONTYPE {
     uint32_t nFrameWidth;
     uint32_t nFrameHeight;
     uint32_t eColorFormat;
-} OMX_VIDEO_DCODECDEFINITIONTYPE;
+    uint32_t xFramerate;
+    uint8_t bLowLatency;
+} __attribute__((packed, aligned(4))) OMX_VIDEO_DCODECDEFINITIONTYPE;
 
 enum BufferType {
     // input buffer to be emptied by the codec
@@ -106,6 +105,11 @@ enum BufferType {
     // .data field stores AVPacket* . The client should be responsible for
     // freeing the AVPacket* after use
     CODEC_BUFFER_TYPE_AVPACKET = 0x40,
+
+    // AVFrame
+    // .data field stores AVFrame* . The client should be responsible for
+    // freeing the AVFrame* after use
+    CODEC_BUFFER_TYPE_AVFRAME = 0x80,
 };
 
 typedef struct BufferDesc {
@@ -208,8 +212,17 @@ static inline uint32_t get_omx_param_size(OMX_INDEXTYPE index) {
         case OMX_IndexParamVideoRv:
             return sizeof(OMX_VIDEO_PARAM_RVTYPE);
 
+        case OMX_IndexParamVideoAvc:
+            return sizeof(OMX_VIDEO_PARAM_AVCTYPE);
+
+        case OMX_IndexParamVideoHevc:
+            return sizeof(OMX_VIDEO_PARAM_HEVCTYPE);
+
         case OMX_IndexParamVideoFFmpeg:
             return sizeof(OMX_VIDEO_PARAM_FFMPEGTYPE);
+
+        case OMX_IndexParamVideoBitrate:
+            return sizeof(OMX_VIDEO_PARAM_BITRATETYPE);
 
         default: {
             return 0;

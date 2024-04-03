@@ -36,18 +36,6 @@ static const struct VideoCodingMapEntry {
 
 static const size_t sCodingMapLen = (sizeof(sCodingMap) / sizeof(sCodingMap[0]));
 
-static const CodecProfileLevel kM4VProfileLevels[] = {
-    { OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level5 },
-    { OMX_VIDEO_MPEG4ProfileAdvancedSimple, OMX_VIDEO_MPEG4Level5 },
-};
-
-static const CodecProfileLevel kAVCProfileLevels[] = {
-    // Only declare the highest level for each supported profile
-    { OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_AVCLevel52 },
-    { OMX_VIDEO_AVCProfileMain,     OMX_VIDEO_AVCLevel52 },
-    { OMX_VIDEO_AVCProfileHigh,     OMX_VIDEO_AVCLevel52 },
-};
-
 // async tasks should use their own private sws contexts
 static __thread struct SwsContext * g_sws_ctx;
 static __thread uint8_t *g_videobuf;
@@ -93,30 +81,14 @@ DCodecComponent* dcodec_vdec_init_component(enum OMX_VIDEO_CODINGTYPE codingType
     context->base.fill_one_output_buffer = fill_one_output_buffer;
     context->base.fill_eos_output_buffer = dcodec_fill_eos_output_buffer;
 
-    const CodecProfileLevel *codec_profile_levels;
-    size_t codec_array_size;
-    if (codec_id == AV_CODEC_ID_MPEG4) {
-        codec_profile_levels = kM4VProfileLevels;
-        codec_array_size = ARRAY_SIZE(kM4VProfileLevels);
-    } 
-    else if (codec_id == AV_CODEC_ID_H264) {
-        codec_profile_levels = kAVCProfileLevels;
-        codec_array_size = ARRAY_SIZE(kAVCProfileLevels);
-    } 
-    else {
-        codec_profile_levels = NULL;
-        codec_array_size = 0;
-    }
-
     context->mIsDecoder = true;
     context->mIsAdaptive = false;
+    context->mIsLowLatency = false;
     context->mAdaptiveMaxWidth = 0;
     context->mAdaptiveMaxHeight = 0;
     context->mWidth = 1920;
     context->mHeight = 1080;
-    context->mProfileLevels = codec_profile_levels;
-    context->mNumProfileLevels = codec_array_size;
-    context->mTgtPixelFormat = OMX_COLOR_Format24bitRGB888;
+    context->mImageFormat = OMX_COLOR_Format32BitRGBA8888;
 
     AVCodecContext *mCtx = context->base.mCtx;
 
@@ -170,8 +142,8 @@ OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context) {
 #endif
     }
 
-    if (context->mPacketMap) {
-        g_hash_table_destroy(context->mPacketMap);
+    if (context->mInputMap) {
+        g_hash_table_destroy(context->mInputMap);
     }
 
     dcodec_deinit_component(_context);
@@ -181,7 +153,7 @@ OMX_ERRORTYPE dcodec_vdec_destroy_component(DCodecComponent *_context) {
 
 OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
-    int videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
+    size_t videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
     LOGD("dcodec_vdec_get_parameter index:0x%x", index);
 
     switch ((int)index) {
@@ -211,25 +183,6 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             break;
         }
 
-        case OMX_IndexParamVideoProfileLevelQuerySupported:
-        {
-            OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
-                  (OMX_VIDEO_PARAM_PROFILELEVELTYPE *) params;
-
-            if (profileLevel->nPortIndex != videoPortIndex) {
-                LOGE("Invalid port index: %" PRIu32, profileLevel->nPortIndex);
-                return OMX_ErrorUnsupportedIndex;
-            }
-
-            if (profileLevel->nProfileIndex >= context->mNumProfileLevels) {
-                return OMX_ErrorNoMore;
-            }
-
-            profileLevel->eProfile = context->mProfileLevels[profileLevel->nProfileIndex].mProfile;
-            profileLevel->eLevel   = context->mProfileLevels[profileLevel->nProfileIndex].mLevel;
-            break;
-        }
-
         default: {
             LOGE("dcodec_vdec_get_parameter unrecognized index 0x%x!", index);
             return OMX_ErrorUnsupportedIndex;
@@ -241,7 +194,8 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
 OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params) {
     DCodecVideo *context = (DCodecVideo *)_context;
     const int32_t indexFull = index;
-    int videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
+    size_t videoPortIndex = context->mIsDecoder ? CODEC_INPUT_PORT_INDEX : CODEC_OUTPUT_PORT_INDEX;
+    size_t imagePortIndex = context->mIsDecoder ? CODEC_OUTPUT_PORT_INDEX : CODEC_INPUT_PORT_INDEX;
     LOGD("dcodec_vdec_set_parameter index:0x%x", index);
 
     switch (indexFull) {
@@ -252,10 +206,10 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
 
             uint32_t newWidth = newParams->nFrameWidth;
             uint32_t newHeight = newParams->nFrameHeight;
-            if (newParams->nPortIndex != videoPortIndex) {
+            if (newParams->nPortIndex == imagePortIndex) {
                 context->mWidth = newWidth;
                 context->mHeight = newHeight;
-                context->mTgtPixelFormat = (OMX_COLOR_FORMATTYPE)newParams->eColorFormat;
+                context->mImageFormat = (OMX_COLOR_FORMATTYPE)newParams->eColorFormat;
             } else {
                 // For input port, we only set nFrameWidth and nFrameHeight. Buffer size
                 // is updated when configuring the output port using the max-frame-size,
@@ -263,7 +217,10 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
                 _context->mCtx->width = newWidth;
                 _context->mCtx->height = newHeight;
             }
-            LOGI("set OMX_IndexParamVideoDcodecDefinition on port %d width=%d height=%d format=0x%d", newParams->nPortIndex, newWidth, newHeight, newParams->eColorFormat);
+            context->mIsLowLatency = newParams->bLowLatency ? true : false;
+
+            LOGI("set OMX_IndexParamVideoDcodecDefinition on port %d width=%d height=%d format=0x%x low_latency %d", newParams->nPortIndex, newWidth, newHeight, newParams->eColorFormat, newParams->bLowLatency);
+
             return OMX_ErrorNone;
         }
 
@@ -337,6 +294,7 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
             return OMX_ErrorUnsupportedIndex;
         }
     }
+    return OMX_ErrorNone;
 }
 
 /**
@@ -352,7 +310,7 @@ static int setup_decoder(DCodecVideo *context) {
     codec = avcodec_find_decoder(mCtx->codec_id);
     mCtx->codec = codec;
 
-    if ((mCtx->flags & AV_CODEC_FLAG_LOW_DELAY) && mCtx->width <= MAX_SW_VIDEO_DIMENSION && mCtx->height <= MAX_SW_VIDEO_DIMENSION) {
+    if (context->mIsLowLatency && mCtx->width <= MAX_SW_VIDEO_DIMENSION && mCtx->height <= MAX_SW_VIDEO_DIMENSION) {
         // CPU decoding is faster when the video is small
         return ERR_OK;
     }
@@ -389,7 +347,7 @@ static int setup_decoder(DCodecVideo *context) {
     mCtx->hw_device_ctx = hw_device_ref;
 
     // nvenc only supports nv12
-    context->mCsConv = cs_init(pixel_format_omx_to_av(context->mTgtPixelFormat), AV_PIX_FMT_NV12, context->mWidth, context->mHeight);
+    context->mCsConv = cs_init(pixel_format_omx_to_av(context->mImageFormat), AV_PIX_FMT_NV12, context->mWidth, context->mHeight);
 
     LOGD("hw decoder %s pix_fmt %s setup complete", av_hwdevice_get_type_name(device_type), av_get_pix_fmt_name(hw_pix_fmt));
     return ERR_OK;
@@ -401,24 +359,6 @@ static int open_codec(DCodecComponent *_context) {
     if (avcodec_is_open(mCtx)) {
         return ERR_OK;
     }
-
-    // set default ctx params
-    mCtx->workaround_bugs   = FF_BUG_AUTODETECT;
-    mCtx->idct_algo         = FF_IDCT_AUTO;
-    mCtx->skip_frame        = AVDISCARD_DEFAULT;
-    mCtx->skip_idct         = AVDISCARD_DEFAULT;
-    mCtx->skip_loop_filter  = AVDISCARD_DEFAULT;
-    mCtx->flags2 |= AV_CODEC_FLAG2_FAST;
-    // mCtx->error_concealment = 3;
-
-    if (mCtx->pkt_timebase.num == 0 || mCtx->pkt_timebase.den == 0) {
-        // default timebase: microsecond
-        mCtx->pkt_timebase = AV_TIME_BASE_Q;
-    }
-
-#ifdef STD_DEBUG_LOG
-    mCtx->debug = 1;
-#endif
 
     // inform express-gpu to create shared child window
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
@@ -464,10 +404,37 @@ static int open_codec(DCodecComponent *_context) {
         }
     } 
 
+    // set default ctx params
+    mCtx->workaround_bugs   = FF_BUG_AUTODETECT;
+    mCtx->idct_algo         = FF_IDCT_AUTO;
+    mCtx->skip_frame        = AVDISCARD_DEFAULT;
+    mCtx->skip_idct         = AVDISCARD_DEFAULT;
+    mCtx->skip_loop_filter  = AVDISCARD_DEFAULT;
+    mCtx->flags2 |= AV_CODEC_FLAG2_FAST;
+    // mCtx->error_concealment = 3;
+
+    if (mCtx->pkt_timebase.num == 0 || mCtx->pkt_timebase.den == 0) {
+        // default timebase: microsecond
+        mCtx->pkt_timebase = AV_TIME_BASE_Q;
+    }
+
+#ifdef STD_DEBUG_LOG
+    mCtx->debug = 1;
+#endif
+
+    AVDictionary *options = NULL;
+
+    if (context->mIsLowLatency) {
+        mCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+        av_dict_set(&options, "tune", "zerolatency", 0);
+        av_dict_set(&options, "preset", "ultrafast", 0);
+    }
+
     LOGD("open ffmpeg video decoder (%s), width %d height %d",
            mCtx->codec->name, mCtx->width, mCtx->height);
 
-    err = avcodec_open2(mCtx, mCtx->codec, NULL);
+    err = avcodec_open2(mCtx, mCtx->codec, &options);
+    av_dict_free(&options);
     if (err < 0) {
         LOGE("ffmpeg video decoder failed to initialize (%s).", av_err2str(err));
         return ERR_CODEC_OPEN_FAILED;
@@ -476,7 +443,7 @@ static int open_codec(DCodecComponent *_context) {
     LOGI("open ffmpeg video decoder (%s) success, width %d height %d",
             mCtx->codec->name, mCtx->width, mCtx->height);
 
-    context->mPacketMap = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, free_avpacket);
+    context->mInputMap = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, free_avpacket);
 
     return ERR_OK;
 }
@@ -582,13 +549,13 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
         mPkt = (AVPacket *)desc->data;
     }
     else if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
-        mPkt = (AVPacket *)g_hash_table_lookup(context->mPacketMap, (gpointer)desc->id);
+        mPkt = (AVPacket *)g_hash_table_lookup(context->mInputMap, (gpointer)desc->id);
         if (!mPkt) {
             mPkt = av_packet_alloc();
             uint8_t *buf = av_malloc(min(desc->nFilledLen * 2, desc->nAllocLen));
             read_from_guest_mem(desc->data, buf, desc->nOffset, desc->nFilledLen);
             av_packet_from_data(mPkt, buf, desc->nFilledLen);
-            g_hash_table_insert(context->mPacketMap, (gpointer)desc->id, (gpointer)mPkt);
+            g_hash_table_insert(context->mInputMap, (gpointer)desc->id, (gpointer)mPkt);
         }
         else {
             if (av_buffer_is_writable(mPkt->buf)) {
@@ -638,7 +605,7 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
     DCodecVideo *context = task->private_data;
     DCodecComponent *_context = (DCodecComponent *)context;
     AVFrame *mFrame = task->src_data;
-    enum AVPixelFormat avdstfmt = pixel_format_omx_to_av(context->mTgtPixelFormat);
+    enum AVPixelFormat avdstfmt = pixel_format_omx_to_av(context->mImageFormat);
     uint8_t *data[4] = { mapped_addr };
     int linesize[4] = { 0 };
 
@@ -654,7 +621,7 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
         data[0] = g_videobuf;
     }
 
-    if (pixel_format_to_swscale_param(context->mTgtPixelFormat, context->mWidth, context->mHeight, data, linesize) < 0) {
+    if (pixel_format_to_swscale_param(context->mImageFormat, context->mWidth, context->mHeight, data, linesize) < 0) {
         return;
     }
 
@@ -718,19 +685,19 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     uint32_t bufferHeight = max(context->mIsAdaptive ? context->mAdaptiveMaxHeight : 0, context->mHeight);
     int glIntFmt = GL_RGB8;
     GLenum glPixFmt = GL_RGB, glPixType = GL_UNSIGNED_BYTE;
-    if (pixel_format_to_tex_format(context->mTgtPixelFormat, &glIntFmt, &glPixFmt, &glPixType) < 0) {
+    if (pixel_format_to_tex_format(context->mImageFormat, &glIntFmt, &glPixFmt, &glPixType) < 0) {
         av_frame_free(&mFrame);
         return ERR_SWS_FAILED;
     }
 
-    //process timestamps
+    // process timestamps
     int64_t pts = mFrame->best_effort_timestamp;
     if (pts == AV_NOPTS_VALUE) {
         pts = 0;
     }
     desc->nTimeStamp = pts;
 
-    enum AVPixelFormat avDstFmt = pixel_format_omx_to_av(context->mTgtPixelFormat);
+    enum AVPixelFormat avDstFmt = pixel_format_omx_to_av(context->mImageFormat);
     int outputSize = av_image_get_buffer_size(avDstFmt, bufferWidth, bufferHeight, 1);
     CHECK_GE(desc->nAllocLen, outputSize);
     desc->nFilledLen = outputSize;

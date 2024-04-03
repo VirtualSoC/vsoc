@@ -284,9 +284,9 @@ static void *camera_capturing_thread(void *opaque)
     out_def.nFrameWidth = codecpar->width;
     out_def.nFrameHeight = codecpar->height;
     out_def.eColorFormat = context->pixel_format;
+    out_def.bLowLatency = OMX_TRUE;
     codec->set_parameter(codec, OMX_IndexParamVideoDcodecDefinition, &out_def);
 
-    codec->mCtx->flags |= AV_CODEC_FLAG_LOW_DELAY; // low delay for camera
     codec->mCtx->pkt_timebase = format_context->streams[stream_index]->time_base;
 
     g_async_queue_ref(context->frame_queue);

@@ -74,11 +74,17 @@ static void dcodec_master_switch(struct Thread_Context *_context,
         if (need_free)
             g_free(_ptr);
 
-        if (isVideo) {
+        if (isVideo == 0) {
+            ((Codec_Thread_Context *)_context)->component = dcodec_audio_init_component(codingType, dcodec_notify_guest);
+        } 
+        else if (isVideo == 1) {
             ((Codec_Thread_Context *)_context)->component = dcodec_vdec_init_component(codingType, dcodec_notify_guest);
         }
+        else if (isVideo == 2) {
+            ((Codec_Thread_Context *)_context)->component = dcodec_venc_init_component(codingType, dcodec_notify_guest);
+        }
         else {
-            ((Codec_Thread_Context *)_context)->component = dcodec_audio_init_component(codingType, dcodec_notify_guest);
+            LOGE("error! unrecognized codec type %d", isVideo);
         }
 
     } break;
@@ -137,9 +143,9 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
         uint32_t param_size = get_omx_param_size(index);
         CHECK_EQ(param_size, all_para[1].data_len);
-        char params[param_size];
+        char params[all_para[1].data_len];
 
-        read_from_guest_mem(all_para[1].data, params, 0, param_size);
+        read_from_guest_mem(all_para[1].data, params, 0, all_para[1].data_len);
 
         error = component->get_parameter(component, index, params);
 
@@ -226,7 +232,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
 
     }
     if (error != OMX_ErrorNone) {
-        LOGE("error! host call returned error %d", error);
+        LOGE("error! host call returned error %x", error);
     }
 }
 

@@ -5,11 +5,6 @@
 
 #include "hw/express-gpu/express_gpu_render.h"
 
-typedef struct CodecProfileLevel {
-    OMX_U32 mProfile;
-    OMX_U32 mLevel;
-} CodecProfileLevel;
-
 enum {
     kNotSupported,
     kPreferBitstream,
@@ -27,14 +22,13 @@ typedef struct DCodecVideo {
 
     bool mIsDecoder;
     bool mIsAdaptive;
+    bool mIsLowLatency;
     uint32_t mAdaptiveMaxWidth, mAdaptiveMaxHeight;
     uint32_t mWidth, mHeight;
-    OMX_COLOR_FORMATTYPE mTgtPixelFormat;
+    OMX_COLOR_FORMATTYPE mImageFormat;
+    int mFramerate;
 
-    const CodecProfileLevel *mProfileLevels;
-    size_t mNumProfileLevels;
-
-    GHashTable *mPacketMap;
+    GHashTable *mInputMap;
 
     CsConverter *mCsConv;
 
@@ -50,3 +44,5 @@ OMX_ERRORTYPE dcodec_vdec_get_parameter(DCodecComponent *_context, OMX_IN OMX_IN
 OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
 
 DCodecComponent* dcodec_venc_init_component(enum OMX_VIDEO_CODINGTYPE codingType, NotifyCallbackFunc notify);
+OMX_ERRORTYPE dcodec_venc_get_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
+OMX_ERRORTYPE dcodec_venc_set_parameter(DCodecComponent *_context, OMX_IN OMX_INDEXTYPE index, OMX_PTR params);
