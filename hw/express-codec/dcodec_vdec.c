@@ -337,6 +337,9 @@ static int setup_decoder(DCodecVideo *context) {
         return ERR_HWACCEL_FAILED;
     }
 
+    // nvenc only supports nv12
+    context->mCsConv = cs_init(pixel_format_omx_to_av(context->mImageFormat), AV_PIX_FMT_NV12, context->mWidth, context->mHeight);
+
     // CHECK_CU(cu->cuGLGetDevices(&deviceNum, &dummy, 1, CU_GL_DEVICE_LIST_ALL));
     // if (deviceNum == 0) {
     //     LOGW("no available cuda devices for the current gl context. this will result in degraded decoding performance");
@@ -345,9 +348,6 @@ static int setup_decoder(DCodecVideo *context) {
     // }
 
     mCtx->hw_device_ctx = hw_device_ref;
-
-    // nvenc only supports nv12
-    context->mCsConv = cs_init(pixel_format_omx_to_av(context->mImageFormat), AV_PIX_FMT_NV12, context->mWidth, context->mHeight);
 
     LOGD("hw decoder %s pix_fmt %s setup complete", av_hwdevice_get_type_name(device_type), av_get_pix_fmt_name(hw_pix_fmt));
     return ERR_OK;
@@ -609,6 +609,13 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
     uint8_t *data[4] = { mapped_addr };
     int linesize[4] = { 0 };
 
+    if (mFrame->format == AV_PIX_FMT_CUDA) {
+        AVFrame *swFrame = av_frame_alloc();
+        av_hwframe_transfer_data(swFrame, mFrame, 0);
+        av_frame_free(&mFrame);
+        mFrame = swFrame;
+    }
+
     g_sws_ctx = sws_getCachedContext(g_sws_ctx,
            mFrame->width, mFrame->height, mFrame->format, context->mWidth, context->mHeight,
            avdstfmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
@@ -683,12 +690,6 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
 
     uint32_t bufferWidth = max(context->mIsAdaptive ? context->mAdaptiveMaxWidth : 0, context->mWidth);
     uint32_t bufferHeight = max(context->mIsAdaptive ? context->mAdaptiveMaxHeight : 0, context->mHeight);
-    int glIntFmt = GL_RGB8;
-    GLenum glPixFmt = GL_RGB, glPixType = GL_UNSIGNED_BYTE;
-    if (pixel_format_to_tex_format(context->mImageFormat, &glIntFmt, &glPixFmt, &glPixType) < 0) {
-        av_frame_free(&mFrame);
-        return ERR_SWS_FAILED;
-    }
 
     // process timestamps
     int64_t pts = mFrame->best_effort_timestamp;
@@ -720,6 +721,13 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
         // since the async thread needs to send omx fill events
     }
     else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
+        int glIntFmt = GL_RGB8;
+        GLenum glPixFmt = GL_RGB, glPixType = GL_UNSIGNED_BYTE;
+        if (pixel_format_to_tex_format(context->mImageFormat, &glIntFmt, &glPixFmt, &glPixType) < 0) {
+            av_frame_free(&mFrame);
+            return ERR_SWS_FAILED;
+        }
+
         Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         if (gbuffer == NULL) {
             LOGD("create_gbuffer with id %llx width %d height %d pixtype %x pixfmt %x intfmt %x", desc->id, context->mWidth, context->mHeight, glPixType, glPixFmt, glIntFmt);
