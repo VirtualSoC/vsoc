@@ -40,18 +40,19 @@ static GLuint now_transform_type = 0;
 static Graphic_Buffer *display_write_gbuffer;
 static Graphic_Buffer *display_read_gbuffer;
 
-Display_Info express_display_info = {
+static Display_Info express_display_info = {
     .pixel_width = 1280,
     .pixel_height = 720,
     .phy_width = 1280,
     .phy_height = 720,
-    .refresh_rate_bits = 0x4LL,
+    .refresh_rate_bits = 0x0LL,
 };
 
 int *express_display_pixel_width = &(express_display_info.pixel_width);
 int *express_display_pixel_height = &(express_display_info.pixel_height);
 int *express_display_phy_width = &(express_display_info.phy_width);
 int *express_display_phy_height = &(express_display_info.phy_height);
+int express_display_refresh_rate;
 
 int display_is_open = 1;
 
@@ -283,6 +284,14 @@ static Thread_Context *get_display_thread_context(uint64_t device_id, uint64_t t
     if (static_display_context == NULL)
     {
         static_display_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
+
+        if (express_display_refresh_rate > 0 && express_display_refresh_rate <= 64 * 15 /* 15 per bit, 64 bits */ && express_display_refresh_rate % 15 == 0) {
+            express_display_info.refresh_rate_bits = 0x1ULL << ((express_display_refresh_rate - 15) / 15);
+        }
+        else {
+            LOGW("invalid refresh rate setting %d, must be a multiple of 15, defaulting to 60.", express_display_refresh_rate);
+            express_display_refresh_rate = 60;
+        }
     }
 
     return static_display_context;

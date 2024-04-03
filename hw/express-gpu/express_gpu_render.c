@@ -52,8 +52,6 @@ int DSA_enable = 0;
 #endif
 int VSYNC_enable = 0;
 
-int express_gpu_window_FPS = 60;
-
 bool express_gpu_keep_window_scale = false;
 
 bool express_gpu_open_shader_binary = true;
@@ -623,7 +621,7 @@ static void static_value_prepare(void)
 
     preload_static_context_value = g_malloc0(sizeof(Static_Context_Values) + 512 * 100 + 400);
 
-    preload_static_context_value->composer_HZ = 60;
+    preload_static_context_value->composer_HZ = express_display_refresh_rate;
     preload_static_context_value->composer_pid = 0;
 
     // initialize static status
@@ -1253,7 +1251,7 @@ void *native_window_thread(void *opaque)
 
             now_time = g_get_real_time();
 
-            need_sleep_time = 1000000 / express_gpu_window_FPS - (now_time - frame_start_time) + remain_sleep_time;
+            need_sleep_time = 1000000 / express_display_refresh_rate - (now_time - frame_start_time) + remain_sleep_time;
 
         } while (need_sleep_time > 2000);
 

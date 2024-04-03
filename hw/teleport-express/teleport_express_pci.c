@@ -35,6 +35,7 @@ static Property teleport_express_base_properties[] = {
 
     DEFINE_PROP_INT32("display_width", Teleport_Express_PCI, display_width, 1920),
     DEFINE_PROP_INT32("display_height", Teleport_Express_PCI, display_height, 1080),
+    DEFINE_PROP_INT32("refresh_rate", Teleport_Express_PCI, refresh_rate, 60),
 
     DEFINE_PROP_INT32("phy_width", Teleport_Express_PCI, phy_width, 1920),
     DEFINE_PROP_INT32("phy_height", Teleport_Express_PCI, phy_height, 1080),
@@ -276,10 +277,10 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
     *express_display_pixel_width = express_pci->display_width;
     *express_display_pixel_height = express_pci->display_height;
+    express_display_refresh_rate = express_pci->refresh_rate;
 
     *express_display_phy_width = express_pci->phy_width;
     *express_display_phy_height = express_pci->phy_height;
-
 
     express_device_log_setting_info.express_gpu_debug_level = express_pci->gpu_debug_level;
     express_device_log_setting_info.express_gpu_log_to_host = (int)express_pci->gpu_log_to_host;

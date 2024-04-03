@@ -295,6 +295,7 @@ extern int *express_display_pixel_width;
 extern int *express_display_pixel_height;
 extern int *express_display_phy_width;
 extern int *express_display_phy_height;
+extern int express_display_refresh_rate;
 
 extern bool express_display_switch_open;
 

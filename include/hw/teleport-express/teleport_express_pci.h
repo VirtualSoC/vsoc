@@ -29,6 +29,7 @@ typedef struct Teleport_Express_PCI{
 
     int display_width;
     int display_height;
+    int refresh_rate;
 
     int phy_width;
     int phy_height;

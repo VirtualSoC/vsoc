@@ -22,8 +22,6 @@ typedef struct Display_Status
 } __attribute__((packed, aligned(4))) Display_Status;
 
 
-extern Display_Info express_display_info;
-
 #define FUNID_Terminate (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 0))
 
 #define FUNID_Set_Sync_Flag (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 6))
