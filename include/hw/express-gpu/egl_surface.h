@@ -29,6 +29,7 @@ typedef enum {
      EXPRESS_PIXEL_BGR565,
      EXPRESS_PIXEL_RGBA1010102,
      EXPRESS_PIXEL_R8,
+	EXPRESS_PIXEL_YUV420888, 
      // todo: add yuv
 
 } EXPRESS_Pixel_Format;

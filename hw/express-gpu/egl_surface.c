@@ -598,8 +598,9 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         pixel_type = GL_UNSIGNED_BYTE;
         // row_byte_len = width * 4;
     }
-    else if (hal_format == EXPRESS_PIXEL_RGB888)
+    else if (hal_format == EXPRESS_PIXEL_RGB888 || hal_format == EXPRESS_PIXEL_YUV420888)
     {
+        LOGI("get hal format %d", hal_format);
         internal_format = GL_RGB8;
         format = GL_RGB;
         pixel_type = GL_UNSIGNED_BYTE;
