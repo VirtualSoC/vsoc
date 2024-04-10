@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 // todo: do not uncomment the following line as it is unusable for now.
 // #define STD_DEBUG_INDEPENDENT_WINDOW
@@ -24,6 +24,10 @@ static const struct VideoCodingMapEntry {
 };
 
 static const size_t sCodingMapLen = (sizeof(sCodingMap) / sizeof(sCodingMap[0]));
+
+// async tasks should use their own private sws contexts
+extern __thread struct SwsContext * g_sws_ctx;
+extern __thread uint8_t *g_videobuf;
 
 static int setup_encoder(DCodecVideo *context);
 static int open_encoder(DCodecComponent *_context);
@@ -288,12 +292,16 @@ static int setup_encoder(DCodecVideo *context) {
     if (mCtx->codec_id == AV_CODEC_ID_H264) {
         // HACK: force nvenc for now. libav SUCKS at finding hw codecs.
         codec = avcodec_find_encoder_by_name("h264_nvenc");
+        // codec = avcodec_find_encoder_by_name("libx264");
+    }
+    else if (mCtx->codec_id == AV_CODEC_ID_H265) {
+        codec = avcodec_find_encoder_by_name("hevc_nvenc");
     }
     else {
         codec = avcodec_find_encoder(mCtx->codec_id);
     }
     mCtx->codec = codec;
-    mCtx->pix_fmt = pixel_format_omx_to_av(context->mImageFormat);
+    mCtx->pix_fmt = AV_PIX_FMT_YUV420P;
 
     if (context->mIsLowLatency && mCtx->width <= MAX_SW_VIDEO_DIMENSION && mCtx->height <= MAX_SW_VIDEO_DIMENSION) {
         // CPU decoding is faster when the video is small
@@ -407,6 +415,18 @@ static int open_encoder(DCodecComponent *_context) {
     }
     mCtx->sample_aspect_ratio = (AVRational){1, 1};
 
+    // c.f. libx264-ultrafast.ffpreset
+    mCtx->rc_buffer_size = 0;
+    mCtx->me_cmp = 1;
+    mCtx->me_range = 16;
+    mCtx->qmin = 10;
+    mCtx->qmax = 51;
+    mCtx->i_quant_factor = 0.71;
+    mCtx->qcompress = 0.6;
+    mCtx->max_qdiff = 4;
+    mCtx->trellis = 1;
+    mCtx->flags |= AV_CODEC_FLAG_LOOP_FILTER;
+
 #ifdef STD_DEBUG_LOG
     mCtx->debug = 1;
 #endif
@@ -415,12 +435,20 @@ static int open_encoder(DCodecComponent *_context) {
 
     if (context->mIsLowLatency) {
         mCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+        // nvenc
         av_dict_set(&options, "zerolatency", "1", 0);
         av_dict_set(&options, "preset", "fast", 0);
+        // libx264
+        // av_dict_set(&options, "preset", "ultrafast", 0);
+        // av_dict_set(&options, "tune", "zerolatency", 0);
     }
 
-    LOGD("open ffmpeg video encoder (%s), width %d height %d",
-           mCtx->codec->name, mCtx->width, mCtx->height);
+    LOGD("open ffmpeg video encoder (%s), src %dx%d pix_fmt %s tgt %dx%d "
+         "pix_fmt %s; low_latency %d bit_rate %d gop_size %d b_frames %d",
+         mCtx->codec->name, context->mWidth, context->mHeight,
+         av_get_pix_fmt_name(pixel_format_omx_to_av(context->mImageFormat)),
+         mCtx->width, mCtx->height, av_get_pix_fmt_name(mCtx->pix_fmt),
+         context->mIsLowLatency, mCtx->bit_rate, mCtx->gop_size, mCtx->max_b_frames);
 
     err = avcodec_open2(mCtx, mCtx->codec, &options);
     av_dict_free(&options);
@@ -429,8 +457,8 @@ static int open_encoder(DCodecComponent *_context) {
         return ERR_CODEC_OPEN_FAILED;
     }
 
-    LOGI("open ffmpeg video encoder (%s) success, width %d height %d",
-            mCtx->codec->name, mCtx->width, mCtx->height);
+    LOGI("open ffmpeg video encoder (%s) success, width %d height %d pix_fmt %s",
+            mCtx->codec->name, mCtx->width, mCtx->height, av_get_pix_fmt_name(mCtx->pix_fmt));
 
     context->mInputMap = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, free_avframe);
 
@@ -464,9 +492,9 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
     }
 
     LOGD("empty_one_input_buffer() on buffer type %x id %" PRIx64 " nAllocLen %u "
-         "nFilledLen %u nOffset %u nTimeStamp %lld nFlags %x",
+         "nFilledLen %u nOffset %u nTimeStamp %lld nFlags %x sync_id %d",
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
-         desc->nTimeStamp, desc->nFlags);
+         desc->nTimeStamp, desc->nFlags, desc->sync_id);
 
     if (desc->nFlags & OMX_BUFFERFLAG_EOS) {
         LOGD("input eos seen, flushing buffers");
@@ -511,9 +539,9 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
                 mFrame->format = mCtx->pix_fmt;
             }
             else {
-                mFrame->format = gbuffer->format;
+                mFrame->format = pixel_format_omx_to_av(context->mImageFormat);
             }
-            av_frame_get_buffer(mFrame, 0);
+            av_hwframe_get_buffer(mCtx->hw_frames_ctx, mFrame, 0);
             g_hash_table_insert(context->mInputMap, (gpointer)desc->id, (gpointer)mFrame);
         }
         if (!av_buffer_is_writable(mFrame->buf[0])) {
@@ -526,10 +554,45 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
         else {
             glReadPixels(0, 0, gbuffer->width, gbuffer->height, gbuffer->format, gbuffer->pixel_type, mFrame->data[0]);
         }
+        signal_express_sync(desc->sync_id, true);
+        mFrame->pts = desc->nTimeStamp;
+    }
+    else if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
+        mFrame = (AVFrame *)g_hash_table_lookup(context->mInputMap, (gpointer)desc->id);
+        if (!mFrame) {
+            mFrame = av_frame_alloc();
+            mFrame->width = context->mWidth;
+            mFrame->height = context->mHeight;
+            mFrame->format = mCtx->pix_fmt;
+            av_frame_get_buffer(mFrame, 0);
+            g_hash_table_insert(context->mInputMap, (gpointer)desc->id, (gpointer)mFrame);
+        }
+        if (!av_buffer_is_writable(mFrame->buf[0])) {
+            LOGE("error! av_buffer id %" PRIx64 " is not writable!", desc->id);
+        }
+
+        uint8_t *data[4] = { 0 };
+        int linesize[4] = { 0 };
+
+        g_sws_ctx = sws_getCachedContext(g_sws_ctx,
+            mFrame->width, mFrame->height, pixel_format_omx_to_av(context->mImageFormat), context->mWidth, context->mHeight,
+            mFrame->format, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+
+        g_videobuf = av_realloc(g_videobuf, desc->nFilledLen);
+        read_from_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
+        data[0] = g_videobuf;
+
+        if (pixel_format_to_swscale_param(context->mImageFormat, context->mWidth, context->mHeight, data, linesize) < 0) {
+            return ERR_SWS_FAILED;
+        }
+
+        sws_scale(g_sws_ctx, data, linesize, 0, mFrame->height, mFrame->data, mFrame->linesize);
+
         mFrame->pts = desc->nTimeStamp;
     }
     else {
         LOGE("input buffer %" PRIx64 " type %x not supported!", desc->id, desc->type);
+        return ERR_NO_FRM;
     }
 
     if (mFrame->linesize[0] == 0 && desc) { // empty frames will cause mischief with ffmpeg
@@ -554,29 +617,81 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
     return ERR_OK;
 }
 
+static int find_nal_preamble_idx(uint8_t *data, int offset, int size) {
+    // nal header max 4 bytes
+    for (int i = 0; offset + i + 4 < size; i++) {
+        if (*((uint32_t *)(data + offset + i)) == 0x01000000) { // nal unit preamble
+            return offset + i;
+        }
+    }
+    return size;
+}
+
+/**
+ * parses pps and sps from the header.
+*/
+static int parse_pps_sps(DCodecComponent *_context, uint8_t *data, int size) {
+    BufferDesc *desc = g_queue_peek_head(_context->output_buffers);
+    int seek_idx = 0, end_idx = 0, write_idx = 0;
+
+    seek_idx = find_nal_preamble_idx(data, seek_idx, size);
+    while (seek_idx < size) {
+        char utype = data[seek_idx + 4] & 0x1F; // unit type
+        if (utype == 7 || utype == 8) { // sps or pps
+            end_idx = find_nal_preamble_idx(data, seek_idx + 1, size);
+            CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
+            CHECK_LE(write_idx + end_idx - seek_idx, desc->nAllocLen);
+            LOGD("parsed sps/pps type %d size %d", utype, end_idx - seek_idx);
+            write_to_guest_mem((Guest_Mem *)desc->data, data + seek_idx, write_idx, end_idx - seek_idx);
+            write_idx += end_idx - seek_idx;
+            seek_idx = end_idx;
+        } else {
+            seek_idx = find_nal_preamble_idx(data, seek_idx + 1, size);
+        }
+    }
+
+    if (write_idx > 0) {
+        desc = g_queue_pop_head(_context->output_buffers);
+        desc->nFilledLen = write_idx;
+        desc->nFlags |= OMX_BUFFERFLAG_CODECCONFIG;
+        dcodec_return_buffer(_context, desc);
+        return ERR_OK;
+    }
+    return ERR_NO_FRM;
+}
+
 static int fill_one_output_buffer(DCodecComponent *_context) {
     DCodecVideo *context = (DCodecVideo *)_context;
     AVCodecContext *mCtx = _context->mCtx;
-    AVPacket *mPkt = av_packet_alloc();
-    BufferDesc *desc = g_queue_peek_head(_context->output_buffers);
+    AVPacket *mPkt = _context->mPkt;
+    static __thread bool _has_sent_config;
 
     // read one packet at a time
     int ret = avcodec_receive_packet(mCtx, mPkt);
     if (ret == AVERROR_EOF && _context->mStatus == INPUT_EOS_SEEN) {
         _context->fill_eos_output_buffer(_context);
         _context->mStatus = OUTPUT_EOS_SENT;
-        av_packet_free(&mPkt);
+        av_packet_unref(mPkt);
         return ERR_OK;
     }
     else if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-        av_packet_free(&mPkt);
+        av_packet_unref(mPkt);
         return ERR_NO_FRM;
     }
     else if (ret < 0) {
         LOGE("avcodec_receive_packet error %d", ret);
-        av_packet_free(&mPkt);
+        av_packet_unref(mPkt);
         return ERR_CODING_FAILED;
     }
+
+    if (_has_sent_config == false) {
+        CHECK_GE(g_queue_get_length(_context->output_buffers), 2);
+        if (parse_pps_sps(_context, mPkt->data, mPkt->size) == ERR_OK) {
+            _has_sent_config = true;
+        }
+    }
+
+    BufferDesc *desc = g_queue_pop_head(_context->output_buffers);
 
     // process timestamps
     int64_t pts = mPkt->pts;
@@ -585,9 +700,9 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     }
     desc->nTimeStamp = pts;
 
-    // CHECK_GE(desc->nAllocLen, outputSize);
-    // desc->nFilledLen = outputSize;
-    if (mPkt->flags & AV_FRAME_FLAG_KEY) {
+    CHECK_GE(desc->nAllocLen, mPkt->size);
+    desc->nFilledLen = mPkt->size;
+    if (mPkt->flags & AV_PKT_FLAG_KEY) {
         desc->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
     }
 
@@ -596,18 +711,17 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
          desc->nTimeStamp, desc->nFlags, desc->sync_id);
 
-    LOGD("mPkt pts: %lld dts: %lld. used %lld", mPkt->pts, mPkt->dts, pts);
-
-    desc = g_queue_pop_head(_context->output_buffers);
+    LOGD("mPkt pts: %lld flags 0x%x", mPkt->pts, mPkt->flags);
 
     if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
         write_to_guest_mem((Guest_Mem *)desc->data, mPkt->data, 0, desc->nFilledLen);
     }
     else {
         LOGE("output buffer type %x not supported yet!", desc->type);
-        dcodec_free_buffer_desc(desc);
-        av_packet_free(&mPkt);
     }
+
+    dcodec_return_buffer(_context, desc);
+    av_packet_unref(mPkt);
 
     return ERR_OK;
 }

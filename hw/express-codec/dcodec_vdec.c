@@ -37,8 +37,8 @@ static const struct VideoCodingMapEntry {
 static const size_t sCodingMapLen = (sizeof(sCodingMap) / sizeof(sCodingMap[0]));
 
 // async tasks should use their own private sws contexts
-static __thread struct SwsContext * g_sws_ctx;
-static __thread uint8_t *g_videobuf;
+__thread struct SwsContext * g_sws_ctx;
+__thread uint8_t *g_videobuf;
 
 static int setup_decoder(DCodecVideo *context);
 static int open_codec(DCodecComponent *_context);
@@ -515,9 +515,9 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
     }
 
     LOGD("empty_one_input_buffer() on buffer type %x id %" PRIx64 " nAllocLen %u "
-         "nFilledLen %u nOffset %u nTimeStamp %lld nFlags %x",
+         "nFilledLen %u nOffset %u nTimeStamp %lld nFlags %x sync_id %d",
          desc->type, desc->id, desc->nAllocLen, desc->nFilledLen, desc->nOffset,
-         desc->nTimeStamp, desc->nFlags);
+         desc->nTimeStamp, desc->nFlags, desc->sync_id);
 
     if (desc->nFlags & OMX_BUFFERFLAG_EOS) {
         LOGD("input eos seen, flushing buffers");
@@ -577,6 +577,7 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
     }
     else {
         LOGE("input buffer %" PRIx64 " type %x not supported!", desc->id, desc->type);
+        return ERR_NO_FRM;
     }
 
     if (mPkt->size == 0 && desc) { // empty packets will cause mischief with ffmpeg

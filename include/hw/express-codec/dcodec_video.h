@@ -24,6 +24,7 @@ typedef struct DCodecVideo {
     bool mIsAdaptive;
     bool mIsLowLatency;
     uint32_t mAdaptiveMaxWidth, mAdaptiveMaxHeight;
+    uint32_t mSrcWidth, mSrcHeight;
     uint32_t mWidth, mHeight;
     OMX_COLOR_FORMATTYPE mImageFormat;
     int mFramerate;
