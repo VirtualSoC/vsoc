@@ -126,14 +126,14 @@ static AVFormatContext* open_camera(CameraProp *prop) {
         sprintf(rtbufsize_str, "%d", prop->width * prop->height * 2);
         av_dict_set(&options, "video_size", frame_size_str, 0);
         av_dict_set(&options, "rtbufsize", rtbufsize_str, 0);
-    }
-    else {
-        sprintf(frame_size_str, "%dx%d", DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT);
-        av_dict_set(&options, "video_size", frame_size_str, 0);
         av_dict_set(&options, "fflags", "nobuffer", 0);
         av_dict_set(&options, "preset", "ultrafast", 0);
         av_dict_set(&options, "max_delay", "0", 0);
         av_dict_set(&options, "tune", "zerolatency", 0);
+    }
+    else {
+        sprintf(frame_size_str, "%dx%d", DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT);
+        av_dict_set(&options, "video_size", frame_size_str, 0);
     }
 
     sprintf(framerate_str, "%d", MAX_CAPTURE_FPS);
