@@ -1,4 +1,4 @@
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 
 // todo: do not uncomment the following line as it is unusable for now.
 // #define STD_DEBUG_INDEPENDENT_WINDOW
@@ -302,11 +302,6 @@ static int setup_encoder(DCodecVideo *context) {
     }
     mCtx->codec = codec;
     mCtx->pix_fmt = AV_PIX_FMT_YUV420P;
-
-    if (context->mIsLowLatency && mCtx->width <= MAX_SW_VIDEO_DIMENSION && mCtx->height <= MAX_SW_VIDEO_DIMENSION) {
-        // CPU decoding is faster when the video is small
-        return ERR_OK;
-    }
 
     // use the hw device
     for (int i = 0;; i++) {
