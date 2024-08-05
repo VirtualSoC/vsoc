@@ -636,7 +636,7 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
     LOGD("sws_scale frame_width=%d frame_height=%d ctx_width=%d ctx_height=%d mIsAdaptive=%d src_format=%s tgt_format=%s",
         mFrame->width, mFrame->height, context->mWidth, context->mHeight, context->mIsAdaptive, av_get_pix_fmt_name(mFrame->format), av_get_pix_fmt_name(avdstfmt));
 
-    sws_scale(g_sws_ctx, mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
+    sws_scale(g_sws_ctx, (const uint8_t * const*)mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
 
     if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
         BufferDesc *desc = (BufferDesc *)task->dst_data;

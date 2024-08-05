@@ -581,7 +581,7 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
             return ERR_SWS_FAILED;
         }
 
-        sws_scale(g_sws_ctx, data, linesize, 0, mFrame->height, mFrame->data, mFrame->linesize);
+        sws_scale(g_sws_ctx, (const uint8_t * const*)data, linesize, 0, mFrame->height, mFrame->data, mFrame->linesize);
 
         mFrame->pts = desc->nTimeStamp;
     }
