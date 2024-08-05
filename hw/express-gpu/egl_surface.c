@@ -525,46 +525,37 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)t_context;
     Process_Context *process_context = thread_context->process_context;
-
     Opengl_Context *opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
-    if (opengl_context == NULL)
-    {
-        LOGE("error! create gbuffer with null context");
-        return NULL;
-    }
 
-    if (opengl_context != thread_context->opengl_context)
-    {
-        // 假如现在opengl不对
-        LOGI("create gbuffer with different context!");
-        if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-        {
-            glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+    if (thread_context->opengl_context == NULL) {
+        if (opengl_context == NULL) {
+            LOGE("error! create gbuffer with invalid gl context %p", ctx);
+            return NULL;
         }
-        else
-        {
-            egl_makeCurrent(opengl_context->window);
+        else {
+            LOGI("no current thread context, create gbuffer using supplied context %p", opengl_context);
+            if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
+            {
+                glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
+            }
+            else
+            {
+                egl_makeCurrent(opengl_context->window);
+            }
         }
     }
 
     Graphic_Buffer *gbuffer = create_gbuffer_from_hal(width, height, hal_format, NULL, gbuffer_id);
 
-    if (opengl_context != thread_context->opengl_context)
+    if (thread_context->opengl_context == NULL)
     {
-        if (thread_context->opengl_context == NULL)
+        if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
         {
-            egl_makeCurrent(NULL);
+            glfwMakeContextCurrent(NULL);
         }
         else
         {
-            if (thread_context->opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-            {
-                glfwMakeContextCurrent((GLFWwindow *)NULL);
-            }
-            else
-            {
-                egl_makeCurrent(NULL);
-            }
+            egl_makeCurrent(NULL);
         }
     }
 
@@ -1101,10 +1092,12 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
         if (gbuffer == NULL)
         {
-            LOGI("create image with gbuffer id %llx width %d height %d format %d process_context %llx", gbuffer_id, width, height, hal_format, (uint64_t)process_context);
+            LOGI("create image with gbuffer id %" PRIx64 " width %d height %d format %d process_context %" PRIx64, gbuffer_id, width, height, hal_format, (uint64_t)process_context);
             gbuffer = create_gbuffer_with_context(width, height, hal_format, thread_context, ctx, gbuffer_id);
 
-            add_gbuffer_to_global(gbuffer);
+            if (gbuffer != NULL) {
+                add_gbuffer_to_global(gbuffer);
+            }
         }
     }
     else
@@ -1158,7 +1151,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         // texture类型的gbuffer不需要放到global表中，因为这个image只能在自己进程内共享
         g_hash_table_insert(process_context->gbuffer_map, (gpointer)(gbuffer_id), (gpointer)gbuffer);
     }
-    express_printf("createImage gbuffer %llx target %x ptr %llx\n", gbuffer_id, target, gbuffer);
+    express_printf("eglcreateImage gbuffer %llx target %x ptr %llx\n", gbuffer_id, target, gbuffer);
 
     return 1;
 }
