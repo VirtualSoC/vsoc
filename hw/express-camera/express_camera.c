@@ -453,7 +453,10 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
         if (need_free) {
             g_free(params);
         }
-        if (camera_context->status == CAMERA_STATUS_IDLE)
+        if (camera_context->pixel_format == 0) {
+            LOGE("error! cannot start stream when camera format is unknown");
+        }
+        else if (camera_context->status == CAMERA_STATUS_IDLE)
         {
             LOGI("camera id %d start stream", camera_id);
             qemu_thread_create(&camera_context->stream_thread, "camera_capturing_thread", camera_capturing_thread, camera_context, QEMU_THREAD_JOINABLE);
