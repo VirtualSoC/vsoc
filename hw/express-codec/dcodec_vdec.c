@@ -1,3 +1,10 @@
+/**
+ * vSoC video decoder device
+ * 
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
+ * Copyright (c) 2023 Zijie Zhou <zijiezhou017@outlook.com>
+ */
+
 // #define STD_DEBUG_LOG
 
 // todo: do not uncomment the following line as it is unusable for now.

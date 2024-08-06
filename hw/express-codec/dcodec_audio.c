@@ -1,3 +1,9 @@
+/**
+ * vSoC audio codec device
+ * 
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
+ */
+
 // #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-codec/dcodec_audio.h"

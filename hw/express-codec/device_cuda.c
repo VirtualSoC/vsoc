@@ -1,3 +1,9 @@
+/**
+ * vSoC video codec support for NVIDIA GPUs
+ * 
+ * Copyright (c) 2024 Jiaxing Qiu <jx.qiu@outlook.com>
+ */
+
 // #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-codec/device_cuda.h"

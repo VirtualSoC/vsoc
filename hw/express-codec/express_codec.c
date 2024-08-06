@@ -1,3 +1,9 @@
+/**
+ * vSoC video codec instance
+ * 
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
+ */
+
 // #define STD_DEBUG_LOG
 
 #include <unistd.h>

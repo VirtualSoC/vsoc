@@ -1,3 +1,10 @@
+/**
+ * vSoC shared memory support
+ * 
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
+ */
+
+
 // #define STD_DEBUG_LOG
 #define MAX_MEM_WORKER_THREADS 4
 #include "hw/teleport-express/express_log.h"

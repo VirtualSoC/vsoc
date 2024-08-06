@@ -1,3 +1,10 @@
+/**
+ * vSoC codec device base component
+ * 
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
+ */
+
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <inttypes.h>

@@ -1,12 +1,8 @@
 /**
- * @file express_camera.c
- * @author Chengen Huang 
- * @brief
- * @version 0.1
- * @date 2023-05-01
- *
- * @copyright Copyright (c) 2023
- *
+ * vSoC camera device
+ * 
+ * Copyright (c) 2023 Chengen Huang <diandian86@gmail.com>
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
  */
 
 // #define STD_DEBUG_LOG

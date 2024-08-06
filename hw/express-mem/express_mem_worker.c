@@ -1,8 +1,11 @@
 /**
  * express-mem worker thread
+ * 
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
+ * 
  * dma memory transfer is mostly delegated to mem worker threads
  * to avoid blocking on device threads
-*/
+ */
 
 #define STD_DEBUG_LOG
 #include "hw/express-mem/express_mem.h"
