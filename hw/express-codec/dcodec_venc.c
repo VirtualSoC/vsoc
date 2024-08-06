@@ -291,9 +291,9 @@ OMX_ERRORTYPE dcodec_venc_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
  */
 static int setup_encoder(DCodecVideo *context) {
     AVCodecContext *mCtx = context->base.mCtx;
-    AVCodec *codec = NULL;
     enum AVHWDeviceType device_type = AV_HWDEVICE_TYPE_NONE;
     enum AVPixelFormat hw_pix_fmt = AV_PIX_FMT_NONE;
+    const AVCodec *codec = NULL;
 
     if (mCtx->codec_id == AV_CODEC_ID_H264) {
         // HACK: force nvenc for now. libav SUCKS at finding hw codecs.
@@ -445,7 +445,7 @@ static int open_encoder(DCodecComponent *_context) {
     }
 
     LOGD("open ffmpeg video encoder (%s), src %dx%d pix_fmt %s tgt %dx%d "
-         "pix_fmt %s; low_latency %d bit_rate %d gop_size %d b_frames %d",
+         "pix_fmt %s; low_latency %d bit_rate %" PRId64 " gop_size %d b_frames %d",
          mCtx->codec->name, context->mWidth, context->mHeight,
          av_get_pix_fmt_name(pixel_format_omx_to_av(context->mImageFormat)),
          mCtx->width, mCtx->height, av_get_pix_fmt_name(mCtx->pix_fmt),
@@ -662,7 +662,6 @@ static int parse_pps_sps(DCodecComponent *_context, uint8_t *data, int size) {
 }
 
 static int fill_one_output_buffer(DCodecComponent *_context) {
-    DCodecVideo *context = (DCodecVideo *)_context;
     AVCodecContext *mCtx = _context->mCtx;
     AVPacket *mPkt = _context->mPkt;
     static __thread bool _has_sent_config;

@@ -143,7 +143,7 @@ char *get_now_time(void)
         g_date_time_unref(tz);
     }
 
-    if (!time_zone) return "";
+    if (!time_zone) return (char *)"";
     gint64 t_int = g_get_real_time();
     GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_int / 1000000);
 
@@ -176,9 +176,7 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
     unsigned long fun_id = GET_FUN_ID(call->id);
     unsigned long process_id = call->process_id;
     unsigned long thread_id = call->thread_id;
-    // unsigned long process_id=call->process_id;
 
-    static uint64_t count = 0;
     if (fun_id == 1)
     {
         gint64 t_int = g_get_real_time();

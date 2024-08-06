@@ -32,7 +32,7 @@ static void send_device_prop_to_guest(Express_Device_Info *device_info, Teleport
     int para_num = get_para_from_call(call, paras, 10);
     if (unlikely(para_num != 1 || paras[0].data_len < device_info->static_prop_size))
     {
-        printf("error! get_device_prop get %d para_num id %llx data_len %d prop_size %d\n", para_num, GET_FUN_ID(call->id), (int)paras[0].data_len, device_info->static_prop_size);
+        printf("error! get_device_prop get %d para_num id %u data_len %d prop_size %d\n", para_num, GET_FUN_ID(call->id), (int)paras[0].data_len, device_info->static_prop_size);
         return;
     }
 

@@ -310,11 +310,10 @@ OMX_ERRORTYPE dcodec_vdec_set_parameter(DCodecComponent *_context, OMX_IN OMX_IN
  */
 static int setup_decoder(DCodecVideo *context) {
     AVCodecContext *mCtx = context->base.mCtx;
-    AVCodec *codec = NULL;
     enum AVHWDeviceType device_type = AV_HWDEVICE_TYPE_NONE;
     enum AVPixelFormat hw_pix_fmt = AV_PIX_FMT_NONE;
+    const AVCodec *codec = avcodec_find_decoder(mCtx->codec_id);
 
-    codec = avcodec_find_decoder(mCtx->codec_id);
     mCtx->codec = codec;
 
     if (context->mIsLowLatency && mCtx->width <= MAX_SW_VIDEO_DIMENSION && mCtx->height <= MAX_SW_VIDEO_DIMENSION) {

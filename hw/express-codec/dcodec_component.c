@@ -242,7 +242,7 @@ void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 
     while (true) {
         read_from_guest_mem(context->dma_buf, header, 0, 3 * sizeof(int));
         if (header[0] != sizeof(CodecDMABuffer)) {
-            LOGE("error! dma buffer size does not match! host %d guest %d", sizeof(CodecDMABuffer), header[0]);
+            LOGE("error! dma buffer size does not match! host %llu guest %d", sizeof(CodecDMABuffer), header[0]);
             g_mutex_unlock(&context->dma_buf_mutex);
             return;
         }

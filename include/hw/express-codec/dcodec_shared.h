@@ -9,11 +9,11 @@
 #ifndef CHECK
 #define CHECK(e) if (!(e)) LOGE("CHECK(0x%x) failed!", (e));
 #define CHECK_ZERO(e) if (e) LOGE("CHECK_ZERO(0x%x) failed!", (e));
-#define CHECK_EQ(a, b) if ((a) != (b)) LOGE("CHECK_EQ(0x%x, 0x%x) failed!", (a), (b));
-#define CHECK_LT(a, b) if ((a) >= (b)) LOGE("CHECK_LT(0x%x, 0x%x) failed!", (a), (b));
-#define CHECK_LE(a, b) if ((a) > (b)) LOGE("CHECK_LE(0x%x, 0x%x) failed!", (a), (b));
-#define CHECK_GT(a, b) if ((a) <= (b)) LOGE("CHECK_GT(0x%x, 0x%x) failed!", (a), (b));
-#define CHECK_GE(a, b) if ((a) < (b)) LOGE("CHECK_GE(0x%x, 0x%x) failed!", (a), (b));
+#define CHECK_EQ(a, b) if ((a) != (b)) LOGE("CHECK_EQ(0x%" PRIx64 ", 0x%" PRIx64 ") failed!", (int64_t)(a), (int64_t)(b));
+#define CHECK_LT(a, b) if ((a) >= (b)) LOGE("CHECK_LT(0x%" PRIx64 ", 0x%" PRIx64 ") failed!", (int64_t)(a), (int64_t)(b));
+#define CHECK_LE(a, b) if ((a) > (b)) LOGE("CHECK_LE(0x%" PRIx64 ", 0x%" PRIx64 ") failed!", (int64_t)(a), (int64_t)(b));
+#define CHECK_GT(a, b) if ((a) <= (b)) LOGE("CHECK_GT(0x%" PRIx64 ", 0x%" PRIx64 ") failed!", (int64_t)(a), (int64_t)(b));
+#define CHECK_GE(a, b) if ((a) < (b)) LOGE("CHECK_GE(0x%" PRIx64 ", 0x%" PRIx64 ") failed!", (int64_t)(a), (int64_t)(b));
 #endif
 
 // function ids

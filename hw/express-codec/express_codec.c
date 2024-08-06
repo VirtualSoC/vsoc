@@ -51,7 +51,7 @@ static void dcodec_master_switch(struct Thread_Context *_context,
                DCODEC_ID_MAPPING[GET_FUN_ID(call->id)], para_num);
     }
     else {
-        LOGE("unique id %" PRId64 ": error! codec function id %" PRId64 " not recognized!", call->unique_id, GET_FUN_ID(call->id));
+        LOGE("unique id %" PRId64 ": error! codec function id %d not recognized!", call->unique_id, GET_FUN_ID(call->id));
         return;
     }
 
