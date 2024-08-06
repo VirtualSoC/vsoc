@@ -51,8 +51,6 @@ typedef struct Static_Context_Values
     GLint max_vertex_uniform_blocks;
     GLint min_program_texel_offset;
     GLint num_program_binary_formats;
-    //     GLint samples;
-    //     GLint sample_buffers;
     //____________ QUERY HOST ___________
     GLint subpixel_bits;
     GLint num_compressed_texture_formats;
@@ -109,7 +107,6 @@ typedef struct Static_Context_Values
     GLint max_depth_texture_samples;
     GLint max_integer_samples;
     GLint max_vertex_attrib_relative_offset;
-    // GLint max_vertex_attrib_bindings;
     GLint max_vertex_attrib_stride;
     GLint max_vertex_texture_image_units;
     GLint max_vertex_uniform_components;
@@ -120,13 +117,9 @@ typedef struct Static_Context_Values
     GLint uniform_buffer_offset_alignment;
     GLint max_texture_anisotropy;
 
-    // GLint max_atomic_counter_buffer_bindings;
-    // GLint max_shader_storage_buffer_bindings;
     GLint num_shader_binary_formats;
     GLint program_binary_formats[8];
     GLint shader_binary_formats[8];
-    // GLint uniform_buffer_offset_alignment;
-    // GLint shader_storage_buffer_offset_alignment;
 
     // geometry shaders
     GLenum layer_provoking_vertex;

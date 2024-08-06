@@ -58,11 +58,6 @@ bool express_gpu_open_shader_binary = true;
 
 QemuThread native_window_render_thread;
 
-// static unsigned int main_frame_num = 0;
-
-// static int event_queue_lock;
-// static GQueue *sync_event_queue;
-
 static GHashTable *gbuffer_global_map = NULL;
 static GHashTable *gbuffer_global_types = NULL;
 
@@ -76,16 +71,6 @@ static gint64 last_calc_time = 0;
 
 static QemuThread device_interface_thread;
 
-// #ifdef ENABLE_STATIC_WINDOW_REFRESH
-// static gint64 frame_start_time = 0;
-// static gint64 remain_sleep_time = 0;
-// #else
-// static int has_painted = 0;
-// static int size_has_change = 0;
-// #endif
-
-// static gint64 gen_frame_time_avg_1s = 0;
-
 #define EVENT_QUEUE_LOCK                                    \
     while (qatomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
         ;
@@ -93,8 +78,6 @@ static QemuThread device_interface_thread;
 #define EVENT_QUEUE_UNLOCK qatomic_cmpxchg(&(event_queue_lock), 1, 0);
 
 static GLFWwindow *glfw_window = NULL;
-
-// void *dummy_window_for_sync = NULL;
 
 static GLuint programID = 0;
 static GLuint drawVAO = 0;
@@ -147,13 +130,6 @@ static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.20";
 static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.0";
 #endif
 
-
-// google device info
-//  static const GLubyte GPU_VENDOR[] = "Google (";
-//  static const GLubyte GPU_VERSION[] = "OpenGL ES 3.0 (";
-//  static const GLubyte GPU_RENDERER[] = "Android Emulator OpenGL ES Translator (";
-//  static const GLubyte GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
-
 static const int OPENGL_MAJOR_VERSION = 3;
 #ifdef _WIN32
 static const int OPENGL_MINOR_VERSION = 2;
@@ -175,7 +151,7 @@ static const char *SPECIAL_EXTENSIONS[] = {
         /*10*/ "GL_OES_depth_texture",
         /*11*/ "GL_OES_EGL_image_external_essl3",
         /*12*/ "GL_KHR_texture_compression_astc_ldr",
-        /*13*/ "GL_KHR_texture_compression_astc_hdr",
+        // /*13*/ "GL_KHR_texture_compression_astc_hdr",
         /*14*/ "GL_OES_vertex_array_object",
         // /*14*/ "GL_EXT_shader_framebuffer_fetch",   //这个暂时看情况支持，webview用它来混合，会着色器中使用变量gl_LastFragData
         /*16*/ "GL_EXT_color_buffer_float",
@@ -247,77 +223,10 @@ static const char *SPECIAL_EXTENSIONS[] = {
         "GL_OES_texture_buffer",
         "GL_OES_texture_cube_map_array", // -> GL_ARB_texture_cube_map_array
         "GL_OES_surfaceless_context", // -> EGL_KHR_surfaceless_context
-
-        // "GL_EXT_EGL_image_external_wrap_modes",
-        // "GL_EXT_debug_marker",
-        // "GL_EXT_discard_framebuffer",
-        // "GL_EXT_draw_buffers",
-        // "GL_EXT_float_blend",
-        // "GL_EXT_frag_depth",
-        // "GL_EXT_instanced_arrays",
-        // "GL_EXT_multi_draw_indirect",
-        // /*15*/ "GL_EXT_multisampled_render_to_texture",  // 这个暂时不能有，因为它需要支持相关函数 这个具体涉及到glFramebufferTexture2DMultisampleEXT函数，这个函数是tile-based GPU使用TBDR渲染特有的，用来节省带宽，IMR模式的PC上没有，所以没法启用。glFramebufferTexture2DMultisampleEXT这个函数被PUBG在抗锯齿时用到了
-        // "GL_EXT_occlusion_query_boolean",
-        // "GL_EXT_read_format_bgra",
-        // "GL_EXT_sRGB",
-        // "GL_EXT_shader_texture_bptc",
-        // "GL_EXT_shader_texture_dxt1",
-        // "GL_EXT_shader_texture_rgtc",
-        // "GL_EXT_shader_texture_s3tc",
-        // "GL_EXT_shader_texture_s3tc_srgb",
-        // "GL_EXT_texture_filter_anisotropic",
-        // /*40*/ "GL_EXT_texture_format_BGRA8888", // pc很可能是不支持的
-        // "GL_EXT_texture_rg",
-        // "GL_EXT_texture_storage",
-        // "GL_OES_compressed_EAC_R11_signed_texture",
-        // "GL_OES_compressed_EAC_R11_unsigned_texture",
-        // "GL_OES_compressed_EAC_RG11_signed_texture",
-        // "GL_OES_compressed_EAC_RG11_unsigned_texture",
-        // "GL_OES_compressed_ETC2_RGB8_texture",
-        // "GL_OES_compressed_ETC2_RGBA8_texture",
-        // "GL_OES_compressed_ETC2_punchthroughA_RGBA8_texture",
-        // "GL_OES_compressed_ETC2_punchthroughA_sRGB8_alpha_texture",
-        // "GL_OES_compressed_ETC2_sRGB8_alpha8_texture",
-        // "GL_OES_compressed_ETC2_sRGB8_texture",
-        // "GL_OES_depth_texture_cube_map",
-        // "GL_OES_texture_3D",
 };
-static const int SPECIAL_EXTENSIONS_SIZE = 74;
-
-// 支持这些扩展需要添加一些函数，所以暂时先不支持——因为有些扩展会被全平台的skia识别而使用，但是这些函数实际为空所以会发生错误
-//  static const GLubyte *NOT_SUPPORT_EXTENSIONS[] =
-//      {
-//          //gl
-//          /* 1*/ "GL_NV_texture_barrier",          // and gles
-//          /* 2*/ "GL_KHR_blend_equation_advanced", // and gles
-//          /* 3*/ "GL_NV_blend_equation_advanced",  // and gles
-//          /* 4*/ "GL_ARB_clear_texture",
-//          /* 5*/ "GL_ARB_draw_indirect",
-//          /* 6*/ "GL_ARB_timer_query",
-//          /* 7*/ "GL_EXT_timer_query",
-//          /* 8*/ "GL_ARB_multi_draw_indirect",
-//          /* 9*/ "GL_NV_path_rendering",            // and gles
-//          /*10*/ "GL_NV_framebuffer_mixed_samples", // and gles
-//          /*11*/ "GL_EXT_debug_marker",             //and gles
-//          /*12*/ "GL_ARB_invalidate_subdata",
-//          /*13*/ "GL_KHR_debug",             // and gles
-//          /*14*/ "GL_EXT_window_rectangles", // and gles
-
-//         //gles
-//         /*15*/ "GL_EXT_blend_func_extended",
-//         /*16*/ "GL_EXT_clear_texture",
-//         /*17*/ "GL_EXT_multi_draw_indirect",
-//         /*18*/ "GL_OES_texture_buffer",
-//         /*19*/ "GL_EXT_texture_buffer",
-//         /*20*/ "GL_CHROMIUM_map_sub",
-//         /*21*/ "GL_CHROMIUM_path_rendering",
-//         /*22*/ "GL_CHROMIUM_framebuffer_mixed_samples",
-//         /*23*/ "GL_CHROMIUM_bind_uniform_location"};
-// static const int NOT_SUPPORT_EXTENSION_SIZE = 23;
+static const int SPECIAL_EXTENSIONS_SIZE = 73;
 
 static void *native_window_create(int context_flags);
-
-// static void g_queue_event_notify(gpointer data, gpointer user_data);
 
 static Notifier shutdown_notifier;
 
@@ -331,7 +240,6 @@ static void close_window_callback(GLFWwindow *window)
 {
     gint64 now_time = g_get_real_time();
 
-    // LOGI("shutdown time %lld",now_time);
     glfwSetWindowShouldClose(window, GLFW_FALSE);
     if (now_time - last_click_time < 500000)
     {
@@ -349,20 +257,16 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
     LOGI("notify shutdown! %lld", g_get_real_time());
 
     ATOMIC_UNLOCK(main_window_event_queue_lock);
-    // ATOMIC_UNLOCK(compose_surface_lock);
-    // set_compose_surface(NULL, NULL);
     main_display_gbuffer = NULL;
     teleport_express_should_stop = true;
     device_interface_run = 0;
 
-    // glfwTerminate();
     if (native_render_run == 2)
     {
         native_render_run = -1;
         int wait_cnt = 0;
         while (native_render_run == -1 && wait_cnt < 200)
         {
-            // LOGI("wait thread close ");
             g_usleep(5000);
             wait_cnt++;
         }
@@ -370,14 +274,11 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
         {
             LOGI("wait time too long!");
         }
-
-        // LOGI("wait thread close done %d",native_render_run);
     }
 }
 
 void window_size_change_callback(GLFWwindow *window, int width, int height)
 {
-    //printf("width and height %d %d\n",width,height);
     window_need_refresh = true;
 
     // macos retina screen handling
@@ -421,7 +322,6 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
             main_display_content_y = 0;
             main_display_content_width = window_width;
             main_display_content_height = window_height;
-            //express_printf("set window size %d %d keep scale\n", window_width, window_height);
 
             glfwSetWindowSize(window, window_width / xscale, window_height / yscale);
         }
@@ -465,7 +365,6 @@ static int try_destroy_gbuffer(void *data)
     if (main_display_gbuffer == gbuffer)
     {
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
-        // main_display_gbuffer = NULL;
         return 0;
     }
 
@@ -502,8 +401,6 @@ static void handle_child_window_event(void)
         {
         case MAIN_PAINT:
         {
-            // Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
-            // main_display_gbuffer = gbuffer;
             window_need_refresh = true;
         }
         break;
@@ -662,15 +559,6 @@ static void static_value_prepare(void)
         preload_static_context_value->compressed_texture_formats[preload_static_context_value->num_compressed_texture_formats - 1] = GL_ETC1_RGB8_OES;
     }
 
-    // for(int i = 0; i<preload_static_context_value->num_compressed_texture_formats && i<128;i++)
-    // {
-    //     LOGI("support compress texture%d %x ",i, preload_static_context_value->compressed_texture_formats[i]);
-    // }
-    // LOGI("binary formats num %d eg %d shader formats num %d eg %d",preload_static_context_value->num_program_binary_formats,
-    //     preload_static_context_value->program_binary_formats[0],
-    //     preload_static_context_value->num_shader_binary_formats,
-    //     preload_static_context_value->shader_binary_formats[0]);
-
     //@todo 增加换硬件后暂时移除binary的功能
     if (!express_gpu_open_shader_binary)
     {
@@ -701,10 +589,6 @@ static void static_value_prepare(void)
 
     memcpy(temp_loc, GPU_VENDOR, sizeof(GPU_VENDOR) - 1);
     temp_loc += sizeof(GPU_VENDOR) - 1;
-    // memcpy(temp_loc, gl_string, strlen(gl_string));
-    // temp_loc += strlen(gl_string);
-    // *temp_loc = ')';
-    // temp_loc++;
     *temp_loc = 0;
     temp_loc++;
     LOGI("gl vendor:%s", (char *)gl_string);
@@ -739,10 +623,6 @@ static void static_value_prepare(void)
 
     memcpy(temp_loc, GPU_RENDERER, sizeof(GPU_RENDERER) - 1);
     temp_loc += sizeof(GPU_RENDERER) - 1;
-    // memcpy(temp_loc, gl_string, strlen(gl_string));
-    // temp_loc += strlen(gl_string);
-    // *temp_loc = ')';
-    // temp_loc++;
     *temp_loc = 0;
     temp_loc++;
     LOGI("gl renderer:%s", (char *)gl_string);
@@ -756,10 +636,8 @@ static void static_value_prepare(void)
 
     char *extensions_start = temp_loc;
 
-    // int no_need_extensions_cnt = 0;
     int num_extensions = preload_static_context_value->num_extensions;
 
-    // num_extensions = 0;
     // 目前暂时只设定固定的扩展支持
 
     int start_loc = 0;
@@ -778,34 +656,6 @@ static void static_value_prepare(void)
         {
             has_dsa = 1;
         }
-
-        // if(i >= 512 - SPECIAL_EXTENSIONS_SIZE + no_need_extensions_cnt)
-        // {
-        //     continue;
-        // }
-
-        // int no_need_flag = 0;
-        // for (int j = 0; j < NOT_SUPPORT_EXTENSION_SIZE; j++)
-        // {
-        //     if (strstr(gl_string, NOT_SUPPORT_EXTENSIONS[j]) != NULL)
-        //     {
-        //         no_need_flag = 1;
-        //         break;
-        //     }
-        // }
-        // if (no_need_flag == 1)
-        // {
-        //     no_need_extensions_cnt += 1;
-        //     continue;
-        // }
-
-        // preload_static_context_value->extensions[i - start_loc - no_need_extensions_cnt] = (unsigned long long)(temp_loc - string_loc);
-
-        // memcpy(temp_loc, gl_string, strlen(gl_string));
-        // temp_loc += strlen(gl_string);
-        // *temp_loc = 0;
-        // LOGI("%d %s", i, temp_loc - strlen(gl_string));
-        // temp_loc++;
     }
 
     if (has_dsa == 0)
@@ -814,8 +664,6 @@ static void static_value_prepare(void)
     }
 
     LOGI("host gl %d DSA_enable %d", host_opengl_version, DSA_enable);
-
-    // num_extensions -= no_need_extensions_cnt;
 
     for (int i = 0; i < SPECIAL_EXTENSIONS_SIZE; i++)
     {
@@ -871,9 +719,6 @@ static void opengl_paint_composer_gbuffer(void)
     {
         display_width = gbuffer->width;
         display_height = gbuffer->height;
-        // real_window_width = window_width;
-        // real_window_height = window_height;
-        // glViewport(0, 0, window_width, window_height);
     }
 
     glClear(GL_COLOR_BUFFER_BIT);
@@ -885,11 +730,6 @@ static void opengl_paint_composer_gbuffer(void)
     opengl_paint_gbuffer(gbuffer);
 
     ATOMIC_UNLOCK(gbuffer->is_lock);
-
-    // int64_t now_time = g_get_real_time();
-    // static int64_t last_display_time = 0;
-    // LOGI("paint %llx time %lld gap %lld", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
-    // last_display_time = now_time;
 
     glFlush();
 }
@@ -903,9 +743,7 @@ void opengl_paint_gbuffer(Graphic_Buffer *gbuffer)
 {
     if (gbuffer != NULL)
     {
-        // LOGI("opengl_paint gbuffer %llx texture %d", gbuffer->gbuffer_id, gbuffer->data_texture);
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
-        // LOGI("paint texture %d",gbuffer->data_texture);
 
         if (gbuffer->is_writing != 0)
         {
@@ -982,28 +820,11 @@ static void *native_window_create(int context_flags)
  */
 void *native_window_thread(void *opaque)
 {
-    // VirtIODevice *vdev = opaque;
-    // Teleport_Express *e = TELEPORT_EXPRESS(vdev);
-
     // 通过这个方式获取hwnd要求必须使用SDL接口创建界面
     QemuConsole *con = NULL;
-    // while ((con = qemu_console_lookup_by_index(0)) == NULL)
-    // {
-    //     //理论上启动这个线程时，主窗口的hwnd肯定是有了，所以不会进到这个等待循环内
-    //     g_usleep(10000);
-    //     express_printf("con is NULL\n");
-    // }
-
     input_receive_con = con;
 
-    // sync_event_queue = g_queue_new();
-
     main_window_event_queue = g_async_queue_new();
-
-    // HWND render_hwnd = (HWND)qemu_console_get_window_id(con);
-    // RECT rcParent;
-
-    // GetClientRect(render_hwnd, &rcParent);
 
     // 初始化glfw
     THREAD_CONTROL_BEGIN
@@ -1137,16 +958,6 @@ void *native_window_thread(void *opaque)
 
     LOGI("native windows create!\n");
 
-    // if (VSYNC_enable == 0)
-    // {
-    //     glfwSwapInterval(0);
-    // }
-    // else
-    // {
-    //     glfwSwapInterval(1);
-    // }
-
-    // int a = 1;
     // glViewport(0, 0, window_width, window_height);
     // 因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
     glDisable(GL_DEPTH_TEST);
@@ -1303,7 +1114,6 @@ void *native_window_thread(void *opaque)
 
     // 当他返回0时表示窗口被关掉了
     native_render_run = 0;
-    // qemu_thread_join(&t);
     return NULL;
 }
 
@@ -1318,10 +1128,6 @@ Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);
     Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(gbuffer_global_map, (gpointer)(gbuffer_id));
-    // if (gbuffer != NULL)
-    // {
-    //     gbuffer->remain_life_time = (gbuffer->usage_type == GBUFFER_TYPE_BITMAP ? MAX_BITMAP_LIFE_TIME : MAX_WINDOW_LIFE_TIME);
-    // }
     ATOMIC_UNLOCK(gbuffer_global_map_lock);
 
     return gbuffer;

@@ -419,18 +419,6 @@ void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsize
 {
     Opengl_Context *real_opengl_context = (Opengl_Context *)context;
 
-    // if(width < real_opengl_context->view_w && height < real_opengl_context->view_h)
-    // {
-    //     real_opengl_context->view_x = x;
-    //     real_opengl_context->view_y = real_opengl_context->view_h - height;
-    //     real_opengl_context->view_w = width;
-    //     real_opengl_context->view_h = height;
-    //     glViewport(x, real_opengl_context->view_h - height, width, height);
-    //     LOGI("context %llx glViewport change y %d w %d h %d", (uint64_t)context, real_opengl_context->view_y, width, height);
-
-    //     return;
-    // }
-
     real_opengl_context->view_x = x;
     real_opengl_context->view_y = y;
     real_opengl_context->view_w = width;
@@ -660,8 +648,6 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
     {
         if (host_opengl_version < 45 || DSA_enable == 0)
         {
-            // GLuint a = 0;
-            // glGetIntegerv(GL_ACTIVE_TEXTURE, &a);
             // LOGI("context %llx bind texuture %d active %d", (uint64_t)context, texture, a-GL_TEXTURE0);
             glBindTexture(target, texture);
         }
@@ -671,29 +657,8 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
             {
                 glBindTexture(target, texture);
             }
-            // status->guest_current_texture_unit[status->guest_current_active_texture] = texture;
-
-            // if(status->current_texture_unit[status->guest_current_active_texture] != texture)
-            // {
-            //     //相当于ActiveTexture后BindTexture的效果，把纹理绑定到着色器的采样点上
-            //     glBindTextureUnit(status->guest_current_active_texture, texture);
-            //     status->current_texture_unit[status->guest_current_active_texture] = texture;
-            // }
         }
     }
-
-    // if (target == GL_TEXTURE_2D)
-    // {
-    //     opengl_context->current_texture_2D[opengl_context->current_active_texture] = texture;
-    // }
-    // else if(target == GL_TEXTURE_EXTERNAL_OES)
-    // {
-    //     //注意要直接return，不能改变状态
-    //     opengl_context->current_texture_external = texture;
-    //     return;
-    // }
-
-    // glBindTexture(target, texture);
 }
 
 void texture_binding_status_sync(void *context, GLenum target)
@@ -718,8 +683,6 @@ void texture_binding_status_sync(void *context, GLenum target)
     switch (target)
     {
     case GL_TEXTURE_2D:
-        // glGetIntegerv(GL_TEXTURE_BINDING_2D, &temp);
-        // LOGI("sync texture current %d guest %d host %d real host %d",current_active_texture,status->guest_current_texture_2D[current_active_texture], status->host_current_texture_2D[current_active_texture], temp);
         if (status->guest_current_texture_2D[current_active_texture] != status->host_current_texture_2D[current_active_texture])
         {
             status->host_current_texture_2D[current_active_texture] = status->guest_current_texture_2D[current_active_texture];
@@ -830,22 +793,6 @@ void texture_unit_status_sync(void *context, GLint index)
             CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array [i], i);
             CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map_array[i], i);
             CHANGE_TEXTURE_UNIT_WITH_TYPE(status, buffer[i], i);
-
-            // if(status->host_current_texture_unit[i] != status->guest_current_texture_unit[i])
-            // {
-            //     GLuint compare_id = status->guest_current_texture_unit[i];
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D[i],compare_id);
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map[i],compare_id);
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 3D[i],compare_id);
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_array[i],compare_id);
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample[i],compare_id);
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array[i],compare_id);
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map_array[i],compare_id);
-            //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, buffer[i],compare_id);
-
-            //     glBindTextureUnit(i, status->guest_current_texture_unit[i]);
-            //     status->host_current_texture_unit[i] = status->guest_current_texture_unit[i];
-            // }
         }
     }
     else
@@ -858,22 +805,6 @@ void texture_unit_status_sync(void *context, GLint index)
         CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array [index], index);
         CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map_array[index], index);
         CHANGE_TEXTURE_UNIT_WITH_TYPE(status, buffer[index], index);
-
-        // if(status->host_current_texture_unit[index] != status->guest_current_texture_unit[index])
-        // {
-        //     GLuint compare_id = status->guest_current_texture_unit[index];
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D[index],compare_id);
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map[index],compare_id);
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 3D[index],compare_id);
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_array[index],compare_id);
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample[index],compare_id);
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, 2D_multisample_array[index],compare_id);
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, cube_map_array[index],compare_id);
-        //     CHANGE_TEXTURE_UNIT_WITH_TYPE(status, buffer[index],compare_id);
-
-        //     glBindTextureUnit(index, status->guest_current_texture_unit[index]);
-        //     status->host_current_texture_unit[index] = status->guest_current_texture_unit[index];
-        // }
     }
 }
 
@@ -945,8 +876,6 @@ void d_glActiveTexture_special(void *context, GLenum texture)
         // glGetIntegerv(GL_ACTIVE_TEXTURE, &ac);
         // LOGI("context %llx active texture %d tex %u active %d", (uint64_t)context, status->host_current_active_texture, tex, ac-GL_TEXTURE0);
     }
-
-    // glActiveTexture(texture);
 }
 
 void active_texture_sync(void *context)
@@ -964,46 +893,7 @@ void active_texture_sync(void *context)
 
 void d_glPixelStorei_origin(void *context, GLenum pname, GLint param)
 {
-
-    // Pixel_Store_Status *pixel_store = &(((Opengl_Context *)context)->pixel_store_status);
-    // switch (pname)
-    // {
-    // case GL_UNPACK_ALIGNMENT:
-    //     pixel_store->unpack_alignment = param;
-    //     break;
-    // case GL_PACK_ALIGNMENT:
-    //     pixel_store->pack_alignment = param;
-    //     break;
-    // case GL_UNPACK_ROW_LENGTH:
-    //     pixel_store->unpack_row_length = param;
-    //     break;
-    // case GL_UNPACK_IMAGE_HEIGHT:
-    //     pixel_store->unpack_image_height = param;
-    //     break;
-    // case GL_UNPACK_SKIP_PIXELS:
-    //     pixel_store->unpack_skip_pixels = param;
-    //     break;
-    // case GL_UNPACK_SKIP_ROWS:
-    //     pixel_store->unpack_skip_rows = param;
-    //     break;
-    // case GL_UNPACK_SKIP_IMAGES:
-    //     pixel_store->unpack_skip_images = param;
-    //     break;
-    // case GL_PACK_ROW_LENGTH:
-    //     pixel_store->pack_row_length = param;
-    //     break;
-    // case GL_PACK_SKIP_PIXELS:
-    //     pixel_store->pack_skip_pixels = param;
-    //     break;
-    // case GL_PACK_SKIP_ROWS:
-    //     pixel_store->pack_skip_rows = param;
-    //     break;
-    // default:
-    //     return;
-    // }
     glPixelStorei(pname, param);
-    // express_printf("glPixelStorei %x %d\n",pname,param);
-
     return;
 }
 
@@ -1013,12 +903,6 @@ void d_glBindVertexArray_special(void *context, GLuint array)
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-
-    // Buffer_Status *vao_status = g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(array));
-
-    // bound_buffer->buffer_status=vao_status;
-
-    // buffer_binding_status_sync(context, GL_ELEMENT_ARRAY_BUFFER);
 
     GLuint pre_vao = status->guest_vao;
 
@@ -1073,8 +957,6 @@ void vao_binding_status_sync(void *context)
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
 
     Buffer_Status *status = &(bound_buffer->buffer_status);
-
-    // Attrib_Point *point_data = bound_buffer->attrib_point;
 
     if (status->host_vao != status->guest_vao)
     {

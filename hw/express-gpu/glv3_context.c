@@ -265,8 +265,6 @@ void *get_native_opengl_context(int context_flags)
         }
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
-    // context_num++;
-    // LOGI("context_num %d",context_num);
     return native_context;
 }
 
@@ -286,7 +284,6 @@ void release_native_opengl_context(void *native_context, int context_flags)
         native_context_pool_size++;
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
-    // context_num--;
     // LOGI("context_num %d",context_num);
 
     if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
@@ -314,8 +311,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
     opengl_context->is_using_external_program = 0;
     opengl_context->share_context = share_context;
     opengl_context->context_flags = context_flags;
-
-    // opengl_context->bind_image = NULL;
 
     Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
     memset(texture_status, 0, sizeof(Texture_Binding_Status));
@@ -352,15 +347,7 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
 
     texture_status->host_current_texture_buffer = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
-    // texture_status->guest_current_texture_unit = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    // memset(texture_status->guest_current_texture_unit, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-
-    // texture_status->host_current_texture_unit = g_malloc(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-    // memset(texture_status->host_current_texture_unit, 0, sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
-
     texture_status->texture_unit_num = preload_static_context_value->max_combined_texture_image_units;
-
-    // opengl_context->current_target = GL_TEXTURE_2D;
 
     opengl_context->view_x = 0;
     opengl_context->view_y = 0;
@@ -369,17 +356,12 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
 
     //要在opengl_context里创建window，因为opengl环境保存在window里
     // #ifdef USE_GLFW_AS_WGL
-    // send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(opengl_context->window));
     opengl_context->window = get_native_opengl_context(context_flags);
 
     if (opengl_context->window == NULL)
     {
         LOGE("error! opengl context window create failed! context %p context flags %d", opengl_context, context_flags);
     }
-    // #else
-    // 不能在子线程中创建context，不然会为空
-    //     opengl_context->window = egl_createContext();
-    // #endif
     // LOGI("send message create window opengl context %llx window_ptr %llx", (uint64_t)opengl_context, &(opengl_context->window));
 
     Share_Resources *share_resources = NULL;
@@ -483,33 +465,6 @@ void opengl_context_init(Opengl_Context *context)
 #endif
         //这个非常重要，不然很多游戏非常暗，因为他们用了SRGB纹理
         glEnable(GL_FRAMEBUFFER_SRGB);
-
-        //下面这些都是context复用时，guest端有状态缓存减少调用的状态，context复用时需要进行恢复
-        // 先暂时不恢复，而是以销毁context再重建context的方式实现复用
-        // glActiveTexture(GL_TEXTURE0);
-        // glDisable(GL_CULL_FACE);
-        // glDisable(GL_POLYGON_OFFSET_FILL);
-        // glDisable(GL_SCISSOR_TEST);
-        // glDisable(GL_SAMPLE_COVERAGE);
-        // glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-        // glDisable(GL_STENCIL_TEST);
-        // glDisable(GL_DEPTH_TEST);
-        // glDisable(GL_BLEND);
-        // glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
-        // glDisable(GL_RASTERIZER_DISCARD);
-        // glDisable(GL_DITHER);
-        // glDisable(GL_CULL_FACE);
-        // glDisable(GL_CULL_FACE);
-        // buffer和texture都被销毁了，一定会还原，所以不用管，主要要复原所有全局状态
-
-        // for(int i =0;i<16;i++)
-        // {
-        //     glDisableVertexAttribArray(i);
-        // }
-
-        //放到前面去了
-        //原窗口大小是1*1，所以默认的viewport也是1*1，所以在初始化的时候要手动设置下viewport
-        // glViewport(context->view_x, context->view_y, context->view_w, context->view_h);
     }
 }
 
@@ -543,8 +498,6 @@ void opengl_context_destroy(Opengl_Context *context)
     g_free(texture_status->host_current_texture_cube_map_array);
     g_free(texture_status->guest_current_texture_buffer);
     g_free(texture_status->host_current_texture_buffer);
-    // g_free(texture_status->guest_current_texture_unit);
-    // g_free(texture_status->host_current_texture_unit);
 
     if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
@@ -556,9 +509,7 @@ void opengl_context_destroy(Opengl_Context *context)
     }
 
     //这两个个都有默认的销毁函数
-    // g_hash_table_remove_all(opengl_context->buffer_map);
     g_hash_table_destroy(opengl_context->buffer_map);
-    // g_hash_table_destroy(bound_buffer->vao_status);
     g_hash_table_destroy(bound_buffer->vao_point_data);
 
     if (bound_buffer->has_init == 1)

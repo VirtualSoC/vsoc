@@ -99,12 +99,6 @@ void init_display(Egl_Display **display_point) {
     display->guest_ver_major = 1;
     display->guest_ver_minor = 5;
 
-    // GList *config_list = g_hash_table_get_values(display->egl_config_set);
-    // for (GList *it = config_list; it; it = it->next)
-    // {
-    //     eglConfig *cur_config = (eglConfig *)it->data;
-    //     printf("config value is:%d\n",cur_config->red_size);
-    // }
     display->is_init = true;
 }
 

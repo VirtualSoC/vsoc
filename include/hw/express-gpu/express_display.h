@@ -43,14 +43,9 @@ typedef struct Display_Status
 
 
 #define PARA_NUM_Commit_Composer_Layer 1
-
 #define PARA_NUM_Set_Sync_Flag 1
-
 #define PARA_NUM_Wait_Sync 1
-
-
 #define PARA_NUM_Get_Display_Mods 1
-
 #define PARA_NUM_Set_Display_Status 1
 #define PARA_NUM_Get_Display_Status 1
 

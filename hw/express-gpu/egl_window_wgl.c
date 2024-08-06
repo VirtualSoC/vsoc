@@ -17,14 +17,6 @@ PFN_wglGetPbufferDC wglGetPbufferDC;
 PFN_wglReleasePbufferDC wglReleasePbufferDC;
 PFN_wglDestroyPbuffer wglDestroyPbuffer;
 
-// PFN_wglCreateContext wglCreateContext;
-// PFN_wglDeleteContext wglDeleteContext;
-// PFN_wglGetProcAddress wglGetProcAddress;
-// PFN_wglGetCurrentDC wglGetCurrentDC;
-// PFN_wglGetCurrentContext wglGetCurrentContext;
-// PFN_wglMakeCurrent wglMakeCurrent;
-// PFN_wglShareLists wglShareLists;
-
 PFN_wglGetPixelFormatAttribiv wglGetPixelFormatAttribiv;
 PFN_wglGetPixelFormatAttribfv wglGetPixelFormatAttribfv;
 PFN_wglChoosePixelFormat wglChoosePixelFormat;
@@ -79,11 +71,6 @@ void egl_init(void *dpy, void *father_context)
     LOAD_EGL_FUN(wglGetPbufferDC);
     LOAD_EGL_FUN(wglReleasePbufferDC);
     LOAD_EGL_FUN(wglDestroyPbuffer);
-    // LOAD_EGL_FUN(wglCreateContext);
-    // LOAD_EGL_FUN(wglDeleteContext);
-    // LOAD_EGL_FUN(wglGetCurrentDC);
-    // LOAD_EGL_FUN(wglGetCurrentContext);
-    // LOAD_EGL_FUN(wglShareLists);
     LOAD_EGL_FUN(wglGetPixelFormatAttribiv);
     LOAD_EGL_FUN(wglGetPixelFormatAttribfv);
     LOAD_EGL_FUN(wglChoosePixelFormat);

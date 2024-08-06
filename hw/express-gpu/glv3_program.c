@@ -347,7 +347,6 @@ int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len)
     char *split_k_loc = NULL;
 
     char *vec_loc = NULL;
-    // char* vec_loc2 = NULL;
 
     int now_copy_len = 0;
     int origin_copy_len = 0;
@@ -361,10 +360,8 @@ int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len)
         split_k_loc = strstr(lessThan_loc, ")");
         next_line_loc = strstr(lessThan_loc, ";");
         vec_loc = strstr(lessThan_loc, "vec");
-        // vec_loc2 = strstr(split_line_loc, "vec");
 
         if (vec_loc != NULL && split_line_loc != NULL && next_line_loc != NULL && vec_loc < next_line_loc && vec_loc[4] == '(')
-        // (vec_loc2 == vec_loc || vec_loc2 > next_line_loc || vec_loc2 == NULL) )
         {
             char vec_type = *(vec_loc - 1);
             if (vec_type != 'b' && vec_type != 'i')
@@ -373,26 +370,6 @@ int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len)
             }
 
             //暂时只看第一个参数，不看第二个参数了，因为要给第二个加vec太复杂了
-            // if (vec_loc < split_line_loc)
-            // {
-            //     memcpy(dst + now_copy_len, origin + origin_copy_len, split_line_loc - lessThan_loc - fun_len);
-            //     now_copy_len += split_line_loc - lessThan_loc - fun_len;
-            //     origin_copy_len += split_line_loc - lessThan_loc - fun_len;
-
-            //     dst[now_copy_len] = ',';
-            //     dst[now_copy_len + 1] = vec_type;
-            //     dst[now_copy_len + 2] = 'v';
-            //     dst[now_copy_len + 3] = 'e';
-            //     dst[now_copy_len + 4] = 'c';
-            //     dst[now_copy_len + 5] = vec_loc[3];
-            //     dst[now_copy_len + 6] = '(';
-            //     now_copy_len += 7;
-
-            //     memcpy(dst + now_copy_len, origin + origin_copy_len + 1, next_line_loc - split_line_loc);
-            //     now_copy_len += next_line_loc - split_line_loc;
-            //     origin_copy_len += next_line_loc - split_line_loc;
-
-            // }
             if (vec_loc > split_line_loc && split_k_loc > split_line_loc)
             {
                 dst[now_copy_len + 0] = vec_type;
@@ -591,17 +568,6 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
                 es100_loc[0] = '3';
                 es100_loc[1] = '3';
             }
-            // char *enter_loc = strstr(string[i], "\n");
-            // char *es310_loc = strstr(string[i], "310");
-            // char *es_loc = strstr(string[i], "es");
-            // if(es310_loc != NULL && es310_loc < es_loc && es_loc < enter_loc)
-            // {
-            //     //version是310es，改成430
-            //     es310_loc[0]='4';
-            //     es310_loc[1]='3';
-            //     es_loc[0]=' ';
-            //     es_loc[1]=' ';
-            // }
         }
 
         string_loc = strstr(string[i], "lessThan(");
@@ -721,8 +687,6 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
             loc += sizeof(SHADOW_SAMPLER_EXTENSION) - 1;
         }
 
-        // memcpy(new_string1 + loc, string[0] + origin_loc, length[0] - origin_loc);
-        // loc += length[0] - origin_loc;
         loc += memcpy_with_add_vec(new_string1 + loc, (char *)(string[0] + origin_loc), "lessThan(", length[0] - origin_loc);
         new_string1[loc] = 0;
         length[0] = loc;

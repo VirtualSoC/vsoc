@@ -5,9 +5,6 @@
 #include "hw/express-gpu/express_gpu_render.h"
 #include "hw/express-gpu/express_gpu.h"
 
-// #include "hw/express-gpu/egl_define.h"
-
-
 EGLBoolean d_eglWaitGL(void *context);
 
 EGLBoolean d_eglWaitNative(void *context, EGLint engine);

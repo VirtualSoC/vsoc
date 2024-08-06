@@ -362,8 +362,6 @@ static void display_context_init(Thread_Context *context)
 
         // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
         glDisable(GL_BLEND);
-        // glEnable(GL_BLEND);
-        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         if (express_gpu_gl_debug_enable)
         {
@@ -390,7 +388,6 @@ static void display_context_destroy(Thread_Context *context)
 static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 {
     int display_height = express_display_info.pixel_height;
-    // int display_width = express_display_info.pixel_width;
 
     if (layers != NULL)
     {
@@ -514,11 +511,6 @@ static void display_present(void)
     // 这里直接unlock，不需要一直锁住，是因为只有这个画完了之后，才会赋值到main_display_gbuffer，所以不会被主线程访问到，也就不需要锁住
     // 无论主线程之后会不会继续读取，这里都要直接进行后续的绘制
     ATOMIC_UNLOCK(display_write_gbuffer->is_lock);
-
-    // int64_t now_time = g_get_real_time();
-    // static int64_t last_display_time = 0;
-    // LOGI("display_present %llx time %lld gap %lld", (int64_t)main_display_gbuffer, now_time/1000, (now_time - last_display_time)/1000);
-    // last_display_time = now_time;
 
     static int now_screen_hz = 0;
     static uint64_t last_record_time = 0;

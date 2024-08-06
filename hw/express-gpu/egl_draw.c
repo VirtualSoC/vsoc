@@ -6,96 +6,6 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/express_gpu_render.h"
 
-// void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
-// {
-//     // 忽略一些不是错误的id
-//     if (id == 131169 || id == 131185 || id == 131218 || id == 131204)
-//         return;
-//     if (severity == GL_DEBUG_SEVERITY_LOW || severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-//     {
-//         return;
-//     }
-
-// #ifdef ENABLE_OPENGL_PERFORMANCE_WARNING
-
-// #else
-//     if (type == GL_DEBUG_TYPE_PERFORMANCE)
-//     {
-//         return;
-//     }
-// #endif
-
-//     printf("\ndebug message(%u):%s\n", id, message);
-//     switch (source)
-//     {
-//     case GL_DEBUG_SOURCE_API:
-//         printf("Source: API ");
-//         break;
-//     case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-//         printf("Source: Window System ");
-//         break;
-//     case GL_DEBUG_SOURCE_SHADER_COMPILER:
-//         printf("Source: Shader Compiler ");
-//         break;
-//     case GL_DEBUG_SOURCE_THIRD_PARTY:
-//         printf("Source: Third Party ");
-//         break;
-//     case GL_DEBUG_SOURCE_APPLICATION:
-//         printf("Source: APPLICATION ");
-//         break;
-//     case GL_DEBUG_SOURCE_OTHER:
-//         break;
-//     }
-
-//     switch (type)
-//     {
-//     case GL_DEBUG_TYPE_ERROR:
-//         printf("Type: Error ");
-//         break;
-//     case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-//         printf("Type: Deprecated Behaviour ");
-//         break;
-//     case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-//         printf("Type: Undefined Behaviour ");
-//         break;
-//     case GL_DEBUG_TYPE_PORTABILITY:
-//         printf("Type: Portability ");
-//         break;
-//     case GL_DEBUG_TYPE_PERFORMANCE:
-//         printf("Type: Performance ");
-//         break;
-//     case GL_DEBUG_TYPE_MARKER:
-//         printf("Type: Marker ");
-//         break;
-//     case GL_DEBUG_TYPE_PUSH_GROUP:
-//         printf("Type: Push Group ");
-//         break;
-//     case GL_DEBUG_TYPE_POP_GROUP:
-//         printf("Type: Pop Group ");
-//         break;
-//     case GL_DEBUG_TYPE_OTHER:
-//         printf("Type: Other ");
-//         break;
-//     }
-
-//     switch (severity)
-//     {
-//     case GL_DEBUG_SEVERITY_HIGH:
-//         printf("Severity: high");
-//         break;
-//     case GL_DEBUG_SEVERITY_MEDIUM:
-//         printf("Severity: medium");
-//         break;
-//     case GL_DEBUG_SEVERITY_LOW:
-//         printf("Severity: low");
-//         break;
-//     case GL_DEBUG_SEVERITY_NOTIFICATION:
-//         printf("Severity: notification");
-//         break;
-//     }
-//     printf("\n");
-// }
-
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
@@ -300,11 +210,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         if (real_surface_draw->gbuffer != NULL)
         {
             real_surface_draw->gbuffer->is_writing = 0;
-// #ifdef _WIN32
-//             SetEvent(real_surface_draw->gbuffer->writing_ok_event);
-// #else
-//             set_event(real_surface_draw->gbuffer->writing_ok_event);
-// #endif
         }
 
         real_surface_draw->gbuffer = gbuffer;
@@ -369,8 +274,6 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GUINT_TO_POINTER(surface));
 
-    // express_printf("swapbuffer %lx %lx\n", surface, real_surface);
-
     if (real_surface == NULL)
     {
         return EGL_FALSE;
@@ -405,31 +308,14 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 
     // LOGI("context %llx swapbuffer fbo %d %d gbuffer %llx texture %d", real_opengl_context, real_opengl_context->draw_fbo0, real_opengl_context->read_fbo0, real_surface->gbuffer->gbuffer_id, real_surface->gbuffer->data_texture);
 
-    // GLenum attachments[]={GL_COLOR_ATTACHMENT0,GL_DEPTH_ATTACHMENT,GL_STENCIL_ATTACHMENT,GL_DEPTH_STENCIL_ATTACHMENT};
-    // glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 4, attachments);
-
-    // // LOGI("context swapbuffer %llx draw_fbo0 %d",(uint64_t)real_opengl_context,real_opengl_context->draw_fbo0);
-
     return EGL_TRUE;
 }
-
-// static gboolean gbuffer_printf(gpointer key, gpointer data, gpointer user_data)
-// {
-//     Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
-//     LOGI("%llx-%dx%d-%d ", gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->usage_type);
-//     return true;
-// }
 
 void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     // Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = thread_context->opengl_context;
-
-    // Window_Buffer *draw_surface = thread_context->render_double_buffer_draw;
-
-    // glFlush();
-    // glFinish();
 
     Graphic_Buffer *gbuffer = get_gbuffer_from_global_map((uint64_t)gbuffer_id);
 
@@ -441,18 +327,11 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
         return;
     }
 
-    // 防止卡死，queue之后要主动解锁
-    //  egl_image->is_lock = 0;
-    //  egl_image->host_has_data = 1;
-    //  ATOMIC_UNLOCK(egl_image->display_texture_is_use);
-    //  ATOMIC_SET_UNUSED(egl_image->display_texture_is_use);
-    //ztodo 这一帧被绘制到bufferqueue中
+    // 这一帧被绘制到bufferqueue中
     LOGD("#%llx context queue buffer %" PRIx64 , (uint64_t)opengl_context, gbuffer_id);
 
     if (gbuffer->sampler_num > 1)
     {
-        // LOGI("use sample blit");
-
         if (opengl_context != NULL && opengl_context->enable_scissor == 1)
         {
             glDisable(GL_SCISSOR_TEST);
@@ -471,21 +350,6 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
     }
 
     gbuffer->is_writing = 0;
-
-//     if (temp_sync != 0)
-//     {
-//         glDeleteSync(temp_sync);
-//     }
-
-//     express_printf("gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
-
-//     // glFinish();
-//     glFlush();
-// #ifdef _WIN32
-//     SetEvent(gbuffer->writing_ok_event);
-// #else
-//     set_event(gbuffer->writing_ok_event);
-// #endif
 
     if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
@@ -517,20 +381,11 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         express_printf(RED("real surface is null!"));
         express_printf("surface %lx real %lx dpy %lx invoke_time %lld\n", surface, real_surface, dpy, invoke_time);
         return EGL_FALSE;
-        // Guest_Mem *guest_mem_invoke = (Guest_Mem *)ret_invoke_time;
-        // Guest_Mem *guest_mem_swap = (Guest_Mem *)swap_time;
-        // int64_t a,b;
-        // read_from_guest_mem(guest_mem_invoke, &a, 0, sizeof(EGLint));
-        // read_from_guest_mem(guest_mem_swap, &b, 0, sizeof(EGLint));
-        // express_printf("invoke time %lld swap_time %lld\n",a,b);
     }
 
     express_printf("#%llx swapbuffer real_surface %llx\n", thread_context->opengl_context, real_surface);
 
-    // gint64 start_time = g_get_real_time();
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface, gbuffer_id, width, height, hal_format);
-    // gint64 end_time = g_get_real_time();
-    // gint64 now_swap_time = end_time - start_time;
 
     gint64 now_time = g_get_real_time();
 
@@ -569,17 +424,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
 
     real_surface->frame_start_time = 0;
 
-    // if(real_surface->swap_loc==0){
-    //     express_printf("avg swap time %lld\n",real_surface->swap_time_all/real_surface->swap_time_cnt);
-    // }
-
     gint64 now_avg_swap_time = real_surface->swap_time_all / real_surface->swap_time_cnt;
-
-    // //保证这个swap_time不为0，方便guest判断是否有返回
-    // if (real_surface->swap_time_cnt <= 10)
-    // {
-    //     now_avg_swap_time = -1;
-    // }
 
     if (ret == EGL_TRUE)
     {
@@ -592,12 +437,6 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         Thread_Context *thread_context = (Thread_Context *)context;
         if (thread_context->init != 0)
         {
-            // read_from_guest_mem(guest_mem, &now_flag_cnt, 0, sizeof(EGLint));
-
-            // now_flag_cnt = (now_flag_cnt + 1) % 1024;
-
-            // EGLint swap_time = (EGLint)(real_surface->frame_gen_time);
-            // LOGI("#%llx write now_avg_swap_time %lld", ((Render_Thread_Context *)thread_context)->opengl_context, now_avg_swap_time);
             write_to_guest_mem(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
 
             write_to_guest_mem(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));

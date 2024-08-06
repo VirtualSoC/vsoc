@@ -131,15 +131,11 @@ void egl_destroyContext(void *context)
 
     if (context != NULL)
     {
-        // gint64 t = g_get_real_time();
-        // printf("destroy ");
         EGLContext pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
 
         eglDestroyContext(main_window_display, context);
         eglDestroySurface(main_window_display, pbuffer);
 
         g_hash_table_remove(context_pbuffer_map, (gpointer)context);
-
-        // printf("destroy window %lld\n", g_get_real_time() - t);
     }
 }

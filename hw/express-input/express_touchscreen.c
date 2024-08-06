@@ -62,8 +62,6 @@ int *express_touchscreen_size = (int *)&static_prop;
 static int window_width = 0;
 static int window_height = 0;
 
-// static bool now_finger_used[10];
-
 static int now_finger_xpos = 0;
 static int now_finger_ypos = 0;
 
@@ -110,8 +108,6 @@ inline void release_finger(int f);
  */
 void set_touchscreen_window_size(int max_width, int max_height)
 {
-    // display_width = width;
-    // display_height = height;
     window_width = max_width;
     window_height = max_height;
 }
@@ -164,13 +160,6 @@ bool start_mouse_replay(int index)
             if (now_replay_finger_num[index] == -1)
             {
                 // 前两根指头不能用，留给双指操作，因此最多8根指头同时操作
-                // int use_n = 2;
-                // while (qatomic_cmpxchg(&(now_finger_used[use_n]), false, true) && use_n < MAX_TOUCH_POINT)
-                //     use_n++;
-                // if (use_n >= MAX_TOUCH_POINT)
-                // {
-                //     return false;
-                // }
                 now_replay_finger_num[index] = get_next_avali_finger();
                 if (now_replay_finger_num[index] == -1)
                 {
@@ -180,12 +169,6 @@ bool start_mouse_replay(int index)
             now_replay_cnt[index] = 0;
             finger_is_replay[index] = true;
 
-            // set_express_touchscreen_input(finger_xpos_record[index][0], finger_ypos_record[index][0], 1, now_replay_finger_num[index]);
-            // if (finger_xpos_record[index][1] >= 0)
-            // {
-            //     //让now_cnt对应位置的xpos永远不为-1
-            //     now_replay_cnt[index] = 1;
-            // }
             return true;
         }
         return false;
@@ -226,7 +209,6 @@ bool stop_mouse_replay(int index)
         finger_is_replay[index] = false;
 
         // 释放指头
-        // qatomic_set(&(now_finger_used[now_replay_finger_num[index]]), false);
         release_finger(now_replay_finger_num[index]);
         now_replay_finger_num[index] = -1;
         return true;
@@ -485,12 +467,6 @@ void express_touchscreen_touch_handle(GLFWwindow *window, int touch_id, int acti
             g_hash_table_remove(real_touch_id_map, GINT_TO_POINTER(touch_id));
         }
     }
-
-    // if (action != GLFW_MOVE)
-    // {
-    //     gint64 now_time = g_get_real_time();
-    //     printf("touch %d action %d loc %lf %lf finger size %d now time %lld\n", touch_id, action, xpos, ypos, g_hash_table_size(real_touch_id_map), now_time);
-    // }
 }
 
 void express_touchscreen_entered_handle(GLFWwindow *window, int entered)
@@ -589,10 +565,6 @@ void set_express_touchscreen_input(int x, int y, int is_touched, int index)
 
     x = max(min(x, static_prop.width), 1);
     y = max(min(y, static_prop.height), 1);
-    // if (x < 0 || x >= static_prop.width || y < 0 || y >= static_prop.height)
-    // {
-    //     return;
-    // }
 
     if (static_touchscreen_context.data.touch_cnt <= index)
     {
@@ -643,9 +615,6 @@ void sync_express_touchscreen_input(bool need_send)
     }
 
     static_touchscreen_context.need_sync = false;
-
-    // printf("touchscreen irq send ok\n");
-    // send_express_device_irq(origin_call, 0, sizeof(Touchscreen_Data));
 }
 
 static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)

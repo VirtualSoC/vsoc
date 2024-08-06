@@ -20,59 +20,32 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glNamedBufferData(asyn_texture, end_loc, NULL, GL_STREAM_DRAW);
-        // express_printf("gl get error %x\n",glGetError());
 
         //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
         GLubyte *map_pointer = glMapNamedBufferRange(asyn_texture, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
-        // express_printf("gl get error %x\n",glGetError());
-
-        // GLubyte *temp_data=g_malloc(end_loc-start_loc);
-        // read_from_guest_mem(guest_mem,temp_data,start_loc,end_loc-start_loc);
-        // express_printf("texture:");
-        // for(int i=0;i<end_loc-start_loc;i++){
-        //     express_printf("%u ",(unsigned int)temp_data[i]);
-        // }
-        // express_printf("\n");
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
-        // host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,1);
 
         glUnmapNamedBuffer(asyn_texture);
 
-        // GLuint now_unpack = 0;
-        // glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &now_unpack);
-        // LOGI("%llx prepare_unpack_texture now unpack %d asyn %d", (uint64_t)context, now_unpack,asyn_texture);
         if (status->host_pixel_unpack_buffer != asyn_texture)
         {
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
             status->host_pixel_unpack_buffer = asyn_texture;
-            // LOGI("prepare_unpack_texture set unpack %d", status->host_pixel_unpack_buffer);
         }
     }
     else
     {
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
         status->host_pixel_unpack_buffer = asyn_texture;
-        // express_printf("gl get error %x\n",glGetError());
 
         //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
         glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc, NULL, GL_STREAM_DRAW);
-        // express_printf("gl get error %x\n",glGetError());
 
         //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
         GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
-        // express_printf("gl get error %x\n",glGetError());
-
-        // GLubyte *temp_data=g_malloc(end_loc-start_loc);
-        // read_from_guest_mem(guest_mem,temp_data,start_loc,end_loc-start_loc);
-        // express_printf("texture:");
-        // for(int i=0;i<end_loc-start_loc;i++){
-        //     express_printf("%u ",(unsigned int)temp_data[i]);
-        // }
-        // express_printf("\n");
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
-        // host_guest_buffer_exchange(s_data,map_pointer,start_loc,end_loc-start_loc,1);
 
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
     }
@@ -88,10 +61,6 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
 
     GLuint bind_texture = get_guest_binding_texture(context, target);
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
 
     if (bind_texture == 0)
     {
@@ -101,7 +70,6 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (guest_mem->all_len == 0)
     {
-        // pixels=NULL
         if (status->host_pixel_unpack_buffer != 0)
         {
             status->host_pixel_unpack_buffer = 0;
@@ -116,10 +84,6 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
         {
             glTexImage2D(target, level, internalformat, width, height, border, format, type, NULL);
         }
-
-        // GLuint now_unpack = 0;
-        // glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &now_unpack);
-        // LOGI("%llx target %x teximage2d without null size %d %d len %d real %d now unpack %d",(uint64_t)context,target, width,height,buf_len,guest_mem->all_len,now_unpack);
         return;
     }
 
@@ -136,20 +100,11 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
     {
         glTexImage2D(target, level, internalformat, width, height, border, format, type, NULL);
     }
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 }
 
 void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
-    // GLuint t;
-    // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&t);
-    // LOGI("teximage %u size %d %d %lld", t, width, height, pixels);
     GLuint bind_texture = get_guest_binding_texture(context, target);
 
     if (bind_texture == 0)
@@ -196,23 +151,17 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
                target, level, xoffset, yoffset, (int)width, (int)height, format, type, buf_len);
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            // pixels=NULL
-
             glTextureSubImage2D(bind_texture, level, xoffset, yoffset, width, height, format, type, NULL);
             return;
         }
         else
         {
-            // pixels=NULL
             glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, NULL);
             return;
         }
     }
 
-    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
-
     int start_loc = 0, end_loc = buf_len;
-    // gl_pixel_data_loc(status,width,height,format,type,0,&start_loc,&end_loc);
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
@@ -254,25 +203,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
         {
             glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, 0);
         }
-
-        // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer_status->host_pixel_unpack_buffer);
     }
-
-    // Graphic_Buffer *gbuffer = NULL;
-    // if (target == GL_TEXTURE_2D)
-    // {
-    //     gbuffer = texture_status->current_2D_gbuffer;
-    // }
-    // else if (target == GL_TEXTURE_EXTERNAL_OES)
-    // {
-    //     gbuffer = texture_status->current_external_gbuffer;
-    // }
-    // if (gbuffer != NULL && gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
-    // {
-    //     set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP);
-    //     gbuffer->usage_type = GBUFFER_TYPE_BITMAP;
-    //     gbuffer->remain_life_time = MAX_BITMAP_LIFE_TIME;
-    // }
 }
 
 void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
@@ -316,21 +247,6 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
             glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, (void *)pixels);
         }
     }
-
-    // Graphic_Buffer *gbuffer = NULL;
-    // if (target == GL_TEXTURE_2D)
-    // {
-    //     gbuffer = texture_status->current_2D_gbuffer;
-    // }
-    // else if (target == GL_TEXTURE_EXTERNAL_OES)
-    // {
-    //     gbuffer = texture_status->current_external_gbuffer;
-    // }
-    // if (gbuffer != NULL && gbuffer->usage_type == GBUFFER_TYPE_NATIVE)
-    // {
-    //     set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_BITMAP);
-    //     gbuffer->usage_type = GBUFFER_TYPE_BITMAP;
-    // }
 }
 
 void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
@@ -340,10 +256,6 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
     GLuint bind_texture = get_guest_binding_texture(context, target);
 
     if (bind_texture == 0)
@@ -354,7 +266,6 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (guest_mem->all_len == 0)
     {
-        // pixels=NULL
         Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
 
         if (buffer_status->host_pixel_unpack_buffer != 0)
@@ -389,20 +300,12 @@ void d_glTexImage3D_without_bound(void *context, GLenum target, GLint level, GLi
     {
         glTexImage3D(target, level, internalformat, width, height, depth, border, format, type, 0);
     }
-
-    // Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 }
 
 void d_glTexImage3D_with_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
+
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if (bind_texture == 0)
     {
@@ -435,7 +338,6 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
 
     if (guest_mem->all_len == 0)
     {
-        // pixels=NULL
         Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
         if (buffer_status->host_pixel_unpack_buffer != 0)
         {
@@ -467,10 +369,6 @@ void d_glTexSubImage3D_without_bound(void *context, GLenum target, GLint level, 
     {
         glTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, type, 0);
     }
-    // Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 }
 
 void d_glTexSubImage3D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, GLintptr pixels)
@@ -499,10 +397,6 @@ void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint 
 
     // LOGI("compress texture format %x",internalformat);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
 
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if (bind_texture == 0)
@@ -532,7 +426,6 @@ void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint 
         return;
     }
 
-    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
     prepare_unpack_texture(context, guest_mem, 0, imageSize);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
@@ -543,21 +436,12 @@ void d_glCompressedTexImage3D_without_bound(void *context, GLenum target, GLint 
     {
         glCompressedTexImage3D(target, level, internalformat, width, height, depth, border, imageSize, 0);
     }
-
-    // Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 }
 
 void d_glCompressedTexImage3D_with_bound(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, GLintptr data)
 {
     // LOGI("compress texture format %x",internalformat);
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
 
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if (bind_texture == 0)
@@ -591,7 +475,6 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
     if (guest_mem->all_len == 0)
     {
         Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
-        // pixels=NULL
         if (buffer_status->host_pixel_unpack_buffer != 0)
         {
             buffer_status->host_pixel_unpack_buffer = 0;
@@ -608,7 +491,6 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
         return;
     }
 
-    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
     prepare_unpack_texture(context, guest_mem, 0, imageSize);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
@@ -619,11 +501,6 @@ void d_glCompressedTexSubImage3D_without_bound(void *context, GLenum target, GLi
     {
         glCompressedTexSubImage3D(target, level, xoffset, yoffset, zoffset, width, height, depth, format, imageSize, 0);
     }
-
-    // Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 }
 
 void d_glCompressedTexSubImage3D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, GLintptr data)
@@ -653,11 +530,6 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
     // LOGI("compress texture format %x",internalformat);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
-
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if (bind_texture == 0)
     {
@@ -668,7 +540,6 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
     if (guest_mem->all_len == 0)
     {
         Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
-        // pixels=NULL
         if (buffer_status->host_pixel_unpack_buffer != 0)
         {
             buffer_status->host_pixel_unpack_buffer = 0;
@@ -686,7 +557,6 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
 
         return;
     }
-    // Pixel_Store_Status *status=&(((Opengl_Context *)context)->pixel_store_status);
     prepare_unpack_texture(context, guest_mem, 0, imageSize);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
@@ -697,21 +567,12 @@ void d_glCompressedTexImage2D_without_bound(void *context, GLenum target, GLint 
     {
         glCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, 0);
     }
-
-    // Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 }
 
 void d_glCompressedTexImage2D_with_bound(void *context, GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, GLintptr data)
 {
     // LOGI("compress texture format %x",internalformat);
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-    // if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-    // {
-    //     texture_binding_status_sync(context, target);
-    // }
 
     GLuint bind_texture = get_guest_binding_texture(context, target);
     if (bind_texture == 0)
@@ -744,7 +605,6 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
 
     if (guest_mem->all_len == 0)
     {
-        // pixels=NULL
         Buffer_Status *buffer_status = &(opengl_context->bound_buffer_status.buffer_status);
         if (buffer_status->host_pixel_unpack_buffer != 0)
         {
@@ -785,11 +645,6 @@ void d_glCompressedTexSubImage2D_without_bound(void *context, GLenum target, GLi
     {
         glCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, 0);
     }
-
-    // Opengl_Context *opengl_context = (Opengl_Context *)context;
-    // Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 }
 
 void d_glCompressedTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr data)
@@ -819,8 +674,6 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
 
     if (unlikely(guest_mem->all_len == 0))
     {
-        // pixels=NULL
-        //  glReadPixels(x, y, width, height, format, type, NULL);
         return;
     }
 
@@ -858,14 +711,6 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
         map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_READ_BIT);
     }
 
-    // char print_chars[1000];
-    // int print_loc = 0;
-    // for(int i=0;i<end_loc-start_loc && i<100;i++)
-    // {
-    //     print_loc += sprintf(print_chars+print_loc, "%.2x",(int)map_pointer[i]);
-    // }
-    // LOGI("glreadpixels %s",print_chars);
-
     write_to_guest_mem(guest_mem, map_pointer, 0, end_loc - start_loc);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
@@ -876,10 +721,6 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     {
         glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
     }
-
-    // status->host_pixel_pack_buffer = asyn_texture;
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_pack_buffer);
 }
 
 
@@ -890,8 +731,6 @@ void d_glReadnPixels_without_bound(void *context, GLint x, GLint y, GLsizei widt
 
     if (unlikely(guest_mem->all_len == 0))
     {
-        // pixels=NULL
-        //  glReadPixels(x, y, width, height, format, type, NULL);
         return;
     }
 
@@ -929,14 +768,6 @@ void d_glReadnPixels_without_bound(void *context, GLint x, GLint y, GLsizei widt
         map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_READ_BIT);
     }
 
-    // char print_chars[1000];
-    // int print_loc = 0;
-    // for(int i=0;i<end_loc-start_loc && i<100;i++)
-    // {
-    //     print_loc += sprintf(print_chars+print_loc, "%.2x",(int)map_pointer[i]);
-    // }
-    // LOGI("glreadpixels %s",print_chars);
-
     write_to_guest_mem(guest_mem, map_pointer, 0, end_loc - start_loc);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
@@ -947,27 +778,19 @@ void d_glReadnPixels_without_bound(void *context, GLint x, GLint y, GLsizei widt
     {
         glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
     }
-
-    // status->host_pixel_pack_buffer = asyn_texture;
-
-    // glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_pack_buffer);
 }
 
 void d_glReadPixels_with_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_PACK_BUFFER);
-    // GLuint pack = 0;
-    // glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
-    // LOGI("glReadPixels x %d y %d width %d height %d format %x type %x pixels %llx pack %d", x, y, (int)width, (int)height, format, type, pixels, pack);
+
     glReadPixels(x, y, width, height, format, type, (void *)pixels);
 }
 
 void d_glReadnPixels_with_bound(void *context, GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLsizei bufSize, GLintptr pixels)
 {
     buffer_binding_status_sync(context, GL_PIXEL_PACK_BUFFER);
-    // GLuint pack = 0;
-    // glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack);
-    // LOGI("glReadPixels x %d y %d width %d height %d format %x type %x pixels %llx pack %d", x, y, (int)width, (int)height, format, type, pixels, pack);
+
     glReadnPixels(x, y, width, height, format, type, bufSize, (void *)pixels);
 }
 
@@ -986,11 +809,6 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
 
     if (is_init == 2)
     {
-        // Graphic_Buffer *gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
-        // if (gbuffer != NULL)
-        // {
-        //     set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_FBO);
-        // }
         if (textarget == GL_TEXTURE_EXTERNAL_OES)
         {
             textarget = GL_TEXTURE_2D;
@@ -1007,22 +825,11 @@ void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachm
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
-    if (is_init == 2)
-    {
-        // Graphic_Buffer *gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
-        // if (gbuffer != NULL)
-        // {
-        //     set_global_gbuffer_type(gbuffer->gbuffer_id, GBUFFER_TYPE_FBO);
-        // }
-    }
-
     glFramebufferTexture(target, attachment, host_texture, level);
 }
 
 void d_glCopyImageSubData(void *context, GLuint srcName, GLenum srcTarget, GLint srcLevel, GLint srcX, GLint srcY, GLint srcZ, GLuint dstName, GLenum dstTarget, GLint dstLevel, GLint dstX, GLint dstY, GLint dstZ, GLsizei srcWidth, GLsizei srcHeight, GLsizei srcDepth)
 {
-    // todo: glCopyImageSubData()在读取external texture时，如果external texture之前写入过，
-    // 但没有通过eglSwapBuffers()打上sync标记，则这里可能会copy不到数据
     Graphic_Buffer *gbuffer_src = NULL;
     Graphic_Buffer *gbuffer_dst = NULL;
 

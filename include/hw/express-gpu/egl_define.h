@@ -74,12 +74,6 @@ typedef unsigned short int khronos_uint16_t;
 #define KHRONOS_MAX_ENUM 0x7FFFFFFF
 #endif
 
-// typedef enum {
-//     KHRONOS_FALSE = 0,
-//     KHRONOS_TRUE  = 1,
-//     KHRONOS_BOOLEAN_ENUM_FORCE_SIZE = KHRONOS_MAX_ENUM
-// } khronos_boolean_enum_t;
-
 typedef khronos_uint64_t khronos_utime_nanoseconds_t;
 typedef khronos_int64_t khronos_stime_nanoseconds_t;
 

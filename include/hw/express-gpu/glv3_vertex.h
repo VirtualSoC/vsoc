@@ -8,24 +8,7 @@
 #include "hw/express-gpu/gl_helper.h"
 
 
-// #define SYNC_TIMEOUT 10000000
-
 #define BUFFER_MULTIPLY_FACTOR 10
-
-// void safe_release_point_data_data(Attrib_Point *point_data,int index);
-
-// void set_attrib_point_index(void *context,Scatter_Data *data,int len);
-// void set_attrib_point_index(void *context,void *data,int len);
-
-// void set_attrib_point(void *context,GLsizei instancecount);
-
-// void flush_array_buffer(Attrib_Point *point_data, GLint instancecount);
-
-// void d_glVertexAttribIPointer_data(void *context,const void *int_data, const void *pointer);
-// void d_glVertexAttribPointer_data(void *context,const void *int_data, const void *pointer);
-
-// void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLuint min_index, GLuint max_index, GLuint index_father, GLuint divisor, GLboolean enabled, GLintptr pointer);
-// void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GLenum type, GLboolean normalized, GLsizei stride, GLuint min_index, GLuint max_index, GLuint index_father, GLuint divisor, GLboolean enabled, GLintptr pointer);
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer);
 
@@ -38,10 +21,6 @@ void d_glVertexAttribIPointer_offset(void *context, GLuint index, GLint size, GL
 
 void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, GLintptr pointer);
 void d_glVertexAttribIPointer_with_bound(void *context, GLuint index, GLint size, GLenum type, GLsizei stride, GLintptr pointer);
-
-// void d_glGenVertexArrays_origin(void *context, GLsizei n, GLuint *arrays);
-// void d_glDeleteVertexArrays_origin(void *context, GLsizei n, const GLuint *arrays);
-// void d_glBindVertexArray_special(void *context, GLuint array);
 
 void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor);
 

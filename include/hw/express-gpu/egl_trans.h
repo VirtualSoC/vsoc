@@ -138,23 +138,9 @@
 
 #define PARA_NUM_MIN_eglTP (1)
 
-// #define FUNID_eglSetGraphicBufferID ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10045)
-
-// #define PARA_NUM_MIN_eglSetGraphicBufferID (1)
-
-// #define FUNID_eglGetGBufferType ((EXPRESS_GPU_DEVICE_ID << 32u) + (((unsigned long long)0x1) << 24u) + 10046)
-
-// #define PARA_NUM_MIN_eglGetGBufferType (2)
-
-
 #define FUNID_EGL_Set_Sync_Flag (DEVICE_FUN_ID(EXPRESS_GPU_DEVICE_ID, (10050)))
 
 #define FUNID_EGL_Wait_Sync (DEVICE_FUN_ID(EXPRESS_GPU_DEVICE_ID, (10051)))
-
-
-// #define FUNID_eglRemainImage ((EXPRESS_GPU_DEVICE_ID << 32u) + 10046)
-
-// #define PARA_NUM_MIN_eglRemainImage (1)
 
 void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call);
 

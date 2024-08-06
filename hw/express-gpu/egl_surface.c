@@ -27,8 +27,6 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     Render_Thread_Context *thread_context = (Render_Thread_Context *)render_context;
     Opengl_Context *opengl_context = (Opengl_Context *)(thread_context->opengl_context);
 
-    // Process_Context *process_context = thread_context->process_context;
-
     Graphic_Buffer *now_draw_gbuffer = surface->gbuffer;
 
     LOGD("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
@@ -58,9 +56,6 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
 
     connect_gbuffer_to_surface(next_draw_gbuffer, surface);
 
-    GLenum attachments[] = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMENT};
-    //glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 3, attachments);
-
     surface->gbuffer = next_draw_gbuffer;
 
     if (surface->gbuffer->sampler_num > 1)
@@ -79,24 +74,18 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     //@todo 处理config、处理attrib_list
 
     // 这里先根据attrb_list获取窗口的宽和高
-
     Window_Buffer *surface = g_malloc0(sizeof(Window_Buffer));
     surface->type = surface_type;
     surface->width = width;
     surface->height = height;
     surface->swap_interval = 1;
 
-    // surface->swap_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-
     eglConfig *config = config_to_hints(eglconfig, &surface->window_hints);
-    ;
     surface->config = config;
 
     EGLint internal_format = GL_RGB;
     EGLenum format = GL_RGB;
     EGLenum type = GL_UNSIGNED_BYTE;
-
-    // int row_byte_len = 4 * width;
 
     EGLenum depth_internal_format = 0;
     EGLenum stencil_internal_format = 0;
@@ -109,13 +98,11 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     EGLint depth_bits = config->depth_size;
     if (config->sample_buffers_num != 0)
     {
-        // LOGI("surface enable sample %d", config->sample_buffers_num);
         if (config->sample_buffers_num == -1)
         {
             config->sample_buffers_num = 0;
         }
     }
-    // EGLint need_sampler = config->sample_buffers_num;
     EGLint sampler_num = config->samples_per_pixel;
 
     // express_printf("rgba %d %d %d %d ds %d %d MSAA %dX\n", red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, sampler_num);
@@ -143,8 +130,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGBA2;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 1*width;
-        // express_printf("choose rgba 2222 ");
     }
     else if (red_bits == 3 && green_bits == 3 && blue_bits == 2 && alpha_bits == 0)
     {
@@ -152,8 +137,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_R3_G3_B2;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 1*width;
-        // express_printf("choose rgba 3320 ");
     }
     else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 0)
     {
@@ -161,9 +144,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB4;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 3*width/2;
-
-        // express_printf("choose rgba 4440 ");
     }
     else if (red_bits == 4 && green_bits == 4 && blue_bits == 4 && alpha_bits == 4)
     {
@@ -171,8 +151,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGBA4;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 2*width;
-        // express_printf("choose rgba 4444 ");
     }
     else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 0)
     {
@@ -180,8 +158,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB5;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 2*width;
-        // express_printf("choose rgba 5550 ");
     }
     else if (red_bits == 5 && green_bits == 5 && blue_bits == 5 && alpha_bits == 1)
     {
@@ -189,8 +165,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB5_A1;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 2*width;
-        // express_printf("choose rgba 5551 ");
     }
     else if (red_bits == 5 && green_bits == 6 && blue_bits == 5 && alpha_bits == 0)
     {
@@ -198,8 +172,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB565;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 2*width;
-        // express_printf("choose rgba 5650 ");
     }
     else if (red_bits == 8 && green_bits == 0 && blue_bits == 0 && alpha_bits == 0)
     {
@@ -207,8 +179,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_R8;
         format = GL_RED;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 1*width;
-        // express_printf("choose rgba 8000 ");
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 0 && alpha_bits == 0)
     {
@@ -216,8 +186,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RG8;
         format = GL_RG;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 2*width;
-        // express_printf("choose rgba 8800 ");
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 0)
     {
@@ -225,8 +193,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB8;
         format = GL_RGB;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 3*width;
-        // express_printf("choose rgba 8880 ");
     }
     else if (red_bits == 8 && green_bits == 8 && blue_bits == 8 && alpha_bits == 8)
     {
@@ -234,8 +200,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         type = GL_UNSIGNED_BYTE;
-        // row_byte_len = 4*width;
-        // express_printf("choose rgba 8888 ");
     }
     else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 0)
     {
@@ -243,8 +207,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB10;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
-        // row_byte_len = 4*width;
-        // express_printf("choose rgba 1010100 ");
     }
     else if (red_bits == 10 && green_bits == 10 && blue_bits == 10 && alpha_bits == 2)
     {
@@ -252,8 +214,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB10_A2;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT_2_10_10_10_REV;
-        // row_byte_len = 4*width;
-        // express_printf("choose rgba 1010102 ");
     }
     else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 0)
     {
@@ -261,8 +221,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB12;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
-        // row_byte_len = 9*width/2;
-        // express_printf("choose rgba 1212120 ");
     }
     else if (red_bits == 12 && green_bits == 12 && blue_bits == 12 && alpha_bits == 12)
     {
@@ -270,8 +228,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGBA12;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT;
-        // row_byte_len = 6*width;
-        // express_printf("choose rgba 12121212 ");
     }
     else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 0)
     {
@@ -279,8 +235,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGB16;
         format = GL_RGB;
         type = GL_UNSIGNED_INT;
-        // row_byte_len = 6*width;
-        // express_printf("choose rgba 1616160 ");
     }
     else if (red_bits == 16 && green_bits == 16 && blue_bits == 16 && alpha_bits == 16)
     {
@@ -288,8 +242,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
         internal_format = GL_RGBA16;
         format = GL_RGBA;
         type = GL_UNSIGNED_INT;
-        // row_byte_len = 8*width;
-        // express_printf("choose rgba 16161616 ");
     }
     else
     {
@@ -297,10 +249,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     }
 
     // LOGI("%llx surface choose red %d green %d blue %d alpha %d depth %d stencil %d width %d height %d", surface, red_bits, green_bits, blue_bits, alpha_bits, depth_bits, stencil_bits, surface->width, surface->height);
-
-    // internal_format = GL_RG8;
-    // format = GL_RG;
-    // type = GL_UNSIGNED_BYTE;
 
     if (internal_format == GL_RGB565)
     {
@@ -312,29 +260,22 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     if (depth_bits == 16)
     {
         depth_internal_format = GL_DEPTH_COMPONENT16;
-        // express_printf("GL_DEPTH_COMPONENT16\n");
     }
     else if (depth_bits == 24)
     {
         depth_internal_format = GL_DEPTH_COMPONENT24;
-        // express_printf("GL_DEPTH_COMPONENT24\n");
     }
     else if (depth_bits == 32)
     {
         depth_internal_format = GL_DEPTH_COMPONENT32F;
-        // express_printf("GL_DEPTH_COMPONENT32F\n");
     }
 
     if (stencil_bits == 8)
     {
         stencil_internal_format = GL_STENCIL_INDEX8;
-        // express_printf("GL_STENCIL_INDEX8\n");
         if (depth_internal_format == GL_DEPTH_COMPONENT24 || depth_internal_format == GL_DEPTH_COMPONENT16 || depth_internal_format == GL_DEPTH_COMPONENT32F)
         {
-            // depth_internal_format = GL_DEPTH_COMPONENT24;
-
             depth_internal_format = GL_DEPTH24_STENCIL8;
-            // express_printf("GL_DEPTH24_STENCIL8\n");
         }
     }
 
@@ -342,7 +283,6 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     surface->format = format;
     surface->internal_format = internal_format;
     surface->pixel_type = type;
-    // surface->row_byte_len = row_byte_len;
     surface->depth_internal_format = depth_internal_format;
     surface->stencil_internal_format = stencil_internal_format;
 
@@ -412,14 +352,7 @@ int render_surface_destroy(Window_Buffer *surface)
 
 void d_eglIamComposer(void *context, EGLSurface surface, unsigned int pid)
 {
-    // Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
-    // Process_Context *process_context = thread_context->process_context;
-
-    // Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GUINT_TO_POINTER(surface));
-    // LOGI("surface is composer %llx guest %llx", real_surface, surface);
-
     preload_static_context_value->composer_pid = pid;
-    // real_surface->I_am_composer = 1;
 }
 
 void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, const EGLint *attrib_list, EGLSurface guest_surface)
@@ -470,8 +403,6 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     Process_Context *process_context = thread_context->process_context;
-
-    // eglConfig *now_eglconfig = (eglConfig *)g_hash_table_lookup(default_egl_display->egl_config_set, GUINT_TO_POINTER(config));
 
     int i = 0;
     int width = 0;
@@ -577,7 +508,6 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         format = surface->format;
         pixel_type = surface->pixel_type;
         internal_format = surface->internal_format;
-        // row_byte_len = surface->row_byte_len;
         depth_internal_format = surface->depth_internal_format;
         stencil_internal_format = surface->stencil_internal_format;
     }
@@ -587,7 +517,6 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_BYTE;
-        // row_byte_len = width * 4;
     }
     else if (hal_format == EXPRESS_PIXEL_RGB888 || hal_format == EXPRESS_PIXEL_YUV420888)
     {
@@ -595,28 +524,24 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         internal_format = GL_RGB8;
         format = GL_RGB;
         pixel_type = GL_UNSIGNED_BYTE;
-        // row_byte_len = width * 3;
     }
     else if (hal_format == EXPRESS_PIXEL_RGB565)
     {
         internal_format = GL_RGB565;
         format = GL_RGB;
         pixel_type = GL_UNSIGNED_SHORT_5_6_5;
-        // row_byte_len = width * 2;
     }
     else if (hal_format == EXPRESS_PIXEL_RGBA5551 || hal_format == EXPRESS_PIXEL_RGBX5551)
     {
         internal_format = GL_RGB5_A1;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_SHORT_5_5_5_1;
-        // row_byte_len = width * 2;
     }
     else if (hal_format == EXPRESS_PIXEL_RGBA4444 || hal_format == EXPRESS_PIXEL_RGBX4444)
     {
         internal_format = GL_RGBA4;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_SHORT_4_4_4_4;
-        // row_byte_len = width * 2;
     }
     else if (hal_format == EXPRESS_PIXEL_BGRA8888 || hal_format == EXPRESS_PIXEL_BGRX8888)
     {
@@ -624,35 +549,30 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
         internal_format = GL_RGBA8;
         format = GL_BGRA;
         pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
-        // row_byte_len = width * 4;
     }
     else if (hal_format == EXPRESS_PIXEL_BGR565)
     {
         internal_format = GL_RGB565;
         format = GL_BGR;
         pixel_type = GL_UNSIGNED_SHORT_5_6_5_REV;
-        // row_byte_len = width * 2;
     }
     else if (hal_format == EXPRESS_PIXEL_RGBA1010102)
     {
         internal_format = GL_RGB10_A2;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_INT_2_10_10_10_REV;
-        // row_byte_len = width * 2;
     }
     else if (hal_format == EXPRESS_PIXEL_R8)
     {
         internal_format = GL_R8;
         format = GL_RED;
         pixel_type = GL_UNSIGNED_BYTE;
-        // row_byte_len = width * 2;
     }
     else
     {
         internal_format = GL_RGBA8;
         format = GL_RGBA;
         pixel_type = GL_UNSIGNED_INT;
-        // row_byte_len = width * 4;
         LOGE("error! unknown gralloc format %d!!!", hal_format);
     }
 
@@ -686,12 +606,6 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
 {
     // creater_window等于空意味着底下各种资源之前都没申请过，因此需要申请
     Graphic_Buffer *gbuffer = g_malloc0(sizeof(Graphic_Buffer));
-
-// #ifdef _WIN32
-//     gbuffer->writing_ok_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-// #else
-//     gbuffer->writing_ok_event = create_event(0, 0);
-// #endif
 
     gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
     ;
@@ -894,12 +808,9 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     }
     // LOGI("connect surface %llx fbo %d to gbuffer %llx", surface, surface->data_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
 
-    // glEnable(GL_MULTISAMPLE);
-
     if (surface->sampler_num > 1)
     {
         // 窗口不需要开启多采样，只需要fbo开启就行
-        //  glfwWindowHint(GLFW_SAMPLES, d_buffer->config->samples_per_pixel);
         glEnable(GL_MULTISAMPLE);
     }
     else
@@ -970,16 +881,8 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));
     }
-    // fbo是surface产生的，与context强相关，不能在这里销毁
-    // if(gbuffer->data_fbo!=0)
-    // {
-    //     glDeleteFramebuffers(1, &(gbuffer->data_fbo));
-    // }
+    // gbuffer->data_fbo是surface产生的，与context强相关，不能在这里销毁
 
-    // if(gbuffer->sampler_fbo!=0)
-    // {
-    //     glDeleteFramebuffers(1, &(gbuffer->sampler_fbo));
-    // }
     if (gbuffer->sampler_rbo != 0)
     {
         glDeleteRenderbuffers(1, &(gbuffer->sampler_rbo));
@@ -1010,12 +913,6 @@ void destroy_gbuffer(Graphic_Buffer *gbuffer)
 
     glFlush();
 
-// #ifdef _WIN32
-//     CloseHandle(gbuffer->writing_ok_event);
-// #else
-//     delete_event(gbuffer->writing_ok_event);
-// #endif
-
     g_hash_table_destroy(gbuffer->locations);
 
     if (gbuffer->host_data != NULL) {
@@ -1035,13 +932,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     // 创建image，要么是使用别的应用绘制使用的缓冲区，要么是新创建的缓冲区
     // 前者之前肯定有surface连接，所以肯定找得到，后者不会找得到，必须得给手动建立一个
 
-    // 这里buffer和guest_image是一样的，都是gbuffer_id
-    // 实际不一样，因为buffer可能是32位应用传过来的，所以会被截断，导致和gbuffer_id不一样，所以这里直接重命名为depressed_buffer
-    // if (depressed_buffer != guest_image)
-    // {
-    //     LOGE("error! buffer %llx != guest_image %llx", depressed_buffer, guest_image);
-    //     // return -1;
-    // }
+    // 这里buffer和guest_image不一样，因为buffer可能是32位应用传过来的，所以会被截断，导致和gbuffer_id不一样，所以这里直接重命名为depressed_buffer
 
     if (attrib_list == NULL)
     {
@@ -1051,7 +942,6 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
     int width = 1;
     int height = 1;
     int hal_format = 0;
-    // int stride = 0;
     int i = 0;
     while (attrib_list != NULL && attrib_list[i] != EGL_NONE)
     {
@@ -1066,10 +956,6 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         case EGL_TEXTURE_FORMAT:
             hal_format = attrib_list[i + 1];
             break;
-        // case EGL_BUFFER_SIZE:
-        //     //用buffer_size作为对齐选项
-        //     stride = attrib_list[i + 1];
-        //     break;
         default:
             // todo 其他attrib属性的设置
             break;

@@ -2,7 +2,6 @@
 #define EGL_DISPLAY_H
 
 #include "hw/express-gpu/egl_config.h"
-#include "hw/teleport-express/express_log.h"
 
 #define RENDERABLE_SUPPORT 0 | EGL_OPENGL_ES_BIT | EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT;
 #define PBUFFER_MAX_WIDTH 32767
@@ -10,16 +9,6 @@
 #define PBUFFER_MAX_PIXELS (PBUFFER_MAX_WIDTH * PBUFFER_MAX_HEIGHT)
 #define MIN_SWAP_INTERVAL 0
 #define MAX_SWAP_INTERVAL 10
-
-#define RETURN_IF_FALSE(a)                                                                     \
-    do                                                                                         \
-    {                                                                                          \
-        if (!(a))                                                                              \
-        {                                                                                      \
-            express_printf("%s fails to pass FALSE check at line %d", __FUNCTION__, __LINE__); \
-            return;                                                                            \
-        }                                                                                      \
-    } while (0)
 
 typedef struct
 {

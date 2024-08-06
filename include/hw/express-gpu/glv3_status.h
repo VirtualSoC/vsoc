@@ -6,8 +6,6 @@
 #include "hw/express-gpu/express_gpu_render.h"
 
 
-
-
 typedef struct Texture_Binding_Status
 {
     GLuint guest_current_active_texture;
@@ -37,10 +35,6 @@ typedef struct Texture_Binding_Status
     GLuint *guest_current_texture_buffer;
     GLuint *host_current_texture_buffer;
     
-
-    // GLuint *guest_current_texture_unit;
-    // GLuint *host_current_texture_unit;
-
     GLuint texture_unit_num;
 
     GLuint now_max_texture_unit;
@@ -52,8 +46,6 @@ typedef struct Texture_Binding_Status
 
 
 } Texture_Binding_Status;
-
-
 
 
 typedef struct Buffer_Status
@@ -94,7 +86,6 @@ typedef struct Buffer_Status
     GLuint guest_shader_storage_buffer;
     GLuint host_shader_storage_buffer;
 
-
     GLuint guest_texture_buffer; 
     GLuint host_texture_buffer;
 
@@ -114,7 +105,6 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
 
 void d_glBindBuffer_special(void *context, GLenum target, GLuint buffer);
 
-
 void d_glBindBufferRange_special(void *context, GLenum target,GLuint index, GLuint guest_buffer, GLintptr offset, GLsizeiptr size);
 
 void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLuint guest_buffer);
@@ -127,11 +117,9 @@ GLuint get_guest_binding_texture(void *context, GLenum target);
 
 void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
 
-
 void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
 
 void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint texture, GLuint share_texture, EGLContext guest_share_ctx);
-
 
 void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
 
@@ -152,6 +140,5 @@ void d_glBindVertexArray_special(void *context, GLuint array);
 GLuint get_guest_binding_vao(void *context);
 
 void vao_binding_status_sync(void *context);
-
 
 #endif

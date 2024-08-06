@@ -7,11 +7,6 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/egl_display.h"
 #include "hw/express-gpu/egl_surface.h"
-// #include "hw/express-gpu/express_gpu_render.h"
-
-
-// #define SEND_ASYNC_BUF_SIZE 4096
-// #define SAVE_BUF_SIZE 8192
 
 
 typedef struct Process_Context{

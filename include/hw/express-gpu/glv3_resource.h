@@ -17,7 +17,6 @@ long long get_host_resource_id(Resource_Map_Status *status, unsigned int id);
 int guest_has_resource_id(Resource_Map_Status *status, unsigned int id);
 
 char set_host_texture_init(void *context, unsigned int id);
-// char set_host_buffer_init(void *context, unsigned int id);
 
 Graphic_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture);
 void set_texture_gbuffer_ptr(void *context, GLuint texture, Graphic_Buffer *gbuffer);

@@ -59,10 +59,6 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
     //这里才是构造映射关系，理论上这个map中的guest_id会是递增的，而不会跳跃
     for (int i = 0; i < n; i++)
     {
-        // if (guest_ids[i] == 0)
-        // {
-        //     continue;
-        // }
         // LOGI("create texture id %d %d",(int)guest_ids[i],(int)host_ids[i]);
         status->resource_id_map[guest_ids[i]] = host_ids[i];
         status->resource_is_init[guest_ids[i]] = 0;
@@ -215,11 +211,7 @@ unsigned long long get_host_texture_id(void *context, unsigned int id)
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
-    // long long t = get_host_resource_id(map_status, id);
-    // if(t == 0 && id != 0)
-    // {
-    //     LOGI("%llx error texture id %d",(uint64_t)context, id);
-    // }
+
     return get_host_resource_id(map_status, id);
 }
 
@@ -255,38 +247,6 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
     return get_host_resource_id(map_status, id);
 }
 
-// char set_host_buffer_init(void *context, unsigned int id)
-// {
-//     if (id == 0)
-//     {
-//         return 0;
-//     }
-//     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
-//     Resource_Map_Status *map_status = resource_status->buffer_resource;
-//     if (!guest_has_resource_id(map_status, id))
-//     {
-//         unsigned int host_id;
-//         if(DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
-//         {
-//             glCreateBuffers(1, &host_id);
-//         }
-//         else
-//         {
-//             glGenBuffers(1, &host_id);
-//         }
-//         // LOGI("create buffer not in host %u guest %u",host_id,id);
-//         unsigned long long host_id_long = host_id;
-//         int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
-//         if (ret == 0)
-//         {
-//             return 0;
-//         }
-
-//     }
-
-//     return set_host_resource_init(map_status, id);
-// }
-
 char set_host_texture_init(void *context, unsigned int id)
 {
     if (id == 0)
@@ -299,15 +259,6 @@ char set_host_texture_init(void *context, unsigned int id)
     {
         return 0;
         // texture不存在的话。不允许创建新的
-        //  unsigned int host_id;
-        //  glGenTextures(1, &host_id);
-        //  LOGI("create buffer not in host %u guest %u",host_id,id);
-        //  unsigned long long host_id_long = host_id;
-        //  int ret = create_host_map_ids(map_status, 1, &id, &host_id_long);
-        //  if (ret == 0)
-        //  {
-        //      return 0;
-        //  }
     }
 
     return set_host_resource_init(map_status, id);
@@ -367,12 +318,6 @@ unsigned long long get_host_sync_id(void *context, unsigned int id)
     if (opengl_context->share_context != NULL && ret_id == 0)
     {
         int sleep_cnt = 0;
-        // while(sleep_cnt<100 && ret_id == 0)
-        // {
-        //     sleep_cnt++;
-        //     usleep(1000);
-        //     ret_id = get_host_resource_id(map_status, id);
-        // }
         express_printf("sleep %dms get sync id %u %lld context %llx share_context %llx map_status %llx share resource %llx\n", sleep_cnt, id, ret_id, (uint64_t)opengl_context, opengl_context->share_context, map_status, resource_status->share_resources);
     }
 
@@ -722,7 +667,6 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
     {
 
         Attrib_Point *point_data = g_malloc0(sizeof(Attrib_Point));
-        // memset(point_data, 0, sizeof(Attrib_Point));
 
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
@@ -860,11 +804,6 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, textures, host_buffers);
 
-    // for(int i = 0;i<n;i++)
-    // {
-    //     LOGI("context %llx delete texture guest %u host %u",(uint64_t)context,textures[i],host_buffers[i]);
-    // }
-
     glDeleteTextures(n, host_buffers);
     for (int i = 0; i < n; i++)
     {
@@ -876,18 +815,9 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_2D_multisample_array, host_buffers[i]);
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_cube_map_array, host_buffers[i]);
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_buffer, host_buffers[i]);
-        // GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_unit, host_buffers[i]);
     }
 
     g_free(host_buffers);
-
-    // char temp[1000];
-    // memset(temp,0,sizeof(temp));
-    // int loc=sprintf(temp,"#%llx deletetexture %d ",(uint64_t)context,(int)n);
-    // for(int i = 0 ;i<n && loc<985;i++){
-    //     loc+=sprintf(temp+loc,"host %u guest %u ",host_buffers[i],textures[i]);
-    // }
-    // LOGI("%s",temp);
 
     remove_host_map_ids(map_status, n, textures);
 }
@@ -959,10 +889,7 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
 
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, framebuffers, host_buffers);
-    // for(int i = 0;i<n;i++)
-    // {
-    //     LOGI("context %llx delete framebuffer guest %u host %u",(uint64_t)context,framebuffers[i],host_buffers[i]);
-    // }
+
     glDeleteFramebuffers(n, host_buffers);
     g_free(host_buffers);
 
@@ -1018,10 +945,8 @@ void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
         //下面这个是为了当删除当前绑定的vao时，能够自动绑定vao为0
         Attrib_Point *vao_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao_index));
 
-        // if(vao_status==bound_buffer->buffer_status){
         if (bound_buffer->attrib_point == vao_point)
         {
-            // bound_buffer->buffer_status=g_hash_table_lookup(bound_buffer->vao_status, GUINT_TO_POINTER(0));
             bound_buffer->attrib_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(vao0));
             glBindVertexArray(vao0);
 

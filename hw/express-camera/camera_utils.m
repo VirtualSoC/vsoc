@@ -1,3 +1,10 @@
+/**
+ * vSoC macOS camera utils
+ * 
+ * Copyright (c) 2023 Zijie Zhou <zijiezhou017@outlook.com>
+ * Copyright (c) 2023 Jiaxing Qiu <jx.qiu@outlook.com>
+ */
+
 #include <stdio.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreMedia/CoreMedia.h>

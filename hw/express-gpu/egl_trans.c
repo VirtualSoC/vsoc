@@ -25,16 +25,11 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 {
     Render_Thread_Context *egl_context = (Render_Thread_Context *)context;
 
-    // Double_Buffer *egl_context = egl_context->render_double_buffer;
     if (unlikely(egl_context == NULL))
     {
         call->callback(call, 0);
         return;
     }
-
-    // Double_Buffer *egl_context = (egl_context->render_double_buffer);
-    // uint64_t fun_id=GET_FUN_ID(call->id);
-    // uint64_t is_async=FUN_IS_ASYNC(call->id);
 
     Call_Para all_para[MAX_PARA_NUM];
 

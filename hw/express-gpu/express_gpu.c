@@ -37,10 +37,6 @@ bool express_gpu_gl_debug_enable = false;
 bool express_gpu_independ_window_enable = false;
 bool express_device_input_window_enable = false;
 
-// 这些函数不提供外部调用接口
-//  Thread_Context *get_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
-//  void render_context_init(Thread_Context *context);
-
 static void g_surface_map_destroy(gpointer data);
 
 static void g_context_map_destroy(gpointer data);
@@ -63,25 +59,18 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 
     if (fun_id >= 200000)
     {
-        // express_printf("test decode invoke\n");
-
         test_decode_invoke(render_context, call);
     }
     else if (fun_id > 10000)
     {
-        // express_printf("egl decode invoke %llu\n", fun_id);
-
         egl_decode_invoke(render_context, call);
     }
     else if (fun_id == EXPRESS_CLUSTER_FUN_ID)
     {
-        // express_printf("cluster decode invoke %llu\n", fun_id);
-
         cluster_decode_invoke(call, context, (EXPRESS_DECODE_FUN)decode_invoke);
     }
     else
     {
-        // express_printf("gl decode invoke %llu context %llx\n", fun_id, render_context->opengl_context);
         gl3_decode_invoke(render_context, call);
     }
     if (express_gpu_gl_debug_enable && render_context->opengl_context != NULL && render_context->opengl_context->is_current)
@@ -106,7 +95,6 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
     }
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
-    // express_printf("g_hash table lookup\n");
     // 没有context就新建线程
     if (thread_context == NULL)
     {
@@ -132,7 +120,6 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
         }
         qatomic_inc(&(process->thread_cnt));
-        // process->thread_cnt += 1;
         thread_context->process_context = process;
         g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(thread_id), (gpointer)thread_context);
     }
@@ -233,12 +220,10 @@ static void gbuffer_map_destroy(gpointer data)
         if (gbuffer->data_sync != NULL)
         {
             send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->data_sync);
-            // glDeleteSync(gbuffer->data_sync);
         }
         if (gbuffer->delete_sync != NULL)
         {
             send_message_to_main_window(MAIN_DESTROY_ONE_SYNC, gbuffer->delete_sync);
-            // glDeleteSync(gbuffer->delete_sync);
         }
         g_free(gbuffer);
     }
@@ -278,10 +263,7 @@ static void render_context_destroy(Thread_Context *context)
         g_hash_table_destroy(process_context->surface_map);
 
         // image删除，这里主要是为了释放gbuffer映射
-        //  LOGI("destroy process context");
         g_hash_table_destroy(process_context->gbuffer_map);
-
-        // send_message_to_main_window(MAIN_DESTROY_ALL_EGLSYNC, process_context->egl_sync_resource);
 
         g_free(process_context);
     }

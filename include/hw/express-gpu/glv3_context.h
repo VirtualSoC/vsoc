@@ -9,51 +9,9 @@
 
 #define MAX_VERTEX_ATTRIBS_NUM 16
 
-// typedef struct Pixel_Store_Status
-// {
-//     //表示数据对齐的标准
-//     int unpack_alignment;
-//     int pack_alignment;
-
-//     //表示对于每个图片，每一行有多少个像素点，为0的时候像素点的个数就是传入的width
-//     int unpack_row_length;
-//     int pack_row_length;
-
-//     //表示对于这个图片的读取要跳过多少行像素
-//     int unpack_skip_rows;
-//     int pack_skip_rows;
-
-//     //表示对于这个图片的这一行的读取要跳过多少个像素
-//     int unpack_skip_pixels;
-//     int pack_skip_pixels;
-
-//     //表示对于一堆图片的读取要跳过多少张图片
-//     int unpack_skip_images;
-
-//     //表示每张图片的高度
-//     int unpack_image_height;
-// } Pixel_Store_Status;
-
-
-
 
 typedef struct Attrib_Point
 {
-
-    //father指示其的数据在哪，然后offset指示了在数组中的偏移
-    // GLint father[MAX_VERTEX_ATTRIBS_NUM];
-    // GLintptr offset[MAX_VERTEX_ATTRIBS_NUM];
-
-    //顶点的常规属性
-    // GLint size[MAX_VERTEX_ATTRIBS_NUM];
-    // GLenum type[MAX_VERTEX_ATTRIBS_NUM];
-    // GLsizei stride[MAX_VERTEX_ATTRIBS_NUM];
-    // GLboolean normalized[MAX_VERTEX_ATTRIBS_NUM];
-    // GLuint divisor[MAX_VERTEX_ATTRIBS_NUM];
-    // GLenum invoke_type[MAX_VERTEX_ATTRIBS_NUM];
-    // GLuint min_index;
-    // GLuint max_index;
-
     GLuint buffer_object[MAX_VERTEX_ATTRIBS_NUM];
     GLint buffer_loc[MAX_VERTEX_ATTRIBS_NUM];
 
@@ -68,12 +26,6 @@ typedef struct Attrib_Point
     // GLint buffer_num;
     GLint element_array_buffer; //ebo
 
-
-    // GLboolean in_buffer[MAX_VERTEX_ATTRIBS_NUM];
-
-    //表示顶点属性是否启用顶点数组
-    // GLboolean enabled[MAX_VERTEX_ATTRIBS_NUM];
-
 } Attrib_Point;
 
 typedef struct Bound_Buffer
@@ -81,13 +33,6 @@ typedef struct Bound_Buffer
 
     Attrib_Point *attrib_point;
 
-    // // std::map<GLint, GLenum> buffer_type;
-    // GHashTable *buffer_type;
-
-    // //std::map<GLint, Buffer_Status *> vao_status;
-    // GHashTable *vao_status;
-
-    // //std::map<GLint, Attrib_Point *> vao_point_data;
     GHashTable *vao_point_data;
 
     GLuint asyn_unpack_texture_buffer;
@@ -96,8 +41,6 @@ typedef struct Bound_Buffer
     Buffer_Status buffer_status;
 
     int has_init;
-    //std::map<GLint, Element_Array_Buffer *> ebo_buffer;
-
 } Bound_Buffer;
 
 
@@ -105,10 +48,6 @@ typedef struct Bound_Buffer
 
 typedef struct Resource_Map_Status
 {
-
-    //不需要lock，因为android那边已经lock过了
-    // int lock;
-
     unsigned int max_id;
     unsigned int map_size;
     // unsigned int now_map_len;
@@ -132,7 +71,6 @@ typedef struct Share_Resources
     Resource_Map_Status sample_resource;
 
     //GLSL objects, include program,shader
-    //    Resource_Creater glsl_resource;
     Resource_Map_Status program_resource;
     Resource_Map_Status shader_resource;
 
@@ -192,7 +130,6 @@ typedef struct Opengl_Context
     //注意，这个window必须得放到opengl_context这边，因为opengl的环境保存在这边了
     void *window;
 
-    // Pixel_Store_Status pixel_store_status;
     Bound_Buffer bound_buffer_status;
 
     Resource_Context resource_status;
@@ -210,9 +147,6 @@ typedef struct Opengl_Context
     GLsizei view_w;
     GLsizei view_h;
 
-    // Window_Buffer *draw_surface;
-
-    // int has_init;
     int is_current;
     int need_destroy;
     EGLContext guest_context;
@@ -220,19 +154,11 @@ typedef struct Opengl_Context
 
     Texture_Binding_Status texture_binding_status;
     // external_texture不受到当前激活的纹理影响，只要绑定了就能用
-    // EGL_Image *bind_image;
-    // GLuint current_active_texture;
-    // GLuint *current_texture_2D;
     GLuint is_using_external_program;
-    // GLuint current_texture_external;
-    // GLuint current_pack_buffer;
-    // GLuint current_unpack_buffer;
 
     GLuint enable_scissor;
 
     GLint context_flags;
-    // Window_Buffer *current_external_gbuffer_id;
-    // GLenum current_target;
 
     GLuint draw_texi_vao;
     GLuint draw_texi_vbo;
@@ -250,68 +176,15 @@ typedef struct Guest_Host_Map
 
 } Guest_Host_Map;
 
-// extern GHashTable *program_is_external_map;
-// extern GHashTable *to_external_texture_id_map;
-// extern GHashTable *program_data_map;
-
-
-
-// void get_program_data(GLuint program, int buf_len, GLchar *program_data);
-
-// int init_program_data(GLuint program);
-
-// void prepare_unpack_texture(void *context,Scatter_Data *s_data,int start_loc,int end_loc);
-
-// void gl_pixel_data_loc(void *store_status, GLsizei width, GLsizei height, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
-
-// void gl_pixel_data_3d_loc(void *store_status, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, int pack, int *start_loc,int *end_loc);
-
-// void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer);
-
-// void d_glBindBuffer_origin(void *context, GLenum target, GLuint buffer);
-
-// void d_glLinkProgram_special(void *context, GLuint program, int *program_data_len);
-
-// void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len);
-
-// void d_glGetProgramData(void *context, GLuint program, int buf_len, void *program_data);
-
-// void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint *length, const GLchar **string);
-
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer);
 
 void d_glGetStringi_special(void *context, GLenum name, GLuint index, GLubyte *buffer);
-
-// void d_glViewport_special(void *context, GLint x, GLint y, GLsizei width, GLsizei height);
-
-//
-
-// void d_glUseProgram_special(void *context, GLuint program);
-
-// void d_glEGLImageTargetTexture2DOES(void *context, GLenum target, GLeglImageOES image);
-
-// void d_glBindEGLImage(void *context, GLenum target, uint64_t image, GLuint texture, GLuint share_texture, EGLContext share_ctx);
-
-
-// void d_glBindSharedGLImage(void *context, GLenum target, GLuint texture, void *share_ctx);
-
-
-// void d_glFramebufferSharedTexture2D(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level, void *share_context);
-
-
-// void d_glFramebufferEGLImage(void *context, GLenum target, GLenum attachment, GLenum textarget, GLeglImageOES image, GLint level);
-
-
-// void d_glEGLImageTargetRenderbufferStorageOES(void *context, GLenum target, GLeglImageOES image);
-
-//
 
 void resource_context_init(Resource_Context *resources, Share_Resources *share_resources);
 
 void resource_context_destroy(Resource_Context *resources);
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context_flags);
-
 
 void opengl_context_init(Opengl_Context *context);
 

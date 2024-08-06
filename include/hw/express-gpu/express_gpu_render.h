@@ -16,9 +16,6 @@
 
 #include "qemu/atomic.h"
 
-// #define GLFW_EXPOSE_NATIVE_WIN32
-// #define GLFW_EXPOSE_NATIVE_WGL
-
 #ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_EXPOSE_NATIVE_WGL
@@ -68,16 +65,12 @@
           if(atomic_cnt % 10 == 0) LOGD("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
 
-// #define ATOMIC_SET_USED(s) ATOMIC_LOCK(s)
-// #define ATOMIC_SET_UNUSED(s) ATOMIC_UNLOCK(s)
-
 #define ATOMIC_SET_USED(s) (qatomic_cmpxchg(&(s), 0, 1))
 #define ATOMIC_SET_UNUSED(s) (qatomic_cmpxchg(&(s), 1, 0))
 
 
 //是否启用opengl执行性能警告输出
 #define ENABLE_OPENGL_PERFORMANCE_WARNING
-
 
 
 //是否启用DSA模式
@@ -121,11 +114,6 @@ typedef struct GBuffer_Layers{
 } __attribute__((packed, aligned(4))) GBuffer_Layers;
 
 
-
-// typedef struct Static_Context_Values1 Static_Context_Values1;
-
-// extern HWND draw_native_window;
-
 extern GAsyncQueue *main_window_event_queue;
 
 extern volatile int native_render_run;
@@ -133,8 +121,6 @@ extern volatile int native_render_run;
 extern volatile int device_interface_run;
 
 extern Static_Context_Values *preload_static_context_value;
-
-// extern void *dummy_window_for_sync;
 
 extern int host_opengl_version;
 
@@ -150,7 +136,6 @@ extern Graphic_Buffer *main_display_gbuffer;
 
 
 void *native_window_thread(void *opaque);
-// void *opengl_ui_thread(void *opaque);
 
 int draw_wait_GSYNC(void *event, int wait_frame_num);
 
@@ -164,9 +149,5 @@ Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
 void opengl_paint_gbuffer(Graphic_Buffer *gbuffer);
 
 void send_message_to_main_window(int message_code, void *data);
-
-// void set_display_gbuffer(Graphic_Buffer *gbuffer);
-
-// bool should_give_up_gpu();
 
 #endif

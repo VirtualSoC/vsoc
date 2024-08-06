@@ -6,8 +6,6 @@ GLuint get_guest_buffer_binding_id(void *context, GLenum target);
 
 GLuint get_guest_buffer_binding_id(void *context, GLenum target)
 {
-    // GLuint buffer_id;
-
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Buffer_Status *status = &(opengl_context->bound_buffer_status.buffer_status);
 
@@ -95,31 +93,10 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
         {
             glBufferData(target, size, s_data[0].data, usage);
         }
-        uint32_t crc = 0;
-        // for(int i=0;i<size;i++)
-        // {
-        //     crc = updateCRC32(s_data[0].data[i],crc);
-        // }
-
-        express_printf("glBufferData direct %d crc %x\n", size, crc);
-        // float *temp=(float *)s_data[0].data;
-        // for(int i=0;i<size/4;i++){
-        //     express_printf("%f ",temp[i]);
-        // }
-        // express_printf("\n");
     }
     else
     {
         //先分配足够大的空间，然后用映射内存的方式来进行写入
-
-        // char *temp=g_malloc(size);
-        // host_guest_buffer_exchange(s_data, temp, 0, size, 1);
-        // glBufferData(target, size,temp, usage);
-
-        // g_free(temp);
-
-        // return;
-
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glNamedBufferData(bind_buffer, size, NULL, usage);
@@ -141,15 +118,7 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
         host_guest_buffer_exchange(s_data, map_pointer, 0, size, 1);
 
         express_printf("glBufferData indirect %d\n", size);
-        // float *temp=g_malloc(size);
-        // host_guest_buffer_exchange(s_data, temp, 0, size, 1);
-        // for(int i=0;i<size/4;i++){
-        //     express_printf("%f ",temp[i]);
-        // }
-        // express_printf("\n");
-        // glBufferData(target, size,temp, usage);
 
-        // g_free(temp);
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
             glUnmapNamedBuffer(bind_buffer);

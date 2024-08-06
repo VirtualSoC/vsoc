@@ -9,9 +9,6 @@
  *
  */
 
-// #include "GLES3/gl3.h"
-// #include "GLES2/gl2ext.h"
-// #include "GLES3/gl3platform.h"
 // #define STD_DEBUG_LOG
 
 #include "hw/express-gpu/glv3_trans.h"

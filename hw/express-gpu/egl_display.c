@@ -1,4 +1,6 @@
+// #define STD_DEBUG_LOG
 #include "hw/express-gpu/egl_display.h"
+#include "hw/teleport-express/express_log.h"
 
 Egl_Display *default_egl_display;
 
@@ -10,13 +12,9 @@ Egl_Display *default_egl_display;
  */
 void init_display(Egl_Display **display_point)
 {
-    // Egl_Display *display = (Egl_Display *)&default_wgl_display;
-    // *display_point = (Egl_Display *)&default_wgl_display;
-
     default_egl_display = g_malloc0(sizeof(Egl_Display));
 
-    express_printf("init display\n");
-    // init_wgl_extension(display);
+    LOGD("init display");
     init_configs(default_egl_display);
 
     default_egl_display->guest_ver_major = 1;
@@ -47,16 +45,6 @@ void init_configs(Egl_Display *display)
 
 EGLBoolean add_config(Egl_Display *display, eglConfig *config)
 {
-    // 过滤掉一些奇葩值，另外不需要抗锯齿
-    // if (config->red_size > 8 ||
-    //     config->green_size > 8 ||
-    //     config->blue_size > 8 ||
-    //     config->depth_size < 24 ||
-    //     config->stencil_size < 8 ||
-    //     config->samples_per_pixel > 0) {
-    //     return EGL_FALSE;
-    // }
-
     if (!is_config_in_table(config, display->egl_config_set))
     {
         config->config_id = g_hash_table_size(display->egl_config_set) + 1;
