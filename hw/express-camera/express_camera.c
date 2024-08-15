@@ -8,7 +8,6 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-camera/express_camera.h"
-#include "hw/express-codec/dcodec_video.h"
 
 #define CAMERA_FUN_GET_CAMERA_COUNT 1
 #define CAMERA_FUN_START_STREAM 2
@@ -27,54 +26,38 @@
 #define SYSTEM_LIBRARY_NAME "avfoundation"
 #endif
 
-enum Camera_Status { CAMERA_STATUS_IDLE, CAMERA_STATUS_STREAMING };
+static GArray *g_camera_list = NULL;
+static GHashTable *g_camera_thread_contexts_map = NULL;
+static int g_camera_count = 0;
 
-typedef struct CameraProp {
-    int camera_id;
-    char name[64];
+typedef struct Resolution {
+    int w;
+    int h;
+} Resolution;
 
-    union {
-		int width;
-		int min_width;
-	};
-	union {
-		int height;
-		int min_height;
-	};
-	int max_width;
-	int max_height;
-	int step_width;
-	int step_height;
-	int line_stride;
-	int frame_interval_num;
-	int frame_interval_den;
-} __attribute__((packed, aligned(4))) CameraProp;
+// cctv video resolution table
+// https://clarionuk.com/resources/cctv-video-resolutions/
+static const Resolution g_res_table[] = {
+    // {.w=4000, .h=3000},
+    {.w=3840, .h=2160},
+    // {.w=3072, .h=2048},
+    // {.w=2592, .h=1944},
+    // {.w=2688, .h=1520},
+    // {.w=2048, .h=1536},
+    {.w=1920, .h=1080},
+    // {.w=1600, .h=1200},
+    // {.w=1280, .h=1024},
+    {.w=1280, .h=960},
+    {.w=1280, .h=720},
+    {.w=720, .h=480},
+    {.w=640, .h=480},
+    {.w=320, .h=240},
+};
 
-typedef struct Camera_Context
-{
-    Device_Context device_context;
+static const int g_fps_table[] = {60, 45, 30};
 
-	int camera_id;
-    GLFWwindow* window;
-    GLuint texture_loc[3];
-    GLuint color_type_loc;
-    enum Camera_Status status;
-    uint8_t *sw_buffer;
-    QemuThread stream_thread;
-    GAsyncQueue *frame_queue;
-    OMX_COLOR_FORMATTYPE pixel_format; // omx pixel format
-} Camera_Context;
-
-typedef struct Camera_Thread_Context
-{
-    Thread_Context thread_context;
-    int camera_id;
-    Camera_Context ctx;
-} Camera_Thread_Context;
-
-static GArray *camera_list = NULL;
-static GHashTable *camera_thread_contexts_map = NULL;
-static int camera_count = 0;
+static const int g_res_table_len = sizeof(g_res_table) / sizeof(g_res_table[0]);
+static const int g_fps_table_len = sizeof(g_fps_table) / sizeof(g_fps_table[0]);
 
 static OMX_COLOR_FORMATTYPE pixel_format_v4l2_to_omx(uint32_t format) {
     switch (format) {
@@ -110,50 +93,81 @@ static AVFormatContext* open_camera(CameraProp *prop) {
         return NULL;
     }
 
-    char ff_name[64] = {0};
+    char ff_name[70] = {0};
     char frame_size_str[16] = {0};
     char framerate_str[16] = {0};
     char rtbufsize_str[16] = {0};
     AVDictionary *options = NULL;
 
+#ifdef _WIN32
+        snprintf(ff_name, 70, "video=%s", prop->name);
+#else
+        snprintf(ff_name, 64, "%s", prop->name);
+#endif
+
     // if camera prop is configured, use prop width/height as specified
     if (prop->width > 0 && prop->height > 0) {
         sprintf(frame_size_str, "%dx%d", prop->width, prop->height);
-        sprintf(rtbufsize_str, "%d", prop->width * prop->height * 2);
         av_dict_set(&options, "video_size", frame_size_str, 0);
+
+        sprintf(rtbufsize_str, "%d", prop->width * prop->height * 2);
         av_dict_set(&options, "rtbufsize", rtbufsize_str, 0);
+
+        sprintf(framerate_str, "%d", prop->frame_interval_den / prop->frame_interval_num);
+        av_dict_set(&options, "framerate", framerate_str, 0);
+
+#ifdef __APPLE__
+                av_dict_set(&options, "pixel_format", "nv12", 0);
+#endif
+
         av_dict_set(&options, "fflags", "nobuffer", 0);
         av_dict_set(&options, "preset", "ultrafast", 0);
         av_dict_set(&options, "max_delay", "0", 0);
         av_dict_set(&options, "tune", "zerolatency", 0);
-    }
-    else {
-        sprintf(frame_size_str, "%dx%d", DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT);
-        av_dict_set(&options, "video_size", frame_size_str, 0);
+
+        LOGI("open_camera name '%s' %s@%sfps rtbufsize %s", prop->name, frame_size_str, framerate_str, rtbufsize_str);
+
+        ret = avformat_open_input(&format_context, ff_name, input_format, &options);
+        av_dict_free(&options);
+
+        if (ret == 0) {
+            return format_context;
+        }
+        av_strerror(ret, error_msg, 256);
+        LOGE("avformat_open_input failed: %s %d", error_msg, ret);
     }
 
-    sprintf(framerate_str, "%d", MAX_CAPTURE_FPS);
-    av_dict_set(&options, "framerate", framerate_str, 0);
+    // first time, or previous open failed,
+    // try enumerate i=resolution / j=framerate / k=format combinations
+    for (int i = 0; i < g_res_table_len; i++) {
+        for (int j = 0; j < g_fps_table_len; j++) {
+            sprintf(frame_size_str, "%dx%d", g_res_table[i].w, g_res_table[i].h);
+            av_dict_set(&options, "video_size", frame_size_str, 0);
 
-#ifdef _WIN32
-    snprintf(ff_name, 64, "video=%s", prop->name);
-#else
-    snprintf(ff_name, 64, "%s", prop->name);
-    av_dict_set(&options, "pixel_format", "nv12", 0);
+            sprintf(framerate_str, "%d", g_fps_table[j]);
+            av_dict_set(&options, "framerate", framerate_str, 0);
+
+#ifdef __APPLE__
+            av_dict_set(&options, "pixel_format", "nv12", 0);
 #endif
 
-    LOGI("open_camera name '%s' %s@%sfps rtbufsize %s", ff_name, frame_size_str, framerate_str, rtbufsize_str);
+            LOGD("camera '%s' try format %s@%sfps", prop->name, frame_size_str, framerate_str);
 
-    ret = avformat_open_input(&format_context, ff_name, input_format, &options);
-    av_dict_free(&options);
+            ret = avformat_open_input(&format_context, ff_name, input_format, &options);
+            av_dict_free(&options);
 
-    if (ret < 0) {
-        av_strerror(ret, error_msg, 256);
-        LOGE("avformat_open_input failed: %s %d", error_msg,ret);
-        return NULL;
+            if (ret == 0) { // valid, store the combination
+                LOGD("try camera format success!");
+                prop->frame_interval_num = 1;
+                prop->frame_interval_den = g_fps_table[j];
+
+                return format_context;
+            }
+        }
     }
 
-    return format_context;
+    LOGW("no valid configuration found for camera %s!", prop->name);
+    return NULL;
 }
 
 /*
@@ -195,11 +209,9 @@ static void set_camera_capabilties(CameraProp *prop)
     // for example, if the resolutions are 640x480, 1280x720, 1920x1080, then step_width = 640, step_height = 480
     prop->step_width = 2;
     prop->step_height = 2;
-    prop->line_stride = prop->width * 2;
-    prop->frame_interval_num = 1;
-    prop->frame_interval_den = MAX_CAPTURE_FPS;
+    prop->line_stride = prop->width * 4;
 
-    LOGI("set camera %d capabilities: width %u height %u", prop->camera_id, prop->width, prop->height);
+    LOGI("set camera %d capabilities: width %u height %u fps %d", prop->camera_id, prop->width, prop->height, prop->frame_interval_den / prop->frame_interval_num);
 
     // clean up av stuff
     avformat_close_input(&format_context);
@@ -232,7 +244,7 @@ static void camera_codec_notify(DCodecComponent *context, OMX_EVENTTYPE event, O
 static void *camera_capturing_thread(void *opaque)
 {
     Camera_Context *context = (Camera_Context *)opaque;
-    CameraProp * prop = &g_array_index(camera_list, CameraProp, context->camera_id);
+    CameraProp * prop = &g_array_index(g_camera_list, CameraProp, context->camera_id);
     AVFormatContext *format_context = NULL;
     AVPacket packet;
     int stream_index = -1;
@@ -279,7 +291,7 @@ static void *camera_capturing_thread(void *opaque)
     out_def.nPortIndex = CODEC_OUTPUT_PORT_INDEX;
     out_def.nFrameWidth = codecpar->width;
     out_def.nFrameHeight = codecpar->height;
-    out_def.eColorFormat = context->pixel_format;
+    out_def.eColorFormat = context->guest_pix_fmt;
     out_def.bLowLatency = OMX_TRUE;
     codec->set_parameter(codec, OMX_IndexParamVideoDcodecDefinition, &out_def);
 
@@ -306,9 +318,7 @@ static void *camera_capturing_thread(void *opaque)
             LOGW("camera input packet stream_index %d vs. %d not equal!", packet.stream_index, stream_index);
         }
 
-        // ztodo: obtained frame from camera (through ffmpeg) 
-        // 
-        // timestamp
+        // obtained frame from camera (through ffmpeg) 
         LOGD("obtained frame from camera!");
 
         // send output buffer first
@@ -355,11 +365,11 @@ int list_cameras(void)
 {
     av_log_set_level(CAMERA_LOG_LEVEL);
 
-    if (camera_list != NULL) {
-        LOGW("camera_list not null, refreshing cameras.");
-        g_array_unref(camera_list);
-        camera_list = NULL;
-        camera_count = 0;
+    if (g_camera_list != NULL) {
+        LOGW("g_camera_list not null, refreshing cameras.");
+        g_array_unref(g_camera_list);
+        g_camera_list = NULL;
+        g_camera_count = 0;
     }
 
     AVDeviceInfoList *device_info_list = av_mallocz(sizeof(AVDeviceInfoList));
@@ -382,8 +392,8 @@ int list_cameras(void)
     }
 
 #endif
-    // allocate the camera_list base on the number of video devices
-    camera_list = g_array_new(false, true, sizeof(CameraProp));
+    // allocate the g_camera_list base on the number of video devices
+    g_camera_list = g_array_new(false, true, sizeof(CameraProp));
     for (int i = 0; i < device_info_list->nb_devices; ++i) {
         AVDeviceInfo *device_info = device_info_list->devices[i];
         for(int j = 0; j < device_info->nb_media_types; ++j) {
@@ -395,22 +405,22 @@ int list_cameras(void)
 #else
                 snprintf(prop.name, sizeof(prop.name), "%s", device_info->device_description);
 #endif
-                prop.camera_id = camera_count;
+                prop.camera_id = g_camera_count;
 
                 set_camera_capabilties(&prop);
 
-                LOGI("discovered camera id %d: %s", camera_count, prop.name);
-                g_array_append_val(camera_list, prop);
-                ++camera_count;
+                LOGI("discovered camera id %d: %s", g_camera_count, prop.name);
+                g_array_append_val(g_camera_list, prop);
+                ++g_camera_count;
 
                 break;
             }
         }
     }
 
-    LOGI("list_cameras: found %d cameras.", camera_count);
+    LOGI("list_cameras: found %d cameras", g_camera_count);
 
-    return camera_count;
+    return g_camera_count;
 }
 
 static void camera_output_call_handle(struct Thread_Context *context, Teleport_Express_Call *call)
@@ -438,18 +448,18 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
     {
     case CAMERA_FUN_GET_CAMERA_COUNT:
     {
-        write_to_guest_mem(all_para[0].data, &camera_count, 0, sizeof(int));
+        write_to_guest_mem(all_para[0].data, &g_camera_count, 0, sizeof(int));
     }
     break;
     case CAMERA_FUN_START_STREAM:
     {
         int need_free = 0;
         char *params = (char *)call_para_to_ptr(all_para[1], &need_free);
-        camera_context->pixel_format = pixel_format_v4l2_to_omx(*(uint32_t *)params);
+        camera_context->guest_pix_fmt = pixel_format_v4l2_to_omx(*(uint32_t *)params);
         if (need_free) {
             g_free(params);
         }
-        if (camera_context->pixel_format == 0) {
+        if (camera_context->guest_pix_fmt == 0) {
             LOGE("error! cannot start stream when camera format is unknown");
         }
         else if (camera_context->status == CAMERA_STATUS_IDLE)
@@ -481,7 +491,7 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
         while (g_async_queue_length(camera_context->frame_queue) != 0) {
             g_async_queue_pop(camera_context->frame_queue);
         }
-        camera_context->pixel_format = 0;
+        camera_context->guest_pix_fmt = 0;
 
         if (need_free) {
             g_free(params);
@@ -492,7 +502,7 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
     {
         int need_free = 0;
         char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
-        CameraProp *prop = &g_array_index(camera_list, CameraProp, camera_id);
+        CameraProp *prop = &g_array_index(g_camera_list, CameraProp, camera_id);
 
         write_to_guest_mem(all_para[1].data, prop, 0, sizeof(CameraProp));
 
@@ -523,16 +533,15 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
     {
         int need_free = 0;
         char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
-        CameraProp *prop = &g_array_index(camera_list, CameraProp, camera_id);
+        CameraProp *prop = &g_array_index(g_camera_list, CameraProp, camera_id);
 
         BufferDesc *desc = g_malloc0(sizeof(BufferDesc));
         desc->type = CODEC_BUFFER_TYPE_OUTPUT | CODEC_BUFFER_TYPE_GBUFFER;
         desc->id = *(uint64_t *)params;
         desc->sync_id = *(int *)(params + 8);
-        desc->nAllocLen = av_image_get_buffer_size(pixel_format_omx_to_av(camera_context->pixel_format), prop->width, prop->height, 1);
+        desc->nAllocLen = av_image_get_buffer_size(pixel_format_omx_to_av(camera_context->guest_pix_fmt), prop->width, prop->height, 1);
 
-        // ztodo: guest dequeue buffer, host camera queue buffer into frame_queue. 
-        // timestamp
+        // guest dequeue buffer, host camera queue buffer into frame_queue. 
         LOGD("guest dequeue buffer, host camera queue buffer into frame_queue with id %" PRIx64, desc->id);
 
         g_async_queue_push(camera_context->frame_queue, (gpointer)desc);
@@ -554,14 +563,14 @@ static void camera_output_call_handle(struct Thread_Context *context, Teleport_E
 
 static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    if (camera_thread_contexts_map == NULL)
+    if (g_camera_thread_contexts_map == NULL)
     {
         // first time thread safety?
-        camera_thread_contexts_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_camera_thread_contexts_map = g_hash_table_new(g_direct_hash, g_direct_equal);
         list_cameras();
     }
 
-    Thread_Context *context = (Thread_Context *)g_hash_table_lookup(camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
+    Thread_Context *context = (Thread_Context *)g_hash_table_lookup(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
     // 没有context就新建线程
     if (context == NULL)
     {
@@ -574,27 +583,27 @@ static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t th
         c_context->ctx.status = CAMERA_STATUS_IDLE;
         c_context->ctx.frame_queue = g_async_queue_new_full(dcodec_free_buffer_desc);
 
-        g_hash_table_insert(camera_thread_contexts_map, GUINT_TO_POINTER(unique_id), (gpointer)context);
+        g_hash_table_insert(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id), (gpointer)context);
     }
     return context;
 }
 
 static bool remove_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    Thread_Context *context = (Thread_Context *)g_hash_table_lookup(camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
+    Thread_Context *context = (Thread_Context *)g_hash_table_lookup(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
 
     if (context != NULL) {
         Camera_Thread_Context *c_context = (Camera_Thread_Context *)context;
         g_async_queue_unref(c_context->ctx.frame_queue);
     }
 
-    // g_hash_table_remove(camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
+    // g_hash_table_remove(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
     return true;
 }
 
 static Device_Context *get_camera_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    Camera_Thread_Context * c_context = (Camera_Thread_Context *)g_hash_table_lookup(camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
+    Camera_Thread_Context * c_context = (Camera_Thread_Context *)g_hash_table_lookup(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
     if (c_context)
         return &(c_context->ctx.device_context);
     else

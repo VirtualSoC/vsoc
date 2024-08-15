@@ -6,12 +6,51 @@
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
-#include "libavdevice/avdevice.h"
+#include "hw/express-codec/dcodec_video.h"
 
-// these values need to be consistent with the guest configuration (if exists)
-#define MAX_CAPTURE_FPS 30
-#define DEFAULT_FRAME_WIDTH 1280
-#define DEFAULT_FRAME_HEIGHT 720
+enum Camera_Status { CAMERA_STATUS_IDLE, CAMERA_STATUS_STREAMING };
+
+typedef struct CameraProp {
+    int camera_id;
+    char name[64];
+
+    union {
+		int width;
+		int min_width;
+	};
+	union {
+		int height;
+		int min_height;
+	};
+	int max_width;
+	int max_height;
+	int step_width;
+	int step_height;
+	int line_stride;
+	int frame_interval_num;
+	int frame_interval_den;
+} __attribute__((packed, aligned(4))) CameraProp;
+
+typedef struct Camera_Context
+{
+    Device_Context device_context;
+
+	int camera_id;
+    GLFWwindow* window;
+    GLuint texture_loc[3];
+    GLuint color_type_loc;
+    enum Camera_Status status;
+    QemuThread stream_thread;
+    GAsyncQueue *frame_queue;
+    OMX_COLOR_FORMATTYPE guest_pix_fmt; // omx pixel format
+} Camera_Context;
+
+typedef struct Camera_Thread_Context
+{
+    Thread_Context thread_context;
+    int camera_id;
+    Camera_Context ctx;
+} Camera_Thread_Context;
 
 /*
  *	M I S C E L L A N E O U S
@@ -308,4 +347,5 @@ enum v4l2_colorspace {
 
 int list_cameras(void);
 void listAvfoundationDevices(AVDeviceInfoList *deviceList);
+
 #endif
