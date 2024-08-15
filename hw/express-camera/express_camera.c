@@ -43,6 +43,7 @@ static const Resolution g_res_table[] = {
     // {.w=3072, .h=2048},
     // {.w=2592, .h=1944},
     // {.w=2688, .h=1520},
+    {.w=2560, .h=1440},
     // {.w=2048, .h=1536},
     {.w=1920, .h=1080},
     // {.w=1600, .h=1200},
@@ -209,7 +210,7 @@ static void set_camera_capabilties(CameraProp *prop)
     // for example, if the resolutions are 640x480, 1280x720, 1920x1080, then step_width = 640, step_height = 480
     prop->step_width = 2;
     prop->step_height = 2;
-    prop->line_stride = prop->width * 4;
+    prop->line_stride = prop->width * 2;
 
     LOGI("set camera %d capabilities: width %u height %u fps %d", prop->camera_id, prop->width, prop->height, prop->frame_interval_den / prop->frame_interval_num);
 

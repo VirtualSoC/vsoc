@@ -116,7 +116,7 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
         {
             if (guest_ids[i] != 0)
             {
-                LOGE("error remove! %u %u origin %llu", guest_ids[i], status->max_id, status->max_id != 0 ? status->resource_id_map[guest_ids[i]] : 0);
+                LOGE("error remove! %u %u origin %llu", guest_ids[i], status->max_id, status->max_id >= guest_ids[i] ? status->resource_id_map[guest_ids[i]] : 0);
             }
             continue;
         }
