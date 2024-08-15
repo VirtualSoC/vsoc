@@ -481,7 +481,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         }
         if (gbuffer->location == EXPRESS_MEM_TYPE_HOST_MEM && gbuffer->host_data != NULL) {
             // sync data from host mem to gpu mem
-            LOGD("gbuffer %" PRIx64 " sync data: %s -> %s", gbuffer->gbuffer_id, memtype_to_str(gbuffer->location), memtype_to_str(EXPRESS_MEM_TYPE_GBUFFER));
+            LOGD("gbuffer %" PRIx64 " sync data: %s -> %s", gbuffer->gbuffer_id, memtype_to_str(gbuffer->location), memtype_to_str(EXPRESS_MEM_TYPE_TEXTURE));
             GLuint prev_texture = 0;
             GLuint prev_unpack = 0;
             glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&prev_texture);
@@ -494,7 +494,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
             glBindTexture(GL_TEXTURE_2D, prev_texture);
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, prev_unpack);
         }
-        update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_GBUFFER, CURRENT_TID(), false);
+        update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_TEXTURE, CURRENT_TID(), false);
     }
 
     host_share_texture = gbuffer->data_texture;

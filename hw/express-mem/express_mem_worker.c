@@ -96,7 +96,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
     }
 
     void *mapped_addr = NULL;
-    if (task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER) {
+    if (task->dst_loc == EXPRESS_MEM_TYPE_TEXTURE) {
         mapped_addr = begin_dma_to_gbuffer(task->dst_len);
         if (!mapped_addr) {
             LOGE("failed to map gbuffer!");
@@ -117,7 +117,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
         task->pre_cb(task, mapped_addr);
 
     switch (task->dst_loc) {
-        case EXPRESS_MEM_TYPE_GBUFFER: {
+        case EXPRESS_MEM_TYPE_TEXTURE: {
             end_dma_to_gbuffer((Graphic_Buffer *)task->dst_data);
         } break;
         case EXPRESS_MEM_TYPE_GUEST_MEM: {
@@ -134,7 +134,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
         }
     }
     if (task->sync_id > 0) {
-        signal_express_sync(task->sync_id, task->src_loc == EXPRESS_MEM_TYPE_GBUFFER || task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER);
+        signal_express_sync(task->sync_id, task->src_loc == EXPRESS_MEM_TYPE_TEXTURE || task->dst_loc == EXPRESS_MEM_TYPE_TEXTURE);
     }
 
 EXIT:

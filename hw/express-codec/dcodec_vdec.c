@@ -651,7 +651,7 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
     }
 
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
-    if (task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER) {
+    if (task->dst_loc == EXPRESS_MEM_TYPE_TEXTURE) {
         glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, gbuffer->data_texture, 0);
     }
     else {
@@ -770,9 +770,9 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             pred_loc = EXPRESS_MEM_TYPE_HOST_MEM;
             gbuffer->host_data = g_realloc(gbuffer->host_data, outputSize);
             mem_transfer_async(EXPRESS_MEM_TYPE_HOST_MEM, EXPRESS_MEM_TYPE_HOST_OPAQUE, gbuffer->host_data, mFrame, outputSize, outputSize, desc->sync_id, swscale_task_cb, NULL, context);
-        } else if (pred_loc == EXPRESS_MEM_TYPE_GBUFFER) {
+        } else if (pred_loc == EXPRESS_MEM_TYPE_TEXTURE) {
             update_gbuffer_location(gbuffer, pred_loc, CURRENT_TID(), true);
-            mem_transfer_async(EXPRESS_MEM_TYPE_GBUFFER, EXPRESS_MEM_TYPE_HOST_OPAQUE, gbuffer, mFrame, outputSize, outputSize, desc->sync_id, swscale_task_cb, NULL, context);
+            mem_transfer_async(EXPRESS_MEM_TYPE_TEXTURE, EXPRESS_MEM_TYPE_HOST_OPAQUE, gbuffer, mFrame, outputSize, outputSize, desc->sync_id, swscale_task_cb, NULL, context);
         } else {
             LOGE("error! gbuffer location %x is currently not supported by the codec", pred_loc);
             av_frame_free(&mFrame);

@@ -4,7 +4,7 @@
  * Copyright (c) 2024 Jiaxing Qiu <jx.qiu@outlook.com>
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 
 // todo: do not uncomment the following line as it is unusable for now.
 // #define STD_DEBUG_INDEPENDENT_WINDOW

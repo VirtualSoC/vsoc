@@ -8,7 +8,6 @@
 // #define STD_DEBUG_LOG
 #define MAX_MEM_WORKER_THREADS 4
 #include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_device_common.h"
 
 #include "hw/express-mem/express_mem.h"
 #include "hw/express-gpu/express_sync.h"
@@ -25,6 +24,24 @@ static GLuint unpack_buffer;
 static int unpack_buffer_size = 0;
 static GLsync unpack_buffer_sync = NULL;
 
+#define EXP_SMOOTH_ALPHA 0.5
+
+typedef struct Dataflow {
+    ExpressMemType src_dev;
+    int dst_dev[16];
+    GArray *gbuffer_ids; // gbuffers that belong to the data flow
+    int slack_interval; // exp. smoothing
+} Dataflow;
+
+typedef struct PredStatistics {
+    Dataflow virt_flows[32];
+    Dataflow phy_flows[32];
+    GHashTable *id_virt_map;
+    GHashTable *id_phy_map;
+    int bandwidth[16][16];
+} PredStatistics;
+
+PredStatistics g_stats;
 
 const char *memtype_to_str(ExpressMemType loc) {
     switch (loc) {
@@ -34,7 +51,7 @@ const char *memtype_to_str(ExpressMemType loc) {
             return "guest_mem";
         case EXPRESS_MEM_TYPE_GUEST_OPAQUE:
             return "guest_opaque";
-        case EXPRESS_MEM_TYPE_GBUFFER:
+        case EXPRESS_MEM_TYPE_TEXTURE:
             return "gbuffer";
         case EXPRESS_MEM_TYPE_HOST_MEM:
             return "host_mem";
@@ -87,11 +104,11 @@ void update_gbuffer_location(Graphic_Buffer *gbuffer, ExpressMemType loc, int pi
 */
 ExpressMemType predict_gbuffer_location(Graphic_Buffer *gbuffer) {
     if (gbuffer == NULL) {
-        LOGE("predict_gbuffer_location got null gbuffer!");
+        LOGW("predict_gbuffer_location got null gbuffer!");
         return EXPRESS_MEM_TYPE_UNKNOWN;
     }
     if (gbuffer->locations == NULL) {
-        LOGE("gbuffer %" PRIx64 " location tracking not enabled!", gbuffer->gbuffer_id);
+        LOGW("gbuffer %" PRIx64 " location tracking not enabled!", gbuffer->gbuffer_id);
         return EXPRESS_MEM_TYPE_UNKNOWN;
     }
     uint64_t id = gbuffer->location | ((uint64_t)gbuffer->pid << 32);
@@ -283,7 +300,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
 
         Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
         if (gbuffer) {
-            update_gbuffer_location(gbuffer, write ? EXPRESS_MEM_TYPE_GBUFFER : EXPRESS_MEM_TYPE_GUEST_MEM, pid, write);
+            update_gbuffer_location(gbuffer, write ? EXPRESS_MEM_TYPE_TEXTURE : EXPRESS_MEM_TYPE_GUEST_MEM, pid, write);
         }
     }
     break;
@@ -550,7 +567,7 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
         return;
     }
 
-    mem_transfer_async(EXPRESS_MEM_TYPE_GBUFFER, EXPRESS_MEM_TYPE_GUEST_OPAQUE, gbuffer, gbuffer->guest_data, gbuffer->size, gbuffer->guest_data->all_len, sync_id, guest_to_host_dma_task, NULL, NULL);
+    mem_transfer_async(EXPRESS_MEM_TYPE_TEXTURE, EXPRESS_MEM_TYPE_GUEST_OPAQUE, gbuffer, gbuffer->guest_data, gbuffer->size, gbuffer->guest_data->all_len, sync_id, guest_to_host_dma_task, NULL, NULL);
 }
 
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
@@ -646,6 +663,62 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
     }
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+}
+
+Dataflow *hg_get_virt_flows(uint64_t gbuffer_id) {
+    return g_hash_table_lookup(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id));
+}
+
+Dataflow *hg_get_phy_flows(uint64_t gbuffer_id) {
+    return g_hash_table_lookup(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id));
+}
+
+void hg_update_phy_flows(uint64_t gbuffer_id, int phy_dev_id) {
+    g_hash_table_replace(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id), GUINT_TO_POINTER(phy_dev_id));
+}
+
+void hg_update_virt_flows(uint64_t gbuffer_id, int virt_dev_id) {
+    g_hash_table_replace(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id), GUINT_TO_POINTER(virt_dev_id));
+}
+
+int hg_get_bandwidth(ExpressMemType dst, ExpressMemType src) {
+    if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
+        LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
+        return 0;
+    }
+    return g_stats.bandwidth[dst][src];
+}
+
+void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, int new_bandwidth) {
+    if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
+        LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
+        return;
+    }
+    g_stats.bandwidth[dst][src] = EXP_SMOOTH_ALPHA * new_bandwidth + (1 - EXP_SMOOTH_ALPHA) * g_stats.bandwidth[dst][src];
+}
+
+// gbuffer prefetch
+int mem_prefetch(Graphic_Buffer *gbuffer, int curr_virt_device, ExpressMemType curr_phy_device, int sync_id) {
+
+    // 1. predict next device & next R/W usage
+    Dataflow *virt_flows = hg_get_virt_flows(gbuffer->gbuffer_id);
+    Dataflow *phy_flows = hg_get_phy_flows(gbuffer->gbuffer_id);
+    if (virt_flows->src_dev != curr_virt_device || phy_flows->src_dev != curr_phy_device) { 
+        // device mismatch. did the buffer owner change?
+        hg_update_phy_flows(gbuffer->gbuffer_id, curr_phy_device);
+    }
+    ExpressMemType next_phy_device = phy_flows->dst_dev[0]; // todo: do the predictions!
+
+    // 2. predict guest block time
+    int slack_interval = virt_flows->slack_interval;
+    int phy_bandwidth = hg_get_bandwidth(next_phy_device, curr_phy_device);
+    int guest_block_time = gbuffer->size / phy_bandwidth - slack_interval;
+
+    // 3. initiate transfer
+    void *dst_data = NULL, *src_data = NULL;
+//     mem_transfer_async(next_phy_device, phy_flows.src_dev, dst_data, src_data, gbuffer->size, gbuffer->size, sync_id, NULL, NULL, NULL);
+
+    return max(guest_block_time, 0);
 }
 
 /**
