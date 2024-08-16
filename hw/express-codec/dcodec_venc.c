@@ -526,7 +526,7 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
         mFrame = (AVFrame *)desc->data;
     }
     else if (desc->type & CODEC_BUFFER_TYPE_GBUFFER) {
-        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         if (gbuffer == NULL) {
             LOGE("error! encoder source gbuffer %" PRIx64 " is null!", desc->id);
             return ERR_CODING_FAILED;

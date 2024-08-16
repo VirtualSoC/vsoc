@@ -27,11 +27,11 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     Render_Thread_Context *thread_context = (Render_Thread_Context *)render_context;
     Opengl_Context *opengl_context = (Opengl_Context *)(thread_context->opengl_context);
 
-    Graphic_Buffer *now_draw_gbuffer = surface->gbuffer;
+    Hardware_Buffer *now_draw_gbuffer = surface->gbuffer;
 
     LOGD("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
 
-    Graphic_Buffer *next_draw_gbuffer = NULL;
+    Hardware_Buffer *next_draw_gbuffer = NULL;
 
     if (surface->type == WINDOW_SURFACE)
     {
@@ -452,7 +452,7 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     return EGL_TRUE;
 }
 
-Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *t_context, EGLContext ctx, uint64_t gbuffer_id)
+Hardware_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *t_context, EGLContext ctx, uint64_t gbuffer_id)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)t_context;
     Process_Context *process_context = thread_context->process_context;
@@ -476,7 +476,7 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
         }
     }
 
-    Graphic_Buffer *gbuffer = create_gbuffer_from_hal(width, height, hal_format, NULL, gbuffer_id);
+    Hardware_Buffer *gbuffer = create_gbuffer_from_hal(width, height, hal_format, NULL, gbuffer_id);
 
     if (thread_context->opengl_context == NULL)
     {
@@ -493,7 +493,7 @@ Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_forma
     return gbuffer;
 }
 
-Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id)
+Hardware_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id)
 {
 
     int sampler_num = 0;
@@ -585,7 +585,7 @@ Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, W
                           gbuffer_id);
 }
 
-Graphic_Buffer *create_gbuffer_from_surface(Window_Buffer *surface)
+Hardware_Buffer *create_gbuffer_from_surface(Window_Buffer *surface)
 {
     return create_gbuffer(surface->width, surface->height, surface->sampler_num,
                           surface->format,
@@ -596,7 +596,7 @@ Graphic_Buffer *create_gbuffer_from_surface(Window_Buffer *surface)
                           0);
 }
 
-Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
+Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
                                int format,
                                int pixel_type,
                                int internal_format,
@@ -605,7 +605,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
                                uint64_t gbuffer_id)
 {
     // creater_window等于空意味着底下各种资源之前都没申请过，因此需要申请
-    Graphic_Buffer *gbuffer = g_malloc0(sizeof(Graphic_Buffer));
+    Hardware_Buffer *gbuffer = g_malloc0(sizeof(Hardware_Buffer));
 
     gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
     ;
@@ -748,7 +748,7 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
     return gbuffer;
 }
 
-void reverse_gbuffer(Graphic_Buffer *gbuffer)
+void reverse_gbuffer(Hardware_Buffer *gbuffer)
 {
     if (gbuffer->reverse_rbo == 0)
     {
@@ -791,7 +791,7 @@ void reverse_gbuffer(Graphic_Buffer *gbuffer)
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pre_fbo_draw);
 }
 
-void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
+void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface)
 {
 
     gbuffer->data_fbo = surface->data_fbo[surface->now_fbo_loc];
@@ -874,7 +874,7 @@ void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface)
     return;
 }
 
-void destroy_gbuffer(Graphic_Buffer *gbuffer)
+void destroy_gbuffer(Hardware_Buffer *gbuffer)
 {
     // LOGI("destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, (unsigned long long)gbuffer);
     if (gbuffer->data_texture != 0)
@@ -969,7 +969,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
     uint64_t gbuffer_id = (uint64_t)guest_image;
 
-    Graphic_Buffer *gbuffer = NULL;
+    Hardware_Buffer *gbuffer = NULL;
 
     if (target == EGL_NATIVE_BUFFER_ANDROID || target == EGL_NATIVE_BUFFER_OHOS)
     {
@@ -1000,7 +1000,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         GLuint host_share_texture = get_host_texture_id(share_opengl_context, (GLuint)gbuffer_id);
 
         // 之所以这里没有判断是否存在gbuffer，是因为作为texture的情况下，gbuffer一定不存在。即同一个进程下同一个id的EGLImage不会创建两次
-        gbuffer = g_malloc0(sizeof(Graphic_Buffer));
+        gbuffer = g_malloc0(sizeof(Hardware_Buffer));
         gbuffer->usage_type = GBUFFER_TYPE_TEXTURE;
         gbuffer->data_texture = host_share_texture;
         gbuffer->gbuffer_id = gbuffer_id;
@@ -1052,7 +1052,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 
     Process_Context *process_context = thread_context->process_context;
 
-    Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, (gpointer)(gbuffer_id));
+    Hardware_Buffer *gbuffer = (Hardware_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, (gpointer)(gbuffer_id));
 
     express_printf("destroyImage gbuffer %llx ptr %llx\n", gbuffer_id, gbuffer);
 

@@ -735,7 +735,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             return ERR_SWS_FAILED;
         }
 
-        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         if (gbuffer == NULL) {
             LOGD("create_gbuffer with id %llx width %d height %d pixtype %x pixfmt %x intfmt %x", desc->id, context->mWidth, context->mHeight, glPixType, glPixFmt, glIntFmt);
             gbuffer = create_gbuffer(context->mWidth, context->mHeight, 0 /* sampler num */,

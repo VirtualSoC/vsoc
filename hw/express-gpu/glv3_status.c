@@ -442,7 +442,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = (Opengl_Context *)thread_context->opengl_context;
     uint64_t gbuffer_id = (uint64_t)image;
-    Graphic_Buffer *gbuffer = NULL;
+    Hardware_Buffer *gbuffer = NULL;
 
     GLuint host_share_texture;
 
@@ -453,7 +453,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         return;
     }
 
-    gbuffer = (Graphic_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+    gbuffer = (Hardware_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
     if (gbuffer == NULL) 
     {
         gbuffer = get_gbuffer_from_global_map(gbuffer_id);

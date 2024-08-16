@@ -459,7 +459,7 @@ long long set_share_texture(void *context, GLuint texture, GLuint share_texture)
     return set_host_map_id(map_status, texture, share_texture);
 }
 
-Graphic_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
+Hardware_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
@@ -473,7 +473,7 @@ Graphic_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
     }
 }
 
-void set_texture_gbuffer_ptr(void *context, GLuint texture, Graphic_Buffer *gbuffer)
+void set_texture_gbuffer_ptr(void *context, GLuint texture, Hardware_Buffer *gbuffer)
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
@@ -485,7 +485,7 @@ void set_texture_gbuffer_ptr(void *context, GLuint texture, Graphic_Buffer *gbuf
             memcpy(temp, map_status->gbuffer_ptr_map, map_status->gbuffer_map_max_size * sizeof(void *));
             g_free(map_status->gbuffer_ptr_map);
         }
-        map_status->gbuffer_ptr_map = (Graphic_Buffer **)temp;
+        map_status->gbuffer_ptr_map = (Hardware_Buffer **)temp;
         map_status->gbuffer_map_max_size = map_status->map_size;
     }
     map_status->gbuffer_ptr_map[texture] = gbuffer;

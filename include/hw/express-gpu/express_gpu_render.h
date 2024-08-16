@@ -132,7 +132,7 @@ extern QemuThread native_window_render_thread;
 extern int force_show_native_render_window;
 
 
-extern Graphic_Buffer *main_display_gbuffer;
+extern Hardware_Buffer *main_display_gbuffer;
 
 
 void *native_window_thread(void *opaque);
@@ -142,11 +142,11 @@ int draw_wait_GSYNC(void *event, int wait_frame_num);
 
 void remove_gbuffer_from_global_map(uint64_t gbuffer_id);
 
-void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer);
+void add_gbuffer_to_global(Hardware_Buffer *global_gbuffer);
 
-Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
+Hardware_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
 
-void opengl_paint_gbuffer(Graphic_Buffer *gbuffer);
+void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
 
 void send_message_to_main_window(int message_code, void *data);
 

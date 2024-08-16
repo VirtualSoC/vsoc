@@ -109,7 +109,7 @@ static int display_height = 0;
 
 static bool window_need_refresh = false;
 
-Graphic_Buffer *main_display_gbuffer;
+Hardware_Buffer *main_display_gbuffer;
 
 volatile int native_render_run = 0;
 volatile int device_interface_run = 0;
@@ -344,7 +344,7 @@ void window_size_change_callback(GLFWwindow *window, int width, int height)
 
 static int try_destroy_gbuffer(void *data)
 {
-    Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
+    Hardware_Buffer *gbuffer = (Hardware_Buffer *)data;
 
     if (gbuffer == NULL)
     {
@@ -432,7 +432,7 @@ static void handle_child_window_event(void)
 
         case MAIN_DESTROY_GBUFFER:
         {
-            Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+            Hardware_Buffer *gbuffer = (Hardware_Buffer *)child_event->data;
             if (gbuffer->gbuffer_id == 0)
             {
                 destroy_gbuffer(gbuffer);
@@ -446,7 +446,7 @@ static void handle_child_window_event(void)
         break;
         case MAIN_CANCEL_GBUFFER:
         {
-            Graphic_Buffer *gbuffer = (Graphic_Buffer *)child_event->data;
+            Hardware_Buffer *gbuffer = (Hardware_Buffer *)child_event->data;
             if (gbuffer != NULL)
             {
                 // LOGI("real cancel gbuffer delete %llx ptr %llx", gbuffer->gbuffer_id, gbuffer);
@@ -713,7 +713,7 @@ static void opengl_paint_composer_gbuffer(void)
 
     ATOMIC_LOCK(main_display_gbuffer->is_lock);
 
-    Graphic_Buffer *gbuffer = main_display_gbuffer;
+    Hardware_Buffer *gbuffer = main_display_gbuffer;
 
     if (display_width != gbuffer->width || display_height == gbuffer->height)
     {
@@ -739,7 +739,7 @@ static void opengl_paint_composer_gbuffer(void)
  *
  * @param gbuffer
  */
-void opengl_paint_gbuffer(Graphic_Buffer *gbuffer)
+void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
 {
     if (gbuffer != NULL)
     {
@@ -1117,17 +1117,17 @@ void *native_window_thread(void *opaque)
     return NULL;
 }
 
-void add_gbuffer_to_global(Graphic_Buffer *global_gbuffer)
+void add_gbuffer_to_global(Hardware_Buffer *global_gbuffer)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);
     g_hash_table_insert(gbuffer_global_map, (gpointer)(global_gbuffer->gbuffer_id), (gpointer)global_gbuffer);
     ATOMIC_UNLOCK(gbuffer_global_map_lock);
 }
 
-Graphic_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id)
+Hardware_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);
-    Graphic_Buffer *gbuffer = (Graphic_Buffer *)g_hash_table_lookup(gbuffer_global_map, (gpointer)(gbuffer_id));
+    Hardware_Buffer *gbuffer = (Hardware_Buffer *)g_hash_table_lookup(gbuffer_global_map, (gpointer)(gbuffer_id));
     ATOMIC_UNLOCK(gbuffer_global_map_lock);
 
     return gbuffer;

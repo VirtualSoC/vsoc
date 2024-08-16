@@ -74,13 +74,13 @@ struct MemTransferTask {
 #define PARA_NUM_Update_Gbuffer_Location 1
 
 const char *memtype_to_str(ExpressMemType loc);
-void update_gbuffer_location(Graphic_Buffer *gbuffer, ExpressMemType loc, int pid, int write);
-ExpressMemType predict_gbuffer_location(Graphic_Buffer *gbuffer);
+void update_gbuffer_location(Hardware_Buffer *gbuffer, ExpressMemType loc, int pid, int write);
+ExpressMemType predict_gbuffer_location(Hardware_Buffer *gbuffer);
 
 void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id);
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
-Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
+Hardware_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
 
 void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc,
                         void *dst_data, void *src_data, int dst_len,

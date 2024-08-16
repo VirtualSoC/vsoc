@@ -830,8 +830,8 @@ void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachm
 
 void d_glCopyImageSubData(void *context, GLuint srcName, GLenum srcTarget, GLint srcLevel, GLint srcX, GLint srcY, GLint srcZ, GLuint dstName, GLenum dstTarget, GLint dstLevel, GLint dstX, GLint dstY, GLint dstZ, GLsizei srcWidth, GLsizei srcHeight, GLsizei srcDepth)
 {
-    Graphic_Buffer *gbuffer_src = NULL;
-    Graphic_Buffer *gbuffer_dst = NULL;
+    Hardware_Buffer *gbuffer_src = NULL;
+    Hardware_Buffer *gbuffer_dst = NULL;
 
     if (srcTarget == GL_RENDERBUFFER) {
         srcName = get_host_renderbuffer_id(context, srcName);

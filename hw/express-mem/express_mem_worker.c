@@ -51,7 +51,7 @@ static void *begin_dma_to_gbuffer(int map_size) {
     return glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, map_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 }
 
-static void end_dma_to_gbuffer(Graphic_Buffer *gbuffer) {
+static void end_dma_to_gbuffer(Hardware_Buffer *gbuffer) {
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
@@ -118,7 +118,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
 
     switch (task->dst_loc) {
         case EXPRESS_MEM_TYPE_TEXTURE: {
-            end_dma_to_gbuffer((Graphic_Buffer *)task->dst_data);
+            end_dma_to_gbuffer((Hardware_Buffer *)task->dst_data);
         } break;
         case EXPRESS_MEM_TYPE_GUEST_MEM: {
             write_to_guest_mem((Guest_Mem *)task->dst_data, mapped_addr, 0, task->dst_len);

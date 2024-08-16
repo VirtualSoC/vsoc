@@ -25,23 +25,27 @@ static int unpack_buffer_size = 0;
 static GLsync unpack_buffer_sync = NULL;
 
 #define EXP_SMOOTH_ALPHA 0.5
+#define MAX_FLOW_SIZE 32
 
 typedef struct Dataflow {
-    ExpressMemType src_dev;
+    int src_dev;
     int dst_dev[16];
-    GArray *gbuffer_ids; // gbuffers that belong to the data flow
-    int slack_interval; // exp. smoothing
+    int dst_dev_size;
+    // GArray *gbuffer_ids; // gbuffers that belong to the data flow
+    int64_t slack_interval; // in microseconds
 } Dataflow;
 
-typedef struct PredStatistics {
-    Dataflow virt_flows[32];
-    Dataflow phy_flows[32];
+typedef struct GlobalStats {
+    Dataflow virt_flows[MAX_FLOW_SIZE]; // fixed size for now
+    int virt_flow_size;
+    Dataflow phy_flows[MAX_FLOW_SIZE];
+    int phy_flow_size;
     GHashTable *id_virt_map;
     GHashTable *id_phy_map;
-    int bandwidth[16][16];
-} PredStatistics;
+    int64_t bandwidth[16][16];
+} GlobalStats;
 
-PredStatistics g_stats;
+GlobalStats g_stats;
 
 const char *memtype_to_str(ExpressMemType loc) {
     switch (loc) {
@@ -62,11 +66,13 @@ const char *memtype_to_str(ExpressMemType loc) {
     }
 }
 
+void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write);
+
 /**
  * update the gbuffer location
  * used at the beginning of every gbuffer access
  */
-void update_gbuffer_location(Graphic_Buffer *gbuffer, ExpressMemType loc, int pid, int write) {
+void update_gbuffer_location(Hardware_Buffer *gbuffer, ExpressMemType loc, int pid, int write) {
     if (gbuffer == NULL) {
         LOGE("update_gbuffer_location got null gbuffer!");
         return;
@@ -102,7 +108,7 @@ void update_gbuffer_location(Graphic_Buffer *gbuffer, ExpressMemType loc, int pi
 /**
  * used at the end of every gbuffer access
 */
-ExpressMemType predict_gbuffer_location(Graphic_Buffer *gbuffer) {
+ExpressMemType predict_gbuffer_location(Hardware_Buffer *gbuffer) {
     if (gbuffer == NULL) {
         LOGW("predict_gbuffer_location got null gbuffer!");
         return EXPRESS_MEM_TYPE_UNKNOWN;
@@ -145,7 +151,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         ptr = call_para_to_ptr(all_para[0], &need_free);
         info = *(Gralloc_Gbuffer_Info *)(ptr);
 
-        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
         if (gbuffer != NULL)
         {
             if (gbuffer->is_dying == 1)
@@ -279,7 +285,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
     case FUNID_Update_Gbuffer_Location:
     {
         uint64_t gbuffer_id;
-        int pid;
+        int virt_dev_id;
         int write;
 
         if (unlikely(para_num < PARA_NUM_Update_Gbuffer_Location))
@@ -295,12 +301,12 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
 
         ptr = call_para_to_ptr(all_para[0], &need_free);
         gbuffer_id = *(uint64_t *)(ptr);
-        pid = *(int *)(ptr + 8);
+        virt_dev_id = *(int *)(ptr + 8);
         write = *(int *)(ptr + 16);
 
-        Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
         if (gbuffer) {
-            update_gbuffer_location(gbuffer, write ? EXPRESS_MEM_TYPE_TEXTURE : EXPRESS_MEM_TYPE_GUEST_MEM, pid, write);
+            update_gbuffer_virt_usage(gbuffer, virt_dev_id, write);
         }
     }
     break;
@@ -346,6 +352,8 @@ static void mem_context_init(Thread_Context *context)
         glGenBuffers(1, &unpack_buffer);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, unpack_buffer);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+        g_stats.id_virt_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_stats.id_phy_map = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 }
 
@@ -368,9 +376,9 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
         return;
     }
 
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
     LOGI("alloc_gbuffer_with_gralloc id %" PRIx64 " width %d height %d size %d", info.gbuffer_id, info.width, info.height, info.size);
 
+    Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
     if (gbuffer == NULL)
     {
         gbuffer = create_gbuffer_from_gralloc_info(info, info.gbuffer_id);
@@ -408,7 +416,7 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
     }
 }
 
-Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id)
+Hardware_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id)
 {
 
     int sampler_num = 0;
@@ -494,7 +502,7 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
         LOGE("error! unknown gralloc format %d!!!", info.format);
     }
 
-    Graphic_Buffer *gbuffer = create_gbuffer(width, height, sampler_num,
+    Hardware_Buffer *gbuffer = create_gbuffer(width, height, sampler_num,
                           format,
                           pixel_type,
                           internal_format,
@@ -510,7 +518,7 @@ Graphic_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint
 }
 
 static void guest_to_host_dma_task(MemTransferTask *task, void *mapped_addr) {
-    Graphic_Buffer *gbuffer = task->dst_data;
+    Hardware_Buffer *gbuffer = task->dst_data;
     Guest_Mem *mem_data = task->src_data;
 
     int real_width = gbuffer->width;
@@ -548,7 +556,7 @@ static void guest_to_host_dma_task(MemTransferTask *task, void *mapped_addr) {
 
 void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
 {
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
+    Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
 
     if (gbuffer == NULL)
     {
@@ -572,7 +580,7 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
 
 void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
 {
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
+    Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
 
     if (gbuffer == NULL)
     {
@@ -665,20 +673,93 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 }
 
-Dataflow *hg_get_virt_flows(uint64_t gbuffer_id) {
+static int is_in_devs(int dev, int *dev_array, int array_size) {
+    int found = 0, exclusive = 1;
+    for (int i = 0; i < array_size; i++) {
+        if (dev_array[i] == dev) {
+            found = 1;
+        }
+        if (dev_array[i] != dev) {
+            exclusive = 0;
+        }
+    }
+    return found ? (exclusive ? 1 : 2) : 0;
+}
+
+Dataflow *hg_get_virt_flow(uint64_t gbuffer_id) {
     return g_hash_table_lookup(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id));
 }
 
-Dataflow *hg_get_phy_flows(uint64_t gbuffer_id) {
+Dataflow *hg_get_phy_flow(uint64_t gbuffer_id) {
     return g_hash_table_lookup(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id));
 }
 
-void hg_update_phy_flows(uint64_t gbuffer_id, int phy_dev_id) {
-    g_hash_table_replace(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id), GUINT_TO_POINTER(phy_dev_id));
+void hg_update_phy_flow(uint64_t gbuffer_id, Dataflow *phy_flow) {
+    g_hash_table_replace(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id), phy_flow);
 }
 
-void hg_update_virt_flows(uint64_t gbuffer_id, int virt_dev_id) {
-    g_hash_table_replace(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id), GUINT_TO_POINTER(virt_dev_id));
+void hg_update_virt_flow(uint64_t gbuffer_id, Dataflow *virt_flow) {
+    g_hash_table_replace(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id), virt_flow);
+}
+
+Dataflow *hg_new_virt_flow(int src_dev, int *dst_dev, int dst_dev_size, int slack_interval) {
+    if (g_stats.virt_flow_size >= MAX_FLOW_SIZE) {
+        LOGE("error! max virt flow array length exceeded %d", MAX_FLOW_SIZE);
+        return NULL;
+    }
+    Dataflow *flow = &g_stats.virt_flows[g_stats.virt_flow_size];
+    g_stats.virt_flow_size++;
+    flow->src_dev = src_dev;
+    memcpy(flow->dst_dev, dst_dev, sizeof(int) * dst_dev_size);
+    flow->slack_interval = slack_interval;
+    return flow;
+}
+
+void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write) {
+    int last_virt_dev = gbuffer->last_virt_dev, last_write = gbuffer->last_virt_usage, last_virt_time = gbuffer->last_virt_time, virt_time = g_get_real_time();
+    int slack_interval = virt_time - last_virt_time;
+    gbuffer->last_virt_dev = virt_dev;
+    gbuffer->last_virt_usage = write;
+    gbuffer->last_virt_time = virt_time;
+
+    if (last_virt_dev == 0 || // gbuffer has just been created
+        last_write != 1 || write != 0 ) { // no r/w dependency 
+        // do not associate data flow
+        return;
+    }
+
+    Dataflow *virt_flow = hg_get_virt_flow(gbuffer->gbuffer_id);
+    if (virt_flow == NULL) {
+        // new gbuffer, associate a suitable flow according to the virt device and r/w
+        int found = 0;
+        for (int i = 0; i < g_stats.virt_flow_size; i++) {
+            if (last_virt_dev == g_stats.virt_flows[i].src_dev && is_in_devs(virt_dev, g_stats.virt_flows[i].dst_dev, g_stats.virt_flows[i].dst_dev_size)) { // nice, found a matching flow
+                virt_flow = &g_stats.virt_flows[i];
+                found = 1;
+                break;
+            }
+        }
+        if (found == 0) { // create new flow
+            virt_flow = hg_new_virt_flow(last_virt_dev, &virt_dev, 1, slack_interval);
+        }
+    } // virt_flow should be non-null
+    else { // check if gbuffer usage fits the flow 
+        if (last_virt_dev == virt_flow->src_dev && is_in_devs(virt_dev, virt_flow->dst_dev, virt_flow->dst_dev_size) == 0) {
+            // gbuffer usage involves a new dst device, fork flow
+            virt_flow = hg_new_virt_flow(last_virt_dev, virt_flow->dst_dev, virt_flow->dst_dev_size, slack_interval);
+            virt_flow->dst_dev[virt_flow->dst_dev_size] = virt_dev;
+            virt_flow->dst_dev_size++;
+        }
+        else if (last_virt_dev != virt_flow->src_dev) {
+            // should not happen
+            LOGE("gbuffer src devid %d does not match data flow src devid %d", last_virt_dev, virt_flow->src_dev);
+        }
+    }
+
+    // update slack intervals
+    hg_update_virt_flow(gbuffer->gbuffer_id, virt_flow);
+    virt_flow->slack_interval = EXP_SMOOTH_ALPHA * (slack_interval) + (1 - EXP_SMOOTH_ALPHA) * virt_flow->slack_interval;
+    LOGD("updated virt usage (%d->%d) flow %p slack interval %d", last_virt_dev, virt_dev, virt_flow, slack_interval);
 }
 
 int hg_get_bandwidth(ExpressMemType dst, ExpressMemType src) {
@@ -698,21 +779,21 @@ void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, int new_bandwid
 }
 
 // gbuffer prefetch
-int mem_prefetch(Graphic_Buffer *gbuffer, int curr_virt_device, ExpressMemType curr_phy_device, int sync_id) {
+int mem_prefetch(Hardware_Buffer *gbuffer, int curr_virt_device, ExpressMemType curr_phy_device, int sync_id) {
 
     // 1. predict next device & next R/W usage
-    Dataflow *virt_flows = hg_get_virt_flows(gbuffer->gbuffer_id);
-    Dataflow *phy_flows = hg_get_phy_flows(gbuffer->gbuffer_id);
-    if (virt_flows->src_dev != curr_virt_device || phy_flows->src_dev != curr_phy_device) { 
+    Dataflow *virt_flow = hg_get_virt_flow(gbuffer->gbuffer_id);
+    Dataflow *phy_flow = hg_get_phy_flow(gbuffer->gbuffer_id);
+    if (virt_flow->src_dev != curr_virt_device || phy_flow->src_dev != curr_phy_device) { 
         // device mismatch. did the buffer owner change?
-        hg_update_phy_flows(gbuffer->gbuffer_id, curr_phy_device);
+        hg_update_phy_flow(gbuffer->gbuffer_id, phy_flow);
     }
-    ExpressMemType next_phy_device = phy_flows->dst_dev[0]; // todo: do the predictions!
+    ExpressMemType next_phy_device = phy_flow->dst_dev[0]; // todo: do the predictions!
 
     // 2. predict guest block time
-    int slack_interval = virt_flows->slack_interval;
+    int slack_interval = virt_flow->slack_interval;
     int phy_bandwidth = hg_get_bandwidth(next_phy_device, curr_phy_device);
-    int guest_block_time = gbuffer->size / phy_bandwidth - slack_interval;
+    int guest_block_time = gbuffer->size /* bytes */ / phy_bandwidth /* ?? */ - slack_interval /* microseconds */;
 
     // 3. initiate transfer
     void *dst_data = NULL, *src_data = NULL;

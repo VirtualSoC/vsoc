@@ -41,8 +41,8 @@ typedef struct Texture_Binding_Status
 
     GLuint current_texture_external;
 
-    Graphic_Buffer *current_2D_gbuffer;
-    Graphic_Buffer *current_external_gbuffer;
+    Hardware_Buffer *current_2D_gbuffer;
+    Hardware_Buffer *current_external_gbuffer;
 
 
 } Texture_Binding_Status;

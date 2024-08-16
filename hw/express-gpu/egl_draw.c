@@ -172,7 +172,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     express_printf("context %llx gbuffer_id %llx makecurrent glviewport w %d h %d\n", real_opengl_context, gbuffer_id, real_opengl_context->view_w, real_opengl_context->view_h);
     glViewport(real_opengl_context->view_x, real_opengl_context->view_y, real_opengl_context->view_w, real_opengl_context->view_h);
 
-    Graphic_Buffer *gbuffer = NULL;
+    Hardware_Buffer *gbuffer = NULL;
 
     if (real_surface_draw != NULL)
     {
@@ -317,7 +317,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
     // Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = thread_context->opengl_context;
 
-    Graphic_Buffer *gbuffer = get_gbuffer_from_global_map((uint64_t)gbuffer_id);
+    Hardware_Buffer *gbuffer = get_gbuffer_from_global_map((uint64_t)gbuffer_id);
 
     if (gbuffer_id == 0 || gbuffer == NULL)
     {

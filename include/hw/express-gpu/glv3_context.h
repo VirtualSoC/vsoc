@@ -55,7 +55,7 @@ typedef struct Resource_Map_Status
     char *resource_is_init;
     
     unsigned int gbuffer_map_max_size;
-    Graphic_Buffer **gbuffer_ptr_map;
+    Hardware_Buffer **gbuffer_ptr_map;
     
 } Resource_Map_Status;
 

@@ -48,7 +48,7 @@ typedef enum ExpressMemType {
     // host opaque structure type
     EXPRESS_MEM_TYPE_HOST_OPAQUE = 0x01,
 
-    // gbuffer, should be casted to Graphic_Buffer*
+    // gbuffer, should be casted to Hardware_Buffer*
     EXPRESS_MEM_TYPE_TEXTURE = 0x02,
 
     // host CPU memory type, raw memory addr
@@ -67,7 +67,7 @@ typedef enum ExpressMemType {
     EXPRESS_MEM_TYPE_GUEST_MEM = 0x20,
 } ExpressMemType;
 
-typedef struct Graphic_Buffer{
+typedef struct Hardware_Buffer{
 
      int is_writing;
 
@@ -122,7 +122,11 @@ typedef struct Graphic_Buffer{
      ExpressMemType location;
      GHashTable *locations;
 
-} Graphic_Buffer;
+     int last_virt_dev;
+     int last_virt_usage;
+     int last_virt_time;
+
+} Hardware_Buffer;
 
 
 typedef struct Window_Buffer
@@ -135,7 +139,7 @@ typedef struct Window_Buffer
 
      EGLSurface guest_surface;
 
-     Graphic_Buffer *gbuffer;
+     Hardware_Buffer *gbuffer;
      uint64_t gbuffer_id;
 
      //表示窗口的宽和高，只有Pbuffer适用
@@ -172,11 +176,11 @@ typedef struct Window_Buffer
 } Window_Buffer;
 
 
-Graphic_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *thread_context, EGLContext ctx, uint64_t gbuffer_id);
+Hardware_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *thread_context, EGLContext ctx, uint64_t gbuffer_id);
 
-Graphic_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id);
+Hardware_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id);
 
-Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num, 
+Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num, 
      int format,
      int pixel_type,
      int internal_format,
@@ -184,17 +188,17 @@ Graphic_Buffer *create_gbuffer(int width, int height, int sampler_num,
      int stencil_internal_format,
      uint64_t gbuffer_id);
 
-Graphic_Buffer *create_gbuffer_from_surface(Window_Buffer *surface);
+Hardware_Buffer *create_gbuffer_from_surface(Window_Buffer *surface);
 
-void connect_gbuffer_to_surface(Graphic_Buffer *gbuffer, Window_Buffer *surface);
+void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface);
 
-void reverse_gbuffer(Graphic_Buffer *gbuffer);
+void reverse_gbuffer(Hardware_Buffer *gbuffer);
 
 void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64_t gbuffer_id, int width, int height, int hal_format);
 
 int render_surface_destroy(Window_Buffer *surface);
 
-void destroy_gbuffer(Graphic_Buffer *gbuffer);
+void destroy_gbuffer(Hardware_Buffer *gbuffer);
 
 void render_surface_init(Window_Buffer *surface);
 

@@ -210,7 +210,7 @@ static void g_context_map_destroy(gpointer data)
 
 static void gbuffer_map_destroy(gpointer data)
 {
-    Graphic_Buffer *gbuffer = (Graphic_Buffer *)data;
+    Hardware_Buffer *gbuffer = (Hardware_Buffer *)data;
 
     LOGI("destroy map gbuffer %llx type %d ptr %llx width %d height %d format %x type %d", gbuffer->gbuffer_id, gbuffer->usage_type, (uint64_t)gbuffer, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->usage_type);
 

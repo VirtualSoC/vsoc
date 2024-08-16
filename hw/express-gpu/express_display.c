@@ -37,8 +37,8 @@ static GLuint drawVAO = 0;
 static GLint program_transform_loc = 0;
 static GLuint now_transform_type = 0;
 
-static Graphic_Buffer *display_write_gbuffer;
-static Graphic_Buffer *display_read_gbuffer;
+static Hardware_Buffer *display_write_gbuffer;
+static Hardware_Buffer *display_read_gbuffer;
 
 static Display_Info express_display_info = {
     .pixel_width = 1280,
@@ -406,7 +406,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 
             wait_for_express_sync(layer.write_sync_id, true);
 
-            Graphic_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
+            Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
             if (gbuffer != NULL)
             {
                 LOGD("draw layer gbuffer_id %llx  %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
@@ -495,7 +495,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 
 static void display_present(void)
 {
-    Graphic_Buffer *temp_gbuffer = display_read_gbuffer;
+    Hardware_Buffer *temp_gbuffer = display_read_gbuffer;
 
     display_read_gbuffer = display_write_gbuffer;
 
