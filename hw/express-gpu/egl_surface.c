@@ -604,7 +604,6 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
                                int stencil_internal_format,
                                uint64_t gbuffer_id)
 {
-    // creater_window等于空意味着底下各种资源之前都没申请过，因此需要申请
     Hardware_Buffer *gbuffer = g_malloc0(sizeof(Hardware_Buffer));
 
     gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
@@ -741,9 +740,6 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     gbuffer->size = width * height * gbuffer->pixel_size;
 
     // LOGD("create gbuffer id " PRIx64 " texture %d width %d height %d format %d", gbuffer->gbuffer_id, gbuffer->data_texture,gbuffer->width, gbuffer->height, gbuffer->format);
-
-    gbuffer->location = EXPRESS_MEM_TYPE_UNKNOWN;
-    gbuffer->locations = g_hash_table_new(g_direct_hash, g_direct_equal);
 
     return gbuffer;
 }
@@ -912,8 +908,6 @@ void destroy_gbuffer(Hardware_Buffer *gbuffer)
     }
 
     glFlush();
-
-    g_hash_table_destroy(gbuffer->locations);
 
     if (gbuffer->host_data != NULL) {
         g_free(gbuffer->host_data);

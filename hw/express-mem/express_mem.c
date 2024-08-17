@@ -5,7 +5,7 @@
  */
 
 
-// #define STD_DEBUG_LOG
+#define STD_DEBUG_LOG
 #define MAX_MEM_WORKER_THREADS 4
 #include "hw/teleport-express/express_log.h"
 
@@ -56,317 +56,316 @@ const char *memtype_to_str(ExpressMemType loc) {
         case EXPRESS_MEM_TYPE_GUEST_OPAQUE:
             return "guest_opaque";
         case EXPRESS_MEM_TYPE_TEXTURE:
-            return "gbuffer";
+            return "texture";
         case EXPRESS_MEM_TYPE_HOST_MEM:
             return "host_mem";
+        case EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM:
+            return "gbuffer_host_mem";
         case EXPRESS_MEM_TYPE_HOST_OPAQUE:
             return "host_opaque";
+        case EXPRESS_MEM_TYPE_CUDA:
+            return "cuda";
         default:
+        {
+            LOGD("unable to convert mem type %d to string", loc);
             return "error";
+        }
     }
 }
 
-void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write);
+static int is_in_devs(int dev, int *dev_array, int array_size) {
+    int found = 0, exclusive = 1;
+    for (int i = 0; i < array_size; i++) {
+        if (dev_array[i] == dev) {
+            found = 1;
+        }
+        if (dev_array[i] != dev) {
+            exclusive = 0;
+        }
+    }
+    return found ? (exclusive ? 1 : 2) : 0;
+}
 
-/**
- * update the gbuffer location
- * used at the beginning of every gbuffer access
- */
-void update_gbuffer_location(Hardware_Buffer *gbuffer, ExpressMemType loc, int pid, int write) {
+static Dataflow *hg_get_virt_flow(uint64_t gbuffer_id) {
+    return g_hash_table_lookup(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id));
+}
+
+static Dataflow *hg_get_phy_flow(uint64_t gbuffer_id) {
+    return g_hash_table_lookup(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id));
+}
+
+static void hg_update_phy_flow(uint64_t gbuffer_id, Dataflow *phy_flow) {
+    g_hash_table_replace(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id), phy_flow);
+}
+
+static void hg_update_virt_flow(uint64_t gbuffer_id, Dataflow *virt_flow) {
+    g_hash_table_replace(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id), virt_flow);
+}
+
+static int qsort_cmp_func(const void* a, const void* b)
+{
+   int int_a = * ( (int*) a );
+   int int_b = * ( (int*) b );
+
+   // an easy expression for comparing
+   return (int_a > int_b) - (int_a < int_b);
+}
+
+static Dataflow *hg_new_virt_flow(int src_dev, Dataflow *base_flow, int new_dst_dev, int slack_interval) {
+    if (g_stats.virt_flow_size >= MAX_FLOW_SIZE) {
+        LOGE("error! max virt flow array length exceeded %d", MAX_FLOW_SIZE);
+        return NULL;
+    }
+    Dataflow *flow = &g_stats.virt_flows[g_stats.virt_flow_size];
+    g_stats.virt_flow_size++;
+    flow->src_dev = src_dev;
+    if (base_flow) {
+        memcpy(flow->dst_dev, base_flow->dst_dev, sizeof(int) * base_flow->dst_dev_size);
+    }
+    flow->dst_dev[flow->dst_dev_size] = new_dst_dev;
+    flow->dst_dev_size += 1;
+
+    qsort(flow->dst_dev, flow->dst_dev_size, sizeof(int), qsort_cmp_func);
+
+    flow->slack_interval = slack_interval;
+    return flow;
+}
+
+static Dataflow *hg_new_phy_flow(int src_dev, Dataflow *base_flow, int new_dst_dev) {
+    if (g_stats.phy_flow_size >= MAX_FLOW_SIZE) {
+        LOGE("error! max virt flow array length exceeded %d", MAX_FLOW_SIZE);
+        return NULL;
+    }
+    Dataflow *flow = &g_stats.phy_flows[g_stats.phy_flow_size];
+    g_stats.phy_flow_size++;
+    flow->src_dev = src_dev;
+    if (base_flow) {
+        memcpy(flow->dst_dev, base_flow->dst_dev, sizeof(int) * base_flow->dst_dev_size);
+    }
+    flow->dst_dev[flow->dst_dev_size] = new_dst_dev;
+    flow->dst_dev_size += 1;
+
+    qsort(flow->dst_dev, flow->dst_dev_size, sizeof(int), qsort_cmp_func);
+
+    return flow;
+}
+
+static int hg_get_bandwidth(ExpressMemType dst, ExpressMemType src) {
+    if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
+        LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
+        return 0;
+    }
+    return g_stats.bandwidth[dst][src];
+}
+
+static void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, int new_bandwidth) {
+    if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
+        LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
+        return;
+    }
+    g_stats.bandwidth[dst][src] = EXP_SMOOTH_ALPHA * new_bandwidth + (1 - EXP_SMOOTH_ALPHA) * g_stats.bandwidth[dst][src];
+}
+
+void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write) {
     if (gbuffer == NULL) {
-        LOGE("update_gbuffer_location got null gbuffer!");
-        return;
-    }
-    if (gbuffer->locations == NULL) {
-        LOGE("gbuffer %" PRIx64 " location tracking not enabled!", gbuffer->gbuffer_id);
+        LOGE("update_gbuffer_virt_usage got null gbuffer!");
         return;
     }
 
-    if (write) {
-        gbuffer->location = loc;
-        gbuffer->pid = pid;
-        LOGD("gbuffer %" PRIx64 " pid %d write %s", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location));
-        return;
-    } // else read
+    int last_virt_dev = gbuffer->last_virt_dev, last_write = gbuffer->last_virt_usage, last_virt_time = gbuffer->last_virt_time, virt_time = g_get_real_time();
+    int slack_interval = virt_time - last_virt_time;
+    gbuffer->last_virt_dev = virt_dev;
+    gbuffer->last_virt_usage = write;
+    gbuffer->last_virt_time = virt_time;
 
-    /**
-     * identifier: 64-bit, format as follows.
-     * 0 -------- 31 32 -------- 63 
-     *     tid          location
-     */
-    uint64_t id = gbuffer->location | ((uint64_t)gbuffer->pid << 32);
-    ExpressMemType pred_loc = (ExpressMemType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
-    if (loc == pred_loc) {
-        LOGD("gbuffer %" PRIx64 " pid %d prefetch %s -> %s succ!", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc));
+    if (last_virt_dev == 0 || // gbuffer has just been created
+        last_write != 1 || write != 0) { // no r/w dependency 
+        // do not associate data flow
+        return;
     }
-    else {
-        LOGD("gbuffer %" PRIx64 " pid %d prefetch %s -> %s (actual %s) fail!", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc), memtype_to_str(loc));
-        g_hash_table_insert(gbuffer->locations, GUINT_TO_POINTER(id), GUINT_TO_POINTER(loc));
+
+    Dataflow *virt_flow = hg_get_virt_flow(gbuffer->gbuffer_id);
+    if (virt_flow == NULL) {
+        // new gbuffer, associate a suitable flow according to the virt device and r/w
+        int found = 0;
+        for (int i = 0; i < g_stats.virt_flow_size; i++) {
+            if (last_virt_dev == g_stats.virt_flows[i].src_dev && is_in_devs(virt_dev, g_stats.virt_flows[i].dst_dev, g_stats.virt_flows[i].dst_dev_size)) { // nice, found a matching flow
+                virt_flow = &g_stats.virt_flows[i];
+                found = 1;
+                break;
+            }
+        }
+        if (found == 0) { // create new flow
+            virt_flow = hg_new_virt_flow(last_virt_dev, NULL, virt_dev, slack_interval);
+        }
+    } // virt_flow should be non-null
+    else { // check if gbuffer usage fits the flow 
+        if (last_virt_dev == virt_flow->src_dev && is_in_devs(virt_dev, virt_flow->dst_dev, virt_flow->dst_dev_size) == 0) {
+            // gbuffer usage involves a new dst device, find flow whose dst_dev == UNION(virt_flow->dst_dev, virt_dev)
+            int found = 0;
+            for (int i = 0; i < g_stats.virt_flow_size; i++) {
+                if (g_stats.virt_flows[i].dst_dev_size == virt_flow->dst_dev_size + 1 && 
+                    memcmp(g_stats.virt_flows[i].dst_dev, virt_flow->dst_dev, virt_flow->dst_dev_size * sizeof(virt_flow->dst_dev[0])) == 0 && 
+                    g_stats.virt_flows[i].dst_dev[g_stats.virt_flows[i].dst_dev_size - 1] == virt_dev) {
+                    virt_flow = &g_stats.virt_flows[i];
+                    hg_update_virt_flow(gbuffer->gbuffer_id, virt_flow);
+                    found = 1;
+                    break;
+                }
+            }
+            // no matching existing flows, fork flow
+            if (!found) {
+                virt_flow = hg_new_virt_flow(last_virt_dev, virt_flow, virt_dev, slack_interval);
+            }
+        }
+        else if (last_virt_dev != virt_flow->src_dev) {
+            // should not happen
+            LOGE("gbuffer src devid %d does not match data flow src devid %d", last_virt_dev, virt_flow->src_dev);
+        }
     }
+
+    // update slack intervals
+    hg_update_virt_flow(gbuffer->gbuffer_id, virt_flow);
+    virt_flow->slack_interval = EXP_SMOOTH_ALPHA * (slack_interval) + (1 - EXP_SMOOTH_ALPHA) * virt_flow->slack_interval;
+    LOGD("updated virt usage (%d->%d) flow %d slack interval %d", last_virt_dev, virt_dev, virt_flow - g_stats.virt_flows, slack_interval);
+}
+
+void update_gbuffer_phy_usage(Hardware_Buffer *gbuffer, ExpressMemType phy_dev, int write) {
+    if (gbuffer == NULL) {
+        LOGE("update_gbuffer_phy_usage got null gbuffer!");
+        return;
+    }
+
+    int last_phy_dev = gbuffer->last_phy_dev, last_write = gbuffer->last_phy_usage;
+    gbuffer->last_phy_dev = phy_dev;
+    gbuffer->last_phy_usage = write;
+    gbuffer->pref_phy_dev = EXPRESS_MEM_TYPE_UNKNOWN; // clear prefetch flag
+
+    if (last_phy_dev == 0 || // gbuffer has just been created
+        last_write != 1 || write != 0) { // no r/w dependency 
+        // do not associate data flow
+        return;
+    }
+
+    Dataflow *phy_flow = hg_get_phy_flow(gbuffer->gbuffer_id);
+    if (phy_flow == NULL) {
+        // new gbuffer, associate a suitable flow according to the phy device and r/w
+        int found = 0;
+        for (int i = 0; i < g_stats.phy_flow_size; i++) {
+            if (last_phy_dev == g_stats.phy_flows[i].src_dev && is_in_devs(phy_dev, g_stats.phy_flows[i].dst_dev, g_stats.phy_flows[i].dst_dev_size)) { // nice, found a matching flow
+                phy_flow = &g_stats.phy_flows[i];
+                found = 1;
+                break;
+            }
+        }
+        if (found == 0) { // create new flow
+            phy_flow = hg_new_phy_flow(last_phy_dev, NULL, phy_dev);
+        }
+    } // phy_flow should be non-null
+    else { // check if gbuffer usage fits the flow 
+        if (last_phy_dev == phy_flow->src_dev && is_in_devs(phy_dev, phy_flow->dst_dev, phy_flow->dst_dev_size) == 0) {
+            // gbuffer usage involves a new dst device, find flow whose dst_dev == UNION(phy_flow->dst_dev, phy_dev)
+            int found = 0;
+            for (int i = 0; i < g_stats.phy_flow_size; i++) {
+                if (g_stats.phy_flows[i].dst_dev_size == phy_flow->dst_dev_size + 1 && 
+                    memcmp(g_stats.phy_flows[i].dst_dev, phy_flow->dst_dev, phy_flow->dst_dev_size * sizeof(phy_flow->dst_dev[0])) == 0 && 
+                    g_stats.phy_flows[i].dst_dev[g_stats.phy_flows[i].dst_dev_size - 1] == phy_dev) {
+                    phy_flow = &g_stats.phy_flows[i];
+                    hg_update_phy_flow(gbuffer->gbuffer_id, phy_flow);
+                    found = 1;
+                    break;
+                }
+            }
+            // no matching existing flows, fork flow
+            if (!found) {
+                phy_flow = hg_new_phy_flow(last_phy_dev, phy_flow, phy_dev);
+            }
+        }
+        else if (last_phy_dev != phy_flow->src_dev) {
+            // should not happen
+            LOGE("gbuffer src devid %d does not match data flow src devid %d", last_phy_dev, phy_flow->src_dev);
+        }
+    }
+
+    hg_update_phy_flow(gbuffer->gbuffer_id, phy_flow);
+    LOGD("updated phy usage (%d->%d) flow %d", last_phy_dev, phy_dev, phy_flow - g_stats.phy_flows);
 }
 
 /**
- * used at the end of every gbuffer access
+ * predict where gbuffer will be prefetched, and the slack intervals
 */
-ExpressMemType predict_gbuffer_location(Hardware_Buffer *gbuffer) {
-    if (gbuffer == NULL) {
-        LOGW("predict_gbuffer_location got null gbuffer!");
+ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, ExpressMemType phy_dev, int *pred_block) {
+    // 0. check prerequisites
+    if (!gbuffer || mem_transfer_is_busy()) return EXPRESS_MEM_TYPE_UNKNOWN;
+
+    // 1. predict next device & next R/W usage
+    ExpressMemType last_phy_dev = gbuffer->last_phy_usage == 0 ? gbuffer->last_phy_dev : EXPRESS_MEM_TYPE_UNKNOWN;
+    update_gbuffer_phy_usage(gbuffer, phy_dev, true);
+    Dataflow *virt_flow = hg_get_virt_flow(gbuffer->gbuffer_id);
+    Dataflow *phy_flow = hg_get_phy_flow(gbuffer->gbuffer_id);
+    if (phy_flow == NULL) { // new gbuffer + no usage available, skip prefetch
         return EXPRESS_MEM_TYPE_UNKNOWN;
     }
-    if (gbuffer->locations == NULL) {
-        LOGW("gbuffer %" PRIx64 " location tracking not enabled!", gbuffer->gbuffer_id);
-        return EXPRESS_MEM_TYPE_UNKNOWN;
+    ExpressMemType target_phy_dev = phy_flow->dst_dev[0];
+    if (last_phy_dev != target_phy_dev && last_phy_dev != EXPRESS_MEM_TYPE_UNKNOWN) {
+#ifdef STD_DEBUG_LOG
+        if(is_in_devs(last_phy_dev, phy_flow->dst_dev, phy_flow->dst_dev_size) != 2) {
+            // should not happen, something must be wrong with flow tracking
+            LOGE("error! last read phy_dev %d is not in gbuffer flow %d!", last_phy_dev, phy_flow - g_stats.phy_flows);
+        }
+#endif
+        target_phy_dev = last_phy_dev;
     }
-    uint64_t id = gbuffer->location | ((uint64_t)gbuffer->pid << 32);
-    ExpressMemType pred_loc = (ExpressMemType)g_hash_table_lookup(gbuffer->locations, GUINT_TO_POINTER(id));
-    LOGD("gbuffer %" PRIx64 " pid %d predict prefetch %s -> %s?", gbuffer->gbuffer_id, gbuffer->pid, memtype_to_str(gbuffer->location), memtype_to_str(pred_loc));
-    return pred_loc;
+
+    // 2. predict guest block time
+    int slack_interval = virt_flow->slack_interval;
+    int phy_bandwidth = hg_get_bandwidth(target_phy_dev, phy_dev);
+    int guest_block_time = 0;
+    if (phy_bandwidth > 0) {
+        guest_block_time =
+            gbuffer->size /* bytes */ / phy_bandwidth /* bytes per microsec */ -
+            slack_interval /* microsec */;
+    }
+    if (pred_block) *pred_block = max(guest_block_time, 0);
+
+    return target_phy_dev;
 }
 
-static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *call)
-{
-    char *ptr = NULL;
-    size_t ptr_len = 0;
-    int need_free = 0;
-    Call_Para all_para[MAX_PARA_NUM];
-    int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-
-    switch (call->id) {
-
-    case FUNID_Terminate_Gbuffer:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Terminate_Gbuffer))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
-        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
-        if (gbuffer != NULL)
-        {
-            if (gbuffer->is_dying == 1)
-            {
-                gbuffer->remain_life_time = 3;
-            }
-            else
-            {
-                LOGI("terminate gbuffer id %llx", info.gbuffer_id);
-                remove_gbuffer_from_global_map(info.gbuffer_id);
-                destroy_gbuffer(gbuffer);
-            }
-        }
-    }
-    break;
-    case FUNID_Gbuffer_Host_To_Guest:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Host_To_Guest))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
-        gbuffer_data_host_to_guest(info);
-    }
-    break;
-    case FUNID_Gbuffer_Guest_To_Host:
-    {
-        Gralloc_Gbuffer_Info info;
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
-        if (need_free) {
-            g_free(ptr);
-        }
-
-        ptr = call_para_to_ptr(all_para[1], &need_free);
-        sync_id = *(uint64_t *)(ptr);
-
-        gbuffer_data_guest_to_host(info, (int)(uint32_t)sync_id);
-    }
-    break;
-    case FUNID_Alloc_Gbuffer:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Alloc_Gbuffer))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
-        ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
-        Guest_Mem *gbuffer_data = copy_guest_mem_from_call(call, 2);
-
-        alloc_gbuffer_with_gralloc(info, gbuffer_data);
-    }
-    break;
-    case FUNID_Mem_Signal_Sync:
-    {
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Mem_Signal_Sync))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(uint64_t)))
-        {
-            break;
-        }
-
-        ptr = call_para_to_ptr(all_para[0], &need_free);
-        sync_id = *(uint64_t *)(ptr);
-
-        signal_express_sync((int)sync_id, true);
-    }
-    break;
-    case FUNID_Mem_Wait_Sync:
-    {
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Mem_Wait_Sync))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(uint64_t)))
-        {
-            break;
-        }
-
-        ptr = call_para_to_ptr(all_para[0], &need_free);
-        sync_id = *(uint64_t *)(ptr);
-
-        wait_for_express_sync((int)sync_id, true);
-    }
-    break;
-    case FUNID_Update_Gbuffer_Location:
-    {
-        uint64_t gbuffer_id;
-        int virt_dev_id;
-        int write;
-
-        if (unlikely(para_num < PARA_NUM_Update_Gbuffer_Location))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < 3 * sizeof(int64_t)))
-        {
-            break;
-        }
-
-        ptr = call_para_to_ptr(all_para[0], &need_free);
-        gbuffer_id = *(uint64_t *)(ptr);
-        virt_dev_id = *(int *)(ptr + 8);
-        write = *(int *)(ptr + 16);
-
-        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
-        if (gbuffer) {
-            update_gbuffer_virt_usage(gbuffer, virt_dev_id, write);
-        }
-    }
-    break;
-    default:
-    {
-        LOGE("error! function id %d not recognized!", GET_FUN_ID(call->id));
+/**
+ * initiate shared memory transfer using express-mem workers.
+ * for the arguments, see struct MemTransferTask.
+*/
+void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *dst_data, void *src_data, int dst_len, int src_len, int sync_id, PreprocessCbType pre_cb, PostprocessCbType post_cb, void *private_data) {
+    if (dst_loc == src_loc) {
+        LOGD("src_loc is the same as dst_loc, ignoring.");
+        signal_express_sync(sync_id, dst_loc == EXPRESS_MEM_TYPE_TEXTURE);
+        return;
     }
 
-    }
+    // task will be freed in express_mem_worker()
+    MemTransferTask *task = g_malloc0(sizeof(MemTransferTask));
+    task->dst_loc = dst_loc;
+    task->src_loc = src_loc;
+    task->dst_data = dst_data;
+    task->src_data = src_data;
+    task->dst_len = dst_len;
+    task->src_len = src_len;
+    task->sync_id = sync_id;
+    task->pre_cb = pre_cb;
+    task->post_cb = post_cb;
+    task->private_data = private_data;
 
-    if (need_free) {
-        g_free(ptr);
-    }
+    LOGD("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
 
-    call->callback(call, 1);
-    return;
+    g_thread_pool_push(g_pool, (gpointer)task, NULL);
 }
 
-static Thread_Context *get_mem_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
-{
-    if (g_context == NULL)
-    {
-        g_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
-        g_pool = g_thread_pool_new(
-            express_mem_worker,      /* worker function */
-            NULL,                    /* pool-specific user data */
-            MAX_MEM_WORKER_THREADS,  /* max threads */
-            true,                   /* exclusive */
-            NULL                     /* errors */
-        );
-    }
-    return g_context;
-}
-
-static void mem_context_init(Thread_Context *context)
-{
-    // 新建一个context用于与纹理交互
-    if (g_gl_context == NULL)
-    {
-        g_gl_context = get_native_opengl_context(0);
-        egl_makeCurrent(g_gl_context);
-
-        glGenBuffers(1, &unpack_buffer);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, unpack_buffer);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
-        g_stats.id_virt_map = g_hash_table_new(g_direct_hash, g_direct_equal);
-        g_stats.id_phy_map = g_hash_table_new(g_direct_hash, g_direct_equal);
-    }
-}
-
-static void mem_context_destroy(Thread_Context *context)
-{
-    if (g_gl_context != NULL)
-    {
-        glDeleteBuffers(1, &unpack_buffer);
-
-        egl_makeCurrent(NULL);
-        egl_destroyContext(g_gl_context);
-        g_gl_context = NULL;
-    }
+/**
+ * check if the mem transfer queue is busy.
+ * returns true if size(queue) exceeds size(mem worker threads).
+*/
+bool mem_transfer_is_busy(void) {
+    return g_thread_pool_unprocessed(g_pool) > MAX_MEM_WORKER_THREADS;
 }
 
 void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
@@ -673,164 +672,250 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 }
 
-static int is_in_devs(int dev, int *dev_array, int array_size) {
-    int found = 0, exclusive = 1;
-    for (int i = 0; i < array_size; i++) {
-        if (dev_array[i] == dev) {
-            found = 1;
+static Thread_Context *get_mem_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+{
+    if (g_context == NULL)
+    {
+        g_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
+        g_pool = g_thread_pool_new(
+            express_mem_worker,      /* worker function */
+            NULL,                    /* pool-specific user data */
+            MAX_MEM_WORKER_THREADS,  /* max threads */
+            true,                   /* exclusive */
+            NULL                     /* errors */
+        );
+    }
+    return g_context;
+}
+
+static void mem_context_init(Thread_Context *context)
+{
+    // 新建一个context用于与纹理交互
+    if (g_gl_context == NULL)
+    {
+        g_gl_context = get_native_opengl_context(0);
+        egl_makeCurrent(g_gl_context);
+
+        glGenBuffers(1, &unpack_buffer);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, unpack_buffer);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+        g_stats.id_virt_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_stats.id_phy_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+    }
+}
+
+static void mem_context_destroy(Thread_Context *context)
+{
+    if (g_gl_context != NULL)
+    {
+        glDeleteBuffers(1, &unpack_buffer);
+
+        egl_makeCurrent(NULL);
+        egl_destroyContext(g_gl_context);
+        g_gl_context = NULL;
+    }
+}
+
+static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *call)
+{
+    char *ptr = NULL;
+    size_t ptr_len = 0;
+    int need_free = 0;
+    Call_Para all_para[MAX_PARA_NUM];
+    int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+    switch (call->id) {
+
+    case FUNID_Terminate_Gbuffer:
+    {
+        Gralloc_Gbuffer_Info info;
+
+        if (unlikely(para_num < PARA_NUM_Terminate_Gbuffer))
+        {
+            break;
         }
-        if (dev_array[i] != dev) {
-            exclusive = 0;
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
+        {
+            break;
         }
-    }
-    return found ? (exclusive ? 1 : 2) : 0;
-}
 
-Dataflow *hg_get_virt_flow(uint64_t gbuffer_id) {
-    return g_hash_table_lookup(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id));
-}
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        info = *(Gralloc_Gbuffer_Info *)(ptr);
 
-Dataflow *hg_get_phy_flow(uint64_t gbuffer_id) {
-    return g_hash_table_lookup(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id));
-}
-
-void hg_update_phy_flow(uint64_t gbuffer_id, Dataflow *phy_flow) {
-    g_hash_table_replace(g_stats.id_phy_map, GUINT_TO_POINTER(gbuffer_id), phy_flow);
-}
-
-void hg_update_virt_flow(uint64_t gbuffer_id, Dataflow *virt_flow) {
-    g_hash_table_replace(g_stats.id_virt_map, GUINT_TO_POINTER(gbuffer_id), virt_flow);
-}
-
-Dataflow *hg_new_virt_flow(int src_dev, int *dst_dev, int dst_dev_size, int slack_interval) {
-    if (g_stats.virt_flow_size >= MAX_FLOW_SIZE) {
-        LOGE("error! max virt flow array length exceeded %d", MAX_FLOW_SIZE);
-        return NULL;
-    }
-    Dataflow *flow = &g_stats.virt_flows[g_stats.virt_flow_size];
-    g_stats.virt_flow_size++;
-    flow->src_dev = src_dev;
-    memcpy(flow->dst_dev, dst_dev, sizeof(int) * dst_dev_size);
-    flow->slack_interval = slack_interval;
-    return flow;
-}
-
-void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write) {
-    int last_virt_dev = gbuffer->last_virt_dev, last_write = gbuffer->last_virt_usage, last_virt_time = gbuffer->last_virt_time, virt_time = g_get_real_time();
-    int slack_interval = virt_time - last_virt_time;
-    gbuffer->last_virt_dev = virt_dev;
-    gbuffer->last_virt_usage = write;
-    gbuffer->last_virt_time = virt_time;
-
-    if (last_virt_dev == 0 || // gbuffer has just been created
-        last_write != 1 || write != 0 ) { // no r/w dependency 
-        // do not associate data flow
-        return;
-    }
-
-    Dataflow *virt_flow = hg_get_virt_flow(gbuffer->gbuffer_id);
-    if (virt_flow == NULL) {
-        // new gbuffer, associate a suitable flow according to the virt device and r/w
-        int found = 0;
-        for (int i = 0; i < g_stats.virt_flow_size; i++) {
-            if (last_virt_dev == g_stats.virt_flows[i].src_dev && is_in_devs(virt_dev, g_stats.virt_flows[i].dst_dev, g_stats.virt_flows[i].dst_dev_size)) { // nice, found a matching flow
-                virt_flow = &g_stats.virt_flows[i];
-                found = 1;
-                break;
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
+        if (gbuffer != NULL)
+        {
+            if (gbuffer->is_dying == 1)
+            {
+                gbuffer->remain_life_time = 3;
+            }
+            else
+            {
+                LOGI("terminate gbuffer id %llx", info.gbuffer_id);
+                remove_gbuffer_from_global_map(info.gbuffer_id);
+                destroy_gbuffer(gbuffer);
             }
         }
-        if (found == 0) { // create new flow
-            virt_flow = hg_new_virt_flow(last_virt_dev, &virt_dev, 1, slack_interval);
+    }
+    break;
+    case FUNID_Gbuffer_Host_To_Guest:
+    {
+        Gralloc_Gbuffer_Info info;
+
+        if (unlikely(para_num < PARA_NUM_Gbuffer_Host_To_Guest))
+        {
+            break;
         }
-    } // virt_flow should be non-null
-    else { // check if gbuffer usage fits the flow 
-        if (last_virt_dev == virt_flow->src_dev && is_in_devs(virt_dev, virt_flow->dst_dev, virt_flow->dst_dev_size) == 0) {
-            // gbuffer usage involves a new dst device, fork flow
-            virt_flow = hg_new_virt_flow(last_virt_dev, virt_flow->dst_dev, virt_flow->dst_dev_size, slack_interval);
-            virt_flow->dst_dev[virt_flow->dst_dev_size] = virt_dev;
-            virt_flow->dst_dev_size++;
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
+        {
+            break;
         }
-        else if (last_virt_dev != virt_flow->src_dev) {
-            // should not happen
-            LOGE("gbuffer src devid %d does not match data flow src devid %d", last_virt_dev, virt_flow->src_dev);
+
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        info = *(Gralloc_Gbuffer_Info *)(ptr);
+
+        gbuffer_data_host_to_guest(info);
+    }
+    break;
+    case FUNID_Gbuffer_Guest_To_Host:
+    {
+        Gralloc_Gbuffer_Info info;
+        uint64_t sync_id;
+
+        if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
+        {
+            break;
+        }
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
+        {
+            break;
+        }
+
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        info = *(Gralloc_Gbuffer_Info *)(ptr);
+
+        if (need_free) {
+            g_free(ptr);
+        }
+
+        ptr = call_para_to_ptr(all_para[1], &need_free);
+        sync_id = *(uint64_t *)(ptr);
+
+        gbuffer_data_guest_to_host(info, (int)(uint32_t)sync_id);
+    }
+    break;
+    case FUNID_Alloc_Gbuffer:
+    {
+        Gralloc_Gbuffer_Info info;
+
+        if (unlikely(para_num < PARA_NUM_Alloc_Gbuffer))
+        {
+            break;
+        }
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
+        {
+            break;
+        }
+
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        info = *(Gralloc_Gbuffer_Info *)(ptr);
+
+        Guest_Mem *gbuffer_data = copy_guest_mem_from_call(call, 2);
+
+        alloc_gbuffer_with_gralloc(info, gbuffer_data);
+    }
+    break;
+    case FUNID_Mem_Signal_Sync:
+    {
+        uint64_t sync_id;
+
+        if (unlikely(para_num < PARA_NUM_Mem_Signal_Sync))
+        {
+            break;
+        }
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < sizeof(uint64_t)))
+        {
+            break;
+        }
+
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        sync_id = *(uint64_t *)(ptr);
+
+        signal_express_sync((int)sync_id, true);
+    }
+    break;
+    case FUNID_Mem_Wait_Sync:
+    {
+        uint64_t sync_id;
+
+        if (unlikely(para_num < PARA_NUM_Mem_Wait_Sync))
+        {
+            break;
+        }
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < sizeof(uint64_t)))
+        {
+            break;
+        }
+
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        sync_id = *(uint64_t *)(ptr);
+
+        wait_for_express_sync((int)sync_id, true);
+    }
+    break;
+    case FUNID_Update_Gbuffer_Location:
+    {
+        uint64_t gbuffer_id;
+        int virt_dev_id;
+        int write;
+
+        if (unlikely(para_num < PARA_NUM_Update_Gbuffer_Location))
+        {
+            break;
+        }
+
+        ptr_len = all_para[0].data_len;
+        if (unlikely(ptr_len < 3 * sizeof(int64_t)))
+        {
+            break;
+        }
+
+        ptr = call_para_to_ptr(all_para[0], &need_free);
+        gbuffer_id = *(uint64_t *)(ptr);
+        virt_dev_id = *(int *)(ptr + 8);
+        write = *(int *)(ptr + 16);
+
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        if (gbuffer) {
+            update_gbuffer_virt_usage(gbuffer, virt_dev_id, write);
         }
     }
-
-    // update slack intervals
-    hg_update_virt_flow(gbuffer->gbuffer_id, virt_flow);
-    virt_flow->slack_interval = EXP_SMOOTH_ALPHA * (slack_interval) + (1 - EXP_SMOOTH_ALPHA) * virt_flow->slack_interval;
-    LOGD("updated virt usage (%d->%d) flow %p slack interval %d", last_virt_dev, virt_dev, virt_flow, slack_interval);
-}
-
-int hg_get_bandwidth(ExpressMemType dst, ExpressMemType src) {
-    if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
-        LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
-        return 0;
+    break;
+    default:
+    {
+        LOGE("error! function id %d not recognized!", GET_FUN_ID(call->id));
     }
-    return g_stats.bandwidth[dst][src];
-}
 
-void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, int new_bandwidth) {
-    if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
-        LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
-        return;
     }
-    g_stats.bandwidth[dst][src] = EXP_SMOOTH_ALPHA * new_bandwidth + (1 - EXP_SMOOTH_ALPHA) * g_stats.bandwidth[dst][src];
-}
 
-// gbuffer prefetch
-int mem_prefetch(Hardware_Buffer *gbuffer, int curr_virt_device, ExpressMemType curr_phy_device, int sync_id) {
-
-    // 1. predict next device & next R/W usage
-    Dataflow *virt_flow = hg_get_virt_flow(gbuffer->gbuffer_id);
-    Dataflow *phy_flow = hg_get_phy_flow(gbuffer->gbuffer_id);
-    if (virt_flow->src_dev != curr_virt_device || phy_flow->src_dev != curr_phy_device) { 
-        // device mismatch. did the buffer owner change?
-        hg_update_phy_flow(gbuffer->gbuffer_id, phy_flow);
+    if (need_free) {
+        g_free(ptr);
     }
-    ExpressMemType next_phy_device = phy_flow->dst_dev[0]; // todo: do the predictions!
 
-    // 2. predict guest block time
-    int slack_interval = virt_flow->slack_interval;
-    int phy_bandwidth = hg_get_bandwidth(next_phy_device, curr_phy_device);
-    int guest_block_time = gbuffer->size /* bytes */ / phy_bandwidth /* ?? */ - slack_interval /* microseconds */;
-
-    // 3. initiate transfer
-    void *dst_data = NULL, *src_data = NULL;
-//     mem_transfer_async(next_phy_device, phy_flows.src_dev, dst_data, src_data, gbuffer->size, gbuffer->size, sync_id, NULL, NULL, NULL);
-
-    return max(guest_block_time, 0);
-}
-
-/**
- * initiate shared memory transfer using express-mem workers.
- * for the arguments, see struct MemTransferTask.
-*/
-void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *dst_data, void *src_data, int dst_len, int src_len, int sync_id, PreprocessCbType pre_cb, PostprocessCbType post_cb, void *private_data) {
-    // task will be freed in express_mem_worker()
-    MemTransferTask *task = g_malloc0(sizeof(MemTransferTask));
-    task->dst_loc = dst_loc;
-    task->src_loc = src_loc;
-    task->dst_data = dst_data;
-    task->src_data = src_data;
-    task->dst_len = dst_len;
-    task->src_len = src_len;
-    task->sync_id = sync_id;
-    task->pre_cb = pre_cb;
-    task->post_cb = post_cb;
-    task->private_data = private_data;
-
-    LOGD("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
-
-    g_thread_pool_push(g_pool, (gpointer)task, NULL);
-}
-
-/**
- * check if the mem transfer queue is busy.
- * returns true if size(queue) exceeds size(mem worker threads).
-*/
-bool mem_transfer_is_busy(void) {
-    return g_thread_pool_unprocessed(g_pool) > MAX_MEM_WORKER_THREADS;
+    call->callback(call, 1);
+    return;
 }
 
 static Express_Device_Info express_mem_info = {

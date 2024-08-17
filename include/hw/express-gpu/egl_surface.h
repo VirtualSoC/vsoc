@@ -48,14 +48,17 @@ typedef enum ExpressMemType {
     // host opaque structure type
     EXPRESS_MEM_TYPE_HOST_OPAQUE = 0x01,
 
-    // gbuffer, should be casted to Hardware_Buffer*
+    // gbuffer texture, should be casted to Hardware_Buffer*
     EXPRESS_MEM_TYPE_TEXTURE = 0x02,
 
     // host CPU memory type, raw memory addr
     EXPRESS_MEM_TYPE_HOST_MEM = 0x03,
 
+    // gbuffer host memory type, should be casted to Hardware_Buffer*
+    EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM = 0x04,
+
     // cuda memory type, deviceptr
-    EXPRESS_MEM_TYPE_CUDA = 0x04,
+    EXPRESS_MEM_TYPE_CUDA = 0x05,
 
     // guest memory mask
     EXPRESS_MEM_TYPE_GUEST_MASK = 0xf0,
@@ -116,11 +119,11 @@ typedef struct Hardware_Buffer{
      int size;
 
      Guest_Mem *guest_data; // storage for EXPRESS_MEM_TYPE_GUEST_MEM
-     void *host_data; // storage for EXPRESS_MEM_TYPE_HOST_MEM
+     void *host_data; // storage for EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM
 
-     int pid;
-     ExpressMemType location;
-     GHashTable *locations;
+     ExpressMemType last_phy_dev;
+     int last_phy_usage;
+     ExpressMemType pref_phy_dev;
 
      int last_virt_dev;
      int last_virt_usage;

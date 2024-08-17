@@ -627,9 +627,14 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
            mFrame->width, mFrame->height, mFrame->format, context->mWidth, context->mHeight,
            avdstfmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
 
-    if (task->dst_loc == EXPRESS_MEM_TYPE_HOST_MEM) {
-        data[0] = (uint8_t *)task->dst_data;
+    if (task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM) {
+        Hardware_Buffer *gbuffer = (Hardware_Buffer *)task->dst_data;
+        gbuffer->host_data = g_realloc(gbuffer->host_data, task->dst_len);
+        data[0] = (uint8_t *)gbuffer->host_data;
     }
+    else if (task->dst_loc == EXPRESS_MEM_TYPE_HOST_MEM) {
+        data[0] = (uint8_t *)task->dst_data;
+    } 
     else if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
         g_videobuf = av_realloc(g_videobuf, task->dst_len);
         data[0] = g_videobuf;
@@ -754,9 +759,8 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             add_gbuffer_to_global(gbuffer);
         }
 
-        ExpressMemType pred_loc = EXPRESS_MEM_TYPE_UNKNOWN;
-        update_gbuffer_location(gbuffer, EXPRESS_MEM_TYPE_HOST_MEM, CURRENT_TID(), true);
-        pred_loc = predict_gbuffer_location(gbuffer);
+        int block_time;
+        ExpressMemType pred_phy_dev;
 
         if (mFrame->format == AV_PIX_FMT_CUDA) {
             // hw pix fmt, do in-GPU colorspace conversion
@@ -764,18 +768,16 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             cs_map_cuda(context->mCsConv, (CUdeviceptr *)mFrame->data, mFrame->linesize);
             cs_convert(context->mCsConv, gbuffer->data_fbo);
             av_frame_free(&mFrame);
-            signal_express_sync(desc->sync_id, true);
-        } else if (pred_loc == EXPRESS_MEM_TYPE_HOST_MEM || pred_loc == EXPRESS_MEM_TYPE_UNKNOWN) {
-            // unknown defaults to host mem (we use swscale by CPU, so lazy copy)
-            pred_loc = EXPRESS_MEM_TYPE_HOST_MEM;
-            gbuffer->host_data = g_realloc(gbuffer->host_data, outputSize);
-            mem_transfer_async(EXPRESS_MEM_TYPE_HOST_MEM, EXPRESS_MEM_TYPE_HOST_OPAQUE, gbuffer->host_data, mFrame, outputSize, outputSize, desc->sync_id, swscale_task_cb, NULL, context);
-        } else if (pred_loc == EXPRESS_MEM_TYPE_TEXTURE) {
-            update_gbuffer_location(gbuffer, pred_loc, CURRENT_TID(), true);
-            mem_transfer_async(EXPRESS_MEM_TYPE_TEXTURE, EXPRESS_MEM_TYPE_HOST_OPAQUE, gbuffer, mFrame, outputSize, outputSize, desc->sync_id, swscale_task_cb, NULL, context);
+            pred_phy_dev = mem_predict_prefetch(gbuffer, EXPRESS_CODEC_DEVICE_ID, EXPRESS_MEM_TYPE_TEXTURE, &block_time);
+            if (pred_phy_dev == EXPRESS_MEM_TYPE_UNKNOWN) pred_phy_dev = EXPRESS_MEM_TYPE_TEXTURE; // default to texture
+            mem_transfer_async(pred_phy_dev, EXPRESS_MEM_TYPE_TEXTURE, gbuffer, gbuffer, outputSize, outputSize, desc->sync_id, NULL, NULL, context);
         } else {
-            LOGE("error! gbuffer location %x is currently not supported by the codec", pred_loc);
-            av_frame_free(&mFrame);
+            // host mem, need to use swscale by CPU
+            pred_phy_dev = mem_predict_prefetch(gbuffer, EXPRESS_CODEC_DEVICE_ID, EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM, &block_time);
+            if (pred_phy_dev == EXPRESS_MEM_TYPE_UNKNOWN) pred_phy_dev = EXPRESS_MEM_TYPE_TEXTURE; // default to texture
+            mem_transfer_async(pred_phy_dev, EXPRESS_MEM_TYPE_HOST_OPAQUE, gbuffer, mFrame, outputSize, outputSize, desc->sync_id, swscale_task_cb, NULL, context);
+            // mFrame is freed by swscale_task_cb
+            // av_frame_free(&mFrame);
         }
         // notify the guest ahead of time
         _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);

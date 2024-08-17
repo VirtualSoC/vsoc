@@ -531,6 +531,7 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
             LOGE("error! encoder source gbuffer %" PRIx64 " is null!", desc->id);
             return ERR_CODING_FAILED;
         }
+        update_gbuffer_phy_usage(gbuffer, EXPRESS_MEM_TYPE_TEXTURE, false);
         mFrame = (AVFrame *)g_hash_table_lookup(context->mInputMap, (gpointer)desc->id);
         if (!mFrame) {
             mFrame = av_frame_alloc();

@@ -81,11 +81,6 @@ void express_mem_worker(gpointer data, gpointer user_data) {
         ret = -1;
         goto EXIT;
     }
-    if (task->src_loc == task->dst_loc) {
-        LOGE("src_loc is the same as dst_loc, ignoring.");
-        ret = -1;
-        goto EXIT;
-    }
     if ((task->src_loc == EXPRESS_MEM_TYPE_HOST_OPAQUE || task->dst_loc == EXPRESS_MEM_TYPE_HOST_OPAQUE 
       || task->src_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE || task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE)
         && !task->pre_cb) {
@@ -119,6 +114,11 @@ void express_mem_worker(gpointer data, gpointer user_data) {
     switch (task->dst_loc) {
         case EXPRESS_MEM_TYPE_TEXTURE: {
             end_dma_to_gbuffer((Hardware_Buffer *)task->dst_data);
+            ((Hardware_Buffer *)task->dst_data)->pref_phy_dev = EXPRESS_MEM_TYPE_TEXTURE;
+        } break;
+        case EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM: {
+            end_dma_to_gbuffer((Hardware_Buffer *)task->dst_data);
+            ((Hardware_Buffer *)task->dst_data)->pref_phy_dev = EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM;
         } break;
         case EXPRESS_MEM_TYPE_GUEST_MEM: {
             write_to_guest_mem((Guest_Mem *)task->dst_data, mapped_addr, 0, task->dst_len);
@@ -129,7 +129,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
             // nop
         } break;
         default: {
-            LOGE("worker: dst_loc %s not supported!", memtype_to_str(task->dst_loc));
+            LOGD("worker: dst_loc %s not supported!", memtype_to_str(task->dst_loc));
             ret = -1;
         }
     }

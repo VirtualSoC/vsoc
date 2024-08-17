@@ -74,13 +74,10 @@ struct MemTransferTask {
 #define PARA_NUM_Update_Gbuffer_Location 1
 
 const char *memtype_to_str(ExpressMemType loc);
-void update_gbuffer_location(Hardware_Buffer *gbuffer, ExpressMemType loc, int pid, int write);
-ExpressMemType predict_gbuffer_location(Hardware_Buffer *gbuffer);
 
-void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id);
-void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
-void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
-Hardware_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
+void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write);
+void update_gbuffer_phy_usage(Hardware_Buffer *gbuffer, ExpressMemType phy_dev, int write);
+ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, ExpressMemType phy_dev, int *pred_block);
 
 void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc,
                         void *dst_data, void *src_data, int dst_len,
@@ -88,5 +85,10 @@ void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc,
                         PostprocessCbType post_cb, void *private_data);
 bool mem_transfer_is_busy(void);
 void express_mem_worker(gpointer data, gpointer user_data);
+
+void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id);
+void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info);
+void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data);
+Hardware_Buffer *create_gbuffer_from_gralloc_info(Gralloc_Gbuffer_Info info, uint64_t gbuffer_id);
 
 #endif

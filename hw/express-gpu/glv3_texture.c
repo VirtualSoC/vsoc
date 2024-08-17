@@ -64,7 +64,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (bind_texture == 0)
     {
-        LOGE("error! %s with texture 0 target %llx", __FUNCTION__, (uint64_t)context);
+        LOGE("error! %s with texture 0 context %p target %x", __FUNCTION__, context, target);
         return;
     }
 
