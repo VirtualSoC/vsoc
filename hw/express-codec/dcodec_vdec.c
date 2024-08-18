@@ -627,15 +627,15 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
            mFrame->width, mFrame->height, mFrame->format, context->mWidth, context->mHeight,
            avdstfmt, SWS_FAST_BILINEAR, NULL, NULL, NULL);
 
-    if (task->dst_loc == EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM) {
+    if (task->dst_dev == EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM) {
         Hardware_Buffer *gbuffer = (Hardware_Buffer *)task->dst_data;
         gbuffer->host_data = g_realloc(gbuffer->host_data, task->dst_len);
         data[0] = (uint8_t *)gbuffer->host_data;
     }
-    else if (task->dst_loc == EXPRESS_MEM_TYPE_HOST_MEM) {
+    else if (task->dst_dev == EXPRESS_MEM_TYPE_HOST_MEM) {
         data[0] = (uint8_t *)task->dst_data;
     } 
-    else if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
+    else if (task->dst_dev == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
         g_videobuf = av_realloc(g_videobuf, task->dst_len);
         data[0] = g_videobuf;
     }
@@ -649,14 +649,14 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
 
     sws_scale(g_sws_ctx, (const uint8_t * const*)mFrame->data, mFrame->linesize, 0, mFrame->height, data, linesize);
 
-    if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
+    if (task->dst_dev == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
         BufferDesc *desc = (BufferDesc *)task->dst_data;
         write_to_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
         _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
     }
 
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
-    if (task->dst_loc == EXPRESS_MEM_TYPE_TEXTURE) {
+    if (task->dst_dev == EXPRESS_MEM_TYPE_TEXTURE) {
         glFramebufferTexture(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, gbuffer->data_texture, 0);
     }
     else {

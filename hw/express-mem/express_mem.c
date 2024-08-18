@@ -42,7 +42,7 @@ typedef struct GlobalStats {
     int phy_flow_size;
     GHashTable *id_virt_map;
     GHashTable *id_phy_map;
-    int64_t bandwidth[16][16];
+    double bandwidth[16][16];
 } GlobalStats;
 
 GlobalStats g_stats;
@@ -131,7 +131,7 @@ static Dataflow *hg_new_virt_flow(int src_dev, Dataflow *base_flow, int new_dst_
     return flow;
 }
 
-static Dataflow *hg_new_phy_flow(int src_dev, Dataflow *base_flow, int new_dst_dev) {
+static Dataflow *hg_new_phy_flow(ExpressMemType src_dev, Dataflow *base_flow, ExpressMemType new_dst_dev) {
     if (g_stats.phy_flow_size >= MAX_FLOW_SIZE) {
         LOGE("error! max virt flow array length exceeded %d", MAX_FLOW_SIZE);
         return NULL;
@@ -150,19 +150,31 @@ static Dataflow *hg_new_phy_flow(int src_dev, Dataflow *base_flow, int new_dst_d
     return flow;
 }
 
-static int hg_get_bandwidth(ExpressMemType dst, ExpressMemType src) {
+static ExpressMemType filter_memtype(ExpressMemType in) {
+    if (in == EXPRESS_MEM_TYPE_HOST_OPAQUE || in == EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM) {
+        // they are in fact CPU mem
+        return EXPRESS_MEM_TYPE_HOST_MEM;
+    }
+    return in;
+}
+
+static double hg_get_bandwidth(ExpressMemType dst, ExpressMemType src) {
     if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
         LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
         return 0;
     }
+    dst = filter_memtype(dst);
+    src = filter_memtype(src);
     return g_stats.bandwidth[dst][src];
 }
 
-static void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, int new_bandwidth) {
+void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, double new_bandwidth) {
     if (!(dst & EXPRESS_MEM_TYPE_HOST_MASK) || !(src & EXPRESS_MEM_TYPE_HOST_MASK)) {
         LOGW("attempt to get bandwidth on non-physical device! dst %d src %d", dst, src);
         return;
     }
+    dst = filter_memtype(dst);
+    src = filter_memtype(src);
     g_stats.bandwidth[dst][src] = EXP_SMOOTH_ALPHA * new_bandwidth + (1 - EXP_SMOOTH_ALPHA) * g_stats.bandwidth[dst][src];
 }
 
@@ -319,14 +331,16 @@ ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, Expr
 
     // 2. predict guest block time
     int slack_interval = virt_flow->slack_interval;
-    int phy_bandwidth = hg_get_bandwidth(target_phy_dev, phy_dev);
+    double phy_bandwidth = hg_get_bandwidth(target_phy_dev, phy_dev);
     int guest_block_time = 0;
-    if (phy_bandwidth > 0) {
+    if (phy_bandwidth > 0 && slack_interval > 0) {
         guest_block_time =
             gbuffer->size /* bytes */ / phy_bandwidth /* bytes per microsec */ -
             slack_interval /* microsec */;
     }
     if (pred_block) *pred_block = max(guest_block_time, 0);
+
+    LOGD("gbuffer %" PRIx64 " prefetch dev (%s -> %s) slack interval %d bandwidth %.2f guest_block %d", gbuffer->gbuffer_id, memtype_to_str(phy_flow->src_dev), memtype_to_str(target_phy_dev), slack_interval, phy_bandwidth, guest_block_time);
 
     return target_phy_dev;
 }
@@ -335,17 +349,17 @@ ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, Expr
  * initiate shared memory transfer using express-mem workers.
  * for the arguments, see struct MemTransferTask.
 */
-void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *dst_data, void *src_data, int dst_len, int src_len, int sync_id, PreprocessCbType pre_cb, PostprocessCbType post_cb, void *private_data) {
-    if (dst_loc == src_loc) {
-        LOGD("src_loc is the same as dst_loc, ignoring.");
-        signal_express_sync(sync_id, dst_loc == EXPRESS_MEM_TYPE_TEXTURE);
+void mem_transfer_async(ExpressMemType dst_dev, ExpressMemType src_dev, void *dst_data, void *src_data, int dst_len, int src_len, int sync_id, PreprocessCbType pre_cb, PostprocessCbType post_cb, void *private_data) {
+    if (dst_dev == src_dev) {
+        LOGD("src_dev is the same as dst_dev, ignoring.");
+        signal_express_sync(sync_id, dst_dev == EXPRESS_MEM_TYPE_TEXTURE);
         return;
     }
 
     // task will be freed in express_mem_worker()
     MemTransferTask *task = g_malloc0(sizeof(MemTransferTask));
-    task->dst_loc = dst_loc;
-    task->src_loc = src_loc;
+    task->dst_dev = dst_dev;
+    task->src_dev = src_dev;
     task->dst_data = dst_data;
     task->src_data = src_data;
     task->dst_len = dst_len;
@@ -355,7 +369,7 @@ void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc, void *ds
     task->post_cb = post_cb;
     task->private_data = private_data;
 
-    LOGD("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_loc), src_len, memtype_to_str(dst_loc), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
+    LOGD("transfer_async received task: %s (size %d) -> %s (size %d) sync %d; pending tasks: %u", memtype_to_str(src_dev), src_len, memtype_to_str(dst_dev), dst_len, sync_id, g_thread_pool_unprocessed(g_pool));
 
     g_thread_pool_push(g_pool, (gpointer)task, NULL);
 }

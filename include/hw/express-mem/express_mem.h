@@ -24,10 +24,10 @@ typedef void (*PostprocessCbType)(MemTransferTask *task, int retval);
 
 struct MemTransferTask {
     // the destination of the transfer
-    ExpressMemType dst_loc;
+    ExpressMemType dst_dev;
 
     // the source of the transfer
-    ExpressMemType src_loc;
+    ExpressMemType src_dev;
 
     // handle to destination data
     void *dst_data;
@@ -75,11 +75,12 @@ struct MemTransferTask {
 
 const char *memtype_to_str(ExpressMemType loc);
 
+void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, double new_bandwidth);
 void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write);
 void update_gbuffer_phy_usage(Hardware_Buffer *gbuffer, ExpressMemType phy_dev, int write);
 ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, ExpressMemType phy_dev, int *pred_block);
 
-void mem_transfer_async(ExpressMemType dst_loc, ExpressMemType src_loc,
+void mem_transfer_async(ExpressMemType dst_dev, ExpressMemType src_dev,
                         void *dst_data, void *src_data, int dst_len,
                         int src_len, int sync_id, PreprocessCbType pre_cb,
                         PostprocessCbType post_cb, void *private_data);

@@ -81,8 +81,8 @@ void express_mem_worker(gpointer data, gpointer user_data) {
         ret = -1;
         goto EXIT;
     }
-    if ((task->src_loc == EXPRESS_MEM_TYPE_HOST_OPAQUE || task->dst_loc == EXPRESS_MEM_TYPE_HOST_OPAQUE 
-      || task->src_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE || task->dst_loc == EXPRESS_MEM_TYPE_GUEST_OPAQUE)
+    if ((task->src_dev == EXPRESS_MEM_TYPE_HOST_OPAQUE || task->dst_dev == EXPRESS_MEM_TYPE_HOST_OPAQUE 
+      || task->src_dev == EXPRESS_MEM_TYPE_GUEST_OPAQUE || task->dst_dev == EXPRESS_MEM_TYPE_GUEST_OPAQUE)
         && !task->pre_cb) {
         // opaque memory cannot be transfered without custom code 
         LOGE("opaque memory type supplied, but no pre_cb is present");
@@ -90,8 +90,10 @@ void express_mem_worker(gpointer data, gpointer user_data) {
         goto EXIT;
     }
 
+    int64_t start_time = g_get_real_time();
+
     void *mapped_addr = NULL;
-    if (task->dst_loc == EXPRESS_MEM_TYPE_TEXTURE) {
+    if (task->dst_dev == EXPRESS_MEM_TYPE_TEXTURE) {
         mapped_addr = begin_dma_to_gbuffer(task->dst_len);
         if (!mapped_addr) {
             LOGE("failed to map gbuffer!");
@@ -99,7 +101,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
             goto EXIT;
         }
     }
-    else if (task->dst_loc == EXPRESS_MEM_TYPE_GUEST_MEM) {
+    else if (task->dst_dev == EXPRESS_MEM_TYPE_GUEST_MEM) {
         mapped_addr = g_malloc(task->dst_len);
         if (!mapped_addr) {
             LOGE("failed to map guest mem!");
@@ -111,7 +113,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
     if (task->pre_cb)
         task->pre_cb(task, mapped_addr);
 
-    switch (task->dst_loc) {
+    switch (task->dst_dev) {
         case EXPRESS_MEM_TYPE_TEXTURE: {
             end_dma_to_gbuffer((Hardware_Buffer *)task->dst_data);
             ((Hardware_Buffer *)task->dst_data)->pref_phy_dev = EXPRESS_MEM_TYPE_TEXTURE;
@@ -129,17 +131,26 @@ void express_mem_worker(gpointer data, gpointer user_data) {
             // nop
         } break;
         default: {
-            LOGD("worker: dst_loc %s not supported!", memtype_to_str(task->dst_loc));
+            LOGD("worker: dst_dev %s not supported!", memtype_to_str(task->dst_dev));
             ret = -1;
         }
     }
     if (task->sync_id > 0) {
-        signal_express_sync(task->sync_id, task->src_loc == EXPRESS_MEM_TYPE_TEXTURE || task->dst_loc == EXPRESS_MEM_TYPE_TEXTURE);
+        signal_express_sync(task->sync_id, task->src_dev == EXPRESS_MEM_TYPE_TEXTURE || task->dst_dev == EXPRESS_MEM_TYPE_TEXTURE);
     }
 
 EXIT:
     if (task->post_cb) {
         task->post_cb(task, ret);
     }
+
+    int64_t end_time = g_get_real_time();
+
+    if (ret >= 0 && end_time - start_time > 0) {
+        // make sure that the results are meaningful
+        hg_update_bandwidth(task->dst_dev, task->src_dev, (double)task->dst_len / (end_time - start_time));
+        // LOGI("update bandwidth (%s -> %s) end time %llx start_time %llx dst_len %d", memtype_to_str(task->src_dev), memtype_to_str(task->dst_dev), end_time, start_time, task->dst_len);
+    }
+
     g_free(task);
 }
