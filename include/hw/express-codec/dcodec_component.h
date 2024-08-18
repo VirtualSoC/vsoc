@@ -78,7 +78,7 @@ enum {
 };
 
 typedef struct DCodecComponent DCodecComponent;
-typedef void (*NotifyCallbackFunc)(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags);
+typedef void (*NotifyCallbackFunc)(DCodecComponent *context, CodecCallbackData ccd);
 
 struct DCodecComponent {
     Device_Context device_context;
@@ -126,8 +126,8 @@ void dcodec_flush_buffers(DCodecComponent *context, int type);
 void dcodec_free_buffer_desc(void *desc);
 OMX_ERRORTYPE dcodec_send_command(DCodecComponent *context, OMX_COMMANDTYPE cmd, OMX_U32 param, OMX_U64 data);
 void dcodec_notify_error(DCodecComponent *context, OMX_ERRORTYPE type);
-void dcodec_notify_null(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags);
-void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags);
+void dcodec_notify_null(DCodecComponent *context, CodecCallbackData ccd);
+void dcodec_notify_guest(DCodecComponent *context, CodecCallbackData ccd);
 OMX_ERRORTYPE dcodec_process_this_buffer(DCodecComponent *context, OMX_INOUT BufferDesc *desc);
 void dcodec_process_buffers(DCodecComponent *context);
 int dcodec_handle_extradata(DCodecComponent *context);

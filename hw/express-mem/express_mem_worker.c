@@ -7,7 +7,7 @@
  * to avoid blocking on device threads
  */
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/express-mem/express_mem.h"
 #include "hw/express-gpu/express_sync.h"
 #include "hw/express-gpu/glv3_context.h"

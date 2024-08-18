@@ -130,10 +130,10 @@ void dcodec_deinit_component(DCodecComponent *context) {
 */
 void dcodec_return_buffer(DCodecComponent *context, BufferDesc *desc) {
     if (desc->type & CODEC_BUFFER_TYPE_INPUT) {
-        context->notify(context, OMX_EventEmptyBufferDone, 0, desc->nTimeStamp, desc->id, desc->nFlags);
+        context->notify(context, (CodecCallbackData){ .event = OMX_EventEmptyBufferDone, .data1 = 0, .data2 = desc->nTimeStamp, .data = desc->id, .flags = desc->nFlags });
     }
     if (desc->type & CODEC_BUFFER_TYPE_OUTPUT) {
-        context->notify(context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+        context->notify(context, (CodecCallbackData){ .event = OMX_EventFillBufferDone, .data1 = desc->nFilledLen, .data2 = desc->nTimeStamp, .data = desc->id, .flags = desc->nFlags });
     }
     dcodec_free_buffer_desc(desc);
 }
@@ -179,11 +179,11 @@ OMX_ERRORTYPE dcodec_send_command(DCodecComponent *context, OMX_COMMANDTYPE cmd,
             if (param == OMX_ALL || param == CODEC_INPUT_PORT_INDEX) {
                 dcodec_flush_buffers(context, CODEC_BUFFER_TYPE_INPUT);
                 dcodec_reset_component(context); // flush codec in case the user seeks 
-                context->notify(context, OMX_EventCmdComplete, OMX_CommandFlush, CODEC_INPUT_PORT_INDEX, 0, 0);
+                context->notify(context, (CodecCallbackData){ .event = OMX_EventCmdComplete, .data1 = OMX_CommandFlush, .data2 = CODEC_INPUT_PORT_INDEX });
             }
             if (param == OMX_ALL || param == CODEC_OUTPUT_PORT_INDEX) {
                 dcodec_flush_buffers(context, CODEC_BUFFER_TYPE_OUTPUT);
-                context->notify(context, OMX_EventCmdComplete, OMX_CommandFlush, CODEC_OUTPUT_PORT_INDEX, 0, 0);
+                context->notify(context, (CodecCallbackData) { .event = OMX_EventCmdComplete, .data1 = OMX_CommandFlush, .data2 = CODEC_OUTPUT_PORT_INDEX });
             }
             break;
         }
@@ -198,7 +198,7 @@ OMX_ERRORTYPE dcodec_send_command(DCodecComponent *context, OMX_COMMANDTYPE cmd,
             }
             dcodec_flush_buffers(context, CODEC_BUFFER_TYPE_INPUT | CODEC_BUFFER_TYPE_OUTPUT);
             dcodec_reset_component(context);
-            context->notify(context, OMX_EventCmdComplete, OMX_CommandStateSet, param, 0, 0);
+            context->notify(context, (CodecCallbackData) { .event = OMX_EventCmdComplete, .data1 = OMX_CommandStateSet, .data2 = param });
             break;
         }
 
@@ -214,22 +214,22 @@ OMX_ERRORTYPE dcodec_send_command(DCodecComponent *context, OMX_COMMANDTYPE cmd,
  * convenient wrapper for throwing an error to the client 
 */
 void dcodec_notify_error(DCodecComponent *context, OMX_ERRORTYPE type) {
-    context->notify(context, OMX_EventError, type, 0, 0, 0);
+    context->notify(context, (CodecCallbackData){ .event = OMX_EventError, .data1 = type } );
 }
 
 /**
  * the default callback handler for a decoder without any callbacks specified
  * it just prints a debug message and exits
 */
-void dcodec_notify_null(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
-    LOGD("codec null notify event %x data1 %d data2 %d ptr %" PRIx64 " flags %x", event, data1, data2, data, flags);
+void dcodec_notify_null(DCodecComponent *context, CodecCallbackData ccd) {
+    LOGD("codec null notify event %x data1 %d data2 %d ptr %" PRIx64 " flags %x extra %u", ccd.event, ccd.data1, ccd.data2, ccd.data, ccd.flags, ccd.extra);
 }
 
 /**
  * the default callback handler for a guest-initiated decoder
  * notifies the guest of the event
 */
-void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
+void dcodec_notify_guest(DCodecComponent *context, CodecCallbackData ccd) {
     int header[3]; // size, host_idx, guest_idx;
 
     if (!context->dma_buf) {
@@ -255,23 +255,16 @@ void dcodec_notify_guest(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 
         break;
     }
 
-    CodecCallbackData callback;
-    callback.event = event;
-    callback.data1 = data1;
-    callback.data2 = data2;
-    callback.data = data;
-    callback.flags = flags;
+    LOGD("codec notify (guest idx %d host %d+1) event %x data1 %d data2 %d ptr %" PRIx64 " flags %x extra %u", header[2], header[1], ccd.event, ccd.data1, ccd.data2, ccd.data, ccd.flags, ccd.extra);
 
-    LOGD("codec notify (guest idx %d host %d+1) event %x data1 %d data2 %d ptr %" PRIx64 " flags %x", header[2], header[1], event, data1, data2, data, flags);
-
-    write_to_guest_mem(context->dma_buf, &callback, __builtin_offsetof(CodecDMABuffer, callbacks) + (header[1] % CODEC_CALLBACK_BUFFER_LEN) * sizeof(CodecCallbackData), sizeof(CodecCallbackData));
+    write_to_guest_mem(context->dma_buf, &ccd, __builtin_offsetof(CodecDMABuffer, callbacks) + (header[1] % CODEC_CALLBACK_BUFFER_LEN) * sizeof(CodecCallbackData), sizeof(CodecCallbackData));
     header[1] += 1;
     write_to_guest_mem(context->dma_buf, header + 1, __builtin_offsetof(CodecDMABuffer, host_idx), sizeof(int));
     g_mutex_unlock(&context->dma_buf_mutex);
 
     // guest-side already has polling, but polling can be laggy
     // use interrupts on important events to reduce delay
-    if (event == OMX_EventCmdComplete) {
+    if (ccd.event == OMX_EventCmdComplete) {
         set_express_device_irq((Device_Context *)context, header[1], sizeof(CodecCallbackData));
     }
 }

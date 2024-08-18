@@ -223,16 +223,16 @@ static void set_camera_capabilties(CameraProp *prop)
  * notify guest driver that there is a buffer ready for display
  * assumes guest HAL keeps the original buffer order, so the available buffer index is the same as the buffer index in queue
 */
-static void camera_codec_notify(DCodecComponent *context, OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2, OMX_U64 data, OMX_U32 flags) {
+static void camera_codec_notify(DCodecComponent *context, CodecCallbackData ccd) {
     static int ready_cnt = 1;
 
-    LOGD("camera codec callback event %x data1 %d data2 %d ptr %" PRIx64 " flags %x", event, data1, data2, data, flags);
+    LOGD("camera codec callback event %x data1 %d data2 %d ptr %" PRIx64 " flags %x extra %u", ccd.event, ccd.data1, ccd.data2, ccd.data, ccd.flags, ccd.extra);
 
-    if (event != OMX_EventFillBufferDone) {
+    if (ccd.event != OMX_EventFillBufferDone) {
         return;
     }
 
-    if (set_express_device_irq((Device_Context *)context->mAppPrivate, ready_cnt, 0) == IRQ_SET_OK) {
+    if (set_express_device_irq((Device_Context *)context->mAppPrivate, ready_cnt, ccd.extra) == IRQ_SET_OK) {
         ready_cnt = 1;
     }
     else {

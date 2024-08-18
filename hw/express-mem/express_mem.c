@@ -5,7 +5,7 @@
  */
 
 
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #define MAX_MEM_WORKER_THREADS 4
 #include "hw/teleport-express/express_log.h"
 
@@ -306,7 +306,7 @@ void update_gbuffer_phy_usage(Hardware_Buffer *gbuffer, ExpressMemType phy_dev, 
 /**
  * predict where gbuffer will be prefetched, and the slack intervals
 */
-ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, ExpressMemType phy_dev, int *pred_block) {
+ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, ExpressMemType phy_dev, uint32_t *pred_block) {
     // 0. check prerequisites
     if (!gbuffer || mem_transfer_is_busy()) return EXPRESS_MEM_TYPE_UNKNOWN;
 

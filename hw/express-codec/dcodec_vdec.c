@@ -652,7 +652,7 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
     if (task->dst_dev == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
         BufferDesc *desc = (BufferDesc *)task->dst_data;
         write_to_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
-        _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+        _context->notify(_context, (CodecCallbackData){ .event = OMX_EventFillBufferDone, .data1 = desc->nFilledLen, .data2 = desc->nTimeStamp, .data = desc->id, .flags = desc->nFlags });
     }
 
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
@@ -759,7 +759,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             add_gbuffer_to_global(gbuffer);
         }
 
-        int block_time;
+        uint32_t block_time;
         ExpressMemType pred_phy_dev;
 
         if (mFrame->format == AV_PIX_FMT_CUDA) {
@@ -780,7 +780,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
             // av_frame_free(&mFrame);
         }
         // notify the guest ahead of time
-        _context->notify(_context, OMX_EventFillBufferDone, desc->nFilledLen, desc->nTimeStamp, desc->id, desc->nFlags);
+        _context->notify(_context, (CodecCallbackData) { .event = OMX_EventFillBufferDone, .data1 = desc->nFilledLen, .data2 = desc->nTimeStamp, .data = desc->id, .flags = desc->nFlags, .extra = block_time });
         dcodec_free_buffer_desc(desc);
     }
     else {

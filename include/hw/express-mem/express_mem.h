@@ -78,7 +78,7 @@ const char *memtype_to_str(ExpressMemType loc);
 void hg_update_bandwidth(ExpressMemType dst, ExpressMemType src, double new_bandwidth);
 void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write);
 void update_gbuffer_phy_usage(Hardware_Buffer *gbuffer, ExpressMemType phy_dev, int write);
-ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, ExpressMemType phy_dev, int *pred_block);
+ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, ExpressMemType phy_dev, uint32_t *pred_block);
 
 void mem_transfer_async(ExpressMemType dst_dev, ExpressMemType src_dev,
                         void *dst_data, void *src_data, int dst_len,

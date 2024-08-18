@@ -56,6 +56,9 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
     {
         resources->share_resources = g_malloc(sizeof(Share_Resources));
         memset(resources->share_resources, 0, sizeof(Share_Resources));
+        resources->share_resources->texture_resource.resource_id_map = g_malloc0(sizeof(long long));
+        resources->share_resources->texture_resource.resource_is_init = g_malloc0(sizeof(char));
+        resources->share_resources->texture_resource.map_size = 1;
         resources->share_resources->counter = 1;
     }
 

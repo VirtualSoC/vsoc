@@ -148,6 +148,7 @@ typedef struct {
 	uint32_t data2;
 	uint64_t data;
     uint32_t flags;
+    uint32_t extra;
 } __attribute__((packed, aligned(4))) CodecCallbackData;
 
 typedef struct {
