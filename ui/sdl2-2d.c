@@ -27,6 +27,7 @@
 #include "ui/console.h"
 #include "ui/input.h"
 #include "ui/sdl2.h"
+#include "hw/express-gpu/sdl_control.h"
 
 void sdl2_2d_update(DisplayChangeListener *dcl,
                     int x, int y, int w, int h)
@@ -129,7 +130,25 @@ void sdl2_2d_refresh(DisplayChangeListener *dcl)
     struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
 
     assert(!scon->opengl);
-    graphic_hw_update(dcl->con);
+    static int sdl2_all_hidden = 0;
+    if(!sdl2_no_need)
+    {
+        if(sdl2_all_hidden)
+        {
+            if(scon->hidden == false)
+            {
+                SDL_ShowWindow(scon->real_window);
+                sdl2_all_hidden = 0;
+            }
+        }
+        graphic_hw_update(dcl->con);
+    }else{
+        sdl2_all_hidden = 1;
+        if(scon->hidden == false)
+        {
+            SDL_HideWindow(scon->real_window);
+        }
+    }
     sdl2_poll_events(scon);
 }
 

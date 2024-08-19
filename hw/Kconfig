@@ -66,6 +66,17 @@ source sparc64/Kconfig
 source tricore/Kconfig
 source xtensa/Kconfig
 
+
+source teleport-express/Kconfig
+source express-mem/Kconfig
+source express-codec/Kconfig
+source express-gpu/Kconfig
+source express-input/Kconfig
+source express-sensor/Kconfig
+source express-network/Kconfig
+source express-camera/Kconfig
+
+
 # Symbols used by multiple targets
 config TEST_DEVICES
     bool

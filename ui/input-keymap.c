@@ -21,6 +21,7 @@
 #include "ui/input-keymap-xorgxquartz-to-qcode.c.inc"
 #include "ui/input-keymap-xorgxwin-to-qcode.c.inc"
 #include "ui/input-keymap-osx-to-qcode.c.inc"
+#include "ui/input-keymap-glfw-to-qcode.c.inc"
 
 int qemu_input_linux_to_qcode(unsigned int lnx)
 {

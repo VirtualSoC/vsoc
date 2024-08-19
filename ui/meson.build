@@ -152,6 +152,7 @@ keymaps = [
   ['xorgxquartz', 'qcode'],
   ['xorgxwin', 'qcode'],
   ['osx', 'qcode'],
+  ['glfw', 'qcode'],
 ]
 
 if have_system or xkbcommon.found()
