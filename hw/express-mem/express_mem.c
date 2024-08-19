@@ -10,7 +10,7 @@
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/express-mem/express_mem.h"
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 #include "hw/express-gpu/express_gpu_render.h"
 #include "hw/express-gpu/glv3_context.h"
 

@@ -1,6 +1,7 @@
 /**
  * @file express_sync.c
  * @author gaodi (gaodi.sec@qq.com)
+ * @author Jiaxing Qiu (jx.qiu@outlook.com)
  * @brief
  * @version 0.1
  * @date 2022-6-10
@@ -11,7 +12,7 @@
 
 // #define STD_DEBUG_LOG
 
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 #include "hw/express-gpu/express_gpu_render.h"
 #include "hw/teleport-express/express_event.h"
 

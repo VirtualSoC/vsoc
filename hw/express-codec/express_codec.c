@@ -15,7 +15,7 @@
 #include <string.h>
 
 #include "hw/express-codec/OMX/OMX_Core.h"
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-codec/express_codec.h"
 #include "hw/express-codec/dcodec_component.h"

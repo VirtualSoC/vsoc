@@ -14,7 +14,7 @@
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_status.h"
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 #include "hw/express-mem/express_mem.h"
 
 #include "hw/express-codec/device_cuda.h"

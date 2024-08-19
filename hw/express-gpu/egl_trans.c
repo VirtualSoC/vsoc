@@ -18,7 +18,7 @@
 #include "hw/express-gpu/egl_sync.h"
 #include "hw/express-gpu/test_trans.h"
 
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 
 void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
 

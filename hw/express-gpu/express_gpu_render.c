@@ -23,7 +23,7 @@
 #include "hw/express-gpu/glv1.h"
 #include "hw/express-gpu/gl_helper.h"
 
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 
 #include "ui/console.h"
 #include "ui/input.h"

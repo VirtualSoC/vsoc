@@ -21,7 +21,7 @@
 
 #include "hw/express-gpu/egl_surface.h"
 
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 
 #include "qemu/atomic.h"
 

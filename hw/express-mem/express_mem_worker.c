@@ -9,7 +9,7 @@
 
 // #define STD_DEBUG_LOG
 #include "hw/express-mem/express_mem.h"
-#include "hw/express-gpu/express_sync.h"
+#include "hw/express-mem/express_sync.h"
 #include "hw/express-gpu/glv3_context.h"
 
 static __thread void *g_gl_context = NULL;
