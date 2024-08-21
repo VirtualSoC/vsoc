@@ -56,11 +56,9 @@ To shutdown vSoC, click the upper-right `×` button, and then click the `Power o
 
 ### 3. Reproducing Results
 
-1. As noted above, please check your hardware setup [here](https://github.com/VirtualSoC/vsoc/wiki/setup).
+1. Please follow the dedicated [reproduction guide](https://github.com/VirtualSoC/vsoc/wiki/reproducing-results) to carry out the experiments in our paper.
 
-2. Please follow the dedicated [guide](https://github.com/VirtualSoC/vsoc/wiki/reproducing-results) to carry out the experiments in our paper.
-
-3. We also provide our own measurement data and scripts to reproduce the figures in our paper. Please check [this repo](https://github.com/VirtualSoC/vsoc-figures) for details.
+2. We also provide our own measurement data and scripts to reproduce the figures in our paper. Please check [this repo](https://github.com/VirtualSoC/vsoc-figures) for details.
 
 The following parts of README are not important to result reproduction, feel free to skip them if you do not want to build vSoC from scratch.
 
