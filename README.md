@@ -4,7 +4,7 @@ This is the artifact README for vSoC---a first-of-its-kind virtual mobile SoC th
 
 ### 0. Artifact Claims
 
-* **Reproducibility.** To reproduce similar results to those in our paper, hardware configurations of your machines are of vital importance. That is because the workloads selected in our paper test the ***extreme performance*** of the evaluated emulators. Even if the hardware configurations are the same, the running states of the host machines (e.g., CPU/GPU utilization and heat level) can also impact the results. We recommend you check your hardware setup before evaluation [here](https://github.com/VirtualSoC/vsoc/wiki/setup).
+* **Reproducibility.** To reproduce similar results to those in our paper, hardware configurations of your machines are of vital importance. That is because the workloads selected in our paper test the ***extreme performance*** of the evaluated emulators. Even if the hardware configurations are the same, the running states of the host machines (e.g., CPU/GPU utilization and heat level) can also impact the results. We recommend you check your hardware setup before evaluation [here](https://github.com/VirtualSoC/vsoc/wiki/Hardware-Setup).
 
 * **Compatibility.** While the design of vSoC is largely platform agnostic, the current implementation runs best on Windows computers with Intel CPUs and NVIDIA GPUs. We do have basic cross-platform compatibility (e.g. vSoC can run on Intel GPUs or macOS with ARM CPUs), but that was not the priority and you might encounter bugs and inefficiencies. Better cross-platform compatibility of vSoC is already on our schedule.
 
@@ -56,7 +56,7 @@ To shutdown vSoC, click the upper-right `×` button, and then click the `Power o
 
 ### 3. Reproducing Results
 
-1. Please follow the dedicated [reproduction guide](https://github.com/VirtualSoC/vsoc/wiki/reproducing-results) to carry out the experiments in our paper.
+1. Please follow the dedicated [reproduction guide](https://github.com/VirtualSoC/vsoc/wiki/Reproducing-Results) to carry out the experiments in our paper.
 
 2. We also provide our own measurement data and scripts to reproduce the figures in our paper. Please check [this repo](https://github.com/VirtualSoC/vsoc-figures) for details.
 
@@ -64,7 +64,7 @@ The following parts of README are not important to result reproduction, feel fre
 
 ### 4. Building
 
-See [the wiki](https://github.com/VirtualSoC/vsoc/wiki/build-vsoc) for detailed instructions.
+See [the wiki](https://github.com/VirtualSoC/vsoc/wiki/Build-vSoC) for detailed instructions.
 
 ### 5. Developing vSoC
 
@@ -85,7 +85,7 @@ vSoC is based on QEMU 7.1, and most of the code is from the upstream QEMU. vSoC 
 
 ### 5.2. Debugging vSoC
 
-To debug vSoC, you should first set up the development environment detailed in [the wiki](https://github.com/VirtualSoC/vsoc/wiki/build-vsoc). Then, you can use the `gdb` or `gdb-multiarch` debugger in the MSYS2 MinGW x64 terminal.
+To debug vSoC, you should first set up the development environment detailed in [the wiki](https://github.com/VirtualSoC/vsoc/wiki/Build-vSoC). Then, you can use the `gdb` or `gdb-multiarch` debugger in the MSYS2 MinGW x64 terminal.
 
 ### 6. Licensing
 Our code is under the GPLv2 license.
