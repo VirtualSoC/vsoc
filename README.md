@@ -87,5 +87,12 @@ vSoC is based on QEMU 7.1, and most of the code is from the upstream QEMU. vSoC 
 
 To debug vSoC, you should first set up the development environment detailed in [the wiki](https://github.com/VirtualSoC/vsoc/wiki/Build-vSoC). Then, you can use the `gdb` or `gdb-multiarch` debugger in the MSYS2 MinGW x64 terminal.
 
+### 5.3. Upgrading vSoC to newer QEMU versions
+
+Right now, upgrading vSoC to a newer QEMU version requires the user to clone the repository, checkout the new release branch, cherry-pick our commits and manually resolve conflicts.
+
+We are considering storing the vSoC changeset as 
+a series of patches and applying to qemu at compile time to facilitate synchronizations with the upstream.
+
 ## 6. Licensing
 Our code is under the GPLv2 license.
