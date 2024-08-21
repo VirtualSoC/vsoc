@@ -27,6 +27,13 @@ static GLsync unpack_buffer_sync = NULL;
 #define EXP_SMOOTH_ALPHA 0.5
 #define MAX_FLOW_SIZE 32
 
+#ifndef _WIN32
+#define max(a, b)                       \
+  (((a) > (b)) ? (a) : (b))
+#define min(a, b)                       \
+  (((a) < (b)) ? (a) : (b))
+#endif
+
 typedef struct Dataflow {
     int src_dev;
     int dst_dev[16];

@@ -12,6 +12,9 @@
 #include "hw/express-camera/express_camera.h"
 #include <libavdevice/avdevice.h>
 
+#define DEFAULT_FRAME_WIDTH 1280
+#define DEFAULT_FRAME_HEIGHT 720
+
 void listAvfoundationDevices(AVDeviceInfoList *deviceList) {
     AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeExternalUnknown, AVCaptureDeviceTypeBuiltInWideAngleCamera] mediaType:AVMediaTypeVideo position:AVCaptureDevicePositionUnspecified];
 
