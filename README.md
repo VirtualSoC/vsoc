@@ -1,6 +1,14 @@
 # vSoC: Efficient Virtual System-on-Chip on Heterogeneous Hardware
 
-vSoC is the first virtual mobile SoC that enables virtual devices to efficiently share data through a unified SVM framework.
+This is the artifact README for vSoC---a first-of-its-kind virtual mobile SoC that enables virtual devices to efficiently share data through a unified SVM framework.
+
+### 0. Artifact Claims
+
+* **Reproducibility.** To reproduce similar results to those in our paper, hardware configurations of your machines are of vital importance. That is because the workloads selected in our paper test the ***extreme performance*** of the evaluated emulators. Even if the hardware configurations are the same, the running states of the host machines (e.g., CPU/GPU utilization and heat level) can also impact the results. We recommend you check your hardware setup before evaluation [here](https://github.com/VirtualSoC/vsoc/wiki/setup).
+
+* **Compatibility.** While the design of vSoC is largely platform agnostic, the current implementation runs best on Windows computers with Intel CPUs and NVIDIA GPUs. We do have basic cross-platform compatibility (e.g. vSoC can run on Intel GPUs or macOS with ARM CPUs), but that was not the priority and you might encounter bugs and inefficiencies. Better cross-platform compatibility of vSoC is already on our schedule.
+
+* **Stability.** vSoC is an experimental product and is still in beta. Therefore, freezing and crashing can happen, and normally a system reboot can resolve the issues.
 
 ### 1. Getting Started with vSoC
 
@@ -46,13 +54,23 @@ To shutdown vSoC, click the upper-right `×` button, and then click the `Power o
 
 * If the above does not work, please file an Github issue or contact us and provide the `log.txt` file in the root directory of the binary.
 
-### 3. Building
+### 3. Reproducing Results
 
-See [build-vsoc.md](docs/build-vsoc.md) for detailed instructions.
+1. As noted above, please check your hardware setup [here](https://github.com/VirtualSoC/vsoc/wiki/setup).
 
-### 4. Developing vSoC
+2. Please follow the dedicated [guide](https://github.com/VirtualSoC/vsoc/wiki/reproducing-results) to carry out the experiments in our paper.
 
-### 4.1. Code Organization
+3. We also provide our own measurement data and scripts to reproduce the figures in our paper. Please check [this repo](https://github.com/VirtualSoC/vsoc-figures) for details.
+
+The following parts of README are not important to result reproduction, feel free to skip them if you do not want to build vSoC from scratch.
+
+### 4. Building
+
+See [the wiki](https://github.com/VirtualSoC/vsoc/wiki/build-vsoc) for detailed instructions.
+
+### 5. Developing vSoC
+
+### 5.1. Code Organization
 
 vSoC is based on QEMU 7.1, and most of the code is from the upstream QEMU. vSoC primarily adds a new QEMU device which consists of several modules with codenames `express-*`. The codename convention is inherited from [Trinity Emulator](https://github.com/TrinityEmulator/TrinityEmulator), a major source of inspiration for this work.
 
@@ -67,9 +85,9 @@ vSoC is based on QEMU 7.1, and most of the code is from the upstream QEMU. vSoC 
 | `hw/express-sensor` | vSoC sensor virtual devices, emulated purely in software. |
 | `hw/teleport-express` | vSoC transport library based on `virtio`, but with additional functionalities like asynchronous commands, cluster commands and virtual interrupts. |
 
-### 4.2. Debugging vSoC
+### 5.2. Debugging vSoC
 
-To debug vSoC, you should first set up the development environment detailed in [build-vsoc.md](docs/build-vsoc.md). Then, you can use the `gdb` or `gdb-multiarch` debugger in the MSYS2 MinGW x64 terminal.
+To debug vSoC, you should first set up the development environment detailed in [the wiki](https://github.com/VirtualSoC/vsoc/wiki/build-vsoc). Then, you can use the `gdb` or `gdb-multiarch` debugger in the MSYS2 MinGW x64 terminal.
 
-### 7. Licensing
+### 6. Licensing
 Our code is under the GPLv2 license.
