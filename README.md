@@ -2,7 +2,7 @@
 
 This is the artifact README for vSoC---a first-of-its-kind virtual mobile SoC that enables virtual devices to efficiently share data through a unified SVM framework.
 
-### 0. Artifact Claims
+## 0. Artifact Claims
 
 * **Reproducibility.** To reproduce similar results to those in our paper, hardware configurations of your machines are of vital importance. That is because the workloads selected in our paper test the ***extreme performance*** of the evaluated emulators. Even if the hardware configurations are the same, the running states of the host machines (e.g., CPU/GPU utilization and heat level) can also impact the results. We recommend you check your hardware setup before evaluation [here](https://github.com/VirtualSoC/vsoc/wiki/Hardware-Setup).
 
@@ -10,9 +10,9 @@ This is the artifact README for vSoC---a first-of-its-kind virtual mobile SoC th
 
 * **Stability.** vSoC is an experimental product and is still in beta. Therefore, freezing and crashing can happen, and normally a system reboot can resolve the issues.
 
-### 1. Getting Started with vSoC
+## 1. Getting Started with vSoC
 
-#### 1.1. Hardware Requirements
+### 1.1. Hardware Requirements
 
 vSoC works best on a Windows machine with an Intel x64 CPU and an NVIDIA dedicated GPU with a recent driver version (>550.00).
 
@@ -24,17 +24,17 @@ vSoC works best on a Windows machine with an Intel x64 CPU and an NVIDIA dedicat
 
 Note: other hardware/software combinations (e.g. Intel GPUs or macOS) also work, but they are less tested and are prone to bugs and inefficiencies. We plan to improve the cross-platform compatibility of vSoC with time.
 
-#### 1.2 Software Prerequisites
+### 1.2 Software Prerequisites
   1. Ensure that you have turned on Intel-VT in the BIOS settings. It is turned on for most PCs by default.
   2. Enable Hyper-V in Windows (check the [Microsoft documentation](https://learn.microsoft.com/en-us/virtualization/hyper-v-on-windows/quick-start/enable-hyper-v) for details).
 
-### 2. Installation
+## 2. Installation
 
-#### 2.1. Download vSoC
+### 2.1. Download vSoC
 
 You can download vSoC binary in [Github releases](https://github.com/VirtualSoC/vsoc/releases/tag/beta-2408). Download and extract the zip file.
 
-#### 2.2 Run vSoC
+### 2.2 Run vSoC
 
 After extracting, you should see a `run.cmd` script file in the root directory of the binary. To run vSoC, double click on the script. A command line window should pop up immediately, and after a few seconds, a GUI window should appear.
 
@@ -42,7 +42,7 @@ Use vSoC in the same way that you use mobile phones. We implement an emulated to
 
 To shutdown vSoC, click the upper-right `×` button, and then click the `Power off` button inside the emulator. If vSoC is not responding, close the command line window to shut down by force.
 
-#### 2.3. Advanced Usage and Troubleshooting
+### 2.3. Advanced Usage and Troubleshooting
 
 * For establishing `adb` connection with vSoC, please type `adb connect 127.0.0.1:5555` in your terminal. If you have not installed `adb`, please refer to [this guide](https://www.xda-developers.com/install-adb-windows-macos-linux/).
 
@@ -54,7 +54,7 @@ To shutdown vSoC, click the upper-right `×` button, and then click the `Power o
 
 * If the above does not work, please file an Github issue or contact us and provide the `log.txt` file in the root directory of the binary.
 
-### 3. Reproducing Results
+## 3. Reproducing Results
 
 1. Please follow the dedicated [reproduction guide](https://github.com/VirtualSoC/vsoc/wiki/Reproducing-Results) to carry out the experiments in our paper.
 
@@ -62,11 +62,11 @@ To shutdown vSoC, click the upper-right `×` button, and then click the `Power o
 
 The following parts of README are not important to result reproduction, feel free to skip them if you do not want to build vSoC from scratch.
 
-### 4. Building
+## 4. Building
 
 See [the wiki](https://github.com/VirtualSoC/vsoc/wiki/Build-vSoC) for detailed instructions.
 
-### 5. Developing vSoC
+## 5. Developing vSoC
 
 ### 5.1. Code Organization
 
@@ -87,5 +87,5 @@ vSoC is based on QEMU 7.1, and most of the code is from the upstream QEMU. vSoC 
 
 To debug vSoC, you should first set up the development environment detailed in [the wiki](https://github.com/VirtualSoC/vsoc/wiki/Build-vSoC). Then, you can use the `gdb` or `gdb-multiarch` debugger in the MSYS2 MinGW x64 terminal.
 
-### 6. Licensing
+## 6. Licensing
 Our code is under the GPLv2 license.
