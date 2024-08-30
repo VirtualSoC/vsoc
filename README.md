@@ -32,7 +32,9 @@ Note: other hardware/software combinations (e.g. Intel GPUs or macOS) also work,
 
 ### 2.1. Download vSoC
 
-You can download vSoC binary in [Github releases](https://github.com/VirtualSoC/vsoc/releases/tag/beta-2408). Download and extract the zip file.
+You can download vSoC binary in [Github releases](https://github.com/VirtualSoC/vsoc/releases/tag/beta-2408). Download and extract `vsoc_android_win_amd64.zip`.
+
+Note: we also provide binaries for another Linux-based mobile OS named OpenHarmony (`vsoc_ohos_win_amd64.zip`), but that is not required in the artifact evaluation process. You can try it out if you are interested in it.
 
 ### 2.2 Run vSoC
 
