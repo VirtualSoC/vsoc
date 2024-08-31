@@ -10,7 +10,7 @@ This is the artifact README for vSoC---a first-of-its-kind virtual mobile SoC th
 
 * **Stability.** vSoC is an experimental product and is still in beta. Therefore, freezing and crashing can happen, and normally a system reboot can resolve the issues.
 
-* **Effort.** While we strive to streamline the artifact reproduction process, the complete evaluation process will still require ~15 person-days of manual effort, especially given that a total of 50 apps are involved and latency measurements are laborious. We provide detailed instructions and scripts to guide users through the process, and hint users when it is possible to trade accuracy for simplicity.
+* **Effort.** While we strive to streamline the artifact reproduction process, the complete evaluation process will still require ~30 person-days of manual effort, especially given that a total of 50 apps are involved and latency measurements are laborious. We provide detailed instructions and scripts to guide users through the process, and hint users when it is possible to trade accuracy for simplicity.
 
 ## 1. Getting Started with vSoC
 
