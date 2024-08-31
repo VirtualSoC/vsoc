@@ -6,9 +6,11 @@ This is the artifact README for vSoC---a first-of-its-kind virtual mobile SoC th
 
 * **Reproducibility.** To reproduce similar results to those in our paper, hardware configurations of your machines are of vital importance. That is because the workloads selected in our paper test the ***extreme performance*** of the evaluated emulators. Even if the hardware configurations are the same, the running states of the host machines (e.g., CPU/GPU utilization and heat level) can also impact the results. We recommend you check your hardware setup before evaluation [here](https://github.com/VirtualSoC/vsoc/wiki/Hardware-Setup).
 
-* **Compatibility.** While the design of vSoC is largely platform agnostic, the current implementation runs best on Windows computers with Intel CPUs and NVIDIA GPUs. We do have basic cross-platform compatibility (e.g. vSoC can run on Intel GPUs or macOS with ARM CPUs), but that was not the priority and you might encounter bugs and inefficiencies. Better cross-platform compatibility of vSoC is already on our schedule.
+* **Compatibility.** While the design of vSoC is largely platform agnostic, the current implementation runs best on Windows computers with Intel CPUs and NVIDIA GPUs. We do have basic cross-platform compatibility (e.g. vSoC can run on Intel GPUs or macOS with ARM CPUs), but these have not been prioritized in development and you might encounter bugs and inefficiencies. Better cross-platform compatibility of vSoC is already on our schedule.
 
 * **Stability.** vSoC is an experimental product and is still in beta. Therefore, freezing and crashing can happen, and normally a system reboot can resolve the issues.
+
+* **Effort.** While we strive to streamline the artifact reproduction process, the complete evaluation process will still require ~15 person-days of manual effort, especially given that a total of 50 apps are involved and latency measurements are laborious. We provide detailed instructions and scripts to guide users through the process, and hint users when it is possible to trade accuracy for simplicity.
 
 ## 1. Getting Started with vSoC
 
