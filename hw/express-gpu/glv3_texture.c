@@ -54,6 +54,9 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
 
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
+    LOGD("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
+         "%d h %d format %x type %x pixels %x",
+         target, level, internalformat, width, height, format, type, pixels);
 
     Guest_Mem *guest_mem = (Guest_Mem *)pixels;
 

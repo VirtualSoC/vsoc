@@ -29,7 +29,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
 
     Hardware_Buffer *now_draw_gbuffer = surface->gbuffer;
 
-    LOGD("surface %llx swapbuffer gbuffer_id %llx sync %d\n", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
+    LOGD("surface %llx swapbuffer gbuffer_id %llx sync %d", (uint64_t)surface, now_draw_gbuffer->gbuffer_id, now_draw_gbuffer->data_sync);
 
     Hardware_Buffer *next_draw_gbuffer = NULL;
 
@@ -394,7 +394,7 @@ void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, 
     Window_Buffer *host_surface = render_surface_create(config, width, height, P_SURFACE);
     host_surface->guest_surface = guest_surface;
 
-    // LOGI("pbuffer surface create host %llx guest %llx width %d height %d guest width %d height %d", (uint64_t)host_surface, (uint64_t)guest_surface, host_surface->width, host_surface->height, width, height);
+    LOGD("pbuffer surface create host %llx guest %llx width %d height %d guest width %d height %d", (uint64_t)host_surface, (uint64_t)guest_surface, host_surface->width, host_surface->height, width, height);
 
     g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
@@ -607,7 +607,6 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     Hardware_Buffer *gbuffer = g_malloc0(sizeof(Hardware_Buffer));
 
     gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
-    ;
     gbuffer->usage_type = GBUFFER_TYPE_WINDOW;
     gbuffer->gbuffer_id = gbuffer_id;
 
