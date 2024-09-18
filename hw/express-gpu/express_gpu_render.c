@@ -861,7 +861,7 @@ void *native_window_thread(void *opaque)
     main_display_content_width = express_gpu_window_width;
     main_display_content_height = express_gpu_window_height;
 
-    glfw_window = glfwCreateWindow(window_width, window_height, "Trinity", NULL, NULL);
+    glfw_window = glfwCreateWindow(window_width, window_height, "vSoC", NULL, NULL);
 
     if (!glfw_window)
     {
