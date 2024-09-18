@@ -71,6 +71,34 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
         return;
     }
 
+    // need to perform a check to make sure its underlying texture storage
+    // is of the same size as the specs of the image
+    Texture_Binding_Status *tex_status = &(opengl_context->texture_binding_status);
+    Hardware_Buffer *gbuffer = NULL;
+    if (target == GL_TEXTURE_2D) {
+        gbuffer = tex_status->current_2D_gbuffer;
+    } else {
+        gbuffer = tex_status->current_external_gbuffer;
+    }
+    if (gbuffer != NULL) {
+        // glTexImage2D called on a gbuffer.
+        // isolate previous storage and reallocate storage using specs from
+        // Hardware_Buffer struct instead of using the supplied values
+
+        GLuint prev_texture = 0;
+        GLuint prev_unpack = 0;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&prev_texture);
+        glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&prev_unpack);
+        // glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, NULL);
+
+        // glBindTexture(GL_TEXTURE_2D, prev_texture);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, prev_unpack);
+        return;
+    }
+
     if (guest_mem->all_len == 0)
     {
         if (status->host_pixel_unpack_buffer != 0)
