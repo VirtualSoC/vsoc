@@ -29,6 +29,7 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                     'test_trans.c',
                     'device_interface_window.c',
                     'express_display.c',
+                    'vk_trans.c'
                ))
 
 glfw = cc.find_library('glfw3')

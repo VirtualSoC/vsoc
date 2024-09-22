@@ -55,11 +55,29 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 
     uint64_t fun_id = GET_FUN_ID(call->id);
 
-    express_printf("enter gpu decode invoke id %llu\n", fun_id);
+    LOGD("enter gpu decode invoke id %llu", fun_id);
 
     if (fun_id >= 200000)
     {
         test_decode_invoke(render_context, call);
+    }
+    else if (fun_id >= 1000 && fun_id < 2000)
+    {
+        vk_decode_invoke(render_context, call);
+        // LOGD("get call vkCreateDevice!");
+        // const VkInstanceCreateInfo* pCreateInfo;
+        // const VkAllocationCallbacks* pAllocator;
+
+        // Call_Para all_para[MAX_PARA_NUM];      
+        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        // LOGI("get vk param number %d", para_num);
+
+        // int need_free = 0;
+        // char *_ptr;
+        // _ptr = call_para_to_ptr(all_para[0], &need_free);
+        // VkInstanceCreateInfo* local_pCreateInfo = _ptr;
+        // LOGI("got vkCreateinfo with %lld %d %s %d %s",(long long)local_pCreateInfo->sType, local_pCreateInfo->enabledLayerCount, local_pCreateInfo->ppEnabledLayerNames, local_pCreateInfo->enabledExtensionCount, local_pCreateInfo->ppEnabledExtensionNames);
+
     }
     else if (fun_id > 10000)
     {
