@@ -16,6 +16,9 @@
 #include "hw/teleport-express/teleport_express_register.h"
 
 #include "hw/teleport-express/express_log.h"
+#include "hw/express-gpu/express_gpu.h"
+
+#include "hw/virtio/virtio.h"
 
 // #define express_printf null_printf
 
@@ -172,7 +175,7 @@ static void teleport_express_realize(DeviceState *qdev, Error **errp)
     virtio_add_queue(vdev, 1024, teleport_express_output_handle_cb);
     virtio_add_queue(vdev, 1024, teleport_express_input_handle_cb);
 
-    g->out_data_queue = virtio_get_queue(vdev, 0);
+    g->out_data_queue = virtio_get_queue(vdev, 0); //在主机端真正 获取 Virtqueue 的位置？打断点看一下
     g->in_data_queue = virtio_get_queue(vdev, 1);
 
     //在aio线程处理中处理数据的函数
@@ -212,6 +215,60 @@ teleport_express_get_features(VirtIODevice *vdev, uint64_t features,
 
 //     return;
 // }
+static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
+                           const VMStateField *field, JSONWriter *vmdesc)
+{
+    LOGI("in teleport_express vmsd save!");
+    int virtio_save_ret = virtio_save(VIRTIO_DEVICE(opaque), f);
+    if (virtio_save_ret == -1) {
+        LOGE("error when performing virtio save for teleport express!");
+        return -1;
+    }
+    save_render_thread_contexts(f);
+
+    LOGI("succcefully perform virtio save for teleport express!");
+    return 0;
+}
+
+static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
+                           const VMStateField *field)
+{
+    LOGI("in teleport_express vmsd load!");
+    // return 0;
+    VirtIODevice *vdev = VIRTIO_DEVICE(opaque);
+    DeviceClass *dc = DEVICE_CLASS(VIRTIO_DEVICE_GET_CLASS(vdev));
+
+    int virtio_load_ret = virtio_load(vdev, f, dc->vmsd->version_id);
+    if (virtio_load_ret == -1) {
+        LOGE("error when performing virtio load for teleport express!");
+        return -1;
+    }
+    load_render_thread_contexts(f);
+
+     LOGI("succcefully perform virtio load for teleport express!");
+    return 0;
+}
+
+
+
+static const VMStateDescription vmstate_teleport_express = {
+    .name = "virtio-teleport-express",
+    .minimum_version_id = 1,
+    .version_id = 1,
+    .fields = (VMStateField[]) {
+        // VMSTATE_VIRTIO_DEVICE /* core */,
+        {
+            .name = "teleport-express",
+            .info = &(const VMStateInfo) {
+                        .name = "teleport-express",
+                        .get = teleport_express_load,
+                        .put = teleport_express_save,
+            },
+            .flags = VMS_SINGLE,
+        } /* device */,
+        VMSTATE_END_OF_LIST()
+    },
+};
 
 static void teleport_express_class_init(ObjectClass *klass, void *data)
 {
@@ -224,6 +281,7 @@ static void teleport_express_class_init(ObjectClass *klass, void *data)
 
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     dc->hotpluggable = false;
+    dc->vmsd = &vmstate_teleport_express;
 
     vdc->realize = teleport_express_realize;
 }

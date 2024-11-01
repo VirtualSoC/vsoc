@@ -28,6 +28,7 @@
 #include "sysemu/dma.h"
 #include "sysemu/runstate.h"
 #include "standard-headers/linux/virtio_ids.h"
+#include "hw/teleport-express/express_log.h"
 
 /*
  * The alignment to use between consumer and producer parts of vring.
@@ -2907,6 +2908,7 @@ static const VMStateDescription vmstate_virtio = {
 
 int virtio_save(VirtIODevice *vdev, QEMUFile *f)
 {
+    LOGI("in virtio save %s device %d %d %d", vdev->name, (int)vdev->status, (int)vdev->isr, (int)vdev->nvectors);
     BusState *qbus = qdev_get_parent_bus(DEVICE(vdev));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
     VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(vdev);
@@ -2917,7 +2919,7 @@ int virtio_save(VirtIODevice *vdev, QEMUFile *f)
         k->save_config(qbus->parent, f);
     }
 
-    qemu_put_8s(f, &vdev->status);
+    qemu_put_8s(f, &vdev->status); //保存字段
     qemu_put_8s(f, &vdev->isr);
     qemu_put_be16s(f, &vdev->queue_sel);
     qemu_put_be32s(f, &guest_features_lo);
@@ -2929,9 +2931,9 @@ int virtio_save(VirtIODevice *vdev, QEMUFile *f)
             break;
     }
 
-    qemu_put_be32(f, i);
+    qemu_put_be32(f, i); //保存virtqueu的数量
 
-    for (i = 0; i < VIRTIO_QUEUE_MAX; i++) {
+    for (i = 0; i < VIRTIO_QUEUE_MAX; i++) { //保存virtqueue状态
         if (vdev->vq[i].vring.num == 0)
             break;
 
@@ -2954,7 +2956,7 @@ int virtio_save(VirtIODevice *vdev, QEMUFile *f)
         vdc->save(vdev, f);
     }
 
-    if (vdc->vmsd) {
+    if (vdc->vmsd) { //递归保存vmsd和save函数的内容
         int ret = vmstate_save_state(f, vdc->vmsd, vdev, NULL);
         if (ret) {
             return ret;
@@ -3047,6 +3049,7 @@ size_t virtio_feature_get_config_size(const VirtIOFeature *feature_sizes,
 
 int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 {
+    LOGI("in virtio load %s device", vdev->name);
     int i, ret;
     int32_t config_len;
     uint32_t num;
@@ -3069,6 +3072,7 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 
     qemu_get_8s(f, &vdev->status);
     qemu_get_8s(f, &vdev->isr);
+    LOGI("in virtio load %s device %d %d", vdev->name, (int)vdev->status, (int)vdev->isr);
     qemu_get_be16s(f, &vdev->queue_sel);
     if (vdev->queue_sel >= VIRTIO_QUEUE_MAX) {
         return -1;
@@ -3099,7 +3103,7 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         config_len--;
     }
 
-    num = qemu_get_be32(f);
+    num = qemu_get_be32(f); //读取virtqueue的数量
 
     if (num > VIRTIO_QUEUE_MAX) {
         error_report("Invalid number of virtqueues: 0x%x", num);
@@ -3155,7 +3159,7 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         vdev->device_endian = virtio_default_endian();
     }
 
-    if (virtio_64bit_features_needed(vdev)) {
+    if (virtio_64bit_features_needed(vdev)) { //加载完subsection之后检查一下和之前的是否有矛盾
         /*
          * Subsection load filled vdev->guest_features.  Run them
          * through virtio_set_features to sanity-check them against

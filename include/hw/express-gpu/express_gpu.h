@@ -8,7 +8,6 @@
 #include "hw/express-gpu/egl_display.h"
 #include "hw/express-gpu/egl_surface.h"
 
-
 typedef struct Process_Context{
     GHashTable *surface_map;
     GHashTable *context_map;
@@ -31,6 +30,11 @@ typedef struct
     Opengl_Context *opengl_context;
     Egl_Display *egl_display;
 } Render_Thread_Context;
+
+
+
+int save_render_thread_contexts(QEMUFile *f);
+int load_render_thread_contexts(QEMUFile *f);
 
 
 #define FUNID_GPU_Gbuffer_Host_To_Guest ((EXPRESS_GPU_DEVICE_ID << 32u) + 5001)
