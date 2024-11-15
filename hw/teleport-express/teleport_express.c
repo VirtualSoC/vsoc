@@ -34,7 +34,7 @@ static void teleport_express_output_handle(VirtIODevice *vdev, VirtQueue *vq)
 {
 
     Teleport_Express *g = TELEPORT_EXPRESS(vdev);
-    if (g->distribute_thread_run == 0)
+    if (g->distribute_thread_run == 0) //第一次调用到，新建分发线程
     {
         guest_null_ptr_init(vq);
         express_printf("start handle thread\n");
@@ -49,7 +49,7 @@ static void teleport_express_output_handle(VirtIODevice *vdev, VirtQueue *vq)
     }
     else
     {
-#ifdef DISTRIBUTE_WHEN_VM_EXIT
+#ifdef DISTRIBUTE_WHEN_VM_EXIT  //配置vm退出时是否进行取数据的工作，若是，则通知轮询线程外，会主动取数据，直到轮询线程结束休眠开始干活，若否，则只是通知轮询线程
         int running_flag = qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1);
         if (running_flag == 0)
         {
@@ -225,6 +225,7 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
         return -1;
     }
     save_render_thread_contexts(f);
+    save_render_process_contexts(f);
 
     LOGI("succcefully perform virtio save for teleport express!");
     return 0;
@@ -244,6 +245,7 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
         return -1;
     }
     load_render_thread_contexts(f);
+    load_render_process_contexts(f);
 
      LOGI("succcefully perform virtio load for teleport express!");
     return 0;

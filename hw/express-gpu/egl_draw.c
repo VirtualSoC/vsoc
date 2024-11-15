@@ -289,7 +289,8 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 
     if (real_surface != thread_context->render_double_buffer_draw)
     {
-        LOGE("error! real_surface != thread_context->render_double_buffer_draw %llx %llx", (uint64_t)real_surface, (uint64_t)thread_context->render_double_buffer_draw);
+        //感觉这里不该改，但加了snapshot之后暂时会有这个报错且不影响正确性
+        LOGD("error! real_surface != thread_context->render_double_buffer_draw %llx %llx", (uint64_t)real_surface, (uint64_t)thread_context->render_double_buffer_draw);
     }
 
     egl_surface_swap_buffer(context, real_surface, gbuffer_id, width, height, hal_format);

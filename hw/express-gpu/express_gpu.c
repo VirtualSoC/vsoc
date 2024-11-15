@@ -46,6 +46,39 @@ static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
 
+int save_render_process_contexts(QEMUFile *f)
+{
+    GHashTableIter iter;
+    gpointer key, value;
+    guint num_entries = g_hash_table_size(render_process_contexts);
+    LOGI("in save_render_process_contexts with %d", num_entries);
+    qemu_put_be32(f, num_entries);
+    g_hash_table_iter_init(&iter, render_process_contexts);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        
+        Process_Context *process_context = (Process_Context *)value;
+        qemu_put_be64(f, (uint64_t)key);
+        LOGI("process id is %d", key);
+        save_process_context(f, process_context);   
+    }
+    return 0;
+}
+
+int load_render_process_contexts(QEMUFile *f) {
+    GHashTable *process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+    guint num_process = qemu_get_be32(f);
+    uint64_t process_id;
+    Process_Context *process_context = g_malloc0(sizeof(Process_Context));
+    LOGI("num process in load is %d", num_process);
+    for (guint i = 0; i < num_process; i++) {
+        process_id = qemu_get_be64(f);
+        LOGI("process id in load is %d", process_id);
+        load_process_context(f, process_context);
+        g_hash_table_insert(process_contexts, GUINT_TO_POINTER(process_id), process_context);
+    }
+    render_process_contexts = process_contexts;
+    return 0;
+}
 
 int save_render_thread_contexts(QEMUFile *f)
 {
@@ -67,51 +100,64 @@ int save_render_thread_contexts(QEMUFile *f)
     return 0;
 }
 
+
+
 int load_render_thread_contexts(QEMUFile *f) {
-    LOGI("in load render thread contexts!");
+    
 
     GHashTable *thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     guint num_entries = qemu_get_be32(f);
     uint64_t thread_id;
     Render_Thread_Context *thread_context;
 
-//todo:用于开机启动的场景就不能这样了，感觉得依照初始化的逻辑来“重新初始化”
-    VirtIODevice *shared_teleport_express_device = NULL;
-    void (*shared_context_init)(struct Thread_Context *context) = NULL;
-    void (*shared_context_destroy)(struct Thread_Context *context) = NULL;
-    void (*shared_call_handle)(struct Thread_Context *context, Teleport_Express_Call *call) = NULL;
-    if (g_hash_table_size(render_thread_contexts) > 0) {
-        gpointer existing_key, existing_value;
-        GHashTableIter iter;
-        g_hash_table_iter_init(&iter, render_thread_contexts);
-        if (g_hash_table_iter_next(&iter, &existing_key, &existing_value)) {
-            Render_Thread_Context *existing_context = (Render_Thread_Context *)existing_value;
-            shared_teleport_express_device = existing_context->context.teleport_express_device;
-            shared_context_init = existing_context->context.context_init;
-            shared_context_destroy = existing_context->context.context_destroy;
-            shared_call_handle = existing_context->context.call_handle;
-        }
-    }
+    LOGI("in load render thread contexts with num entries %d!", num_entries);
+
+// todo:用于开机启动的场景就不能这样了，感觉得依照初始化的逻辑来“重新初始化”
+    // VirtIODevice *shared_teleport_express_device = NULL;
+    // void (*shared_context_init)(struct Thread_Context *context) = NULL;
+    // void (*shared_context_destroy)(struct Thread_Context *context) = NULL;
+    // void (*shared_call_handle)(struct Thread_Context *context, Teleport_Express_Call *call) = NULL;
+    // if (g_hash_table_size(render_thread_contexts) > 0) {
+    //     gpointer existing_key, existing_value;
+    //     GHashTableIter iter;
+    //     g_hash_table_iter_init(&iter, render_thread_contexts);
+    //     if (g_hash_table_iter_next(&iter, &existing_key, &existing_value)) {
+    //         Render_Thread_Context *existing_context = (Render_Thread_Context *)existing_value;
+    //         shared_teleport_express_device = existing_context->context.teleport_express_device;
+    //         shared_context_init = existing_context->context.context_init;
+    //         shared_context_destroy = existing_context->context.context_destroy;
+    //         shared_call_handle = existing_context->context.call_handle;
+    //     }
+    // }
 
     for (guint i = 0; i < num_entries; i++) {
         thread_id = qemu_get_be64(f);
 
-        thread_context = g_malloc(sizeof(Render_Thread_Context));
+        Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+
+        thread_context = g_malloc(sizeof(Render_Thread_Context)); //记得free！
         LOGI("thread id is %lld", thread_id);
+        
+        if(render_context == NULL) {
+            LOGE("error!render context is null!");
+            return -1;
+        } else {
+            thread_context = render_context;
+        }
+
         load_single_render_thread_context(f, thread_context);
 
-        thread_context->context.teleport_express_device = shared_teleport_express_device;
-        thread_context->context.context_init = shared_context_init;
-        thread_context->context.context_destroy = shared_context_destroy;
-        thread_context->context.call_handle = shared_call_handle;
-
         g_hash_table_insert(thread_contexts, GUINT_TO_POINTER(thread_id), thread_context);
+        // g_free(thread_context);
     }
 
     render_thread_contexts = thread_contexts;
 
     return 0;
 }
+
+
+
 
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
@@ -187,7 +233,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
     if (thread_context == NULL)
     {
         // express_printf("create new thread\n");
-        express_printf("create new thread context\n");
+        LOGD("create new thread context with thread id %lld device id %lld", thread_id, device_id);
         thread_context = (Render_Thread_Context *)thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
         thread_context->thread_unique_ids = g_hash_table_new(g_direct_hash, g_direct_equal);
 
@@ -196,7 +242,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
         if (process == NULL)
         {
-            express_printf("create new process context\n");
+            LOGD("create new process context");
             process = g_malloc(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             // 注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
@@ -211,7 +257,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         thread_context->process_context = process;
         g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(thread_id), (gpointer)thread_context);
     }
-
+    LOGD("got render thread context with device id %lld %lld thread id %lld %lld", thread_context->context.device_id, device_id, thread_context->context.thread_id, thread_id);
     // 这里是只要是新的unique_id就都给加上，所以需要额外排除那种不是专门针对gpu device的调用
     // 例如更新显存数据时，显示指定了一次gpu device调用，但是其实其本质是display device调用，
     // 因此那种情况下，需要显示的删除该unique_id

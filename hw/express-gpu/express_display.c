@@ -201,7 +201,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         }
 
         sync_id = *(uint64_t *)(temp);
-
+        LOGD("going to wait for sync in display %d", (int)sync_id);
         wait_for_express_sync((int)sync_id, true);
     }
     break;
@@ -404,6 +404,8 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 
             express_printf("composer wait for sync %d\n", layer.write_sync_id);
 
+            LOGD("going to wait for sync in display layer %d", layer.write_sync_id);
+
             wait_for_express_sync(layer.write_sync_id, true);
 
             Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
@@ -439,8 +441,8 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                     view_y = display_height - view_y - view_h;
                 }
 
-                express_printf("glviewport %d %d %d %d glScissor %d %d %d %d\n", view_x, view_y, view_w, view_h, layer.x, display_height - layer.y - layer.height, layer.width, layer.height);
-                express_printf("layer %d %d %d %d crop %d %d %d %d\n", layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
+                LOGD("glviewport %d %d %d %d glScissor %d %d %d %d", view_x, view_y, view_w, view_h, layer.x, display_height - layer.y - layer.height, layer.width, layer.height);
+                LOGD("layer %d %d %d %d crop %d %d %d %d", layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
                 glViewport(view_x, view_y, view_w, view_h);
 
                 // glScissor是当前视口的裁剪情况，整个裁剪是说这个区域外就不绘制了，但是空间还是占着

@@ -750,7 +750,7 @@ void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
             LOGE("error! get writing gbuffer when opengl_paint");
         }
 
-        express_printf("draw gbuffer_id %llx data sync %lld\n", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
+        LOGD("draw gbuffer_id %llx data sync %lld", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
 
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 

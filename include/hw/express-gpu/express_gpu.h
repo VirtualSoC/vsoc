@@ -32,7 +32,8 @@ typedef struct
 } Render_Thread_Context;
 
 
-
+int save_render_process_contexts(QEMUFile *f);
+int load_render_process_contexts(QEMUFile *f);
 int save_render_thread_contexts(QEMUFile *f);
 int load_render_thread_contexts(QEMUFile *f);
 

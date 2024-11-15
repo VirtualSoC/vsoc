@@ -32,21 +32,36 @@ int save_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread
 
     save_thread_unique_ids(f, thread_context->thread_unique_ids);
 
-    // if (thread_context->render_double_buffer_read) {
-    //     save_window_buffer(f, thread_context->render_double_buffer_read);
-    // }
+    if (thread_context->render_double_buffer_read) {
+        qemu_put_be32(f, 1);
+        save_window_buffer(f, thread_context->render_double_buffer_read);
+    } else {
+        qemu_put_be32(f, 0);
+        LOGI("render_double_buffer_read is null!");
+    }
 
-    // if (thread_context->render_double_buffer_draw) {
-    //     save_window_buffer(f, thread_context->render_double_buffer_draw);
-    // }
+    if (thread_context->render_double_buffer_draw) {
+        qemu_put_be32(f, 1);
+        save_window_buffer(f, thread_context->render_double_buffer_draw);
+    } else {
+        qemu_put_be32(f, 0);
+        LOGI("render_double_buffer_draw is null!");
+    }
 
-    // if (thread_context->opengl_context) {
-    //     save_opengl_context(f, thread_context->opengl_context);
-    // }
+    if (thread_context->opengl_context) {
+        qemu_put_be32(f, 1);
+        save_opengl_context(f, thread_context->opengl_context);
+    } else {
+        qemu_put_be32(f, 0);
+        LOGI("opengl context is null!");
+    }
 
-    // if (thread_context->egl_display) {
-    //     save_egl_display(f, thread_context->egl_display);
-    // }
+    if (thread_context->egl_display) {
+        qemu_put_be32(f, 1);
+        save_egl_display(f, thread_context->egl_display);
+    } else {
+        qemu_put_be32(f, 0);
+    }
 
     return 0;
 }
@@ -63,15 +78,34 @@ int load_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread
 
     thread_context->thread_unique_ids = load_thread_unique_ids(f);
 
-    // thread_context->render_double_buffer_read = load_window_buffer(f);
+    int has_read_window = qemu_get_be32(f);
+    if (has_read_window) {
+        thread_context->render_double_buffer_read = load_window_buffer(f);
+    }
+    int has_write_window = qemu_get_be32(f);
+    if (has_write_window) {
+        thread_context->render_double_buffer_draw = load_window_buffer(f);
+    }
 
+    int has_opengl_context = qemu_get_be32(f);
+    if (has_opengl_context) {
+        Opengl_Context *context;
+        if(thread_context->opengl_context == NULL) {
+            context = g_malloc0(sizeof(Opengl_Context));
+        } else {
+            context = thread_context->opengl_context;
+        }
 
-    // thread_context->render_double_buffer_draw = load_window_buffer(f);
+        if (load_opengl_context(f, context) < 0) {
+            return -1;
+        }        
+    }
 
-    // thread_context->opengl_context = load_opengl_context(f);
-
-    // thread_context->egl_display = load_egl_display(f);
-
+    int has_egl_display = qemu_get_be32(f);
+    if(has_egl_display) {
+        thread_context->egl_display = load_egl_display(f);
+    }
+    
     return 0;
 }
 
@@ -85,10 +119,10 @@ int save_thread_context(QEMUFile *f, Thread_Context *context) {
     qemu_put_be64(f, context->thread_id);
 
 //可能需要保存事件的触发状态，恢复时重新创建handle?
-#ifdef _WIN32
-    DWORD event_state = WaitForSingleObject(context->data_event, 0);
-    qemu_put_be32(f, event_state == WAIT_OBJECT_0 ? 1 : 0);
-#endif
+// #ifdef _WIN32
+//     DWORD event_state = WaitForSingleObject(context->data_event, 0);
+//     qemu_put_be32(f, event_state == WAIT_OBJECT_0 ? 1 : 0);
+// #endif
 
     return 0;
 }
@@ -100,11 +134,17 @@ int load_thread_context(QEMUFile *f, Thread_Context *context) {
     context->init = qemu_get_be32(f);
     context->thread_run = qemu_get_be32(f);
     context->thread_id = qemu_get_be64(f);
+    LOGI("in load_thread_context with device id %lld thread id %lld", context->device_id, context->thread_id);
 
-#ifdef _WIN32 //重新创建handle
-    DWORD event_triggered = qemu_get_be32(f);
-    context->data_event = CreateEvent(NULL, TRUE, event_triggered, NULL);
-#endif
+// #ifdef _WIN32 //重新创建handle
+//     if (context->write_loc == context->read_loc) {
+//         context->data_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+//     } else {
+//         context->data_event = CreateEvent(NULL, FALSE, TRUE, NULL);
+//     }
+    
+// 我想开了。。要不就直接不管了
+// #endif
 
 //todo: this_thread和teleport_express_device要如何处理？先不管了
     return 0;
@@ -136,7 +176,7 @@ void save_process_context(QEMUFile *f, Process_Context *process_context) {
     while (g_hash_table_iter_next(&iter, &key, &value)) {
         uint64_t guest_surface_id = (uint64_t)key;
         Window_Buffer *window_buffer = (Window_Buffer *)value;
-        
+        LOGI("saving window buffer %lld", (uint64_t)window_buffer);
         qemu_put_be64(f, guest_surface_id);
         save_window_buffer(f, window_buffer);
     }
@@ -185,7 +225,8 @@ void load_process_context(QEMUFile *f, Process_Context *process_context) {
 
     for (guint i = 0; i < context_count; i++) {
         uint64_t context_id = qemu_get_be64(f);
-        Opengl_Context *opengl_context = load_opengl_context(f);
+        Opengl_Context *opengl_context = g_malloc0(sizeof(Opengl_Context));
+        load_opengl_context(f, opengl_context);
         g_hash_table_insert(process_context->context_map, GUINT_TO_POINTER(context_id), opengl_context);
     }
 
@@ -195,13 +236,13 @@ void load_process_context(QEMUFile *f, Process_Context *process_context) {
 }
 
 void save_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
-    LOGI("in save_window_buffer!");
+    LOGI("in save_window_buffer! %d", sizeof(buffer->window_hints.hints));
     qemu_put_be32(f, buffer->type);
     qemu_put_buffer(f, (uint8_t *)buffer->window_hints.hints, sizeof(buffer->window_hints.hints));
 
     save_egl_config(f, buffer->config);
 
-//不确定这个guest_surface是这么存的啊，先这样吧
+//不确定这个guest_surface是这么存的啊，先这样吧 
     qemu_put_be64(f, buffer->guest_surface);
 
     qemu_put_be64(f, buffer->gbuffer_id);
@@ -210,7 +251,7 @@ void save_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
     qemu_put_be32(f, buffer->is_current);
     qemu_put_be32(f, buffer->need_destroy);
     qemu_put_be32(f, buffer->swap_interval);
-    LOGI("in save_window_buffer! %lld %d %d %d %d %d", buffer->gbuffer_id, buffer->width, buffer->height, buffer->is_current, buffer->need_destroy, buffer->swap_interval);
+    LOGI("in save_window_buffer! %lld %lld %d %d %d %d %d", buffer->guest_surface, buffer->gbuffer_id, buffer->width, buffer->height, buffer->is_current, buffer->need_destroy, buffer->swap_interval);
 
     for (int i = 0; i < 20; i++) {
         qemu_put_be64(f, buffer->swap_time[i]);
@@ -240,8 +281,9 @@ void save_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
 
 Window_Buffer* load_window_buffer(QEMUFile *f) {
     
-
     Window_Buffer *buffer = g_malloc0(sizeof(Window_Buffer));
+    LOGI("in load_window_buffer! %d", sizeof(buffer->window_hints.hints));
+
     buffer->type = qemu_get_be32(f);
     qemu_get_buffer(f, (uint8_t *)buffer->window_hints.hints, sizeof(buffer->window_hints.hints));
 
@@ -255,7 +297,7 @@ Window_Buffer* load_window_buffer(QEMUFile *f) {
     buffer->is_current = qemu_get_be32(f);
     buffer->need_destroy = qemu_get_be32(f);
     buffer->swap_interval = qemu_get_be32(f);
-    LOGI("in load_window_buffer! %lld %d %d %d %d %d", buffer->gbuffer_id, buffer->width, buffer->height, buffer->is_current, buffer->need_destroy, buffer->swap_interval);
+    LOGI("in load_window_buffer! %lld %lld %d %d %d %d %d", buffer->guest_surface, buffer->gbuffer_id, buffer->width, buffer->height, buffer->is_current, buffer->need_destroy, buffer->swap_interval);
     for (int i = 0; i < 20; i++) {
         buffer->swap_time[i] = qemu_get_be64(f);
     }
@@ -707,8 +749,12 @@ Resource_Context* load_resource_context(QEMUFile *f) {
 void save_texture_binding_status(QEMUFile *f, Texture_Binding_Status *status) {
     qemu_put_be32(f, status->guest_current_active_texture);
     qemu_put_be32(f, status->host_current_active_texture);
+    qemu_put_be32(f, status->now_max_texture_unit);
+    LOGI("in save texture binding status with max unit %d %d %d", status->now_max_texture_unit, sizeof(status->guest_current_texture_2D)/sizeof(int), status->texture_unit_num);
 
-    for (GLuint i = 0; i < status->now_max_texture_unit; i++) {
+    int tot_num = sizeof(status->guest_current_texture_2D)/sizeof(int);
+    qemu_put_be32(f, tot_num);
+    for (GLuint i = 0; i < tot_num; i++) {
         qemu_put_be32(f, status->guest_current_texture_2D[i]);
         qemu_put_be32(f, status->host_current_texture_2D[i]);
         qemu_put_be32(f, status->guest_current_texture_cube_map[i]);
@@ -728,7 +774,7 @@ void save_texture_binding_status(QEMUFile *f, Texture_Binding_Status *status) {
     }
 
     qemu_put_be32(f, status->texture_unit_num);
-    qemu_put_be32(f, status->now_max_texture_unit);
+    
     qemu_put_be32(f, status->current_texture_external);
 
     qemu_put_be64(f, (uint64_t)status->current_2D_gbuffer);
@@ -740,25 +786,29 @@ Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) {
 
     status->guest_current_active_texture = qemu_get_be32(f);
     status->host_current_active_texture = qemu_get_be32(f);
+    status->now_max_texture_unit = qemu_get_be32(f);
 
-    status->guest_current_texture_2D = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_2D = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->guest_current_texture_cube_map = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_cube_map = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->guest_current_texture_3D = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_3D = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->guest_current_texture_2D_array = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_2D_array = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->guest_current_texture_2D_multisample = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_2D_multisample = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->guest_current_texture_2D_multisample_array = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_2D_multisample_array = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->guest_current_texture_cube_map_array = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_cube_map_array = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->guest_current_texture_buffer = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
-    status->host_current_texture_buffer = g_malloc0(sizeof(GLuint) * status->now_max_texture_unit);
+    int tot_num = qemu_get_be32(f);
+    LOGI("in load texture binding status with max unit %d %d", tot_num, status->now_max_texture_unit);
 
-    for (GLuint i = 0; i < status->now_max_texture_unit; i++) {
+    status->guest_current_texture_2D = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_2D = g_malloc0(sizeof(GLuint) * tot_num);
+    status->guest_current_texture_cube_map = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_cube_map = g_malloc0(sizeof(GLuint) * tot_num);
+    status->guest_current_texture_3D = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_3D = g_malloc0(sizeof(GLuint) * tot_num);
+    status->guest_current_texture_2D_array = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_2D_array = g_malloc0(sizeof(GLuint) * tot_num);
+    status->guest_current_texture_2D_multisample = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_2D_multisample = g_malloc0(sizeof(GLuint) * tot_num);
+    status->guest_current_texture_2D_multisample_array = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_2D_multisample_array = g_malloc0(sizeof(GLuint) * tot_num);
+    status->guest_current_texture_cube_map_array = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_cube_map_array = g_malloc0(sizeof(GLuint) * tot_num);
+    status->guest_current_texture_buffer = g_malloc0(sizeof(GLuint) * tot_num);
+    status->host_current_texture_buffer = g_malloc0(sizeof(GLuint) * tot_num);
+
+    for (GLuint i = 0; i < tot_num; i++) {
         status->guest_current_texture_2D[i] = qemu_get_be32(f);
         status->host_current_texture_2D[i] = qemu_get_be32(f);
         status->guest_current_texture_cube_map[i] = qemu_get_be32(f);
@@ -778,7 +828,7 @@ Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) {
     }
 
     status->texture_unit_num = qemu_get_be32(f);
-    status->now_max_texture_unit = qemu_get_be32(f);
+    // status->now_max_texture_unit = qemu_get_be32(f);
     status->current_texture_external = qemu_get_be32(f);
 
     status->current_2D_gbuffer = (Hardware_Buffer *)(uint64_t)qemu_get_be64(f);
@@ -792,9 +842,9 @@ void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
     //不确定是否需要深拷贝，先浅拷贝了
     qemu_put_be64(f, context->window);
 
-    // save_bound_buffer(f, &context->bound_buffer_status);
-    // save_resource_context(f, &context->resource_status);
-    // save_texture_binding_status(f, &context->texture_binding_status);    
+    save_bound_buffer(f, &context->bound_buffer_status);
+    save_resource_context(f, &context->resource_status);
+    save_texture_binding_status(f, &context->texture_binding_status);    
 
     //不确定是否需要深拷贝，先浅拷贝了
     qemu_put_be64(f, context->share_context);
@@ -827,32 +877,32 @@ void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
     qemu_put_be32(f, context->draw_texi_vbo);
     qemu_put_be32(f, context->draw_texi_ebo);
 
-    // guint num_entries = g_hash_table_size(context->buffer_map);
-    // LOGI("in save opengl context with num_entries %d", num_entries);
+    guint num_entries = g_hash_table_size(context->buffer_map);
+    LOGI("in save opengl context with num_entries %d", num_entries);
 
-    // qemu_put_be32(f, num_entries);
+    qemu_put_be32(f, num_entries);
 
-    // GHashTableIter iter;
-    // gpointer key, value;
-    // g_hash_table_iter_init(&iter, context->buffer_map);
-    // while (g_hash_table_iter_next(&iter, &key, &value)) {
-    //     guint64 buffer_key = (guint64)key;
-    //     Guest_Host_Map *map = (Guest_Host_Map *)value;
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, context->buffer_map);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        guint64 buffer_key = (guint64)key;
+        Guest_Host_Map *map = (Guest_Host_Map *)value;
 
-    //     qemu_put_be64(f, buffer_key);
-    //     save_guest_host_map(f, map);
-    // }
+        qemu_put_be64(f, buffer_key);
+        save_guest_host_map(f, map);
+    }
 }
 
-Opengl_Context* load_opengl_context(QEMUFile *f) {
+Opengl_Context* load_opengl_context(QEMUFile *f, Opengl_Context *context) {
 
-    Opengl_Context *context = g_malloc0(sizeof(Opengl_Context));
+    // Opengl_Context *context = g_malloc0(sizeof(Opengl_Context));
 
     context->window = qemu_get_be64(f);
 
-    // context->bound_buffer_status = *load_bound_buffer(f);
-    // context->resource_status = *load_resource_context(f);
-    // context->texture_binding_status = *load_texture_binding_status(f);
+    context->bound_buffer_status = *load_bound_buffer(f);
+    context->resource_status = *load_resource_context(f);
+    context->texture_binding_status = *load_texture_binding_status(f);
 
     context->share_context = qemu_get_be64(f);
 
@@ -881,19 +931,19 @@ Opengl_Context* load_opengl_context(QEMUFile *f) {
     context->draw_texi_vbo = qemu_get_be32(f);
     context->draw_texi_ebo = qemu_get_be32(f);
 
-    // guint num_entries = qemu_get_be32(f);
-    // context->buffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+    guint num_entries = qemu_get_be32(f);
+    context->buffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);
 
-    // LOGI("in load opengl context with num_entries %d", num_entries);
-    // for (guint i = 0; i < num_entries; i++) {
-    //     guint64 buffer_key = qemu_get_be64(f);
-    //     Guest_Host_Map *map = load_guest_host_map(f);
+    LOGI("in load opengl context with num_entries %d", num_entries);
+    for (guint i = 0; i < num_entries; i++) {
+        guint64 buffer_key = qemu_get_be64(f);
+        Guest_Host_Map *map = load_guest_host_map(f);
 
-    //     g_hash_table_insert(context->buffer_map, GUINT_TO_POINTER(buffer_key), map);
-    // }
+        g_hash_table_insert(context->buffer_map, GUINT_TO_POINTER(buffer_key), map);
+    }
 
 
-    return context;
+    // return context;
 }
 
 void save_guest_host_map(QEMUFile *f, Guest_Host_Map *map) {

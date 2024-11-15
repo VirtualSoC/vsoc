@@ -125,7 +125,7 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
  */
 void push_to_thread(Teleport_Express_Call *call)
 {
-
+    LOGD("going to push to device %d thread id %lld", GET_DEVICE_ID(call->id), call->thread_id);
     uint64_t thread_id = call->thread_id;
     uint64_t process_id = call->process_id;
     uint64_t unique_id = call->unique_id;
@@ -146,7 +146,7 @@ void push_to_thread(Teleport_Express_Call *call)
         call->callback(call, 0);
         return;
     }
-    express_printf("push to %s thread_id %llu %08x fun id%llu %llu %08x unique id %08x\n", device_info->name, call->thread_id, call->thread_id, device_id, fun_id, call->id, call->unique_id);
+    LOGD("push to %s thread_id %llu %08x device id %llu fun id %llu %08x unique id %08x", device_info->name, call->thread_id, call->thread_id, device_id, fun_id, call->id, call->unique_id);
 
     Thread_Context *context = (Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, device_info);
 
@@ -164,7 +164,7 @@ void push_to_thread(Teleport_Express_Call *call)
                 }
             }
         }
-        call_push(context, call);
+        call_push(context, call); //将call推送到对应线程处理
     }
     else
     {
@@ -370,7 +370,10 @@ void *call_distribute_thread(void *opaque)
  * @return void
  */
 void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *recycle_flag, int *need_irq)
-{
+{ //文档里的那个输出通道
+
+// add some logs here
+
     Teleport_Express_Call *call = NULL;
     int origin_pop_flag = *pop_flag;
     int origin_recycle_flag = *recycle_flag;

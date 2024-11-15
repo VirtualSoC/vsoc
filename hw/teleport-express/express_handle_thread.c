@@ -24,7 +24,7 @@
  */
 Teleport_Express_Call *call_pop(Thread_Context *context)
 {
-    while (context->write_loc == context->read_loc)
+    while (context->write_loc == context->read_loc) //因为是竞争关系所以要用while循环
     {
 //缓冲区为空
 //注意：不要用qemu_event*相关的函数，这系列函数在并发时有bug，会导致event丢失
@@ -79,6 +79,7 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
  */
 void call_push(Thread_Context *context, Teleport_Express_Call *call)
 {
+    LOGD("doing call push device id %llu thread_id %llu %08x fun id %llu unique id %08x thread run %d %d %d", context->device_id, call->thread_id, call->thread_id, call->id, call->unique_id, context->thread_run, context->write_loc, context->read_loc);
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
 //缓冲区为满
@@ -105,6 +106,9 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
 
     context->write_loc = (context->write_loc + 1) % CALL_BUF_SIZE;
 
+    LOGD("finish call push device id %llu thread_id %llu %08x fun id %llu unique id %08x loc %d %d", context->device_id, call->thread_id, call->thread_id, call->id, call->unique_id, context->write_loc, context->read_loc);
+
+
 //通知已经非空
 #ifdef _WIN32
     if (context->data_event != NULL)
@@ -127,7 +131,7 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
  * @param opaque
  * @return void*
  */
-void *handle_thread_run(void *opaque)
+void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
 {
 
     Thread_Context *context = (Thread_Context *)opaque;
@@ -142,6 +146,9 @@ void *handle_thread_run(void *opaque)
     {
         Teleport_Express_Call *call = call_pop(context);
 
+        //add some logs here
+        LOGD("in the while loop of handle_thread_run of device %lld thread %lld", context->device_id, context->thread_id);
+
         if (teleport_express_should_stop)
         {
             return NULL;
@@ -154,7 +161,7 @@ void *handle_thread_run(void *opaque)
 
         if (call->is_end)
         {
-            express_printf("thread context %llx call end thread_id %lld process_id %lld\n", (uint64_t)context, call->thread_id, call->process_id);
+            LOGD("thread context %llx call end thread_id %lld process_id %lld", (uint64_t)context, call->thread_id, call->process_id);
             call->callback(call, 0);
             context->thread_run = 0;
             continue;
@@ -163,7 +170,7 @@ void *handle_thread_run(void *opaque)
         //实际对每个call调用的操作
         if (context->call_handle != NULL)
         {
-            express_printf("handle thread call handle\n");
+            LOGD("handle thread call handle %llu", context->device_id);
             context->call_handle(context, call);
         }
     }
@@ -182,7 +189,7 @@ void *handle_thread_run(void *opaque)
         context->context_destroy(context);
     }
 
-    express_printf("handle thread exit %llu\n", context->thread_id);
+    LOGD("handle thread exit %llu", context->thread_id);
     g_free(context);
     return NULL;
 }

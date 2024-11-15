@@ -37,7 +37,7 @@ void save_guest_mem(QEMUFile *f, Guest_Mem *guest_mem);
 Guest_Mem* load_guest_mem(QEMUFile *f);
 
 void save_opengl_context(QEMUFile *f, Opengl_Context *context);
-Opengl_Context* load_opengl_context(QEMUFile *f);
+Opengl_Context* load_opengl_context(QEMUFile *f, Opengl_Context *context);
 
 void save_bound_buffer(QEMUFile *f, Bound_Buffer *buffer);
 Bound_Buffer* load_bound_buffer(QEMUFile *f);

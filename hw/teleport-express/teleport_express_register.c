@@ -63,7 +63,7 @@ static void push_to_device(Teleport_Express_Call *call)
         call->callback(call, 0);
         return;
     }
-    express_printf("push to %s device %llx id %llx\n", device_info->name, device_id, call->id);
+    LOGD("push to %s device %llx id %llx\n", device_info->name, device_id, call->id);
 
     Device_Context *device_context = device_info->get_device_context(device_id, thread_id, process_id, unique_id, device_info);
     if(unlikely(device_context == NULL))
@@ -151,7 +151,7 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
 }
 
 void register_input_buffer_call(VirtIODevice *vdev, VirtQueue *vq)
-{
+{ //文档里的那个输入通道
     // Teleport_Express_Call *call = get_one_call_from_input_queue(vq);
     if (unlikely(in_teleport_express == NULL))
     {
