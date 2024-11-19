@@ -16,7 +16,9 @@
 
 #include "hw/virtio/virtio.h"
 
+#include "migration/qemu-file.h"
 #include "hw/express-gpu/express_gpu.h"
+
 
 int save_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread_context);
 int load_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread_context);

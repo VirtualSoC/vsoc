@@ -1,4 +1,7 @@
 #include <vulkan/vulkan.h>
+#include "hw/teleport-express/express_device_common.h"
+#include "hw/express-gpu/express_gpu.h"
+
 
 #define FUNID_vkCreateInstance 1000
 #define FUNID_vkDestroyInstance 1001
@@ -11,3 +14,5 @@
 #define FUNID_vkGetPhysicalDeviceMemoryProperties 1008
 #define FUNID_vkGetInstanceProcAddr 1009
 #define FUNID_vkGetDeviceProcAddr 1010
+
+void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call);
