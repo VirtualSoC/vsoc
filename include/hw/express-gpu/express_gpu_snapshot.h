@@ -39,7 +39,7 @@ void save_guest_mem(QEMUFile *f, Guest_Mem *guest_mem);
 Guest_Mem* load_guest_mem(QEMUFile *f);
 
 void save_opengl_context(QEMUFile *f, Opengl_Context *context);
-Opengl_Context* load_opengl_context(QEMUFile *f, Opengl_Context *context);
+int load_opengl_context(QEMUFile *f, Opengl_Context *context);
 
 void save_bound_buffer(QEMUFile *f, Bound_Buffer *buffer);
 Bound_Buffer* load_bound_buffer(QEMUFile *f);
@@ -67,9 +67,6 @@ Hardware_Buffer* load_hardware_buffer(QEMUFile *f);
 
 void save_thread_unique_ids(QEMUFile *f, GHashTable *thread_unique_ids);
 GHashTable* load_thread_unique_ids(QEMUFile *f);
-
-void save_resource_context(QEMUFile *f, Resource_Context *context);
-Resource_Context* load_resource_context(QEMUFile *f);
 
 void save_attrib_point(QEMUFile *f, Attrib_Point *point);
 Attrib_Point* load_attrib_point(QEMUFile *f);

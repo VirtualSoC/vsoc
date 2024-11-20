@@ -243,7 +243,7 @@ void save_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
     save_egl_config(f, buffer->config);
 
 //不确定这个guest_surface是这么存的啊，先这样吧 
-    qemu_put_be64(f, buffer->guest_surface);
+    qemu_put_be64(f, (uint64_t)buffer->guest_surface);
 
     qemu_put_be64(f, buffer->gbuffer_id);
     qemu_put_be32(f, buffer->width);
@@ -289,7 +289,7 @@ Window_Buffer* load_window_buffer(QEMUFile *f) {
 
     buffer->config = load_egl_config(f);
 
-    buffer->guest_surface = qemu_get_be64(f);
+    buffer->guest_surface = (EGLSurface)qemu_get_be64(f);
 
     buffer->gbuffer_id = qemu_get_be64(f);
     buffer->width = qemu_get_be32(f);
@@ -839,15 +839,15 @@ Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) {
 
 void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
 
-    //不确定是否需要深拷贝，先浅拷贝了
-    qemu_put_be64(f, context->window);
+    //不确定是否需要深拷贝，先浅拷贝了 update:需要额外处理，先注释了
+    // qemu_put_be64(f, context->window);
 
     save_bound_buffer(f, &context->bound_buffer_status);
     save_resource_context(f, &context->resource_status);
     save_texture_binding_status(f, &context->texture_binding_status);    
 
     //不确定是否需要深拷贝，先浅拷贝了
-    qemu_put_be64(f, context->share_context);
+    qemu_put_be64(f, (uint64_t)context->share_context);
 
 
 
@@ -894,17 +894,17 @@ void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
     }
 }
 
-Opengl_Context* load_opengl_context(QEMUFile *f, Opengl_Context *context) {
+int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
 
     // Opengl_Context *context = g_malloc0(sizeof(Opengl_Context));
 
-    context->window = qemu_get_be64(f);
+    // context->window = qemu_get_be64(f);
 
     context->bound_buffer_status = *load_bound_buffer(f);
     context->resource_status = *load_resource_context(f);
     context->texture_binding_status = *load_texture_binding_status(f);
 
-    context->share_context = qemu_get_be64(f);
+    context->share_context = (void *)qemu_get_be64(f);
 
 
     context->draw_fbo0 = qemu_get_be32(f);
@@ -943,7 +943,7 @@ Opengl_Context* load_opengl_context(QEMUFile *f, Opengl_Context *context) {
     }
 
 
-    // return context;
+    return 0;
 }
 
 void save_guest_host_map(QEMUFile *f, Guest_Host_Map *map) {

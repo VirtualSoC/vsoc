@@ -47,7 +47,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         int need_free = 0;
         char *_ptr;
         _ptr = call_para_to_ptr(all_para[0], &need_free);
-        VkInstanceCreateInfo* local_pCreateInfo = _ptr;
+        VkInstanceCreateInfo* local_pCreateInfo = (VkInstanceCreateInfo*)_ptr;
         LOGI("got vkCreateinfo with %lld %d %s %d %s",(long long)local_pCreateInfo->sType, local_pCreateInfo->enabledLayerCount, local_pCreateInfo->ppEnabledLayerNames, local_pCreateInfo->enabledExtensionCount, local_pCreateInfo->ppEnabledExtensionNames);
 
 
