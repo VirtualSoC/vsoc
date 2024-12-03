@@ -337,13 +337,18 @@ ExpressMemType mem_predict_prefetch(Hardware_Buffer *gbuffer, int virt_dev, Expr
     }
 
     // 2. predict guest block time
-    int slack_interval = virt_flow->slack_interval;
-    double phy_bandwidth = hg_get_bandwidth(target_phy_dev, phy_dev);
+    int slack_interval = 0;
     int guest_block_time = 0;
-    if (phy_bandwidth > 0 && slack_interval > 0) {
-        guest_block_time =
-            gbuffer->size /* bytes */ / phy_bandwidth /* bytes per microsec */ -
-            slack_interval /* microsec */;
+    double phy_bandwidth = hg_get_bandwidth(target_phy_dev, phy_dev);
+    // slack interval info is from the guest and therefore can lag several ms
+    // if no slack interval info is available, do nothing
+    if (virt_flow) {
+        slack_interval = virt_flow->slack_interval;
+        if (phy_bandwidth > 0 && slack_interval > 0) {
+            guest_block_time =
+                gbuffer->size /* bytes */ / phy_bandwidth /* bytes per microsec */ -
+                slack_interval /* microsec */;
+        }
     }
     if (pred_block) *pred_block = max(guest_block_time, 0);
 
