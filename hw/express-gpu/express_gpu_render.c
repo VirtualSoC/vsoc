@@ -127,7 +127,7 @@ static const char GPU_RENDERER[] = "Mali-G77";
 #ifdef _WIN32
 static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.20";
 #else
-static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.0";
+static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
 #endif
 
 static const int OPENGL_MAJOR_VERSION = 3;
@@ -229,8 +229,6 @@ static const int SPECIAL_EXTENSIONS_SIZE = 73;
 static void *native_window_create(int context_flags);
 
 static Notifier shutdown_notifier;
-
-static Dying_List *dying_gbuffer;
 
 static gint64 last_click_time = 0;
 
@@ -433,25 +431,7 @@ static void handle_child_window_event(void)
         case MAIN_DESTROY_GBUFFER:
         {
             Hardware_Buffer *gbuffer = (Hardware_Buffer *)child_event->data;
-            if (gbuffer->gbuffer_id == 0)
-            {
-                destroy_gbuffer(gbuffer);
-            }
-            else
-            {
-                // LOGI("real destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, gbuffer);
-                dying_gbuffer = dying_list_append(dying_gbuffer, gbuffer);
-            }
-        }
-        break;
-        case MAIN_CANCEL_GBUFFER:
-        {
-            Hardware_Buffer *gbuffer = (Hardware_Buffer *)child_event->data;
-            if (gbuffer != NULL)
-            {
-                // LOGI("real cancel gbuffer delete %llx ptr %llx", gbuffer->gbuffer_id, gbuffer);
-                dying_gbuffer = dying_list_remove(dying_gbuffer, gbuffer);
-            }
+            destroy_gbuffer(gbuffer);
         }
         break;
 
@@ -773,7 +753,7 @@ static void *native_window_create(int context_flags)
     if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
         char name[100];
-        sprintf(name, "opengl-child-window%d", cnt);
+        sprintf(name, "child-window%d", cnt);
 
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
@@ -1043,10 +1023,6 @@ void *native_window_thread(void *opaque)
                 has_refresh = true;
 
                 glfwSwapBuffers(glfw_window);
-
-                // 把foreach放到下面，是因为主线程的消息中可能有取消gbuffer销毁流程的消息
-                // 放到绘制函数里，是为了避免过快销毁gbuffer（绘制函数外是最高1000hz的频率
-                dying_list_foreach(dying_gbuffer, try_destroy_gbuffer);
             }
             else
             {

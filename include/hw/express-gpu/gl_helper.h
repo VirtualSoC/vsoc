@@ -5,24 +5,6 @@
 #include "hw/teleport-express/express_log.h"
 #include "glad/glad.h"
 
-
-typedef int (*Dying_Function)(void *data);
-
-typedef struct Dying_List_Node{
-    void *data;
-    struct Dying_List_Node *next;
-    struct Dying_List_Node *prev;
-} Dying_List_Node;
-
-
-typedef struct Dying_List{
-    Dying_List_Node *header;
-    Dying_List_Node *tail;
-    int num;
-
-} Dying_List;
-
-
 //注意顺序，保证不影响结构体对齐
 typedef struct Static_Context_Values
 {
@@ -257,13 +239,6 @@ GLuint load_shader(GLenum type, const char *shaderSrc);
 int main_window_opengl_prepare(GLuint *program, GLuint *VAO);
 
 void adjust_blend_type(int blend_type);
-
-Dying_List *dying_list_append(Dying_List *list, void *data);
-
-Dying_List *dying_list_foreach(Dying_List *list, Dying_Function fun);
-
-Dying_List *dying_list_remove(Dying_List *list, void *data);
-
 
 void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
 
