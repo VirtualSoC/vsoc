@@ -35,6 +35,8 @@
 
 #include "hw/express-input/express_touchscreen.h"
 #include "hw/express-input/express_keyboard.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 GAsyncQueue *main_window_event_queue = NULL;
 volatile int main_window_event_queue_lock = 0;
@@ -275,6 +277,55 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
             LOGI("wait time too long!");
         }
     }
+}
+
+
+int save_gbuffer_global_map(QEMUFile *f)
+{
+    ATOMIC_LOCK(gbuffer_global_map_lock);
+
+    
+
+    GHashTableIter iter;
+    gpointer key, value;
+    guint num_entries = g_hash_table_size(gbuffer_global_map);
+    LOGI("in save_gbuffer_global_map with %d", num_entries);
+    qemu_put_be32(f, num_entries);
+    g_hash_table_iter_init(&iter, gbuffer_global_map);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        
+        Hardware_Buffer *global_gbuffer = (Hardware_Buffer *)value;
+        // qemu_put_be64(f, (uint64_t)key);
+        LOGI("gbuffer id is %lld %lld", key, global_gbuffer->gbuffer_id);
+        save_hardware_buffer(f, global_gbuffer);   
+    }
+
+    ATOMIC_UNLOCK(gbuffer_global_map_lock);
+
+    return 0;
+}
+
+int load_gbuffer_global_map(QEMUFile *f) {
+    ATOMIC_LOCK(gbuffer_global_map_lock);
+
+
+    GHashTable *gbuffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+    guint num_entries = qemu_get_be32(f);
+    uint64_t gbuffer_id;
+    Hardware_Buffer *global_gbuffer = g_malloc0(sizeof(Hardware_Buffer));
+    LOGD("num Hardware_Buffer in load is %d", num_entries);
+    for (guint i = 0; i < num_entries; i++) {
+        // gbuffer_id = qemu_get_be64(f);
+        
+        global_gbuffer = load_hardware_buffer(f);
+        LOGD("gbuffer id in load is %lld %lld", gbuffer_id, global_gbuffer->gbuffer_id);
+        g_hash_table_insert(gbuffer_map, GUINT_TO_POINTER(global_gbuffer->gbuffer_id), global_gbuffer);
+    }
+    gbuffer_global_map = gbuffer_map;
+
+    ATOMIC_UNLOCK(gbuffer_global_map_lock);
+
+    return 0;
 }
 
 void window_size_change_callback(GLFWwindow *window, int width, int height)
@@ -807,7 +858,7 @@ static void *native_window_create(int context_flags)
 
     assert(child_window != NULL);
 
-    express_printf("native window create success %p context flag %x\n", child_window, context_flags);
+    LOGI("native window create success %p context flag %x\n", child_window, context_flags);
     
     return child_window;
 }

@@ -80,6 +80,19 @@ int load_render_process_contexts(QEMUFile *f) {
     return 0;
 }
 
+void remove_all_render_thread_contexts(){
+    // GHashTableIter iter;
+    // gpointer key, value;
+
+    // g_hash_table_iter_init(&iter, render_thread_contexts);
+    // while (g_hash_table_iter_next(&iter, &key, &value)) {
+    //     Render_Thread_Context *thread_context = (Render_Thread_Context *)value;
+    //     ((Thread_Context*)thread_context)->context_destroy(thread_context);
+        
+    // }
+    g_hash_table_remove_all(render_thread_contexts); //ztodo:很多资源还没销毁
+}
+
 int save_render_thread_contexts(QEMUFile *f)
 {
     LOGI("in save render thread contexts!");
@@ -100,63 +113,61 @@ int save_render_thread_contexts(QEMUFile *f)
     return 0;
 }
 
-
-
 int load_render_thread_contexts(QEMUFile *f) {
     
 
-    GHashTable *thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+    // GHashTable *thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     guint num_entries = qemu_get_be32(f);
     uint64_t thread_id;
     Render_Thread_Context *thread_context;
 
     LOGI("in load render thread contexts with num entries %d!", num_entries);
 
-// todo:用于开机启动的场景就不能这样了，感觉得依照初始化的逻辑来“重新初始化”
-    // VirtIODevice *shared_teleport_express_device = NULL;
-    // void (*shared_context_init)(struct Thread_Context *context) = NULL;
-    // void (*shared_context_destroy)(struct Thread_Context *context) = NULL;
-    // void (*shared_call_handle)(struct Thread_Context *context, Teleport_Express_Call *call) = NULL;
-    // if (g_hash_table_size(render_thread_contexts) > 0) {
-    //     gpointer existing_key, existing_value;
-    //     GHashTableIter iter;
-    //     g_hash_table_iter_init(&iter, render_thread_contexts);
-    //     if (g_hash_table_iter_next(&iter, &existing_key, &existing_value)) {
-    //         Render_Thread_Context *existing_context = (Render_Thread_Context *)existing_value;
-    //         shared_teleport_express_device = existing_context->context.teleport_express_device;
-    //         shared_context_init = existing_context->context.context_init;
-    //         shared_context_destroy = existing_context->context.context_destroy;
-    //         shared_call_handle = existing_context->context.call_handle;
-    //     }
-    // }
-
     for (guint i = 0; i < num_entries; i++) {
         thread_id = qemu_get_be64(f);
 
-        Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+        thread_context = load_single_render_thread_context(f);
 
-        thread_context = g_malloc(sizeof(Render_Thread_Context)); //记得free！
-        LOGI("thread id is %lld", thread_id);
-        
-        if(render_context == NULL) {
-            LOGE("error!render context is null!");
-            return -1;
-        } else {
-            thread_context = render_context;
-        }
-
-        load_single_render_thread_context(f, thread_context);
-
-        g_hash_table_insert(thread_contexts, GUINT_TO_POINTER(thread_id), thread_context);
+        g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(thread_id), thread_context);
         // g_free(thread_context);
     }
 
-    render_thread_contexts = thread_contexts;
+    // render_thread_contexts = thread_contexts;
 
     return 0;
 }
 
 
+void recover_snapshot_states_after_load(Render_Thread_Context* render_context) { //ztodo:这些操作的顺序？
+    LOGI("in recover_snapshot_states_after_load for process %d", ((Thread_Context*)render_context)->thread_id);
+    Opengl_Context* opengl_context = render_context->opengl_context;
+    // Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+
+    egl_makeCurrent(opengl_context->window);
+
+    glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
+
+    restore_opengl_context_textures(opengl_context);
+
+    glUseProgram(opengl_context->current_program);
+
+    if(opengl_context->current_read_fbo != 0){
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->current_read_fbo);
+    } else {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
+    }
+    
+    if(opengl_context->current_write_fbo != 0){
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->current_write_fbo);
+    } else {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->draw_fbo0);
+    }
+
+    if(!opengl_context->is_current) {
+        egl_makeCurrent(NULL);
+    }
+
+}
 
 
 /**
@@ -173,7 +184,12 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 
     LOGD("enter gpu decode invoke id %llu", fun_id);
 
-    if (fun_id >= 200000)
+    if (fun_id == 10001)
+    {
+        recover_snapshot_states_after_load(render_context); //ztodo:释放call的资源
+        return;
+    }
+    else if (fun_id >= 200000)
     {
         test_decode_invoke(render_context, call);
     }
@@ -230,11 +246,16 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
     // 没有context就新建线程
+    // LOGI("getting new thread context with process id %lld unique id %lld thread id %lld device id %lld", process_id, unique_id, thread_id, device_id);
     if (thread_context == NULL)
     {
         // express_printf("create new thread\n");
-        LOGD("create new thread context with thread id %lld device id %lld", thread_id, device_id);
+        LOGI("create new thread context with thread id %lld device id %lld", thread_id, device_id);
         thread_context = (Render_Thread_Context *)thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
+
+        (thread_context->context).unique_id = unique_id;
+        (thread_context->context).process_id = process_id;
+
         thread_context->thread_unique_ids = g_hash_table_new(g_direct_hash, g_direct_equal);
 
         // 处理好process_context与thread_context的关系
@@ -242,7 +263,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
         if (process == NULL)
         {
-            LOGD("create new process context");
+            LOGI("create new process context %lld", process_id);
             process = g_malloc(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             // 注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
@@ -297,7 +318,7 @@ static void render_context_init(Thread_Context *context)
     // 这个render线程只能创建一次，且其他线程必须等待该线程运行成功
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
-        express_printf("create native window\n");
+        LOGI("create native window");
         qemu_thread_create(&native_window_render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
