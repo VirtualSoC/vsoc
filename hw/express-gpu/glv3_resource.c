@@ -2,6 +2,8 @@
 
 #include "hw/express-gpu/glv3_resource.h"
 #include "hw/express-gpu/glv3_program.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 /**
  * @brief 创建一个host这端的id映射关系，映射关系为guest id到host id，方便查找真正的host id
@@ -30,7 +32,7 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
         return 0;
     }
 
-    //需要的内存空间过大时，进行重新申请
+    //需要的内存空间过大时，进行重新申请（即扩容）
     if (status->map_size == 0 || max_id > status->map_size - 1)
     {
         int now_map_size = 2 * max_id + 1;
@@ -157,7 +159,7 @@ void get_host_resource_ids(Resource_Map_Status *status, GLsizei n, const unsigne
  * @param id
  * @return long long
  */
-long long get_host_resource_id(Resource_Map_Status *status, unsigned int id)
+long long get_host_resource_id(Resource_Map_Status *status, unsigned int id, int target)
 {
     if (id > status->max_id || status->max_id == 0)
     {
@@ -174,7 +176,9 @@ long long get_host_resource_id(Resource_Map_Status *status, unsigned int id)
 
     if (host_id == 0 && id != 0)
     {
-        LOGE("error! cannot get id %d", id);
+        LOGE("error! cannot get id %d target %d", id, target);
+    } else {
+        LOGD("successfully get id %d host_id %d", id, host_id);
     }
     return host_id;
 }
@@ -207,12 +211,17 @@ int guest_has_resource_id(Resource_Map_Status *status, unsigned int id)
     return 1;
 }
 
-unsigned long long get_host_texture_id(void *context, unsigned int id)
+unsigned long long get_host_texture_id(void *context, unsigned int id, int target)
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
-
-    return get_host_resource_id(map_status, id);
+    
+    unsigned long long ret = get_host_resource_id(map_status, id, 0);
+    if (ret == 0) {
+        LOGI("in get_host_texture_id with context %llx window %lld get 0 id %d target %d", context, ((Opengl_Context *)context)->window, id, target);
+    }
+    return ret;
+    // return get_host_resource_id(map_status, id, 0);
 }
 
 unsigned long long get_host_buffer_id(void *context, unsigned int id)
@@ -244,7 +253,7 @@ unsigned long long get_host_buffer_id(void *context, unsigned int id)
         return host_id;
     }
 
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 1); //ztodo:调试完把这个改回去
 }
 
 char set_host_texture_init(void *context, unsigned int id)
@@ -272,7 +281,7 @@ unsigned long long get_host_renderbuffer_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->render_buffer_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 2);
 }
 
 unsigned long long get_host_sampler_id(void *context, unsigned int id)
@@ -283,7 +292,7 @@ unsigned long long get_host_sampler_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->sampler_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 3);
 }
 
 unsigned long long get_host_shader_id(void *context, unsigned int id)
@@ -294,7 +303,7 @@ unsigned long long get_host_shader_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->shader_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 4);
 }
 
 unsigned long long get_host_program_id(void *context, unsigned int id)
@@ -305,7 +314,7 @@ unsigned long long get_host_program_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->program_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 5);
 }
 
 unsigned long long get_host_sync_id(void *context, unsigned int id)
@@ -314,7 +323,7 @@ unsigned long long get_host_sync_id(void *context, unsigned int id)
     Resource_Context *resource_status = &(opengl_context->resource_status);
     Resource_Map_Status *map_status = resource_status->sync_resource;
 
-    long long ret_id = get_host_resource_id(map_status, id);
+    long long ret_id = get_host_resource_id(map_status, id, 6);
     if (opengl_context->share_context != NULL && ret_id == 0)
     {
         int sleep_cnt = 0;
@@ -332,7 +341,7 @@ unsigned long long get_host_framebuffer_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->frame_buffer_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 7);
 }
 
 unsigned long long get_host_pipeline_id(void *context, unsigned int id)
@@ -343,7 +352,7 @@ unsigned long long get_host_pipeline_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->program_pipeline_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 8);
 }
 
 unsigned long long get_host_feedback_id(void *context, unsigned int id)
@@ -354,7 +363,7 @@ unsigned long long get_host_feedback_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->transform_feedback_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 9);
 }
 
 unsigned long long get_host_array_id(void *context, unsigned int id)
@@ -365,7 +374,7 @@ unsigned long long get_host_array_id(void *context, unsigned int id)
     // }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->vertex_array_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 10);
 }
 
 unsigned long long get_host_query_id(void *context, unsigned int id)
@@ -376,7 +385,7 @@ unsigned long long get_host_query_id(void *context, unsigned int id)
     }
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->query_resource;
-    return get_host_resource_id(map_status, id);
+    return get_host_resource_id(map_status, id, 11);
 }
 
 void d_glGenBuffers(void *context, GLsizei n, const GLuint *buffers)
@@ -447,6 +456,16 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
 
     create_host_map_ids(map_status, n, textures, host_buffers_long);
 
+    // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    // for(int i = 0; i < n; i++) {
+    //     struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(struct Express_Native_Texture_Simple);
+    //     texture_resource->target = 
+    //     g_resource_list[RESOURCE_TYPE_TEXTURE] = g_list_append(g_resource_list[RESOURCE_TYPE_TEXTURE], host_buffers_long[i]);
+    //     g_resource_count[RESOURCE_TYPE_SHADER]++;        
+    // }
+
+    // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
     g_free(host_buffers);
     g_free(host_buffers_long);
 }
@@ -469,15 +488,17 @@ Hardware_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
     }
     else
     {
+        // LOGI("returning gbuffer_ptr_map!");
         return map_status->gbuffer_ptr_map[texture];
     }
 }
 
 void set_texture_gbuffer_ptr(void *context, GLuint texture, Hardware_Buffer *gbuffer)
-{
+{ //将context的gbuffer_ptr_map第“texture”号资源设为gbuffer
+    LOGD("in context %lld %lld set_texture_gbuffer_ptr with texture %d buffer %llx", (uint64_t)context, (uint64_t)((Opengl_Context *)context)->guest_context, texture, gbuffer->gbuffer_id);
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
-    if (map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
+    if (map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size) //扩容一下
     {
         void **temp = g_malloc0(sizeof(void *) * map_status->map_size);
         if (map_status->gbuffer_ptr_map != NULL)
@@ -538,6 +559,18 @@ void d_glCreateShader(void *context, GLenum type, GLuint shader)
     unsigned long long host_shader_long = (unsigned long long)host_shader;
 
     create_host_map_ids(map_status, 1, &shader, &host_shader_long);
+    //ztodo:这个地方可以free吗(好像是不行的)
+    Express_Native_Shader* newShader = g_malloc0(sizeof(Express_Native_Shader));
+    newShader->id = host_shader;
+    newShader->type = type;
+    newShader->deleteStatus = GL_FALSE;
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
+    g_resource_list[RESOURCE_TYPE_SHADER] = g_list_append(g_resource_list[RESOURCE_TYPE_SHADER], newShader);
+    g_resource_count[RESOURCE_TYPE_SHADER]++;
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
+
+
 }
 
 void d_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync sync)
@@ -556,7 +589,7 @@ void d_glFenceSync(void *context, GLenum condition, GLbitfield flags, GLsync syn
 }
 
 void d_glCreateShaderProgramv_special(void *context, GLenum type, GLsizei count, const GLchar *const *strings, GLuint program, int *program_data_len)
-{
+{ //在一步操作中创建、编译并链接一个单一着色器的程序对象，直接返回program的id
     GLuint host_program = glCreateShaderProgramv(type, count, strings);
 
     if (host_program == 0)
@@ -840,7 +873,7 @@ void d_glDeleteProgram(void *context, GLuint program)
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->program_resource;
 
-    GLuint host_program = (GLuint)get_host_resource_id(map_status, program);
+    GLuint host_program = (GLuint)get_host_resource_id(map_status, program, 12);
 
     if (program_is_external_map != NULL)
     {
@@ -862,10 +895,11 @@ void d_glDeleteShader(void *context, GLuint shader)
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->shader_resource;
 
-    GLuint host_shader = (GLuint)get_host_resource_id(map_status, shader);
+    GLuint host_shader = (GLuint)get_host_resource_id(map_status, shader, 13);
     glDeleteShader(host_shader);
 
     remove_host_map_ids(map_status, 1, &shader);
+    //ztodo:把这个id的shader从我的全局shader资源列表里删除
 }
 
 void d_glDeleteSync(void *context, GLsync sync)
@@ -876,7 +910,7 @@ void d_glDeleteSync(void *context, GLsync sync)
 
     unsigned int sync_int = (unsigned int)(uint64_t)sync;
 
-    GLsync host_sync = (GLsync)get_host_resource_id(map_status, sync_int);
+    GLsync host_sync = (GLsync)get_host_resource_id(map_status, sync_int, 14);
     glDeleteSync(host_sync);
     express_printf("context %llx delete sync %u %lld map_status %llx\n", (uint64_t)context, sync, host_sync, map_status);
     remove_host_map_ids(map_status, 1, &sync_int);

@@ -17,6 +17,10 @@
 
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/express_gpu.h"
+#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/glv3_context.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 #include "hw/virtio/virtio.h"
 
@@ -224,8 +228,14 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
         LOGE("error when performing virtio save for teleport express!");
         return -1;
     }
+    init_saving_snapshot();
+    // save_gbuffer_global_map(f);    
+
+    // save_native_shaders(f);
+    // save_native_textures(f);
     save_render_thread_contexts(f);
     save_render_process_contexts(f);
+
 
     LOGI("succcefully perform virtio save for teleport express!");
     return 0;
@@ -244,10 +254,19 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
         LOGE("error when performing virtio load for teleport express!");
         return -1;
     }
+
+    // Express_Device_Info *device_info = get_express_device_info(EXPRESS_GPU_DEVICE_ID);
+
+    remove_all_render_thread_contexts();
+
+    // load_gbuffer_global_map(f);
+    // load_native_shaders(f);
+    // load_native_textures(f);
     load_render_thread_contexts(f);
     load_render_process_contexts(f);
 
-     LOGI("succcefully perform virtio load for teleport express!");
+    clear_resource_tables();
+    LOGI("succcefully perform virtio load for teleport express!");
     return 0;
 }
 
@@ -286,6 +305,8 @@ static void teleport_express_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &vmstate_teleport_express;
 
     vdc->realize = teleport_express_realize;
+    // init_saving_snapshot();
+
 }
 
 static void teleport_express_register_types(void)

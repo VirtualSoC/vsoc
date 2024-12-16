@@ -138,9 +138,9 @@ typedef struct Window_Buffer
 
      GLFWHints window_hints;
      
-     eglConfig *config;
+     eglConfig *config; //感觉不需要保存？先试试吧
 
-     EGLSurface guest_surface;
+     EGLSurface guest_surface; //guest_surface不会变
 
      Hardware_Buffer *gbuffer;
      uint64_t gbuffer_id;
@@ -173,8 +173,8 @@ typedef struct Window_Buffer
      int stencil_internal_format;
      
      GLuint now_fbo_loc;
-     GLuint data_fbo[3];
-     GLuint sampler_fbo[3];
+     GLuint data_fbo[3]; //三缓冲（如果是window_surface）
+     GLuint sampler_fbo[3]; //多重采样
      GLuint connect_texture[3];
 } Window_Buffer;
 

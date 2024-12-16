@@ -113,12 +113,12 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             break;
         }
 
-        opengl_paint_composer_layers(layers);
+        opengl_paint_composer_layers(layers); //对每一层进行渲染
         g_free(layers);
 
-        display_present();
+        display_present(); //将当前帧缓冲区设置为可显示状态
 
-        send_message_to_main_window(MAIN_PAINT, display_read_gbuffer);
+        send_message_to_main_window(MAIN_PAINT, display_read_gbuffer); //通知主线程更新显示内容
     }
     break;
     case FUNID_Show_Window:
@@ -304,7 +304,7 @@ static void display_context_init(Thread_Context *context)
     // 这个render线程只能创建一次，且其他线程必须等待该线程运行成功
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
-        express_printf("create native window\n");
+        LOGI("create native window");
         qemu_thread_create(&native_window_render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
@@ -411,8 +411,8 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
             Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
             if (gbuffer != NULL)
             {
-                LOGD("draw layer gbuffer_id %llx  %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
-                               layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+                LOGD("draw layer %d gbuffer_id %llx  %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
+                               i, layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
                 // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
                 // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
                 // 两者间可能存在缩放关系
@@ -501,7 +501,7 @@ static void display_present(void)
 
     display_read_gbuffer = display_write_gbuffer;
 
-    display_write_gbuffer = temp_gbuffer;
+    display_write_gbuffer = temp_gbuffer; //交换read和write buffer
 
     glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
 

@@ -668,7 +668,7 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
 
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
-    glGetTexImage(GL_TEXTURE_2D, 0, gbuffer->format, gbuffer->pixel_type, 0);
+    glGetTexImage(GL_TEXTURE_2D, 0, gbuffer->format, gbuffer->pixel_type, 0); 
 
     GLint error = glGetError();
     if (error != 0)
@@ -677,7 +677,7 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
                error, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
     }
 
-    LOGI("gbuffer_data_host_to_guest id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
+    LOGD("gbuffer_data_host_to_guest id %llx width %d height %d internal_format %x format %x row_byte_len %d buf_len %d",
            gbuffer->gbuffer_id, gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, row_byte_len, mem_data->all_len);
 
     GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, all_pixel_size, GL_MAP_READ_BIT);
@@ -897,6 +897,7 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
 
         ptr = call_para_to_ptr(all_para[0], &need_free);
         sync_id = *(uint64_t *)(ptr);
+        LOGD("going to wait for sync in express_mem %d", (int)sync_id);
 
         wait_for_express_sync((int)sync_id, true);
     }
