@@ -276,7 +276,6 @@ static Thread_Context *get_codec_context(uint64_t device_id, uint64_t thread_id,
 
         Codec_Thread_Context *b_context = (Codec_Thread_Context *)context;
         b_context->unique_id = unique_id;
-        b_context->thread_id = thread_id;
 
         LOGD("codec uid %" PRId64 " create context", unique_id);
         g_hash_table_insert(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id), (gpointer)context);

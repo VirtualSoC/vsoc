@@ -10,9 +10,7 @@ typedef struct
 {
     Thread_Context thread_context;
 
-    int status_id;
     uint64_t unique_id;
-    uint64_t thread_id;
 
     DCodecComponent *component;
 
