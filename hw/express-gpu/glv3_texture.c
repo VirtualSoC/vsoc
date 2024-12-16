@@ -46,26 +46,14 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
-            // LOGI("First pixels in RGBA format:");
-
-            // for (int i = 0; i < min(30, (end_loc - start_loc)/4); i++) {
-            //     LOGI("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
-            //         i, 
-            //         map_pointer[i * 4 + 0], //R
-            //         map_pointer[i * 4 + 1], //G
-            //         map_pointer[i * 4 + 2], //B
-            //         map_pointer[i * 4 + 3]  //A
-            //     );
-            // }
 
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
     }
-    LOGI("unpack texture start %d end %d\n", start_loc, end_loc);
+    express_printf("unpack texture start %d end %d\n", start_loc, end_loc);
 }
 
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
-{ //没有绑定GL_PIXEL_UNPACK_BUFFER(PBO) buffer
-//数据首先写入到 GL_PIXEL_UNPACK_BUFFER，然后 OpenGL 会从该缓冲区将数据上传到纹理中
+{
     LOGD("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
          "%d h %d format %x type %x pixels %x",
          target, level, internalformat, width, height, format, type, pixels);
@@ -132,10 +120,9 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     int start_loc = 0, end_loc = buf_len;
 
-    LOGI("going to upload data for texture target %d id %d width %d height %d",target, bind_texture, width, height);
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
-    //这时候是立即返回的，后续会进行dma传输(只分配空间)
+    //这时候是立即返回的，后续会进行dma传输
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, format, type, NULL);
@@ -206,7 +193,6 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     }
 
     int start_loc = 0, end_loc = buf_len;
-    LOGI("going to upload data for subtexture target %d id %d width %d height %d",target, bind_texture, width, height);
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
@@ -848,7 +834,7 @@ void d_glReadBuffer_special(void *context, GLenum src)
 void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint guest_texture, GLint level)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture, 2);
+    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture);
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
@@ -866,7 +852,7 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
 void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachment, GLuint guest_texture, GLint level)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture, 3);
+    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture);
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
@@ -882,14 +868,14 @@ void d_glCopyImageSubData(void *context, GLuint srcName, GLenum srcTarget, GLint
         srcName = get_host_renderbuffer_id(context, srcName);
     } else {
         // 一定是texture
-        srcName = get_host_texture_id(context, srcName, 4);
+        srcName = get_host_texture_id(context, srcName);
         gbuffer_src = get_texture_gbuffer_ptr(context, srcName);
     }
     if (dstTarget == GL_RENDERBUFFER) {
         dstName = get_host_renderbuffer_id(context, dstName);
     }
     else {
-        dstName = get_host_texture_id(context, dstName, 5);
+        dstName = get_host_texture_id(context, dstName);
         gbuffer_dst = get_texture_gbuffer_ptr(context, srcName);
     }
 

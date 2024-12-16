@@ -17465,7 +17465,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
-        glFramebufferTextureLayer(target, attachment, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture, 6), level, layer);
+        glFramebufferTextureLayer(target, attachment, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level, layer);
     }
     break;
 
@@ -27834,7 +27834,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-        glBindImageTexture(unit, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture, 7), level, layered, layer, access, format);
+        glBindImageTexture(unit, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level, layered, layer, access, format);
     }
     break;
 

@@ -10,7 +10,7 @@
 
 typedef struct Process_Context{
     GHashTable *surface_map;
-    GHashTable *context_map; //所有new出来的context都要加入context_map
+    GHashTable *context_map;
     
     GHashTable *gbuffer_map;
 
@@ -36,7 +36,7 @@ int save_render_process_contexts(QEMUFile *f);
 int load_render_process_contexts(QEMUFile *f);
 int save_render_thread_contexts(QEMUFile *f);
 int load_render_thread_contexts(QEMUFile *f);
-void remove_all_render_thread_contexts();
+
 
 #define FUNID_GPU_Gbuffer_Host_To_Guest ((EXPRESS_GPU_DEVICE_ID << 32u) + 5001)
 

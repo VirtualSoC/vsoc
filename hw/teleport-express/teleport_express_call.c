@@ -467,7 +467,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
     while (elem)
     {
 
-        if (packaging_call[index] != NULL) //还有调用未完成
+        if (packaging_call[index] != NULL)
         {
             call = packaging_call[index];
             packaging_call[index] = NULL;
@@ -489,9 +489,9 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
             call->elem_tail->next = elem;
             call->elem_tail = elem;
         }
-        else //新调用
+        else
         {
-            if (unlikely(fill_teleport_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0)) //解析一些call的性质
+            if (unlikely(fill_teleport_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0))
             {
                 //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
                 VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, elem, 1, next);
@@ -530,7 +530,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
 
             elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
 
-            if (unlikely(elem == NULL)) //数据没完全到达，存下来
+            if (unlikely(elem == NULL))
             {
                 packaging_call[index] = call;
                 remain_elem_num[index] = para_num - i;

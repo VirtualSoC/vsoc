@@ -19,82 +19,6 @@ static GList *volatile native_context_pool = NULL;
 static int native_context_pool_size = 0;
 static int native_context_pool_locker = 0;
 
-// GHashTable *window_id_map;
-// static int next_window_id = 1;
-
-// int get_window_id(void *window) {
-//     if (window_id_map == NULL) {
-//         window_id_map = g_hash_table_new(g_direct_hash, g_direct_equal);
-//     }
-//     gpointer id = g_hash_table_lookup(window_id_map, window);
-//     if (id == NULL) {
-//         g_hash_table_insert(window_id_map, window, GINT_TO_POINTER(next_window_id));
-//         return next_window_id++;
-//     }
-//     return GPOINTER_TO_INT(id);
-// }
-
-// void save_opengl_window(QEMUFile *f, Opengl_Context *context) {
-//     if (context->window != NULL) {
-//         int window_id = get_window_id(context->window);
-//         qemu_put_be32(f, window_id);
-//     } else {
-//         qemu_put_be32(f, 0);
-//     }
-// }
-
-// void load_opengl_window(QEMUFile *f, Opengl_Context *context) {
-//     int window_id = qemu_get_be32(f);
-
-//     if (window_id != 0) {
-//         context->window = g_hash_table_lookup(window_id_map, GINT_TO_POINTER(window_id));
-//         if (context->window == NULL) {
-//             LOGE("Failed to load window with id %d", window_id);
-//         }
-//     } else {
-//         context->window = NULL;
-//     }
-// }
-
-
-
-// void save_native_context_pool(QEMUFile *f) {
-//     qemu_put_be32(f, native_context_pool_size);
-
-//     GList *iter = native_context_pool;
-//     while (iter != NULL) {
-//         void *native_context = iter->data;
-//         save_native_context(f, native_context);
-
-//         iter = iter->next;
-//     }
-// }
-
-// void release_native_opengl_context_wrapper(gpointer data) {
-// #ifdef STD_DEBUG_INDEPENDENT_WINDOW
-//         release_native_opengl_context(data, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
-// #else
-//         release_native_opengl_context(data, 0);
-// #endif
-// }
-
-
-// void load_native_context_pool(QEMUFile *f) {
-//     g_list_free_full(native_context_pool, release_native_opengl_context_wrapper);
-//     native_context_pool = NULL;
-
-//     native_context_pool_size = qemu_get_be32(f);
-
-//     for (int i = 0; i < native_context_pool_size; i++) {
-//         int context_flags = qemu_get_be32(f);
-//         int context_id = qemu_get_be32(f);
-
-//         void *new_context = load_native_context(f, context_flags);
-
-//         native_context_pool = g_list_append(native_context_pool, new_context);
-//     }
-// }
-
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 {
     const GLubyte *static_string = glGetString(name);
@@ -279,7 +203,7 @@ void *get_native_opengl_context(int context_flags)
         // 给主窗口发消息的时候只能输入一个参数，所以窗口模式用flag方式传入
         native_context = (void*)(intptr_t)context_flags;
 
-        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context); //传参进去，然后出来的时候的值就是一个正常的指针了
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
         // 不能在子线程中创建context，不然会为空
         //     opengl_context->window = egl_createContext();
 
@@ -339,18 +263,16 @@ void *get_native_opengl_context(int context_flags)
             native_context_pool = g_list_append(native_context_pool, NULL);
 
             GList *last = g_list_last(native_context_pool);
-            send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data)); //第二个参数是null
+            send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
             native_context_pool_size++;
         }
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
-    LOGI("returning native context %llx", (int64_t)native_context);
     return native_context;
 }
 
 void release_native_opengl_context(void *native_context, int context_flags)
 {
-    LOGI("going to release native context %llx", (int64_t)native_context);
     //假如已经保存有闲置的超过MAX_PRELOAD_CONTEXT_NUM个context，则新释放的context直接销毁，否则保存下来
     //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建MAX_PRELOAD_CONTEXT_NUM个备用的
 

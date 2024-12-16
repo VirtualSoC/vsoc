@@ -244,13 +244,12 @@ void d_glUseProgram_special(void *context, GLuint program)
     {
         opengl_context->is_using_external_program = 0;
     }
-    opengl_context->current_program = program;
 
     glUseProgram(program);
 }
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
-{ //直接加载已经编译和链接好的程序二进制格式,就不用编译链接那些了
+{
 
     glProgramBinary(program, binaryFormat, binary, length);
 
@@ -839,8 +838,6 @@ void change_GLSL_version(char *start, char *end, int try_cnt)
 void d_glCompileShader_special(void *context, GLuint guest_id)
 {
     GLuint host_id = (GLuint)get_host_shader_id(context, (unsigned int)guest_id);
-
-    LOGI("in d_glCompileShader_special with guest id %d host id %d", guest_id, host_id);
 
     glCompileShader(host_id);
     GLenum error = glGetError();

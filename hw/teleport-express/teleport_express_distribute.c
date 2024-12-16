@@ -112,7 +112,7 @@ Thread_Context *thread_context_create(unsigned long long thread_id, unsigned lon
     context->data_event = create_event(0, 0);
 #endif
 
-    LOGI("ready to create thread for device %d", info->device_id);
+    express_printf("ready to create thread\n");
     qemu_thread_create(&context->this_thread, "handle_thread", handle_thread_run, context, QEMU_THREAD_JOINABLE);
 
     return context;

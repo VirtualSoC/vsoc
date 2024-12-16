@@ -16,8 +16,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
 
-    LOGI("in eglMakecurrent opengl_context %llx ctx %llx", real_opengl_context, ctx); //一次绑定一次解绑（绑定0
-
     express_printf("makecurrent guest draw %llx read %llx context %llx\n", (uint64_t)draw, (uint64_t)read, (uint64_t)ctx);
     express_printf("makecurrent host draw %llx read %llx context %llx\n", (uint64_t)real_surface_draw, (uint64_t)real_surface_read, (uint64_t)real_opengl_context);
 
@@ -116,7 +114,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     }
     else
     {
-        LOGI("thread %llx context %llx makecurrent window %llx", thread_context, real_opengl_context, real_opengl_context->window);
+        express_printf("thread %llx context %llx makecurrent window %llx\n", thread_context, real_opengl_context, real_opengl_context->window);
         if (egl_makeCurrent(real_opengl_context->window) != EGL_TRUE) return EGL_FALSE;
     }
 
@@ -291,8 +289,8 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 
     if (real_surface != thread_context->render_double_buffer_draw)
     {
-        //ztodo：感觉这里不该改，但加了snapshot之后暂时会有这个报错
-        LOGE("error! real_surface != thread_context->render_double_buffer_draw %llx %llx", (uint64_t)real_surface, (uint64_t)thread_context->render_double_buffer_draw);
+        //感觉这里不该改，但加了snapshot之后暂时会有这个报错且不影响正确性
+        LOGD("error! real_surface != thread_context->render_double_buffer_draw %llx %llx", (uint64_t)real_surface, (uint64_t)thread_context->render_double_buffer_draw);
     }
 
     egl_surface_swap_buffer(context, real_surface, gbuffer_id, width, height, hal_format);
@@ -303,7 +301,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     }
     else
     {
-        real_opengl_context->draw_fbo0 = real_surface->gbuffer->data_fbo; //swapbuffer的时候已经bind好了
+        real_opengl_context->draw_fbo0 = real_surface->gbuffer->data_fbo;
     }
 
     real_opengl_context->read_fbo0 = thread_context->render_double_buffer_read->gbuffer->data_fbo;

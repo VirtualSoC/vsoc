@@ -6,8 +6,6 @@
 #include "hw/express-gpu/express_gpu_render.h"
 
 #include "hw/express-gpu/glv3_status.h"
-#include "migration/qemu-file.h"
-
 
 #define MAX_VERTEX_ATTRIBS_NUM 16
 
@@ -40,10 +38,10 @@ typedef struct Bound_Buffer
     GLuint asyn_unpack_texture_buffer;
     GLuint asyn_pack_texture_buffer;
 
-    Buffer_Status buffer_status; 
+    Buffer_Status buffer_status;
 
     int has_init;
-} Bound_Buffer; //关注一下，有点意思
+} Bound_Buffer;
 
 
 
@@ -56,8 +54,8 @@ typedef struct Resource_Map_Status
     long long *resource_id_map;
     char *resource_is_init;
     
-    unsigned int gbuffer_map_max_size; //整个按照maxsize全存下来吧
-    Hardware_Buffer **gbuffer_ptr_map; //相当于一个存储Hardware_Buffer* 的数组, 暂未存下来。得存下来！
+    unsigned int gbuffer_map_max_size;
+    Hardware_Buffer **gbuffer_ptr_map;
     
 } Resource_Map_Status;
 
@@ -139,13 +137,8 @@ typedef struct Opengl_Context
 
     void *share_context;
     GHashTable *buffer_map;
-    GLuint draw_fbo0; //默认读取/绘制的地方 ztodo:Gluint用32位够不够
+    GLuint draw_fbo0;
     GLuint read_fbo0;
-
-    GLuint current_read_fbo;
-    GLuint current_write_fbo;
-
-    GLuint current_program;
     GLuint vao0;
 
     GLint view_x;
@@ -200,12 +193,5 @@ void opengl_context_destroy(Opengl_Context *context);
 void *get_native_opengl_context(int context_flags);
 
 void release_native_opengl_context(void *native_context, int context_flags);
-
-int get_window_id(void *window);
-
-void save_native_context_pool(QEMUFile *f);
-
-void load_native_context_pool(QEMUFile *f);
-
 
 #endif

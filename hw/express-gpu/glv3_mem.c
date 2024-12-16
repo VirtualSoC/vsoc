@@ -209,7 +209,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     // }
 }
 
-void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf) //需要读权限，读到mem_buf里面
+void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf)
 {
 
     d_glMapBufferRange_write(context, target, offset, length, access);

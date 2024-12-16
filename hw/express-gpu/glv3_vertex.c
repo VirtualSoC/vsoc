@@ -810,27 +810,6 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
             // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
-
-
-        GLint current_vao;
-        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &current_vao);
-        if (current_vao == 0) {
-            LOGE("No VAO bound! context %lld window %lld", (int64_t)context, (int64_t)opengl_context->window);
-        }
-
-        GLint current_vbo;
-        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_vbo);
-        if (current_vbo == 0) {
-            LOGE("No VBO bound!");
-        }
-
-        GLint current_ebo;
-        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &current_ebo);
-        if (current_ebo == 0) {
-            LOGE("No EBO bound!");
-        }
-
-
         glDrawRangeElements(mode, start, end, count, type, (void *)indices);
         if (opengl_context->is_using_external_program == 1)
         {
