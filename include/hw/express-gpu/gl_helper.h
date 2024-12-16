@@ -236,7 +236,7 @@ void prepare_integer_value(Static_Context_Values *s_values);
 
 GLuint load_shader(GLenum type, const char *shaderSrc);
 
-int main_window_opengl_prepare(GLuint *program, GLuint *VAO);
+int display_opengl_prepare(GLuint *program, GLuint *VAO);
 
 void adjust_blend_type(int blend_type);
 

@@ -14,7 +14,7 @@
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/egl_display.h"
 
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 #include "hw/express-gpu/express_gpu.h"
 #include "hw/express-gpu/glv3_resource.h"
 #include "hw/teleport-express/express_event.h"
@@ -341,7 +341,6 @@ int render_surface_destroy(Window_Buffer *surface)
 {
     if (surface->type == P_SURFACE && surface->gbuffer != NULL)
     {
-        surface->gbuffer->is_dying = 1;
         send_message_to_main_window(MAIN_DESTROY_GBUFFER, surface->gbuffer);
     }
     express_printf("free surface %llx\n", (uint64_t)surface);
@@ -606,7 +605,6 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
 {
     Hardware_Buffer *gbuffer = g_malloc0(sizeof(Hardware_Buffer));
 
-    gbuffer->remain_life_time = MAX_WINDOW_LIFE_TIME;
     gbuffer->usage_type = GBUFFER_TYPE_WINDOW;
     gbuffer->gbuffer_id = gbuffer_id;
 

@@ -277,37 +277,4 @@ void prepare_draw_texi(void)
             }
         }
     }
-
-    // if (draw_texi_vao == 0)
-    // {
-    //     vao不是线程间共享的，所以要么每个线程单独一个vao，要么就不用vao
-    //     GLuint vbo;
-    //     GLuint ebo;
-    //     float vbo_data[] = {
-    //         1.0f, 1.0f, 0.0f, 1.0f, 1.0f,
-    //         1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
-    //         -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-    //         -1.0f, 1.0f, 0.0f, 0.0f, 1.0f};
-
-    //     glGenBuffers(1, &vbo);
-
-    //     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    //     glBufferData(GL_ARRAY_BUFFER, sizeof(vbo_data), vbo_data, GL_STATIC_DRAW);
-
-    //     GLuint vao;
-    //     glGenVertexArrays(1, &vao);
-
-    //     glBindVertexArray(vao);
-
-    //     glBindBuffer(GL_ARRAY_BUFFER, vbo_data);
-
-    //     glEnableVertexAttribArray(0);
-    //     glEnableVertexAttribArray(1);
-
-    //     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(GLfloat), (const void *)0);
-
-    //     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 7 * sizeof(GLfloat), (const void *)(3 * sizeof(GLfloat)));
-    //     glBindVertexArray(0);
-    //     draw_texi_vao = vao;
-    // }
 }

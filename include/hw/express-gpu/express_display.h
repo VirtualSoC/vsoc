@@ -4,6 +4,7 @@
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_call.h"
 
+#include "hw/express-gpu/egl_surface.h"
 
 typedef struct Display_Info
 {
@@ -51,5 +52,7 @@ typedef struct Display_Status
 
 
 extern int display_is_open;
+
+void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
 
 #endif

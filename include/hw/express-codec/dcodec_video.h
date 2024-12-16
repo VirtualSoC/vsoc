@@ -3,7 +3,7 @@
 #include "dcodec_component.h"
 #include "colorspace.h"
 
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 
 enum {
     kNotSupported,

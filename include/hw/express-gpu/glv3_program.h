@@ -3,7 +3,7 @@
 
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/express_log.h"
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 
 
 extern GHashTable *program_is_external_map;

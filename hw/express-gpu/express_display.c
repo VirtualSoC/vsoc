@@ -10,20 +10,23 @@
  */
 
 // #define STD_DEBUG_LOG
-#include "hw/teleport-express/express_device_common.h"
-
 #include "hw/express-gpu/express_display.h"
 
 #include "hw/teleport-express/express_log.h"
 
-#include "hw/express-gpu/express_gpu.h"
-#include "hw/express-gpu/express_gpu_render.h"
-
 #include "hw/express-gpu/egl_surface.h"
+#include "hw/express-gpu/express_gpu.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
+#include "hw/express-gpu/glv1.h"
+#include "hw/express-gpu/sdl_control.h"
+
+#include "hw/express-input/express_keyboard.h"
+#include "hw/express-input/express_touchscreen.h"
 
 #include "hw/express-mem/express_sync.h"
 
 #include "qemu/atomic.h"
+#include "sysemu/runstate.h"
 
 static Thread_Context *static_display_context = NULL;
 
@@ -39,6 +42,36 @@ static GLuint now_transform_type = 0;
 
 static Hardware_Buffer *display_write_gbuffer;
 static Hardware_Buffer *display_read_gbuffer;
+
+static QemuThread qemu_display_thread;
+
+static bool window_need_refresh = false;
+
+static int show_native_window = 0;
+
+static bool window_is_shown = false;
+
+// guest对应的虚拟显示器的大小
+static int display_width = 0;
+static int display_height = 0;
+
+// QEMU的主窗口的长宽
+static int window_width = 0;
+static int window_height = 0;
+
+// 显示的内容的实际位置和长宽
+static int main_display_content_x = 0;
+static int main_display_content_y = 0;
+
+static int main_display_content_width = 0;
+static int main_display_content_height = 0;
+
+int express_gpu_window_width = 0;
+int express_gpu_window_height = 0;
+
+int sdl2_no_need = 0;
+
+extern int main_window_run;
 
 static Display_Info express_display_info = {
     .pixel_width = 1280,
@@ -56,10 +89,15 @@ int express_display_refresh_rate;
 
 int display_is_open = 1;
 
+Hardware_Buffer *main_display_gbuffer;
+
 bool express_display_switch_open = false;
+
+bool express_gpu_keep_window_scale = false;
 
 static void opengl_paint_composer_layers(GBuffer_Layers *layers);
 static void display_present(void);
+static void *virtual_display_thread(void *opaque);
 
 void display_status_change(Display_Status status);
 
@@ -123,14 +161,14 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Show_Window:
     {
-        LOGI("force_show_native_render_window");
-        force_show_native_render_window = 1;
+        LOGI("show_native_window");
+        show_native_window = 1;
     }
     break;
     case FUNID_Show_Window_FLIP_V:
     {
-        LOGI("force_show_native_render_window-filp_v");
-        force_show_native_render_window = 2;
+        LOGI("show_native_window-filp_v");
+        show_native_window = 2;
     }
     break;
     case FUNID_Set_Sync_Flag:
@@ -299,23 +337,11 @@ static Thread_Context *get_display_thread_context(uint64_t device_id, uint64_t t
 
 static void display_context_init(Thread_Context *context)
 {
-
     express_printf("display context init!\n");
     // 这个render线程只能创建一次，且其他线程必须等待该线程运行成功
-    if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
-    {
-        express_printf("create native window\n");
-        qemu_thread_create(&native_window_render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
-        init_display(&default_egl_display);
-    }
-
-    if (native_render_run == 1)
-    {
-        do
-        {
-            g_usleep(5000);
-        } while (native_render_run != 2);
-    }
+    start_main_window_thread();
+    qemu_thread_create(&qemu_display_thread, "display_thread",
+                       virtual_display_thread, (void *)0, QEMU_THREAD_DETACHED);
 
     // 新建一个context用于与纹理交互
     if (native_display_context == NULL)
@@ -349,7 +375,7 @@ static void display_context_init(Thread_Context *context)
         glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
 
-        main_window_opengl_prepare(&programID, &drawVAO);
+        display_opengl_prepare(&programID, &drawVAO);
         glBindVertexArray(drawVAO);
 
         program_transform_loc = glGetUniformLocation(programID, "transform_loc");
@@ -421,7 +447,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                 int view_h = gbuffer->height * layer.height / layer.crop_height;
                 int view_x = layer.x - layer.crop_x * layer.width / layer.crop_width;
                 int view_y = 0;
-                if (force_show_native_render_window == 2)
+                if (show_native_window == 2)
                 {
                     // 安卓9的显示
                     view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
@@ -433,7 +459,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                         view_y = layer.y - (gbuffer->height - layer.crop_height - layer.crop_y) * layer.height / layer.crop_height;
                     }
                 }
-                else if (force_show_native_render_window == 1)
+                else if (show_native_window == 1)
                 {
                     // 先进行缩放，计算原始gbuffer的左上角应该在哪（以窗口上面为y轴零点）
                     view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
@@ -449,11 +475,11 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                 // 而合成器的crop裁剪，是直接区域裁掉，所占的区域就没了
                 // 简单的说，从效果上来看，合成器的裁剪是把原来的图片给剪了一下，变小了后再缩放贴到屏幕缓冲区的相应位置
                 // 而glScissor，是原来的图片整个都贴到缓冲区的相应位置，但是屏幕缓冲区所指定的区域之外的地方用东西给盖住（其实是不绘制，而不是盖住）
-                if (force_show_native_render_window == 2)
+                if (show_native_window == 2)
                 {
                     glScissor(layer.x, layer.y, layer.width, layer.height);
                 }
-                else if (force_show_native_render_window == 1)
+                else if (show_native_window == 1)
                 {
                     glScissor(layer.x, display_height - layer.y - layer.height, layer.width, layer.height);
                 }
@@ -514,6 +540,8 @@ static void display_present(void)
     // 无论主线程之后会不会继续读取，这里都要直接进行后续的绘制
     ATOMIC_UNLOCK(display_write_gbuffer->is_lock);
 
+    window_need_refresh = true;
+
     static int now_screen_hz = 0;
     static uint64_t last_record_time = 0;
     uint64_t now_time = g_get_real_time();
@@ -545,6 +573,352 @@ void display_status_change(Display_Status status)
             display_is_open = 1;
         }
     }
+}
+
+static void opengl_paint_composer_gbuffer(void)
+{
+    Hardware_Buffer *gbuffer = main_display_gbuffer;
+
+    if (gbuffer == NULL)
+    {
+        return;
+    }
+
+    ATOMIC_LOCK(gbuffer->is_lock);
+
+    if (display_width != gbuffer->width || display_height == gbuffer->height)
+    {
+        display_width = gbuffer->width;
+        display_height = gbuffer->height;
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glViewport(main_display_content_x, main_display_content_y, main_display_content_width, main_display_content_height);
+
+    glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
+
+    opengl_paint_gbuffer(gbuffer);
+
+    ATOMIC_UNLOCK(gbuffer->is_lock);
+
+    glFlush();
+}
+
+/**
+ * @brief 界面上用于画出图像的函数，实际逻辑为取出gbuffer中的display_texture，然后画出来
+ *
+ * @param gbuffer
+ */
+void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
+{
+    if (gbuffer != NULL)
+    {
+        if (gbuffer->is_writing != 0)
+        {
+            LOGE("error! get writing gbuffer when opengl_paint");
+        }
+
+        LOGD("draw gbuffer_id %llx data sync %lld", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
+
+        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+}
+
+static void window_size_change_callback(GLFWwindow *window, int width, int height)
+{
+    window_need_refresh = true;
+
+    // macos retina screen handling
+    float xscale = 1, yscale = 1;
+#ifdef __APPLE__
+    glfwGetWindowContentScale(window, &xscale, &yscale);
+#endif
+
+    // 需要保证画面比例不变
+    if (window_width != width || window_height != height)
+    {
+
+        window_width = width;
+        window_height = height;
+
+        int temp_window_width = window_width;
+        int temp_window_height = window_height;
+        int x = 0;
+        int y = 0;
+
+        if ((double)display_width / display_height > (double)window_width / window_height)
+        {
+            temp_window_height = (int)((double)display_height / display_width * window_width);
+            y = (window_height - temp_window_height) / 2;
+        }
+        else
+        {
+            temp_window_width = (int)((double)display_width / display_height * window_height);
+            x = (window_width - temp_window_width) / 2;
+        }
+
+        if (express_gpu_keep_window_scale)
+        {
+            //printf("set window size %d %d  %d %d %d %d %d %dkeep scale\n", window_width, window_height,temp_window_width,temp_window_height,display_width,display_height,x,y);
+            window_width = temp_window_width;
+            window_height = temp_window_height;
+
+            glViewport(0, 0, window_width, window_height);
+
+            main_display_content_x = 0;
+            main_display_content_y = 0;
+            main_display_content_width = window_width;
+            main_display_content_height = window_height;
+
+            glfwSetWindowSize(window, window_width / xscale, window_height / yscale);
+        }
+        else
+        {
+            glViewport(x, y, temp_window_width, temp_window_height);
+
+            main_display_content_x = x;
+            main_display_content_y = y;
+            main_display_content_width = temp_window_width;
+            main_display_content_height = temp_window_height;
+        }
+
+        express_printf("set touchscreen size %d %d\n", window_width, window_height);
+        set_touchscreen_window_size(window_width / xscale, window_height / yscale);
+    }
+
+    return;
+}
+
+static void close_window_callback(GLFWwindow *window)
+{
+    static gint64 last_click_time = 0;
+    gint64 now_time = g_get_real_time();
+
+    glfwSetWindowShouldClose(window, GLFW_FALSE);
+    if (now_time - last_click_time < 500000)
+    {
+        qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+    }
+    else
+    {
+        qemu_system_powerdown_request();
+    }
+    last_click_time = now_time;
+}
+
+/**
+ * Virtual display thread entry point
+ * One thread for each virtual display
+ */
+static void *virtual_display_thread(void *opaque) {
+    GLuint programID = 0;
+    GLuint drawVAO = 0;
+
+    // 创建一个窗口，这个window也是context
+    window_width = express_gpu_window_width;
+    window_height = express_gpu_window_height;
+    display_width = *express_display_pixel_width;
+    display_height = *express_display_pixel_height;
+
+    main_display_content_width = express_gpu_window_width;
+    main_display_content_height = express_gpu_window_height;
+
+    GLFWwindow* glfw_window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+
+    if (!glfw_window)
+    {
+        LOGE("error: cannot allocate native window for virtual display %x", glfwGetError(NULL));
+        return NULL;
+    }
+
+    // window title
+    glfwSetWindowTitle(glfw_window, "vSoC");
+
+    // 键盘事件
+    glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetKeyCallback(glfw_window, express_keyboard_handle_callback);
+
+    // 鼠标事件
+    glfwSetCursorPosCallback(glfw_window, express_touchscreen_mouse_move_handle);
+    glfwSetMouseButtonCallback(glfw_window, express_touchscreen_mouse_click_handle);
+    glfwSetScrollCallback(glfw_window, express_touchscreen_mouse_scroll_handle);
+
+    // 开启触摸屏支持
+    glfwSetInputMode(glfw_window, GLFW_TOUCH, GLFW_TRUE);
+    glfwSetTouchCallback(glfw_window, express_touchscreen_touch_handle);
+
+    // 捕获鼠标进出事件，在鼠标移动出窗口时，需要停用输入，即需要传递触摸屏release消息
+    glfwSetCursorEnterCallback(glfw_window, express_touchscreen_entered_handle);
+
+    // 设置窗口大小可以自由调整
+    float xscale = 1, yscale = 1;
+#ifdef __APPLE__
+    // macos retina screen handling
+    glfwGetWindowContentScale(glfw_window, &xscale, &yscale);
+#endif
+    glfwSetWindowSize(glfw_window, window_width / xscale, window_height / yscale);
+    set_touchscreen_window_size(window_width / xscale, window_height / yscale);
+    glfwSetFramebufferSizeCallback(glfw_window, window_size_change_callback);
+    glfwSetWindowCloseCallback(glfw_window, close_window_callback);
+
+    THREAD_CONTROL_END
+
+    glfwMakeContextCurrent(glfw_window);
+
+    glfwSwapInterval(0);
+
+    prepare_draw_texi();
+
+    display_opengl_prepare(&programID, &drawVAO);
+    glBindVertexArray(drawVAO);
+
+    program_transform_loc = glGetUniformLocation(programID, "transform_loc");
+    now_transform_type = 0;
+    glUniform1i(program_transform_loc, now_transform_type);
+
+    LOGD("virtual display create");
+
+    // 因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+
+    // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+    glDisable(GL_BLEND);
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    if (express_gpu_gl_debug_enable)
+    {
+    #ifdef _WIN32
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(d_debug_message_callback, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+    #endif
+    }
+
+    int calc_screen_hz = 0;
+    int now_screen_hz = 0;
+    gint64 last_calc_time = 0;
+    gint64 frame_start_time = g_get_real_time();
+    gint64 remain_sleep_time = 0;
+    gint64 frame_draw_time = 0;
+    bool has_refresh = false;
+
+    last_calc_time = frame_start_time;
+
+    while (!glfwWindowShouldClose(glfw_window) && main_window_run == 2)
+    {
+        gint64 need_sleep_time = 0;
+        gint64 now_time = 0;
+
+        do
+        {
+            // 处理各种输入事件、opengl事件
+            THREAD_CONTROL_BEGIN
+
+            //处理各种输入事件、opengl事件
+            glfwWaitEventsTimeout(0.001);
+
+            THREAD_CONTROL_END
+
+            sync_express_touchscreen_input((bool)display_is_open || !express_display_switch_open);
+            sync_express_keyboard_input((bool)display_is_open || !express_display_switch_open);
+
+            if (show_native_window != 0 && window_is_shown == false)
+            {
+                if (show_native_window == 2)
+                {
+                    // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与安卓系统内逻辑一致，
+                    // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
+                    // 鸿蒙就不翻转了，因为就没有翻转的功能
+                    now_transform_type = FLIP_V;
+                    glUniform1i(program_transform_loc, now_transform_type);
+                }
+                glfwShowWindow(glfw_window);
+                glfwSwapBuffers(glfw_window);
+                window_is_shown = true;
+                sdl2_no_need = 1;
+            }
+
+            // 在窗口上绘制内容
+            if (main_display_gbuffer != NULL && window_need_refresh)
+            {
+                if (!window_is_shown)
+                {
+                    window_is_shown = true;
+                    glfwShowWindow(glfw_window);
+                    sdl2_no_need = 1;
+                }
+
+                window_need_refresh = false;
+
+                opengl_paint_composer_gbuffer();
+
+                calc_screen_hz += 1;
+                has_refresh = true;
+
+                glfwSwapBuffers(glfw_window);
+            }
+
+            now_time = g_get_real_time();
+
+            need_sleep_time = 1000000 / express_display_refresh_rate - (now_time - frame_start_time) + remain_sleep_time;
+
+        } while (need_sleep_time > 2000);
+
+        if (has_refresh)
+        {
+            frame_draw_time += now_time - frame_start_time;
+            has_refresh = false;
+        }
+
+        frame_start_time = now_time;
+        remain_sleep_time = need_sleep_time;
+
+        // 丢帧丢了100ms了，就不管少休眠的时间了
+        if (need_sleep_time < -100000)
+        {
+            need_sleep_time = 0;
+        }
+
+        if (now_time - last_calc_time > 1000000)
+        {
+            now_screen_hz = calc_screen_hz;
+            calc_screen_hz = 0;
+            float gen_frame_time_avg = 1.0f * frame_draw_time / now_screen_hz;
+            if (now_screen_hz == 0)
+            {
+                express_printf("screen draw 0 frame this second\n");
+            }
+            else
+            {
+                LOGD("screen draw avg %.2f us %.2f FPS", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
+            }
+
+            char name[32];
+            sprintf(name, "vSoC:%d FPS %.1f", 0, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
+            glfwSetWindowTitle(glfw_window, name);
+
+            frame_draw_time = 0;
+            last_calc_time = now_time;
+        }
+    }
+
+    glfwMakeContextCurrent(NULL);
+
+    THREAD_CONTROL_BEGIN
+
+    glfwDestroyWindow(glfw_window);
+
+    THREAD_CONTROL_END
+
+    LOGD("virtual display close!");
+
+    return NULL;
 }
 
 static Express_Device_Info express_gpu_info = {

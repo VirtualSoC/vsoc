@@ -16,6 +16,7 @@
 #include "hw/express-gpu/egl_draw.h"
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/egl_sync.h"
+#include "hw/express-gpu/express_display.h"
 #include "hw/express-gpu/test_trans.h"
 
 #include "hw/express-mem/express_sync.h"

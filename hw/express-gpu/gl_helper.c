@@ -1296,7 +1296,7 @@ GLuint load_shader(GLenum type, const char *shaderSrc)
  * @param VAO 返回值，填入生成的顶点数组ID
  * @return int 返回1表示准备成功，为0则说明准备失败
  */
-int main_window_opengl_prepare(GLuint *program, GLuint *VAO)
+int display_opengl_prepare(GLuint *program, GLuint *VAO)
 {
 
     // @todo 暂时未支持旋转和翻转操作

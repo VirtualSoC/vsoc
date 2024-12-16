@@ -4,7 +4,7 @@
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/egl_context.h"
 #include "hw/express-gpu/glv3_context.h"
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
@@ -202,7 +202,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
                 gbuffer->gbuffer_id = 0;
                 // psurface 不需要保留120帧
-                gbuffer->remain_life_time = 0;
                 // pbuffer 不需要添加到global_map中
             }
         }

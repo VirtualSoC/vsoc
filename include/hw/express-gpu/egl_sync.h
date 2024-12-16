@@ -2,7 +2,7 @@
 #define EGL_SYNC_H
 
 #include "hw/teleport-express/teleport_express_call.h"
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 #include "hw/express-gpu/express_gpu.h"
 
 EGLBoolean d_eglWaitGL(void *context);

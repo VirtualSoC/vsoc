@@ -4,8 +4,6 @@
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/express-gpu/egl_config.h"
 
-#include "hw/express-gpu/express_display.h"
-
 #include "glad/glad.h"
 #include "hw/express-gpu/GLFW/glfw3.h"
 
@@ -94,8 +92,6 @@ typedef struct Hardware_Buffer{
      GLsync delete_sync;
      uint64_t gbuffer_id;
 
-     int remain_life_time;
-     int is_dying;
      int is_using;
      int need_reverse;
 

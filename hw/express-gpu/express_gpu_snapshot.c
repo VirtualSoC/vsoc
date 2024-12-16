@@ -378,8 +378,6 @@ void save_hardware_buffer(QEMUFile *f, Hardware_Buffer *buffer) {
     qemu_put_be32(f, buffer->sampler_fbo);
     qemu_put_be32(f, buffer->has_connected_fbo);
     qemu_put_be64(f, buffer->gbuffer_id);
-    qemu_put_be32(f, buffer->remain_life_time);
-    qemu_put_be32(f, buffer->is_dying);
     qemu_put_be32(f, buffer->is_using);
     qemu_put_be32(f, buffer->need_reverse);
     qemu_put_be32(f, buffer->format);
@@ -432,8 +430,6 @@ Hardware_Buffer* load_hardware_buffer(QEMUFile *f) {
     buffer->sampler_fbo = qemu_get_be32(f);
     buffer->has_connected_fbo = qemu_get_be32(f);
     buffer->gbuffer_id = qemu_get_be64(f);
-    buffer->remain_life_time = qemu_get_be32(f);
-    buffer->is_dying = qemu_get_be32(f);
     buffer->is_using = qemu_get_be32(f);
     buffer->need_reverse = qemu_get_be32(f);
     buffer->format = qemu_get_be32(f);

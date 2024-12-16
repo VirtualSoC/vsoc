@@ -13,7 +13,7 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-mem/express_sync.h"
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 #include "hw/teleport-express/express_event.h"
 
 typedef struct Sync_Flag_Data

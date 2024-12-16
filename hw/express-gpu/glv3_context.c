@@ -17,7 +17,7 @@ static void g_vao_point_data_destroy(gpointer data);
 
 static GList *volatile native_context_pool = NULL;
 static int native_context_pool_size = 0;
-static int native_context_pool_locker = 0;
+static int native_context_pool_lock = 0;
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 {
@@ -195,26 +195,25 @@ void *get_native_opengl_context(int context_flags)
 {
     void *native_context = NULL;
 
-    ATOMIC_LOCK(native_context_pool_locker);
+    ATOMIC_LOCK(native_context_pool_lock);
     GList *first = g_list_first(native_context_pool);
-    ATOMIC_UNLOCK(native_context_pool_locker);
+    ATOMIC_UNLOCK(native_context_pool_lock);
     if (first == NULL || (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT) || first->data == NULL)
     {
         // 给主窗口发消息的时候只能输入一个参数，所以窗口模式用flag方式传入
         native_context = (void*)(intptr_t)context_flags;
 
-        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
         // 不能在子线程中创建context，不然会为空
-        //     opengl_context->window = egl_createContext();
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
 
-        ATOMIC_LOCK(native_context_pool_locker);
+        ATOMIC_LOCK(native_context_pool_lock);
         //链表为空，则要多填充1个，反正之后要等待
         native_context_pool = g_list_append(native_context_pool, NULL);
 
         GList *last = g_list_last(native_context_pool);
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
         native_context_pool_size++;
-        ATOMIC_UNLOCK(native_context_pool_locker);
+        ATOMIC_UNLOCK(native_context_pool_lock);
 
         //假如guest一创建context就立马销毁，发送到主线程的事件就会写入到释放后的内存上，所以这里进行等待，等待有context
         //等待window真正的建立起来
@@ -254,7 +253,7 @@ void *get_native_opengl_context(int context_flags)
     {
         // 复用空闲context
         native_context = first->data;
-        ATOMIC_LOCK(native_context_pool_locker);
+        ATOMIC_LOCK(native_context_pool_lock);
         native_context_pool = g_list_remove(native_context_pool, native_context);
         native_context_pool_size--;
         if (native_context_pool_size == 0)
@@ -266,7 +265,7 @@ void *get_native_opengl_context(int context_flags)
             send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
             native_context_pool_size++;
         }
-        ATOMIC_UNLOCK(native_context_pool_locker);
+        ATOMIC_UNLOCK(native_context_pool_lock);
     }
     return native_context;
 }
@@ -278,14 +277,14 @@ void release_native_opengl_context(void *native_context, int context_flags)
 
     if (native_context_pool_size < MAX_PRELOAD_CONTEXT_NUM && !(context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT))
     {
-        ATOMIC_LOCK(native_context_pool_locker);
+        ATOMIC_LOCK(native_context_pool_lock);
         native_context_pool = g_list_append(native_context_pool, NULL);
 
         GList *last = g_list_last(native_context_pool);
         send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
 
         native_context_pool_size++;
-        ATOMIC_UNLOCK(native_context_pool_locker);
+        ATOMIC_UNLOCK(native_context_pool_lock);
     }
     // LOGI("context_num %d",context_num);
 

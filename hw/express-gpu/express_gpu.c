@@ -16,7 +16,7 @@
 
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/express_gpu.h"
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 #include "hw/express-gpu/egl_draw.h"
 
 #include "hw/express-gpu/glv3_trans.h"
@@ -292,23 +292,8 @@ static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, u
 
 static void render_context_init(Thread_Context *context)
 {
-
     express_printf("render context init!\n");
-    // 这个render线程只能创建一次，且其他线程必须等待该线程运行成功
-    if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
-    {
-        express_printf("create native window\n");
-        qemu_thread_create(&native_window_render_thread, "handle_thread", native_window_thread, context->teleport_express_device, QEMU_THREAD_DETACHED);
-        init_display(&default_egl_display);
-    }
-
-    if (native_render_run == 1)
-    {
-        do
-        {
-            g_usleep(5000);
-        } while (native_render_run != 2);
-    }
+    start_main_window_thread();
 }
 
 static void g_surface_map_destroy(gpointer data)

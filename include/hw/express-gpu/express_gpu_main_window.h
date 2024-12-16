@@ -36,14 +36,6 @@
 
 #include "hw/express-gpu/glv3_decl.h"
 
-#define SPECIAL_SCREEN_SYNC_HZ 60
-
-#define WM_USER_PAINT WM_USER + 10
-#define WM_USER_WINDOW_CREATE WM_USER + 11
-#define WM_USER_SURFACE_DESTROY WM_USER + 12
-#define WM_USER_CONTEXT_DESTROY WM_USER + 13
-#define WM_USER_IMAGE_DESTROY WM_USER + 14
-
 #define MAIN_PAINT 1
 #define MAIN_CREATE_CHILD_WINDOW 2
 #define MAIN_DESTROY_SURFACE 3
@@ -114,39 +106,21 @@ typedef struct GBuffer_Layers{
 } __attribute__((packed, aligned(4))) GBuffer_Layers;
 
 
-extern GAsyncQueue *main_window_event_queue;
-
-extern volatile int native_render_run;
-
-extern volatile int device_interface_run;
-
 extern Static_Context_Values *preload_static_context_value;
 
 extern int host_opengl_version;
 
 extern int DSA_enable;
 
+void *main_window_thread(void *opaque);
 
-extern QemuThread native_window_render_thread;
-
-extern int force_show_native_render_window;
-
-
-extern Hardware_Buffer *main_display_gbuffer;
-
-
-void *native_window_thread(void *opaque);
-
-int draw_wait_GSYNC(void *event, int wait_frame_num);
-
+void start_main_window_thread(void);
 
 void remove_gbuffer_from_global_map(uint64_t gbuffer_id);
 
 void add_gbuffer_to_global(Hardware_Buffer *global_gbuffer);
 
 Hardware_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
-
-void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
 
 void send_message_to_main_window(int message_code, void *data);
 

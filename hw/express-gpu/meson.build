@@ -4,7 +4,7 @@ if targetos == 'windows'
 
 express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                if_true: files(
-                    'express_gpu_render.c',
+                    'express_gpu_main_window.c',
                     'express_gpu.c',
                     'glad.c',
                     'glv3_context.c',
@@ -49,7 +49,7 @@ elif targetos == 'darwin'
     # 添加 macOS 相关的构建选项、链接库等
 express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                if_true: files(
-                    'express_gpu_render.c',
+                    'express_gpu_main_window.c',
                     'express_gpu.c',
                     'glad.c',
                     'glv3_context.c',

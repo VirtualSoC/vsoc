@@ -11,7 +11,7 @@
 
 #include "hw/express-mem/express_mem.h"
 #include "hw/express-mem/express_sync.h"
-#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
 #include "hw/express-gpu/glv3_context.h"
 
 #include "qemu/atomic.h"
@@ -773,16 +773,9 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
         if (gbuffer != NULL)
         {
-            if (gbuffer->is_dying == 1)
-            {
-                gbuffer->remain_life_time = 3;
-            }
-            else
-            {
-                LOGI("terminate gbuffer id %llx", info.gbuffer_id);
-                remove_gbuffer_from_global_map(info.gbuffer_id);
-                destroy_gbuffer(gbuffer);
-            }
+            LOGI("terminate gbuffer id %llx", info.gbuffer_id);
+            remove_gbuffer_from_global_map(info.gbuffer_id);
+            destroy_gbuffer(gbuffer);
         }
     }
     break;

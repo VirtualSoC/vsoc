@@ -655,8 +655,6 @@ void guest_null_ptr_init(VirtQueue *vq)
     VirtQueueElement *elem;
 
     express_printf("wait for pop\n");
-    // QemuThread render_thread;
-    // qemu_thread_create(&render_thread,"handle_thread",native_window_thread,vdev,QEMU_THREAD_JOINABLE);
     elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
     while (elem == NULL)
     {

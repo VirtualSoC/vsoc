@@ -826,7 +826,7 @@ void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachm
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture);
 
-    char is_init = set_host_texture_init(opengl_context, guest_texture);
+    set_host_texture_init(opengl_context, guest_texture);
 
     glFramebufferTexture(target, attachment, host_texture, level);
 }
