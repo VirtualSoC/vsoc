@@ -17,7 +17,7 @@ static __thread GLuint g_unpack_buffer = 0;
 static __thread int g_unpack_buffer_size = 0;
 static __thread GLsync g_unpack_buffer_sync = NULL;
 
-static void init_worker_gl_context() {
+static void init_worker_gl_context(void) {
     g_gl_context = get_native_opengl_context(0);
     egl_makeCurrent(g_gl_context);
 

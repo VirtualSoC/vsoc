@@ -275,12 +275,9 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     express_touchscreen_size[0] = express_pci->display_width;
     express_touchscreen_size[1] = express_pci->display_height;
 
-    *express_display_pixel_width = express_pci->display_width;
-    *express_display_pixel_height = express_pci->display_height;
+    express_display_pixel_width = express_pci->display_width;
+    express_display_pixel_height = express_pci->display_height;
     express_display_refresh_rate = express_pci->refresh_rate;
-
-    *express_display_phy_width = express_pci->phy_width;
-    *express_display_phy_height = express_pci->phy_height;
 
     express_device_log_setting_info.express_gpu_debug_level = express_pci->gpu_debug_level;
     express_device_log_setting_info.express_gpu_log_to_host = (int)express_pci->gpu_log_to_host;

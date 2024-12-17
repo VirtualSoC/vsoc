@@ -291,10 +291,8 @@ extern bool express_keyboard_finger_replay;
 extern char *kernel_load_express_driver_names;
 extern int kernel_load_express_driver_num;
 
-extern int *express_display_pixel_width;
-extern int *express_display_pixel_height;
-extern int *express_display_phy_width;
-extern int *express_display_phy_height;
+extern int express_display_pixel_width;
+extern int express_display_pixel_height;
 extern int express_display_refresh_rate;
 
 extern bool express_display_switch_open;

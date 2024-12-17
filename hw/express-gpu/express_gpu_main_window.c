@@ -5,10 +5,10 @@
  * @brief 'main_window' is an offscreen glfw window from which ALL graphics contexts are derived.
  * Resources are shared among the main context and the child graphics contexts. 
 
- * @copyright Copyright (c) 2020-2024 the Authors
+ * @copyright Copyright (c) 2020-2024 the authors
  *
  */
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
@@ -179,8 +179,6 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
     LOGI("notify shutdown! %lld", g_get_real_time());
 
     ATOMIC_UNLOCK(main_window_event_queue_lock);
-    // todo: add mechanism to notify virtual displays
-    // main_display_gbuffer = NULL;
     teleport_express_should_stop = true;
     device_interface_run = 0;
 
@@ -520,7 +518,7 @@ static void *sub_window_create(int context_flags)
         sprintf(name, "child-window%d", cnt);
 
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        // glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+        glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 #ifdef __APPLE__
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
@@ -611,12 +609,6 @@ void *main_window_thread(void *opaque)
 
     glfwSwapInterval(0);
 
-    if (express_device_input_window_enable)
-    {
-        device_interface_run = 1;
-        qemu_thread_create(&qemu_device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
-    }
-
 #ifdef __APPLE__
     void *dpy_dc = NULL;
     void *gl_context = (void *)glfwGetNSGLContext(main_window);
@@ -648,6 +640,12 @@ void *main_window_thread(void *opaque)
     gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
 
     static_value_prepare();
+
+    if (express_device_input_window_enable)
+    {
+        device_interface_run = 1;
+        qemu_thread_create(&qemu_device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
+    }
 
     LOGI("main window successfully initialized");
 
@@ -698,6 +696,7 @@ void start_main_window_thread(void) {
     if (qatomic_cmpxchg(&main_window_run, 0, 1) == 0)
     {
         express_printf("create main window\n");
+        // main_window线程只能创建一次，且其他线程必须等待该线程运行成功
         qemu_thread_create(&qemu_main_window_thread, "main_window_thread", main_window_thread, NULL, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }

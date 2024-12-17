@@ -848,12 +848,6 @@ void *interface_window_thread(void *data)
 
     THREAD_CONTROL_END
 
-    // GLFW already be initialized in our qemu main thread
-    // if (!glfwInit())
-    // {
-    //     fprintf(stderr, "Device_interface::Glfw init failed!!\n");
-    // }
-
     // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)
     // GL ES 2.0 + GLSL 100
@@ -894,8 +888,6 @@ void *interface_window_thread(void *data)
     THREAD_CONTROL_END
 
     glfwMakeContextCurrent(window);
-    // 这个没用
-    //  glfwSwapInterval(1); // Enable vsync
 
     // setup imgui
     igCreateContext(NULL);
@@ -958,9 +950,6 @@ void *interface_window_thread(void *data)
         remain_sleep_time = 1000000 / 60 - (now_time - frame_start_time);
         frame_start_time = now_time;
 
-        // printf("need sleep %lld remain_sleep_time %lld\n",need_sleep_time,remain_sleep_time);
-
-        // glfwSwapBuffers(window);
         if (!show_imgui || *(all_interface_data.run) == 0)
         {
             *(all_interface_data.run) = 0;
@@ -984,7 +973,6 @@ void *interface_window_thread(void *data)
     THREAD_CONTROL_END
 
     // glfw will only terminate once, it would be terminate in our main window thread
-    // glfwTerminate();
     LOGI("Device_interface::Destroy window");
 
     return NULL;
