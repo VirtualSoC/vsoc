@@ -298,7 +298,7 @@ static void handle_child_window_event(void)
         int64_t end_time = g_get_real_time();
         if (end_time - start_time > 20000 && child_event != NULL)
         {
-            LOGW("warning! slow child_event %d time spend %lld now_time %lld queue_size %d", child_event->event_code, (end_time - start_time) / 1000, end_time / 1000, g_async_queue_length(main_window_event_queue));
+            LOGW("slow child event %d, spent %lldms queue_size %d", child_event->event_code, (end_time - start_time) / 1000, g_async_queue_length(main_window_event_queue));
         }
 
         ATOMIC_LOCK(main_window_event_queue_lock);

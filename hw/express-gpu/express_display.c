@@ -44,10 +44,10 @@ int sdl2_no_need = 0;
 
 extern int main_window_run;
 
+static void display_show_window(Display_Context *disp, TransformType transform_type);
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers);
 static void display_present(Display_Context *disp);
 void display_status_change(Display_Context *disp, Display_Status status);
-
 static void *virtual_display_thread(void *opaque);
 
 static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
@@ -73,7 +73,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         char *_ptr;
         _ptr = call_para_to_ptr(all_para[0], &need_free);
 
-        uint64_t display_count = 1;
+        uint64_t display_count = 2;
         write_to_guest_mem(all_para[0].data, &display_count, 0, sizeof(uint64_t));
     }
     break;
@@ -113,27 +113,13 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Show_Window:
     {
-        LOGI("disp %s: show_native_window", disp->info.name);
-        disp->show_native_window = 1;
-
-        char name[32];
-        sprintf(name, "display_%s", disp->info.name);
-        qemu_thread_create(&disp->qemu_thread, name,
-                    virtual_display_thread, (void *)disp,
-                    QEMU_THREAD_DETACHED);
-    }
-    break;
+        LOGI("disp %s: Show_Window", disp->info.name);
+        display_show_window(disp, ROTATE_NONE);
+    } break;
     case FUNID_Show_Window_FLIP_V:
     {
-        LOGI("disp %s: show_native_window_filp_v", disp->info.name);
-        disp->show_native_window = 2;
-
-        char name[32];
-        sprintf(name, "display_%s", disp->info.name);
-        qemu_thread_create(&disp->qemu_thread, name,
-                    virtual_display_thread, (void *)disp,
-                    QEMU_THREAD_DETACHED);
-
+        LOGI("disp %s: Show_Window_FLIP_V", disp->info.name);
+        display_show_window(disp, FLIP_V);
     }
     break;
     case FUNID_Set_Sync_Flag:
@@ -352,7 +338,6 @@ static void display_context_init(Thread_Context *context)
         glBindVertexArray(disp->drawVAO);
 
         disp->transform_uniform = glGetUniformLocation(disp->programID, "transform_loc");
-        disp->transform_type = 0;
 
         glEnable(GL_SCISSOR_TEST);
 
@@ -390,6 +375,22 @@ static void display_context_destroy(Thread_Context *context)
     }
 }
 
+static void display_show_window(Display_Context *disp, TransformType transform_type) {
+    disp->transform_type = transform_type;
+
+    if (!disp->qemu_thread_running) {
+        disp->qemu_thread_running = true;
+
+        char name[32];
+        sprintf(name, "display_%s", disp->info.name);
+        qemu_thread_create(&disp->qemu_thread, name,
+                    virtual_display_thread, (void *)disp,
+                    QEMU_THREAD_DETACHED);
+    } else {
+        LOGW("display %s is already running, ignoring", disp->info.name);
+    }
+}
+
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers)
 {
     if (layers != NULL)
@@ -424,7 +425,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                 int view_h = gbuffer->height * layer.height / layer.crop_height;
                 int view_x = layer.x - layer.crop_x * layer.width / layer.crop_width;
                 int view_y = 0;
-                if (disp->show_native_window == 2)
+                if (disp->transform_type == FLIP_V)
                 {
                     // 安卓9的显示
                     view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
@@ -436,7 +437,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                         view_y = layer.y - (gbuffer->height - layer.crop_height - layer.crop_y) * layer.height / layer.crop_height;
                     }
                 }
-                else if (disp->show_native_window == 1)
+                else if (disp->transform_type == ROTATE_NONE)
                 {
                     // 先进行缩放，计算原始gbuffer的左上角应该在哪（以窗口上面为y轴零点）
                     view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
@@ -452,11 +453,11 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                 // 而合成器的crop裁剪，是直接区域裁掉，所占的区域就没了
                 // 简单的说，从效果上来看，合成器的裁剪是把原来的图片给剪了一下，变小了后再缩放贴到屏幕缓冲区的相应位置
                 // 而glScissor，是原来的图片整个都贴到缓冲区的相应位置，但是屏幕缓冲区所指定的区域之外的地方用东西给盖住（其实是不绘制，而不是盖住）
-                if (disp->show_native_window == 2)
+                if (disp->transform_type == FLIP_V)
                 {
                     glScissor(layer.x, layer.y, layer.width, layer.height);
                 }
-                else if (disp->show_native_window == 1)
+                else if (disp->transform_type == ROTATE_NONE)
                 {
                     glScissor(layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
                 }
@@ -752,8 +753,6 @@ static void *virtual_display_thread(void *opaque) {
     disp->transform_uniform = glGetUniformLocation(disp->programID, "transform_loc");
     glUniform1i(disp->transform_uniform, disp->transform_type);
 
-    LOGD("virtual display %s create", name);
-
     // 因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
@@ -773,6 +772,18 @@ static void *virtual_display_thread(void *opaque) {
     #endif
     }
 
+    if (disp->transform_type == FLIP_V)
+    {
+        // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与安卓系统内逻辑一致，
+        // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
+        // 鸿蒙就不翻转了，因为就没有翻转的功能
+        glUniform1i(disp->transform_uniform, disp->transform_type);
+    }
+    glfwShowWindow(glfw_window);
+    sdl2_no_need = 1;
+
+    LOGD("virtual display %s create", name);
+
     int calc_screen_hz = 0;
     int now_screen_hz = 0;
     gint64 last_calc_time = 0;
@@ -790,39 +801,15 @@ static void *virtual_display_thread(void *opaque) {
 
         do
         {
-            // todo: verify if events are already processed in the main window thread
             // no need to poll in subwindows
             // glfwWaitEventsTimeout(0.001);
 
             sync_express_touchscreen_input((bool)disp->is_open || !express_display_switch_open);
             sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);
 
-            if (disp->show_native_window != 0 && disp->window_is_shown == false)
-            {
-                if (disp->show_native_window == 2)
-                {
-                    // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与安卓系统内逻辑一致，
-                    // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
-                    // 鸿蒙就不翻转了，因为就没有翻转的功能
-                    disp->transform_type = FLIP_V;
-                    glUniform1i(disp->transform_uniform, disp->transform_type);
-                }
-                glfwShowWindow(glfw_window);
-                glfwSwapBuffers(glfw_window);
-                disp->window_is_shown = true;
-                sdl2_no_need = 1;
-            }
-
             // 在窗口上绘制内容
             if (disp->display_gbuffer != NULL && disp->window_need_refresh)
             {
-                if (!disp->window_is_shown)
-                {
-                    disp->window_is_shown = true;
-                    glfwShowWindow(glfw_window);
-                    sdl2_no_need = 1;
-                }
-
                 disp->window_need_refresh = false;
 
                 opengl_paint_composer_gbuffer(disp);
@@ -878,7 +865,9 @@ static void *virtual_display_thread(void *opaque) {
 
     THREAD_CONTROL_END
 
-    LOGD("virtual display close!");
+    LOGD("display %s close!", disp->info.name);
+
+    disp->qemu_thread_running = false;
 
     return NULL;
 }

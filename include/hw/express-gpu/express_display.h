@@ -32,9 +32,11 @@ typedef struct
     Display_Status status;
 
     QemuThread qemu_thread;
+    bool qemu_thread_running;
 
     // offscreen graphics context
     void *window;
+
     // QEMU的主窗口的长宽
     int window_width;
     int window_height;
@@ -56,8 +58,6 @@ typedef struct
     Hardware_Buffer *display_gbuffer;
 
     int is_open;
-    int show_native_window;
-    int window_is_shown;
     int window_need_refresh;
 
 } Display_Context;
