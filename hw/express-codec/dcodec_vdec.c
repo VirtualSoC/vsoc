@@ -602,7 +602,7 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
     }
     else if (ret != 0) {
         LOGE("avcodec_send_packet error %d", ret);
-        return ERR_CODING_FAILED;
+        return ERR_DRIVER_FAILED;
     }
 
     return ERR_OK;
@@ -697,7 +697,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     else if (ret < 0) {
         LOGE("avcodec_receive_frame error %d", ret);
         av_frame_free(&mFrame);
-        return ERR_CODING_FAILED;
+        return ERR_DRIVER_FAILED;
     }
 
     uint32_t bufferWidth = max(context->mIsAdaptive ? context->mAdaptiveMaxWidth : 0, context->mWidth);
@@ -712,7 +712,11 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
 
     enum AVPixelFormat avDstFmt = pixel_format_omx_to_av(context->mImageFormat);
     int outputSize = av_image_get_buffer_size(avDstFmt, bufferWidth, bufferHeight, 1);
-    CHECK_GE(desc->nAllocLen, outputSize);
+
+    if (desc->nAllocLen < outputSize) {
+        LOGE("error! output buffer size %d smaller than output size %d, refusing to write", desc->nAllocLen, outputSize);
+        return ERR_INVALID_PARAM;
+    }
     desc->nFilledLen = outputSize;
     if (mFrame->flags & AV_FRAME_FLAG_KEY) {
         desc->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;

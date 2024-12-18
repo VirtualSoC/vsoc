@@ -529,7 +529,7 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
         Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(desc->id);
         if (gbuffer == NULL) {
             LOGE("error! encoder source gbuffer %" PRIx64 " is null!", desc->id);
-            return ERR_CODING_FAILED;
+            return ERR_DRIVER_FAILED;
         }
         update_gbuffer_phy_usage(gbuffer, EXPRESS_MEM_TYPE_TEXTURE, false);
         mFrame = (AVFrame *)g_hash_table_lookup(context->mInputMap, (gpointer)desc->id);
@@ -613,7 +613,7 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
     }
     else if (ret != 0) {
         LOGE("avcodec_send_frame error %d", ret);
-        return ERR_CODING_FAILED;
+        return ERR_DRIVER_FAILED;
     }
 
     return ERR_OK;
@@ -682,7 +682,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     else if (ret < 0) {
         LOGE("avcodec_receive_packet error %d", ret);
         av_packet_unref(mPkt);
-        return ERR_CODING_FAILED;
+        return ERR_DRIVER_FAILED;
     }
 
     if (_has_sent_config == false) {

@@ -71,7 +71,7 @@ enum {
     ERR_CODEC_OPEN_FAILED   = -4,
     ERR_SWR_INIT_FAILED     = -5,
     ERR_RESAMPLE_FAILED     = -6,
-    ERR_CODING_FAILED       = -7,
+    ERR_DRIVER_FAILED       = -7,
     ERR_EXTRADATA_FAILED    = -8,
     ERR_SWS_FAILED          = -9,
     ERR_COLORSPACE_FAILED   = -10,

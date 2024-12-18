@@ -1018,7 +1018,7 @@ static int decode_audio(DCodecAudio *context, BufferDesc *desc) {
     }
     else if (ret != 0) {
         LOGE("avcodec_send_packet error %d", ret);
-        return ERR_CODING_FAILED;
+        return ERR_DRIVER_FAILED;
     }
 
 // #ifdef STD_DEBUG_LOG
