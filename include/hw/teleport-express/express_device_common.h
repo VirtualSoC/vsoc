@@ -294,6 +294,7 @@ extern int kernel_load_express_driver_num;
 extern int express_display_pixel_width;
 extern int express_display_pixel_height;
 extern int express_display_refresh_rate;
+extern uint64_t express_display_count;
 
 extern bool express_display_switch_open;
 

@@ -103,32 +103,12 @@ int save_render_thread_contexts(QEMUFile *f)
 
 
 int load_render_thread_contexts(QEMUFile *f) {
-    
-
     GHashTable *thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     guint num_entries = qemu_get_be32(f);
     uint64_t thread_id;
     Render_Thread_Context *thread_context;
 
     LOGI("in load render thread contexts with num entries %d!", num_entries);
-
-// todo:用于开机启动的场景就不能这样了，感觉得依照初始化的逻辑来“重新初始化”
-    // VirtIODevice *shared_teleport_express_device = NULL;
-    // void (*shared_context_init)(struct Thread_Context *context) = NULL;
-    // void (*shared_context_destroy)(struct Thread_Context *context) = NULL;
-    // void (*shared_call_handle)(struct Thread_Context *context, Teleport_Express_Call *call) = NULL;
-    // if (g_hash_table_size(render_thread_contexts) > 0) {
-    //     gpointer existing_key, existing_value;
-    //     GHashTableIter iter;
-    //     g_hash_table_iter_init(&iter, render_thread_contexts);
-    //     if (g_hash_table_iter_next(&iter, &existing_key, &existing_value)) {
-    //         Render_Thread_Context *existing_context = (Render_Thread_Context *)existing_value;
-    //         shared_teleport_express_device = existing_context->context.teleport_express_device;
-    //         shared_context_init = existing_context->context.context_init;
-    //         shared_context_destroy = existing_context->context.context_destroy;
-    //         shared_call_handle = existing_context->context.call_handle;
-    //     }
-    // }
 
     for (guint i = 0; i < num_entries; i++) {
         thread_id = qemu_get_be64(f);

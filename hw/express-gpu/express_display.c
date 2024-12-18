@@ -36,6 +36,8 @@ int express_display_refresh_rate;
 bool express_display_switch_open = false;
 bool express_gpu_keep_window_scale = false;
 
+uint64_t express_display_count;
+
 static GHashTable *g_display_contexts = NULL;
 
 static int atomic_id_counter;
@@ -64,17 +66,21 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     case FUNID_Terminate:
     {
         // do nothing or hide window
-        LOGI("display uid %" PRIx64 " terminate");
+        LOGI("display uid %" PRIx64 " terminate", disp->unique_id);
     }
     break;
     case FUNID_Get_Display_Count:
     {
-        int need_free = 0;
-        char *_ptr;
-        _ptr = call_para_to_ptr(all_para[0], &need_free);
-
-        uint64_t display_count = 2;
-        write_to_guest_mem(all_para[0].data, &display_count, 0, sizeof(uint64_t));
+        if (express_display_count < 1) {
+            LOGW("at least one display is needed!");
+            express_display_count = 1;
+        }
+        if (all_para[0].data_len >= 8) {
+            write_to_guest_mem(all_para[0].data, &express_display_count, 0, sizeof(uint64_t));
+        }
+        else {
+            LOGE("error! incorrect FUNID_Get_express_display_count arguments");
+        }
     }
     break;
     case FUNID_Commit_Composer_Layer:

@@ -30,6 +30,7 @@ typedef struct Teleport_Express_PCI{
     int display_width;
     int display_height;
     int refresh_rate;
+    uint64_t display_count;
 
     int phy_width;
     int phy_height;
