@@ -17,7 +17,6 @@
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/express_gpu.h"
 #include "hw/express-gpu/express_gpu_main_window.h"
-#include "hw/express-gpu/glv1.h"
 #include "hw/express-gpu/sdl_control.h"
 
 #include "hw/express-input/express_keyboard.h"
@@ -27,14 +26,15 @@
 
 #include "qemu/atomic.h"
 #include "sysemu/runstate.h"
+#include <math.h>
 
 int express_display_pixel_width;
 int express_display_pixel_height;
 int express_gpu_window_width;
 int express_gpu_window_height;
 int express_display_refresh_rate;
-bool express_display_switch_open = false;
-bool express_gpu_keep_window_scale = false;
+bool express_display_switch_open;
+bool express_gpu_keep_window_scale;
 
 uint64_t express_display_count;
 
@@ -46,11 +46,12 @@ int sdl2_no_need = 0;
 
 extern int main_window_run;
 
-static void display_show_window(Display_Context *disp, TransformType transform_type);
+static void display_context_init(Thread_Context *context);
+static void window_size_change_callback(GLFWwindow *window, int width, int height);
+static void close_window_callback(GLFWwindow *window);
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers);
 static void display_present(Display_Context *disp);
 void display_status_change(Display_Context *disp, Display_Status status);
-static void *virtual_display_thread(void *opaque);
 
 static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 {
@@ -120,12 +121,15 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     case FUNID_Show_Window:
     {
         LOGI("disp %s: Show_Window", disp->info.name);
-        display_show_window(disp, ROTATE_NONE);
-    } break;
+        disp->transform_type = ROTATE_NONE;
+        glUniform1i(disp->transform_uniform, disp->transform_type);
+    }
+    break;
     case FUNID_Show_Window_FLIP_V:
     {
         LOGI("disp %s: Show_Window_FLIP_V", disp->info.name);
-        display_show_window(disp, FLIP_V);
+        disp->transform_type = FLIP_V;
+        glUniform1i(disp->transform_uniform, disp->transform_type);
     }
     break;
     case FUNID_Set_Sync_Flag:
@@ -214,6 +218,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             break;
         }
 
+        display_context_init((Thread_Context *)disp);
         write_to_guest_mem(all_para[0].data, &disp->info, 0, sizeof(Display_Info));
         // LOGI("FUNID_Get_Display_Mods");
     }
@@ -322,46 +327,85 @@ static void display_context_init(Thread_Context *context)
     // 新建一个context用于与纹理交互
     if (disp->window == NULL)
     {
-        disp->window = get_native_opengl_context(0);
+        char name[32];
 
-        egl_makeCurrent(disp->window);
+        // 创建一个窗口，这个window也是context
+        disp->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+        glfwSetWindowUserPointer(disp->window, disp);
 
-        disp->write_gbuffer = create_gbuffer(disp->info.pixel_width, disp->info.pixel_height,
-                                               0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
-        disp->read_gbuffer = create_gbuffer(disp->info.pixel_width, disp->info.pixel_height,
-                                              0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
+        if (!disp->window)
+        {
+            LOGE("error: cannot allocate native window for virtual display %x", glfwGetError(NULL));
+            return;
+        }
 
-        glGenFramebuffers(1, &disp->write_gbuffer->data_fbo);
-        glGenFramebuffers(1, &disp->read_gbuffer->data_fbo);
+        // window title
+        sprintf(name, "vSoC:%s", disp->info.name);
+        glfwSetWindowTitle(disp->window, name);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, disp->read_gbuffer->data_fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, disp->read_gbuffer->data_texture, 0);
+        // 键盘事件
+        glfwSetInputMode(disp->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        glfwSetKeyCallback(disp->window, express_keyboard_handle_callback);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, disp->write_gbuffer->data_fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, disp->write_gbuffer->data_texture, 0);
+        // 鼠标事件
+        glfwSetCursorPosCallback(disp->window, express_touchscreen_mouse_move_handle);
+        glfwSetMouseButtonCallback(disp->window, express_touchscreen_mouse_click_handle);
+        glfwSetScrollCallback(disp->window, express_touchscreen_mouse_scroll_handle);
+
+        // 开启触摸屏支持
+        glfwSetInputMode(disp->window, GLFW_TOUCH, GLFW_TRUE);
+        glfwSetTouchCallback(disp->window, express_touchscreen_touch_handle);
+
+        // 捕获鼠标进出事件，在鼠标移动出窗口时，需要停用输入，即需要传递触摸屏release消息
+        glfwSetCursorEnterCallback(disp->window, express_touchscreen_entered_handle);
+
+        // 设置窗口大小可以自由调整
+        float xscale = 1, yscale = 1;
+#ifdef __APPLE__
+        // macos retina screen handling
+        glfwGetWindowContentScale(disp->window, &xscale, &yscale);
+#endif
+        glfwSetWindowSize(disp->window, disp->window_width / xscale, disp->window_height / yscale);
+        set_touchscreen_window_size(disp->window_width / xscale, disp->window_height / yscale);
+        glfwSetFramebufferSizeCallback(disp->window, window_size_change_callback);
+        glfwSetWindowCloseCallback(disp->window, close_window_callback);
+
+        THREAD_CONTROL_END
+
+        glfwMakeContextCurrent(disp->window);
+
+        glfwSwapInterval(0);
+
+        if (express_gpu_gl_debug_enable)
+        {
+        #ifdef _WIN32
+            glEnable(GL_DEBUG_OUTPUT);
+            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            glDebugMessageCallback(d_debug_message_callback, NULL);
+            glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+        #endif
+        }
 
         display_opengl_prepare(&disp->programID, &disp->drawVAO);
         glBindVertexArray(disp->drawVAO);
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
         disp->transform_uniform = glGetUniformLocation(disp->programID, "transform_loc");
 
-        glEnable(GL_SCISSOR_TEST);
-
+        // 因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_STENCIL_TEST);
 
         // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
         glDisable(GL_BLEND);
+        // glEnable(GL_BLEND);
+        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        if (express_gpu_gl_debug_enable)
-        {
-            #ifdef _WIN32
-            glEnable(GL_DEBUG_OUTPUT);
-            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-            glDebugMessageCallback(gl_debug_output, NULL);
-            glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-            #endif
-        }
+        glfwShowWindow(disp->window);
+        sdl2_no_need = 1;
+
+        LOGI("display %s create", name);
     }
 }
 
@@ -369,31 +413,9 @@ static void display_context_destroy(Thread_Context *context)
 {
     Display_Context *disp = (Display_Context *)context;
     if (disp->window != NULL) {
-        egl_makeCurrent(NULL);
-        egl_destroyContext(disp->window);
+        glfwMakeContextCurrent(NULL);
+        glfwDestroyWindow(disp->window);
         disp->window = NULL;
-    }
-    if (disp->write_gbuffer != NULL) {
-        destroy_gbuffer(disp->write_gbuffer);
-    }
-    if (disp->read_gbuffer != NULL) {
-        destroy_gbuffer(disp->read_gbuffer);
-    }
-}
-
-static void display_show_window(Display_Context *disp, TransformType transform_type) {
-    disp->transform_type = transform_type;
-
-    if (!disp->qemu_thread_running) {
-        disp->qemu_thread_running = true;
-
-        char name[32];
-        sprintf(name, "display_%s", disp->info.name);
-        qemu_thread_create(&disp->qemu_thread, name,
-                    virtual_display_thread, (void *)disp,
-                    QEMU_THREAD_DETACHED);
-    } else {
-        LOGW("display %s is already running, ignoring", disp->info.name);
     }
 }
 
@@ -412,7 +434,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
         {
             GBuffer_Layer layer = layers->layer[i];
 
-            express_printf("composer wait for sync %d\n", layer.write_sync_id);
+            express_printf("composer wait for write sync %d\n", layer.write_sync_id);
 
             LOGD("going to wait for sync in display layer %d", layer.write_sync_id);
 
@@ -451,8 +473,18 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                     view_y = disp->info.pixel_height - view_y - view_h;
                 }
 
+                LOGD("view %d %d %d %d layer %d %d %d %d crop %d %d %d %d", view_x, view_y, view_w, view_h, layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
+
+                float xscale = (float)disp->content_w / disp->info.pixel_width;
+                float yscale = (float)disp->content_h / disp->info.pixel_height;
+                view_x = round(view_x * xscale);
+                view_y = round(view_y * yscale);
+                view_w = round(view_w * xscale);
+                view_h = round(view_h * yscale);
+
+                LOGD("content xywh %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, disp->transform_type, layer.transform_type);
                 LOGD("glviewport %d %d %d %d glScissor %d %d %d %d", view_x, view_y, view_w, view_h, layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
-                LOGD("layer %d %d %d %d crop %d %d %d %d", layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
+
                 glViewport(view_x, view_y, view_w, view_h);
 
                 // glScissor是当前视口的裁剪情况，整个裁剪是说这个区域外就不绘制了，但是空间还是占着
@@ -470,35 +502,12 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
                 adjust_blend_type(layer.blend_type);
 
-                // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与系统内逻辑一致，
-                // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
-                if (disp->transform_type != layer.transform_type)
-                {
-                    disp->transform_type = layer.transform_type;
-                    if (disp->transform_type != FLIP_V && disp->transform_type != ROTATE_NONE)
-                    {
-                        LOGE("error! not support transform_type %d", disp->transform_type);
-                    }
-                    glUniform1i(disp->transform_uniform, disp->transform_type);
-                }
-
                 opengl_paint_gbuffer(gbuffer);
 
-                express_printf("composer set sync %d\n", layer.read_sync_id);
+                express_printf("composer set read sync %d\n", layer.read_sync_id);
 
                 signal_express_sync(layer.read_sync_id, true);
             }
-        }
-
-        GLsync temp_sync = disp->write_gbuffer->delete_sync;
-
-        disp->write_gbuffer->delete_sync = disp->write_gbuffer->data_sync;
-        disp->write_gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        disp->write_gbuffer->is_writing = 0;
-
-        if (temp_sync != 0)
-        {
-            glDeleteSync(temp_sync);
         }
 
         glFlush();
@@ -507,34 +516,24 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
 static void display_present(Display_Context *disp)
 {
-    Hardware_Buffer *temp_gbuffer = disp->read_gbuffer;
-    disp->read_gbuffer = disp->write_gbuffer;
-    disp->write_gbuffer = temp_gbuffer;
+    glfwSwapBuffers(disp->window);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, disp->write_gbuffer->data_fbo);
+    sync_express_touchscreen_input((bool)disp->is_open || !express_display_switch_open);
+    sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);
 
-    // 保证主线程使用完成上一个gbuffer
-    ATOMIC_LOCK(disp->write_gbuffer->is_lock);
-
-    disp->display_gbuffer = disp->read_gbuffer;
-
-    // 这里直接unlock，不需要一直锁住，是因为只有这个画完了之后，才会赋值到display_gbuffer，所以不会被主线程访问到，也就不需要锁住
-    // 无论主线程之后会不会继续读取，这里都要直接进行后续的绘制
-    ATOMIC_UNLOCK(disp->write_gbuffer->is_lock);
-
-    disp->window_need_refresh = true;
-
-    static int now_screen_hz = 0;
-    static uint64_t last_record_time = 0;
     uint64_t now_time = g_get_real_time();
-    now_screen_hz++;
+    char name[32];
+    disp->fps_counter++;
 
-    if (now_time - last_record_time > 1000000)
+    if (now_time - disp->last_fps_timestamp > 1000000)
     {
-        float gen_frame_time_avg = 1.0f * (now_time - last_record_time) / now_screen_hz;
-        LOGD("composer draw avg %.2f us %.2f FPS", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_record_time));
-        last_record_time = now_time;
-        now_screen_hz = 0;
+        float gen_frame_time_avg = 1.0f * (now_time - disp->last_fps_timestamp) / disp->fps_counter;
+        LOGD("composer draw avg %.2f us %.2f FPS", gen_frame_time_avg, disp->fps_counter * 1000000.0f / (now_time - disp->last_fps_timestamp));
+        sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, disp->fps_counter * 1000000.0f / (now_time - disp->last_fps_timestamp));
+        glfwSetWindowTitle(disp->window, name);
+
+        disp->last_fps_timestamp = now_time;
+        disp->fps_counter = 0;
     }
 }
 
@@ -555,36 +554,6 @@ void display_status_change(Display_Context *disp, Display_Status status)
             disp->is_open = 1;
         }
     }
-}
-
-static void opengl_paint_composer_gbuffer(Display_Context *disp)
-{
-    Hardware_Buffer *gbuffer = disp->display_gbuffer;
-
-    if (gbuffer == NULL)
-    {
-        return;
-    }
-
-    ATOMIC_LOCK(gbuffer->is_lock);
-
-    if (disp->info.pixel_width != gbuffer->width || disp->info.pixel_height == gbuffer->height)
-    {
-        disp->info.pixel_width = gbuffer->width;
-        disp->info.pixel_height = gbuffer->height;
-    }
-
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glViewport(disp->content_x, disp->content_y, disp->content_w, disp->content_h);
-
-    glWaitSync(gbuffer->data_sync, 0, GL_TIMEOUT_IGNORED);
-
-    opengl_paint_gbuffer(gbuffer);
-
-    ATOMIC_UNLOCK(gbuffer->is_lock);
-
-    glFlush();
 }
 
 /**
@@ -671,8 +640,6 @@ static void window_size_change_callback(GLFWwindow *window, int width, int heigh
         set_touchscreen_window_size(disp->window_width / xscale, disp->window_height / yscale);
     }
 
-    disp->window_need_refresh = true;
-
     return;
 }
 
@@ -694,200 +661,15 @@ static void close_window_callback(GLFWwindow *window)
     last_click_time = now_time;
 }
 
-/**
- * Virtual display thread entry point
- * One thread for each virtual display
- */
-static void *virtual_display_thread(void *opaque) {
-    Display_Context *disp = (Display_Context *)opaque;
-    GLuint programID = 0;
-    GLuint drawVAO = 0;
-    char name[32];
-
-    // 创建一个窗口，这个window也是context
-    GLFWwindow* glfw_window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
-    glfwSetWindowUserPointer(glfw_window, disp);
-
-    if (!glfw_window)
-    {
-        LOGE("error: cannot allocate native window for virtual display %x", glfwGetError(NULL));
-        return NULL;
-    }
-
-    // window title
-    sprintf(name, "vSoC:%s", disp->info.name);
-    glfwSetWindowTitle(glfw_window, name);
-
-    // 键盘事件
-    glfwSetInputMode(glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    glfwSetKeyCallback(glfw_window, express_keyboard_handle_callback);
-
-    // 鼠标事件
-    glfwSetCursorPosCallback(glfw_window, express_touchscreen_mouse_move_handle);
-    glfwSetMouseButtonCallback(glfw_window, express_touchscreen_mouse_click_handle);
-    glfwSetScrollCallback(glfw_window, express_touchscreen_mouse_scroll_handle);
-
-    // 开启触摸屏支持
-    glfwSetInputMode(glfw_window, GLFW_TOUCH, GLFW_TRUE);
-    glfwSetTouchCallback(glfw_window, express_touchscreen_touch_handle);
-
-    // 捕获鼠标进出事件，在鼠标移动出窗口时，需要停用输入，即需要传递触摸屏release消息
-    glfwSetCursorEnterCallback(glfw_window, express_touchscreen_entered_handle);
-
-    // 设置窗口大小可以自由调整
-    float xscale = 1, yscale = 1;
-#ifdef __APPLE__
-    // macos retina screen handling
-    glfwGetWindowContentScale(glfw_window, &xscale, &yscale);
-#endif
-    glfwSetWindowSize(glfw_window, disp->window_width / xscale, disp->window_height / yscale);
-    set_touchscreen_window_size(disp->window_width / xscale, disp->window_height / yscale);
-    glfwSetFramebufferSizeCallback(glfw_window, window_size_change_callback);
-    glfwSetWindowCloseCallback(glfw_window, close_window_callback);
-
-    THREAD_CONTROL_END
-
-    glfwMakeContextCurrent(glfw_window);
-
-    glfwSwapInterval(0);
-
-    prepare_draw_texi();
-
-    display_opengl_prepare(&programID, &drawVAO);
-    glBindVertexArray(drawVAO);
-
-    disp->transform_uniform = glGetUniformLocation(disp->programID, "transform_loc");
-    glUniform1i(disp->transform_uniform, disp->transform_type);
-
-    // 因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_STENCIL_TEST);
-
-    // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
-    glDisable(GL_BLEND);
-    // glEnable(GL_BLEND);
-    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    if (express_gpu_gl_debug_enable)
-    {
-    #ifdef _WIN32
-        glEnable(GL_DEBUG_OUTPUT);
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallback(d_debug_message_callback, NULL);
-        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-    #endif
-    }
-
-    if (disp->transform_type == FLIP_V)
-    {
-        // 合成器以翻转的形式合成，然后显示的时候再翻转一次，一是为了与安卓系统内逻辑一致，
-        // 否则浏览器自己合成视频播放图像时，会显示的倒着，二是为了更高效的复制GraphicBuffer的数据（不用倒着复制了）
-        // 鸿蒙就不翻转了，因为就没有翻转的功能
-        glUniform1i(disp->transform_uniform, disp->transform_type);
-    }
-    glfwShowWindow(glfw_window);
-    sdl2_no_need = 1;
-
-    LOGD("virtual display %s create", name);
-
-    int calc_screen_hz = 0;
-    int now_screen_hz = 0;
-    gint64 last_calc_time = 0;
-    gint64 frame_start_time = g_get_real_time();
-    gint64 remain_sleep_time = 0;
-    gint64 frame_draw_time = 0;
-    bool has_refresh = false;
-
-    last_calc_time = frame_start_time;
-
-    while (!glfwWindowShouldClose(glfw_window) && main_window_run == 2)
-    {
-        gint64 need_sleep_time = 0;
-        gint64 now_time = 0;
-
-        do
-        {
-            // no need to poll in subwindows
-            // glfwWaitEventsTimeout(0.001);
-
-            sync_express_touchscreen_input((bool)disp->is_open || !express_display_switch_open);
-            sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);
-
-            // 在窗口上绘制内容
-            if (disp->display_gbuffer != NULL && disp->window_need_refresh)
-            {
-                disp->window_need_refresh = false;
-
-                opengl_paint_composer_gbuffer(disp);
-
-                calc_screen_hz += 1;
-                has_refresh = true;
-
-                glfwSwapBuffers(glfw_window);
-            }
-
-            now_time = g_get_real_time();
-
-            need_sleep_time = 1000000 / express_display_refresh_rate - (now_time - frame_start_time) + remain_sleep_time;
-
-        } while (need_sleep_time > 2000);
-
-        if (has_refresh)
-        {
-            frame_draw_time += now_time - frame_start_time;
-            has_refresh = false;
-        }
-
-        frame_start_time = now_time;
-        remain_sleep_time = need_sleep_time;
-
-        // 丢帧丢了100ms了，就不管少休眠的时间了
-        if (need_sleep_time < -100000)
-        {
-            need_sleep_time = 0;
-        }
-
-        if (now_time - last_calc_time > 1000000)
-        {
-            now_screen_hz = calc_screen_hz;
-            calc_screen_hz = 0;
-            float gen_frame_time_avg = 1.0f * frame_draw_time / now_screen_hz;
-
-            LOGD("screen draw avg %.2f us %.2f FPS", gen_frame_time_avg, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
-
-            sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, now_screen_hz * 1000000.0f / (now_time - last_calc_time));
-            glfwSetWindowTitle(glfw_window, name);
-
-            frame_draw_time = 0;
-            last_calc_time = now_time;
-        }
-    }
-
-    glfwMakeContextCurrent(NULL);
-
-    THREAD_CONTROL_BEGIN
-
-    glfwDestroyWindow(glfw_window);
-
-    THREAD_CONTROL_END
-
-    LOGD("display %s close!", disp->info.name);
-
-    disp->qemu_thread_running = false;
-
-    return NULL;
-}
-
-static Express_Device_Info express_gpu_info = {
+static Express_Device_Info express_display_info = {
     .enable_default = true,
     .name = "express-display",
     .option_name = "display",
     .device_id = EXPRESS_DISPLAY_DEVICE_ID,
     .device_type = OUTPUT_DEVICE_TYPE,
     .call_handle = display_decode_invoke,
-    .context_init = display_context_init,
     .context_destroy = display_context_destroy,
     .get_context = get_display_context,
 };
 
-EXPRESS_DEVICE_INIT(express_display, &express_gpu_info)
+EXPRESS_DEVICE_INIT(express_display, &express_display_info)

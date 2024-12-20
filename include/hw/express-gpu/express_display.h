@@ -30,12 +30,10 @@ typedef struct
     // const display attributes
     Display_Info info;
     Display_Status status;
-
-    QemuThread qemu_thread;
-    bool qemu_thread_running;
+    int is_open;
 
     // offscreen graphics context
-    void *window;
+    GLFWwindow *window;
 
     // QEMU的主窗口的长宽
     int window_width;
@@ -53,13 +51,8 @@ typedef struct
     int transform_uniform;
     int transform_type;
 
-    Hardware_Buffer *write_gbuffer;
-    Hardware_Buffer *read_gbuffer;
-    Hardware_Buffer *display_gbuffer;
-
-    int is_open;
-    int window_need_refresh;
-
+    int fps_counter;
+    uint64_t last_fps_timestamp;
 } Display_Context;
 
 #define FUNID_Terminate (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 0))

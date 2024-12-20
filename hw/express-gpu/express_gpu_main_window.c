@@ -22,6 +22,7 @@
 #include "hw/express-gpu/egl_context.h"
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/gl_helper.h"
+#include "hw/express-gpu/glv1.h"
 
 #include "hw/express-mem/express_sync.h"
 
@@ -298,7 +299,7 @@ static void handle_child_window_event(void)
         int64_t end_time = g_get_real_time();
         if (end_time - start_time > 20000 && child_event != NULL)
         {
-            LOGW("slow child event %d, spent %lldms queue_size %d", child_event->event_code, (end_time - start_time) / 1000, g_async_queue_length(main_window_event_queue));
+            LOGW("slow child event %d, spent %lld ms queue_size %d", child_event->event_code, (end_time - start_time) / 1000, g_async_queue_length(main_window_event_queue));
         }
 
         ATOMIC_LOCK(main_window_event_queue_lock);
@@ -640,6 +641,8 @@ void *main_window_thread(void *opaque)
     gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
 
     static_value_prepare();
+
+    prepare_draw_texi();
 
     if (express_device_input_window_enable)
     {
