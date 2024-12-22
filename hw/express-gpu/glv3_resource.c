@@ -456,16 +456,6 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
 
     create_host_map_ids(map_status, n, textures, host_buffers_long);
 
-    // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
-    // for(int i = 0; i < n; i++) {
-    //     struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(struct Express_Native_Texture_Simple);
-    //     texture_resource->target = 
-    //     g_resource_list[RESOURCE_TYPE_TEXTURE] = g_list_append(g_resource_list[RESOURCE_TYPE_TEXTURE], host_buffers_long[i]);
-    //     g_resource_count[RESOURCE_TYPE_SHADER]++;        
-    // }
-
-    // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
-
     g_free(host_buffers);
     g_free(host_buffers_long);
 }
@@ -559,6 +549,7 @@ void d_glCreateShader(void *context, GLenum type, GLuint shader)
     unsigned long long host_shader_long = (unsigned long long)host_shader;
 
     create_host_map_ids(map_status, 1, &shader, &host_shader_long);
+
     //ztodo:这个地方可以free吗(好像是不行的)
     Express_Native_Shader* newShader = g_malloc0(sizeof(Express_Native_Shader));
     newShader->id = host_shader;
@@ -566,8 +557,13 @@ void d_glCreateShader(void *context, GLenum type, GLuint shader)
     newShader->deleteStatus = GL_FALSE;
 
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
-    g_resource_list[RESOURCE_TYPE_SHADER] = g_list_append(g_resource_list[RESOURCE_TYPE_SHADER], newShader);
-    g_resource_count[RESOURCE_TYPE_SHADER]++;
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SHADER];
+    // if(resource_list == NULL) {
+    //     resource_list = g_hash_table_new(g_direct_hash, g_direct_equal);  //ztodo:真要在这里初始化吗？？
+    // }
+    g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_shader), newShader);
+    // g_resource_list[RESOURCE_TYPE_SHADER] = g_list_append(g_resource_list[RESOURCE_TYPE_SHADER], newShader);
+    // g_resource_count[RESOURCE_TYPE_SHADER]++;
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
 
 
@@ -899,7 +895,12 @@ void d_glDeleteShader(void *context, GLuint shader)
     glDeleteShader(host_shader);
 
     remove_host_map_ids(map_status, 1, &shader);
+
     //ztodo:把这个id的shader从我的全局shader资源列表里删除
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SHADER];
+    g_hash_table_remove(resource_list, GUINT_TO_POINTER(host_shader));
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
 }
 
 void d_glDeleteSync(void *context, GLsync sync)

@@ -46,6 +46,11 @@ static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
 
+Process_Context* get_process_context_form_id(uint64_t process_id) {
+    // LOGI("in get_process_context_form_id with map size %d", g_hash_table_size(render_process_contexts));
+    return g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
+}
+
 int save_render_process_contexts(QEMUFile *f)
 {
     GHashTableIter iter;
@@ -61,22 +66,27 @@ int save_render_process_contexts(QEMUFile *f)
         LOGI("process id is %d", key);
         save_process_context(f, process_context);   
     }
+    LOGI("in save_render_process_contexts with size %d", g_hash_table_size(render_process_contexts));
     return 0;
 }
 
 int load_render_process_contexts(QEMUFile *f) {
-    GHashTable *process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+    g_hash_table_remove_all(render_process_contexts);
+    // GHashTable *process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     guint num_process = qemu_get_be32(f);
     uint64_t process_id;
-    Process_Context *process_context = g_malloc0(sizeof(Process_Context));
+    
     LOGI("num process in load is %d", num_process);
     for (guint i = 0; i < num_process; i++) {
         process_id = qemu_get_be64(f);
-        LOGI("process id in load is %d", process_id);
+        Process_Context *process_context = g_malloc0(sizeof(Process_Context));
         load_process_context(f, process_context);
-        g_hash_table_insert(process_contexts, GUINT_TO_POINTER(process_id), process_context);
+        LOGI("process id in load is %d %d %d", process_id, g_hash_table_size(process_context->surface_map), process_context->thread_cnt);
+        g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), process_context);
+
     }
-    render_process_contexts = process_contexts;
+    LOGI("in load_render_process_contexts with size %d", g_hash_table_size(render_process_contexts));
+    // render_process_contexts = process_contexts;
     return 0;
 }
 
@@ -114,16 +124,14 @@ int save_render_thread_contexts(QEMUFile *f)
 }
 
 int load_render_thread_contexts(QEMUFile *f) {
-    
-
     // GHashTable *thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     guint num_entries = qemu_get_be32(f);
     uint64_t thread_id;
-    Render_Thread_Context *thread_context;
 
     LOGI("in load render thread contexts with num entries %d!", num_entries);
 
     for (guint i = 0; i < num_entries; i++) {
+        Render_Thread_Context *thread_context;
         thread_id = qemu_get_be64(f);
 
         thread_context = load_single_render_thread_context(f);
@@ -139,9 +147,10 @@ int load_render_thread_contexts(QEMUFile *f) {
 
 
 void recover_snapshot_states_after_load(Render_Thread_Context* render_context) { //ztodo:这些操作的顺序？
-    LOGI("in recover_snapshot_states_after_load for process %d", ((Thread_Context*)render_context)->thread_id);
+    
     Opengl_Context* opengl_context = render_context->opengl_context;
     // Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
+    LOGI("in recover_snapshot_states_after_load for process %d opengl window %lld", ((Thread_Context*)render_context)->thread_id, (uint64_t)opengl_context->window);
 
     egl_makeCurrent(opengl_context->window);
 
@@ -242,6 +251,14 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         render_thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
 
         render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+    }
+
+    if (g_resource_list[0] == NULL){ //ztodo:要放在这里吗？？？
+        for (int i = 0; i < NUM_RESOURCES; i++) {
+            ATOMIC_LOCK(g_resource_locker[i]);
+            g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
+            ATOMIC_UNLOCK(g_resource_locker[i]);
+        }
     }
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));

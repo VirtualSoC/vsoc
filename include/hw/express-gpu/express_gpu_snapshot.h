@@ -46,6 +46,10 @@ typedef struct Express_Native_Shader {
     // char* source;
 } Express_Native_Shader;
 
+// program处理方法：（program_id<<32）| shader_id
+
+
+
 typedef struct Express_Native_Texture_Simple {
     GLint textureId;
     GLenum target;
@@ -97,20 +101,29 @@ void restore_opengl_context_textures(Opengl_Context *context);
 // extern GList *native_shaders; 
 // extern int native_shaders_num;
 // extern int native_shaders_locker;
-extern GList *g_resource_list[NUM_RESOURCES];
-extern int g_resource_count[NUM_RESOURCES];
+extern GHashTable *g_resource_list[NUM_RESOURCES];
+// extern int g_resource_count[NUM_RESOURCES];
 extern int g_resource_locker[NUM_RESOURCES];
 
-void clear_resource_tables();
-void init_saving_snapshot();
-int save_native_shaders(QEMUFile *f);
-int load_native_shaders(QEMUFile *f);
+void clear_resource_tables(void);
+void init_saving_snapshot(void);
 
-int load_native_textures(QEMUFile *f);
+
+void save_native_resources(QEMUFile *f);
+void load_native_resources(QEMUFile *f);
+void save_native_shaders(QEMUFile *f);
+void load_native_shaders(QEMUFile *f);
+
+void save_native_programs(QEMUFile *f);
+void load_native_programs(QEMUFile *f);
+
+void save_native_textures(QEMUFile *f);
+void load_native_textures(QEMUFile *f);
+
 void update_native_texture(Express_Native_Texture* texture_data);
 bool compare_texture(Express_Native_Texture* native_texture);
 bool compare_two_textures(const struct Express_Native_Texture* texture1, const struct Express_Native_Texture* texture2);
-int save_native_textures(QEMUFile *f);
+
 void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type);
 
 int save_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread_context);
@@ -122,8 +135,8 @@ Render_Thread_Context* load_thread_context(QEMUFile *f);
 void save_process_context(QEMUFile *f, Process_Context *process_context);
 void load_process_context(QEMUFile *f, Process_Context *process_context);
 
-void save_window_buffer(QEMUFile *f, Window_Buffer *buffer);
-int load_window_buffer(QEMUFile *f, Window_Buffer *buffer);
+void save_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_map);
+int load_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_map);
 
 void save_scatter_data(QEMUFile *f, Scatter_Data *scatter_data, int count);
 Scatter_Data* load_scatter_data(QEMUFile *f, int *count);

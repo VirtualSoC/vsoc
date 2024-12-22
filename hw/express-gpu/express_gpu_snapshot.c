@@ -28,8 +28,8 @@
 // GList *native_shaders = NULL;
 // int native_shaders_num = 0;
 // int native_shaders_locker = 0;
-GList *g_resource_list[NUM_RESOURCES] = { NULL };
-int g_resource_count[NUM_RESOURCES] = { 0 };
+GHashTable *g_resource_list[NUM_RESOURCES];// = { NULL };
+// int g_resource_count[NUM_RESOURCES] = { 0 };
 int g_resource_locker[NUM_RESOURCES] = { 0 }; 
 
 
@@ -49,6 +49,7 @@ void init_saving_snapshot() {
     egl_makeCurrent(g_gl_context);
     for (int i = 0; i < NUM_RESOURCES; i++) {
         g_resource_ids_map[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
+        // g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 }
 
@@ -60,60 +61,78 @@ void clear_resource_tables() {
     }
 }
 
-GLboolean compare_shader(GLint shader_id, GLenum shader_type, GLboolean deleted_status, GLboolean compile_status, GLint source_length, char* shader_source) {
-    //ztodo:如果已经删除了就不要直接重建了！以及好像有时候相同会被误判(或者就是因为已经被删除了)
-    GLint currentType = 0;
-    GLboolean currentDeleteStatus = GL_FALSE;
-    GLboolean currentCompileStatus = GL_FALSE;
-    GLint currentSourceLength = 0;
-    char* currentSource = NULL;
-    LOGI("going to compare shader of id %d", shader_id);
-    glGetShaderiv(shader_id, GL_SHADER_TYPE, &currentType);
-    glGetShaderiv(shader_id, GL_DELETE_STATUS, (GLint*)&currentDeleteStatus);
-    glGetShaderiv(shader_id, GL_COMPILE_STATUS, (GLint*)&currentCompileStatus);
-    glGetShaderiv(shader_id, GL_SHADER_SOURCE_LENGTH, &currentSourceLength);
-    LOGI("in compare shader of type %d status %d %d length %d", currentType, currentDeleteStatus, currentCompileStatus, currentSourceLength);
-    if (currentSourceLength > 0) {
-        currentSource = (char*)malloc(currentSourceLength + 1);
-        if (currentSource) {
-            glGetShaderSource(shader_id, currentSourceLength, NULL, currentSource);
-        }
-    }
-    LOGI("in compare shader of content %s %s", currentSource, shader_source);
-    GLboolean isSame = (currentDeleteStatus == deleted_status) &&
-                    //    (currentType == shader_type) &&
-                       (currentCompileStatus == compile_status) &&
-                       (currentSourceLength == source_length) &&
-                       (currentSource != NULL && strcmp(currentSource, shader_source) == 0);
-
-    free(currentSource);
-    LOGI("compare result %d", isSame);
-    return isSame;
+void save_native_resources(QEMUFile *f){
+    save_native_shaders(f);
+    save_native_programs(f);
+    save_native_textures(f);
 }
 
+void load_native_resources(QEMUFile *f){
+    load_native_shaders(f);
+    load_native_programs(f);
+    load_native_textures(f);
+}
+
+// GLboolean compare_shader(GLint shader_id, GLenum shader_type, GLboolean deleted_status, GLboolean compile_status, GLint source_length, char* shader_source) {
+//     //ztodo:如果已经删除了就不要直接重建了！以及好像有时候相同会被误判(或者就是因为已经被删除了)
+//     GLint currentType = 0;
+//     GLboolean currentDeleteStatus = GL_FALSE;
+//     GLboolean currentCompileStatus = GL_FALSE;
+//     GLint currentSourceLength = 0;
+//     char* currentSource = NULL;
+//     LOGD("going to compare shader of id %d", shader_id);
+//     glGetShaderiv(shader_id, GL_SHADER_TYPE, &currentType);
+//     glGetShaderiv(shader_id, GL_DELETE_STATUS, (GLint*)&currentDeleteStatus);
+//     glGetShaderiv(shader_id, GL_COMPILE_STATUS, (GLint*)&currentCompileStatus);
+//     glGetShaderiv(shader_id, GL_SHADER_SOURCE_LENGTH, &currentSourceLength);
+//     LOGI("in compare shader of type %d status %d %d length %d", currentType, currentDeleteStatus, currentCompileStatus, currentSourceLength);
+//     if (currentSourceLength > 0) {
+//         currentSource = (char*)malloc(currentSourceLength + 1);
+//         if (currentSource) {
+//             glGetShaderSource(shader_id, currentSourceLength, NULL, currentSource);
+//         }
+//     }
+//     LOGI("in compare shader of content %s %s", currentSource, shader_source);
+//     GLboolean isSame = (currentDeleteStatus == deleted_status) &&
+//                     //    (currentType == shader_type) &&
+//                        (currentCompileStatus == compile_status) &&
+//                        (currentSourceLength == source_length) &&
+//                        (currentSource != NULL && strcmp(currentSource, shader_source) == 0);
+
+//     free(currentSource);
+//     LOGI("compare result %d", isSame);
+//     return isSame;
+// }
+
 void change_host_id_map(int type, GLint old_id, GLint new_id){ //ztodo:记得每次load snapshot结束之后清空哈希表！
-    g_hash_table_insert(g_resource_ids_map[type], old_id, new_id);
+    g_hash_table_insert(g_resource_ids_map[type], GUINT_TO_POINTER(old_id), GUINT_TO_POINTER(new_id));
     return;
 }
 
-int save_native_shaders(QEMUFile *f) {
-    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
-    GList* iter = g_resource_list[RESOURCE_TYPE_SHADER];
-    qemu_put_be32(f, g_resource_count[RESOURCE_TYPE_SHADER]); //first save how many shaders
-    LOGI("saving shader num %d", g_resource_count[RESOURCE_TYPE_SHADER]);
-    while (iter != NULL) {
-        Express_Native_Shader* shader = (Express_Native_Shader*)iter->data;
-        LOGD("saving shader ID: %d, Type: %d, Delete Status: %d", shader->id, shader->type, shader->deleteStatus);
+GLint get_host_id_map(int type, GLint old_id) {
+    GLint new_id = (GLint)g_hash_table_lookup(g_resource_ids_map[type], GUINT_TO_POINTER(old_id));
+    return new_id;
+}
 
-        // GLboolean deleted_status;
-        // glGetShaderiv(shader->id, GL_DELETE_STATUS, &deleted_status);
+void save_native_shaders(QEMUFile *f) {
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SHADER];
+    qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many shaders
+    LOGD("saving shader num %d", g_hash_table_size(resource_list));
+
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Express_Native_Shader* shader = (Express_Native_Shader *)value;
+        LOGD("saving shader ID: %d, Type: %d, Delete Status: %d", shader->id, shader->type, shader->deleteStatus);
         qemu_put_be64(f, shader->id);
         qemu_put_be32(f, shader->type);
         qemu_put_byte(f, shader->deleteStatus);
-        GLboolean compile_status;
+        GLint compile_status;
         glGetShaderiv(shader->id, GL_COMPILE_STATUS, &compile_status);
 
-        qemu_put_byte(f, compile_status);
+        qemu_put_byte(f, compile_status); //ztodo:byte可以吗
         GLint sourceLength;
         glGetShaderiv(shader->id, GL_SHADER_SOURCE_LENGTH, &sourceLength);
 
@@ -121,29 +140,124 @@ int save_native_shaders(QEMUFile *f) {
 
         char* shader_source;
         if (sourceLength > 0) {
-            shader_source = (char*)malloc(sourceLength);
+            shader_source = (char*)g_malloc0(sourceLength);
             if (shader_source) {
                 glGetShaderSource(shader->id, sourceLength, NULL, shader_source);
                 LOGD("saving shader of content length %d %d %s", sourceLength, sizeof(shader_source), shader_source);
                 qemu_put_buffer(f, shader_source, sourceLength);
             }
-            free(shader_source); 
+            g_free(shader_source); 
         } //ztodo:如果是0，load之前判断一下
-        iter = iter->next;
     }
-    
+
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
-    return 0;
+}
+
+void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、更新id！
+
+    GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+    int program_num = qemu_get_be32(f);
+    for(int i = 0; i < program_num ; i++) {
+        uint64_t program_id = qemu_get_be64(f);
+
+        glDeleteProgram(program_id);//ztodo:重启场景应该可以去掉这个
+        GLint new_program_id = glCreateProgram();
+        change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id); //重新映射guest-host的id
+
+
+        GLint linked = (GLint)qemu_get_byte(f);
+        g_hash_table_insert(programs, GUINT_TO_POINTER(new_program_id), GUINT_TO_POINTER(program_id));
+
+        // if(linked) {
+        //     glLinkProgram(program_id);
+        // } 
+        LOGI("loading program of %lld %lld", program_id, new_program_id); //ztodo:id重用了之前被删除的，感觉没问题，但不确定！作为一个可能bug点
+    }
+
+    int linked_program_num = qemu_get_be32(f);   
+    LOGD("in load native programs! num %d", linked_program_num);
+
+    for (int i = 0; i < linked_program_num; i++) {
+        uint64_t linked_program = qemu_get_be64(f);
+        uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
+        GLint new_program_id = get_host_id_map(RESOURCE_TYPE_PROGRAM, program_id);
+        uint64_t shader_id = linked_program & ((1 << 32) - 1); //取低32位
+        glAttachShader(new_program_id, shader_id);
+        LOGI("attaching program of %lld", new_program_id);
+
+    }
+
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, programs); //最后link
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        uint64_t program_id = (uint64_t)key;
+        GLint status = (GLint)value;
+        if(status) {
+            glLinkProgram(program_id);
+        } 
+
+        LOGI("linking program of id %lld status %d", program_id, status);
+    }
+
+}
+
+void save_native_programs(QEMUFile *f) {
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_PROGRAM];
+    // qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many shaders
+    // LOGI("saving program num %d", g_hash_table_size(resource_list));
+
+    GHashTableIter iter;
+    gpointer key, value;
+    
+    GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        uint64_t linked_program = (uint64_t)key;
+        uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
+        // LOGI("saving program ID:%lld %d, shader: %d",linked_program, (linked_program >> 32) & ((1 << 32) - 1), linked_program & ((1 << 32) - 1));
+        // qemu_put_be64(f, linked_program);
+
+        GLint linkStatus = 0;
+        glGetProgramiv(program_id, GL_LINK_STATUS, &linkStatus);
+
+        g_hash_table_insert(programs, GUINT_TO_POINTER(program_id), GUINT_TO_POINTER(linkStatus));
+
+    }
+
+    g_hash_table_iter_init(&iter, programs); //先单独存program，因为要重建
+    qemu_put_be32(f, g_hash_table_size(programs));
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        uint64_t program_id = (uint64_t)key;
+        GLint status = (GLint)value;
+        qemu_put_be64(f, program_id);
+        qemu_put_byte(f, status);
+        LOGD("saving program of id %lld status %d", program_id, status);
+    }
+
+    qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many shaders
+    LOGD("saving program num %d", g_hash_table_size(resource_list));
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        uint64_t linked_program = (uint64_t)key;
+        qemu_put_be64(f, linked_program);
+
+    }
+
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
 }
 
 void update_native_shader(GLint shader_id, GLenum shader_type, GLboolean deleted_status, GLboolean compile_status, GLint source_length, const char* shader_source) {
 
     glDeleteShader(shader_id);
 
+
     GLint new_shader_id = glCreateShader(shader_type);
-    LOGI("create new shader of %d", new_shader_id);
+    LOGI("create new shader of new id %d old id %d", new_shader_id, shader_id);
     glShaderSource(new_shader_id, 1, &shader_source, NULL);
-    LOGI("going to compile shader!");
+    LOGD("going to compile shader!");
     if(compile_status) {
         
         glCompileShader(new_shader_id);
@@ -155,7 +269,7 @@ void update_native_shader(GLint shader_id, GLenum shader_type, GLboolean deleted
             glGetShaderiv(new_shader_id, GL_INFO_LOG_LENGTH, &logLength);
             char* log = (char*)malloc(logLength);
             glGetShaderInfoLog(new_shader_id, logLength, &logLength, log);
-            LOGE("Shader compile failed in saving snapshot: %s", log);
+            LOGE("Shader compile failed in saving snapshot: %s %s", log, shader_source);
             free(log);
         }        
     }
@@ -163,7 +277,7 @@ void update_native_shader(GLint shader_id, GLenum shader_type, GLboolean deleted
     change_host_id_map(RESOURCE_TYPE_SHADER, shader_id, new_shader_id); //ztodo: 重新映射guest-host的id
 }
 
-int load_native_shaders(QEMUFile *f) {
+void load_native_shaders(QEMUFile *f) {
     // 没有办法在保留原来id的情况下改属性的值，这样的话就得新建然后重新映射host id
     int shader_num = qemu_get_be32(f);   
     LOGD("in load native shaders! num %d", shader_num);
@@ -177,10 +291,10 @@ int load_native_shaders(QEMUFile *f) {
         const char* shader_source = (char*)malloc(source_length);
         qemu_get_buffer(f, shader_source, source_length);
         LOGD("loading shader of id %d type %d content %s", shader_id, shader_type, shader_source);
-        bool isSame = compare_shader(shader_id, shader_type, deleted_status, compile_status, source_length, shader_source);
-        if(isSame) { //如果没变就不操作了
-            continue;
-        }
+        // bool isSame = compare_shader(shader_id, shader_type, deleted_status, compile_status, source_length, shader_source);
+        // if(isSame) { //如果没变就不操作了 update:不再复用资源，全部重建
+        //     continue;
+        // }
         update_native_shader(shader_id, shader_type, deleted_status, compile_status, source_length, shader_source);
     }
 }
@@ -220,6 +334,78 @@ void saveTextureAsPPM(const char *baseFilename, int textureId, int width, int he
     }
 }
 
+GLenum get_format_for_internal_format(GLint internal_format) {
+    GLenum format; //ztodo:不确定是否齐全
+    switch (internal_format) {
+        case GL_ALPHA:
+            format = GL_ALPHA;
+            break;
+        case GL_RGBA8:
+            format = GL_RGBA;
+            break;
+        case GL_SRGB8_ALPHA8_EXT:
+            format = GL_RGBA;
+            break;
+        case GL_R8:
+            format = GL_RED;
+            break;
+        case GL_RG8:
+            format = GL_RG;
+            break;
+        case GL_RGB8:
+            format = GL_RGB;
+            break;
+        case GL_RGBA32F:
+            format = GL_RGBA;
+            break;
+        case GL_RGB32F:
+            format = GL_RGB;
+            break;
+        case GL_R16F:
+            format = GL_RED;
+            break;
+        case GL_RG16F:
+            format = GL_RG;
+            break;
+        case GL_R8I:
+            format = GL_RED;
+            break;
+        case GL_RG8I:
+            format = GL_RG;
+            break;
+        case GL_RGBA8I:
+            format = GL_RGBA;
+            break;
+        case GL_R16I:
+            format = GL_RED;
+            break;
+        case GL_RG16I:
+            format = GL_RG;
+            break;
+        case GL_RGB16F:
+            format = GL_RGB;
+            break;
+        case GL_RGBA16F:
+            format = GL_RGBA;
+            break;
+        case GL_SRGB:
+            format = GL_RGB;
+            break;
+        case GL_SRGB_ALPHA:
+            format = GL_RGBA;
+            break;
+        case GL_DEPTH_COMPONENT:
+            format = GL_DEPTH_COMPONENT;
+            break;
+        case GL_DEPTH_STENCIL:
+            format = GL_DEPTH_STENCIL;
+            break;
+        default:
+            format = GL_RGBA;
+            break;
+    }
+    return format;
+}
 
 void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     Express_Native_Texture* state = g_malloc0(sizeof(Express_Native_Texture));
@@ -227,27 +413,34 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     state->textureId = texture_id;
     state->target = texture_type;
     
-    glBindTexture(state->target, state->textureId);
+
+    GLenum target = state->target;
+    if(target == GL_TEXTURE_EXTERNAL_OES) {
+        target = GL_TEXTURE_2D;
+    }
 
 
+    glBindTexture(target, state->textureId);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
-    glGetTexLevelParameteriv(state->target, 0, GL_TEXTURE_WIDTH, &state->width);
-    glGetTexLevelParameteriv(state->target, 0, GL_TEXTURE_HEIGHT, &state->height);
-    if (state->target == GL_TEXTURE_3D) {
-        glGetTexLevelParameteriv(state->target, 0, GL_TEXTURE_DEPTH, &state->depth);
+
+    glGetTexLevelParameteriv(target, 0, GL_TEXTURE_WIDTH, &state->width);
+    glGetTexLevelParameteriv(target, 0, GL_TEXTURE_HEIGHT, &state->height);
+    if (target == GL_TEXTURE_3D) {
+        glGetTexLevelParameteriv(target, 0, GL_TEXTURE_DEPTH, &state->depth);
     } else {
         state->depth = 0;
     }
-    glGetTexLevelParameteriv(state->target, 0, GL_TEXTURE_INTERNAL_FORMAT, &state->internalFormat);
+    glGetTexLevelParameteriv(target, 0, GL_TEXTURE_INTERNAL_FORMAT, &state->internalFormat);
 
     glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&state->binding2D);
 
     glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP, (GLint *)&state->bindingCubeMap);
 
-    glGetTexParameteriv(state->target, GL_TEXTURE_MIN_FILTER, &state->minFilter);
-    glGetTexParameteriv(state->target, GL_TEXTURE_MAG_FILTER, &state->magFilter);
-    glGetTexParameteriv(state->target, GL_TEXTURE_WRAP_S, &state->wrapS);
-    glGetTexParameteriv(state->target, GL_TEXTURE_WRAP_T, &state->wrapT);
+    glGetTexParameteriv(target, GL_TEXTURE_MIN_FILTER, &state->minFilter);
+    glGetTexParameteriv(target, GL_TEXTURE_MAG_FILTER, &state->magFilter);
+    glGetTexParameteriv(target, GL_TEXTURE_WRAP_S, &state->wrapS);
+    glGetTexParameteriv(target, GL_TEXTURE_WRAP_T, &state->wrapT);
 
     qemu_put_be32(f, state->width);
     qemu_put_be32(f, state->height);
@@ -265,144 +458,121 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     GLint size = state->width * state->height * 4;
     state->pixels = (GLubyte *)g_malloc(size); //ztodo:记得free
     memset(state->pixels, 0, size);
-    // qemu_put_64(f, size);
-    glGetTexImage(state->target, 0, state->internalFormat, GL_UNSIGNED_BYTE, state->pixels); //ztodo:第二个、倒数第二个参数
-    LOGI("in saving texture of id %d target %d height %d width %d depth %d format %d pixels %s", texture_id, state->target, state->height, state->width, state->depth, state->internalFormat, state->pixels);
-    
-    // if(state->target == 3553) { //读出来了，memset成什么就是什么，相当于没读到任何东西。毕竟texImage2D的逻辑也不是真的直接调用这个api上传数据，那也不能这么下载，很正常吧！
-    //     saveTextureAsPPM("output_texture", texture_id, state->width, state->height, state->pixels);
+
+    //ztodo:使用pbo加速!!!
+
+
+    GLenum format = get_format_for_internal_format(state->internalFormat);
+
+    glGetTexImage(target, 0, format, GL_UNSIGNED_BYTE, state->pixels); //ztodo:第二个、倒数第二个参数
+    LOGI("in saving texture of id %d target %d height %d width %d depth %d format %d pixels", texture_id, state->target, state->height, state->width, state->depth, state->internalFormat);
+    qemu_put_buffer(f, state->pixels, size);    
+
+    // unsigned char* zero_buffer = (unsigned char*)malloc(size);
+    // memset(zero_buffer, 0, size);
+    // if (memcmp(state->pixels, (const void*)zero_buffer, size) == 0) {
+    // // 说明 state->pixels 的内容全为 0
+    //     LOGI("Memory is all zeros");
+    // } else {
+    //     // 说明 state->pixels 的内容不是全为 0
+    //     LOGI("Memory is not all zeros");
+    //     for (int i = 0; i < min(30, size); i++) {
+    //         LOGI("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
+    //             i, 
+    //             state->pixels[i * 4 + 0], //R
+    //             state->pixels[i * 4 + 1], //G
+    //             state->pixels[i * 4 + 2], //B
+    //             state->pixels[i * 4 + 3]  //A
+    //         );
+    //     }
     // }
-    qemu_put_buffer(f, state->pixels, size);
+    // free(zero_buffer);
+
+
+
+
+//zodo:pbo加速相关代码
+    // GLuint downloadPboId;
+    // glGenBuffers(1, &downloadPboId);
+    // glBindBuffer(GL_PIXEL_PACK_BUFFER, downloadPboId);
+    // glBufferData(GL_PIXEL_PACK_BUFFER, dataSize, NULL, GL_STREAM_READ);
+    // glGetTexImage(state->target, 0, state->internalFormat, GL_UNSIGNED_BYTE, 0);
+    // GLubyte* downloadPtr = (GLubyte*)glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, dataSize, GL_MAP_READ_BIT);
+    // if(downloadPtr) {
+    //     memcpy(state->pixels, downloadPtr, dataSize);
+    //     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+    // }
+    // glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    // glDeleteBuffers(1, &downloadPboId);
+
+
 
 }
 
-int save_native_textures(QEMUFile *f){
+void save_native_textures(QEMUFile *f){
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
-    GList* iter = g_resource_list[RESOURCE_TYPE_TEXTURE];
-    qemu_put_be32(f, g_resource_count[RESOURCE_TYPE_TEXTURE]); //first save how many shaders
-    LOGI("saving texture num %d", g_resource_count[RESOURCE_TYPE_TEXTURE]);
+    
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
 
-    while (iter != NULL) {
-        Express_Native_Texture* texture = (Express_Native_Texture*)iter->data;
-        // LOGI("saving texture ID: %d", texture->textureId);
+    qemu_put_be32(f, g_hash_table_size(resource_list));
+    LOGI("saving texture num %d", g_hash_table_size(resource_list));
 
-        // GLboolean deleted_status;
-        // glGetShaderiv(shader->id, GL_DELETE_STATUS, &deleted_status);
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Express_Native_Texture_Simple* texture = (Express_Native_Texture_Simple *)value;
         qemu_put_be64(f, texture->textureId);
         qemu_put_be32(f, texture->target);
-        save_single_texture(f, texture->textureId, texture->target);
-
-
-        iter = iter->next;
+        save_single_texture(f, texture->textureId, texture->target);        
+        g_free(texture);
+        
     }
-    
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
-    return 0;
 }
 
-bool compare_two_textures(const struct Express_Native_Texture* texture1, const struct Express_Native_Texture* texture2) {
-    if (texture1 == NULL || texture2 == NULL) {
-        return false;
-    }
-
-    if (texture1->textureId != texture2->textureId) return false;
-    if (texture1->target != texture2->target) return false;
-    if (texture1->width != texture2->width) return false;
-    if (texture1->height != texture2->height) return false;
-    if (texture1->depth != texture2->depth) return false;
-    if (texture1->internalFormat != texture2->internalFormat) return false;
-
-    if (texture1->pixels && texture2->pixels) {
-        size_t size1 = texture1->width * texture1->height * 4;
-        size_t size2 = texture2->width * texture2->height * 4;
-        if (size1 != size2) {
-            return false;
-        }
-        if (memcmp(texture1->pixels, texture2->pixels, size1) != 0) {
-            return false;
-        }
-    } else if (texture1->pixels != texture2->pixels) {
-        return false;
-    }
-    return true;
-}
-
-
-bool compare_texture(Express_Native_Texture* native_texture) {
-    Express_Native_Texture* current_texture = g_malloc0(sizeof(struct Express_Native_Texture));
-    current_texture->textureId = native_texture->textureId;
-    current_texture->target = native_texture->target; //ztodo:type会change吗 
-
-    glBindTexture(current_texture->target, current_texture->textureId);
-
-
-
-    glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_WIDTH, &current_texture->width);
-    glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_HEIGHT, &current_texture->height);
-    if (current_texture->target == GL_TEXTURE_3D) {
-        glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_DEPTH, &current_texture->depth);
-    } else {
-        current_texture->depth = 0;
-    }
-    glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_INTERNAL_FORMAT, &current_texture->internalFormat);
-
-    // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&current_texture->binding2D);
-
-    // glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP, (GLint *)&current_texture->bindingCubeMap);
-
-    // glGetTexParameteriv(current_texture->target, GL_TEXTURE_MIN_FILTER, &current_texture->minFilter);
-    // glGetTexParameteriv(current_texture->target, GL_TEXTURE_MAG_FILTER, &current_texture->magFilter);
-    // glGetTexParameteriv(current_texture->target, GL_TEXTURE_WRAP_S, &current_texture->wrapS);
-    // glGetTexParameteriv(current_texture->target, GL_TEXTURE_WRAP_T, &current_texture->wrapT); //ztodo:这些还没存
-    
-    GLint size = current_texture->width * current_texture->height * 4;
-    current_texture->pixels = (GLubyte *)malloc(size); //ztodo:记得free
-    glGetTexImage(current_texture->target, 0, current_texture->internalFormat, GL_UNSIGNED_BYTE, current_texture->pixels); //ztodo:第二个、倒数第二个参数
-    return compare_two_textures(native_texture, current_texture);
-
-
-}
 
 void update_native_texture(Express_Native_Texture* texture_data){
     GLint new_texture_id;
     glGenTextures(1, &new_texture_id);
     glBindTexture(texture_data->target, new_texture_id);
 
-    // 2. Set texture parameters (filters, wrap modes)
     glTexParameteri(texture_data->target, GL_TEXTURE_MIN_FILTER, texture_data->minFilter);
     glTexParameteri(texture_data->target, GL_TEXTURE_MAG_FILTER, texture_data->magFilter);
     glTexParameteri(texture_data->target, GL_TEXTURE_WRAP_S, texture_data->wrapS);
     glTexParameteri(texture_data->target, GL_TEXTURE_WRAP_T, texture_data->wrapT);
     
-    // Optionally handle GL_TEXTURE_WRAP_R if using 3D or CubeMap textures
+    GLenum format = get_format_for_internal_format(texture_data->internalFormat); //ztodo:这么转换吗？
+
+
     if (texture_data->target == GL_TEXTURE_3D || texture_data->target == GL_TEXTURE_CUBE_MAP) {
-        glTexParameteri(texture_data->target, GL_TEXTURE_WRAP_R, texture_data->wrapS); // Use wrapS as default
+        glTexParameteri(texture_data->target, GL_TEXTURE_WRAP_R, texture_data->wrapS);
     }
 
-    // 3. Allocate storage for the texture based on the texture type (2D, 3D, etc.)
-    if (texture_data->target == GL_TEXTURE_2D) {
-        glTexImage2D(texture_data->target, 0, texture_data->internalFormat, texture_data->width, texture_data->height, 0, texture_data->internalFormat, GL_UNSIGNED_BYTE, texture_data->pixels);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    if (texture_data->target == GL_TEXTURE_2D || texture_data->target == GL_TEXTURE_EXTERNAL_OES) {
+        glTexImage2D(GL_TEXTURE_2D, 0, texture_data->internalFormat, texture_data->width, texture_data->height, 0, format, GL_UNSIGNED_BYTE, texture_data->pixels);
     } else if (texture_data->target == GL_TEXTURE_3D) {
-        glTexImage3D(texture_data->target, 0, texture_data->internalFormat, texture_data->width, texture_data->height, texture_data->depth, 0, texture_data->internalFormat, GL_UNSIGNED_BYTE, texture_data->pixels);
+        glTexImage3D(texture_data->target, 0, texture_data->internalFormat, texture_data->width, texture_data->height, texture_data->depth, 0, format, GL_UNSIGNED_BYTE, texture_data->pixels);
     } else if (texture_data->target == GL_TEXTURE_CUBE_MAP) {
         for (GLuint i = 0; i < 6; ++i) {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, texture_data->internalFormat, texture_data->width, texture_data->height, 0, texture_data->internalFormat, GL_UNSIGNED_BYTE, texture_data->pixels);
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, texture_data->internalFormat, texture_data->width, texture_data->height, 0, format, GL_UNSIGNED_BYTE, texture_data->pixels);
         }
     }
 
-    // 4. If your texture is 2D, you may want to set a mipmap level (optional)
     if (texture_data->target == GL_TEXTURE_2D) {
         glGenerateMipmap(GL_TEXTURE_2D);
     }
 
-    // 5. Unbind texture after setting it up
-    glBindTexture(texture_data->target, 0);
+    glBindTexture(texture_data->target, 0); //ztodo:应该不用
+
     change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id); //ztodo: 重新映射guest-host的id
 
 }
 
 
-int load_native_textures(QEMUFile *f){
+void load_native_textures(QEMUFile *f){
     int texture_num = qemu_get_be32(f);   
     LOGI("in load native textures! num %d", texture_num);
 
@@ -426,50 +596,76 @@ int load_native_textures(QEMUFile *f){
         const char* shader_source = (char*)malloc(source_length);
         qemu_get_buffer(f, shader_source, source_length);
         LOGI("loading texture of id %d type %d", native_texture->textureId, native_texture->target);
-        bool isSame = compare_texture(native_texture);
-        if(isSame) { //如果没变就不操作了
-            continue;
-        }
+        native_texture->pixels = (GLubyte*)shader_source;
+        // bool isSame = compare_texture(native_texture);
+        // if(isSame) { //如果没变就不操作了
+        //     continue;
+        // }
         update_native_texture(native_texture);
+        free(shader_source);
+        g_free(native_texture);
     }
-    return 0;
 }
 
 int save_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread_context) {
     LOGI("in save single render thread context!");
 
-  
     if (save_thread_context(f, &thread_context->context) < 0) {
         return -1;
     }
 
     if (thread_context->process_context) {
-        save_process_context(f, thread_context->process_context);
+        Process_Context *process = get_process_context_form_id((thread_context->context).process_id);
+        if(process != NULL) {
+            qemu_put_byte(f, 1);//说明load的时候直接在map里查就行
+            LOGI("get process %lld from map %d", (thread_context->context).process_id, g_hash_table_size(process->surface_map));
+        } else {
+            LOGE("error! can't find process from global map.");
+        }
+
     }
 
     save_thread_unique_ids(f, thread_context->thread_unique_ids);  
 
     if (thread_context->render_double_buffer_read) {
-        qemu_put_be32(f, 1);
-        save_window_buffer(f, thread_context->render_double_buffer_read);
+        Window_Buffer* window_buffer = (Window_Buffer *)g_hash_table_lookup((thread_context->process_context)->surface_map, GUINT_TO_POINTER((thread_context->render_double_buffer_read)->guest_surface));
+        if(window_buffer != NULL) {
+            // LOGI("save render_double_buffer_read is not null!");
+            LOGI("save render_double_buffer_read is not null! %lld %lld", (uint64_t)(thread_context->render_double_buffer_read)->guest_surface, GUINT_TO_POINTER((thread_context->render_double_buffer_read)->guest_surface));
+            qemu_put_be64(f, (uint64_t)(thread_context->render_double_buffer_read)->guest_surface);
+        } else {
+            qemu_put_be64(f, 0);
+            LOGE("error! can't find render_double_buffer_read from global map!");
+        }
     } else {
-        qemu_put_be32(f, 0);
+        qemu_put_be64(f, 0);
         LOGI("render_double_buffer_read is null!");
     }
-
     if (thread_context->render_double_buffer_draw) {
-        qemu_put_be32(f, 1);
-        save_window_buffer(f, thread_context->render_double_buffer_draw);
+        Window_Buffer* window_buffer = (Window_Buffer *)g_hash_table_lookup((thread_context->process_context)->surface_map, GUINT_TO_POINTER((thread_context->render_double_buffer_draw)->guest_surface));
+        if(window_buffer != NULL) {
+            LOGI("save render_double_buffer_draw is not null! %lld", (uint64_t)(thread_context->render_double_buffer_draw)->guest_surface);
+            qemu_put_be64(f, (uint64_t)(thread_context->render_double_buffer_draw)->guest_surface);
+        } else {
+            qemu_put_be64(f, 0);
+            LOGE("error! can't find render_double_buffer_draw from global map!");
+        }
     } else {
-        qemu_put_be32(f, 0);
+        qemu_put_be64(f, 0);
         LOGI("render_double_buffer_draw is null!");
     }
 
     if (thread_context->opengl_context) {
-        qemu_put_be32(f, 1);
-        save_opengl_context(f, thread_context->opengl_context);
+        Opengl_Context* opengl_context = (Opengl_Context *)g_hash_table_lookup((thread_context->process_context)->context_map, GUINT_TO_POINTER((thread_context->opengl_context)->guest_context));
+        if(opengl_context != NULL) {
+            qemu_put_be64(f, (uint64_t)(thread_context->opengl_context)->guest_context);
+        } else {
+            LOGE("error! can't from opengl context from map!");
+            qemu_put_be64(f, 0);
+        }
+        
     } else {
-        qemu_put_be32(f, 0);
+        qemu_put_be64(f, 0);
         LOGI("opengl context is null!");
     }
 
@@ -494,31 +690,61 @@ Render_Thread_Context* load_single_render_thread_context(QEMUFile *f) {
     // }
 
     // thread_context->process_context = g_malloc0(sizeof(Process_Context));
-    load_process_context(f, thread_context->process_context);
+    // load_process_context(f, thread_context->process_context);
+    int has_process = (int)qemu_get_byte(f);
+    if(has_process) {
+        thread_context->process_context = get_process_context_form_id((thread_context->context).process_id);
+        LOGI("has process and get %lld %d %d", (uint64_t)(thread_context->context).process_id, thread_context->process_context->thread_cnt, g_hash_table_size(thread_context->process_context->surface_map));
+    } else {
+        LOGE("error! can't find process!");
+    }
 
     load_thread_unique_ids(f, thread_context->thread_unique_ids);
 
-    int has_read_window = qemu_get_be32(f);
+    uint64_t has_read_window = qemu_get_be64(f);
     if (has_read_window) {
-        thread_context->render_double_buffer_read = g_malloc0(sizeof(Window_Buffer));
-        load_window_buffer(f, thread_context->render_double_buffer_read); //ztodo:这玩意得new吧
+        Window_Buffer* window_buffer = (Window_Buffer *)g_hash_table_lookup((thread_context->process_context)->surface_map, GUINT_TO_POINTER(has_read_window));
+        if(window_buffer != NULL) {
+            LOGI("successfully load render buffer read of %lld", has_read_window);
+            thread_context->render_double_buffer_read = window_buffer;
+        } else {
+            LOGE("error! can't get render buffer read when loading %lld", has_read_window);
+        }
+        // thread_context->render_double_buffer_read = g_malloc0(sizeof(Window_Buffer));
+        // load_window_buffer(f, thread_context->render_double_buffer_read, (thread_context->process_context)->gbuffer_map);
     } else {
         thread_context->render_double_buffer_read = NULL;
     }
-    int has_write_window = qemu_get_be32(f);
+    uint64_t has_write_window = qemu_get_be64(f);
     if (has_write_window) {
-        thread_context->render_double_buffer_draw = g_malloc0(sizeof(Window_Buffer));
-        load_window_buffer(f, thread_context->render_double_buffer_draw);
+        Window_Buffer* window_buffer = (Window_Buffer *)g_hash_table_lookup((thread_context->process_context)->surface_map, GUINT_TO_POINTER(has_write_window));
+        if(window_buffer != NULL) {
+            thread_context->render_double_buffer_draw = window_buffer;
+            LOGI("successfully load render buffer write of %lld %lld", has_write_window, GUINT_TO_POINTER(has_write_window));
+
+        } else {
+            LOGE("error! can't get render buffer write when loading %lld %d", has_write_window, g_hash_table_size((thread_context->process_context)->surface_map));
+
+        }
+        // thread_context->render_double_buffer_draw = g_malloc0(sizeof(Window_Buffer));
+        // load_window_buffer(f, thread_context->render_double_buffer_draw, (thread_context->process_context)->gbuffer_map);
     } else {
         thread_context->render_double_buffer_draw = NULL;
     }
 
-    int has_opengl_context = qemu_get_be32(f);
+    uint64_t has_opengl_context = qemu_get_be64(f);
     if (has_opengl_context) {
-        thread_context->opengl_context = g_malloc0(sizeof(Opengl_Context));
-        if (load_opengl_context(f, thread_context->opengl_context) < 0) {
-            return -1;
-        }        
+        Opengl_Context* opengl_context = (Opengl_Context *)g_hash_table_lookup((thread_context->process_context)->context_map, GUINT_TO_POINTER(has_opengl_context));
+        if(opengl_context != NULL) {
+            thread_context->opengl_context = opengl_context;
+        } else {
+            LOGE("error! opengl context null when loading");
+        }
+        // thread_context->opengl_context = g_malloc0(sizeof(Opengl_Context));
+        // if (load_opengl_context(f, thread_context->opengl_context) < 0) {
+        //     LOGE("failed to load opengl context of thread context");
+        //     return NULL;
+        // }        
     } else {
         LOGI("has opengl context is null");
         thread_context->opengl_context = NULL;
@@ -553,8 +779,7 @@ int save_thread_context(QEMUFile *f, Thread_Context *context) {
     qemu_put_be64(f, context->unique_id);
     qemu_put_be64(f, context->process_id);
 
-    LOGI("in save thread context with device id %lld thread id %lld", context->device_id, context->thread_id);
-
+    LOGI("in save thread context with device id %lld thread id %lld process_id %lld unique_id %lld", context->device_id, context->thread_id, context->process_id, context->unique_id);
 
 //可能需要保存事件的触发状态，恢复时重新创建handle?
 // #ifdef _WIN32
@@ -579,7 +804,7 @@ Render_Thread_Context* load_thread_context(QEMUFile *f) {
 
     Render_Thread_Context *context = (Render_Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, device_info);
 
-    LOGI("in load_thread_context with device id %lld thread id %lld", device_id, thread_id);
+    LOGI("in load_thread_context with device id %lld thread id %lld process %lld unique %lld", device_id, thread_id, process_id, unique_id);
 
     return context;
 }
@@ -610,9 +835,9 @@ void save_process_context(QEMUFile *f, Process_Context *process_context) {
     while (g_hash_table_iter_next(&iter, &key, &value)) {
         uint64_t guest_surface_id = (uint64_t)key;
         Window_Buffer *window_buffer = (Window_Buffer *)value;
-        LOGI("saving window buffer %lld", (uint64_t)window_buffer);
+        LOGI("saving window buffer %lld %lld", (uint64_t)window_buffer->gbuffer->gbuffer_id, guest_surface_id);
         qemu_put_be64(f, guest_surface_id);
-        save_window_buffer(f, window_buffer);
+        save_window_buffer(f, window_buffer, process_context->gbuffer_map);
     }
     guint context_count = g_hash_table_size(process_context->context_map);
     LOGI("in save_process_context with context_count count %d", context_count);
@@ -650,10 +875,12 @@ void load_process_context(QEMUFile *f, Process_Context *process_context) {
 
     for (guint i = 0; i < surface_count; i++) {
         uint64_t guest_surface_id = qemu_get_be64(f);
+        LOGI("in load process context with id %lld %lld", guest_surface_id, GUINT_TO_POINTER(guest_surface_id));
         Window_Buffer *window_buffer = g_malloc0(sizeof(Window_Buffer));
-        load_window_buffer(f, window_buffer);
+        load_window_buffer(f, window_buffer, process_context->gbuffer_map);
         g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface_id), window_buffer);
     }
+    LOGI("process has surface map size %d", g_hash_table_size(process_context->surface_map));
 
     guint context_count = qemu_get_be32(f);
     LOGI("in load_process_context with context_count count %d", context_count);
@@ -670,8 +897,11 @@ void load_process_context(QEMUFile *f, Process_Context *process_context) {
 
 }
 
-void save_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
-    LOGI("in save_window_buffer! %d", sizeof(buffer->window_hints.hints));
+void save_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_map) {
+    // if(type == 0) { //保存非map中的window buffer,就先看看map里有没有
+
+    // }
+    // LOGI("in save_window_buffer! %d", sizeof(buffer->window_hints.hints));
     qemu_put_be32(f, buffer->type);
     qemu_put_buffer(f, (uint8_t *)buffer->window_hints.hints, sizeof(buffer->window_hints.hints));
 
@@ -710,11 +940,35 @@ void save_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
         qemu_put_be32(f, buffer->sampler_fbo[i]);
         qemu_put_be32(f, buffer->connect_texture[i]);
     }
+    uint64_t gbuffer_id = (buffer->gbuffer)->gbuffer_id;
+    int target = 0;
+    if(gbuffer_id == 0){
+        //处理来自create_gbuffer_from_surface的gbuffer
+        LOGI("save gbuffer from surface!");
+        qemu_put_be32(f, target);
+        save_hardware_buffer(f, buffer->gbuffer); 
+    } else {
+        target = 1; //来自global map
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        if(gbuffer == NULL) {
+            target = 2; // 来自gbuffer_map
+            gbuffer = (Hardware_Buffer *)g_hash_table_lookup(gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+        } else {
+            LOGI("save gbuffer from global map of id %lld", gbuffer_id);
+        } 
 
-    save_hardware_buffer(f, buffer->gbuffer);
+        if(gbuffer == NULL) {
+            LOGE("error! can't find gbuffer of %lld", gbuffer_id);
+        } else {
+            qemu_put_be32(f, target); //保存gbuffer来自哪的gbuffer
+            qemu_put_be64(f, gbuffer_id);
+        }
+    }
+
+    // save_hardware_buffer(f, buffer->gbuffer); //要是gbuffer id是global map的，那就可以查到。否则gbuffer_id是0，是create_from_surface的
 }
 
-int load_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
+int load_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_map) {
     
     // Window_Buffer *buffer = g_malloc0(sizeof(Window_Buffer));
     LOGI("in load_window_buffer! %d", sizeof(buffer->window_hints.hints));
@@ -756,7 +1010,20 @@ int load_window_buffer(QEMUFile *f, Window_Buffer *buffer) {
         buffer->connect_texture[i] = qemu_get_be32(f);
     }
 
-    buffer->gbuffer = load_hardware_buffer(f);
+    // buffer->gbuffer = load_hardware_buffer(f);
+
+    int target = qemu_get_be32(f);
+    if(target == 0) {
+        buffer->gbuffer = load_hardware_buffer(f);
+    }
+    else if(target == 1) {
+        uint64_t gbuffer_id = qemu_get_be64(f);
+        buffer->gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        LOGI("load gbuffer from global map of id %lld", gbuffer_id);
+    } else {
+        uint64_t gbuffer_id = qemu_get_be64(f);
+        buffer->gbuffer = (Hardware_Buffer *)g_hash_table_lookup(gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+    }
     return 0;
 }
 
@@ -1121,12 +1388,15 @@ Resource_Map_Status* load_resource_map_status(QEMUFile *f, int resource_type) {
     for (unsigned int i = 0; i < status->map_size; i++) {
         status->resource_id_map[i] = qemu_get_be64(f);
         status->resource_is_init[i] = qemu_get_byte(f);
-        long long new_id = g_hash_table_lookup(g_resource_ids_map[resource_type], status->resource_id_map[i]);
+        long long new_id = (long long)g_hash_table_lookup(g_resource_ids_map[resource_type], GUINT_TO_POINTER(status->resource_id_map[i])); 
         if(new_id != NULL) {
             LOGI("in load resource of type %d change id from %lld to %lld", resource_type, status->resource_id_map[i], new_id);
-            status->resource_id_map[i] = new_id;
+            status->resource_id_map[i] = new_id;//ztodo：这里的语法？
         }
-        LOGD("loading %d %d %d", i, status->resource_id_map[i], status->resource_is_init[i]);
+
+        // if(status->resource_id_map[i] != 0) 
+
+        LOGI("loading %d %d %d %d", resource_type, status->resource_id_map[i], status->resource_is_init[i], g_hash_table_size(g_resource_ids_map[resource_type]));
     }
 
     status->gbuffer_map_max_size = qemu_get_be32(f);
@@ -1258,7 +1528,7 @@ void save_texture_binding_status(QEMUFile *f, Texture_Binding_Status *status) {
     qemu_put_be64(f, (uint64_t)status->current_external_gbuffer);
 }
 
-Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) {
+Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) { //ztodo:这些都得改
     Texture_Binding_Status *status = g_malloc0(sizeof(Texture_Binding_Status));
 
     status->guest_current_active_texture = qemu_get_be32(f);
@@ -1320,7 +1590,7 @@ void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
     LOGI("in save opengl context of %llx %llx", context, context->window);
 
     //不确定是否需要深拷贝，先浅拷贝了 update:需要额外处理，先注释了
-    qemu_put_be64(f, context->window);
+    // qemu_put_be64(f, context->window);
     // LOGI("the native context saving now is %llx", (int64_t)context->window);
     // save_native_context(f, context->window);
 
@@ -1395,26 +1665,25 @@ void restore_opengl_context_textures(Opengl_Context *context) {
     glActiveTexture(current_active_texture + GL_TEXTURE0);
 
     GLint textureId = 0;
+
+    glBindTexture(GL_TEXTURE_2D, status->guest_current_texture_2D[current_active_texture]);   
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &textureId);
     LOGI("The currently bound GL_TEXTURE_2D ID is: %d", textureId);
 
-    glBindTexture(GL_TEXTURE_2D, status->guest_current_texture_2D[current_active_texture]);
 
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, status->guest_current_texture_2D_multisample[current_active_texture]);
     glGetIntegerv(GL_TEXTURE_2D_MULTISAMPLE, &textureId);
     LOGI("The currently bound GL_TEXTURE_2D_MULTISAMPLE ID is: %d", textureId);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, status->guest_current_texture_2D_multisample[current_active_texture]);
 
-    
+
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, status->guest_current_texture_2D_multisample_array[current_active_texture]);    
     glGetIntegerv(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, &textureId);
     LOGI("The currently bound GL_TEXTURE_2D_MULTISAMPLE_ARRAY ID is: %d", textureId);
 
-
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, status->guest_current_texture_2D_multisample_array[current_active_texture]);
-
+    glBindTexture(GL_TEXTURE_3D, status->guest_current_texture_3D[current_active_texture]);
     glGetIntegerv(GL_TEXTURE_3D, &textureId);
     LOGI("The currently bound GL_TEXTURE_3D ID is: %d", textureId);
 
-    glBindTexture(GL_TEXTURE_3D, status->guest_current_texture_3D[current_active_texture]);
     glBindTexture(GL_TEXTURE_2D_ARRAY, status->guest_current_texture_2D_array[current_active_texture]);
     glBindTexture(GL_TEXTURE_CUBE_MAP, status->guest_current_texture_cube_map[current_active_texture]);
     glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, status->guest_current_texture_cube_map_array[current_active_texture]);
@@ -1427,7 +1696,7 @@ int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
 
     // Opengl_Context *context = g_malloc0(sizeof(Opengl_Context));
     
-    context->window = qemu_get_be64(f);
+    // context->window = (void*)qemu_get_be64(f);
 
     
 
@@ -1439,7 +1708,7 @@ int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
     context->texture_binding_status = *load_texture_binding_status(f);
 
 
-    context->share_context = qemu_get_be64(f);
+    context->share_context = (void*)qemu_get_be64(f);
 
 
     context->draw_fbo0 = qemu_get_be32(f);
@@ -1639,3 +1908,66 @@ eglConfig* load_egl_config(QEMUFile *f) {
     return config;
 }
 
+
+
+// bool compare_two_textures(const struct Express_Native_Texture* texture1, const struct Express_Native_Texture* texture2) {
+//     if (texture1 == NULL || texture2 == NULL) {
+//         return false;
+//     }
+
+//     if (texture1->textureId != texture2->textureId) return false;
+//     if (texture1->target != texture2->target) return false;
+//     if (texture1->width != texture2->width) return false;
+//     if (texture1->height != texture2->height) return false;
+//     if (texture1->depth != texture2->depth) return false;
+//     if (texture1->internalFormat != texture2->internalFormat) return false;
+
+//     if (texture1->pixels && texture2->pixels) {
+//         size_t size1 = texture1->width * texture1->height * 4;
+//         size_t size2 = texture2->width * texture2->height * 4;
+//         if (size1 != size2) {
+//             return false;
+//         }
+//         if (memcmp(texture1->pixels, texture2->pixels, size1) != 0) {
+//             return false;
+//         }
+//     } else if (texture1->pixels != texture2->pixels) {
+//         return false;
+//     }
+//     return true;
+// }
+
+
+// bool compare_texture(Express_Native_Texture* native_texture) {
+//     Express_Native_Texture* current_texture = g_malloc0(sizeof(struct Express_Native_Texture));
+//     current_texture->textureId = native_texture->textureId;
+//     current_texture->target = native_texture->target; //ztodo:type会change吗 
+
+//     glBindTexture(current_texture->target, current_texture->textureId);
+
+
+
+//     glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_WIDTH, &current_texture->width);
+//     glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_HEIGHT, &current_texture->height);
+//     if (current_texture->target == GL_TEXTURE_3D) {
+//         glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_DEPTH, &current_texture->depth);
+//     } else {
+//         current_texture->depth = 0;
+//     }
+//     glGetTexLevelParameteriv(current_texture->target, 0, GL_TEXTURE_INTERNAL_FORMAT, &current_texture->internalFormat);
+
+//     // glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&current_texture->binding2D);
+
+//     // glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP, (GLint *)&current_texture->bindingCubeMap);
+
+//     // glGetTexParameteriv(current_texture->target, GL_TEXTURE_MIN_FILTER, &current_texture->minFilter);
+//     // glGetTexParameteriv(current_texture->target, GL_TEXTURE_MAG_FILTER, &current_texture->magFilter);
+//     // glGetTexParameteriv(current_texture->target, GL_TEXTURE_WRAP_S, &current_texture->wrapS);
+//     // glGetTexParameteriv(current_texture->target, GL_TEXTURE_WRAP_T, &current_texture->wrapT); //ztodo:这些还没存
+    
+//     GLint size = current_texture->width * current_texture->height * 4;
+//     current_texture->pixels = (GLubyte *)malloc(size); //ztodo:记得free
+//     glGetTexImage(current_texture->target, 0, current_texture->internalFormat, GL_UNSIGNED_BYTE, current_texture->pixels); //ztodo:第二个、倒数第二个参数
+//     return compare_two_textures(native_texture, current_texture);
+
+// }

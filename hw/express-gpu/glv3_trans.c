@@ -26,6 +26,8 @@
 
 #include "hw/express-gpu/glv1.h"
 #include "hw/teleport-express/express_event.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 #ifndef _WIN32
 #define max(a, b)                       \
@@ -13914,7 +13916,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
-        // LOGI("attach shader %u to program %u",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
+        uint64_t host_program = (uint64_t)get_host_program_id(opengl_context, (unsigned int)program);
+        uint64_t host_shader = (uint64_t)get_host_shader_id(opengl_context, (unsigned int)shader);
+        uint64_t attached_id = (host_program << 32) | host_shader;
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+        g_hash_table_insert(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(attached_id), GUINT_TO_POINTER(host_program));
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+
+        LOGI("attach program %u to shader %u %lld",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), attached_id);
+        
         glAttachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
     break;
@@ -14906,6 +14916,20 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
+
+        uint64_t host_program = (uint64_t)get_host_program_id(opengl_context, (unsigned int)program);
+        uint64_t host_shader = (uint64_t)get_host_shader_id(opengl_context, (unsigned int)shader);
+        uint64_t attached_id = (host_program << 32) | host_shader;
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]); //ztodo:先不记录是否link过了，都给link，似乎没有问题
+        if(g_hash_table_lookup(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(attached_id)) != NULL){
+            g_hash_table_remove(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(attached_id));
+        } else {
+            LOGE("error! detach shader not exist!");
+        }
+        
+
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+
 
         glDetachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }

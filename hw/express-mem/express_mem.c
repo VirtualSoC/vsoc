@@ -668,7 +668,7 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
 
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
 
-    glGetTexImage(GL_TEXTURE_2D, 0, gbuffer->format, gbuffer->pixel_type, 0); 
+    glGetTexImage(GL_TEXTURE_2D, 0, gbuffer->format, gbuffer->pixel_type, 0); //将纹理数据读到当前绑定的pbo里。
 
     GLint error = glGetError();
     if (error != 0)

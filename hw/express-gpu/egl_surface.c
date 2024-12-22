@@ -286,7 +286,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     surface->depth_internal_format = depth_internal_format;
     surface->stencil_internal_format = stencil_internal_format;
 
-    express_printf("create surface %llx\n", (uint64_t)surface);
+    LOGI("create surface %llx\n", (uint64_t)surface);
 
     return surface;
 }
@@ -622,11 +622,11 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     glGetIntegerv(GL_RENDERBUFFER_BINDING, (GLint *)&pre_rbo);
 
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_draw);
-    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_read);
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, (GLint *)&pre_fbo_read); //保存当前绑定的，便于最后恢复
 
     glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&pre_unpack_buffer);
 
-    glGenTextures(1, &(gbuffer->data_texture));
+    glGenTextures(1, &(gbuffer->data_texture)); //创建一个fbo，然后它的颜色缓冲用的是texture，深度和模板缓冲用的是fbo
     glGenRenderbuffers(1, &(gbuffer->rbo_depth));
     glGenRenderbuffers(1, &(gbuffer->rbo_stencil));
 
@@ -964,12 +964,13 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
     Hardware_Buffer *gbuffer = NULL;
 
-    if (target == EGL_NATIVE_BUFFER_ANDROID || target == EGL_NATIVE_BUFFER_OHOS)
+    if (target == EGL_NATIVE_BUFFER_ANDROID || target == EGL_NATIVE_BUFFER_OHOS) //估计就是GL_TEXTURE_EXTERNAL_OES，创建gbuffer_type_window
     {
+        LOGD("in eglcreateImage and target is android!");
 
         gbuffer = get_gbuffer_from_global_map(gbuffer_id);
 
-        if (gbuffer == NULL)
+        if (gbuffer == NULL) //大概出现十余次(普通应用)
         {
             LOGI("create image with gbuffer id %" PRIx64 " width %d height %d format %d process_context %" PRIx64, gbuffer_id, width, height, hal_format, (uint64_t)process_context);
             gbuffer = create_gbuffer_with_context(width, height, hal_format, thread_context, ctx, gbuffer_id);
@@ -979,8 +980,9 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
             }
         }
     }
-    else
+    else //桌面和简单应用使用运行不到这里来
     {
+        LOGD("in eglcreateImage and target is %d", target);
         Opengl_Context *share_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
 
         if (share_opengl_context == NULL)
@@ -990,7 +992,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         }
 
         // gbuffer_id直接截取后面4个字节就是share的texture
-        GLuint host_share_texture = get_host_texture_id(share_opengl_context, (GLuint)gbuffer_id);
+        GLuint host_share_texture = get_host_texture_id(share_opengl_context, (GLuint)gbuffer_id, 0);
 
         // 之所以这里没有判断是否存在gbuffer，是因为作为texture的情况下，gbuffer一定不存在。即同一个进程下同一个id的EGLImage不会创建两次
         gbuffer = g_malloc0(sizeof(Hardware_Buffer));

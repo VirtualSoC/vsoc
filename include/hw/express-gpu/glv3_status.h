@@ -41,7 +41,7 @@ typedef struct Texture_Binding_Status
 
     GLuint current_texture_external;
 
-    Hardware_Buffer *current_2D_gbuffer;
+    Hardware_Buffer *current_2D_gbuffer; //如果关联了eglImage就会用
     Hardware_Buffer *current_external_gbuffer;
 
 

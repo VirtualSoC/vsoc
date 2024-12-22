@@ -31,7 +31,7 @@ typedef struct
     Egl_Display *egl_display;
 } Render_Thread_Context;
 
-
+Process_Context* get_process_context_form_id(uint64_t process_id);
 int save_render_process_contexts(QEMUFile *f);
 int load_render_process_contexts(QEMUFile *f);
 int save_render_thread_contexts(QEMUFile *f);

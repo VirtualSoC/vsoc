@@ -7,6 +7,8 @@
 #include "hw/express-gpu/express_gpu.h"
 
 #include "hw/teleport-express/express_log.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, int end_loc);
 
@@ -37,7 +39,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
     else
     {
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
-        status->host_pixel_unpack_buffer = asyn_texture;
+        status->host_pixel_unpack_buffer = asyn_texture; //能调到这说明本身也没绑定pbo，所以不担心覆盖
 
         //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
         glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc, NULL, GL_STREAM_DRAW);
@@ -46,21 +48,31 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
-            // LOGI("First pixels in RGBA format:");
 
-            // for (int i = 0; i < min(30, (end_loc - start_loc)/4); i++) {
-            //     LOGI("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
-            //         i, 
-            //         map_pointer[i * 4 + 0], //R
-            //         map_pointer[i * 4 + 1], //G
-            //         map_pointer[i * 4 + 2], //B
-            //         map_pointer[i * 4 + 3]  //A
-            //     );
-            // }
+
+        // unsigned char* zero_buffer = (unsigned char*)malloc(end_loc - start_loc);
+        // memset(zero_buffer, 0, end_loc - start_loc);
+        // if (memcmp(map_pointer, (const void*)zero_buffer, end_loc - start_loc) == 0) {
+        // // 说明 state->pixels 的内容全为 0
+        //     LOGI("Memory is all zeros in updload");
+        // }
+        // free(zero_buffer);
+
+        // LOGI("First pixels in RGBA format:");
+
+        // for (int i = 0; i < min(30, (end_loc - start_loc)/4); i++) {
+        //     LOGI("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
+        //         i, 
+        //         map_pointer[i * 4 + 0], //R
+        //         map_pointer[i * 4 + 1], //G
+        //         map_pointer[i * 4 + 2], //B
+        //         map_pointer[i * 4 + 3]  //A
+        //     );
+        // }
 
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
     }
-    LOGI("unpack texture start %d end %d\n", start_loc, end_loc);
+    LOGI("unpack texture pbo %lld %d start %d end %d", (uint64_t)opengl_context->window, asyn_texture, start_loc, end_loc);
 }
 
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
@@ -113,7 +125,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (guest_mem->all_len == 0)
     {
-        if (status->host_pixel_unpack_buffer != 0)
+        if (status->host_pixel_unpack_buffer != 0) //说明是guest那边解绑pbo的同步
         {
             status->host_pixel_unpack_buffer = 0;
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -132,7 +144,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     int start_loc = 0, end_loc = buf_len;
 
-    LOGI("going to upload data for texture target %d id %d width %d height %d",target, bind_texture, width, height);
+    LOGI("going to upload data for texture target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
     //这时候是立即返回的，后续会进行dma传输(只分配空间)
@@ -206,7 +218,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     }
 
     int start_loc = 0, end_loc = buf_len;
-    LOGI("going to upload data for subtexture target %d id %d width %d height %d",target, bind_texture, width, height);
+    LOGI("going upload data for subtexture target %d id %d width %d height %d",target, bind_texture, width, height);
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
@@ -231,6 +243,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     {
         if (target == GL_TEXTURE_EXTERNAL_OES)
         {
+            LOGI("going to tex subimage 2d for GL_TEXTURE_EXTERNAL_OES!");
             if (texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
@@ -856,11 +869,24 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
     {
         if (textarget == GL_TEXTURE_EXTERNAL_OES)
         {
+            LOGI("going to bind framebuffer for GL_TEXTURE_EXTERNAL_OES! texture: %d", host_texture);
+
             textarget = GL_TEXTURE_2D;
         }
     }
 
+    
     glFramebufferTexture2D(target, attachment, textarget, host_texture, level);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_texture)) == NULL) {
+        struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
+        texture_resource->target = target;
+        texture_resource->textureId = host_texture;        
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 }
 
 void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachment, GLuint guest_texture, GLint level)
@@ -871,6 +897,16 @@ void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachm
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
     glFramebufferTexture(target, attachment, host_texture, level);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_texture)) == NULL) {
+        struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
+        texture_resource->target = target;
+        texture_resource->textureId = host_texture;        
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 }
 
 void d_glCopyImageSubData(void *context, GLuint srcName, GLenum srcTarget, GLint srcLevel, GLint srcX, GLint srcY, GLint srcZ, GLuint dstName, GLenum dstTarget, GLint dstLevel, GLint dstX, GLint dstY, GLint dstZ, GLsizei srcWidth, GLsizei srcHeight, GLsizei srcDepth)

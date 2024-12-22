@@ -506,6 +506,8 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
             if (gbuffer->pref_phy_dev == EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM) {
                 LOGD("gbuffer %" PRIx64 " sync data: %s -> %s", gbuffer->gbuffer_id, memtype_to_str(gbuffer->pref_phy_dev), memtype_to_str(EXPRESS_MEM_TYPE_TEXTURE));
 
+                LOGI("upload data for texture from gbuffer of %d", gbuffer->data_texture);
+
                 glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, gbuffer->host_data);
             }
             else {
@@ -682,34 +684,13 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
     }
 //ztodo:真的放在这里吗？还是初始化的时候存，这个时候再改？先这样吧
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
-
-
-    //ztodo：先用一种慢慢的方法试试,但效率太低了！
-    GList *list = g_resource_list[RESOURCE_TYPE_TEXTURE];
-    bool has_this = false;
-    while (list != NULL) {
-        struct Express_Native_Texture_Simple* tmp_texture = (struct Express_Native_Texture_Simple *)list->data;
-        if(tmp_texture->textureId == texture) {
-            tmp_texture->target = target;
-            has_this = true;
-            LOGD("Texture ID: %u, Target: %u", texture, target);          
-            break;
-        }
-
-        
-        list = list->next;
-    }
-    if(!has_this) {
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(texture)) == NULL) {
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = target;
-        texture_resource->textureId = texture;
-        g_resource_list[RESOURCE_TYPE_TEXTURE] = g_list_append(g_resource_list[RESOURCE_TYPE_TEXTURE], texture_resource);
-        g_resource_count[RESOURCE_TYPE_TEXTURE]++;             
+        texture_resource->textureId = texture;        
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(texture), texture_resource);            
     }
-
-   
-
-
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 
 }
