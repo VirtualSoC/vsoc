@@ -453,40 +453,26 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
 
 Hardware_Buffer *create_gbuffer_with_context(int width, int height, int hal_format, void *t_context, EGLContext ctx, uint64_t gbuffer_id)
 {
+    static void *temp_window;
+    static int temp_window_lock = 0;
+
     Render_Thread_Context *thread_context = (Render_Thread_Context *)t_context;
-    Process_Context *process_context = thread_context->process_context;
-    Opengl_Context *opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
 
     if (thread_context->opengl_context == NULL) {
-        if (opengl_context == NULL) {
-            LOGE("error! create gbuffer with invalid gl context %p", ctx);
-            return NULL;
+        LOGD("create gbuffer: no current opengl context, using temporary window");
+        if (temp_window == NULL) {
+            temp_window = get_native_opengl_context(0);
         }
-        else {
-            LOGI("no current thread context, create gbuffer using supplied context %p", opengl_context);
-            if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-            {
-                glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
-            }
-            else
-            {
-                egl_makeCurrent(opengl_context->window);
-            }
-        }
+        ATOMIC_LOCK(temp_window_lock);
+        egl_makeCurrent(temp_window);
     }
 
     Hardware_Buffer *gbuffer = create_gbuffer_from_hal(width, height, hal_format, NULL, gbuffer_id);
 
     if (thread_context->opengl_context == NULL)
     {
-        if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-        {
-            glfwMakeContextCurrent(NULL);
-        }
-        else
-        {
-            egl_makeCurrent(NULL);
-        }
+        egl_makeCurrent(NULL);
+        ATOMIC_UNLOCK(temp_window_lock);
     }
 
     return gbuffer;
