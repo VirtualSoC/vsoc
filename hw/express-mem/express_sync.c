@@ -84,7 +84,9 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
         int old_waitting_cnt = 0;
         if ((old_waitting_cnt = qatomic_xchg(&static_sync_context.sync_data->guest_waitting_cnt, 0)) != 0)
         {
-            set_express_device_irq((Device_Context *)&static_sync_context, old_waitting_cnt, sizeof(Sync_Context));
+            while (set_express_device_irq((Device_Context *)&static_sync_context, old_waitting_cnt, sizeof(Sync_Context)) == IRQ_NOT_READY) {
+                g_usleep(100);
+            }
         }
     }
 }
