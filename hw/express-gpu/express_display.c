@@ -28,15 +28,10 @@
 #include "sysemu/runstate.h"
 #include <math.h>
 
-int express_display_pixel_width;
-int express_display_pixel_height;
 int express_gpu_window_width;
 int express_gpu_window_height;
-int express_display_refresh_rate;
 bool express_display_switch_open;
 bool express_gpu_keep_window_scale;
-
-uint64_t express_display_count;
 
 static GHashTable *g_display_contexts = NULL;
 
@@ -49,6 +44,7 @@ extern int main_window_run;
 static void display_context_init(Thread_Context *context);
 static void window_size_change_callback(GLFWwindow *window, int width, int height);
 static void close_window_callback(GLFWwindow *window);
+static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers);
 static void display_present(Display_Context *disp);
 void display_status_change(Display_Context *disp, Display_Status status);
@@ -72,15 +68,12 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Get_Display_Count:
     {
-        if (express_display_count < 1) {
-            LOGW("at least one display is needed!");
-            express_display_count = 1;
-        }
+        uint64_t display_count = get_display_count();
         if (all_para[0].data_len >= 8) {
-            write_to_guest_mem(all_para[0].data, &express_display_count, 0, sizeof(uint64_t));
+            write_to_guest_mem(all_para[0].data, &display_count, 0, sizeof(uint64_t));
         }
         else {
-            LOGE("error! incorrect FUNID_Get_express_display_count arguments");
+            LOGE("error! incorrect FUNID_Get_Display_Count arguments");
         }
     }
     break;
@@ -120,14 +113,14 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Show_Window:
     {
-        LOGI("disp %s: Show_Window", disp->info.name);
+        LOGD("disp %s: Show_Window", disp->info.name);
         disp->transform_type = ROTATE_NONE;
         glUniform1i(disp->transform_uniform, disp->transform_type);
     }
     break;
     case FUNID_Show_Window_FLIP_V:
     {
-        LOGI("disp %s: Show_Window_FLIP_V", disp->info.name);
+        LOGD("disp %s: Show_Window_FLIP_V", disp->info.name);
         disp->transform_type = FLIP_V;
         glUniform1i(disp->transform_uniform, disp->transform_type);
     }
@@ -305,17 +298,21 @@ static void display_context_init(Thread_Context *context)
     Display_Context *disp = (Display_Context *)context;
     start_main_window_thread();
 
-    sprintf(disp->info.name, "%d", qatomic_fetch_inc(&atomic_id_counter));
-    disp->info.pixel_width = express_display_pixel_width;
-    disp->info.pixel_height = express_display_pixel_height;
+    int idx, width, height, refresh_rate;
+    idx = qatomic_fetch_inc(&atomic_id_counter);
+    get_display_info(idx, &width, &height, &refresh_rate);
 
-    if (express_display_refresh_rate > 0 && express_display_refresh_rate <= 64 * 15 /* 15 per bit, 64 bits */ && express_display_refresh_rate % 15 == 0) {
-        disp->info.refresh_rate_bits = 0x1ULL << ((express_display_refresh_rate - 15) / 15);
+    sprintf(disp->info.name, "%d", idx);
+    disp->info.pixel_width = width;
+    disp->info.pixel_height = height;
+
+    if (refresh_rate > 0 && refresh_rate <= 64 * 15 /* 15 per bit, 64 bits */ && refresh_rate % 15 == 0) {
+        disp->info.refresh_rate_bits = 0x1ULL << ((refresh_rate - 15) / 15);
     }
     else {
-        LOGW("invalid refresh rate setting %d, must be a multiple of 15, defaulting to 60.", express_display_refresh_rate);
-        express_display_refresh_rate = 60;
-        disp->info.refresh_rate_bits = 0x1ULL << ((express_display_refresh_rate - 15) / 15);
+        LOGW("invalid refresh rate setting %d, must be a multiple of 15, defaulting to 60", refresh_rate);
+        refresh_rate = 60;
+        disp->info.refresh_rate_bits = 0x1ULL << ((refresh_rate - 15) / 15);
     }
 
     disp->window_width = express_gpu_window_width;
@@ -405,7 +402,7 @@ static void display_context_init(Thread_Context *context)
         glfwShowWindow(disp->window);
         sdl2_no_need = 1;
 
-        LOGI("display %s create", name);
+        LOGI("display %s create %dx%d@%dhz", name, disp->info.pixel_width, disp->info.pixel_height, refresh_rate);
     }
 }
 
@@ -561,7 +558,7 @@ void display_status_change(Display_Context *disp, Display_Status status)
  *
  * @param gbuffer
  */
-void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
+static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
 {
     if (gbuffer != NULL)
     {

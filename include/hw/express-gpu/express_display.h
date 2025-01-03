@@ -83,9 +83,8 @@ typedef struct
 #define PARA_NUM_Set_Display_Status 1
 #define PARA_NUM_Get_Display_Status 1
 
-
-extern int display_is_open;
-
-void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
+uint64_t get_display_count(void);
+void get_display_info(int displayIndex, int *width, int *height,
+                      int *refreshRate);
 
 #endif
