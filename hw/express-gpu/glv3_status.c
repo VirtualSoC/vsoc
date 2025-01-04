@@ -22,13 +22,13 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
     {
         if (target == GL_DRAW_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
-            // LOGI("context %llx bind 0 framebuffer draw %u",(uint64_t)context, draw_fbo0);
+            // LOGI("conetxt %llx bind 0 framebuffer draw %u",(uint64_t)context, draw_fbo0);
 
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw_fbo0);
         }
         if (target == GL_READ_FRAMEBUFFER || target == GL_FRAMEBUFFER)
         {
-            // LOGI("context %llx bind 0 framebuffer read %u",(uint64_t)context, read_fbo0);
+            // LOGI("conetxt %llx bind 0 framebuffer read %u",(uint64_t)context, read_fbo0);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, read_fbo0);
         }
     }
