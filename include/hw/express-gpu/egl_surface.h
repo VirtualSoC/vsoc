@@ -5,7 +5,7 @@
 #include "hw/express-gpu/egl_config.h"
 
 #include "glad/glad.h"
-#include "hw/express-gpu/GLFW/glfw3.h"
+#include <GLFW/glfw3.h>
 
 
 #define P_SURFACE 1

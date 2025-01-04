@@ -81,7 +81,7 @@ RECYCLE_EVENT recycle_event;
  *
  * @param context 需要初始化的线程context
  */
-Thread_Context *thread_context_create(unsigned long long thread_id, unsigned long long device_id, unsigned long long len, Express_Device_Info *info)
+Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info)
 {
 
     Thread_Context *context = g_malloc0(len);

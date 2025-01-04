@@ -2,13 +2,6 @@
 
 #include "hw/teleport-express/teleport_express_call.h"
 
-#ifndef _WIN32
-#define max(a, b)                       \
-  (((a) > (b)) ? (a) : (b))
-#define min(a, b)                       \
-  (((a) < (b)) ? (a) : (b))
-#endif
-
 /**
  * @brief 根据像素格式和类型计算一个像素所占的空间的字节大小
  *

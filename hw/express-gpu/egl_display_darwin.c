@@ -1,4 +1,4 @@
-#define STD_DEBUG_LOG
+// #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/egl_display_darwin.h"
 
@@ -76,31 +76,6 @@ static const EGLint* const pixel_attrs[] = {
 };
 
 static int num_formats = sizeof(pixel_attrs) / sizeof(pixel_attrs[0]);
-
-Egl_Display_DARWIN default_darwin_display;
-
-/**
- * @brief 初始化Egl_Display
- * 
- * @param display_point 待初始化的Egl_Display
- */
-void init_display(Egl_Display **display_point) {
-    // TODO
-    Egl_Display *display = (Egl_Display *)&default_darwin_display;
-    *display_point = &default_darwin_display;
-
-    Egl_Display_DARWIN *darwin_display = (Egl_Display_DARWIN *)display;
-    memset(darwin_display, 0, sizeof(Egl_Display_DARWIN));
-
-    express_printf("init darwin display\n");
-    // init_darwin_extension(display);
-    init_configs(display);
-
-    display->guest_ver_major = 1;
-    display->guest_ver_minor = 5;
-
-    display->is_init = true;
-}
 
 /**
  * @brief 初始化EGL configuration并将所有可用configuration保存到全局的hash表中

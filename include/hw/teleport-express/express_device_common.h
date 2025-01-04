@@ -66,6 +66,10 @@
         express_device_init_common(info);                                            \
     }
 
+#ifndef max
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#endif
 
 #ifdef __APPLE__
 #include <dispatch/dispatch.h>

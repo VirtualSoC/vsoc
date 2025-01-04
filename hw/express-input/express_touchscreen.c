@@ -17,13 +17,6 @@ int express_touchscreen_scroll_ratio = 10;
 bool express_touchscreen_scroll_is_zoom = false;
 bool express_touchscreen_right_click_is_two_finger = false;
 
-#ifndef _WIN32
-#define max(a, b)                       \
-  (((a) > (b)) ? (a) : (b))
-#define min(a, b)                       \
-  (((a) < (b)) ? (a) : (b))
-#endif
-
 
 typedef struct Touchscreen_Prop
 {

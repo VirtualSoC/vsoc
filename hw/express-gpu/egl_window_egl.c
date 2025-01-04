@@ -113,16 +113,16 @@ void *egl_createContext()
     return context;
 }
 
-void egl_makeCurrent(void *context)
+int egl_makeCurrent(void *context)
 {
     if (context != NULL)
     {
         EGLSurface pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
-        eglMakeCurrent(main_window_display, pbuffer, pbuffer, context);
+        return eglMakeCurrent(main_window_display, pbuffer, pbuffer, context);
     }
     else
     {
-        eglMakeCurrent(main_window_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        return eglMakeCurrent(main_window_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     }
 }
 

@@ -49,13 +49,6 @@
 #define GET_ACCEPT 1
 #define INTERRUPT_ACCEPT 2
 
-#ifndef _WIN32
-#define max(a, b)                       \
-  (((a) > (b)) ? (a) : (b))
-#define min(a, b)                       \
-  (((a) < (b)) ? (a) : (b))
-#endif
-
 typedef struct Bridge_Read_Data
 {
     volatile int host_write_loc;

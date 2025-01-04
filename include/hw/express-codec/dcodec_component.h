@@ -38,11 +38,6 @@
 
 #include "hw/express-gpu/express_gpu_main_window.h"
 
-#ifndef _WIN32
-#define max(a, b) (((a) > (b)) ? (a) : (b))
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#endif
-
 typedef enum CodecStatus {
     // the codec is awaiting input
     AWAITING_INPUT,

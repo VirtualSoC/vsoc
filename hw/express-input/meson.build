@@ -9,9 +9,6 @@ express_input.add(when: 'CONFIG_EXPRESS_INPUT',
                     'express_keyboard.c',
                ))
 
-
-
-
 softmmu_ss.add_all(express_input)
 
 

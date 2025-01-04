@@ -1,32 +1,22 @@
-#ifndef QEMU_EXPRESS_GPU_RENDER_H
-#define QEMU_EXPRESS_GPU_RENDER_H
-#ifdef __APPLE__
-#include <dispatch/dispatch.h>
-#endif
-#include "qemu/atomic.h"
+#ifndef EXPRESS_GPU_MAIN_WINDOW_H
+#define EXPRESS_GPU_MAIN_WINDOW_H
 
-#include "glad/glad.h"
 #ifdef _WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_EXPOSE_NATIVE_WGL
-#else
+#elif defined(__linux__)
+#define GLFW_EXPOSE_NATIVE_X11
+#define GLFW_EXPOSE_NATIVE_EGL
+#elif defined(__APPLE__)
 #define GLFW_EXPOSE_NATIVE_COCOA
 #define GLFW_EXPOSE_NATIVE_NSGL
 #endif
 
 #include "qemu/atomic.h"
 
-#ifdef _WIN32
-#define GLFW_EXPOSE_NATIVE_WIN32
-#define GLFW_EXPOSE_NATIVE_WGL
-#else
-#define GLFW_EXPOSE_NATIVE_COCOA
-#define GLFW_EXPOSE_NATIVE_NSGL
-#endif
-
 #include "glad/glad.h"
-#include "hw/express-gpu/GLFW/glfw3.h"
-#include "hw/express-gpu/GLFW/glfw3native.h"
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 #include "hw/express-gpu/egl_window.h"
 

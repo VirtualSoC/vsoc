@@ -6,8 +6,8 @@
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_register.h"
 
-#include "hw/express-gpu/GLFW/glfw3.h"
-#include "hw/express-gpu/GLFW/glfw3native.h"
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 #define MAX_TOUCH_POINT 10
 

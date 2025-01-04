@@ -1,7 +1,5 @@
 #include "egl_display.h"
 
-#ifdef _WIN32
-
 #include <windows.h>
 #include "wglext.h"
 
@@ -28,15 +26,8 @@ typedef struct
     LIST_WGL_EXT_FUNCTIONS(DECLARE_WGL_FUNCS);
 } WGL_Extension;
 
-void init_wgl_extension(Egl_Display *display);
-void parse_pixel_format(Egl_Display *display, HDC dummy_ctx, PIXELFORMATDESCRIPTOR *pfd, int id);
-HWND create_dummy_window(void);
-LRESULT CALLBACK dummy_window_proc(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_param);
-
 typedef struct
 {
     Egl_Display display;
     WGL_Extension *wgl_ext;
 } Egl_Display_WGL;
-
-#endif

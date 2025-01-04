@@ -2,12 +2,6 @@
 #include "hw/express-gpu/glv3_vertex.h"
 #include "hw/express-gpu/glv3_status.h"
 
-#ifndef _WIN32
-#define max(a, b)                       \
-  (((a) > (b)) ? (a) : (b))
-#define min(a, b)                       \
-  (((a) < (b)) ? (a) : (b))
-#endif
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer)
 {
