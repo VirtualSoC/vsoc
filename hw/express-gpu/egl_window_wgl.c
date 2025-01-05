@@ -9,7 +9,7 @@
 #include "hw/teleport-express/express_log.h"
 
 #include <windows.h>
-#include "wglext.h"
+#include "hw/express-gpu/wglext.h""
 
 typedef void (*WGLproc)(void);
 
