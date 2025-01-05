@@ -13,6 +13,7 @@
 // uncomment the following line to enable debug logging globally, regardless of verbosity and per-file options.
 //#define STD_DEBUG_LOG_OVERRIDE_ENABLE
 
+#define HOST_LOG_LEVEL_FATAL 0
 #define HOST_LOG_LEVEL_ERROR 1
 #define HOST_LOG_LEVEL_WARN 2
 #define HOST_LOG_LEVEL_INFO 3
@@ -47,12 +48,12 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 
 #define _host_log(level, fmt, ...)                                                      \
     {                                                                                   \
-        printf("%s %lld %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
+        printf("%s %" PRId64 " %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
                  _level_chars[level], __FILE__, __LINE__, ##__VA_ARGS__, 10);                               \
     }
 #define _host_log_debug_nolf(fmt, ...)                                                  \
     {                                                                                   \
-        printf("%s %lld %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
+        printf("%s %" PRId64 " %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
     }
 
 #define LOGV(fmt, ...) _host_log(HOST_LOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
@@ -60,6 +61,7 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 #define LOGI(fmt, ...) _host_log(HOST_LOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
 #define LOGW(fmt, ...) _host_log(HOST_LOG_LEVEL_WARN, YELLOW(fmt), ##__VA_ARGS__)
 #define LOGE(fmt, ...) _host_log(HOST_LOG_LEVEL_ERROR, RED(fmt), ##__VA_ARGS__)
+#define LOGF(fmt, ...) _host_log(HOST_LOG_LEVEL_FATAL, RED(fmt), ##__VA_ARGS__)
 
 #if defined(STD_DEBUG_LOG) || defined(STD_DEBUG_LOG_OVERRIDE_ENABLE)
 #define express_printf _host_log_debug_nolf
