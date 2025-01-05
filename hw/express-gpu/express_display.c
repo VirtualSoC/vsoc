@@ -324,7 +324,7 @@ static void display_context_init(Thread_Context *context)
     // 新建一个context用于与纹理交互
     if (disp->window == NULL)
     {
-        char name[32];
+        char name[64];
 
         // 创建一个窗口，这个window也是context
         disp->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
@@ -519,7 +519,7 @@ static void display_present(Display_Context *disp)
     sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);
 
     uint64_t now_time = g_get_real_time();
-    char name[32];
+    char name[64];
     disp->fps_counter++;
 
     if (now_time - disp->last_fps_timestamp > 1000000)

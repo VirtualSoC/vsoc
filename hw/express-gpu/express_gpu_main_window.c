@@ -62,21 +62,21 @@ static QemuThread qemu_device_interface_thread;
 static GLFWwindow *main_window = NULL;
 
 static const char GPU_VENDOR[] = "ARM";
-#ifdef _WIN32
+#ifndef __APPLE__
 static const char GPU_VERSION[] = "OpenGL ES 3.2 (";
 #else
 static const char GPU_VERSION[] = "OpenGL ES 3.0 (";
 #endif
 static const char GPU_RENDERER[] = "Mali-G77";
 
-#ifdef _WIN32
+#ifndef __APPLE__
 static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.20";
 #else
 static const char GPU_SHADER_LANGUAGE_VERSION[] = "OpenGL ES GLSL ES 3.00";
 #endif
 
 static const int OPENGL_MAJOR_VERSION = 3;
-#ifdef _WIN32
+#ifdef __APPLE__
 static const int OPENGL_MINOR_VERSION = 2;
 #else
 static const int OPENGL_MINOR_VERSION = 0;
@@ -174,6 +174,12 @@ static const int SPECIAL_EXTENSIONS_SIZE = 73;
 extern Hardware_Buffer *main_display_gbuffer;
 
 static void *sub_window_create(int context_flags);
+
+static void glfw_error_callback(int error, const char *description)
+{
+    LOGE("glfw error 0x%x: %s", error, description);
+    return;
+}
 
 static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
@@ -292,7 +298,7 @@ static void handle_child_window_event(void)
         }
         break;
         default:
-            // express_printf("child win msg: %d\n", uMsg);
+            LOGD("child window message %d not handled", child_event->event_code);
             break;
         }
         g_free(child_event);
@@ -530,6 +536,8 @@ static void *sub_window_create(int context_flags)
         {
             glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
         }
+#endif
+#ifdef _WIN32
         glfwWindowHint(GLFW_CONTEXT_ROBUSTNESS, GLFW_LOSE_CONTEXT_ON_RESET);
 #endif
 
@@ -563,6 +571,16 @@ void *main_window_thread(void *opaque)
 {
     main_window_event_queue = g_async_queue_new();
 
+#if defined(__linux__) && defined(GLFW_PLATFORM_WAYLAND)
+    if (glfwPlatformSupported(GLFW_PLATFORM_WAYLAND)) {
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+        glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_FALSE);
+    }
+    else {
+        LOGE("glfw+wayland not supported, using x11. x11 does not play nice with egl, so expect errors to occur");
+    }
+#endif
+
     // 初始化glfw
     THREAD_CONTROL_BEGIN
     if (!glfwInit()){
@@ -572,7 +590,12 @@ void *main_window_thread(void *opaque)
         return NULL;
     #endif
     }
+    glfwSetErrorCallback(glfw_error_callback);
 
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+#ifdef __linux__
+    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+#endif
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 #ifdef __APPLE__
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
@@ -586,6 +609,11 @@ void *main_window_thread(void *opaque)
     {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     }
+#endif
+#ifdef _WIN32
+    // macos does not support context flags
+    // egl on linux reports 0x3009 (EGL_BAD_MATCH) when setting context robustness
+    // so they are disabled for now
     glfwWindowHint(GLFW_CONTEXT_ROBUSTNESS, GLFW_LOSE_CONTEXT_ON_RESET);
 #endif
 
@@ -593,7 +621,7 @@ void *main_window_thread(void *opaque)
 
     if (!main_window)
     {
-        LOGE("error: cannot create main window %x", glfwGetError(NULL));
+        LOGF("fatal: cannot create main window %x", glfwGetError(NULL));
 
         glfwTerminate();
     #ifdef __APPLE__    

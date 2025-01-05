@@ -51,11 +51,9 @@ elif targetos == 'linux'
                          'egl_window_egl.c',
                     ))
 
-     glfw = cc.find_library('glfw3')
-     egl = cc.find_library('EGL')
+     glfw = cc.find_library('glfw')
      vulkan = cc.find_library('vulkan')
      express_gpu.add(glfw)
-     express_gpu.add(egl)
      express_gpu.add(vulkan)
 
 elif targetos == 'darwin'

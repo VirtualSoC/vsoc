@@ -229,12 +229,6 @@ void handle_modem_change(int slot, int property)
     sync_express_modem_status();
 }
 
-static void glfw_error_callback(int error, const char *description)
-{
-    LOGE("Device_interface::Glfw Error %d: %s", error, description);
-    return;
-}
-
 static void update_window_scale(void)
 {
     float new_dpi_scale = igGetWindowDpiScale();
@@ -840,13 +834,6 @@ static void draw_window(bool *show_imgui)
 void *interface_window_thread(void *data)
 {   
     all_interface_data.run = (int *)data;
-
-    THREAD_CONTROL_BEGIN
-
-    // Setup window
-    glfwSetErrorCallback(glfw_error_callback);
-
-    THREAD_CONTROL_END
 
     // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)

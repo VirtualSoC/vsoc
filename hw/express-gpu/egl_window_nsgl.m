@@ -12,7 +12,7 @@
 #include "hw/teleport-express/express_log.h"
 #include <Cocoa/Cocoa.h>
 
-static void *egl_dll_moudle = NULL;
+static void *egl_module = NULL;
 
 static NSOpenGLContext *main_window_context;
 
@@ -37,7 +37,7 @@ void egl_init(void *dpy, void *father_context)
     }
 }
 
-void *egl_createContext()
+void *egl_createContext(int context_flags)
 {
     id context = [[NSOpenGLContext alloc] initWithFormat:static_pixelFormat shareContext:main_window_context];
 
