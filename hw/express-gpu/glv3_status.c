@@ -474,39 +474,27 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         {
             status->current_external_gbuffer = gbuffer;
         }
-
-        // glEGLImageTargetTexture needs to perform a check to make sure its
-        // underlying texture storage is of the same size as the specs of the image
-        int w, h;
-        GLuint prev_texture = 0;
-        GLuint prev_unpack = 0;
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&prev_texture);
-        glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&prev_unpack);
-        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
-        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
-
-        if (gbuffer->width != w || gbuffer->height != h) {
-            // isolate previous storage and reallocate storage of matching specs
-            glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, NULL);
-        }
-
         if (gbuffer->pref_phy_dev != EXPRESS_MEM_TYPE_UNKNOWN && gbuffer->pref_phy_dev != EXPRESS_MEM_TYPE_TEXTURE) {
             // oops, prefetch failure, sync gpu mem
             if (gbuffer->pref_phy_dev == EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM) {
                 LOGD("gbuffer %" PRIx64 " sync data: %s -> %s", gbuffer->gbuffer_id, memtype_to_str(gbuffer->pref_phy_dev), memtype_to_str(EXPRESS_MEM_TYPE_TEXTURE));
+                GLuint prev_texture = 0;
+                GLuint prev_unpack = 0;
+                glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&prev_texture);
+                glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&prev_unpack);
+                glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
                 glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, gbuffer->host_data);
+
+                glBindTexture(GL_TEXTURE_2D, prev_texture);
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, prev_unpack);
             }
             else {
                 LOGW("prefetch failed, but don't know how to recover data. expect graphics glitches");
             }
         }
         update_gbuffer_phy_usage(gbuffer, EXPRESS_MEM_TYPE_TEXTURE, false);
-
-        glBindTexture(GL_TEXTURE_2D, prev_texture);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, prev_unpack);
     }
 
     host_share_texture = gbuffer->data_texture;
