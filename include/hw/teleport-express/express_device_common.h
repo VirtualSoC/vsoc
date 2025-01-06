@@ -255,7 +255,6 @@ typedef struct Express_Device_Info
     // guest端设备文件被关闭时会调用的回调函数，返回值是标示该context是否已经被销毁，即与该context相关的线程是否应该退出
     bool (*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
-
     // guest注册DMA内存的回调
     void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);
     
