@@ -25,7 +25,7 @@ static Property teleport_express_base_properties[] = {
     // 这个vectors变量决定了是否还是用msix中断，假如没有这行，则为APIC中断
     // 若使用APIC中断，则可能出现中断不能及时处理，引发__report_bad_irq函数报错，进而导致中断速度缓慢（If 99,900 of the previous 100,000 interrupts have not been handled* then assume that the IRQ is stuck in some manner）
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 3),
-    DEFINE_PROP_BOOL("gl_debug", Teleport_Express_PCI, enalbe_opengl_debug, false),
+    DEFINE_PROP_BOOL("gl_debug", Teleport_Express_PCI, enable_opengl_debug, false),
     DEFINE_PROP_BOOL("independ_window", Teleport_Express_PCI, enable_independ_window, false),
     DEFINE_PROP_BOOL("keep_window_scale", Teleport_Express_PCI, keep_window_scale, true),
     DEFINE_PROP_INT32("window_width", Teleport_Express_PCI, window_width, 1280),

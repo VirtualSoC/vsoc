@@ -187,13 +187,6 @@ static void set_camera_capabilties(CameraProp *prop)
         return;
     }
 
-    ret = avformat_find_stream_info(format_context, NULL);
-    if (ret < 0) {
-        av_strerror(ret, error_msg, 256);
-        LOGE("avformat_find_stream_info failed: %s", error_msg);
-        return;
-    }
-
     stream_index = av_find_best_stream(format_context, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     if (stream_index == -1) {
         LOGE("no video stream found");

@@ -20,7 +20,7 @@ typedef struct Teleport_Express_PCI{
     VirtIOPCIProxy parent_obj;
     Teleport_Express teleport_express;
     bool express_device_enable[MAX_EXPRESS_DEVICE_NUM];
-    bool enalbe_opengl_debug;
+    bool enable_opengl_debug;
     bool enable_independ_window;
     bool show_device_input_window;
     bool keep_window_scale;
