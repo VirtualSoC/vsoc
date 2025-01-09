@@ -218,6 +218,7 @@ bool stop_mouse_replay(int index)
 
 void express_touchscreen_mouse_move_handle(GLFWwindow *window, double xpos, double ypos)
 {
+    LOGD("mouse move %lf %lf", xpos, ypos);
     if (is_scrolling)
     {
         set_express_touchscreen_input(now_finger_xpos, now_scroll_ypos1, 0, scroll_finger1);
@@ -278,7 +279,7 @@ void express_touchscreen_mouse_move_handle(GLFWwindow *window, double xpos, doub
 
 void express_touchscreen_mouse_click_handle(GLFWwindow *window, int button, int action, int mods)
 {
-    // printf("mouse click %d %d\n",button, action);
+    LOGD("mouse click %d %d",button, action);
     if (is_scrolling)
     {
         set_express_touchscreen_input(now_finger_xpos, now_scroll_ypos1, 0, scroll_finger1);
@@ -344,7 +345,7 @@ void express_touchscreen_mouse_click_handle(GLFWwindow *window, int button, int 
 
 void express_touchscreen_mouse_scroll_handle(GLFWwindow *window, double xoffset, double yoffset)
 {
-    // printf("scroll x %lf y %lf\n", xoffset, yoffset);
+    LOGD("scroll x %lf y %lf", xoffset, yoffset);
     if (express_touchscreen_scroll_is_zoom)
     {
         int temp_yoffset = ((int)yoffset) * express_touchscreen_scroll_ratio;

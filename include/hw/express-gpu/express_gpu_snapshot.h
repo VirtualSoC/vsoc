@@ -48,12 +48,30 @@ typedef struct Express_Native_Shader {
 
 // program处理方法：（program_id<<32）| shader_id
 
+typedef struct Express_Native_Buffer {
+    GLuint bufferId;
+    GLenum target;
+    GLint size;
+    GLenum usage;
+    GLvoid* data;
+} Express_Native_Buffer;
+
+typedef struct Express_Native_buffer_Simple {
+    GLuint bufferId;
+    GLenum target;
+} Express_Native_buffer_Simple;
 
 
 typedef struct Express_Native_Texture_Simple {
     GLint textureId;
     GLenum target;
 } Express_Native_Texture_Simple;
+
+typedef struct Express_Native_Framebuffer { //ztodo:没处理renderbuffer相关。此外现在只能绑一个东西，需要重新处理一下怎么定key(类似program那样，关于前两个字段独一无二）！！
+    GLuint framebufferId;
+    GLenum attachment_target;
+    GLuint texture_id;
+} Express_Native_Framebuffer;
 
 typedef struct Express_Native_Texture {
     GLuint textureId;
@@ -117,6 +135,9 @@ void load_native_shaders(QEMUFile *f);
 void save_native_programs(QEMUFile *f);
 void load_native_programs(QEMUFile *f);
 
+void save_native_programs_tmp(QEMUFile *f);
+void load_native_programs_tmp(QEMUFile *f);
+
 void save_native_textures(QEMUFile *f);
 void load_native_textures(QEMUFile *f);
 
@@ -179,5 +200,9 @@ Attrib_Point* load_attrib_point(QEMUFile *f);
 
 void save_guest_host_map(QEMUFile *f, Guest_Host_Map *map);
 Guest_Host_Map* load_guest_host_map(QEMUFile *f);
+
+GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer);
+GLuint save_single_framebuffer(QEMUFile* f, Express_Native_Framebuffer *framebuffer);
+
 
 #endif

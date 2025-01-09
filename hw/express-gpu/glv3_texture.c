@@ -72,7 +72,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
 
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
     }
-    LOGI("unpack texture pbo %lld %d start %d end %d", (uint64_t)opengl_context->window, asyn_texture, start_loc, end_loc);
+    LOGD("unpack texture pbo %lld %d start %d end %d", (uint64_t)opengl_context->window, asyn_texture, start_loc, end_loc);
 }
 
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
@@ -857,6 +857,26 @@ void d_glReadBuffer_special(void *context, GLenum src)
     glReadBuffer(src);
 }
 
+void update_framebuffer_texture(GLuint texture_id, GLenum attachment)
+{
+    GLuint framebuffer;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
+    LOGI("current binding framebuffer is %d", framebuffer);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+    GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+    if(g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer)) != NULL) {
+        Express_Native_Framebuffer* newFramebuffer = g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer));
+        newFramebuffer->framebufferId = framebuffer;
+        newFramebuffer->texture_id = texture_id;
+        newFramebuffer->attachment_target = attachment;
+
+        g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
+    }
+
+
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+}
 
 void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint guest_texture, GLint level)
 {
@@ -875,10 +895,16 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
         }
     }
 
-    
+
     glFramebufferTexture2D(target, attachment, textarget, host_texture, level);
 
+
+    
+    if(host_texture == 0) {
+        return;
+    }
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
     GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
     if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_texture)) == NULL) {
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
@@ -887,6 +913,27 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
+    update_framebuffer_texture(host_texture, attachment);
+    // GLuint framebuffer;
+    // glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
+    // LOGI("current binding framebuffer is %d", framebuffer);
+
+    // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+    // GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+    // if(g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer)) != NULL) {
+    //     Express_Native_Framebuffer* newFramebuffer = g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer));
+    //     newFramebuffer->framebufferId = framebuffer;
+    //     newFramebuffer->texture_id = host_texture;
+    //     newFramebuffer->attachment_target = attachment;
+
+    //     g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
+    // }
+
+
+    // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+
+
 }
 
 void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachment, GLuint guest_texture, GLint level)
@@ -897,6 +944,10 @@ void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachm
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
     glFramebufferTexture(target, attachment, host_texture, level);
+
+    if(host_texture == 0) {
+        return;
+    }
 
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
     GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];

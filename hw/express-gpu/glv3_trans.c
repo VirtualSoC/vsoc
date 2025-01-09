@@ -16438,6 +16438,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
 
         glUniform1i(location, v0);
+        LOGI("glUniform1i location=%d, v0=%d", location, v0);
     }
     break;
 
@@ -22408,6 +22409,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
 
         glUniformMatrix4fv(location, count, transpose, value);
+        // LOGI("pid = %d, glUniformMatrix4fv called. location = %d, count = %d, transpose = %d, value = %p\n", location, count, transpose, value);
     }
     break;
 

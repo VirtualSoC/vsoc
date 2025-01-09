@@ -72,7 +72,7 @@ void d_glShadeModel_special(void *context, GLenum mode)
 }
 
 void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint width, GLint height, GLfloat left_x, GLfloat right_x, GLfloat bottom_y, GLfloat top_y)
-{
+{ //ztodo:这里的buffer的save和load
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     GLuint pre_vbo;
     GLuint pre_vao;

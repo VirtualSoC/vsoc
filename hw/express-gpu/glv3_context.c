@@ -7,6 +7,8 @@
 #include "glad/glad.h"
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/express_gpu.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 #define MAX_PRELOAD_CONTEXT_NUM 10
 
@@ -457,6 +459,8 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
 
     opengl_context->buffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
 
+    opengl_context->framebuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
+
     bound_buffer->vao_point_data = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_vao_point_data_destroy);
 
     Attrib_Point *temp_point = g_malloc0(sizeof(Attrib_Point));
@@ -515,14 +519,35 @@ void opengl_context_init(Opengl_Context *context)
         {
             glGenVertexArrays(1, &vao0);
 
+            LOGD("create vao when init! %d %d", vao0, context->window);
+
             glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
             glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
 
+            LOGI("create buffer when init! %d %d", bound_buffer->asyn_unpack_texture_buffer, bound_buffer->asyn_pack_texture_buffer);
+
             glGenBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
-            glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
+            glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object); //ztodo:这些buffer也没恢复
         }
 
-        // LOGI("context %llx init vao %d",(uint64_t)context, vao0);
+
+        Express_Native_buffer_Simple* newBuffer_pack = g_malloc0(sizeof(Express_Native_buffer_Simple));
+        Express_Native_buffer_Simple* newBuffer_unpack = g_malloc0(sizeof(Express_Native_buffer_Simple));
+
+        newBuffer_pack->bufferId = bound_buffer->asyn_pack_texture_buffer;  
+        newBuffer_pack->target = GL_PIXEL_PACK_BUFFER;
+
+        newBuffer_unpack->bufferId = bound_buffer->asyn_unpack_texture_buffer;    
+        newBuffer_unpack->target = GL_PIXEL_UNPACK_BUFFER;
+
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_pack->bufferId), newBuffer_pack);
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_unpack->bufferId), newBuffer_unpack);
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+
+        LOGI("context %llx init vao %d",(uint64_t)context, vao0);
 
         temp_host_vao = vao0;
         create_host_map_ids(map_status, 1, &temp_guest_vao, &temp_host_vao);
@@ -557,7 +582,7 @@ void opengl_context_init(Opengl_Context *context)
  */
 void opengl_context_destroy(Opengl_Context *context)
 {
-    express_printf("opengl context destroy %llx guest %llx\n", (uint64_t)context, (uint64_t)context->guest_context);
+    LOGI("opengl context destroy %llx guest %llx\n", (uint64_t)context, (uint64_t)context->guest_context);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
@@ -647,6 +672,13 @@ static void g_buffer_map_destroy(gpointer data)
     express_printf("buffer_map destroy\n");
     Guest_Host_Map *map_res = (Guest_Host_Map *)data;
     g_free(map_res);
+}
+
+static void g_framebuffer_map_destroy(gpointer data)
+{
+    LOGI("framebuffer_map destroy\n");
+    Express_Native_Framebuffer *fb = (Express_Native_Framebuffer *)data;
+    g_free(fb);
 }
 
 static void g_vao_point_data_destroy(gpointer data)

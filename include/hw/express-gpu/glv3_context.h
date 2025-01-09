@@ -14,19 +14,20 @@
 
 typedef struct Attrib_Point
 {
-    GLuint buffer_object[MAX_VERTEX_ATTRIBS_NUM];
+    //这些也都主要用于处理with_bound的情况
+    GLuint buffer_object[MAX_VERTEX_ATTRIBS_NUM]; //vbo，不同index对应着色器中不同的采样点layout(location = 0/1/2...)
     GLint buffer_loc[MAX_VERTEX_ATTRIBS_NUM];
 
     GLint remain_buffer_len[MAX_VERTEX_ATTRIBS_NUM];
-    GLint buffer_len[MAX_VERTEX_ATTRIBS_NUM];
+    GLint buffer_len[MAX_VERTEX_ATTRIBS_NUM]; //这几个是glVertexAttribPointer等一系列函数的时候用的，和下面那些含义差不多
 
-    GLuint indices_buffer_object;
-    GLint indices_buffer_len;
+    GLuint indices_buffer_object; //默认的ebo(ibo),指向在set_indices_data里绑定的ebo，处理guest没有绑定ebo的情况
+    GLint indices_buffer_len; //用来算ebo要从哪开始映射
 
-    GLint remain_indices_buffer_len;
+    GLint remain_indices_buffer_len; //用来算ebo要从哪里开始映射 这几个是gldrawelements等一系列函数的时候用的
 
     // GLint buffer_num;
-    GLint element_array_buffer; //ebo
+    GLint element_array_buffer; //指示现在被指定绑定的ebo
 
 } Attrib_Point;
 
@@ -40,7 +41,7 @@ typedef struct Bound_Buffer
     GLuint asyn_unpack_texture_buffer;
     GLuint asyn_pack_texture_buffer;
 
-    Buffer_Status buffer_status; 
+    Buffer_Status buffer_status; //这个就是记录具体的bound情况的,特别是DSA的情况
 
     int has_init;
 } Bound_Buffer; //关注一下，有点意思
@@ -146,6 +147,9 @@ typedef struct Opengl_Context
     GLuint current_write_fbo;
 
     GLuint current_program;
+    GHashTable *framebuffer_map;
+
+
     GLuint vao0;
 
     GLint view_x;

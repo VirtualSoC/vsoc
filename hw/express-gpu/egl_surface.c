@@ -18,6 +18,8 @@
 #include "hw/express-gpu/express_gpu.h"
 #include "hw/express-gpu/glv3_resource.h"
 #include "hw/teleport-express/express_event.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height, int surface_type);
 
@@ -54,7 +56,13 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
         next_draw_gbuffer = now_draw_gbuffer;
     }
 
-    connect_gbuffer_to_surface(next_draw_gbuffer, surface);
+    connect_gbuffer_to_surface(next_draw_gbuffer, surface, opengl_context->framebuffer_map);
+
+    GLuint glerror = glGetError();
+    if (glerror != GL_NO_ERROR)
+    {
+        LOGE("error! swapbuffer connect_gbuffer_to_surface glGetError %x %llx %d", glerror, next_draw_gbuffer->gbuffer_id, next_draw_gbuffer->data_texture);
+    }
 
     surface->gbuffer = next_draw_gbuffer;
 
@@ -66,6 +74,12 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->gbuffer->data_fbo);
     }
+    glerror = glGetError();
+    if (glerror != GL_NO_ERROR)
+    {
+        LOGE("error! swapbuffer glBindFramebuffer GL_DRAW_FRAMEBUFFER glGetError %x %d", glerror, surface->gbuffer->data_fbo);
+    }
+
     return;
 }
 
@@ -291,7 +305,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     return surface;
 }
 
-void render_surface_init(Window_Buffer *surface)
+void render_surface_init(Window_Buffer *surface, GHashTable* resource_list)
 {
     int num = 1;
     if (surface->type == WINDOW_SURFACE)
@@ -300,16 +314,38 @@ void render_surface_init(Window_Buffer *surface)
     }
     if (surface->data_fbo[0] != 0)
     {
+        LOGD("fbo already init %d", surface->data_fbo[0]);
         return;
     }
     glGenFramebuffers(num, surface->data_fbo);
+    LOGI("create fbo in init surface %d %d %d", surface->data_fbo[0], surface->data_fbo[1], surface->data_fbo[2]);
+
+    for (int i = 0; i < num; i++)
+    {
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+        // if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(surface->data_fbo[i])) == NULL) {
+        //     Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
+        //     newFramebuffer->framebufferId = surface->data_fbo[i];
+        //     g_hash_table_insert(resource_list, GUINT_TO_POINTER(surface->data_fbo[i]), newFramebuffer);
+        // }
+        // GHashTable* resource_list = opengl_context->framebuffer_map;
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(surface->data_fbo[i])) == NULL) {
+            Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
+            newFramebuffer->framebufferId = surface->data_fbo[i];
+            g_hash_table_insert(resource_list, GUINT_TO_POINTER(surface->data_fbo[i]), newFramebuffer);
+        }
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+    }
+
+
     if (surface->sampler_num > 1)
     {
         glGenFramebuffers(num, surface->sampler_fbo);
     }
 }
 
-void render_surface_uninit(Window_Buffer *surface)
+void render_surface_uninit(Window_Buffer *surface, GHashTable* resource_list)
 {
     int num = 1;
     if (surface->type == WINDOW_SURFACE)
@@ -321,6 +357,25 @@ void render_surface_uninit(Window_Buffer *surface)
         return;
     }
     glDeleteFramebuffers(num, surface->data_fbo);
+
+    LOGI("delete fbo in uninit surface %d %d %d", surface->data_fbo[0], surface->data_fbo[1], surface->data_fbo[2]);
+
+    if(resource_list) {
+        for (int i = 0; i < num; i++)
+        {
+            ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+            // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+            // GHashTable* resource_list = opengl_context->framebuffer_map;
+            if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(surface->data_fbo[i])) != NULL) {
+                g_hash_table_remove(resource_list, GUINT_TO_POINTER(surface->data_fbo[i]));
+            } else {
+                LOGE("error! can't find framebuffer of %d", surface->data_fbo[i]);
+            }
+            ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+        }        
+    }
+
+
     surface->data_fbo[0] = 0;
     surface->data_fbo[1] = 0;
     surface->data_fbo[2] = 0;
@@ -636,6 +691,17 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     }
 
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(gbuffer->data_texture)) == NULL) {
+        struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
+        texture_resource->target = GL_TEXTURE_2D;
+        texture_resource->textureId = gbuffer->data_texture;        
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(gbuffer->data_texture), texture_resource);            
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     if (express_gpu_gl_debug_enable)
     {
@@ -786,8 +852,9 @@ void reverse_gbuffer(Hardware_Buffer *gbuffer)
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pre_fbo_draw);
 }
 
-void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface)
+void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface, GHashTable* resource_list)
 {
+    LOGI("connect gbuffer %llx %d to surface %llx", gbuffer->gbuffer_id, gbuffer->data_texture, (uint64_t)surface);
 
     gbuffer->data_fbo = surface->data_fbo[surface->now_fbo_loc];
     gbuffer->sampler_fbo = surface->sampler_fbo[surface->now_fbo_loc];
@@ -799,6 +866,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         {
             surface->now_fbo_loc = (surface->now_fbo_loc + 1) % 3;
         }
+        LOGI("gbuffer %llx already connected to surface %llx", gbuffer->gbuffer_id, (uint64_t)surface);
         return;
     }
     // LOGI("connect surface %llx fbo %d to gbuffer %llx", surface, surface->data_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
@@ -814,8 +882,35 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, surface->data_fbo[surface->now_fbo_loc]);
+    GLint error = glGetError();
+    if (error != GL_NO_ERROR)
+    {
+        LOGE("error! binding surface framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->data_fbo[surface->now_fbo_loc], gbuffer->data_texture);
+    }
+
     // 附加颜色缓冲区
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);
+
+
+    error = glGetError();
+    if(error!=GL_NO_ERROR) {
+        LOGE("error! surface framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->data_fbo[surface->now_fbo_loc], gbuffer->data_texture);
+    }
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+    // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+    // GHashTable* resource_list = opengl_context->framebuffer_map;
+
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(surface->data_fbo[surface->now_fbo_loc])) != NULL) {
+        Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
+        newFramebuffer->framebufferId = surface->data_fbo[surface->now_fbo_loc];
+        newFramebuffer->texture_id = gbuffer->data_texture;
+        newFramebuffer->attachment_target = GL_COLOR_ATTACHMENT0;
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(surface->data_fbo[surface->now_fbo_loc]), newFramebuffer);
+    } else {
+        LOGE("error! can't find framebuffer of %d", surface->data_fbo[surface->now_fbo_loc]);
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
 
     surface->connect_texture[surface->now_fbo_loc] = gbuffer->data_texture;
     gbuffer->has_connected_fbo = 1;
@@ -825,24 +920,50 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         glBindFramebuffer(GL_FRAMEBUFFER, surface->sampler_fbo[surface->now_fbo_loc]);
         // 附加颜色缓冲区
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, gbuffer->sampler_rbo);
+        LOGI("connect sampler fbo %d to gbuffer %llx", surface->sampler_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
+        error = glGetError();
+        if(error!=GL_NO_ERROR) {
+            LOGE("error! sampler framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
+        }
     }
 
     // 附加深度缓冲区
     if (surface->depth_internal_format == GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_depth);
+        LOGI("connect depth fbo %d to gbuffer %llx", gbuffer->rbo_depth, gbuffer->gbuffer_id);
+        error = glGetError();
+        if(error!=GL_NO_ERROR) {
+            LOGE("error! depth framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
+        }
     }
     else if (surface->depth_internal_format != 0)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_depth);
+        LOGI("connect depth fbo %d to gbuffer %llx", gbuffer->rbo_depth, gbuffer->gbuffer_id);
+        error = glGetError();
+        if(error!=GL_NO_ERROR) {
+            LOGE("error! depth framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
+        }
     }
 
     // 附加模板缓冲区
     if (surface->stencil_internal_format != 0 && surface->depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_stencil);
+        LOGI("connect stencil fbo %d to gbuffer %llx", gbuffer->rbo_stencil, gbuffer->gbuffer_id);
+        error = glGetError();
+        if(error!=GL_NO_ERROR) {
+            LOGE("error! stencil framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
+        }
     }
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+    error = glGetError();
+    if(error!=GL_NO_ERROR) {
+        LOGE("error! framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
+    }
+
     if (status != GL_FRAMEBUFFER_COMPLETE)
     {
         LOGE("error! surface framebuffer not complete! status %x gl error %x ", status, glGetError());
@@ -864,6 +985,11 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     if (surface->type == WINDOW_SURFACE)
     {
         surface->now_fbo_loc = (surface->now_fbo_loc + 1) % 3;
+    }
+
+    error = glGetError();
+    if(error!=GL_NO_ERROR) {
+        LOGE("error! framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
     }
 
     return;

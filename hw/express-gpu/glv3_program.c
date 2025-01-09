@@ -152,7 +152,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            express_printf("uniform |%d %d| |%s|\n", location, type, name_buf);
+            LOGI("program %d uniform value |%d %d| |%s|", program, location, type, name_buf);
         }
 
         for (int i = 0; i < attrib_num; i++)
@@ -172,7 +172,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            express_printf("attrib |%d %d| |%s|\n", location, type, name_buf);
+            LOGI("attrib |%d %d| |%s|", location, type, name_buf);
         }
 
         int uniform_block_active_uniforms;
@@ -235,6 +235,8 @@ void d_glUseProgram_special(void *context, GLuint program)
         ret = (int)(uint64_t)g_hash_table_lookup(program_is_external_map, GUINT_TO_POINTER(program));
     }
 
+    LOGD("use program %d external %d", program, ret);
+
     if (ret == 1)
     {
         //当前需要使用external纹理
@@ -286,7 +288,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
         return;
     }
 
-    express_printf("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
+    LOGD("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
     write_to_guest_mem(guest_mem, save_program_data, 0, buf_len);
 
     //读取完成后直接删除就行了
@@ -840,7 +842,7 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
 {
     GLuint host_id = (GLuint)get_host_shader_id(context, (unsigned int)guest_id);
 
-    LOGI("in d_glCompileShader_special with guest id %d host id %d", guest_id, host_id);
+    LOGD("in d_glCompileShader_special with guest id %d host id %d", guest_id, host_id);
 
     glCompileShader(host_id);
     GLenum error = glGetError();

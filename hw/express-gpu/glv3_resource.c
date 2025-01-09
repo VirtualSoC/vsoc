@@ -614,7 +614,22 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
     {
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
 
-        // LOGI("context %llx create framebuffer guest %u host %u",(uint64_t)context,framebuffers[i],host_buffers[i]);
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+
+
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+        GHashTable* resource_list = ((Opengl_Context *)context)->framebuffer_map;
+
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) == NULL) {
+            Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
+            newFramebuffer->framebufferId = host_buffers[i];
+            g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_buffers[i]), newFramebuffer);
+        }
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+
+
+        LOGI("context %llx create framebuffer guest %u host %u",(uint64_t)context,framebuffers[i],host_buffers[i]);
     }
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
@@ -708,11 +723,16 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
         else
         {
             glGenBuffers(1, &(point_data->indices_buffer_object));
-            glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object);
+            glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object); //ztodo:这些还没保存
         }
 
         express_printf("%llx genVertexArray guest %d host %d\n", (uint64_t)context, arrays[i], host_buffers[i]);
         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(host_buffers[i]), (gpointer)point_data);
+
+        // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_VERTEX_ARRAY]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_VERTEX_ARRAY];
+        // g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_buffers[i]), GUINT_TO_POINTER(1));
+        // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_VERTEX_ARRAY]);
     }
 
     g_free(host_buffers);
@@ -925,6 +945,24 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, framebuffers, host_buffers);
 
+    for(int i = 0; i < n; i++)
+    {
+        LOGI("context %llx delete framebuffer guest %d host %d\n", (uint64_t)context, framebuffers[i], host_buffers[i]);
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+        GHashTable* resource_list = ((Opengl_Context *)context)->framebuffer_map;
+
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) == NULL) {
+            g_hash_table_remove(resource_list, GUINT_TO_POINTER(host_buffers[i]));
+        }
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+        
+
+    }
+
+
+
     glDeleteFramebuffers(n, host_buffers);
     g_free(host_buffers);
 
@@ -959,6 +997,7 @@ void d_glDeleteTransformFeedbacks(void *context, GLsizei n, const GLuint *ids)
 
 void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
 {
+    // LOGI("in delete vertex arrays %d vao %d", n, arrays[0]);
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->vertex_array_resource;
 

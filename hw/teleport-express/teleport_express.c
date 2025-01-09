@@ -229,17 +229,15 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
         return -1;
     }
     init_saving_snapshot();
-    save_gbuffer_global_map(f);    
     save_native_resources(f);
+    save_gbuffer_global_map(f);    
+
     
     save_render_process_contexts(f);    
 
 
-    // save_native_shaders(f);
-    // save_native_textures(f);
-
     save_render_thread_contexts(f);
-    LOGI("succcefully perform virtio save for teleport express!");
+    LOGI("successfully perform virtio save for teleport express!");
     return 0;
 }
 
@@ -260,10 +258,10 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     // Express_Device_Info *device_info = get_express_device_info(EXPRESS_GPU_DEVICE_ID);
 
     remove_all_render_thread_contexts();
-
+    load_native_resources(f);
     load_gbuffer_global_map(f);
 
-    load_native_resources(f);
+   
 
     load_render_process_contexts(f);
 

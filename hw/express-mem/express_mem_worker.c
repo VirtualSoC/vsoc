@@ -54,6 +54,7 @@ static void *begin_dma_to_gbuffer(int map_size) {
 static void end_dma_to_gbuffer(Hardware_Buffer *gbuffer) {
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 
+    LOGD("uploading data for texture from dma %d", gbuffer->data_texture);
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
     glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, NULL);
     glBindTexture(GL_TEXTURE_2D, 0);

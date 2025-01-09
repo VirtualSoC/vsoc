@@ -180,7 +180,7 @@ void *egl_createContext(int context_flags)
 
 int egl_makeCurrent(void *context)
 {
-    LOGI("in egl_makecurrent of context %llx", (uint64_t)context);
+    LOGD("in egl_makecurrent of context %llx", (uint64_t)context);
     if (context != NULL)
     {
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);

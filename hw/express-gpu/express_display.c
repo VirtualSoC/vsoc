@@ -21,6 +21,8 @@
 
 #include "hw/express-gpu/egl_surface.h"
 
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 #include "hw/express-mem/express_sync.h"
 
 #include "qemu/atomic.h"
@@ -342,12 +344,39 @@ static void display_context_init(Thread_Context *context)
 
         glGenFramebuffers(1, &display_write_gbuffer->data_fbo);
         glGenFramebuffers(1, &display_read_gbuffer->data_fbo);
+        LOGI("display context init! %llx %llx", (uint64_t)display_write_gbuffer, (uint64_t)display_read_gbuffer);
 
         glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
 
+
         glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
+
+        //ztodo:这个要重新创建，在重启的情况下
+
+        // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+        // if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo)) != NULL) {
+        //     Express_Native_Framebuffer* newFramebuffer_read = g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo));
+        //     newFramebuffer_read->framebufferId = display_read_gbuffer->data_fbo;
+        //     newFramebuffer_read->textureId = display_read_gbuffer->data_texture;
+        //     newFramebuffer_read->target = GL_TEXTURE_2D;
+
+        //     g_hash_table_insert(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo, newFramebuffer_read);
+        // }
+
+        // if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_write_gbuffer->data_fbo)) != NULL) {
+        //     Express_Native_Framebuffer* newFramebuffer_read = g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo));
+        //     newFramebuffer_read->framebufferId = display_read_gbuffer->data_fbo;
+        //     newFramebuffer_read->textureId = display_read_gbuffer->data_texture;
+        //     newFramebuffer_read->target = GL_TEXTURE_2D;
+
+        //     g_hash_table_insert(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo, newFramebuffer_read);
+        // }
+
+        // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+
 
         main_window_opengl_prepare(&programID, &drawVAO);
         glBindVertexArray(drawVAO);
@@ -411,8 +440,8 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
             Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
             if (gbuffer != NULL)
             {
-                LOGD("draw layer %d gbuffer_id %llx  %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
-                               i, layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+                LOGI("draw layer %d gbuffer_id %llx texture %d %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
+                               i, layer.gbuffer_id, gbuffer->data_texture, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
                 // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
                 // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
                 // 两者间可能存在缩放关系
@@ -474,7 +503,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 
                 opengl_paint_gbuffer(gbuffer);
 
-                express_printf("composer set sync %d\n", layer.read_sync_id);
+                LOGD("composer set sync %d", layer.read_sync_id);
 
                 signal_express_sync(layer.read_sync_id, true);
             }

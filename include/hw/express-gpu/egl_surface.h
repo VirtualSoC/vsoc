@@ -70,6 +70,8 @@ typedef enum ExpressMemType {
     EXPRESS_MEM_TYPE_GUEST_MEM = 0x20,
 } ExpressMemType;
 
+// struct Opengl_Context;
+
 typedef struct Hardware_Buffer{
 
      int is_writing;
@@ -193,7 +195,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
 Hardware_Buffer *create_gbuffer_from_surface(Window_Buffer *surface);
 
-void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface);
+void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface, GHashTable *framebuffer_map);
 
 void reverse_gbuffer(Hardware_Buffer *gbuffer);
 
@@ -203,9 +205,9 @@ int render_surface_destroy(Window_Buffer *surface);
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer);
 
-void render_surface_init(Window_Buffer *surface);
+void render_surface_init(Window_Buffer *surface, GHashTable *framebuffer_map);
 
-void render_surface_uninit(Window_Buffer *surface);
+void render_surface_uninit(Window_Buffer *surface, GHashTable *framebuffer_map);
 
 void d_eglIamComposer(void *context, EGLSurface surface, unsigned int pid);
 

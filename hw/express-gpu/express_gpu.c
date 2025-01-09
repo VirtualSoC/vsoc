@@ -26,6 +26,8 @@
 
 #include "hw/express-gpu/express_display.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
+#include "hw/express-gpu/glv3_resource.h"
+
 #include "hw/express-gpu/vk_trans.h"
 
 
@@ -145,32 +147,303 @@ int load_render_thread_contexts(QEMUFile *f) {
     return 0;
 }
 
+void restore_opengl_vao_binding(Opengl_Context *context) {
+    Bound_Buffer *bound_buffer = &(context->bound_buffer_status);
+    Buffer_Status *status = &(bound_buffer->buffer_status);
 
-void recover_snapshot_states_after_load(Render_Thread_Context* render_context) { //ztodo:这些操作的顺序？
+    GHashTable* new_vao_point_data = g_hash_table_new(g_direct_hash, g_direct_equal);
+    Attrib_Point *now_point = NULL;
     
-    Opengl_Context* opengl_context = render_context->opengl_context;
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, bound_buffer->vao_point_data);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        uint64_t old_vao = (uint64_t)key;
+        Attrib_Point *attrib_point = (Attrib_Point *)value;
+
+        GLuint new_vao = 0;
+
+        glGenVertexArrays(1, &new_vao);
+        LOGI("vao point data %d %d %d %d", old_vao, new_vao, attrib_point->indices_buffer_len, attrib_point->indices_buffer_object);
+
+        g_hash_table_insert(new_vao_point_data, GUINT_TO_POINTER(new_vao), (gpointer)attrib_point);
+
+        if(old_vao == context->vao0) {
+            context->vao0 = new_vao;
+        }
+        if(old_vao == status->guest_vao) {
+            status->guest_vao = new_vao;
+        }
+    }
+
+            // LOGI("current ebo should be %d %d", current_ebo, (&(opengl_context->bound_buffer_status.buffer_status))->guest_element_array_buffer);
+        // LOGI("current vbo should be %d %d", current_vbo, (&(opengl_context->bound_buffer_status.buffer_status))->guest_array_buffer);
+
+    bound_buffer->vao_point_data = new_vao_point_data;
+    GLuint now_vao = status->guest_vao;
+    if (status->guest_vao == 0)
+    {
+        now_vao = context->vao0;
+    }
+    // Attrib_Point *attrib_point = (Attrib_Point *)value;
+    LOGI("current vao is %d", now_vao);
+    glBindVertexArray(now_vao);
+    // GLenum error = glGetError();
+    // if (error == GL_NO_ERROR) {
+    //     LOGI("VAO is valid.");
+    // } else {
+    //     LOGI("VAO is invalid.");
+    // }
+
+    // GLuint current_ebo = status->guest_element_array_buffer;
+    // GLuint current_vbo = status->guest_array_buffer;
+
+    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, current_ebo);
+    // glBindBuffer(GL_ARRAY_BUFFER, current_vbo);
+
+    //ztodo:恢复Attrib_Point里面的数据
+
+        //     if (status->guest_element_array_buffer != status->host_element_array_buffer)
+        // {
+        //     status->host_element_array_buffer = status->guest_element_array_buffer;
+        //     new_buffer = status->host_element_array_buffer;
+        //     need_sync = 1;
+        // }
+    
+
+    // Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
+
+    // LOGI("in loading vao context %llx window %llx bind vao host %d", (uint64_t)context, (uint64_t)context->window, now_vao);
+
+    // if (now_point == NULL)
+    // {
+    //     now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(0));
+    //     LOGE("error! vao %d cannot find with g_hash_table size %d", now_vao, g_hash_table_size(bound_buffer->vao_point_data));
+    //     return;
+    // }
+
+    // bound_buffer->attrib_point = now_point;
+
+    // status->guest_element_array_buffer = now_point->element_array_buffer;
+
+    // status->guest_vao_ebo = now_point->element_array_buffer;
+
+    // status->guest_vao = now_vao;
+
+
+
+
+    // GLenum error = glGetError();
+    // if (error == GL_NO_ERROR) {
+    //     LOGI("VAO is valid.");
+    // } else {
+    //     LOGI("VAO is invalid.");
+    // }
+    // GLint current_vao;
+    // glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &current_vao);
+    // if (current_vao == 0) {
+    //     LOGE("No VAO bound! context %llx window %llx", (int64_t)context, (int64_t)context->window);
+    // }
+
+//     if (host_opengl_version < 45 || DSA_enable == 0) //ztodo：在别处添加这个判断
+//     {
+//         glBindVertexArray(now_vao);
+//     }
+}
+
+void restore_buffers_binding(Opengl_Context *context) {
+    Bound_Buffer *bound_buffer = &(context->bound_buffer_status);
+    Buffer_Status *status = &(bound_buffer->buffer_status);
+
+    GLuint current_ebo = status->guest_element_array_buffer;
+    GLuint current_vbo = status->guest_array_buffer;
+    LOGI("current vbo and ebo should be %d %d", current_vbo, current_ebo);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, current_ebo);
+    glBindBuffer(GL_ARRAY_BUFFER, current_vbo);
+
+    
+    if(status->guest_copy_read_buffer != status->host_copy_read_buffer) {
+    status->host_copy_read_buffer = status->guest_copy_read_buffer;
+    }
+    glBindBuffer(GL_COPY_READ_BUFFER, status->host_copy_read_buffer);
+
+    if(status->guest_copy_write_buffer != status->host_copy_write_buffer) {
+        status->host_copy_write_buffer = status->guest_copy_write_buffer;
+    }
+    glBindBuffer(GL_COPY_WRITE_BUFFER, status->host_copy_write_buffer);
+
+    if(status->guest_pixel_pack_buffer != status->host_pixel_pack_buffer) {
+        status->host_pixel_pack_buffer = status->guest_pixel_pack_buffer;
+    }
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, status->host_pixel_pack_buffer);
+
+    if(status->guest_pixel_unpack_buffer != status->host_pixel_unpack_buffer) {
+        status->host_pixel_unpack_buffer = status->guest_pixel_unpack_buffer;
+    }
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
+
+    if(status->guest_transform_feedback_buffer != status->host_transform_feedback_buffer) {
+        status->host_transform_feedback_buffer = status->guest_transform_feedback_buffer;
+    }
+    glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, status->host_transform_feedback_buffer);
+
+    if(status->guest_uniform_buffer != status->host_uniform_buffer) {
+        status->host_uniform_buffer = status->guest_uniform_buffer;
+    }
+    glBindBuffer(GL_UNIFORM_BUFFER, status->host_uniform_buffer);
+
+    if(status->guest_atomic_counter_buffer != status->host_atomic_counter_buffer) {
+        status->host_atomic_counter_buffer = status->guest_atomic_counter_buffer;
+    }
+    glBindBuffer(GL_ATOMIC_COUNTER_BUFFER, status->host_atomic_counter_buffer);
+
+    if(status->guest_dispatch_indirect_buffer != status->host_dispatch_indirect_buffer) {
+        status->host_dispatch_indirect_buffer = status->guest_dispatch_indirect_buffer;
+    }
+    glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, status->host_dispatch_indirect_buffer);
+
+    if(status->guest_draw_indirect_buffer != status->host_draw_indirect_buffer) {
+        status->host_draw_indirect_buffer = status->guest_draw_indirect_buffer;
+    }
+    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, status->host_draw_indirect_buffer);
+
+    if(status->guest_shader_storage_buffer != status->host_shader_storage_buffer) {
+        status->host_shader_storage_buffer = status->guest_shader_storage_buffer;
+    }
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, status->host_shader_storage_buffer);
+
+    if(status->guest_texture_buffer != status->host_texture_buffer) {
+        status->host_texture_buffer = status->guest_texture_buffer;
+    }
+    glBindBuffer(GL_TEXTURE_BUFFER, status->host_texture_buffer);
+
+}
+
+void restore_framebuffer_binding(Opengl_Context *context) {
+
+    // GLuint new_read_fbo0 = restore_single_framebuffer(f, context->read_fbo0);
+    // GLuint new_draw_fbo0 = restore_single_framebuffer(context->draw_fbo0);
+
+    // context->read_fbo0 = new_read_fbo0;
+    // context->draw_fbo0 = new_draw_fbo0;
+
+    GHashTableIter iter;
+    gpointer key, value;
+    GHashTable *resource_list = context->framebuffer_map;
+
+    GHashTable* loaded_framebuffers = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Express_Native_Framebuffer *framebuffer = (Express_Native_Framebuffer *)value;
+        GLuint framebuffer_id = framebuffer->framebufferId;
+        if(g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id)) == NULL) {
+            GLint new_framebuffer_id;
+            glDeleteFramebuffers(1, (GLuint*)&framebuffer_id);
+            glGenFramebuffers(1, (GLuint*)&new_framebuffer_id);
+            // change_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, framebuffer_id, new_framebuffer_id);
+
+            LOGI("loading framebuffer ID: old %d new %d", framebuffer_id, new_framebuffer_id);
+            
+            g_hash_table_insert(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id), GUINT_TO_POINTER(new_framebuffer_id));
+            
+        }
+        GLint new_framebuffer_id = (GLint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id));
+        framebuffer->framebufferId = new_framebuffer_id;
+        if(framebuffer->attachment_target != 0) {
+            restore_single_framebuffer(framebuffer);
+        }
+        // restore_single_framebuffer(framebuffer);
+    }
+    
+    GLint new_read_fbo0 = (GLint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(context->read_fbo0));
+    GLint new_draw_fbo0 = (GLint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(context->draw_fbo0));
+    LOGI("new read fbo0 is %d %d new draw fbo0 is %d %d",context->read_fbo0, context->draw_fbo0, new_read_fbo0, new_draw_fbo0);
+    context->read_fbo0 = new_read_fbo0;
+    context->draw_fbo0 = new_draw_fbo0;
+
+    if(context->current_read_fbo != 0){ //ztodo:这几个的号需要映射一下
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, context->current_read_fbo);
+    } else {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, context->read_fbo0);
+    }
+    LOGI("current read fbo is %d read fbo0 is %d", context->current_read_fbo, context->read_fbo0);
+    GLuint glerror = glGetError();
+    if(glerror != GL_NO_ERROR) {
+        LOGE("error! restore_framebuffer_binding glGetError %x", glerror);
+    }
+    if(context->current_write_fbo != 0){
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, context->current_write_fbo);
+    } else {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, context->draw_fbo0);
+    }
+
+    g_free(loaded_framebuffers);
+
+
+    LOGI("current write fbo is %d write fbo0 is %d", context->current_write_fbo, context->draw_fbo0);
+
+}
+
+void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) { //ztodo:这些操作的顺序？
+    
+    Opengl_Context* opengl_context = thread_context->opengl_context;
     // Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
-    LOGI("in recover_snapshot_states_after_load for process %d opengl window %lld", ((Thread_Context*)render_context)->thread_id, (uint64_t)opengl_context->window);
+    LOGI("in recover_snapshot_states_after_load for process %d opengl window %lld", ((Thread_Context*)thread_context)->thread_id, (uint64_t)opengl_context->window);
+    Window_Buffer * real_surface_draw = thread_context->render_double_buffer_draw;
+    Window_Buffer * real_surface_read = thread_context->render_double_buffer_read; 
+
+    LOGI("draw fbo is %d %d", opengl_context->draw_fbo0, real_surface_draw->gbuffer->data_fbo);
 
     egl_makeCurrent(opengl_context->window);
+    // opengl_context_init(opengl_context);
+    // render_surface_init(real_surface_draw);
+    // if (real_surface_read != real_surface_draw)
+    // {
+    //     render_surface_init(real_surface_read);
+    // }
+    // connect_gbuffer_to_surface(real_surface_draw->gbuffer, real_surface_draw);
+
+
+
+
 
     glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
 
+    GLuint glerror = glGetError();
+    if(glerror != GL_NO_ERROR) {
+        LOGE("error! recover_snapshot_states_after_load glGetError %x", glerror);
+    }
+
     restore_opengl_context_textures(opengl_context);
+
+    restore_opengl_vao_binding(opengl_context);
+
+    restore_buffers_binding(opengl_context);
+
+    restore_framebuffer_binding(opengl_context);
 
     glUseProgram(opengl_context->current_program);
 
-    if(opengl_context->current_read_fbo != 0){
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->current_read_fbo);
-    } else {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
-    }
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+
+
+
+
+
+    // if(opengl_context->current_read_fbo != 0){
+    //     glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->current_read_fbo);
+    // } else {
+    //     glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->read_fbo0);
+    // }
     
-    if(opengl_context->current_write_fbo != 0){
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->current_write_fbo);
-    } else {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->draw_fbo0);
-    }
+    // if(opengl_context->current_write_fbo != 0){
+    //     glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->current_write_fbo);
+    // } else {
+    //     glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->draw_fbo0);
+    // }
 
     if(!opengl_context->is_current) {
         egl_makeCurrent(NULL);
@@ -190,8 +463,12 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
 
     uint64_t fun_id = GET_FUN_ID(call->id);
-
+    // GLuint glerror = glGetError();
+    // if(glerror != GL_NO_ERROR) {
+    //     LOGE("error! decode_invoke glGetError %x", glerror);
+    // }
     LOGD("enter gpu decode invoke id %llu", fun_id);
+
 
     if (fun_id == 10001)
     {
@@ -222,6 +499,7 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     }
     else if (fun_id > 10000)
     {
+        // LOGI("get egl call with id %lld", fun_id);
         egl_decode_invoke(render_context, call);
     }
     else if (fun_id == EXPRESS_CLUSTER_FUN_ID)
@@ -240,6 +518,11 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
             LOGE("#fun_id %llu context %llx gl error %x", fun_id, (uint64_t)render_context->opengl_context, error_code);
             error_code = glGetError();
         }
+    }
+
+    GLuint glerror = glGetError();
+    if(glerror != GL_NO_ERROR) {
+        LOGE("error! decode_invoke glGetError %x", glerror);
     }
     return;
 }

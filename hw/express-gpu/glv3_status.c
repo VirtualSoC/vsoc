@@ -190,6 +190,24 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
     express_printf("context %llx glBindBuffer target %x buffer %d guest %d\n", (uint64_t)context, target, buffer, guest_buffer);
 
     // if((host_opengl_version < 45 || DSA_enable == 0) || is_init == 0)
+
+    if(buffer != 0){
+        LOGD("binding buffer of id %d type %d", buffer, target);
+        Express_Native_buffer_Simple* newBuffer = g_malloc0(sizeof(Express_Native_buffer_Simple));
+        newBuffer->bufferId = buffer;  
+        newBuffer->target = target;     
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(buffer), newBuffer);
+
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);        
+    } else {
+        LOGI("bind buffer 0 %d", target); //基本全是GL_ELEMENT_ARRAY_BUFFER,少部分GL_ARRAY_BUFFER
+    }
+
+
+
     if (host_opengl_version < 45 || DSA_enable == 0)
     // if(target != GL_ELEMENT_ARRAY_BUFFER)
     {
@@ -471,6 +489,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     {
         LOGD("getting gbuffer from global map buffer %llx", gbuffer_id); //在桌面运行全进这里了
         gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        // LOGI("getting from map gbuffer %llx texture %d", gbuffer_id, gbuffer->data_texture);
     }
     if (gbuffer == NULL)
     {
@@ -483,7 +502,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE) //基本都会进这里
     {
         set_texture_gbuffer_ptr(opengl_context, texture, gbuffer); //将texture和gbuffer关联起来
-        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
+        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d texture %d %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         if (target == GL_TEXTURE_2D)
         {
@@ -681,6 +700,10 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
                 glBindTexture(target, texture);
             }
         }
+    }
+
+    if(texture == 0) {
+        return;
     }
 //ztodo:真的放在这里吗？还是初始化的时候存，这个时候再改？先这样吧
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);

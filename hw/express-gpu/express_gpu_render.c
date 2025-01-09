@@ -296,7 +296,7 @@ int save_gbuffer_global_map(QEMUFile *f)
         
         Hardware_Buffer *global_gbuffer = (Hardware_Buffer *)value;
         // qemu_put_be64(f, (uint64_t)key);
-        LOGI("gbuffer id is %lld %lld", key, global_gbuffer->gbuffer_id);
+        LOGI("gbuffer id is %llx %llx", key, global_gbuffer->gbuffer_id);
         save_hardware_buffer(f, global_gbuffer);   
     }
 
@@ -453,6 +453,7 @@ static void handle_child_window_event(void)
         case MAIN_PAINT:
         {
             window_need_refresh = true;
+            // LOGI("going to paint");
         }
         break;
         case MAIN_CREATE_CHILD_WINDOW:
@@ -766,6 +767,8 @@ static void opengl_paint_composer_gbuffer(void)
 
     Hardware_Buffer *gbuffer = main_display_gbuffer;
 
+    // LOGI("in main thread paint gbuffer %d", gbuffer->data_texture);
+
     if (display_width != gbuffer->width || display_height == gbuffer->height)
     {
         display_width = gbuffer->width;
@@ -792,6 +795,15 @@ static void opengl_paint_composer_gbuffer(void)
  */
 void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
 {
+    GLint currentFBO = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFBO);  // 获取当前绑定的FBO ID
+    GLint textureID = 0;
+    if(currentFBO != 0) {
+        glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &textureID);
+    } 
+    // LOGI("in paint gbuffer currentFBO %d textureID %d gbuffer texture %d", currentFBO, textureID, gbuffer->data_texture);
+
+
     if (gbuffer != NULL)
     {
         gbuffer->remain_life_time = MAX_COMPOSER_LIFE_TIME;
