@@ -35,11 +35,7 @@ bool express_gpu_keep_window_scale;
 
 static GHashTable *g_display_contexts = NULL;
 
-static int atomic_id_counter;
-
 int sdl2_no_need = 0;
-
-extern int main_window_run;
 
 static void display_context_init(Thread_Context *context);
 static void window_size_change_callback(GLFWwindow *window, int width, int height);
@@ -298,11 +294,10 @@ static void display_context_init(Thread_Context *context)
     Display_Context *disp = (Display_Context *)context;
     start_main_window_thread();
 
-    int idx, width, height, refresh_rate;
-    idx = qatomic_fetch_inc(&atomic_id_counter);
-    get_display_info(idx, &width, &height, &refresh_rate);
+    int width, height, refresh_rate;
+    get_display_info((int)disp->unique_id, &width, &height, &refresh_rate);
 
-    sprintf(disp->info.name, "%d", idx);
+    sprintf(disp->info.name, "%" PRIu64, disp->unique_id);
     disp->info.pixel_width = width;
     disp->info.pixel_height = height;
 
@@ -363,7 +358,7 @@ static void display_context_init(Thread_Context *context)
         glfwGetWindowContentScale(disp->window, &xscale, &yscale);
 #endif
         glfwSetWindowSize(disp->window, disp->window_width / xscale, disp->window_height / yscale);
-        set_touchscreen_window_size(disp->window_width / xscale, disp->window_height / yscale);
+        set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale);
         glfwSetFramebufferSizeCallback(disp->window, window_size_change_callback);
         glfwSetWindowCloseCallback(disp->window, close_window_callback);
 
@@ -515,7 +510,7 @@ static void display_present(Display_Context *disp)
 {
     glfwSwapBuffers(disp->window);
 
-    sync_express_touchscreen_input((bool)disp->is_open || !express_display_switch_open);
+    sync_express_touchscreen_input(disp->window, (bool)disp->is_open || !express_display_switch_open);
     sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);
 
     uint64_t now_time = g_get_real_time();
@@ -634,7 +629,7 @@ static void window_size_change_callback(GLFWwindow *window, int width, int heigh
         }
 
         express_printf("set touchscreen size %d %d\n", disp->window_width, disp->window_height);
-        set_touchscreen_window_size(disp->window_width / xscale, disp->window_height / yscale);
+        set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale);
     }
 
     return;

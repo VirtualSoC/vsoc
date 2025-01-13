@@ -175,6 +175,20 @@ static void calc_driver_names_len(void *key, void *value, void *userData)
     return;
 }
 
+static void call_device_init(void *key, void *value, void *userData)
+{
+    Express_Device_Info *info = (Express_Device_Info *)value;
+
+    Teleport_Express_PCI *express_pci = (Teleport_Express_PCI *)userData;
+
+    if ((info->device_index == -1 || express_pci->express_device_enable[info->device_index]) && info->init != NULL)
+    {
+        info->init();
+    }
+
+    return;
+}
+
 static void init_express_driver_names(Teleport_Express_PCI *express_pci)
 {
     if (kernel_load_express_driver_names != NULL)
@@ -207,7 +221,7 @@ static void init_express_driver_names(Teleport_Express_PCI *express_pci)
     g_hash_table_foreach(all_register_device_info, fill_kernel_driver_name, express_pci);
     kernel_load_express_driver_names[driver_names_len] = 0;
 
-    printf("init_express_driver_names | %s|\n", kernel_load_express_driver_names);
+    printf("init_express_driver_names | %s |\n", kernel_load_express_driver_names);
 
     return;
 }
@@ -267,7 +281,8 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
     init_express_driver_names(express_pci);
 
-    express_gpu_gl_debug_enable = express_pci->enalbe_opengl_debug;
+    // read command line options
+    express_gpu_gl_debug_enable = express_pci->enable_opengl_debug;
     express_gpu_independ_window_enable = express_pci->enable_independ_window;
     express_device_input_window_enable = express_pci->show_device_input_window;
     express_gpu_keep_window_scale = express_pci->keep_window_scale;
@@ -306,11 +321,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
         return;
     }
 
-    // for (i = 0; i < g->conf.max_outputs; i++) {
-    //     object_property_set_link(OBJECT(g->scanout[i].con),
-    //                             OBJECT(vpci_dev),
-    //                             "device", errp);
-    // }
+    g_hash_table_foreach(all_register_device_info, call_device_init, express_pci);
 }
 
 static void teleport_express_pci_class_init(ObjectClass *klass, void *data)

@@ -16,31 +16,27 @@ typedef struct DisplayInfo {
 DisplayInfo *info_array;
 
 static void parse_display_sizes(const char *input) {
-    if (input == NULL || strlen(input) == 0) {
+    if (input == NULL || input[0] == 0) {
         return;
     }
 
-    // Count the number of displays
+    // Estimate the max number of displays
     int displayCount = 1; // At least one display
     for (const char *p = input; *p; p++) {
         if (*p == ';') displayCount++;
     }
-
-    // Print the number of displays
-    LOGD("Number of displays: %d", displayCount);
-    express_display_count = displayCount;
     info_array = g_malloc0(sizeof(DisplayInfo) * displayCount);
 
     // Tokenize the input string and parse each display's dimensions and refresh rate
-    char *token = strtok(input, ";");
+    char *token = strtok((char *)input, ";");
     int displayIndex = 0;
 
-    while (token != NULL) {
+    while (token != NULL && displayIndex < displayCount) {
         char *xPos = strchr(token, 'x');    // Find the 'x' separating width and height
         char *atPos = strchr(token, '@');  // Find the '@' indicating refresh rate
 
         if (xPos == NULL || atPos == NULL || xPos > atPos) {
-            LOGE("Invalid format for display %d: %s\n", displayIndex, token);
+            LOGE("Invalid options for display: %s", token);
         } else {
             *xPos = '\0'; // Split the string into width and height
             *atPos = '\0'; // Split the string into height and refresh rate
@@ -49,20 +45,30 @@ static void parse_display_sizes(const char *input) {
             int height = atoi(xPos + 1);      // Parse height
             int refreshRate = atoi(atPos + 1); // Parse refresh rate
 
-            info_array[displayIndex].width = width;
-            info_array[displayIndex].height = height;
-            info_array[displayIndex].refreshRate = refreshRate;
+            if (width > 0 && height > 0 && refreshRate > 0) {
+                info_array[displayIndex].width = width;
+                info_array[displayIndex].height = height;
+                info_array[displayIndex].refreshRate = refreshRate;
 
-            LOGD("display %d: width = %d, height = %d, refresh Rate = %dhz", 
-                   displayIndex, width, height, refreshRate);
+                LOGD("display %d: width = %d, height = %d, refresh Rate = %dhz", 
+                    displayIndex, width, height, refreshRate);
+
+                displayIndex++;
+            }
+            else {
+                LOGE("Invalid arguments for display: w %s h %s refresh rate %s", token, xPos + 1, atPos + 1);
+            }
         }
-
-        displayIndex++;
-        token = strtok(NULL, ",");
+        token = strtok(NULL, ";");
     }
+    displayCount = displayIndex;
+    
+    // Print the number of displays
+    LOGD("Number of displays: %d", displayCount);
+    express_display_count = displayCount;
 }
 
-static void init_info() {
+static void init_info(void) {
     if (express_display_options != NULL && info_array == NULL) {
         parse_display_sizes(express_display_options);
     }
@@ -83,13 +89,13 @@ void get_display_info(int displayIndex, int *width, int *height, int *refreshRat
         LOGE("Invalid display index %d", displayIndex);
     }
     if (info_array == NULL) {
-        *width = express_display_pixel_width;
-        *height = express_display_pixel_height;
-        *refreshRate = express_display_refresh_rate;
+        if (width) *width = express_display_pixel_width;
+        if (height) *height = express_display_pixel_height;
+        if (refreshRate) *refreshRate = express_display_refresh_rate;
     }
     else if (displayIndex < express_display_count) {
-        *width = info_array[displayIndex].width;
-        *height = info_array[displayIndex].height;
-        *refreshRate = info_array[displayIndex].refreshRate;
+        if (width) *width = info_array[displayIndex].width;
+        if (height) *height = info_array[displayIndex].height;
+        if (refreshRate) *refreshRate = info_array[displayIndex].refreshRate;
     }
 }

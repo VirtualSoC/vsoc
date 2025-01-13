@@ -12,7 +12,6 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-input/express_keyboard.h"
-#include "hw/express-input/express_touchscreen.h"
 
 #include "ui/input.h"
 
@@ -62,11 +61,11 @@ void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int
     {
         if (action == GLFW_PRESS)
         {
-            start_mouse_record(linux_code);
+            start_mouse_record(window, linux_code);
         }
         else if (action == GLFW_RELEASE)
         {
-            stop_mouse_record();
+            stop_mouse_record(window);
         }
     }
     else if ((mods & GLFW_MOD_CONTROL) != 0 && linux_code == KEY_LEFTMETA)
@@ -131,9 +130,9 @@ void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int
     }
     else
     {
-        if ((action == GLFW_PRESS && !start_mouse_replay(linux_code)) ||
-            (action == GLFW_REPEAT && !check_mouse_is_replaying(linux_code)) ||
-            (action == GLFW_RELEASE && !stop_mouse_replay(linux_code)))
+        if ((action == GLFW_PRESS && !start_mouse_replay(window, linux_code)) ||
+            (action == GLFW_REPEAT && !check_mouse_is_replaying(window, linux_code)) ||
+            (action == GLFW_RELEASE && !stop_mouse_replay(window, linux_code)))
         {
             static_keyboard_context.data.key[linux_code] = (action != GLFW_RELEASE);
             static_keyboard_context.data.key_is_refresh[linux_code] = true;

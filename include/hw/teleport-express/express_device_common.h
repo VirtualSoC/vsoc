@@ -244,6 +244,9 @@ typedef struct Express_Device_Info
     //设备的类型
     int device_type;
 
+    //设备的初始化函数，一定为设备第一个被调用的函数
+    void (*init)(void);
+
     //对应到Thread_Context中的两个设备自定义的函数——初始化函数和call处理函数，仅output模式可用
     void (*context_init)(struct Thread_Context *context);
     void (*context_destroy)(struct Thread_Context *context);

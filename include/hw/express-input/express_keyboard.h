@@ -6,8 +6,7 @@
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_register.h"
 
-#include <GLFW/glfw3.h>
-#include <GLFW/glfw3native.h>
+#include "hw/express-input/express_touchscreen.h"
 
 // 这个范围内，所有glfw所转化的按键都能传过去，且linux系统基本的按键都能传过去
 // 对于安卓而言，就是差个KEY_APPSELECT，也就是差个最近任务键
