@@ -545,7 +545,26 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     unsigned int origin_texture = (int)set_share_texture(opengl_context, texture, host_share_texture);
     if (origin_texture > 0)
     {
+        if (glIsTexture(origin_texture)){
+            LOGI("have this texture to delete");
+        }
         glDeleteTextures(1, &origin_texture);
+        GLenum glerror = glGetError();
+        if(glerror != GL_NO_ERROR) {
+            LOGI("delete texture failed!");
+        }
+        LOGD("in bind image delete texture %d", origin_texture);
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+        GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(origin_texture)) != NULL) {
+            g_hash_table_remove(resource_list, GUINT_TO_POINTER(origin_texture));
+            LOGI("in bind image remove texture %d", origin_texture);
+
+        }
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    } else {
+        LOGI("origin texture less than zero of value %d", origin_texture);
     }
 
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
@@ -712,6 +731,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = target;
         texture_resource->textureId = texture;        
+        LOGI("in bindtexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(texture), texture_resource);            
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);

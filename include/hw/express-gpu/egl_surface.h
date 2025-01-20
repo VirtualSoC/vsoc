@@ -178,6 +178,8 @@ typedef struct Window_Buffer
      GLuint data_fbo[3]; //三缓冲（如果是window_surface）
      GLuint sampler_fbo[3]; //多重采样
      GLuint connect_texture[3];
+
+     GHashTable* framebuffer_map;
 } Window_Buffer;
 
 

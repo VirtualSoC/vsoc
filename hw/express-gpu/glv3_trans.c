@@ -13916,14 +13916,39 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
-        uint64_t host_program = (uint64_t)get_host_program_id(opengl_context, (unsigned int)program);
-        uint64_t host_shader = (uint64_t)get_host_shader_id(opengl_context, (unsigned int)shader);
-        uint64_t attached_id = (host_program << 32) | host_shader;
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
-        g_hash_table_insert(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(attached_id), GUINT_TO_POINTER(host_program));
-        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+        //因为shader可能在program被link之后就删除，所以得在这里保存shader的完整的内容
 
-        LOGI("attach program %u to shader %u %lld",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), attached_id);
+        GHashTable *program_table = g_resource_list[RESOURCE_TYPE_PROGRAM];
+        
+        GLuint host_program = (GLuint)get_host_program_id(opengl_context, (unsigned int)program);
+        GLuint host_shader = (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader);
+        // uint64_t attached_id = (host_program << 32) | host_shader;
+
+        Express_Native_Program *current_program = g_hash_table_lookup(program_table, GUINT_TO_POINTER(host_program));
+        if(current_program == NULL)
+        {
+            current_program = g_malloc0(sizeof(Express_Native_Program));
+            current_program->shader_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+            current_program->shader_num = 0;
+            LOGI("new program struct for id %u", host_program);
+        }
+        GHashTable *shader_map = current_program->shader_map;
+        Express_Native_Program_Shader *current_shader = g_malloc0(sizeof(Express_Native_Program_Shader));
+        current_shader->shader_id = host_shader;
+        current_shader->attached_order = current_program->shader_num;
+        current_program->shader_num++;
+        glGetShaderiv(host_shader, GL_SHADER_TYPE, &(current_shader->shader_type));
+        glGetShaderiv(host_shader, GL_SHADER_SOURCE_LENGTH, &(current_shader->shader_source_length));
+        current_shader->shader_source = g_malloc0(current_shader->shader_source_length);
+        glGetShaderSource(host_shader, current_shader->shader_source_length, NULL, current_shader->shader_source);
+        g_hash_table_insert(shader_map, GUINT_TO_POINTER(host_shader), current_shader);
+
+        g_hash_table_insert(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program), GUINT_TO_POINTER(current_program));
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+        LOGI("attach program %u to shader %d source %s", host_program, host_shader, current_shader->shader_source);
+
+        // LOGI("attach program %u to shader %u %lld",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), attached_id);
         
         glAttachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
@@ -14919,10 +14944,15 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
 
         uint64_t host_program = (uint64_t)get_host_program_id(opengl_context, (unsigned int)program);
         uint64_t host_shader = (uint64_t)get_host_shader_id(opengl_context, (unsigned int)shader);
-        uint64_t attached_id = (host_program << 32) | host_shader;
-        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]); //ztodo:先不记录是否link过了，都给link，似乎没有问题
-        if(g_hash_table_lookup(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(attached_id)) != NULL){
-            g_hash_table_remove(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(attached_id));
+        // uint64_t attached_id = (host_program << 32) | host_shader;
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+        Express_Native_Program* program_info = (Express_Native_Program*)g_hash_table_lookup(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program));
+        if(program_info != NULL){
+            // g_hash_table_remove(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program));
+            GHashTable *shader_table = program_info->shader_map;
+            g_hash_table_remove(shader_table, GUINT_TO_POINTER(host_shader));
+            LOGI("detach shader success! program_id: %d, shader_id: %d", program, shader);
+
         } else {
             LOGE("error! detach shader not exist!");
         }
@@ -16437,8 +16467,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+
         glUniform1i(location, v0);
-        LOGI("glUniform1i location=%d, v0=%d", location, v0);
+        // LOGD("glUniform1i location=%d, v0=%d", location, v0);
     }
     break;
 

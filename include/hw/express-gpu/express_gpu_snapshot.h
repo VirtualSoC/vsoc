@@ -28,7 +28,7 @@
 #define RESOURCE_TYPE_RENDERBUFFER 4
 #define RESOURCE_TYPE_PROGRAM 5
 #define RESOURCE_TYPE_VERTEX_ARRAY 6
-#define RESOURCE_TYPE_SHADER_PROGRAM 7
+#define RESOURCE_TYPE_SHADER_PROGRAM 7 //ztodo:这是啥来着
 #define RESOURCE_TYPE_SYNC 8
 #define RESOURCE_TYPE_SAMPLER 9
 #define RESOURCE_TYPE_PROGRAM_PIPELINE 10
@@ -47,6 +47,21 @@ typedef struct Express_Native_Shader {
 } Express_Native_Shader;
 
 // program处理方法：（program_id<<32）| shader_id
+
+
+typedef struct Express_Native_Program_Shader{
+    GLuint shader_id;
+    GLenum shader_type;
+    GLuint shader_source_length;
+    int attached_order;
+    char* shader_source;
+} Express_Native_Program_Shader;
+typedef struct Express_Native_Program {
+    GHashTable *shader_map;
+    GLuint programId;
+    int shader_num;
+    //ztodo:是否需要has_linked记录？
+} Express_Native_Program;
 
 typedef struct Express_Native_Buffer {
     GLuint bufferId;
@@ -122,6 +137,8 @@ void restore_opengl_context_textures(Opengl_Context *context);
 extern GHashTable *g_resource_list[NUM_RESOURCES];
 // extern int g_resource_count[NUM_RESOURCES];
 extern int g_resource_locker[NUM_RESOURCES];
+
+extern int display_fbo_has_loaded;
 
 void clear_resource_tables(void);
 void init_saving_snapshot(void);
@@ -203,6 +220,8 @@ Guest_Host_Map* load_guest_host_map(QEMUFile *f);
 
 GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer);
 GLuint save_single_framebuffer(QEMUFile* f, Express_Native_Framebuffer *framebuffer);
+
+GLint get_host_id_map(int type, GLint old_id);
 
 
 #endif

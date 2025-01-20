@@ -477,7 +477,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
 
-            LOGI("gldrawarrays use external texture %d", status->current_texture_external);
+            LOGD("gldrawarrays use external texture %d", status->current_texture_external);
 
             GLuint glerror = glGetError();
             if(glerror != GL_NO_ERROR) {
@@ -487,7 +487,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
             GLint width, height;
             glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
             glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
-            LOGI("use external texture %d %d %d", status->current_texture_external, width, height);
+            LOGD("use external texture %d %d %d", status->current_texture_external, width, height);
         }
 
         GLint programID = 0;
@@ -498,7 +498,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
     // 是否启用
         glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled);
-        LOGI("glDrawArrays programID %d texCoordsLocation %d positionLocation %d %d", programID, texCoordsLocation, positionLocation, enabled);
+        LOGD("glDrawArrays programID %d texCoordsLocation %d positionLocation %d %d", programID, texCoordsLocation, positionLocation, enabled);
 
         GLuint glerror = glGetError();
         if(glerror != GL_NO_ERROR) {
@@ -507,13 +507,20 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
         glDrawArrays(mode, first, count);
 
+        // float r = (float)rand() / RAND_MAX;
+        // float g = (float)rand() / RAND_MAX;
+        // float b = (float)rand() / RAND_MAX;
+
+        // glClearColor(r, g, b, 1.0f);
+        // glClear(GL_COLOR_BUFFER_BIT);
+
         GLuint textureId1 = 0;
         GLuint fboID = 0;
         GLuint curtex = 0;
         glGetIntegerv(GL_TEXTURE_BINDING_2D, &curtex);
         glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboID);
         glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&textureId1);
-        LOGI("current glDrawArrays %d %d %d texture %d curtex %d fbo %d", mode, first, count, textureId1, curtex, fboID);
+        LOGI("current glDrawArrays %d %d %d fbo binded texture %d current texture %d fbo %d", mode, first, count, textureId1, curtex, fboID);
 
         glerror = glGetError();
         if(glerror != GL_NO_ERROR) {

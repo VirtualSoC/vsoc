@@ -857,24 +857,23 @@ void d_glReadBuffer_special(void *context, GLenum src)
     glReadBuffer(src);
 }
 
-void update_framebuffer_texture(GLuint texture_id, GLenum attachment)
+void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable* fb_resource_list)
 {
     GLuint framebuffer;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
     LOGI("current binding framebuffer is %d", framebuffer);
 
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
-    GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+    // GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
     if(g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer)) != NULL) {
         Express_Native_Framebuffer* newFramebuffer = g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer));
         newFramebuffer->framebufferId = framebuffer;
         newFramebuffer->texture_id = texture_id;
         newFramebuffer->attachment_target = attachment;
+        LOGI("in update framebuffer texture of id %d texture %d type %x", framebuffer, texture_id, attachment);
 
-        g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
+        // g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
     }
-
-
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
 }
 
@@ -910,11 +909,12 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = target;
         texture_resource->textureId = host_texture;        
+        LOGI("in framebuffertexture2D save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 
-    update_framebuffer_texture(host_texture, attachment);
+    update_framebuffer_texture(host_texture, attachment, opengl_context->framebuffer_map);
     // GLuint framebuffer;
     // glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
     // LOGI("current binding framebuffer is %d", framebuffer);
@@ -954,9 +954,10 @@ void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachm
     if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_texture)) == NULL) {
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = target;
-        texture_resource->textureId = host_texture;        
+        texture_resource->textureId = host_texture;
+        LOGI("in framebuffertexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
-    }
+    } 
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 }
 

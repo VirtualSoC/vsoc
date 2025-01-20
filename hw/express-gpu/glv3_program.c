@@ -203,7 +203,7 @@ int init_program_data(GLuint program)
             program_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_program_data_destroy);
         }
 
-        g_hash_table_insert(program_data_map, GUINT_TO_POINTER(program), program_data);
+        g_hash_table_insert(program_data_map, GUINT_TO_POINTER(program), program_data); //ztodo:恢复program data map
 
         if (buf_len > temp_ptr - program_data + 10)
         {
@@ -235,7 +235,7 @@ void d_glUseProgram_special(void *context, GLuint program)
         ret = (int)(uint64_t)g_hash_table_lookup(program_is_external_map, GUINT_TO_POINTER(program));
     }
 
-    LOGD("use program %d external %d", program, ret);
+    LOGD("in d_glUseProgram use program %d external %d", program, ret);
 
     if (ret == 1)
     {
@@ -249,6 +249,12 @@ void d_glUseProgram_special(void *context, GLuint program)
     opengl_context->current_program = program;
 
     glUseProgram(program);
+
+    GLuint error = glGetError();
+    if (error != GL_NO_ERROR)
+    {
+        LOGE("error! use program glGetError %x %d", error, program);
+    }
 }
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
@@ -896,7 +902,7 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
                 glShaderSource(host_id, 1, (const char *const *)&source, &source_len);
                 glCompileShader(host_id);
                 glGetShaderiv(host_id, GL_COMPILE_STATUS, &compiled);
-                // LOGI("try change(%d) source compiled %d:%s", try_cnt, compiled, source);
+                LOGI("try change(%d) source compiled %d:%s", try_cnt, compiled, source);
                 if (compiled)
                 {
                     break;

@@ -542,7 +542,7 @@ void d_glCreateProgram(void *context, GLuint program)
 void d_glCreateShader(void *context, GLenum type, GLuint shader)
 {
     GLuint host_shader = glCreateShader(type);
-
+    
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->shader_resource;
 
@@ -562,6 +562,8 @@ void d_glCreateShader(void *context, GLenum type, GLuint shader)
     //     resource_list = g_hash_table_new(g_direct_hash, g_direct_equal);  //ztodo:真要在这里初始化吗？？
     // }
     g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_shader), newShader);
+    LOGI("created shader! host shader id %d type %d all %d", host_shader, type, g_hash_table_size(resource_list));
+
     // g_resource_list[RESOURCE_TYPE_SHADER] = g_list_append(g_resource_list[RESOURCE_TYPE_SHADER], newShader);
     // g_resource_count[RESOURCE_TYPE_SHADER]++;
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
@@ -624,6 +626,8 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) == NULL) {
             Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
             newFramebuffer->framebufferId = host_buffers[i];
+            newFramebuffer->texture_id = 0;
+            newFramebuffer->attachment_target = 0;
             g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_buffers[i]), newFramebuffer);
         }
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
@@ -645,6 +649,8 @@ void d_glGenProgramPipelines(void *context, GLsizei n, const GLuint *pipelines)
 {
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     glGenProgramPipelines(n, host_buffers);
+
+    LOGI("gen program pipeline %d %d", n, host_buffers[0]);
 
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
@@ -856,6 +862,13 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     glDeleteTextures(n, host_buffers);
     for (int i = 0; i < n; i++)
     {
+        LOGI("delete texture of id %d", host_buffers[i]);
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+        GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) != NULL) {
+            g_hash_table_remove(resource_list, GUINT_TO_POINTER(host_buffers[i]));
+        }
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_2D, host_buffers[i]);
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_cube_map, host_buffers[i]);
         GL_TEXTURE_STATUS_RESTORE(texture_status, current_texture_3D, host_buffers[i]);
@@ -901,6 +914,11 @@ void d_glDeleteProgram(void *context, GLuint program)
     }
 
     glDeleteProgram(host_program);
+    LOGI("delete program %d %d", program, host_program);
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+    GHashTable *program_table = g_resource_list[RESOURCE_TYPE_PROGRAM];
+    g_hash_table_remove(program_table, GUINT_TO_POINTER(host_program)); //ztodo:释放资源！！！
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
 
     remove_host_map_ids(map_status, 1, &program);
 }
@@ -911,14 +929,20 @@ void d_glDeleteShader(void *context, GLuint shader)
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->shader_resource;
 
+    
+
     GLuint host_shader = (GLuint)get_host_resource_id(map_status, shader, 13);
     glDeleteShader(host_shader);
 
+    
     remove_host_map_ids(map_status, 1, &shader);
 
     //ztodo:把这个id的shader从我的全局shader资源列表里删除
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
     GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SHADER];
+
+    LOGI("delete shader %d %d", host_shader, g_hash_table_size(resource_list));
+
     g_hash_table_remove(resource_list, GUINT_TO_POINTER(host_shader));
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
 }

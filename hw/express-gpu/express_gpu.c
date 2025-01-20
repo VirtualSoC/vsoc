@@ -356,9 +356,19 @@ void restore_framebuffer_binding(Opengl_Context *context) {
         }
         // restore_single_framebuffer(framebuffer);
     }
+    Resource_Map_Status* framebuffer_resource = (&context->resource_status)->frame_buffer_resource; //ztodo:exclusive_resources又咋办呢
+    for(int i = 0; i < framebuffer_resource->map_size; i++) {
+        GLuint fb_id = framebuffer_resource->resource_id_map[i];
+        GLuint new_id = (GLuint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(fb_id));
+        LOGI("has old framebuffer of id %d new %d", fb_id, new_id);
+        framebuffer_resource->resource_id_map[i] = new_id;
+    }
     
     GLint new_read_fbo0 = (GLint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(context->read_fbo0));
     GLint new_draw_fbo0 = (GLint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(context->draw_fbo0));
+    // GLint new_read_fbo0 = (GLint)get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, context->read_fbo0);
+    // GLint new_draw_fbo0 = (GLint)get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, context->draw_fbo0);
+
     LOGI("new read fbo0 is %d %d new draw fbo0 is %d %d",context->read_fbo0, context->draw_fbo0, new_read_fbo0, new_draw_fbo0);
     context->read_fbo0 = new_read_fbo0;
     context->draw_fbo0 = new_draw_fbo0;
@@ -418,9 +428,24 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
 
     restore_opengl_context_textures(opengl_context);
 
+    glerror = glGetError();
+    if(glerror != GL_NO_ERROR) {
+        LOGE("error! recover_snapshot_states_after_load after bind textures glerror %x", glerror);
+    }
+
     restore_opengl_vao_binding(opengl_context);
 
+    glerror = glGetError();
+    if(glerror != GL_NO_ERROR) {
+        LOGE("error! recover_snapshot_states_after_load after bind vao glerror %x", glerror);
+    }
+
     restore_buffers_binding(opengl_context);
+
+    glerror = glGetError();
+    if(glerror != GL_NO_ERROR) {
+        LOGE("error! recover_snapshot_states_after_load after bind buffers glerror %x", glerror);
+    }
 
     restore_framebuffer_binding(opengl_context);
 

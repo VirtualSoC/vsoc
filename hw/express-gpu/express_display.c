@@ -13,6 +13,7 @@
 #include "hw/teleport-express/express_device_common.h"
 
 #include "hw/express-gpu/express_display.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 #include "hw/teleport-express/express_log.h"
 
@@ -41,6 +42,27 @@ static GLuint now_transform_type = 0;
 
 static Hardware_Buffer *display_write_gbuffer;
 static Hardware_Buffer *display_read_gbuffer;
+
+
+
+void update_display_gbuffer_texture_and_framebuffer() {
+    // display_write_gbuffer->data_fbo = get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+    // display_read_gbuffer->data_fbo = get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+    display_write_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_write_gbuffer->data_texture);
+    display_read_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_read_gbuffer->data_texture);
+
+    LOGI("restore display read and write %d %d %d %d", display_write_gbuffer->data_fbo, display_read_gbuffer->data_fbo, display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
+            
+    // glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+    // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
+
+
+    // glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+    // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
+
+    // glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+}
 
 static Display_Info express_display_info = {
     .pixel_width = 1280,
@@ -345,6 +367,7 @@ static void display_context_init(Thread_Context *context)
         glGenFramebuffers(1, &display_write_gbuffer->data_fbo);
         glGenFramebuffers(1, &display_read_gbuffer->data_fbo);
         LOGI("display context init! %llx %llx", (uint64_t)display_write_gbuffer, (uint64_t)display_read_gbuffer);
+        LOGI("display fbo id %d %d %d %d", display_write_gbuffer->data_fbo, display_read_gbuffer->data_fbo, display_read_gbuffer->data_texture, display_write_gbuffer->data_texture);
 
         glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
@@ -418,6 +441,25 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 {
     int display_height = express_display_info.pixel_height;
 
+    if(!display_fbo_has_loaded) {
+        GLint currentFBO = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFBO);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
+
+
+        glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, currentFBO);        
+        
+        display_fbo_has_loaded = 1;
+
+        LOGI("reset display_fbo_has_loaded after load");
+    }
+
+
     if (layers != NULL)
     {
         glClear(GL_COLOR_BUFFER_BIT);
@@ -440,7 +482,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
             Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
             if (gbuffer != NULL)
             {
-                LOGI("draw layer %d gbuffer_id %llx texture %d %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
+                LOGD("draw layer %d gbuffer_id %llx texture %d %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
                                i, layer.gbuffer_id, gbuffer->data_texture, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
                 // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
                 // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），

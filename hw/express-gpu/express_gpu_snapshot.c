@@ -33,6 +33,7 @@ GHashTable *g_resource_list[NUM_RESOURCES];// = { NULL };
 // int g_resource_count[NUM_RESOURCES] = { 0 };
 int g_resource_locker[NUM_RESOURCES] = { 0 }; 
 
+int display_fbo_has_loaded = 1;
 
 //hashtable肯定不是效率最高的，先这样吧.直接用数组肯定是最快的
 static GHashTable *g_resource_ids_map[NUM_RESOURCES] = { NULL };
@@ -239,15 +240,21 @@ void save_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
         save_single_framebuffer(f, framebuffer);
     }
 
+
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
 }
 
 GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer) {
+    GLuint glerror = glGetError();
+    if (glerror != GL_NO_ERROR) {
+        LOGE("error! before restore_single_framebuffer glGetError %x", glerror);
+    }
+
     GLuint framebuffer_id = framebuffer->framebufferId;
     GLuint attachment_type = framebuffer->attachment_target;
     GLuint texture_id = framebuffer->texture_id;
 
-    LOGI("loading framebuffer all info %d %d %d", framebuffer_id, attachment_type, texture_id);
+    LOGI("loading framebuffer all info %d %x %d", framebuffer_id, attachment_type, texture_id); //0x8CE0 GL_COLOR_ATTACHMENT0
 
     // GLuint framebuffer_id = old_framebuffer_id;
 
@@ -255,10 +262,10 @@ GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer) {
     // GLint new_framebuffer_id;
     // glGenFramebuffers(1, (GLuint*)&new_framebuffer_id);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id); //ztodo：其实应该不能绑在这里
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id);
     // LOGI("loading framebuffer ID: old %d new %d", framebuffer_id, new_framebuffer_id);
 
-    GLuint glerror = glGetError();
+    glerror = glGetError();
     if (glerror != GL_NO_ERROR) {
         LOGE("error! glBindFramebuffer failed! gl error %x ", glerror);
     }
@@ -322,8 +329,7 @@ GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer) {
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &internalFormat);
 
         // 输出纹理的属性
-        LOGE("Texture ID: %d Width: %d, Height: %d, Internal Format: %d", 
-             texture_id, width, height, internalFormat, format, type);
+        LOGE("Texture ID: %d Width: %d, Height: %d, Internal Format: %d", texture_id, width, height, internalFormat, format, type);
 
         // 恢复之前的纹理绑定状态
         glBindTexture(GL_TEXTURE_2D, currentTexture);
@@ -346,6 +352,7 @@ void load_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
 
     // GHashTable* loaded_framebuffers = g_hash_table_new(g_direct_hash, g_direct_equal);
 
+    // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
 
     int framebuffer_num = qemu_get_be32(f);
     for (int i = 0; i < framebuffer_num; i++) {
@@ -387,8 +394,11 @@ void load_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
 
 void save_native_resources(QEMUFile *f){
     save_native_shaders(f);
-    save_native_programs_tmp(f);
+    // save_native_programs_tmp(f);
+    save_native_programs(f);
     save_native_textures(f);
+    // save_native_framebuffers(f);
+
     save_native_buffers(f);
     // save_native_framebuffers(f);
     // save_native_vertex_arrays(f);
@@ -396,11 +406,18 @@ void save_native_resources(QEMUFile *f){
 
 void load_native_resources(QEMUFile *f){
     load_native_shaders(f);
-    load_native_programs_tmp(f);
+    // load_native_programs_tmp(f);
+    load_native_programs(f);
     load_native_textures(f);
-    load_native_buffers(f);
+
+    update_render_gbuffer_texture_and_framebuffer();
+    update_display_gbuffer_texture_and_framebuffer();
+
+
     // load_native_framebuffers(f);
-    // load_native_vertex_arrays(f);
+
+    load_native_buffers(f);
+
 }
 
 
@@ -408,14 +425,14 @@ void save_native_shaders(QEMUFile *f) {
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
     GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SHADER];
     qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many shaders
-    LOGD("saving shader num %d", g_hash_table_size(resource_list));
+    LOGI("saving shader num %d", g_hash_table_size(resource_list));
 
     GHashTableIter iter;
     gpointer key, value;
     g_hash_table_iter_init(&iter, resource_list);
     while (g_hash_table_iter_next(&iter, &key, &value)) {
         Express_Native_Shader* shader = (Express_Native_Shader *)value;
-        LOGD("saving shader ID: %d, Type: %d, Delete Status: %d", shader->id, shader->type, shader->deleteStatus);
+        LOGI("saving shader ID: %d, Type: %d, Delete Status: %d", shader->id, shader->type, shader->deleteStatus);
         qemu_put_be64(f, shader->id);
         qemu_put_be32(f, shader->type);
         qemu_put_byte(f, shader->deleteStatus);
@@ -447,60 +464,170 @@ void save_native_shaders(QEMUFile *f) {
 void load_native_programs_tmp(QEMUFile *f) {
     int program_num = qemu_get_be32(f);
     for(int i = 0; i < program_num ; i++) {
-        uint64_t program_id = qemu_get_be64(f);
+        uint64_t program_id = qemu_get_be32(f);
 
         GLint new_program_id = program_id;
         change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id); //重新映射guest-host的id
     }
 }
 
+void load_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
+    // int name_len = qemu_get_be32(f);
+    // GLint uniform_num = qemu_get_be32(f);
+    // LOGI("get uniform num %d attrib num %d", uniform_num, name_len);
+    
+    // for(int i = 0; i < uniform_num; i++) {
+    //     int bufsize = qemu_get_be32(f);
+    //     GLchar *name_buf = g_malloc(bufsize + 1);
+    //     memset(name_buf, 0, bufsize + 1);
+
+    //     qemu_get_buffer(f, name_buf, bufsize);
+    //     GLint location = qemu_get_be32(f);
+    //     // glBindUniformLocation(program, location, name_buf);
+
+    //     LOGI("in load program set uniform index %d name %s", location, name_buf);
+
+    // }
+
+    GLint attrib_num = qemu_get_be32(f);
+    for(int i = 0; i < attrib_num; i++) {
+        int bufsize = qemu_get_be32(f);
+        GLchar *name_buf = g_malloc(bufsize + 1);
+        memset(name_buf, 0, bufsize + 1);
+        qemu_get_buffer(f, name_buf, bufsize);
+        GLint location = qemu_get_be32(f);
+        glBindAttribLocation(program, location, name_buf);
+
+        LOGI("in load program set attrib index %d name %s", location, name_buf);
+
+    }
+
+        // glBindAttribLocation(new_program_id, 0, "position");
+        // glBindAttribLocation(new_program_id, 1, "texCoords");
+}
+
+
 void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、更新id！
 
-    GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
+    // GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
 
     int program_num = qemu_get_be32(f);
     for(int i = 0; i < program_num ; i++) {
-        uint64_t program_id = qemu_get_be64(f);
-
+        GLuint program_id = qemu_get_be32(f);
+        GLint new_program_id;
+        // if(program_id == 39 || program_id ==45) {
+        //     new_program_id = program_id;
+        //     change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id);
+                    
+        //     int shader_num = qemu_get_be32(f);
+        //     for (int j = 0; j < shader_num; j++) {
+        //         GLint shader_type = qemu_get_be32(f);
+        //         GLint shader_source_length = qemu_get_be32(f);
+        //         char* shader_source = g_malloc0(shader_source_length);
+        //         if (shader_source) {
+        //             qemu_get_buffer(f, shader_source, shader_source_length);
+        //             g_free(shader_source);
+        //         }
+        //     }
+        //     continue;
+        // }
+        
         glDeleteProgram(program_id);//ztodo:重启场景应该可以去掉这个
-        GLint new_program_id = glCreateProgram();
-        change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id); //重新映射guest-host的id
+        new_program_id = glCreateProgram();
+        change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id); //重新映射guest-host的id            
 
 
-        GLint linked = (GLint)qemu_get_byte(f);
-        g_hash_table_insert(programs, GUINT_TO_POINTER(new_program_id), GUINT_TO_POINTER(program_id));
+
+        // GLint linked = (GLint)qemu_get_byte(f);
+        // g_hash_table_insert(programs, GUINT_TO_POINTER(new_program_id), GUINT_TO_POINTER(program_id));
 
         // if(linked) {
         //     glLinkProgram(program_id);
         // } 
-        LOGI("loading program of %lld %lld", program_id, new_program_id); //ztodo:id重用了之前被删除的，感觉没问题，但不确定！作为一个可能bug点
+        int shader_num = qemu_get_be32(f);
+        LOGI("program %d has shader num %d", new_program_id, shader_num);
+
+        int shader_attached_order[10] = {0};
+
+        for (int j = 0; j < shader_num; j++) {
+            GLint shader_type = qemu_get_be32(f);
+            GLint shader_source_length = qemu_get_be32(f);
+            GLint attached_order = qemu_get_be32(f);
+            char* shader_source = g_malloc0(shader_source_length);
+            if (shader_source) {
+                qemu_get_buffer(f, shader_source, shader_source_length);
+                GLuint shader_id = glCreateShader(shader_type);
+                glShaderSource(shader_id, 1, (const char **)&shader_source, NULL);
+                // glCompileShader(shader_id);
+                shader_attached_order[attached_order] = shader_id;
+                // glAttachShader(new_program_id, shader_id);
+                LOGI("loading program of %d shader %d %d %s", new_program_id, shader_id, shader_type, shader_source);
+                // glDeleteShader(shader_id);
+                g_free(shader_source);
+            }
+        }
+        
+        for(int j = 0; j < shader_num; j++) {
+            glCompileShader(shader_attached_order[j]);
+            glAttachShader(new_program_id, shader_attached_order[j]);
+            LOGI("link program of %d shader %d", new_program_id, shader_attached_order[j]);
+            GLenum glerror = glGetError();
+            if(glerror != GL_NO_ERROR) {
+                LOGE("error! in loading program glAttachShader failed! gl error %x ", glerror);
+            }
+            glDeleteShader(shader_attached_order[j]);
+
+        }
+
+        // glBindAttribLocation(new_program_id, 0, "position");
+        // glBindAttribLocation(new_program_id, 1, "texCoords");
+
+        load_program_uniform_and_attrib_info(f, new_program_id);
+
+        glLinkProgram(new_program_id);
+        GLenum error = glGetError();
+        if(error != GL_NO_ERROR) {
+            LOGE("error! glLinkProgram failed! gl error %x ", error);
+        }
+        LOGI("in load native programs loading program of %d %d", program_id, new_program_id);
     }
 
-    int linked_program_num = qemu_get_be32(f);   
-    LOGD("in load native programs! num %d", linked_program_num);
+    // int linked_program_num = qemu_get_be32(f);   
+    // LOGD("in load native programs! num %d", linked_program_num);
 
-    for (int i = 0; i < linked_program_num; i++) {
-        uint64_t linked_program = qemu_get_be64(f);
-        uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
-        GLint new_program_id = get_host_id_map(RESOURCE_TYPE_PROGRAM, program_id);
-        uint64_t shader_id = linked_program & ((1 << 32) - 1); //取低32位
-        glAttachShader(new_program_id, shader_id);
-        LOGI("attaching program of %lld", new_program_id);
+    // GLenum error;
 
-    }
+    // for (int i = 0; i < linked_program_num; i++) {
+    //     uint64_t linked_program = qemu_get_be64(f);
+    //     uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
+    //     GLint new_program_id = get_host_id_map(RESOURCE_TYPE_PROGRAM, program_id);
+    //     uint64_t shader_id = linked_program & ((1 << 32) - 1); //取低32位
 
-    GHashTableIter iter;
-    gpointer key, value;
-    g_hash_table_iter_init(&iter, programs); //最后link
-    while (g_hash_table_iter_next(&iter, &key, &value)) {
-        uint64_t program_id = (uint64_t)key;
-        GLint status = (GLint)value;
-        if(status) {
-            glLinkProgram(program_id);
-        } 
+    //     GLuint new_shader_id = get_host_id_map(RESOURCE_TYPE_SHADER, shader_id);
 
-        LOGI("linking program of id %lld status %d", program_id, status);
-    }
+    //     glAttachShader(new_program_id, new_shader_id);
+
+
+    //     LOGI("attaching program of %lld shader %d %d", new_program_id, shader_id, new_shader_id);
+    //     error = glGetError();
+    //     if(error != GL_NO_ERROR) {
+    //         LOGE("error! glAttachShader failed! gl error %x ", error);
+    //     }
+
+    // }
+
+    // GHashTableIter iter;
+    // gpointer key, value;
+    // g_hash_table_iter_init(&iter, programs); //最后link
+    // while (g_hash_table_iter_next(&iter, &key, &value)) {
+    //     uint64_t program_id = (uint64_t)key;
+    //     GLint status = (GLint)value;
+    //     if(status) {
+    //         glLinkProgram(program_id);
+    //     } 
+
+    //     LOGI("linking program of id %lld status %d", program_id, status);
+    // }
 
 
     g_hash_table_remove_all(program_is_external_map);
@@ -519,26 +646,78 @@ void save_native_programs_tmp(QEMUFile *f) {
     GHashTableIter iter;
     gpointer key, value;
     
-    GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
+    // GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
     g_hash_table_iter_init(&iter, resource_list);
+    qemu_put_be32(f, g_hash_table_size(resource_list));
     while (g_hash_table_iter_next(&iter, &key, &value)) {
-        uint64_t linked_program = (uint64_t)key;
-        uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
-        GLint linkStatus = 0;
-        glGetProgramiv(program_id, GL_LINK_STATUS, &linkStatus);
-
-        g_hash_table_insert(programs, GUINT_TO_POINTER(program_id), GUINT_TO_POINTER(linkStatus));
+        GLuint program = (GLuint)program;
+        qemu_put_be32(f, program);
 
     }
 
-    g_hash_table_iter_init(&iter, programs); //先单独存program，因为要重建
-    qemu_put_be32(f, g_hash_table_size(programs));
-    while (g_hash_table_iter_next(&iter, &key, &value)) {
-        uint64_t program_id = (uint64_t)key;
-        GLint status = (GLint)value;
-        qemu_put_be64(f, program_id);
-        LOGD("saving program of id %lld status %d", program_id, status);
+}
+
+void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
+    GLint uniform_num = 0;
+    GLint attrib_num = 0;
+    GLint uniform_blocks_num = 0;
+
+
+    GLint max_uniform_name_len = 0;
+    GLint max_attrib_name_len = 0;
+    GLint max_uniform_block_name_len = 0;
+
+    glGetProgramiv(program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_uniform_name_len);
+    glGetProgramiv(program, GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &max_attrib_name_len);
+    glGetProgramiv(program, GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH, &max_uniform_block_name_len);
+
+    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniform_num);
+    glGetProgramiv(program, GL_ACTIVE_ATTRIBUTES, &attrib_num);
+
+    int name_len = max_uniform_name_len > max_attrib_name_len ? max_uniform_name_len : max_attrib_name_len;
+    name_len = name_len > max_uniform_block_name_len ? name_len : max_uniform_block_name_len;
+    name_len += 1;
+
+    // qemu_put_be32(f, name_len);
+
+    GLchar *name_buf = g_malloc(name_len);
+    GLint size;
+    GLenum type;
+    GLint location;
+
+    // qemu_put_be32(f, uniform_num);
+    // for (int i = 0; i < uniform_num; i++) {
+    //     glGetActiveUniform(program, i, name_len, NULL, &size, &type, name_buf);
+    //     location = glGetUniformLocation(program, name_buf);
+    //     LOGI("get program uniform %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
+        
+    //     qemu_put_be32(f, strlen(name_buf));
+    //     qemu_put_buffer(f, name_buf, strlen(name_buf));
+    //     qemu_put_be32(f, location);
+
+    // }
+
+    qemu_put_be32(f, attrib_num);
+    for (int i = 0; i < attrib_num; i++){
+        glGetActiveAttrib(program, i, name_len, NULL, &size, &type, name_buf);
+        location = glGetAttribLocation(program, name_buf);
+        LOGI("get program attrib %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
+
+        qemu_put_be32(f, strlen(name_buf));
+        qemu_put_buffer(f, name_buf, strlen(name_buf));
+        qemu_put_be32(f, location);
+        
     }
+
+    // int uniform_block_active_uniforms;
+    // for (int i = 0; i < uniform_blocks_num; i++)
+    // {
+    //     int_ptr = (int *)temp_ptr;
+    //     glGetActiveUniformBlockiv(program, i, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &uniform_block_active_uniforms);
+    //     glGetActiveUniformBlockiv(program, i, GL_UNIFORM_BLOCK_DATA_SIZE, &size);
+    //     glGetActiveUniformBlockName(program, i, name_len, NULL, name_buf);
+    // }
+
 }
 
 void save_native_programs(QEMUFile *f) {
@@ -550,46 +729,70 @@ void save_native_programs(QEMUFile *f) {
     GHashTableIter iter;
     gpointer key, value;
     
-    GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
+    // GHashTable* programs = g_hash_table_new(g_direct_hash, g_direct_equal);
+    qemu_put_be32(f, g_hash_table_size(resource_list));
     g_hash_table_iter_init(&iter, resource_list);
     while (g_hash_table_iter_next(&iter, &key, &value)) {
-        uint64_t linked_program = (uint64_t)key;
-        uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
-        // LOGI("saving program ID:%lld %d, shader: %d",linked_program, (linked_program >> 32) & ((1 << 32) - 1), linked_program & ((1 << 32) - 1));
-        // qemu_put_be64(f, linked_program);
+        GLuint program_id = (GLuint)key;
+        qemu_put_be32(f, program_id);
 
-        GLint linkStatus = 0;
-        glGetProgramiv(program_id, GL_LINK_STATUS, &linkStatus);
+        Express_Native_Program* program = (Express_Native_Program *)value;
+        GHashTableIter shader_iter;
+        gpointer shader_key, shader_value;
+        GHashTable* shaders = program->shader_map;
 
-        g_hash_table_insert(programs, GUINT_TO_POINTER(program_id), GUINT_TO_POINTER(linkStatus));
+        qemu_put_be32(f, g_hash_table_size(shaders));
+
+        g_hash_table_iter_init(&shader_iter, shaders);
+        while (g_hash_table_iter_next(&shader_iter, &shader_key, &shader_value)) {
+            GLuint shader_id = (GLuint)shader_key;
+            Express_Native_Program_Shader *shader = (Express_Native_Program_Shader *)shader_value;
+            qemu_put_be32(f, shader->shader_type);
+            qemu_put_be32(f, shader->shader_source_length);
+            qemu_put_be32(f, shader->attached_order);
+            qemu_put_buffer(f, shader->shader_source, shader->shader_source_length);
+            //ztodo:free这些资源
+        }
+
+        //存储program每个attrib和uniform的index
+        save_program_uniform_and_attrib_info(f, program_id);
+
+    //     uint64_t linked_program = (uint64_t)key;
+    //     uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
+    //     // LOGI("saving program ID:%lld %d, shader: %d",linked_program, (linked_program >> 32) & ((1 << 32) - 1), linked_program & ((1 << 32) - 1));
+    //     // qemu_put_be64(f, linked_program);
+
+    //     GLint linkStatus = 0;
+    //     glGetProgramiv(program_id, GL_LINK_STATUS, &linkStatus);
+
+    //     // g_hash_table_insert(programs, GUINT_TO_POINTER(program_id), GUINT_TO_POINTER(linkStatus));
 
     }
 
-    g_hash_table_iter_init(&iter, programs); //先单独存program，因为要重建
-    qemu_put_be32(f, g_hash_table_size(programs));
-    while (g_hash_table_iter_next(&iter, &key, &value)) {
-        uint64_t program_id = (uint64_t)key;
-        GLint status = (GLint)value;
-        qemu_put_be64(f, program_id);
-        qemu_put_byte(f, status);
-        LOGD("saving program of id %lld status %d", program_id, status);
-    }
+    // g_hash_table_iter_init(&iter, programs); //先单独存program，因为要重建
+    // qemu_put_be32(f, g_hash_table_size(programs));
+    // while (g_hash_table_iter_next(&iter, &key, &value)) {
+    //     uint64_t program_id = (uint64_t)key;
+    //     GLint status = (GLint)value;
+    //     qemu_put_be64(f, program_id);
+    //     qemu_put_byte(f, status);
+    //     LOGD("saving program of id %lld status %d", program_id, status);
+    // }
 
-    qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many shaders
-    LOGD("saving program num %d", g_hash_table_size(resource_list));
-    g_hash_table_iter_init(&iter, resource_list);
-    while (g_hash_table_iter_next(&iter, &key, &value)) {
-        uint64_t linked_program = (uint64_t)key;
-        qemu_put_be64(f, linked_program);
+    // qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many shaders
+    // LOGD("saving program num %d", g_hash_table_size(resource_list));
+    // g_hash_table_iter_init(&iter, resource_list);
+    // while (g_hash_table_iter_next(&iter, &key, &value)) {
+    //     uint64_t linked_program = (uint64_t)key;
+    //     qemu_put_be64(f, linked_program);
 
-    }
+    // }
 
     qemu_put_be32(f, g_hash_table_size(program_is_external_map));
     g_hash_table_iter_init(&iter, program_is_external_map);
     while (g_hash_table_iter_next(&iter, &key, &value)) {
         GLuint external_program = (GLuint)key;
         qemu_put_be32(f, external_program);
-
     }
 
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
@@ -601,7 +804,7 @@ void update_native_shader(GLint shader_id, GLenum shader_type, GLboolean deleted
 
 
     GLint new_shader_id = glCreateShader(shader_type);
-    LOGI("create new shader of new id %d old id %d", new_shader_id, shader_id);
+    LOGD("create new shader of new id %d old id %d %s", new_shader_id, shader_id, shader_source);
     glShaderSource(new_shader_id, 1, &shader_source, NULL);
     LOGD("going to compile shader!");
     if(compile_status) {
@@ -636,7 +839,7 @@ void load_native_shaders(QEMUFile *f) {
         GLint source_length = qemu_get_be32(f);
         const char* shader_source = (char*)malloc(source_length);
         qemu_get_buffer(f, shader_source, source_length);
-        LOGD("loading shader of id %d type %d content %s", shader_id, shader_type, shader_source);
+        LOGI("loading shader of id %d type %d content %s", shader_id, shader_type, shader_source);
         // bool isSame = compare_shader(shader_id, shader_type, deleted_status, compile_status, source_length, shader_source);
         // if(isSame) { //如果没变就不操作了 update:不再复用资源，全部重建
         //     continue;
@@ -644,9 +847,6 @@ void load_native_shaders(QEMUFile *f) {
         update_native_shader(shader_id, shader_type, deleted_status, compile_status, source_length, shader_source);
     }
 }
-
-#include <stdio.h>
-#include <stdlib.h>
 
 void saveTextureAsPPM(const char *baseFilename, int textureId, int width, int height, unsigned char *pixels) {
     char filename[256];
@@ -823,7 +1023,7 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
         // 说明 state->pixels 的内容不是全为 0
         LOGI("Memory is not all zeros");
         for (int i = 0; i < min(30, size); i++) {
-            LOGI("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
+            LOGD("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
                 i, 
                 state->pixels[i * 4 + 0], //R
                 state->pixels[i * 4 + 1], //G
@@ -879,18 +1079,29 @@ void save_native_textures(QEMUFile *f){
 
 
 void update_native_texture(Express_Native_Texture* texture_data){
-    if(texture_data->textureId == 10 || texture_data->textureId == 11 || texture_data->textureId == 4) {
-        GLint new_texture_id = texture_data->textureId;
+    // if(texture_data->textureId == 10 || texture_data->textureId == 11 || texture_data->textureId == 4) {
+        // GLint new_texture_id = texture_data->textureId;
 
-        change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
+        // change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
 
-        return;
+        // return;
+    // } 
+
+
+    GLuint glerror = 0;
+    GLint width = 0, height = 0, currentTexture = 0;
+    GLenum binding_target = texture_data->target;
+    if(binding_target == GL_TEXTURE_EXTERNAL_OES) {
+        binding_target = GL_TEXTURE_2D;
     } 
 
     glDeleteTextures(1, (GLuint*)&texture_data->textureId);
-    GLint new_texture_id;
+    GLuint new_texture_id;
     glGenTextures(1, &new_texture_id);
-    glBindTexture(texture_data->target, new_texture_id);
+    glBindTexture(binding_target, new_texture_id);
+
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture); 
+    LOGI("before native resource textures info current texture %d target %d", currentTexture, texture_data->target);
 
     glTexParameteri(texture_data->target, GL_TEXTURE_MIN_FILTER, texture_data->minFilter);
     glTexParameteri(texture_data->target, GL_TEXTURE_MAG_FILTER, texture_data->magFilter);
@@ -908,11 +1119,11 @@ void update_native_texture(Express_Native_Texture* texture_data){
 
     if (texture_data->target == GL_TEXTURE_2D || texture_data->target == GL_TEXTURE_EXTERNAL_OES) {
         glTexImage2D(GL_TEXTURE_2D, 0, texture_data->internalFormat, texture_data->width, texture_data->height, 0, format, GL_UNSIGNED_BYTE, texture_data->pixels);
-        GLuint glerror = glGetError();
+        glerror = glGetError();
         if (glerror != GL_NO_ERROR) {
             LOGE("error! loading texture glTexImage2D failed! %x", glerror);
         } else {
-            LOGI("success! loading texture glTexImage2D success! with id %d format %d", new_texture_id, format);
+            LOGI("success! loading texture glTexImage2D success! with id %d format %d internal %d", new_texture_id, format, texture_data->internalFormat);
         }
     } else if (texture_data->target == GL_TEXTURE_3D) {
         glTexImage3D(texture_data->target, 0, texture_data->internalFormat, texture_data->width, texture_data->height, texture_data->depth, 0, format, GL_UNSIGNED_BYTE, texture_data->pixels);
@@ -1903,7 +2114,7 @@ void save_texture_binding_status(QEMUFile *f, Texture_Binding_Status *status) {
         qemu_put_be32(f, status->host_current_texture_buffer[i]);
     }
 
-    LOGI("value of all status are %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->current_external_gbuffer, status->guest_current_texture_2D[0], status->host_current_texture_2D[0], status->guest_current_texture_cube_map[0], status->host_current_texture_cube_map[0], status->guest_current_texture_3D[0], status->host_current_texture_3D[0], status->guest_current_texture_2D_array[0], status->host_current_texture_2D_array[0]);
+    LOGI("value of all status are %d %d %d %d %d %d %llx %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->current_external_gbuffer, status->guest_current_texture_2D[0], status->host_current_texture_2D[0], status->guest_current_texture_cube_map[0], status->host_current_texture_cube_map[0], status->guest_current_texture_3D[0], status->host_current_texture_3D[0], status->guest_current_texture_2D_array[0], status->host_current_texture_2D_array[0]);
 
     qemu_put_be32(f, status->texture_unit_num);
     
@@ -2077,11 +2288,11 @@ void restore_opengl_context_textures(Opengl_Context *context) {
 
     glBindTexture(GL_TEXTURE_2D, status->guest_current_texture_2D[current_active_texture]);   
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &textureId);
-    LOGI("The currently bound GL_TEXTURE_2D ID is: %d", textureId);
+    LOGI("The currently bound GL_TEXTURE_2D ID is: %d should bind is %d", textureId, status->guest_current_texture_2D[current_active_texture]);
 
     glerror = glGetError();
     if (glerror != GL_NO_ERROR) {
-        LOGE("glBindTexture GL_TEXTURE_2D error %d", glerror);
+        LOGE("glBindTexture GL_TEXTURE_2D error %x", glerror);
     }
 
 
@@ -2098,11 +2309,11 @@ void restore_opengl_context_textures(Opengl_Context *context) {
     glGetIntegerv(GL_TEXTURE_3D, &textureId);
     LOGI("The currently bound GL_TEXTURE_3D ID is: %d", textureId);
 
-    glBindTexture(GL_TEXTURE_2D_ARRAY, status->guest_current_texture_2D_array[current_active_texture]);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, status->guest_current_texture_cube_map[current_active_texture]);
-    glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, status->guest_current_texture_cube_map_array[current_active_texture]);
-    glBindTexture(GL_TEXTURE_BUFFER, status->guest_current_texture_buffer[current_active_texture]);
-    LOGI("restoring textures all values %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->current_external_gbuffer, status->guest_current_texture_2D[0], status->host_current_texture_2D[0], status->guest_current_texture_cube_map[0], status->host_current_texture_cube_map[0], status->guest_current_texture_3D[0], status->host_current_texture_3D[0], status->guest_current_texture_2D_array[0], status->host_current_texture_2D_array[0]);
+    // glBindTexture(GL_TEXTURE_2D_ARRAY, status->guest_current_texture_2D_array[current_active_texture]);
+    // glBindTexture(GL_TEXTURE_CUBE_MAP, status->guest_current_texture_cube_map[current_active_texture]);
+    // glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, status->guest_current_texture_cube_map_array[current_active_texture]);
+    // glBindTexture(GL_TEXTURE_BUFFER, status->guest_current_texture_buffer[current_active_texture]);
+    LOGI("restoring textures all values %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->current_external_gbuffer, status->guest_current_texture_2D[current_active_texture], status->host_current_texture_2D[current_active_texture], status->guest_current_texture_cube_map[current_active_texture], status->host_current_texture_cube_map[current_active_texture], status->guest_current_texture_3D[current_active_texture], status->host_current_texture_3D[current_active_texture], status->guest_current_texture_2D_array[current_active_texture], status->host_current_texture_2D_array[current_active_texture]);
 }
 
 int load_opengl_context(QEMUFile *f, Opengl_Context *context) {

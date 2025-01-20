@@ -150,6 +150,8 @@ Hardware_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
 
 void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
 
+void update_render_gbuffer_texture_and_framebuffer();
+
 void send_message_to_main_window(int message_code, void *data);
 
 #endif

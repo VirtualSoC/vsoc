@@ -49,7 +49,7 @@ typedef struct Display_Status
 #define PARA_NUM_Set_Display_Status 1
 #define PARA_NUM_Get_Display_Status 1
 
-
+void update_display_gbuffer_texture_and_framebuffer();
 extern int display_is_open;
 
 #endif

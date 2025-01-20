@@ -28,6 +28,8 @@
 
 bool teleport_express_should_stop = 0;
 
+
+
 /**
  * @brief 当vring有数据来的之后的回调函数，在aio线程中运行
  *
@@ -258,6 +260,9 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     // Express_Device_Info *device_info = get_express_device_info(EXPRESS_GPU_DEVICE_ID);
 
     remove_all_render_thread_contexts();
+
+    display_fbo_has_loaded = 0;
+
     load_native_resources(f);
     load_gbuffer_global_map(f);
 
@@ -265,12 +270,12 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
 
     load_render_process_contexts(f);
 
-    // load_native_shaders(f);
-    // load_native_textures(f);    
-
 
     load_render_thread_contexts(f);
     clear_resource_tables();
+
+    
+
     LOGI("succcefully perform virtio load for teleport express!");
     return 0;
 }

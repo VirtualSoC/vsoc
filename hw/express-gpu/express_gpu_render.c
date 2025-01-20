@@ -14,6 +14,7 @@
 #include "qemu/atomic.h"
 
 #include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 #include "hw/teleport-express/teleport_express.h"
 #include "hw/teleport-express/express_log.h"
@@ -112,6 +113,12 @@ static int display_height = 0;
 static bool window_need_refresh = false;
 
 Hardware_Buffer *main_display_gbuffer;
+
+void update_render_gbuffer_texture_and_framebuffer() {
+    // main_display_gbuffer->data_fbo = get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, main_display_gbuffer->data_fbo);
+    LOGI("main display gbuffer with old %d new %d", main_display_gbuffer->data_texture, get_host_id_map(RESOURCE_TYPE_TEXTURE, main_display_gbuffer->data_texture));
+    main_display_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, main_display_gbuffer->data_texture);
+}
 
 volatile int native_render_run = 0;
 volatile int device_interface_run = 0;
@@ -767,7 +774,7 @@ static void opengl_paint_composer_gbuffer(void)
 
     Hardware_Buffer *gbuffer = main_display_gbuffer;
 
-    // LOGI("in main thread paint gbuffer %d", gbuffer->data_texture);
+    LOGD("in main thread paint gbuffer %d", gbuffer->data_texture); 
 
     if (display_width != gbuffer->width || display_height == gbuffer->height)
     {
@@ -801,7 +808,7 @@ void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
     if(currentFBO != 0) {
         glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &textureID);
     } 
-    // LOGI("in paint gbuffer currentFBO %d textureID %d gbuffer texture %d", currentFBO, textureID, gbuffer->data_texture);
+    LOGD("in paint gbuffer currentFBO %d textureID %d gbuffer texture %d", currentFBO, textureID, gbuffer->data_texture);
 
 
     if (gbuffer != NULL)
