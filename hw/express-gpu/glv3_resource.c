@@ -700,6 +700,7 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
         glGenVertexArrays(n, host_buffers);
     }
 
+
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
     {
@@ -732,7 +733,7 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
             glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object); //ztodo:这些还没保存
         }
 
-        express_printf("%llx genVertexArray guest %d host %d\n", (uint64_t)context, arrays[i], host_buffers[i]);
+        LOGI("%llx genVertexArray guest %d host %d", (uint64_t)context, arrays[i], host_buffers[i]);
         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(host_buffers[i]), (gpointer)point_data);
 
         // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_VERTEX_ARRAY]);
@@ -813,7 +814,15 @@ void d_glDeleteBuffers(void *context, GLsizei n, const GLuint *buffers)
         GL_BUFFER_STATUS_RESTORE(buffer_status, shader_storage_buffer, host_buffers[i]);
         GL_BUFFER_STATUS_RESTORE(buffer_status, texture_buffer, host_buffers[i]);
         GL_BUFFER_STATUS_RESTORE(buffer_status, vao_ebo, host_buffers[i]);
+
+        LOGI("gldelete buffers of id %d", host_buffers[i]);
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        g_hash_table_remove(resource_list, GUINT_TO_POINTER(host_buffers[i]));
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
     }
+
 
     g_free(host_buffers);
 

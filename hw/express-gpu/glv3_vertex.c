@@ -202,6 +202,7 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)(uint64_t)loc);
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
+        LOGD("binding buffer vbo of %d", status->host_array_buffer);
     }
 
     return;
@@ -314,8 +315,13 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
         express_printf("%llx d_glVertexAttribPointer_with_bound index %u size %d type %x normalized %d stride %d pointer %llx ebo %d vbo %d\n", (uint64_t)context, index, size, type, normalized, stride, pointer, ebo, vbo);
 #endif
+        GLint ebo = 0;
+        GLint vbo = 0;
+        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
 
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)pointer);
+        LOGD("%llx d_glVertexAttribPointer_with_bound index %d size %d type %x normalized %d stride %d pointer %llx vbo %d ebo %d", (uint64_t)context, index, size, type, normalized, stride, pointer, vbo, ebo);
     }
     return;
 }
@@ -394,6 +400,7 @@ void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
     {
         glEnableVertexAttribArray(index);
     }
+    LOGD("d_glEnableVertexAttribArray_origin index %d", index);
 }
 
 
@@ -520,7 +527,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
         glGetIntegerv(GL_TEXTURE_BINDING_2D, &curtex);
         glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboID);
         glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&textureId1);
-        LOGI("current glDrawArrays %d %d %d fbo binded texture %d current texture %d fbo %d", mode, first, count, textureId1, curtex, fboID);
+        LOGD("current glDrawArrays %d %d %d fbo binded texture %d current texture %d fbo %d", mode, first, count, textureId1, curtex, fboID);
 
         glerror = glGetError();
         if(glerror != GL_NO_ERROR) {
@@ -968,8 +975,29 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
         GLint textureID = 0;
         glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &textureID);
 
-        LOGD("in drawRangeElements currentFBO %d %d %d %d %d %d", currentFBO, textureID, opengl_context->draw_fbo0, opengl_context->read_fbo0, opengl_context->current_read_fbo, opengl_context->current_write_fbo);
+        LOGI("in drawRangeElements %d start %d end %d count %d type %d currentFBO %d %d %d %d %d %d", indices, start, end, count, type, currentFBO, textureID, current_ebo, current_vbo, opengl_context->current_read_fbo, opengl_context->current_write_fbo);
 
+        // GLint size;
+        // void* data;
+        // glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+        // if (size > 0) {
+        //     // void* data = g_malloc0(size);
+        //     // if (data) {
+        //     //     memset(data, 0, size);
+        //     //     glGetBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, size, data);
+        //     //     LOGI("saving elementbuffer %d context first 4 bytes %x %x %x %x", current_ebo, ((char*)data)[1], ((char*)data)[12], ((char*)data)[22], ((char*)data)[16]);
+        //     // }
+        //     data = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, size, GL_MAP_READ_BIT);
+        //     if (data) {
+        //         // 如果映射成功，直接访问数据
+        //         LOGI("saving elementbuffer %d context first 4 bytes %x %x %x %x", current_ebo, ((char*)data)[1], ((char*)data)[12], ((char*)data)[22], ((char*)data)[16]);
+                
+        //         // 完成后取消映射
+        //         glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+        //     }
+        // }
+
+        
         glDrawRangeElements(mode, start, end, count, type, (void *)indices);
         // float r = (float)rand() / RAND_MAX;
         // float g = (float)rand() / RAND_MAX;

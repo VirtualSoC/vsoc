@@ -255,16 +255,25 @@ void restore_buffers_binding(Opengl_Context *context) {
     Bound_Buffer *bound_buffer = &(context->bound_buffer_status);
     Buffer_Status *status = &(bound_buffer->buffer_status);
 
+
+    if(status->guest_element_array_buffer != status->host_element_array_buffer) {
+        status->host_element_array_buffer = status->guest_element_array_buffer;
+    }
+
+    if(status->guest_array_buffer != status->host_array_buffer) {
+        status->host_array_buffer = status->guest_array_buffer;
+    }
+
     GLuint current_ebo = status->guest_element_array_buffer;
     GLuint current_vbo = status->guest_array_buffer;
     LOGI("current vbo and ebo should be %d %d", current_vbo, current_ebo);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, current_ebo);
+    
     glBindBuffer(GL_ARRAY_BUFFER, current_vbo);
-
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, current_ebo);
     
     if(status->guest_copy_read_buffer != status->host_copy_read_buffer) {
-    status->host_copy_read_buffer = status->guest_copy_read_buffer;
+        status->host_copy_read_buffer = status->guest_copy_read_buffer;
     }
     glBindBuffer(GL_COPY_READ_BUFFER, status->host_copy_read_buffer);
 

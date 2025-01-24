@@ -549,11 +549,13 @@ void opengl_context_init(Opengl_Context *context)
         newBuffer_unpack->target = GL_PIXEL_UNPACK_BUFFER;
 
 
-        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
-        GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
-        g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_pack->bufferId), newBuffer_pack);
-        g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_unpack->bufferId), newBuffer_unpack);
-        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        // g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_pack->bufferId), newBuffer_pack);
+        // g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_unpack->bufferId), newBuffer_unpack);
+        // LOGI("inserting buffer of %d %d", newBuffer_pack->bufferId, newBuffer_unpack->bufferId);
+
+        // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
 
         LOGI("context %llx init vao %d",(uint64_t)context, vao0);
 
@@ -630,6 +632,12 @@ void opengl_context_destroy(Opengl_Context *context)
     {
         glDeleteBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
         glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+        // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        // g_hash_table_remove(resource_list, GUINT_TO_POINTER(bound_buffer->asyn_pack_texture_buffer));
+        // g_hash_table_remove(resource_list, GUINT_TO_POINTER(bound_buffer->asyn_unpack_texture_buffer));
+        // LOGI("removing buffer of %d %d", bound_buffer->asyn_pack_texture_buffer, bound_buffer->asyn_unpack_texture_buffer);
+        // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
     }
 
     if (opengl_context->draw_texi_vbo != 0)

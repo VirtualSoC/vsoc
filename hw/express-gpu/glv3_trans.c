@@ -13289,7 +13289,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
         express_printf("mapbufferrange glbindbufferRange target %x index %d buffer %d offset %lld size %lld end %lld\n", target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size, offset + size);
 
-        d_glBindBufferRange_special(opengl_context, target, index, buffer, offset, size);
+        d_glBindBufferRange_special(opengl_context, target, index, buffer, offset, size); //ztodo:处理这里的情况
     }
     break;
 

@@ -81,6 +81,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         // opengl_context->bound_buffer_status.attrib_point->element_array_buffer = buffer;
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
+            LOGI("in dsa mode bind ebo!");
             if (buffer == 0)
             {
                 Attrib_Point *point_data = opengl_context->bound_buffer_status.attrib_point;
@@ -192,14 +193,19 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
     // if((host_opengl_version < 45 || DSA_enable == 0) || is_init == 0)
 
     if(buffer != 0){
-        LOGD("binding buffer of id %d type %d", buffer, target);
-        Express_Native_buffer_Simple* newBuffer = g_malloc0(sizeof(Express_Native_buffer_Simple));
-        newBuffer->bufferId = buffer;  
-        newBuffer->target = target;     
-
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        LOGI("binding buffer of id %d type %x", buffer, target);
         GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
-        g_hash_table_insert(resource_list, GUINT_TO_POINTER(buffer), newBuffer);
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(buffer)) == NULL) {
+            Express_Native_buffer_Simple* newBuffer = g_malloc0(sizeof(Express_Native_buffer_Simple));
+            newBuffer->bufferId = buffer;  
+            newBuffer->target = target;     
+
+            
+            
+            g_hash_table_insert(resource_list, GUINT_TO_POINTER(buffer), newBuffer);            
+        }
+
 
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);        
     } else {
@@ -247,7 +253,7 @@ void d_glBindBufferRange_special(void *context, GLenum target, GLuint index, GLu
 
     express_printf("context %llx glBindBufferRange target %x buffer %d\n", (uint64_t)context, target, buffer);
 
-    glBindBufferRange(target, index, buffer, offset, size);
+    glBindBufferRange(target, index, buffer, offset, size); //ztodo:处理这个情况
 }
 
 void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLuint guest_buffer)
@@ -281,7 +287,7 @@ void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLui
     }
 
     express_printf("context %llx glBindBufferBase target %x buffer %d\n", (uint64_t)context, target, buffer);
-    glBindBufferBase(target, index, buffer);
+    glBindBufferBase(target, index, buffer); //ztodo:处理这个情况
 }
 
 void buffer_binding_status_sync(void *context, GLenum target)
@@ -992,7 +998,7 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
     Attrib_Point *pre_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(pre_vao));
 
-    express_printf("context %llx bind vao host %d guest %d pre %d\n", (uint64_t)context, now_vao, array, pre_vao);
+    LOGI("context %llx bind vao host %d guest %d pre %d", (uint64_t)context, now_vao, array, pre_vao);
 
     if (now_point == NULL)
     {

@@ -74,6 +74,7 @@ typedef struct Express_Native_Buffer {
 typedef struct Express_Native_buffer_Simple {
     GLuint bufferId;
     GLenum target;
+    int data_upload_strategy;//1:通过glBufferData上传数据 2:通过glMapBufferRange上传数据
 } Express_Native_buffer_Simple;
 
 
@@ -154,6 +155,10 @@ void load_native_programs(QEMUFile *f);
 
 void save_native_programs_tmp(QEMUFile *f);
 void load_native_programs_tmp(QEMUFile *f);
+void load_native_textures_tmp(QEMUFile *f);
+void load_native_shaders_tmp(QEMUFile *f);
+
+
 
 void save_native_textures(QEMUFile *f);
 void load_native_textures(QEMUFile *f);
