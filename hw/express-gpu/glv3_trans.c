@@ -16467,7 +16467,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
-
+        GLint current_program = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *)&current_program);
+        LOGI("glUniform1i current program %d location %d value %d\n", current_program, location, v0);
+       
         glUniform1i(location, v0);
         // LOGD("glUniform1i location=%d, v0=%d", location, v0);
     }
@@ -21597,7 +21600,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-
+        GLint current_program = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *)&current_program);
+        LOGI("glUniform1iv current program %d location %d count %d value %d\n", current_program, location, count, *value);
         glUniform1iv(location, count, value);
     }
     break;

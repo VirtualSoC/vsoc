@@ -125,6 +125,9 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (guest_mem->all_len == 0)
     {
+        LOGI("going to upload data for texture bull value target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
+    
+
         if (status->host_pixel_unpack_buffer != 0) //说明是guest那边解绑pbo的同步
         {
             status->host_pixel_unpack_buffer = 0;
@@ -218,7 +221,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     }
 
     int start_loc = 0, end_loc = buf_len;
-    LOGI("going upload data for subtexture target %d id %d width %d height %d",target, bind_texture, width, height);
+    LOGI("going upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d length %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, buf_len, type);
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 

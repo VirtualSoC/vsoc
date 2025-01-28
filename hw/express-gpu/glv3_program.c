@@ -190,7 +190,7 @@ int init_program_data(GLuint program)
             temp_ptr += 3 * sizeof(int);
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
-            express_printf("uniform block |%d %d| |%s| index %d\n", uniform_block_active_uniforms, size, name_buf, i);
+            LOGI("uniform block |%d %d| |%s| index %d\n", uniform_block_active_uniforms, size, name_buf, i);
         }
 
         if (has_image)
@@ -259,7 +259,7 @@ void d_glUseProgram_special(void *context, GLuint program)
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
 { //直接加载已经编译和链接好的程序二进制格式,就不用编译链接那些了
-
+    LOGI("in d_glProgramBinary_special program %d binaryFormat %d length %d", program, binaryFormat, length);
     glProgramBinary(program, binaryFormat, binary, length);
 
     *program_data_len = init_program_data(program);
@@ -299,6 +299,8 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
 
     //读取完成后直接删除就行了
     g_hash_table_remove(program_data_map, GUINT_TO_POINTER(program));
+
+    LOGI("current program map size %d", g_hash_table_size(program_data_map));
 
     return;
 }
@@ -700,7 +702,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         new_string1[loc] = 0;
         length[0] = loc;
         string[0] = new_string1;
-        // LOGI("%s", new_string1);
+        LOGI("in shader source %s", new_string1);
     }
 
     GLint shader_type;

@@ -164,6 +164,8 @@ void load_native_buffers_tmp(QEMUFile *f) {
         change_host_id_map(RESOURCE_TYPE_BUFFER, buffer_id, buffer_id);
 
         GLint target = qemu_get_be32(f);
+        int strategy = qemu_get_be32(f);
+
         GLint size = qemu_get_be32(f);
 
         glBindBuffer(target, buffer_id);
@@ -177,29 +179,29 @@ void load_native_buffers_tmp(QEMUFile *f) {
                 // if(size > 40000)
                 //     LOGI("before loading buffer context first 4 bytes %x %x %x %x", ((char*)data)[9140], ((char*)data)[141], ((char*)data)[42], ((char*)data)[49151]);
 
-                memset(data, 0, size);
+                // memset(data, 0, size);
                 
-                // glBufferSubData(target, 0, size, data);
-                if(size > 40000) {
-                    GLubyte *map_pointer = glMapBufferRange(target, 0, size, 0xa);
-                    memcpy(map_pointer, data, size);
-                    glUnmapBuffer(target);                    
-                }
+                // // glBufferSubData(target, 0, size, data);
+                // if(size > 40000) {
+                //     GLubyte *map_pointer = glMapBufferRange(target, 0, size, 0xa);
+                //     memcpy(map_pointer, data, size);
+                //     glUnmapBuffer(target);                    
+                // }
 
 
                 qemu_get_buffer(f, data, size);
 
-                if(target == GL_ARRAY_BUFFER) {
-                    glBufferSubData(target, 0, size, data);
-                }
-                memset(data, 0, size);
-                glGetBufferSubData(target, 0, size, data);
-                if(size > 40000)
-                    LOGI("loading buffer context first 4 bytes %x %x %x %x", ((char*)data)[1], ((char*)data)[12], ((char*)data)[22], ((char*)data)[16]);
-                GLuint glerror = glGetError();
-                if(glerror != GL_NO_ERROR) {
-                    LOGI("error when loading buffer!");
-                }
+                // if(target == GL_ARRAY_BUFFER) {
+                //     glBufferSubData(target, 0, size, data);
+                // }
+                // memset(data, 0, size);
+                // glGetBufferSubData(target, 0, size, data);
+                // if(size > 40000)
+                //     LOGI("loading buffer context first 4 bytes %x %x %x %x", ((char*)data)[1], ((char*)data)[12], ((char*)data)[22], ((char*)data)[16]);
+                // GLuint glerror = glGetError();
+                // if(glerror != GL_NO_ERROR) {
+                //     LOGI("error when loading buffer!");
+                // }
                 g_free(data);
             }
         } else {
@@ -625,7 +627,7 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
     int program_num = qemu_get_be32(f);
     for(int i = 0; i < program_num ; i++) {
         GLuint program_id = qemu_get_be32(f);
-        GLint new_program_id;
+        GLint new_program_id = 0;
         // if(program_id == 39 || program_id ==45) {
         //     new_program_id = program_id;
         //     change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id);
@@ -644,7 +646,17 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
         // }
         
         glDeleteProgram(program_id);//ztodo:重启场景应该可以去掉这个
-        new_program_id = glCreateProgram();
+
+        // while(new_program_id != program_id){
+            new_program_id = glCreateProgram();
+        //     LOGI("create program of old %d new %d", program_id, new_program_id);
+
+        // }
+        // if(program_id == 82){
+        // if(program_id == 82 || program_id == 57|| program_id == 100|| program_id == 118|| program_id == 121 || program_id == 124) {
+        //     change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, program_id);
+        // }
+        // else    
         change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id); //重新映射guest-host的id            
 
 
@@ -672,7 +684,7 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                 // glCompileShader(shader_id);
                 shader_attached_order[attached_order] = shader_id;
                 // glAttachShader(new_program_id, shader_id);
-                LOGI("loading program of %d shader %d %d %s", new_program_id, shader_id, shader_type, shader_source);
+                LOGI("loading program of old %d %d shader %d %d %s",program_id, new_program_id, shader_id, shader_type, shader_source);
                 // glDeleteShader(shader_id);
                 g_free(shader_source);
             }
@@ -696,6 +708,170 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
         load_program_uniform_and_attrib_info(f, new_program_id);
 
         glLinkProgram(new_program_id);
+        glUseProgram(new_program_id);
+
+        GLint uniform_num = qemu_get_be32(f);
+        GLint max_uniform_name_len = 0;
+        glGetProgramiv(new_program_id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_uniform_name_len);
+        int name_len = max_uniform_name_len;
+        // GLchar *name_buf = g_malloc(name_len);
+        GLint size;
+        GLenum type;
+        GLint location;
+        // glGetProgramiv(new_program_id, GL_ACTIVE_UNIFORMS, &uniform_num);
+        for (int i = 0; i < uniform_num; i++) {
+            // glGetActiveUniform(new_program_id, i, name_len, NULL, &size, &type, name_buf);
+            int bufsize = qemu_get_be32(f);
+            GLchar *name_buf = g_malloc(bufsize + 1);
+            memset(name_buf, 0, bufsize + 1);
+
+            qemu_get_buffer(f, name_buf, bufsize);
+            GLint old_loc = qemu_get_be32(f);
+            GLint old_type = qemu_get_be32(f);
+            location = glGetUniformLocation(new_program_id, name_buf);
+            if(old_loc != location) {
+                LOGE("error! in loading program uniform %d %d", old_loc, location);
+            }
+
+            // GLuint textureUnit;
+            // glGetUniformiv(program_id, location, &textureUnit);
+            switch (old_type) {
+                case GL_FLOAT:
+                    {
+                        GLfloat value = (GLfloat)qemu_get_be64(f);
+                        glUniform1f(location, value);
+                    }
+                    break;
+
+                case GL_INT:
+                    {
+                        GLint value = (GLint)qemu_get_be64(f);
+                        glUniform1i(location, value);
+                        LOGI("before loading get program uniform %d name %s index %d size %d value %d", program_id, name_buf, location, strlen(name_buf), value);
+                    }
+                    break;
+
+                case GL_BOOL:
+                    {
+                        GLint value = (GLint)qemu_get_be64(f);  // GL_BOOL 是 GLint 类型
+                        glUniform1i(location, value);
+                    }
+                    break;
+
+                case GL_FLOAT_VEC2:
+                    {
+                        GLfloat value[2];
+                        for (int i = 0; i < 2; ++i) {
+                            value[i] = (GLfloat)qemu_get_be64(f);
+                        }
+                        glUniform2fv(location, 1, value);
+                    }
+                    break;
+
+                case GL_FLOAT_VEC3:
+                    {
+                        GLfloat value[3];
+                        for (int i = 0; i < 3; ++i) {
+                            value[i] = (GLfloat)qemu_get_be64(f);
+                        }
+                        glUniform3fv(location, 1, value);
+                    }
+                    break;
+
+                case GL_FLOAT_VEC4:
+                    {
+                        GLfloat value[4];
+                        for (int i = 0; i < 4; ++i) {
+                            value[i] = (GLfloat)qemu_get_be64(f);
+                        }
+                        glUniform4fv(location, 1, value);
+                    }
+                    break;
+
+                case GL_INT_VEC2:
+                    {
+                        GLint value[2];
+                        for (int i = 0; i < 2; ++i) {
+                            value[i] = (GLint)qemu_get_be64(f);
+                        }
+                        glUniform2iv(location, 1, value);
+                    }
+                    break;
+
+                case GL_INT_VEC3:
+                    {
+                        GLint value[3];
+                        for (int i = 0; i < 3; ++i) {
+                            value[i] = (GLint)qemu_get_be64(f);
+                        }
+                        glUniform3iv(location, 1, value);
+                    }
+                    break;
+
+                case GL_INT_VEC4:
+                    {
+                        GLint value[4];
+                        for (int i = 0; i < 4; ++i) {
+                            value[i] = (GLint)qemu_get_be64(f);
+                        }
+                        glUniform4iv(location, 1, value);
+                    }
+                    break;
+
+                case GL_FLOAT_MAT2:
+                    {
+                        GLfloat value[4];  // 2x2 matrix (4 elements)
+                        for (int i = 0; i < 4; ++i) {
+                            value[i] = (GLfloat)qemu_get_be64(f);
+                        }
+                        glUniformMatrix2fv(location, 1, GL_FALSE, value);
+                    }
+                    break;
+
+                case GL_FLOAT_MAT3:
+                    {
+                        GLfloat value[9];  // 3x3 matrix (9 elements)
+                        for (int i = 0; i < 9; ++i) {
+                            value[i] = (GLfloat)qemu_get_be64(f);
+                        }
+                        glUniformMatrix3fv(location, 1, GL_FALSE, value);
+                    }
+                    break;
+
+                case GL_FLOAT_MAT4:
+                    {
+                        GLfloat value[16];  // 4x4 matrix (16 elements)
+                        for (int i = 0; i < 16; ++i) {
+                            value[i] = (GLfloat)qemu_get_be64(f);
+                        }
+                        glUniformMatrix4fv(location, 1, GL_FALSE, value);
+                    }
+                    break;
+
+                case GL_SAMPLER_1D:
+                case GL_SAMPLER_2D:
+                case GL_SAMPLER_3D:
+                case GL_SAMPLER_CUBE:
+                case GL_SAMPLER_1D_SHADOW:
+                case GL_SAMPLER_2D_SHADOW:
+                    {
+                        GLint value = (GLint)qemu_get_be64(f);
+                        glUniform1i(location, value);
+                        LOGI("before loading get program uniform %d name %s index %d size %d value %d", program_id, name_buf, location, strlen(name_buf), value);
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+
+
+
+            LOGI("loading get program uniform %d name %s index %d size %d type %x", program_id, name_buf, location, strlen(name_buf), old_type);
+
+        }
+
+
         GLenum error = glGetError();
         if(error != GL_NO_ERROR) {
             LOGE("error! glLinkProgram failed! gl error %x ", error);
@@ -796,17 +972,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
     GLenum type;
     GLint location;
 
-    // qemu_put_be32(f, uniform_num);
-    // for (int i = 0; i < uniform_num; i++) {
-    //     glGetActiveUniform(program, i, name_len, NULL, &size, &type, name_buf);
-    //     location = glGetUniformLocation(program, name_buf);
-    //     LOGI("get program uniform %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
-        
-    //     qemu_put_be32(f, strlen(name_buf));
-    //     qemu_put_buffer(f, name_buf, strlen(name_buf));
-    //     qemu_put_be32(f, location);
 
-    // }
 
     qemu_put_be32(f, attrib_num);
     for (int i = 0; i < attrib_num; i++){
@@ -820,6 +986,154 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
         
     }
 
+    qemu_put_be32(f, uniform_num);
+    for (int i = 0; i < uniform_num; i++) {
+        glGetActiveUniform(program, i, name_len, NULL, &size, &type, name_buf);
+        location = glGetUniformLocation(program, name_buf);
+        LOGI("get program uniform %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
+        
+        qemu_put_be32(f, strlen(name_buf));
+        qemu_put_buffer(f, name_buf, strlen(name_buf));
+        qemu_put_be32(f, location);
+        qemu_put_be32(f, type);
+
+        switch (type) {
+            case GL_FLOAT:
+                {
+                    GLfloat value;
+                    glGetUniformfv(program, location, &value);
+                    qemu_put_be64(f, value);
+                }
+                break;
+
+            case GL_INT:
+                {
+                    GLint value;
+                    glGetUniformiv(program, location, &value);
+                    qemu_put_be64(f, value);
+
+                }
+                break;
+
+            case GL_BOOL:
+                {
+                    GLint value;
+                    glGetUniformiv(program, location, &value);
+                    qemu_put_be64(f, value);
+
+                }
+                break;
+
+            case GL_FLOAT_VEC2:
+                {
+                    GLfloat value[2];
+                    glGetUniformfv(program, location, value);
+                    for(int i = 0; i < 2; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_FLOAT_VEC3:
+                {
+                    GLfloat value[3];
+                    glGetUniformfv(program, location, value);
+                    for(int i = 0; i < 3; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_FLOAT_VEC4:
+                {
+                    GLfloat value[4];
+                    glGetUniformfv(program, location, value);
+                    for(int i = 0; i < 4; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_INT_VEC2:
+                {
+                    GLint value[2];
+                    glGetUniformiv(program, location, value);
+                    for(int i = 0; i < 2; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_INT_VEC3:
+                {
+                    GLint value[3];
+                    glGetUniformiv(program, location, value);
+                    for(int i = 0; i < 3; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_INT_VEC4:
+                {
+                    GLint value[4];
+                    glGetUniformiv(program, location, value);
+                    for(int i = 0; i < 4; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_FLOAT_MAT2:
+                {
+                    GLfloat value[4];  // 2x2 matrix
+                    glGetUniformfv(program, location, value);
+                    for(int i = 0; i < 4; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_FLOAT_MAT3:
+                {
+                    GLfloat value[9];  // 3x3 matrix
+                    glGetUniformfv(program, location, value);
+                    for(int i = 0; i < 9; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_FLOAT_MAT4:
+                {
+                    GLfloat value[16];  // 4x4 matrix
+                    glGetUniformfv(program, location, value);
+                    for(int i = 0; i < 16; i++) {
+                        qemu_put_be64(f, value[i]);
+                    }
+                }
+                break;
+
+            case GL_SAMPLER_1D:
+            case GL_SAMPLER_2D:
+            case GL_SAMPLER_3D:
+            case GL_SAMPLER_CUBE:
+            case GL_SAMPLER_1D_SHADOW:
+            case GL_SAMPLER_2D_SHADOW:
+                {
+                    GLint value;
+                    glGetUniformiv(program, location, &value);
+                    qemu_put_be64(f, value);  // Sampler types are typically handled as integers
+                }
+                break;
+
+            default:
+                break;
+        }
+
+    }    
+
+//ztodo:uniform block的保存加载
     // int uniform_block_active_uniforms;
     // for (int i = 0; i < uniform_blocks_num; i++)
     // {
@@ -1014,6 +1328,77 @@ void saveTextureAsPPM(const char *baseFilename, int textureId, int width, int he
     }
 }
 
+GLuint get_pixel_size(GLenum internalFormat) {
+    switch (internalFormat) {
+        case GL_ALPHA:
+            return 1;  // 1 channel (Alpha), 1 byte per channel (8 bits/channel)
+        case GL_RGBA8:
+        case GL_SRGB8_ALPHA8_EXT:
+        case GL_RGBA32F:
+        case GL_RGBA8I:
+        case GL_RGBA8UI:
+        case GL_RGBA16F:
+        case GL_SRGB_ALPHA:
+            return 4;  // 4 channels (RGBA), 1 byte per channel (8 bits/channel)
+        case GL_RGB8:
+        case GL_RGB32F:
+        case GL_RGB16F:
+            return 3;  // 3 channels (RGB), 1 byte per channel (8 bits/channel)
+        case GL_R8:
+        case GL_R8I:
+        case GL_R8UI:
+        case GL_R16F:
+        case GL_R16I:
+        case GL_R16UI:
+        case GL_R32F:
+        case GL_R32I:
+        case GL_R32UI:
+            return 1;  // 1 channel (Red), 1 byte per channel (8 bits/channel)
+        case GL_RG8:
+        case GL_RG32F:
+        case GL_RG16F:
+        case GL_RG8I:
+        case GL_RG8UI:
+        case GL_RG16I:
+        case GL_RG16UI:
+            return 2;  // 2 channels (Red, Green), 1 byte per channel (8 bits/channel)
+        case GL_RGB5_A1:
+            return 4;  // 4 channels (RGB + Alpha), 5 bits for RGB, 1 bit for Alpha
+        case GL_RGBA16:
+            return 8;  // 4 channels (RGBA), 2 bytes per channel (16 bits/channel)
+        case GL_RGBA16I:
+        case GL_RGBA16UI:
+            return 8;  // 4 channels (RGBA), 2 bytes per channel (16 bits/channel)
+        case GL_RGB16:
+            return 6;  // 3 channels (RGB), 2 bytes per channel (16 bits/channel)
+        case GL_RGB16I:
+        case GL_RGB16UI:
+            return 6;  // 3 channels (RGB), 2 bytes per channel (16 bits/channel)
+        case GL_RGBA32I:
+        case GL_RGBA32UI:
+            return 16;  // 4 channels (RGBA), 4 bytes per channel (32 bits/channel)
+        case GL_RGB32I:
+        case GL_RGB32UI:
+            return 12;  // 3 channels (RGB), 4 bytes per channel (32 bits/channel)
+        case GL_DEPTH_COMPONENT:
+        case GL_DEPTH_COMPONENT16:
+        case GL_DEPTH_COMPONENT24:
+        case GL_DEPTH_COMPONENT32F:
+            return 1;  // 1 channel (Depth), 1 byte per channel (8 bits/channel), or 4 bytes for float types
+        case GL_DEPTH_STENCIL:
+            return 2;  // 1 channel (Depth) + 1 channel (Stencil), 1 byte per channel (8 bits/channel)
+        case GL_COMPRESSED_RGB:
+        case GL_COMPRESSED_RGBA:
+            return 1;  // Compressed formats; the size per pixel is format-dependent
+        case GL_COMPRESSED_SRGB:
+        case GL_COMPRESSED_SRGB_ALPHA:
+            return 1;  // Compressed formats; the size per pixel is format-dependent
+        default:
+            return 4;  // Unrecognized format
+    }
+}
+
+
 GLenum get_format_for_internal_format(GLint internal_format) {
     GLenum format; //ztodo:不确定是否齐全
     switch (internal_format) {
@@ -1122,6 +1507,11 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     glGetTexParameteriv(target, GL_TEXTURE_WRAP_S, &state->wrapS);
     glGetTexParameteriv(target, GL_TEXTURE_WRAP_T, &state->wrapT);
 
+    glGetTexParameteriv(target, GL_TEXTURE_SWIZZLE_R, &state->texture_swizzle_r);
+    glGetTexParameteriv(target, GL_TEXTURE_SWIZZLE_G, &state->texture_swizzle_g);
+    glGetTexParameteriv(target, GL_TEXTURE_SWIZZLE_B, &state->texture_swizzle_b);
+    glGetTexParameteriv(target, GL_TEXTURE_SWIZZLE_A, &state->texture_swizzle_a);
+
     qemu_put_be32(f, state->width);
     qemu_put_be32(f, state->height);
     qemu_put_be32(f, state->depth);
@@ -1132,11 +1522,17 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     qemu_put_be32(f, state->wrapS);
     qemu_put_be32(f, state->wrapT);
 
+    qemu_put_be32(f, state->texture_swizzle_r);
+    qemu_put_be32(f, state->texture_swizzle_g);
+    qemu_put_be32(f, state->texture_swizzle_b);
+    qemu_put_be32(f, state->texture_swizzle_a);
+
     qemu_put_be32(f, state->binding2D);
     qemu_put_be32(f, state->bindingCubeMap);
-    
-    GLint size = state->width * state->height * 4;
-    state->pixels = (GLubyte *)g_malloc(size); //ztodo:记得free
+    GLint pixel_size = get_pixel_size(state->internalFormat);
+    LOGI("get pixel size %d", pixel_size);
+    GLint size = state->width * state->height * pixel_size;
+    state->pixels = (GLubyte *)malloc(state->width * state->height * pixel_size * 4); //ztodo:记得free
     memset(state->pixels, 0, size);
 
     //ztodo:使用pbo加速!!!
@@ -1145,28 +1541,30 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     GLenum format = get_format_for_internal_format(state->internalFormat);
 
     glGetTexImage(target, 0, format, GL_UNSIGNED_BYTE, state->pixels); //ztodo:第二个、倒数第二个参数
-    LOGI("in saving texture of id %d target %d height %d width %d depth %d format %d pixels", texture_id, state->target, state->height, state->width, state->depth, state->internalFormat);
+    LOGI("in saving texture of id %d target %d height %d width %d depth %d format %x pixels %d", texture_id, state->target, state->height, state->width, state->depth, state->internalFormat, size);
     qemu_put_buffer(f, state->pixels, size);    
 
-    unsigned char* zero_buffer = (unsigned char*)malloc(size);
-    memset(zero_buffer, 0, size);
-    if (memcmp(state->pixels, (const void*)zero_buffer, size) == 0) {
-    // 说明 state->pixels 的内容全为 0
-        LOGI("Memory is all zeros");
-    } else {
-        // 说明 state->pixels 的内容不是全为 0
-        LOGI("Memory is not all zeros");
-        for (int i = 0; i < min(30, size); i++) {
-            LOGD("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
-                i, 
-                state->pixels[i * 4 + 0], //R
-                state->pixels[i * 4 + 1], //G
-                state->pixels[i * 4 + 2], //B
-                state->pixels[i * 4 + 3]  //A
-            );
-        }
-    }
-    free(zero_buffer);
+    free(state->pixels);
+
+    // unsigned char* zero_buffer = (unsigned char*)malloc(size);
+    // memset(zero_buffer, 0, size);
+    // if (memcmp(state->pixels, (const void*)zero_buffer, size) == 0) {
+    // // 说明 state->pixels 的内容全为 0
+    //     LOGI("Memory is all zeros");
+    // } else {
+    //     // 说明 state->pixels 的内容不是全为 0
+    //     LOGI("Memory is not all zeros");
+    //     // for (int i = 0; i < min(30, size); i++) {
+    //     //     LOGD("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
+    //     //         i, 
+    //     //         state->pixels[i * 4 + 0], //R
+    //     //         state->pixels[i * 4 + 1], //G
+    //     //         state->pixels[i * 4 + 2], //B
+    //     //         state->pixels[i * 4 + 3]  //A
+    //     //     );
+    //     // }
+    // }
+    // free(zero_buffer);
 
 
 
@@ -1231,6 +1629,9 @@ void update_native_texture(Express_Native_Texture* texture_data){
 
     glDeleteTextures(1, (GLuint*)&texture_data->textureId);
     GLuint new_texture_id;
+    // while(new_texture_id != texture_data->textureId) {
+    //     glGenTextures(1, &new_texture_id);
+    // }
     glGenTextures(1, &new_texture_id);
     glBindTexture(binding_target, new_texture_id);
 
@@ -1241,6 +1642,11 @@ void update_native_texture(Express_Native_Texture* texture_data){
     glTexParameteri(texture_data->target, GL_TEXTURE_MAG_FILTER, texture_data->magFilter);
     glTexParameteri(texture_data->target, GL_TEXTURE_WRAP_S, texture_data->wrapS);
     glTexParameteri(texture_data->target, GL_TEXTURE_WRAP_T, texture_data->wrapT);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_SWIZZLE_R, texture_data->texture_swizzle_r);
+    glTexParameteri(texture_data->target, GL_TEXTURE_SWIZZLE_G, texture_data->texture_swizzle_g);
+    glTexParameteri(texture_data->target, GL_TEXTURE_SWIZZLE_B, texture_data->texture_swizzle_b);
+    glTexParameteri(texture_data->target, GL_TEXTURE_SWIZZLE_A, texture_data->texture_swizzle_a);
     
     GLenum format = get_format_for_internal_format(texture_data->internalFormat); //ztodo:这么转换吗？
 
@@ -1267,12 +1673,21 @@ void update_native_texture(Express_Native_Texture* texture_data){
         }
     }
 
-    if (texture_data->target == GL_TEXTURE_2D) {
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
+    // if (texture_data->target == GL_TEXTURE_2D) {
+        // glGenerateMipmap(GL_TEXTURE_2D);
+    // }
 
-    glBindTexture(texture_data->target, 0); //ztodo:应该不用
+    // glBindTexture(texture_data->target, 0); //ztodo:应该不用
     LOGI("loaded native texture new id %d old id %d width %d height %d", new_texture_id, texture_data->textureId, texture_data->width, texture_data->height);
+    if(texture_data->width == 1024){ 
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+        // change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, texture_data->textureId);
+        // memset(texture_data->pixels, 0, texture_data->width * texture_data->height * 4);
+    }
+    // else
     change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
 }
 
@@ -1295,9 +1710,12 @@ void load_native_textures_tmp(QEMUFile *f){
         native_texture->wrapT = qemu_get_be32(f);
         native_texture->binding2D = qemu_get_be32(f);
         native_texture->bindingCubeMap = qemu_get_be32(f);
-        GLint source_length = native_texture->width * native_texture->height * 4;
 
-        const char* shader_source = (char*)malloc(source_length);
+        GLint pixel_size = get_pixel_size(native_texture->internalFormat);
+
+        GLint source_length = native_texture->width * native_texture->height * pixel_size;
+
+        const char* shader_source = (char*)malloc(native_texture->width * native_texture->height * 4);
         qemu_get_buffer(f, shader_source, source_length);
         LOGI("loading texture of id %d type %d", native_texture->textureId, native_texture->target);
         native_texture->pixels = (GLubyte*)shader_source;
@@ -1307,6 +1725,17 @@ void load_native_textures_tmp(QEMUFile *f){
         // }
 
         GLint new_texture_id = native_texture->textureId;
+
+        if(native_texture->width == 1024) {
+            LOGI("change texture id %d", native_texture->textureId);
+            // memset(native_texture->pixels, 0, native_texture->width * native_texture->height * 4);
+            glBindTexture(native_texture->target, native_texture->textureId);
+    GLenum format = get_format_for_internal_format(native_texture->internalFormat); //ztodo:这么转换吗？
+// glTexSubImage2D(native_texture->target, 0, 0, 0, native_texture->width, native_texture->height, format, GL_UNSIGNED_BYTE, native_texture->pixels);
+// 再试试下面这种写法！
+            glTexImage2D(native_texture->target, 0, native_texture->internalFormat, native_texture->width, native_texture->height, 0, format, GL_UNSIGNED_BYTE, native_texture->pixels);
+            glBindTexture(native_texture->target, 0);
+        }
         change_host_id_map(RESOURCE_TYPE_TEXTURE, native_texture->textureId, new_texture_id);
         free(shader_source);
         g_free(native_texture);
@@ -1331,11 +1760,19 @@ void load_native_textures(QEMUFile *f){
         native_texture->magFilter = qemu_get_be32(f);
         native_texture->wrapS = qemu_get_be32(f);
         native_texture->wrapT = qemu_get_be32(f);
+
+        native_texture->texture_swizzle_r = qemu_get_be32(f);
+        native_texture->texture_swizzle_g = qemu_get_be32(f);
+        native_texture->texture_swizzle_b = qemu_get_be32(f);
+        native_texture->texture_swizzle_a = qemu_get_be32(f);
+        
         native_texture->binding2D = qemu_get_be32(f);
         native_texture->bindingCubeMap = qemu_get_be32(f);
-        GLint source_length = native_texture->width * native_texture->height * 4;
 
-        const char* shader_source = (char*)malloc(source_length);
+        GLint pixel_size = get_pixel_size(native_texture->internalFormat);
+        GLint source_length = native_texture->width * native_texture->height * pixel_size;
+
+        const char* shader_source = (char*)malloc(native_texture->width * native_texture->height * 4);
         qemu_get_buffer(f, shader_source, source_length);
         LOGI("loading texture of id %d type %d", native_texture->textureId, native_texture->target);
         native_texture->pixels = (GLubyte*)shader_source;
@@ -2466,8 +2903,15 @@ void restore_opengl_context_textures(Opengl_Context *context) {
     }
 
     GLint textureId = 0;
-
+    // 尝试不bind那个texture
     glBindTexture(GL_TEXTURE_2D, status->guest_current_texture_2D[current_active_texture]);   
+    GLint width = 0;
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+    // if(width == 1024){
+    //     LOGI("texture is for words!");
+    //     glBindTexture(GL_TEXTURE_2D, 0);
+    //     glDeleteTextures(1, &status->guest_current_texture_2D[current_active_texture]);
+    // }
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &textureId);
     LOGI("The currently bound GL_TEXTURE_2D ID is: %d should bind is %d", textureId, status->guest_current_texture_2D[current_active_texture]);
 
@@ -2476,15 +2920,25 @@ void restore_opengl_context_textures(Opengl_Context *context) {
         LOGE("glBindTexture GL_TEXTURE_2D error %x", glerror);
     }
 
-
+    textureId = 0;    
     glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, status->guest_current_texture_2D_multisample[current_active_texture]);
     glGetIntegerv(GL_TEXTURE_2D_MULTISAMPLE, &textureId);
-    LOGI("The currently bound GL_TEXTURE_2D_MULTISAMPLE ID is: %d", textureId);
+    LOGI("The currently bound GL_TEXTURE_2D_MULTISAMPLE ID is:%d %d", status->guest_current_texture_2D_multisample[current_active_texture], textureId);
 
+    glerror = glGetError();
+    if (glerror != GL_NO_ERROR) {
+        LOGE("glBindTexture GL_TEXTURE_2D_MULTISAMPLE error %x", glerror);
+    }
 
+    textureId = 0;
     glBindTexture(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, status->guest_current_texture_2D_multisample_array[current_active_texture]);    
     glGetIntegerv(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, &textureId);
-    LOGI("The currently bound GL_TEXTURE_2D_MULTISAMPLE_ARRAY ID is: %d", textureId);
+    LOGI("The currently bound GL_TEXTURE_2D_MULTISAMPLE_ARRAY ID is: %d %d", textureId, status->guest_current_texture_2D_multisample_array[current_active_texture]);
+    glerror = glGetError();
+    if (glerror != GL_NO_ERROR) {
+        LOGE("glBindTexture GL_TEXTURE_2D_MULTISAMPLE_ARRAY error %x", glerror);
+    }
+    
 
     glBindTexture(GL_TEXTURE_3D, status->guest_current_texture_3D[current_active_texture]);
     glGetIntegerv(GL_TEXTURE_3D, &textureId);

@@ -503,12 +503,12 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         return;
     }
 
-    LOGD("glBindEGLImage gbuffer %llx ptr %llx type %d is_texture2d (%d) %d",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D, target);
+    LOGI("glBindEGLImage gbuffer %d %llx ptr %llx type %d is_texture2d (%d) %d texture %d ",gbuffer->data_texture, gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D, target, gbuffer->data_texture);
 
     if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE) //基本都会进这里
     {
         set_texture_gbuffer_ptr(opengl_context, texture, gbuffer); //将texture和gbuffer关联起来
-        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d texture %d %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
+        LOGI("glBindEGLImage gbuffer_id %llx is_writing %d sync %d texture %d %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         if (target == GL_TEXTURE_2D)
         {
@@ -618,7 +618,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
-    LOGD("context %llx target %x texture %u guest %d current %d\n", (uint64_t)opengl_context, target, texture, guest_texture, status->guest_current_active_texture);
+    LOGI("context %llx target %x texture %u guest %d current %d", (uint64_t)opengl_context, target, texture, guest_texture, status->guest_current_active_texture);
 
     if (is_init == 0)
     {
@@ -741,6 +741,8 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(texture), texture_resource);            
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
+    LOGI("after save map in bindtexture save texture host id %d target %d is init %d", texture, target, is_init);
 
 }
 

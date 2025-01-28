@@ -448,6 +448,7 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
     {
+        LOGI("create texture id %d %d", host_buffers[i], textures[i]);
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
     }
 

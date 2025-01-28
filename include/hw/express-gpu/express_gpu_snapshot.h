@@ -107,6 +107,12 @@ typedef struct Express_Native_Texture {
     GLenum wrapS;
     GLenum wrapT;
 
+    GLenum texture_swizzle_r;
+    GLenum texture_swizzle_g;
+    GLenum texture_swizzle_b;
+    GLenum texture_swizzle_a;
+
+
     // // 2D mipmap数据
     // GLenum format2D;
     // GLenum type2D;
