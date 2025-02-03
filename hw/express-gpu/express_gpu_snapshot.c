@@ -507,7 +507,7 @@ void load_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
 
 void save_native_resources(QEMUFile *f){
     save_native_shaders(f);
-    save_native_programs_tmp(f);
+    save_native_programs(f);
     // save_native_programs(f);
     save_native_textures(f);
     // save_native_framebuffers(f);
@@ -519,7 +519,7 @@ void save_native_resources(QEMUFile *f){
 
 void load_native_resources(QEMUFile *f){
     load_native_shaders(f);
-    load_native_programs_tmp(f);
+    load_native_programs(f);
     // load_native_programs(f);
     load_native_textures(f);
 
@@ -735,11 +735,13 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
 
             // GLuint textureUnit;
             // glGetUniformiv(program_id, location, &textureUnit);
+            LOGI("going to recover uniform value %d %d %d %d %d", new_program_id, location, old_loc, old_type, bufsize);
             switch (old_type) {
                 case GL_FLOAT:
                     {
                         GLfloat value = (GLfloat)qemu_get_be64(f);
-                        glUniform1f(location, value);
+                            uint32_t raw_value = qemu_get_be32(f);
+                            value = *(GLfloat*)&raw_value;
                     }
                     break;
 
@@ -762,7 +764,8 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                     {
                         GLfloat value[2];
                         for (int i = 0; i < 2; ++i) {
-                            value[i] = (GLfloat)qemu_get_be64(f);
+                            uint32_t raw_value = qemu_get_be32(f);
+                            value[i] = *(GLfloat*)&raw_value;
                         }
                         glUniform2fv(location, 1, value);
                     }
@@ -772,7 +775,8 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                     {
                         GLfloat value[3];
                         for (int i = 0; i < 3; ++i) {
-                            value[i] = (GLfloat)qemu_get_be64(f);
+                            uint32_t raw_value = qemu_get_be32(f);
+                            value[i] = *(GLfloat*)&raw_value;
                         }
                         glUniform3fv(location, 1, value);
                     }
@@ -782,8 +786,11 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                     {
                         GLfloat value[4];
                         for (int i = 0; i < 4; ++i) {
-                            value[i] = (GLfloat)qemu_get_be64(f);
+                            // value[i] = (GLfloat)qemu_get_be64(f);
+                            uint32_t raw_value = qemu_get_be32(f);
+                            value[i] = *(GLfloat*)&raw_value;
                         }
+                        LOGI("GL_FLOAT_VEC4 loading get program uniform %d name %s index %d size %d value %f %f %f %f", program_id, name_buf, location, strlen(name_buf), value[0], value[1], value[2], value[3]);
                         glUniform4fv(location, 1, value);
                     }
                     break;
@@ -822,7 +829,8 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                     {
                         GLfloat value[4];  // 2x2 matrix (4 elements)
                         for (int i = 0; i < 4; ++i) {
-                            value[i] = (GLfloat)qemu_get_be64(f);
+                            uint32_t raw_value = qemu_get_be32(f);
+                            value[i] = *(GLfloat*)&raw_value;
                         }
                         glUniformMatrix2fv(location, 1, GL_FALSE, value);
                     }
@@ -832,7 +840,8 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                     {
                         GLfloat value[9];  // 3x3 matrix (9 elements)
                         for (int i = 0; i < 9; ++i) {
-                            value[i] = (GLfloat)qemu_get_be64(f);
+                            uint32_t raw_value = qemu_get_be32(f);
+                            value[i] = *(GLfloat*)&raw_value;
                         }
                         glUniformMatrix3fv(location, 1, GL_FALSE, value);
                     }
@@ -842,7 +851,8 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                     {
                         GLfloat value[16];  // 4x4 matrix (16 elements)
                         for (int i = 0; i < 16; ++i) {
-                            value[i] = (GLfloat)qemu_get_be64(f);
+                            uint32_t raw_value = qemu_get_be32(f);
+                            value[i] = *(GLfloat*)&raw_value;
                         }
                         glUniformMatrix4fv(location, 1, GL_FALSE, value);
                     }
@@ -857,14 +867,14 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                     {
                         GLint value = (GLint)qemu_get_be64(f);
                         glUniform1i(location, value);
-                        LOGI("before loading get program uniform %d name %s index %d size %d value %d", program_id, name_buf, location, strlen(name_buf), value);
+                        LOGI("samplers before loading get program uniform %d name %s index %d size %d value %d", program_id, name_buf, location, strlen(name_buf), value);
                     }
                     break;
 
                 default:
+                    LOGI("uniform type %x not supported", old_type);
                     break;
             }
-
 
 
             LOGI("loading get program uniform %d name %s index %d size %d type %x", program_id, name_buf, location, strlen(name_buf), old_type);
@@ -1002,7 +1012,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
                 {
                     GLfloat value;
                     glGetUniformfv(program, location, &value);
-                    qemu_put_be64(f, value);
+                    qemu_put_be32(f, *(uint32_t*)&value);
                 }
                 break;
 
@@ -1029,7 +1039,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
                     GLfloat value[2];
                     glGetUniformfv(program, location, value);
                     for(int i = 0; i < 2; i++) {
-                        qemu_put_be64(f, value[i]);
+                        qemu_put_be32(f, *(uint32_t*)&value[i]);
                     }
                 }
                 break;
@@ -1039,7 +1049,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
                     GLfloat value[3];
                     glGetUniformfv(program, location, value);
                     for(int i = 0; i < 3; i++) {
-                        qemu_put_be64(f, value[i]);
+                        qemu_put_be32(f, *(uint32_t*)&value[i]);
                     }
                 }
                 break;
@@ -1049,7 +1059,8 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
                     GLfloat value[4];
                     glGetUniformfv(program, location, value);
                     for(int i = 0; i < 4; i++) {
-                        qemu_put_be64(f, value[i]);
+                        qemu_put_be32(f, *(uint32_t*)&value[i]);
+                        LOGI("saving and get program uniform %d name %s index %d size %d value %f", program, name_buf, location, strlen(name_buf), value[i]);
                     }
                 }
                 break;
@@ -1089,7 +1100,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
                     GLfloat value[4];  // 2x2 matrix
                     glGetUniformfv(program, location, value);
                     for(int i = 0; i < 4; i++) {
-                        qemu_put_be64(f, value[i]);
+                        qemu_put_be32(f, *(uint32_t*)&value[i]);
                     }
                 }
                 break;
@@ -1099,7 +1110,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
                     GLfloat value[9];  // 3x3 matrix
                     glGetUniformfv(program, location, value);
                     for(int i = 0; i < 9; i++) {
-                        qemu_put_be64(f, value[i]);
+                        qemu_put_be32(f, *(uint32_t*)&value[i]);
                     }
                 }
                 break;
@@ -1109,7 +1120,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
                     GLfloat value[16];  // 4x4 matrix
                     glGetUniformfv(program, location, value);
                     for(int i = 0; i < 16; i++) {
-                        qemu_put_be64(f, value[i]);
+                        qemu_put_be32(f, *(uint32_t*)&value[i]);
                     }
                 }
                 break;
@@ -1710,6 +1721,10 @@ void load_native_textures_tmp(QEMUFile *f){
         native_texture->wrapT = qemu_get_be32(f);
         native_texture->binding2D = qemu_get_be32(f);
         native_texture->bindingCubeMap = qemu_get_be32(f);
+                native_texture->wrapS = qemu_get_be32(f);
+        native_texture->wrapT = qemu_get_be32(f);
+        native_texture->binding2D = qemu_get_be32(f);
+        native_texture->bindingCubeMap = qemu_get_be32(f);
 
         GLint pixel_size = get_pixel_size(native_texture->internalFormat);
 
@@ -1726,16 +1741,16 @@ void load_native_textures_tmp(QEMUFile *f){
 
         GLint new_texture_id = native_texture->textureId;
 
-        if(native_texture->width == 1024) {
-            LOGI("change texture id %d", native_texture->textureId);
-            // memset(native_texture->pixels, 0, native_texture->width * native_texture->height * 4);
-            glBindTexture(native_texture->target, native_texture->textureId);
-    GLenum format = get_format_for_internal_format(native_texture->internalFormat); //ztodo:这么转换吗？
-// glTexSubImage2D(native_texture->target, 0, 0, 0, native_texture->width, native_texture->height, format, GL_UNSIGNED_BYTE, native_texture->pixels);
-// 再试试下面这种写法！
-            glTexImage2D(native_texture->target, 0, native_texture->internalFormat, native_texture->width, native_texture->height, 0, format, GL_UNSIGNED_BYTE, native_texture->pixels);
-            glBindTexture(native_texture->target, 0);
-        }
+//         if(native_texture->width == 1024) {
+//             LOGI("change texture id %d", native_texture->textureId);
+//             // memset(native_texture->pixels, 0, native_texture->width * native_texture->height * 4);
+//             glBindTexture(native_texture->target, native_texture->textureId);
+//     GLenum format = get_format_for_internal_format(native_texture->internalFormat); //ztodo:这么转换吗？
+// // glTexSubImage2D(native_texture->target, 0, 0, 0, native_texture->width, native_texture->height, format, GL_UNSIGNED_BYTE, native_texture->pixels);
+// // 再试试下面这种写法！
+//             glTexImage2D(native_texture->target, 0, native_texture->internalFormat, native_texture->width, native_texture->height, 0, format, GL_UNSIGNED_BYTE, native_texture->pixels);
+//             glBindTexture(native_texture->target, 0);
+//         }
         change_host_id_map(RESOURCE_TYPE_TEXTURE, native_texture->textureId, new_texture_id);
         free(shader_source);
         g_free(native_texture);
