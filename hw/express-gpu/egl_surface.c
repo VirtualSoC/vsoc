@@ -777,6 +777,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     if (depth_internal_format != 0)
     {
         // 这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
+        LOGD("in create gbuffer gen depth of id %d", gbuffer->rbo_depth);
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_depth);
         if (sampler_num > 1)
         {
@@ -791,6 +792,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     // 之所以当深度24模板8时要合并，是因为这样效率更高
     if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
     {
+        LOGD("in create gbuffer gen stencil of id %d", gbuffer->rbo_stencil);
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_stencil);
         if (sampler_num > 1)
         {
@@ -897,7 +899,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         LOGD("gbuffer %llx already connected to surface %llx", gbuffer->gbuffer_id, (uint64_t)surface);
         return;
     }
-    // LOGI("connect surface %llx fbo %d to gbuffer %llx", surface, surface->data_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
+    LOGD("connect surface %llx fbo %d to gbuffer %llx", surface, surface->data_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
 
     if (surface->sampler_num > 1)
     {
@@ -983,7 +985,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     if (surface->stencil_internal_format != 0 && surface->depth_internal_format != GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_stencil);
-        LOGI("connect stencil fbo %d to gbuffer %llx", gbuffer->rbo_stencil, gbuffer->gbuffer_id);
+        LOGD("connect stencil current fbo %d fbo %d to gbuffer %llx",surface->data_fbo[surface->now_fbo_loc], gbuffer->rbo_stencil, gbuffer->gbuffer_id);
         error = glGetError();
         if(error!=GL_NO_ERROR) {
             LOGE("error! stencil framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);

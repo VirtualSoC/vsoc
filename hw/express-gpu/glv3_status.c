@@ -618,7 +618,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
-    LOGI("context %llx target %x texture %u guest %d current %d", (uint64_t)opengl_context, target, texture, guest_texture, status->guest_current_active_texture);
+    LOGD("context %llx target %x texture %u guest %d current %d", (uint64_t)opengl_context, target, texture, guest_texture, status->guest_current_active_texture);
 
     if (is_init == 0)
     {
@@ -742,7 +742,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 
-    LOGI("after save map in bindtexture save texture host id %d target %d is init %d", texture, target, is_init);
+    LOGD("after save map in bindtexture save texture host id %d target %d is init %d", texture, target, is_init);
 
 }
 

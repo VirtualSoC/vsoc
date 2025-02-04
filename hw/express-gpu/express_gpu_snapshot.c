@@ -30,6 +30,8 @@
 // int native_shaders_num = 0;
 // int native_shaders_locker = 0;
 GHashTable *g_resource_list[NUM_RESOURCES];// = { NULL };
+GHashTable *loaded_hardware_buffers;
+GHashTable *loaded_window_buffers;
 // int g_resource_count[NUM_RESOURCES] = { 0 };
 int g_resource_locker[NUM_RESOURCES] = { 0 }; 
 
@@ -508,26 +510,19 @@ void load_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
 void save_native_resources(QEMUFile *f){
     save_native_shaders(f);
     save_native_programs(f);
-    // save_native_programs(f);
     save_native_textures(f);
-    // save_native_framebuffers(f);
 
     save_native_buffers(f);
-    // save_native_framebuffers(f);
-    // save_native_vertex_arrays(f);
 }
 
 void load_native_resources(QEMUFile *f){
     load_native_shaders(f);
     load_native_programs(f);
-    // load_native_programs(f);
     load_native_textures(f);
 
     update_render_gbuffer_texture_and_framebuffer();
     update_display_gbuffer_texture_and_framebuffer();
 
-
-    // load_native_framebuffers(f);
 
     load_native_buffers(f);
 
@@ -2205,7 +2200,7 @@ int load_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_m
     for (int i = 0; i < 3; i++) {
         buffer->data_fbo[i] = qemu_get_be32(f);
         buffer->sampler_fbo[i] = qemu_get_be32(f);
-        buffer->connect_texture[i] = qemu_get_be32(f);
+        buffer->connect_texture[i] = qemu_get_be32(f); //ztodo:它们的id没有更新！！！！
     }
 
     // buffer->gbuffer = load_hardware_buffer(f);
@@ -2222,6 +2217,9 @@ int load_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_m
         uint64_t gbuffer_id = qemu_get_be64(f);
         buffer->gbuffer = (Hardware_Buffer *)g_hash_table_lookup(gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
     }
+
+    g_hash_table_insert(loaded_window_buffers, GUINT_TO_POINTER(buffer), buffer);
+
     return 0;
 }
 
@@ -2334,9 +2332,13 @@ Hardware_Buffer* load_hardware_buffer(QEMUFile *f) {
     buffer->sampler_rbo = qemu_get_be32(f);
     buffer->rbo_depth = qemu_get_be32(f);
     buffer->rbo_stencil = qemu_get_be32(f);
+
     buffer->data_fbo = qemu_get_be32(f);
     buffer->sampler_fbo = qemu_get_be32(f);
+    
     buffer->has_connected_fbo = qemu_get_be32(f);
+    buffer->has_connected_fbo = 0;
+
     buffer->gbuffer_id = qemu_get_be64(f);
     buffer->remain_life_time = qemu_get_be32(f);
     buffer->is_dying = qemu_get_be32(f);
@@ -2363,6 +2365,55 @@ Hardware_Buffer* load_hardware_buffer(QEMUFile *f) {
     buffer->last_virt_usage = qemu_get_be32(f);
     buffer->last_virt_time = qemu_get_be32(f);
 
+    glGenRenderbuffers(1, &(buffer->rbo_depth));
+    glGenRenderbuffers(1, &(buffer->rbo_stencil));
+
+    if (buffer->sampler_num > 1)
+    {
+        glGenRenderbuffers(1, &(buffer->sampler_rbo));
+    }
+
+
+    if (buffer->depth_internal_format != 0)
+    {
+        // 这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
+        LOGI("in load gbuffer gen depth of id %d", buffer->rbo_depth);
+        glBindRenderbuffer(GL_RENDERBUFFER, buffer->rbo_depth);
+        if (buffer->sampler_num > 1)
+        {
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, buffer->sampler_num, buffer->depth_internal_format, buffer->width, buffer->height);
+        }
+        else
+        {
+            glRenderbufferStorage(GL_RENDERBUFFER, buffer->depth_internal_format, buffer->width, buffer->height);
+        }
+        GLenum glerror = glGetError();
+        if (glerror != GL_NO_ERROR)
+        {
+            LOGE("error! gen depth buffer failed %d", glerror);
+        }
+    }
+
+    // 之所以当深度24模板8时要合并，是因为这样效率更高
+    if (buffer->stencil_internal_format != 0 && buffer->depth_internal_format != GL_DEPTH24_STENCIL8)
+    {
+        LOGI("in load gbuffer gen stencil of id %d", buffer->rbo_stencil);
+        glBindRenderbuffer(GL_RENDERBUFFER, buffer->rbo_stencil);
+        if (buffer->sampler_num > 1)
+        {
+            glRenderbufferStorageMultisample(GL_RENDERBUFFER, buffer->sampler_num, buffer->stencil_internal_format, buffer->width, buffer->height);
+        }
+        else
+        {
+            glRenderbufferStorage(GL_RENDERBUFFER, buffer->stencil_internal_format, buffer->width, buffer->height);
+        }
+        GLenum glerror = glGetError();
+        if (glerror != GL_NO_ERROR)
+        {
+            LOGE("error! gen stencil buffer failed %d", glerror);
+        }
+    }
+
     //todo 不知道这个是啥！该咋存！
     buffer->data_sync = (GLsync)qemu_get_be64(f);
     buffer->delete_sync = (GLsync)qemu_get_be64(f);
@@ -2375,6 +2426,8 @@ Hardware_Buffer* load_hardware_buffer(QEMUFile *f) {
     }
 
     buffer->host_data = (void *)qemu_get_be64(f);
+
+    g_hash_table_insert(loaded_hardware_buffers, GUINT_TO_POINTER(buffer), buffer);
 
     return buffer;
 }
@@ -2877,6 +2930,9 @@ void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
     qemu_put_be32(f, context->draw_texi_vbo);
     qemu_put_be32(f, context->draw_texi_ebo);
 
+    qemu_put_be32(f, context->blendfunc_dfactor);
+    qemu_put_be32(f, context->blendfunc_sfactor);
+
     guint num_entries = g_hash_table_size(context->buffer_map);
     LOGI("in save opengl context with num_entries %d", num_entries);
 
@@ -3028,6 +3084,9 @@ int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
     context->draw_texi_vao = qemu_get_be32(f);
     context->draw_texi_vbo = qemu_get_be32(f);
     context->draw_texi_ebo = qemu_get_be32(f);
+
+    context->blendfunc_dfactor = qemu_get_be32(f);
+    context->blendfunc_sfactor = qemu_get_be32(f);
 
     guint num_entries = qemu_get_be32(f);
     context->buffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);

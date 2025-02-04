@@ -147,6 +147,9 @@ extern int g_resource_locker[NUM_RESOURCES];
 
 extern int display_fbo_has_loaded;
 
+extern GHashTable *loaded_hardware_buffers;
+extern GHashTable *loaded_window_buffers;
+
 void clear_resource_tables(void);
 void init_saving_snapshot(void);
 

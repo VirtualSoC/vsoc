@@ -354,7 +354,35 @@ void restore_framebuffer_binding(Opengl_Context *context) {
             // change_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, framebuffer_id, new_framebuffer_id);
 
             LOGI("loading framebuffer ID: old %d new %d", framebuffer_id, new_framebuffer_id);
+
+            GHashTableIter buffer_iter;
+            gpointer buffer_key, buffer_value;
+            g_hash_table_iter_init(&buffer_iter, loaded_hardware_buffers);
+            while (g_hash_table_iter_next(&buffer_iter, &buffer_key, &buffer_value)) {
+                Hardware_Buffer *buffer = (Hardware_Buffer *)buffer_value;
+                if(buffer->data_fbo == framebuffer_id) {
+                    buffer->data_fbo = new_framebuffer_id;
+                }
+                if(buffer->sampler_fbo == framebuffer_id) {
+                    buffer->sampler_fbo = new_framebuffer_id;
+                }
+                LOGI("hardware buffer loading framebuffer ID: buffer %d %d %d", buffer->data_fbo, buffer->sampler_fbo, new_framebuffer_id);
+            }
             
+            g_hash_table_iter_init(&buffer_iter, loaded_window_buffers);
+            while (g_hash_table_iter_next(&buffer_iter, &buffer_key, &buffer_value)) {
+                Window_Buffer *buffer = (Window_Buffer *)buffer_value;
+                for(int i = 0; i < 3; i++) {
+                    if(buffer->data_fbo[i] == framebuffer_id) {
+                        buffer->data_fbo[i] = new_framebuffer_id;
+                    }
+                    if(buffer->sampler_fbo[i] == framebuffer_id) {
+                        buffer->sampler_fbo[i] = new_framebuffer_id;
+                    }
+                    LOGI("window buffer loading framebuffer ID: buffer %d %d %d", buffer->data_fbo[i], buffer->sampler_fbo[i], new_framebuffer_id);
+                }
+            }
+
             g_hash_table_insert(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id), GUINT_TO_POINTER(new_framebuffer_id));
             
         }
@@ -425,7 +453,17 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
     // connect_gbuffer_to_surface(real_surface_draw->gbuffer, real_surface_draw);
 
 
-
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    glEnable(GL_POINT_SPRITE);
+    glEnable(GL_BLEND);
+    glBlendFunc(thread_context->opengl_context->blendfunc_sfactor, thread_context->opengl_context->blendfunc_dfactor);
+#ifdef __APPLE__
+    glPointSize(10.0f);
+    // 启用混合
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#endif
+    glEnable(GL_FRAMEBUFFER_SRGB);
 
 
     glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);

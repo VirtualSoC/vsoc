@@ -378,27 +378,6 @@ static void display_context_init(Thread_Context *context)
 
         //ztodo:这个要重新创建，在重启的情况下
 
-        // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
-        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
-        // if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo)) != NULL) {
-        //     Express_Native_Framebuffer* newFramebuffer_read = g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo));
-        //     newFramebuffer_read->framebufferId = display_read_gbuffer->data_fbo;
-        //     newFramebuffer_read->textureId = display_read_gbuffer->data_texture;
-        //     newFramebuffer_read->target = GL_TEXTURE_2D;
-
-        //     g_hash_table_insert(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo, newFramebuffer_read);
-        // }
-
-        // if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_write_gbuffer->data_fbo)) != NULL) {
-        //     Express_Native_Framebuffer* newFramebuffer_read = g_hash_table_lookup(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo));
-        //     newFramebuffer_read->framebufferId = display_read_gbuffer->data_fbo;
-        //     newFramebuffer_read->textureId = display_read_gbuffer->data_texture;
-        //     newFramebuffer_read->target = GL_TEXTURE_2D;
-
-        //     g_hash_table_insert(resource_list, GUINT_TO_POINTER(display_read_gbuffer->data_fbo, newFramebuffer_read);
-        // }
-
-        // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
 
 
         main_window_opengl_prepare(&programID, &drawVAO);
@@ -456,7 +435,7 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
         
         display_fbo_has_loaded = 1;
 
-        LOGI("reset display_fbo_has_loaded after load");
+        LOGI("reset display_fbo_has_loaded after load of read fbo %d write fbo %d", display_read_gbuffer->data_fbo, display_write_gbuffer->data_fbo);
     }
 
 

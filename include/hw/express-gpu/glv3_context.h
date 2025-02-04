@@ -175,6 +175,9 @@ typedef struct Opengl_Context
     GLuint draw_texi_vbo;
     GLuint draw_texi_ebo;
 
+    GLenum blendfunc_sfactor;
+    GLenum blendfunc_dfactor;
+
     void *debug_message_buffer;
 } Opengl_Context;
 

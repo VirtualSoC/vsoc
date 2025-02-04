@@ -14203,6 +14203,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
 
         glBlendFunc(sfactor, dfactor);
+        r_context->opengl_context->blendfunc_dfactor = dfactor;
+        r_context->opengl_context->blendfunc_sfactor = sfactor;
+        LOGD("context %llx glBlendFunc %x %x", (uint64_t)opengl_context, sfactor, dfactor);
     }
     break;
 
@@ -15089,6 +15092,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             opengl_context->enable_scissor = 1;
         }
+        // LOGI("in glEnable %x", cap);
 
         glEnable(cap);
     }
@@ -15159,7 +15163,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-
+        LOGI("in FramebufferRenderbuffer %x %x %x %x", target, attachment, renderbuffertarget, renderbuffer);
         glFramebufferRenderbuffer(target, attachment, renderbuffertarget, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer));
     }
     break;
@@ -16469,7 +16473,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
 
         GLint current_program = 0;
         glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *)&current_program);
-        LOGI("glUniform1i current program %d location %d value %d\n", current_program, location, v0);
+        LOGD("glUniform1i current program %d location %d value %d\n", current_program, location, v0);
        
         glUniform1i(location, v0);
         // LOGD("glUniform1i location=%d, v0=%d", location, v0);
