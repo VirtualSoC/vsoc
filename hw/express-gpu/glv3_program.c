@@ -702,7 +702,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         new_string1[loc] = 0;
         length[0] = loc;
         string[0] = new_string1;
-        LOGI("in shader source %s", new_string1);
+        LOGD("in shader source %s", new_string1);
     }
 
     GLint shader_type;

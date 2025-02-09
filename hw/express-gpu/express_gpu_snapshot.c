@@ -730,13 +730,13 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
 
             // GLuint textureUnit;
             // glGetUniformiv(program_id, location, &textureUnit);
-            LOGI("going to recover uniform value %d %d %d %d %d", new_program_id, location, old_loc, old_type, bufsize);
+            LOGI("going to recover uniform value %d %d %d %d %d %s", new_program_id, location, old_loc, old_type, bufsize, name_buf);
             switch (old_type) {
                 case GL_FLOAT:
                     {
-                        GLfloat value = (GLfloat)qemu_get_be64(f);
-                            uint32_t raw_value = qemu_get_be32(f);
-                            value = *(GLfloat*)&raw_value;
+                        GLfloat value;
+                        uint32_t raw_value = qemu_get_be32(f);
+                        value = *(GLfloat*)&raw_value;
                     }
                     break;
 
@@ -983,7 +983,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
     for (int i = 0; i < attrib_num; i++){
         glGetActiveAttrib(program, i, name_len, NULL, &size, &type, name_buf);
         location = glGetAttribLocation(program, name_buf);
-        LOGI("get program attrib %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
+        LOGI("saving get program attrib %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
 
         qemu_put_be32(f, strlen(name_buf));
         qemu_put_buffer(f, name_buf, strlen(name_buf));
@@ -995,7 +995,7 @@ void save_program_uniform_and_attrib_info(QEMUFile* f, GLuint program) {
     for (int i = 0; i < uniform_num; i++) {
         glGetActiveUniform(program, i, name_len, NULL, &size, &type, name_buf);
         location = glGetUniformLocation(program, name_buf);
-        LOGI("get program uniform %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
+        LOGI("saving get program uniform %d name %s index %d size %d", program, name_buf, location, strlen(name_buf));
         
         qemu_put_be32(f, strlen(name_buf));
         qemu_put_buffer(f, name_buf, strlen(name_buf));
