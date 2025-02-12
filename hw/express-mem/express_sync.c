@@ -15,6 +15,8 @@
 #include "hw/express-mem/express_sync.h"
 #include "hw/express-gpu/express_gpu_render.h"
 #include "hw/teleport-express/express_event.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 typedef struct Sync_Flag_Data
 {
@@ -51,6 +53,65 @@ int sync_wait_cnt = 0;
         qatomic_cmpxchg(&(flag_data->sync_status_id[sync_id / 32]), temp_sync_status, (temp_sync_status | (1L << (sync_id % 32)))); \
     } while (!SYNC_FLAG_SIGNAL(flag_data, sync_id))
 
+
+void save_sync_flag_data(QEMUFile *f, Sync_Flag_Data *data)
+{
+    qemu_put_be32(f, data->guest_waitting_cnt);
+    for (int i = 0; i < MAX_SYNC_NUM; i++)
+    {
+        qemu_put_be32(f, data->sync_status_id[i]);
+        LOGI("saving sync flag data %d", data->sync_status_id[i]);
+    }
+}
+
+void save_sync_context(QEMUFile *f){
+    
+    qemu_put_be32(f, static_sync_context.need_sync);
+    save_guest_mem(f, static_sync_context.guest_buffer);
+    save_sync_flag_data(f, static_sync_context.sync_data);
+    qemu_put_be32(f, static_sync_context.device_context.irq_enabled);
+
+    save_teleport_express_call(f, static_sync_context.device_context.irq_call);
+
+    LOGI("saving sync context of irq enabled %d", static_sync_context.device_context.irq_enabled);
+}
+
+void load_sync_flag_data(QEMUFile *f, Sync_Flag_Data *data)
+{
+    data->guest_waitting_cnt = qemu_get_be32(f);
+    LOGI("loading sync flag data num %d", data->guest_waitting_cnt);
+    // data->sync_status_id = (uint32_t*)g_malloc0(MAX_SYNC_NUM * sizeof(uint32_t));
+    for (int i = 0; i < MAX_SYNC_NUM; i++)
+    {
+        data->sync_status_id[i] = qemu_get_be32(f);
+        LOGI("loading sync flag data %d", data->sync_status_id[i]);
+    }
+}
+
+void load_sync_context(QEMUFile *f){
+    
+    static_sync_context.need_sync = qemu_get_be32(f);
+    static_sync_context.guest_buffer = load_guest_mem(f, 0);
+    // static_sync_context.sync_data = g_malloc0(sizeof(Sync_Flag_Data));
+    int null_flag = 0;
+    LOGI("before load sync flag data %lld", static_sync_context.sync_data);
+    static_sync_context.sync_data = (Sync_Flag_Data *)get_direct_ptr(static_sync_context.guest_buffer, &null_flag);
+    LOGI("after load sync flag data %lld", static_sync_context.sync_data);
+    load_sync_flag_data(f, static_sync_context.sync_data);
+    static_sync_context.device_context.irq_enabled = qemu_get_be32(f);
+
+    Express_Device_Info *device_info = get_express_device_info(EXPRESS_SYNC_DEVICE_ID);
+
+    LOGI("device context and info %d %d", static_sync_context.device_context, device_info->device_id);
+    static_sync_context.device_context.device_info = device_info;
+
+    static_sync_context.device_context.irq_call = load_teleport_express_call(f);
+
+    LOGI("loading sync context of irq enabled %d", static_sync_context.device_context.irq_enabled);
+
+}
+
+
 void signal_express_sync(int sync_id, bool need_gpu_sync)
 {
     LOGD("set sync %d", sync_id);
@@ -84,6 +145,7 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
         int old_waitting_cnt = 0;
         if ((old_waitting_cnt = qatomic_xchg(&static_sync_context.sync_data->guest_waitting_cnt, 0)) != 0)
         {
+            LOGI("going to set sync irq");
             set_express_device_irq((Device_Context *)&static_sync_context, old_waitting_cnt, sizeof(Sync_Context));
         }
     }
@@ -91,7 +153,7 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
 
 void wait_for_express_sync(int sync_id, bool need_gpu_sync)
 {
-    LOGD("wait for sync %d", sync_id);
+    LOGI("wait for sync %d", sync_id);
     if (sync_id >= MAX_SYNC_NUM * 32 || sync_id < 0)
     {
         LOGE("invalid sync id %d!", sync_id);
@@ -136,6 +198,8 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
                 gpu_sync_id[sync_id] = NULL;
             }
         }
+    } else {
+        LOGE("error! wait_for_express_sync sync %d failed!", sync_id);
     }
     LOGD("sync %d ok", sync_id);
 
@@ -167,6 +231,7 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
 
 static Device_Context *get_sync_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
+    LOGI("going to get sync context");
     if (sync_event == NULL)
     {
 #ifdef _WIN32

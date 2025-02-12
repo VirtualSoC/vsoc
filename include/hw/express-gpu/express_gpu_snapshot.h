@@ -149,9 +149,19 @@ extern int display_fbo_has_loaded;
 
 extern GHashTable *loaded_hardware_buffers;
 extern GHashTable *loaded_window_buffers;
+extern GHashTable *registered_express_buffers;
+extern GHashTable *registered_express_irqs;
+
+extern VirtIODevice *startup_vdev;
+extern VirtQueue *startup_out_data_queue;
+extern VirtQueue *startup_in_data_queue;
+
+extern int display_context_thread_id;
 
 void clear_resource_tables(void);
 void init_saving_snapshot(void);
+void init_loading_snapshot(QEMUFile *f);
+
 
 
 void save_native_resources(QEMUFile *f);
@@ -194,7 +204,7 @@ void save_scatter_data(QEMUFile *f, Scatter_Data *scatter_data, int count);
 Scatter_Data* load_scatter_data(QEMUFile *f, int *count);
 
 void save_guest_mem(QEMUFile *f, Guest_Mem *guest_mem);
-Guest_Mem* load_guest_mem(QEMUFile *f);
+Guest_Mem* load_guest_mem(QEMUFile *f, int strategy);
 
 void save_opengl_context(QEMUFile *f, Opengl_Context *context);
 int load_opengl_context(QEMUFile *f, Opengl_Context *context);
@@ -225,6 +235,10 @@ Hardware_Buffer* load_hardware_buffer(QEMUFile *f);
 
 void save_thread_unique_ids(QEMUFile *f, GHashTable *thread_unique_ids);
 int load_thread_unique_ids(QEMUFile *f, GHashTable *thread_unique_ids);
+
+Teleport_Express_Call* load_teleport_express_call(QEMUFile *f);
+void save_teleport_express_call(QEMUFile *f, Teleport_Express_Call *call);
+
 
 void save_attrib_point(QEMUFile *f, Attrib_Point *point);
 Attrib_Point* load_attrib_point(QEMUFile *f);

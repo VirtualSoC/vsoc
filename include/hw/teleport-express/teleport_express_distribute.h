@@ -34,7 +34,7 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t type_id, uint
 
 
 void wake_up_distribute(void);
-
+void (*get_push_free_callback_ptr(void))(Teleport_Express_Call *, int);
 
 
 #endif

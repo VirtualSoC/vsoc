@@ -161,6 +161,7 @@ Teleport_Express_Call *alloc_one_call(void)
 
 void release_one_call(Teleport_Express_Call *call, bool notify)
 {
+    LOGD("going to release call of id %lld", call->unique_id);
     VirtQueue *vq = call->vq;
     VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, call->elem_header, 1, next);
     TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(call->elem_header);
@@ -224,7 +225,7 @@ void read_from_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t 
     Scatter_Data *guest_data = guest->scatter_data;
     if (unlikely(host == NULL || length > guest->all_len))
     {
-        LOGE("read_from_guest_mem error host %llx len %d %lld", (uint64_t)host, guest->all_len, length);
+        LOGE("read_from_guest_mem error host %llx len %d %lld %d", (uint64_t)host, guest->all_len, length, (host==NULL));
         return;
     }
 
@@ -389,7 +390,7 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
     {
         if (guest_mem->scatter_data[i].len == 4 && guest_mem->scatter_data[i].data == guest_null_ptr && v_elem->out_num == 1 && v_elem->in_num == 0)
         {
-            express_printf("find null prt!!!\n");
+            LOGI("find null prt!!!");
             guest_mem->scatter_data[i].data = NULL;
             guest_mem->scatter_data[i].len = 0;
         }
@@ -663,13 +664,13 @@ void guest_null_ptr_init(VirtQueue *vq)
         elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
         express_printf("error elem is NULL\n");
     }
-    express_printf("get first one ptr %llu %llu %llu\n", elem->out_sg->iov_len, elem->out_num, elem->in_num);
+    LOGI("get first one ptr %llu %llu %llu", elem->out_sg->iov_len, elem->out_num, elem->in_num);
 
     if (elem->out_sg->iov_len == 4 && elem->out_num == 1 && elem->in_num == 0)
     {
         guest_null_ptr = elem->out_sg->iov_base;
 
-        express_printf("null ptr %llu\n", (uint64_t)guest_null_ptr);
+        LOGI("null ptr %llu", (uint64_t)guest_null_ptr);
 
         //计算内存复制速度
         char *temp1 = g_malloc(1024 * 1024 * 24);
@@ -704,6 +705,8 @@ void common_call_callback(Teleport_Express_Call *call)
 
     //设置guest端的flag标志，防止中断丢失
     Guest_Mem *mem = call->elem_header->para;
+
+    LOGD("in release commom call mem %lld", (uint64_t)mem);
 
     unsigned long long t_flag = 1;
     write_to_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, flag), 8);

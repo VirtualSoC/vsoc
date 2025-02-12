@@ -128,7 +128,7 @@ void hw_error(const char *fmt, ...)
     abort();
 }
 
-void cpu_synchronize_all_states(void)
+void cpu_synchronize_all_states(void) //debug snapshot real do the state synchronize
 {
     CPUState *cpu;
 
@@ -137,7 +137,7 @@ void cpu_synchronize_all_states(void)
     }
 }
 
-void cpu_synchronize_all_post_reset(void)
+void cpu_synchronize_all_post_reset(void)//debug vmsave load cpu state
 {
     CPUState *cpu;
 

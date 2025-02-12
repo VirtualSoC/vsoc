@@ -432,7 +432,7 @@ static int qemu_debug_requested(void)
 /*
  * Reset the VM. Issue an event unless @reason is SHUTDOWN_CAUSE_NONE.
  */
-void qemu_system_reset(ShutdownCause reason)
+void qemu_system_reset(ShutdownCause reason) //debug snapshot reset here
 {
     MachineClass *mc;
 
@@ -448,7 +448,7 @@ void qemu_system_reset(ShutdownCause reason)
     if (reason && reason != SHUTDOWN_CAUSE_SUBSYSTEM_RESET) {
         qapi_event_send_reset(shutdown_caused_by_guest(reason), reason);
     }
-    cpu_synchronize_all_post_reset();
+    cpu_synchronize_all_post_reset(); //debug snapshot save cpu
 }
 
 /*

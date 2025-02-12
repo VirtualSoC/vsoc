@@ -43,11 +43,14 @@ static GLuint now_transform_type = 0;
 static Hardware_Buffer *display_write_gbuffer;
 static Hardware_Buffer *display_read_gbuffer;
 
+static int display_has_inited = 0;
+
 
 
 void update_display_gbuffer_texture_and_framebuffer() {
     // display_write_gbuffer->data_fbo = get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, display_write_gbuffer->data_fbo);
     // display_read_gbuffer->data_fbo = get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+    LOGI("before update date texture %d %d", display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
     display_write_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_write_gbuffer->data_texture);
     display_read_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_read_gbuffer->data_texture);
 
@@ -100,6 +103,8 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     char *no_ptr_buf = NULL;
     int para_num = get_para_from_call(call, all_para, 10);
 
+    LOGD("display decode invoke id %llx", call->id);
+
     switch (call->id)
     {
     case FUNID_Terminate:
@@ -110,7 +115,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Commit_Composer_Layer:
     {
-
+        LOGD("display commit composer layer");
         GBuffer_Layers *layers;
         size_t layers_size;
 
@@ -136,12 +141,12 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             g_free(layers);
             break;
         }
-
+        LOGD("display commit composer layer going to opengl_paint_composer_layers %d", layers->layer_num);
         opengl_paint_composer_layers(layers); //对每一层进行渲染
         g_free(layers);
 
         display_present(); //将当前帧缓冲区设置为可显示状态
-
+        LOGD("going to present");
         send_message_to_main_window(MAIN_PAINT, display_read_gbuffer); //通知主线程更新显示内容
     }
     break;
@@ -297,17 +302,20 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         g_free(no_ptr_buf);
     }
 
+    LOGD("finish one display call of id %llx", call->id);
     call->callback(call, 1);
 
     return;
 }
 
+
 static Thread_Context *get_display_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-
+    LOGD("get display thread context %llx %llx", thread_id, device_id);
     if (static_display_context == NULL)
     {
         static_display_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
+        display_context_thread_id = thread_id;
 
         if (express_display_refresh_rate > 0 && express_display_refresh_rate <= 64 * 15 /* 15 per bit, 64 bits */ && express_display_refresh_rate % 15 == 0) {
             express_display_info.refresh_rate_bits = 0x1ULL << ((express_display_refresh_rate - 15) / 15);
@@ -321,10 +329,86 @@ static Thread_Context *get_display_thread_context(uint64_t device_id, uint64_t t
     return static_display_context;
 }
 
+void init_display_context_vmload(){
+    
+    if(display_has_inited != 0){
+        return;
+    }
+    LOGI("in init display context vmload!");
+    display_has_inited = 1;
+    if (native_display_context == NULL)
+    {
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_display_context);
+
+        int sleep_cnt = 0;
+        while (native_display_context == NULL)
+        {
+            g_usleep(1000);
+            sleep_cnt += 1;
+            if (sleep_cnt >= 100 && sleep_cnt % 500 == 0)
+            {
+                LOGI("wait for native_display_context creating too long!");
+            }
+        }
+
+        egl_makeCurrent(native_display_context);
+
+        display_write_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
+                                               0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
+        display_read_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
+                                              0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
+
+        glGenFramebuffers(1, &display_write_gbuffer->data_fbo);
+        glGenFramebuffers(1, &display_read_gbuffer->data_fbo);
+        LOGI("display context init! %llx %llx", (uint64_t)display_write_gbuffer, (uint64_t)display_read_gbuffer);
+        LOGI("display fbo id %d %d %d %d", display_write_gbuffer->data_fbo, display_read_gbuffer->data_fbo, display_read_gbuffer->data_texture, display_write_gbuffer->data_texture);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
+
+
+        glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
+
+        //ztodo:这个要重新创建，在重启的情况下
+
+
+
+        main_window_opengl_prepare(&programID, &drawVAO);
+        glBindVertexArray(drawVAO);
+
+        program_transform_loc = glGetUniformLocation(programID, "transform_loc");
+        now_transform_type = 0;
+
+        glEnable(GL_SCISSOR_TEST);
+
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_STENCIL_TEST);
+
+        // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
+        glDisable(GL_BLEND);
+
+        if (express_gpu_gl_debug_enable)
+        {
+            #ifdef _WIN32
+            glEnable(GL_DEBUG_OUTPUT);
+            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            glDebugMessageCallback(gl_debug_output, NULL);
+            glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+            #endif
+        }
+    }
+}
+
 static void display_context_init(Thread_Context *context)
 {
 
-    express_printf("display context init!\n");
+    
+    // if(display_has_inited != 0){
+    //     return;
+    // }
+    // LOGI("display context init!");
+    // display_has_inited = 1;
     // 这个render线程只能创建一次，且其他线程必须等待该线程运行成功
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
@@ -431,11 +515,17 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
         glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, currentFBO);        
+        glBindFramebuffer(GL_FRAMEBUFFER, currentFBO);      
+
+        GLenum glerror = glGetError();
+        if (glerror != GL_NO_ERROR)
+        {
+            LOGE("error when reconnecting display fbo %x", glerror);
+        }  
         
         display_fbo_has_loaded = 1;
 
-        LOGI("reset display_fbo_has_loaded after load of read fbo %d write fbo %d", display_read_gbuffer->data_fbo, display_write_gbuffer->data_fbo);
+        LOGI("reset display_fbo_has_loaded after load of read fbo %d write fbo %d texture %d %d", display_read_gbuffer->data_fbo, display_write_gbuffer->data_fbo, display_read_gbuffer->data_texture, display_write_gbuffer->data_texture);
     }
 
 

@@ -76,6 +76,7 @@ void express_device_init_common(Express_Device_Info *info)
     }
 
     g_hash_table_insert(all_register_device_info, GUINT_TO_POINTER(info->device_id), (gpointer)info);
+    LOGI("has init device info %s", info->name);
 }
 
 Express_Device_Info *get_express_device_info(unsigned int device_id)
@@ -238,7 +239,7 @@ static Property *get_express_device_property(void)
 
 static void teleport_express_pci_instance_init(Object *obj)
 {
-
+    LOGI("in teleport_express_pci_instance_init!");
     Teleport_Express_PCI *dev = TELEPORT_EXPRESS_PCI(obj);
 
     virtio_instance_init_common(obj, &dev->teleport_express, sizeof(dev->teleport_express),
@@ -314,6 +315,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
 static void teleport_express_pci_class_init(ObjectClass *klass, void *data)
 {
+    LOGI("in teleport_express_pci_class_init!");
     DeviceClass *dc = DEVICE_CLASS(klass);
     VirtioPCIClass *k = VIRTIO_PCI_CLASS(klass);
     PCIDeviceClass *pcidev_k = PCI_DEVICE_CLASS(klass);

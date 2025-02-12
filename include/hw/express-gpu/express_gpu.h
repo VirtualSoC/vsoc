@@ -37,6 +37,7 @@ int load_render_process_contexts(QEMUFile *f);
 int save_render_thread_contexts(QEMUFile *f);
 int load_render_thread_contexts(QEMUFile *f);
 void remove_all_render_thread_contexts();
+void init_render_thread_contexts_resources();
 
 #define FUNID_GPU_Gbuffer_Host_To_Guest ((EXPRESS_GPU_DEVICE_ID << 32u) + 5001)
 

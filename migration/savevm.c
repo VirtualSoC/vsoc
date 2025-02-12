@@ -66,6 +66,8 @@
 #include "net/announce.h"
 #include "qemu/yank.h"
 #include "yank_functions.h"
+#include "hw/teleport-express/express_log.h"
+
 
 const unsigned int postcopy_ram_discard_version;
 
@@ -198,8 +200,8 @@ typedef struct CompatEntry {
     int instance_id;
 } CompatEntry;
 
-typedef struct SaveStateEntry {
-    QTAILQ_ENTRY(SaveStateEntry) entry;
+typedef struct SaveStateEntry { //表示单个保存状态条目的结构，包含了与设备状态保存相关的信息
+    QTAILQ_ENTRY(SaveStateEntry) entry;//用于将条目链接到一个双向链表中，便于管理多个保存状态条目。
     char idstr[256];
     uint32_t instance_id;
     int alias_id;
@@ -216,7 +218,7 @@ typedef struct SaveStateEntry {
     int is_ram;
 } SaveStateEntry;
 
-typedef struct SaveState {
+typedef struct SaveState { //表示保存状态的集合，管理多个 SaveStateEntry
     QTAILQ_HEAD(, SaveStateEntry) handlers;
     SaveStateEntry *handler_pri_head[MIG_PRI_MAX + 1];
     int global_section_id;
@@ -2467,7 +2469,7 @@ qemu_loadvm_section_part_end(QEMUFile *f, MigrationIncomingState *mis)
     return 0;
 }
 
-static int qemu_loadvm_state_header(QEMUFile *f)
+static int qemu_loadvm_state_header(QEMUFile *f) //debug loadvm error here!!!
 {
     unsigned int v;
     int ret;
@@ -2687,7 +2689,7 @@ out:
     return ret;
 }
 
-int qemu_loadvm_state(QEMUFile *f)
+int qemu_loadvm_state(QEMUFile *f) //here begin debug loadvm
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
     Error *local_err = NULL;
@@ -2698,7 +2700,7 @@ int qemu_loadvm_state(QEMUFile *f)
         return -EINVAL;
     }
 
-    ret = qemu_loadvm_state_header(f);
+    ret = qemu_loadvm_state_header(f); //加载头部信息，包含快照版本、标识符等元数据。这是为了确保快照文件与当前虚拟机兼容
     if (ret) {
         return ret;
     }
@@ -2707,9 +2709,9 @@ int qemu_loadvm_state(QEMUFile *f)
         return -EINVAL;
     }
 
-    cpu_synchronize_all_pre_loadvm();
+    cpu_synchronize_all_pre_loadvm(); //load cpu state again??
 
-    ret = qemu_loadvm_state_main(f, mis);
+    ret = qemu_loadvm_state_main(f, mis); //run a long time（整个快照恢复的核心部分，负责从快照文件中逐步加载内存、CPU 和设备的状态）
     qemu_event_set(&mis->main_thread_load_event);
 
     trace_qemu_loadvm_state_post_main(ret);
@@ -2783,8 +2785,9 @@ int qemu_load_device_state(QEMUFile *f)
 bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
                   bool has_devices, strList *devices, Error **errp)
 {
+    LOGI("in save_snapshot!");
     BlockDriverState *bs;
-    QEMUSnapshotInfo sn1, *sn = &sn1;
+    QEMUSnapshotInfo sn1, *sn = &sn1; //save snapshot infomation
     int ret = -1, ret2;
     QEMUFile *f;
     int saved_vm_running;
@@ -2804,6 +2807,7 @@ bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
         return false;
     }
 
+// error here
     if (!bdrv_all_can_snapshot(has_devices, devices, errp)) {
         return false;
     }
@@ -2829,7 +2833,7 @@ bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
         }
     }
 
-    bs = bdrv_all_find_vmstate_bs(vmstate, has_devices, devices, errp);
+    bs = bdrv_all_find_vmstate_bs(vmstate, has_devices, devices, errp); //在所有块设备中找到适合存储虚拟机状态的设备。如果找不到合适的设备，快照操作终止
     if (bs == NULL) {
         return false;
     }
@@ -2837,12 +2841,12 @@ bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
 
     saved_vm_running = runstate_is_running();
 
-    ret = global_state_store();
+    ret = global_state_store();//保存虚拟机的一些全局配置信息、框架状态
     if (ret) {
         error_setg(errp, "Error saving global state");
         return false;
     }
-    vm_stop(RUN_STATE_SAVE_VM);
+    vm_stop(RUN_STATE_SAVE_VM); //接下来要保存一些动态信息，因此要暂停虚拟机运行
 
     bdrv_drain_all_begin();
 
@@ -2868,12 +2872,12 @@ bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
     }
 
     /* save the VM state */
-    f = qemu_fopen_bdrv(bs, 1);
+    f = qemu_fopen_bdrv(bs, 1); //打开块设备进行写操作
     if (!f) {
         error_setg(errp, "Could not open VM state file");
         goto the_end;
     }
-    ret = qemu_savevm_state(f, errp);
+    ret = qemu_savevm_state(f, errp); //若文件打开成功，则调用 qemu_savevm_state 保存虚拟机的状态
     vm_state_size = qemu_file_total_transferred(f);
     ret2 = qemu_fclose(f);
     if (ret < 0) {
@@ -2891,9 +2895,10 @@ bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
      */
     aio_context_release(aio_context);
     aio_context = NULL;
-
+//在所有块设备上调用 bdrv_all_create_snapshot 创建快照，并将快照信息 QEMUSnapshotInfo sn 写入相应设备。如果保存过程失败，会删除创建的快照并返回错误
+//error here!!
     ret = bdrv_all_create_snapshot(sn, bs, vm_state_size,
-                                   has_devices, devices, errp);
+                                   has_devices, devices, errp); 
     if (ret < 0) {
         bdrv_all_delete_snapshot(sn->name, has_devices, devices, NULL);
         goto the_end;
@@ -2997,7 +3002,7 @@ void qmp_xen_load_devices_state(const char *filename, Error **errp)
 }
 
 bool load_snapshot(const char *name, const char *vmstate,
-                   bool has_devices, strList *devices, Error **errp)
+                   bool has_devices, strList *devices, Error **errp) //debug vmload
 {
     BlockDriverState *bs_vm_state;
     QEMUSnapshotInfo sn;
@@ -3044,33 +3049,33 @@ bool load_snapshot(const char *name, const char *vmstate,
     replay_flush_events();
 
     /* Flush all IO requests so they don't interfere with the new state.  */
-    bdrv_drain_all_begin();
+    bdrv_drain_all_begin(); //清理事件和IO 以免被干扰
 
-    ret = bdrv_all_goto_snapshot(name, has_devices, devices, errp);
+    ret = bdrv_all_goto_snapshot(name, has_devices, devices, errp); //实际恢复设备的状态
     if (ret < 0) {
         goto err_drain;
     }
 
     /* restore the VM state */
-    f = qemu_fopen_bdrv(bs_vm_state, 0);
+    f = qemu_fopen_bdrv(bs_vm_state, 0); //打开虚拟机状态文件（即保存内存和 CPU 状态的文件）。这个文件包含了虚拟机的内存内容和 CPU 寄存器状态等数据
     if (!f) {
         error_setg(errp, "Could not open VM state file");
         goto err_drain;
     }
 
     qemu_system_reset(SHUTDOWN_CAUSE_NONE);
-    mis->from_src_file = f;
+    mis->from_src_file = f;//将打开的快照文件传递给迁移系统（MigrationIncomingState），以便后续可以从文件中恢复 CPU 和内存状态。
 
     if (!yank_register_instance(MIGRATION_YANK_INSTANCE, errp)) {
         ret = -EINVAL;
         goto err_drain;
     }
     aio_context_acquire(aio_context);
-    ret = qemu_loadvm_state(f);
+    ret = qemu_loadvm_state(f);//实际恢复虚拟机的内存和 CPU 状态。它从打开的文件中读取保存的状态数据，并应用到当前的虚拟机实例中
     migration_incoming_state_destroy();
     aio_context_release(aio_context);
 
-    bdrv_drain_all_end();
+    bdrv_drain_all_end(); //恢复之前暂停的 I/O 操作，确保外设和磁盘能够继续正常工作。
 
     if (ret < 0) {
         error_setg(errp, "Error %d while loading VM state", ret);
@@ -3153,9 +3158,13 @@ static void snapshot_load_job_bh(void *opaque)
     job_progress_set_remaining(&s->common, 1);
 
     orig_vm_running = runstate_is_running();
+    LOGI("going to stop vm before loadvm");
     vm_stop(RUN_STATE_RESTORE_VM);
 
     s->ret = load_snapshot(s->tag, s->vmstate, true, s->devices, s->errp);
+
+    LOGI("going to start vm after loadvm");
+
     if (s->ret && orig_vm_running) {
         vm_start();
     }
@@ -3204,8 +3213,9 @@ static int coroutine_fn snapshot_save_job_run(Job *job, Error **errp)
     return s->ret ? 0 : -1;
 }
 
-static int coroutine_fn snapshot_load_job_run(Job *job, Error **errp)
+static int coroutine_fn snapshot_load_job_run(Job *job, Error **errp) //debug loadvm really starts
 {
+    LOGI("in snapshot_load_job_run!");
     SnapshotJob *s = container_of(job, SnapshotJob, common);
     s->errp = errp;
     s->co = qemu_coroutine_self();

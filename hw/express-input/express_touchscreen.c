@@ -12,6 +12,8 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-input/express_touchscreen.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 int express_touchscreen_scroll_ratio = 10;
 bool express_touchscreen_scroll_is_zoom = false;
@@ -49,6 +51,55 @@ typedef struct Touchscreen_Context
 } Touchscreen_Context;
 
 static Touchscreen_Context static_touchscreen_context;
+
+void save_touchscreen_data(QEMUFile* f, Touchscreen_Data *data)
+{
+    for (int i = 0; i < MAX_TOUCH_POINT; i++)
+    {
+        qemu_put_be32(f, data->touch_x[i]);
+        qemu_put_be32(f, data->touch_y[i]);
+        qemu_put_be32(f, data->is_touched[i]);
+    }
+    qemu_put_be32(f, data->touch_cnt);
+}
+
+void save_touchscreen_context(QEMUFile* f){
+    save_touchscreen_data(f, &(static_touchscreen_context.data));
+    for(int i = 0; i < MAX_TOUCH_POINT; i++){
+        qemu_put_be32(f, static_touchscreen_context.finger_used[i]);
+    }
+    save_guest_mem(f, static_touchscreen_context.guest_buffer);
+    qemu_put_be32(f, static_touchscreen_context.need_sync);
+    qemu_put_be32(f, static_touchscreen_context.device_context.irq_enabled);
+
+    save_teleport_express_call(f, static_touchscreen_context.device_context.irq_call);
+}
+
+void load_touchscreen_data(QEMUFile *f, Touchscreen_Data *data)
+{
+    for (int i = 0; i < MAX_TOUCH_POINT; i++)
+    {
+        data->touch_x[i] = qemu_get_be32(f);
+        data->touch_y[i] = qemu_get_be32(f);
+        data->is_touched[i] = qemu_get_be32(f);
+    }
+    data->touch_cnt = qemu_get_be32(f);
+}
+
+void load_touchscreen_context(QEMUFile *f){
+    load_touchscreen_data(f, &(static_touchscreen_context.data));
+    for(int i = 0; i < MAX_TOUCH_POINT; i++){
+        static_touchscreen_context.finger_used[i] = qemu_get_be32(f);
+    }
+    static_touchscreen_context.guest_buffer = load_guest_mem(f, 0);
+    static_touchscreen_context.need_sync = qemu_get_be32(f);
+    static_touchscreen_context.device_context.irq_enabled = qemu_get_be32(f);
+
+    Express_Device_Info *device_info = get_express_device_info(EXPRESS_TOUCHSCREEN_DEVICE_ID);
+    static_touchscreen_context.device_context.device_info = device_info;
+
+    static_touchscreen_context.device_context.irq_call = load_teleport_express_call(f);
+}
 
 // 触摸屏的物理大小，可以通过命令行来设置
 static Touchscreen_Prop static_prop = {
@@ -611,6 +662,7 @@ void sync_express_touchscreen_input(bool need_send)
 
     if (need_send)
     {
+        LOGI("going to set touchscreen irq");
         write_to_guest_mem(static_touchscreen_context.guest_buffer, &(static_touchscreen_context.data), 0, sizeof(Touchscreen_Data));
         set_express_device_irq((Device_Context *)&static_touchscreen_context, 0, sizeof(Touchscreen_Data));
     }

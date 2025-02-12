@@ -35,7 +35,8 @@
 #define MAX_IOV_SIZE MIN_CONST(IOV_MAX, 64)
 
 struct QEMUFile {
-    const QEMUFileHooks *hooks;
+    //QEMUFileHooks 是 QEMU 中用于自定义输入输出操作的结构，定义了如何读取和写入数据的函数指针。这使得 QEMUFile 可以灵活地与不同的输入输出通道（如文件、网络等）进行交互。
+    const QEMUFileHooks *hooks; //指向 QEMUFileHooks 的指针，包含处理输入输出的钩子函数。这些钩子定义了数据的读写方式。通过提供回调函数，开发者可以控制数据如何被序列化和反序列化。
     QIOChannel *ioc;
     bool is_writable;
 
@@ -55,7 +56,7 @@ struct QEMUFile {
 
     int buf_index;
     int buf_size; /* 0 when writing */
-    uint8_t buf[IO_BUF_SIZE];
+    uint8_t buf[IO_BUF_SIZE]; //存储实际的数据，各类设备自己的数据都存在自己的结构体里，但都被复制到这个buf里
 
     DECLARE_BITMAP(may_free, MAX_IOV_SIZE);
     struct iovec iov[MAX_IOV_SIZE];
@@ -675,7 +676,7 @@ size_t qemu_get_buffer_in_place(QEMUFile *f, uint8_t **buf, size_t size)
  * Peeks a single byte from the buffer; this isn't guaranteed to work if
  * offset leaves a gap after the previous read/peeked data.
  */
-int qemu_peek_byte(QEMUFile *f, int offset)
+int qemu_peek_byte(QEMUFile *f, int offset) //debug loadvm qemu file is 0x0 here!!
 {
     int index = f->buf_index + offset;
 

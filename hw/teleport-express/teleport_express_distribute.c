@@ -17,6 +17,8 @@
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_device_ctrl.h"
 #include "hw/teleport-express/express_event.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 //这是VirtQueueElement里面的实际东西
 // typedef struct VirtQueueElement
@@ -155,6 +157,7 @@ void push_to_thread(Teleport_Express_Call *call)
     {
         if (fun_id == EXPRESS_TERMINATE_FUN_ID)
         {
+            LOGD("get funid express_terminate_fun_id of device %s", device_info->name);
             if (device_info->remove_context)
             {
                 if(device_info->remove_context(device_id, thread_id, process_id, unique_id, device_info))
@@ -168,6 +171,7 @@ void push_to_thread(Teleport_Express_Call *call)
     }
     else
     {
+        LOGD("no context for device %d", device_id);
         call->callback(call, 0);
     }
     return;
@@ -373,7 +377,7 @@ void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *re
 { //文档里的那个输出通道
 
 // add some logs here
-
+    LOGD("virtqueue_data_distribute_and_recycle");
     Teleport_Express_Call *call = NULL;
     int origin_pop_flag = *pop_flag;
     int origin_recycle_flag = *recycle_flag;
@@ -387,12 +391,15 @@ void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *re
         call->vdev = teleport_express_device;
         call->callback = push_free_callback;
         call->is_end = 0;
+        LOGD("current call device id %d thread id %lld", GET_DEVICE_ID(call->id), call->thread_id);
         push_to_thread(call);
         if (GET_DEVICE_ID(call->id) == EXPRESS_CTRL_DEVICE_ID && FUN_NEED_SYNC(call->id))
         {
             *need_irq = 1;
         }
         *pop_flag = 1;
+    } else if(call == NULL) {
+        LOGD("virtqueue_data_distribute_and_recycle no data");
     }
     //这里之前是else if，高负载下导致大量call被堆积到这里，一直没法回收，影响了性能，因此这里进行修改
     //改为一次取数据对应着一次回收数据
@@ -403,6 +410,9 @@ void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *re
         //出队直接把队头后面的数据交换出来，队头那里没有放数据，数据都是放在后面一个了
         //这里没有使用无锁的方式是因为就这一个地方会出队，所以不存在并发问题
         Teleport_Express_Call *out_call = call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)];
+
+        LOGD("get out call of device %d thread id %lld", GET_DEVICE_ID(out_call->id), out_call->thread_id);
+
         call_recycle_queue[(call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2)] = NULL;
         // Teleport_Express_Call *out_call=atomic_xchg(&call_recycle_queue[(call_recycle_queue_header+1)%(CALL_BUF_SIZE+2)],NULL);
         call_recycle_queue_header = (call_recycle_queue_header + 1) % (CALL_BUF_SIZE + 2);
@@ -446,4 +456,8 @@ void push_free_callback(Teleport_Express_Call *call, int notify)
         //入队后要尝试中断掉分发回收线程的休眠（轮询过程中的休眠）
         wake_up_distribute();
     }
+}
+
+void (*get_push_free_callback_ptr(void))(Teleport_Express_Call *, int) {
+    return push_free_callback;
 }

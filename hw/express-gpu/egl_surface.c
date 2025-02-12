@@ -55,7 +55,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     {
         next_draw_gbuffer = now_draw_gbuffer;
     }
-
+    LOGD("going to swapbuffer next gbuffer %llx %d", next_draw_gbuffer->gbuffer_id, next_draw_gbuffer->data_texture);
     connect_gbuffer_to_surface(next_draw_gbuffer, surface, opengl_context->framebuffer_map);
 
     GLuint glerror = glGetError();
@@ -890,6 +890,8 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     gbuffer->sampler_fbo = surface->sampler_fbo[surface->now_fbo_loc];
     surface->gbuffer = gbuffer;
 
+    LOGD("gbuffer data texture %d surface texture %d surface data fbo %d", gbuffer->data_texture, surface->connect_texture[surface->now_fbo_loc], surface->data_fbo[surface->now_fbo_loc]);
+
     if (gbuffer->has_connected_fbo == 1 && gbuffer->data_texture == surface->connect_texture[surface->now_fbo_loc])
     {
         if (surface->type == WINDOW_SURFACE)
@@ -911,12 +913,24 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         glDisable(GL_MULTISAMPLE);
     }
 
+
+
     glBindFramebuffer(GL_FRAMEBUFFER, surface->data_fbo[surface->now_fbo_loc]);
     GLint error = glGetError();
     if (error != GL_NO_ERROR)
     {
         LOGE("error! binding surface framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->data_fbo[surface->now_fbo_loc], gbuffer->data_texture);
     }
+
+    GLuint rtextureId1 = 0;
+    GLuint rfboID = 0;
+    GLuint wtextureId1 = 0;
+    GLuint wfboID = 0;
+    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &rfboID);
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &wfboID);
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&rtextureId1);
+    glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&wtextureId1);
+    LOGD("before connect gbuffer to surface read fbo %d texture %d write fbo %d texture %d binding %d", rfboID, rtextureId1, wfboID, wtextureId1, gbuffer->data_texture);
 
     // 附加颜色缓冲区
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);

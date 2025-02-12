@@ -116,6 +116,8 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
         // glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
+
+        LOGD("gbuffer info width %d height %d internal_format %d format %d pixel_type %d", gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, gbuffer->pixel_type);
         glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, NULL);
 
         // glBindTexture(GL_TEXTURE_2D, prev_texture);
@@ -125,7 +127,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (guest_mem->all_len == 0)
     {
-        LOGI("going to upload data for texture bull value target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
+        LOGI("going to upload data for texture null value target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
     
 
         if (status->host_pixel_unpack_buffer != 0) //说明是guest那边解绑pbo的同步

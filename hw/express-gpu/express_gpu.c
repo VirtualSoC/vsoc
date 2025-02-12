@@ -48,6 +48,23 @@ static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
 
+void init_render_thread_contexts_resources() {
+    if (render_thread_contexts == NULL)
+    {
+        render_thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+        render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+    }
+
+    if (g_resource_list[0] == NULL){ //ztodo:要放在这里吗？？？
+        for (int i = 0; i < NUM_RESOURCES; i++) {
+            ATOMIC_LOCK(g_resource_locker[i]);
+            g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
+            ATOMIC_UNLOCK(g_resource_locker[i]);
+        }
+    }
+}
+
 Process_Context* get_process_context_form_id(uint64_t process_id) {
     // LOGI("in get_process_context_form_id with map size %d", g_hash_table_size(render_process_contexts));
     return g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
@@ -73,7 +90,7 @@ int save_render_process_contexts(QEMUFile *f)
 }
 
 int load_render_process_contexts(QEMUFile *f) {
-    g_hash_table_remove_all(render_process_contexts);
+    // g_hash_table_remove_all(render_process_contexts);
     // GHashTable *process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     guint num_process = qemu_get_be32(f);
     uint64_t process_id;
@@ -135,6 +152,7 @@ int load_render_thread_contexts(QEMUFile *f) {
     for (guint i = 0; i < num_entries; i++) {
         Render_Thread_Context *thread_context;
         thread_id = qemu_get_be64(f);
+        LOGI("current loading thread id is %lld", thread_id);
 
         thread_context = load_single_render_thread_context(f);
 
@@ -349,7 +367,7 @@ void restore_framebuffer_binding(Opengl_Context *context) {
         GLuint framebuffer_id = framebuffer->framebufferId;
         if(g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id)) == NULL) {
             GLint new_framebuffer_id;
-            glDeleteFramebuffers(1, (GLuint*)&framebuffer_id);
+            // glDeleteFramebuffers(1, (GLuint*)&framebuffer_id);
             glGenFramebuffers(1, (GLuint*)&new_framebuffer_id);
             // change_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, framebuffer_id, new_framebuffer_id);
 
@@ -360,26 +378,33 @@ void restore_framebuffer_binding(Opengl_Context *context) {
             g_hash_table_iter_init(&buffer_iter, loaded_hardware_buffers);
             while (g_hash_table_iter_next(&buffer_iter, &buffer_key, &buffer_value)) {
                 Hardware_Buffer *buffer = (Hardware_Buffer *)buffer_value;
-                if(buffer->data_fbo == framebuffer_id) {
+                if(buffer->data_fbo == framebuffer_id && buffer->data_fbo_changed == 0) {
+                    LOGI("hardware buffer loading framebuffer ID: buffer %d %d %d", buffer->data_fbo, buffer->sampler_fbo, new_framebuffer_id);
+                    buffer->data_fbo_changed = 1;
                     buffer->data_fbo = new_framebuffer_id;
                 }
-                if(buffer->sampler_fbo == framebuffer_id) {
+                if(buffer->sampler_fbo == framebuffer_id && buffer->sampler_fbo_changed == 0) {
+                    buffer->sampler_fbo_changed = 1;
                     buffer->sampler_fbo = new_framebuffer_id;
                 }
-                LOGI("hardware buffer loading framebuffer ID: buffer %d %d %d", buffer->data_fbo, buffer->sampler_fbo, new_framebuffer_id);
+                
             }
             
             g_hash_table_iter_init(&buffer_iter, loaded_window_buffers);
             while (g_hash_table_iter_next(&buffer_iter, &buffer_key, &buffer_value)) {
                 Window_Buffer *buffer = (Window_Buffer *)buffer_value;
                 for(int i = 0; i < 3; i++) {
-                    if(buffer->data_fbo[i] == framebuffer_id) {
+                    if(buffer->data_fbo[i] == framebuffer_id && buffer->date_fbo_changed[i] == 0) {
+                        LOGI("window buffer loading framebuffer ID: buffer %d %d %d", buffer->data_fbo[i], buffer->sampler_fbo[i], new_framebuffer_id);
+                        buffer->date_fbo_changed[i] = 1;
                         buffer->data_fbo[i] = new_framebuffer_id;
+                        
                     }
-                    if(buffer->sampler_fbo[i] == framebuffer_id) {
+                    if(buffer->sampler_fbo[i] == framebuffer_id && buffer->sampler_fbo_changed[i] == 0) {
+                        buffer->sampler_fbo_changed[i] = 1;
                         buffer->sampler_fbo[i] = new_framebuffer_id;
                     }
-                    LOGI("window buffer loading framebuffer ID: buffer %d %d %d", buffer->data_fbo[i], buffer->sampler_fbo[i], new_framebuffer_id);
+                    
                 }
             }
 
@@ -441,7 +466,7 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
     Window_Buffer * real_surface_draw = thread_context->render_double_buffer_draw;
     Window_Buffer * real_surface_read = thread_context->render_double_buffer_read; 
 
-    LOGI("draw fbo is %d %d", opengl_context->draw_fbo0, real_surface_draw->gbuffer->data_fbo);
+    // LOGI("draw fbo is %d %d", opengl_context->draw_fbo0, real_surface_draw->gbuffer->data_fbo);
 
     egl_makeCurrent(opengl_context->window);
     // opengl_context_init(opengl_context);
@@ -535,16 +560,17 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
 
     uint64_t fun_id = GET_FUN_ID(call->id);
-    // GLuint glerror = glGetError();
-    // if(glerror != GL_NO_ERROR) {
-    //     LOGE("error! decode_invoke glGetError %x", glerror);
-    // }
+    GLuint glerror = glGetError();
+    if(glerror != GL_NO_ERROR) {
+        LOGE("error! decode_invoke glGetError %x", glerror);
+    }
     LOGD("enter gpu decode invoke id %llu", fun_id);
 
 
     if (fun_id == 10001)
     {
         recover_snapshot_states_after_load(render_context); //ztodo:释放call的资源
+        usleep(1000000);
         return;
     }
     else if (fun_id >= 200000)
@@ -592,10 +618,10 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
         }
     }
 
-    GLuint glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
-        LOGE("error! decode_invoke glGetError %x", glerror);
-    }
+    // GLuint glerror = glGetError();
+    // if(glerror != GL_NO_ERROR) {
+    //     LOGE("error! decode_invoke glGetError %x", glerror);
+    // }
     return;
 }
 
@@ -618,7 +644,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
     // 没有context就新建线程
-    // LOGI("getting new thread context with process id %lld unique id %lld thread id %lld device id %lld", process_id, unique_id, thread_id, device_id);
+    LOGD("getting new thread context with process id %lld unique id %lld thread id %lld device id %lld", process_id, unique_id, thread_id, device_id);
     if (thread_context == NULL)
     {
         // express_printf("create new thread\n");
@@ -661,7 +687,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
-
+    LOGI("going to remove render thread context with thread id %lld process id %lld unique id %lld", thread_id, process_id, unique_id);
     g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
 
     if (g_hash_table_size(render_context->thread_unique_ids) == 0)

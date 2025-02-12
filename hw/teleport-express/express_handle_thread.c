@@ -173,6 +173,8 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
             LOGD("handle thread call handle %llu", context->device_id);
             context->call_handle(context, call);
         }
+
+        LOGD("finish one call of device %d id %llx",context->device_id, call->id);
     }
 
 #ifdef _WIN32

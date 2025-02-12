@@ -527,7 +527,7 @@ void opengl_context_init(Opengl_Context *context)
         {
             glGenVertexArrays(1, &vao0);
 
-            LOGD("create vao when init! %d %d", vao0, context->window);
+            LOGI("create vao when init! %d %d", vao0, context->window);
 
             glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
             glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));

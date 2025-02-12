@@ -88,6 +88,8 @@ typedef struct Hardware_Buffer{
      //这两个fbo不是gbuffer自己产生的
      GLuint data_fbo;
      GLuint sampler_fbo;
+     bool data_fbo_changed;
+     bool sampler_fbo_changed;
 
      //这个用来指示surface连接上gbuffer，防止出现三个gbuffer都连接到surface了，然后一个gbuffer长时间没用释放了，而surface的connect_texture还有值，导致后续绘制时新生成的gbuffer无法连接到surface
      int has_connected_fbo;
@@ -176,7 +178,9 @@ typedef struct Window_Buffer
      
      GLuint now_fbo_loc;
      GLuint data_fbo[3]; //三缓冲（如果是window_surface）
+     bool date_fbo_changed[3];
      GLuint sampler_fbo[3]; //多重采样
+     bool sampler_fbo_changed[3];
      GLuint connect_texture[3];
 
      GHashTable* framebuffer_map;

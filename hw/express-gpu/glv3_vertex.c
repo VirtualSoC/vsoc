@@ -40,6 +40,8 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapNamedBufferRange(point_data->buffer_object[index], offset, length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d",point_data->buffer_object[index], index, offset, length);
+
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], 0, length);
 
@@ -52,6 +54,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], index, offset, length, map_pointer);
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], offset, length);
@@ -64,6 +67,8 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapNamedBufferRange(point_data->buffer_object[index],
                                                 point_data->buffer_len[index] - point_data->remain_buffer_len[index], length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], index, offset, length, map_pointer);
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
@@ -82,6 +87,12 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
         GLint padding = -min(point_data->buffer_len[index] - point_data->remain_buffer_len[index] - (GLint)offset, 0);
 
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
+
+        GLenum glerror = glGetError();
+        if (glerror != GL_NO_ERROR)
+        {
+            LOGE("error! glBindBuffer GL_ARRAY_BUFFER %x", glerror);
+        }
         LOGD("set_vertex_attrib_data vbo index %d offset %d length %d padding %d",point_data->buffer_object[index], index, offset, length, padding);
 
         //@todo 扩大提前申请的量级
@@ -103,6 +114,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             point_data->buffer_loc[index] = 0;
@@ -116,6 +128,8 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             // TODO 测试是否需要从0开始映射
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
 
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
+
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, offset, length);
 
             point_data->buffer_loc[index] = 0;
@@ -126,8 +140,20 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER,
                                            point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+            
+            GLenum glerror = glGetError();
+            if (glerror != GL_NO_ERROR)
+            {
+                LOGE("error! glMapBufferRange GL_ARRAY_BUFFER %x", glerror);
+            }
+
+            GLuint current_buffer;
+            glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_buffer);
+
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
+
+            LOGD("set_vertex_attrib_data vbo current %d index %d offset %d length %d pointer %d %d length %d", current_buffer, point_data->buffer_object[index], offset, length, (int)map_pointer, padding, point_data->buffer_len[index] - point_data->remain_buffer_len[index]);
 
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
@@ -521,13 +547,20 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
         // glClearColor(r, g, b, 1.0f);
         // glClear(GL_COLOR_BUFFER_BIT);
 
-        GLuint textureId1 = 0;
-        GLuint fboID = 0;
+        GLuint rtextureId1 = 0;
+        GLuint rfboID = 0;
+        GLuint wtextureId1 = 0;
+        GLuint wfboID = 0;
+
         GLuint curtex = 0;
         glGetIntegerv(GL_TEXTURE_BINDING_2D, &curtex);
-        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboID);
-        glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&textureId1);
-        LOGD("current glDrawArrays %d %d %d fbo binded texture %d current texture %d fbo %d", mode, first, count, textureId1, curtex, fboID);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &rfboID);
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &wfboID);
+
+        glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&rtextureId1);
+        glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&wtextureId1);
+
+        LOGI("current glDrawArrays %d %d %d fbo binded texture %d %d current texture %d fbo %d %d", mode, first, count, rtextureId1, wtextureId1, curtex, rfboID, wfboID);
 
         glerror = glGetError();
         if(glerror != GL_NO_ERROR) {

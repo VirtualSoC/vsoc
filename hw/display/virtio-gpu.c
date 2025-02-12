@@ -1009,7 +1009,7 @@ static void virtio_gpu_handle_cursor_cb(VirtIODevice *vdev, VirtQueue *vq)
     qemu_bh_schedule(g->cursor_bh);
 }
 
-void virtio_gpu_process_cmdq(VirtIOGPU *g)
+void virtio_gpu_process_cmdq(VirtIOGPU *g) //控制命令处理
 {
     struct virtio_gpu_ctrl_command *cmd;
     VirtIOGPUClass *vgc = VIRTIO_GPU_GET_CLASS(g);
@@ -1181,7 +1181,7 @@ static int virtio_gpu_save(QEMUFile *f, void *opaque, size_t size,
     int i;
 
     /* in 2d mode we should never find unprocessed commands here */
-    assert(QTAILQ_EMPTY(&g->cmdq));
+    assert(QTAILQ_EMPTY(&g->cmdq)); //所以virtio_gpu_ctrl_command相关数据不用管
 
     QTAILQ_FOREACH(res, &g->reslist, next) {
         qemu_put_be32(f, res->resource_id);
@@ -1211,7 +1211,7 @@ static int virtio_gpu_load(QEMUFile *f, void *opaque, size_t size,
     int i;
 
     g->hostmem = 0;
-
+//恢复reslist的部分
     resource_id = qemu_get_be32(f);
     while (resource_id != 0) {
         res = virtio_gpu_find_resource(g, resource_id);
@@ -1264,7 +1264,7 @@ static int virtio_gpu_load(QEMUFile *f, void *opaque, size_t size,
             if (!res->iov[i].iov_base || len != res->iov[i].iov_len) {
                 /* Clean up the half-a-mapping we just created... */
                 if (res->iov[i].iov_base) {
-                    dma_memory_unmap(VIRTIO_DEVICE(g)->dma_as,
+                    dma_memory_unmap(VIRTIO_DEVICE(g)->dma_as, //dma_as是VirtioDevice的字段
                                      res->iov[i].iov_base,
                                      len,
                                      DMA_DIRECTION_TO_DEVICE,
@@ -1285,6 +1285,7 @@ static int virtio_gpu_load(QEMUFile *f, void *opaque, size_t size,
         resource_id = qemu_get_be32(f);
     }
 
+//完成reslist的部分，调用vmstate_load_state递归地去load
     /* load & apply scanout state */
     vmstate_load_state(f, &vmstate_virtio_gpu_scanouts, g, 1);
     for (i = 0; i < g->parent_obj.conf.max_outputs; i++) {

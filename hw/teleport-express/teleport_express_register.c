@@ -68,7 +68,7 @@ static void push_to_device(Teleport_Express_Call *call)
     Device_Context *device_context = device_info->get_device_context(device_id, thread_id, process_id, unique_id, device_info);
     if(unlikely(device_context == NULL))
     {
-        LOGD("device %s: input call received with null device context! call id %llx", device_info->name, call->id);
+        LOGI("device %s: input call received with null device context! call id %llx", device_info->name, call->id);
         call->callback(call, 0);
         return;
     }
@@ -80,6 +80,7 @@ static void push_to_device(Teleport_Express_Call *call)
 
     if (fun_id == EXPRESS_REGISTER_BUFFER_FUN_ID)
     {
+        LOGI("in function of register buffer of device %s", device_info->name);
         Guest_Mem *data = copy_guest_mem_from_call(call, 1);
         device_info->buffer_register(data, thread_id, process_id, unique_id);
         call->callback(call, 0);
@@ -102,9 +103,10 @@ static void push_to_device(Teleport_Express_Call *call)
         printf("unknow fun id %llu device %llu\n", fun_id, device_id);
         call->callback(call, 0);
     }
-
+    LOGD("push to %s device %llx id %llx end\n", device_info->name, device_id, call->id);
     return;
 }
+
 
 /**
  * @brief 在处理线程使用完数据后的回调函数，将调用完成的call送给回收线程，使用无锁队列实现入队，同时，在传回之前，会将相关数据复制回去，同时设置好guest会读取的flag
@@ -115,6 +117,7 @@ static void push_to_device(Teleport_Express_Call *call)
 static void input_call_release(Teleport_Express_Call *call, int notify)
 {
     // 设置guest端的flag标志，防止中断丢失
+    LOGD("input call release call id %lld", call->unique_id);
     common_call_callback(call);
 
     // 无锁入队
@@ -122,9 +125,11 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
     int t = origin_tail;
     do
     {
+        LOGI("in input call release queue full %d", t);
         while (call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)] != NULL)
         {
             t = (t + 1) % (CALL_BUF_SIZE + 2);
+            LOGI("input call release queue full %d", t);
         }
     } while (qatomic_cmpxchg(&(call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)]), NULL, call) != NULL);
 
@@ -140,14 +145,18 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
 #else
         set_event(input_event);
 #endif
-        express_printf("slow input_event!\n");
+        LOGI("slow input_event!");
     }
     else
     {
-        express_printf("qucik input_event!\n");
+        LOGI("qucik input_event! input event %lld now_can_set_event %d", (long long)input_event, now_can_set_event);
     }
 
     return;
+}
+
+void (*get_input_call_release_ptr(void))(Teleport_Express_Call *, int) {
+    return input_call_release;
 }
 
 void register_input_buffer_call(VirtIODevice *vdev, VirtQueue *vq)
@@ -185,10 +194,22 @@ void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int
 
     Guest_Mem *mem = irq_call->elem_header->para;
 
+    LOGI("mem is %lld", (uint64_t)mem);
+
     unsigned long long t_data = ((((uint64_t)buf_index) << 32) + (uint64_t)len);
     write_to_guest_mem(mem, &t_data, __builtin_offsetof(Teleport_Express_Flag_Buf, ret_data), 8);
 
     irq_call->callback(irq_call, 0);
+}
+
+void set_input_event_startup(){
+#ifdef _WIN32
+    input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    SetEvent(input_event);
+#else
+    input_event = create_event(0,0);
+    set_event(input_event);
+#endif
 }
 
 void *input_sync_thread(void *opaque)
@@ -268,7 +289,7 @@ void express_input_device_sync(void)
 
 void common_device_irq_register(Device_Context *device_context, Teleport_Express_Call *irq_call)
 {
-    express_printf("irq register %s\n", device_context->device_info->name);
+    LOGD("irq register %s", device_context->device_info->name);
 
     Teleport_Express_Call *origin_call = NULL;
     if ((origin_call = qatomic_xchg(&device_context->irq_call, irq_call)) != NULL)
@@ -286,7 +307,7 @@ void common_device_irq_register(Device_Context *device_context, Teleport_Express
                     return;
                 }
                 send_express_device_irq(origin_call, 0, 0);
-                printf("%s release bewteen send and reset\n", device_context->device_info->name);
+                LOGI("%s release bewteen send and reset", device_context->device_info->name);
                 return;
             }
         }

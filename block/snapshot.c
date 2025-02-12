@@ -538,17 +538,17 @@ bool bdrv_all_can_snapshot(bool has_devices, strList *devices,
         return false;
     }
 
-    iterbdrvs = bdrvs;
-    while (iterbdrvs) {
+    iterbdrvs = bdrvs; //获取设备列表
+    while (iterbdrvs) { //qcow2和iso两个设备
         BlockDriverState *bs = iterbdrvs->data;
-        AioContext *ctx = bdrv_get_aio_context(bs);
+        AioContext *ctx = bdrv_get_aio_context(bs);//获取context，确保线程安全
         bool ok = true;
 
-        aio_context_acquire(ctx);
+        aio_context_acquire(ctx); 
         if (devices || bdrv_all_snapshots_includes_bs(bs)) {
             ok = bdrv_can_snapshot(bs);
         }
-        aio_context_release(ctx);
+        aio_context_release(ctx); //别的线程不会影响快照
         if (!ok) {
             error_setg(errp, "Device '%s' is writable but does not support "
                        "snapshots", bdrv_get_device_or_node_name(bs));
@@ -618,7 +618,7 @@ int bdrv_all_goto_snapshot(const char *name,
     iterbdrvs = bdrvs;
     while (iterbdrvs) {
         BlockDriverState *bs = iterbdrvs->data;
-        AioContext *ctx = bdrv_get_aio_context(bs);
+        AioContext *ctx = bdrv_get_aio_context(bs); //qcow2 and iso
         int ret = 0;
 
         aio_context_acquire(ctx);

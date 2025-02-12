@@ -808,7 +808,7 @@ void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
     if(currentFBO != 0) {
         glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &textureID);
     } 
-    LOGD("in paint gbuffer currentFBO %d textureID %d gbuffer texture %d", currentFBO, textureID, gbuffer->data_texture);
+    LOGI("in paint gbuffer currentFBO %d textureID %d gbuffer texture %d", currentFBO, textureID, gbuffer->data_texture);
 
 
     if (gbuffer != NULL)
@@ -1059,7 +1059,7 @@ void *native_window_thread(void *opaque)
     {
         gint64 need_sleep_time = 0;
         gint64 now_time = 0;
-
+        LOGD("in native window thread loop");
         do
         {
             // 处理各种输入事件、opengl事件

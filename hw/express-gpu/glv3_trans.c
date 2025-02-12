@@ -13946,7 +13946,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
 
         g_hash_table_insert(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program), GUINT_TO_POINTER(current_program));
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
-        LOGI("attach program %u to shader %d source %s", host_program, host_shader, current_shader->shader_source);
+        LOGD("attach program %u to shader %d source %s", host_program, host_shader, current_shader->shader_source);
 
         // LOGI("attach program %u to shader %u %lld",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), attached_id);
         
@@ -26531,6 +26531,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         GLuint offset;
         GLuint length;
 
+        LOGI("in glVertexAttribPointer_without_bound");
+
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribPointer_without_bound))
         {
@@ -26554,6 +26556,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
+                LOGI("get tmp %d tmp len %d", temp, temp_len);
                 read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else

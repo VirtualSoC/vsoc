@@ -23,4 +23,8 @@ void *input_sync_thread(void *opaque);
 
 void express_input_device_sync(void);
 
+void (*get_input_call_release_ptr(void))(Teleport_Express_Call *, int);
+
+void set_input_event_startup();
+
 #endif

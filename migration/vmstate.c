@@ -134,7 +134,7 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                     ret = vmstate_load_state(f, field->vmsd, curr_elem,
                                              field->struct_version_id);
                 } else {
-                    ret = field->info->get(f, curr_elem, size, field);
+                    ret = field->info->get(f, curr_elem, size, field); //调用到定义好的qemu_get_xxxx
                 }
                 if (ret >= 0) {
                     ret = qemu_file_get_error(f);
@@ -379,7 +379,7 @@ int vmstate_save_state_v(QEMUFile *f, const VMStateDescription *vmsd,
                                                field->struct_version_id);
                 } else {
                     ret = field->info->put(f, curr_elem, size, field,
-                                     vmdesc_loop);
+                                     vmdesc_loop); //是基本类型，直接调用Vmstate-types.c里面定义的put函数
                 }
                 if (ret) {
                     error_report("Save of field %s/%s failed",
