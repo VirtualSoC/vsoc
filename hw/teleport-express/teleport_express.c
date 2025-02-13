@@ -197,7 +197,7 @@ static void teleport_express_realize(DeviceState *qdev, Error **errp)
 
     virtio_add_feature(&vdev->host_features, VIRTIO_RING_F_INDIRECT_DESC);
 
-    LOGI("express gpu realized");
+    LOGD("express gpu realized");
 }
 
 static uint64_t

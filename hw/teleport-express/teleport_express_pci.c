@@ -239,7 +239,7 @@ static Property *get_express_device_property(void)
 
 static void teleport_express_pci_instance_init(Object *obj)
 {
-    LOGI("in teleport_express_pci_instance_init!");
+    LOGD("in teleport_express_pci_instance_init!");
     Teleport_Express_PCI *dev = TELEPORT_EXPRESS_PCI(obj);
 
     virtio_instance_init_common(obj, &dev->teleport_express, sizeof(dev->teleport_express),
@@ -315,7 +315,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
 static void teleport_express_pci_class_init(ObjectClass *klass, void *data)
 {
-    LOGI("in teleport_express_pci_class_init!");
+    LOGD("in teleport_express_pci_class_init!");
     DeviceClass *dc = DEVICE_CLASS(klass);
     VirtioPCIClass *k = VIRTIO_PCI_CLASS(klass);
     PCIDeviceClass *pcidev_k = PCI_DEVICE_CLASS(klass);

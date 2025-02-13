@@ -670,7 +670,7 @@ void guest_null_ptr_init(VirtQueue *vq)
     {
         guest_null_ptr = elem->out_sg->iov_base;
 
-        LOGI("null ptr %llu", (uint64_t)guest_null_ptr);
+        LOGD("null ptr %llu", (uint64_t)guest_null_ptr);
 
         //计算内存复制速度
         char *temp1 = g_malloc(1024 * 1024 * 24);

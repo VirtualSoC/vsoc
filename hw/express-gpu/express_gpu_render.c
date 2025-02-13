@@ -1026,7 +1026,7 @@ void *native_window_thread(void *opaque)
     now_transform_type = 0;
     glUniform1i(program_transform_loc, now_transform_type);
 
-    LOGI("native windows create!\n");
+    LOGI("native windows create!");
 
     // glViewport(0, 0, window_width, window_height);
     // 因为这个是最终窗口，因此不需要进行深度测试与模板测试，直接贴图，只要最后的图像数据就行

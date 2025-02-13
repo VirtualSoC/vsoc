@@ -71,7 +71,13 @@ void save_sync_context(QEMUFile *f){
     save_sync_flag_data(f, static_sync_context.sync_data);
     qemu_put_be32(f, static_sync_context.device_context.irq_enabled);
 
-    save_teleport_express_call(f, static_sync_context.device_context.irq_call);
+    if(static_sync_context.device_context.irq_call == NULL){
+        qemu_put_be32(f, 0);
+    } else {
+        qemu_put_be32(f, 1);
+        save_teleport_express_call(f, static_sync_context.device_context.irq_call);
+    }
+    
 
     LOGI("saving sync context of irq enabled %d", static_sync_context.device_context.irq_enabled);
 }
@@ -105,7 +111,10 @@ void load_sync_context(QEMUFile *f){
     LOGI("device context and info %d %d", static_sync_context.device_context, device_info->device_id);
     static_sync_context.device_context.device_info = device_info;
 
-    static_sync_context.device_context.irq_call = load_teleport_express_call(f);
+    int has_call = qemu_get_be32(f);
+    if(has_call) {
+        static_sync_context.device_context.irq_call = load_teleport_express_call(f);
+    }
 
     LOGI("loading sync context of irq enabled %d", static_sync_context.device_context.irq_enabled);
 
@@ -153,7 +162,7 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
 
 void wait_for_express_sync(int sync_id, bool need_gpu_sync)
 {
-    LOGI("wait for sync %d", sync_id);
+    LOGD("wait for sync %d", sync_id);
     if (sync_id >= MAX_SYNC_NUM * 32 || sync_id < 0)
     {
         LOGE("invalid sync id %d!", sync_id);

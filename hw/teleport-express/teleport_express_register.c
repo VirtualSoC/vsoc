@@ -210,11 +210,16 @@ void set_input_event_startup(){
     input_event = create_event(0,0);
     set_event(input_event);
 #endif
+    need_send_irq = false;
+    call_recycle_queue_header = 0;
+    call_recycle_queue_tail = 0;
+    memset(call_recycle_queue, 0, sizeof(call_recycle_queue));
 }
 
 void *input_sync_thread(void *opaque)
 {
 
+    LOGI("in input sync thread!");
 #ifdef _WIN32
     input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 #else
@@ -289,13 +294,14 @@ void express_input_device_sync(void)
 
 void common_device_irq_register(Device_Context *device_context, Teleport_Express_Call *irq_call)
 {
-    LOGD("irq register %s", device_context->device_info->name);
+    LOGI("irq register %s", device_context->device_info->name);
 
     Teleport_Express_Call *origin_call = NULL;
     if ((origin_call = qatomic_xchg(&device_context->irq_call, irq_call)) != NULL)
     {
         if (origin_call == (void *)1)
         {
+            LOGI("error! %s register with half-released status get one release 1!\n", device_context->device_info->name);
             // 此时已经release过了，所以此时需要直接发送call
             // 但是可能此时继续产生send irq的中断请求，只是send出去的不会进行重置，所以这里进行二次交换，假如换到NULL，说明irq call被input函数发送出去了，就不用管了
             if ((origin_call = qatomic_xchg(&device_context->irq_call, NULL)) != NULL)
@@ -315,6 +321,7 @@ void common_device_irq_register(Device_Context *device_context, Teleport_Express
     device_context->irq_enabled = true;
     if(device_context->device_info->irq_register != NULL)
     {
+        LOGI("register irq!");//ztodo:一些device需要手动操作
         device_context->device_info->irq_register(device_context);
     }
 }

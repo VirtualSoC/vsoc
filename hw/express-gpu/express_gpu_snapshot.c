@@ -76,21 +76,27 @@ void init_loading_snapshot(QEMUFile *f) {
     init_render_thread_contexts_resources();
     display_fbo_has_loaded = 0;
 
-    // Teleport_Express *g = TELEPORT_EXPRESS(startup_vdev);
-    // if (g->distribute_thread_run == 0) //第一次调用到，新建分发线程
-    // {
-    //     LOGI("start handle thread");
-    //     // guest_null_ptr_init(startup_out_data_queue);
-    //     g->distribute_thread_run = 1;
-    //     qemu_thread_create(&g->distribute_thread, "teleport-express-distribute", call_distribute_thread,
-    //                        startup_vdev, QEMU_THREAD_JOINABLE);
-    // }
-    // if(g->input_thread_run == 0){
-    //     qemu_thread_create(&g->input_thread, "teleport-express-input", input_sync_thread,
-    //                        startup_vdev, QEMU_THREAD_JOINABLE);
-    //     LOGI("start input thread");
-    //     g->input_thread_run = 1;
-    // }
+    Teleport_Express *g = TELEPORT_EXPRESS(startup_vdev);
+    if (g->distribute_thread_run == 0) //第一次调用到，新建分发线程
+    {
+        LOGI("start handle thread");
+        // guest_null_ptr_init(startup_out_data_queue);
+        g->distribute_thread_run = 1;
+        qemu_thread_create(&g->distribute_thread, "teleport-express-distribute", call_distribute_thread,
+                           startup_vdev, QEMU_THREAD_JOINABLE);
+    }
+    if(g->input_thread_run == 0){
+        qemu_thread_create(&g->input_thread, "teleport-express-input", input_sync_thread,
+                           startup_vdev, QEMU_THREAD_JOINABLE);
+        LOGI("start input thread");
+        g->input_thread_run = 1;
+    }
+    if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
+    {
+        register_input_buffer_call(startup_vdev, startup_in_data_queue);
+        qatomic_set(&(g->register_input_vq_locker), 0);
+    }
+
 
     if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
     {
