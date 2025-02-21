@@ -145,11 +145,11 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
 #else
         set_event(input_event);
 #endif
-        LOGI("slow input_event!");
+        LOGD("slow input_event!");
     }
     else
     {
-        LOGI("qucik input_event! input event %lld now_can_set_event %d", (long long)input_event, now_can_set_event);
+        LOGD("qucik input_event! input event %lld now_can_set_event %d", (long long)input_event, now_can_set_event);
     }
 
     return;
@@ -157,6 +157,12 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
 
 void (*get_input_call_release_ptr(void))(Teleport_Express_Call *, int) {
     return input_call_release;
+}
+
+void realize_input_device(VirtIODevice *vdev)
+{
+    in_teleport_express = vdev;
+    return;
 }
 
 void register_input_buffer_call(VirtIODevice *vdev, VirtQueue *vq)

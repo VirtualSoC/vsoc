@@ -111,13 +111,19 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
         GLuint prev_texture = 0;
         GLuint prev_unpack = 0;
+
+        int w, h;
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+
+
         glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint *)&prev_texture);
         glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, (GLint *)&prev_unpack);
         // glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 
-        LOGD("gbuffer info width %d height %d internal_format %d format %d pixel_type %d", gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, gbuffer->pixel_type);
+        LOGI("gbuffer info width %d height %d internal_format %d format %d pixel_type %d texture %d %d %d", gbuffer->width, gbuffer->height, gbuffer->internal_format, gbuffer->format, gbuffer->pixel_type, prev_texture, w, h);
         glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, NULL);
 
         // glBindTexture(GL_TEXTURE_2D, prev_texture);

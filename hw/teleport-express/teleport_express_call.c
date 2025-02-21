@@ -12,6 +12,8 @@
 #include "hw/teleport-express/express_device_common.h"
 
 #include "hw/teleport-express/teleport_express_call.h"
+#include "exec/cpu-common.h"
+
 
 // static Teleport_Express_Call pre_alloc_call[CALL_BUF_SIZE * 2];
 // static bool pre_alloc_call_flag[CALL_BUF_SIZE * 2];
@@ -597,7 +599,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
  */
 int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsigned long max_para_num)
 {
-
+    // LOGI("in get para from call %lld", call->unique_id);
     Teleport_Express_Queue_Elem *header = call->elem_header;
     Teleport_Express_Queue_Elem *now_elem = header->next;
     if (max_para_num < call->para_num)
@@ -618,6 +620,7 @@ int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsign
         call_para[i].data_len = now_elem->len;
         now_elem = now_elem->next;
     }
+    // LOGI("get params %d %lld", call->para_num, call->unique_id);
     return call->para_num;
 }
 
@@ -629,6 +632,25 @@ Guest_Mem *copy_guest_mem_from_call(Teleport_Express_Call *call, int index)
     {
         Guest_Mem *save_mem = g_malloc(sizeof(Guest_Mem));
         Guest_Mem *old_mem = para[index - 1].data;
+
+        void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)old_mem->scatter_data->data);
+
+        hwaddr len = old_mem->all_len;
+        hwaddr xlat;
+
+        MemoryRegion *mr = address_space_translate(&address_space_memory,
+            (hwaddr)real_guest_mem,
+            &xlat, &len, false,
+            MEMTXATTRS_UNSPECIFIED);
+
+        // void *hva = cpu_physical_memory_map((hwaddr)real_guest_mem, &len, false);
+        void *hva;
+        if (mr) {
+            hva = qemu_map_ram_ptr(mr->ram_block, xlat);
+            // printf("GPA 0x%lx corresponds to HVA %p\n", gpa, hva);
+        } 
+
+        LOGI("get old mem %d %d %lld real mem %lld hva %lld", old_mem->num, old_mem->all_len, (uint64_t)old_mem->scatter_data->data, (uint64_t)real_guest_mem, (uint64_t)hva);
 
         save_mem->num = old_mem->num;
         save_mem->all_len = old_mem->all_len;

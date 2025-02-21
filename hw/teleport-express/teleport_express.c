@@ -247,6 +247,8 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
 
 
     save_native_resources(f);
+    save_force_show_native_render_window(f);
+
     save_gbuffer_global_map(f);    
 
     
@@ -287,6 +289,8 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     loaded_hardware_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
     loaded_window_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
     load_native_resources(f);
+
+    load_force_show_native_render_window(f);
     load_gbuffer_global_map(f);
 
    
@@ -298,7 +302,8 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     // clear_resource_tables();
 
     
-
+    // Express_Device_Info *display_device_info = get_express_device_info(EXPRESS_DISPLAY_DEVICE_ID);
+    // Thread_Context* display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
     LOGI("succcefully perform virtio load for teleport express!");
     return 0;
 }

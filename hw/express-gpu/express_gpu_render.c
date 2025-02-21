@@ -120,6 +120,14 @@ void update_render_gbuffer_texture_and_framebuffer() {
     main_display_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, main_display_gbuffer->data_texture);
 }
 
+void save_force_show_native_render_window(QEMUFile *f) {
+    qemu_put_be32(f, force_show_native_render_window);
+}
+
+void load_force_show_native_render_window(QEMUFile *f) {
+    force_show_native_render_window = qemu_get_be32(f);
+}
+
 volatile int native_render_run = 0;
 volatile int device_interface_run = 0;
 
@@ -808,7 +816,7 @@ void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
     if(currentFBO != 0) {
         glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &textureID);
     } 
-    LOGI("in paint gbuffer currentFBO %d textureID %d gbuffer texture %d", currentFBO, textureID, gbuffer->data_texture);
+    LOGD("in paint gbuffer currentFBO %d textureID %d gbuffer texture %d", currentFBO, textureID, gbuffer->data_texture);
 
 
     if (gbuffer != NULL)

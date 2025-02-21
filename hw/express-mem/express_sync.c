@@ -60,7 +60,7 @@ void save_sync_flag_data(QEMUFile *f, Sync_Flag_Data *data)
     for (int i = 0; i < MAX_SYNC_NUM; i++)
     {
         qemu_put_be32(f, data->sync_status_id[i]);
-        LOGI("saving sync flag data %d", data->sync_status_id[i]);
+        LOGI("saving sync flag data %d %d", data->sync_status_id[i], data->guest_waitting_cnt);
     }
 }
 
@@ -68,7 +68,7 @@ void save_sync_context(QEMUFile *f){
     
     qemu_put_be32(f, static_sync_context.need_sync);
     save_guest_mem(f, static_sync_context.guest_buffer);
-    save_sync_flag_data(f, static_sync_context.sync_data);
+    // save_sync_flag_data(f, static_sync_context.sync_data);
     qemu_put_be32(f, static_sync_context.device_context.irq_enabled);
 
     if(static_sync_context.device_context.irq_call == NULL){
@@ -84,14 +84,18 @@ void save_sync_context(QEMUFile *f){
 
 void load_sync_flag_data(QEMUFile *f, Sync_Flag_Data *data)
 {
-    data->guest_waitting_cnt = qemu_get_be32(f);
-    LOGI("loading sync flag data num %d", data->guest_waitting_cnt);
-    // data->sync_status_id = (uint32_t*)g_malloc0(MAX_SYNC_NUM * sizeof(uint32_t));
-    for (int i = 0; i < MAX_SYNC_NUM; i++)
-    {
-        data->sync_status_id[i] = qemu_get_be32(f);
-        LOGI("loading sync flag data %d", data->sync_status_id[i]);
-    }
+    
+    LOGI("loading sync flag data num");
+    // memset(data, 0, sizeof(data));
+
+    // int a = qemu_get_be32(f);
+    // data->guest_waitting_cnt = a;
+    // // data->sync_status_id = (uint32_t*)g_malloc0(MAX_SYNC_NUM * sizeof(uint32_t));
+    // for (int i = 0; i < MAX_SYNC_NUM; i++)
+    // {
+    //     data->sync_status_id[i] = qemu_get_be32(f);
+    //     LOGI("loading sync flag data %d", data->sync_status_id[i]);
+    // }
 }
 
 void load_sync_context(QEMUFile *f){
@@ -100,10 +104,13 @@ void load_sync_context(QEMUFile *f){
     static_sync_context.guest_buffer = load_guest_mem(f, 0);
     // static_sync_context.sync_data = g_malloc0(sizeof(Sync_Flag_Data));
     int null_flag = 0;
-    LOGI("before load sync flag data %lld", static_sync_context.sync_data);
+    LOGI("before load sync flag data %lld scatter data %d %d", static_sync_context.sync_data, static_sync_context.guest_buffer->scatter_data->len, static_sync_context.guest_buffer->scatter_data->data);
     static_sync_context.sync_data = (Sync_Flag_Data *)get_direct_ptr(static_sync_context.guest_buffer, &null_flag);
-    LOGI("after load sync flag data %lld", static_sync_context.sync_data);
+    LOGI("after load sync flag data %lld %d", static_sync_context.sync_data, static_sync_context.sync_data->guest_waitting_cnt);
     load_sync_flag_data(f, static_sync_context.sync_data);
+
+    // static_sync_context.sync_data = g_malloc0(sizeof(Sync_Flag_Data));
+
     static_sync_context.device_context.irq_enabled = qemu_get_be32(f);
 
     Express_Device_Info *device_info = get_express_device_info(EXPRESS_SYNC_DEVICE_ID);
@@ -171,9 +178,11 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     int64_t start_time = g_get_real_time();
     if (static_sync_context.sync_data != NULL)
     {
+        LOGD("wwwait for sync %d", sync_id);
         while (!SYNC_FLAG_SIGNAL(static_sync_context.sync_data, sync_id))
         {
 #ifdef _WIN32
+            LOGD("wait success");
             qatomic_add(&sync_wait_cnt, 1);
             DWORD ret = WaitForSingleObject(sync_event, 1);
             if (ret == WAIT_FAILED)
@@ -225,11 +234,13 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
     {
         free_copied_guest_mem(static_sync_context.guest_buffer);
     }
-    LOGI("sync register buffer");
+    
     static_sync_context.guest_buffer = data;
 
     int null_flag = 0;
     static_sync_context.sync_data = (Sync_Flag_Data *)get_direct_ptr(data, &null_flag);
+
+    LOGI("sync register buffer %llu", (unsigned long long)static_sync_context.sync_data);
 
     if (null_flag != 0 && static_sync_context.sync_data == NULL)
     {
@@ -240,7 +251,7 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
 
 static Device_Context *get_sync_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    LOGI("going to get sync context");
+    LOGD("going to get sync context");
     if (sync_event == NULL)
     {
 #ifdef _WIN32

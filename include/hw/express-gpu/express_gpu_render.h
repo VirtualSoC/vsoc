@@ -141,6 +141,8 @@ int draw_wait_GSYNC(void *event, int wait_frame_num);
 
 int save_gbuffer_global_map(QEMUFile *f);
 int load_gbuffer_global_map(QEMUFile *f);
+void save_force_show_native_render_window(QEMUFile *f);
+void load_force_show_native_render_window(QEMUFile *f);
 
 void remove_gbuffer_from_global_map(uint64_t gbuffer_id);
 

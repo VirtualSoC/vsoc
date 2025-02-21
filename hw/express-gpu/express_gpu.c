@@ -431,7 +431,7 @@ void restore_framebuffer_binding(Opengl_Context *context) {
     // GLint new_read_fbo0 = (GLint)get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, context->read_fbo0);
     // GLint new_draw_fbo0 = (GLint)get_host_id_map(RESOURCE_TYPE_FRAMEBUFFER, context->draw_fbo0);
 
-    LOGI("new read fbo0 is %d %d new draw fbo0 is %d %d",context->read_fbo0, context->draw_fbo0, new_read_fbo0, new_draw_fbo0);
+    LOGI("new read fbo0 is old %d %d new draw fbo0 is new %d %d",context->read_fbo0, context->draw_fbo0, new_read_fbo0, new_draw_fbo0);
     context->read_fbo0 = new_read_fbo0;
     context->draw_fbo0 = new_draw_fbo0;
 
@@ -441,14 +441,21 @@ void restore_framebuffer_binding(Opengl_Context *context) {
         glBindFramebuffer(GL_READ_FRAMEBUFFER, context->read_fbo0);
     }
     LOGI("current read fbo is %d read fbo0 is %d", context->current_read_fbo, context->read_fbo0);
+
+
+    if(context->current_write_fbo != 0){
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, context->current_write_fbo);
+    } else {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, context->draw_fbo0);
+    }
+
+    GLint current_fbo = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &current_fbo);
+    LOGI("now current fbo is %d", current_fbo);
+
     GLuint glerror = glGetError();
     if(glerror != GL_NO_ERROR) {
         LOGE("error! restore_framebuffer_binding glGetError %x", glerror);
-    }
-    if(context->current_write_fbo != 0){
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, context->current_write_fbo);
-    } else {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, context->draw_fbo0);
     }
 
     g_free(loaded_framebuffers);
@@ -570,7 +577,7 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     if (fun_id == 10001)
     {
         recover_snapshot_states_after_load(render_context); //ztodo:释放call的资源
-        usleep(1000000);
+        // usleep(1000000);
         return;
     }
     else if (fun_id >= 200000)

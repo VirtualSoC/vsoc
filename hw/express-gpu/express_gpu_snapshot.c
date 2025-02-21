@@ -26,6 +26,9 @@
 
 #include "migration/qemu-file.h"
 
+#include "exec/cpu-common.h"
+
+
 
 
 //ztodo: 这些资源也得实现保存和加载
@@ -77,6 +80,9 @@ void init_loading_snapshot(QEMUFile *f) {
     display_fbo_has_loaded = 0;
 
     Teleport_Express *g = TELEPORT_EXPRESS(startup_vdev);
+
+    realize_input_device(startup_vdev);
+
     if (g->distribute_thread_run == 0) //第一次调用到，新建分发线程
     {
         LOGI("start handle thread");
@@ -93,6 +99,7 @@ void init_loading_snapshot(QEMUFile *f) {
     }
     if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
     {
+        LOGI("register input buffer call");
         register_input_buffer_call(startup_vdev, startup_in_data_queue);
         qatomic_set(&(g->register_input_vq_locker), 0);
     }
@@ -117,7 +124,7 @@ void init_loading_snapshot(QEMUFile *f) {
 
     display_context_thread_id = qemu_get_be32(f);
     Express_Device_Info *display_device_info = get_express_device_info(EXPRESS_DISPLAY_DEVICE_ID);
-    Thread_Context* display_thread_context = display_device_info->get_context(display_context_thread_id, display_context_thread_id, 0, 0, display_device_info);
+    Thread_Context* display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
 
     // main_window_event_queue = g_async_queue_new();
     g_gl_context = get_native_opengl_context(0);
@@ -654,7 +661,7 @@ void load_native_resources(QEMUFile *f){
     load_native_textures(f);
 
     // update_render_gbuffer_texture_and_framebuffer();
-    update_display_gbuffer_texture_and_framebuffer();
+    // update_display_gbuffer_texture_and_framebuffer();
 
 
     load_native_buffers(f);
@@ -670,11 +677,34 @@ void save_virtqueue_element(QEMUFile *f, VirtQueueElement *elem) {
     qemu_put_be64(f, (uint64_t)elem->in_addr);
     qemu_put_be64(f, (uint64_t)elem->out_addr);
 
-    qemu_put_be64(f, (uint64_t)elem->in_sg->iov_base);
-    qemu_put_be32(f, elem->in_sg->iov_len);
+    if(elem->in_num != 0){
+        uint64_t in_address = ((uint64_t)elem->in_sg->iov_base);
+        void* in_real_guest_mem = (void *)qemu_ram_addr_from_host((void*)in_address);
+        qemu_put_be64(f, (uint64_t)in_real_guest_mem);
+        qemu_put_be32(f, elem->in_sg->iov_len);        
+    } else {
+        qemu_put_be64(f, (uint64_t)elem->in_sg->iov_base);
+        qemu_put_be32(f, elem->in_sg->iov_len);  
+    }
 
-    qemu_put_be64(f, (uint64_t)elem->out_sg->iov_base);
-    qemu_put_be32(f, elem->out_sg->iov_len);
+    if(elem->out_num != 0){
+        uint64_t out_address = ((uint64_t)elem->out_sg->iov_base);
+        void* out_real_guest_mem = (void *)qemu_ram_addr_from_host((void*)out_address);
+        qemu_put_be64(f, (uint64_t)out_real_guest_mem);
+        qemu_put_be32(f, elem->out_sg->iov_len);        
+    } else {
+        qemu_put_be64(f, (uint64_t)elem->out_sg->iov_base);
+        qemu_put_be32(f, elem->out_sg->iov_len);  
+    }
+
+    // uint64_t out_address = ((uint64_t)elem->out_sg->iov_base);
+    // void* out_real_guest_mem = (void *)qemu_ram_addr_from_host((void*)out_address);
+    // qemu_put_be64(f, (uint64_t)out_real_guest_mem);
+    // qemu_put_be32(f, elem->out_sg->iov_len);
+
+    // LOGI("in address is %llu out address is %llu in num %d out num %d", (uint64_t)in_address, (uint64_t)out_address, elem->in_num, elem->out_num);
+
+    // LOGI("saving virtqueue element of in_address %llu out_address %llu in addr %llu out addr %llu", (uint64_t)in_real_guest_mem, (uint64_t)out_real_guest_mem, (uint64_t)elem->in_addr, (uint64_t)elem->out_addr);
 
 }
 
@@ -690,13 +720,49 @@ void load_virtqueue_element(QEMUFile *f, VirtQueueElement *elem) {
     elem->in_sg = g_malloc0(sizeof(struct iovec));
     elem->out_sg = g_malloc0(sizeof(struct iovec));
 
-    elem->in_sg->iov_base = (void *)qemu_get_be64(f);
-    elem->in_sg->iov_len = qemu_get_be32(f);
+    // elem->in_sg->iov_base = (void *)qemu_get_be64(f);
+    if(elem->in_num != 0) {
+        uint64_t in_address = qemu_get_be64(f);
+        elem->in_sg->iov_len = qemu_get_be32(f);
+        hwaddr len = elem->in_sg->iov_len;
+        hwaddr xlat;
+        MemoryRegion *mr = address_space_translate(&address_space_memory,
+            (hwaddr)in_address,
+            &xlat, &len, false,
+            MEMTXATTRS_UNSPECIFIED);
+        void *in_hva = NULL;
+        if (mr) {
+            in_hva = qemu_map_ram_ptr(mr->ram_block, xlat);
+        }
+        elem->in_sg->iov_base = in_hva;        
+    } else {
+        elem->in_sg->iov_base = (void *)qemu_get_be64(f);
+        elem->in_sg->iov_len = qemu_get_be32(f);
+    }
 
-    elem->out_sg->iov_base = (void *)qemu_get_be64(f);
-    elem->out_sg->iov_len = qemu_get_be32(f);
+    // elem->out_sg->iov_base = (void *)qemu_get_be64(f);
 
-    LOGI("finish loading virtqueue element");
+    if(elem->out_num != 0) {
+        uint64_t out_address = qemu_get_be64(f);
+        elem->out_sg->iov_len = qemu_get_be32(f);
+        hwaddr len = elem->out_sg->iov_len;
+        hwaddr xlat;
+        MemoryRegion *mr = address_space_translate(&address_space_memory,
+            (hwaddr)out_address,
+            &xlat, &len, false,
+            MEMTXATTRS_UNSPECIFIED);
+        void *out_hva = NULL;
+        if (mr) {
+            out_hva = qemu_map_ram_ptr(mr->ram_block, xlat);
+        }
+        elem->out_sg->iov_base = out_hva;        
+    } else {
+        elem->out_sg->iov_base = (void *)qemu_get_be64(f);
+        elem->out_sg->iov_len = qemu_get_be32(f);
+    }
+
+
+    // LOGI("finish loading virtqueue element of in_address %p out_address %p", in_hva, out_hva);
 }
 
 void save_teleport_express_queue_elem(QEMUFile *f, Teleport_Express_Queue_Elem *elem) {
@@ -1881,13 +1947,19 @@ void save_native_textures(QEMUFile *f){
 
 
 void update_native_texture(Express_Native_Texture* texture_data){
-    // if(texture_data->textureId == 10 || texture_data->textureId == 11 || texture_data->textureId == 4) {
-        // GLint new_texture_id = texture_data->textureId;
+    // if(texture_data->textureId == 1 || texture_data->textureId == 3) {
+    //     GLint new_texture_id = texture_data->textureId;
 
-        // change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
+    //     change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
 
-        // return;
+    //     return;
     // } 
+
+    // if(texture_data->width == 1 && texture_data->height == 1) {
+
+    //     texture_data->width = 1920;
+    //     texture_data->height = 1080;
+    // }
 
 
     GLuint glerror = 0;
@@ -1933,7 +2005,7 @@ void update_native_texture(Express_Native_Texture* texture_data){
         if (glerror != GL_NO_ERROR) {
             LOGE("error! loading texture glTexImage2D failed! %x", glerror);
         } else {
-            LOGI("success! loading texture glTexImage2D success! with id %d format %d internal %d", new_texture_id, format, texture_data->internalFormat);
+            LOGI("success! loading texture glTexImage2D success! with id %d format %d internal %d %d %d", new_texture_id, format, texture_data->internalFormat, texture_data->target, texture_data->pixels);
         }
     } else if (texture_data->target == GL_TEXTURE_3D) {
         glTexImage3D(texture_data->target, 0, texture_data->internalFormat, texture_data->width, texture_data->height, texture_data->depth, 0, format, GL_UNSIGNED_BYTE, texture_data->pixels);
@@ -1949,6 +2021,7 @@ void update_native_texture(Express_Native_Texture* texture_data){
 
     // glBindTexture(texture_data->target, 0); //ztodo:应该不用
     LOGI("loaded native texture new id %d old id %d width %d height %d", new_texture_id, texture_data->textureId, texture_data->width, texture_data->height);
+    LOGI("loaded texture all info: minFilter %d magFilter %d wrapS %d wrapT %d", texture_data->minFilter, texture_data->magFilter, texture_data->wrapS, texture_data->wrapT);
     if(texture_data->width == 1024){ //ztodo:这个可以删了吧？？？
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
@@ -2290,7 +2363,7 @@ void save_process_context(QEMUFile *f, Process_Context *process_context) {
     while (g_hash_table_iter_next(&iter, &key, &value)) {
         uint64_t guest_surface_id = (uint64_t)key;
         Window_Buffer *window_buffer = (Window_Buffer *)value;
-        LOGI("saving window buffer %lld %lld", (uint64_t)window_buffer->gbuffer->gbuffer_id, guest_surface_id);
+        // LOGI("saving window buffer %lld %lld", (uint64_t)window_buffer->gbuffer->gbuffer_id, guest_surface_id);
         qemu_put_be64(f, guest_surface_id);
         save_window_buffer(f, window_buffer, process_context->gbuffer_map);
     }
@@ -2397,6 +2470,12 @@ void save_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_
         qemu_put_be32(f, buffer->sampler_fbo[i]);
         qemu_put_be32(f, buffer->connect_texture[i]);
     }
+    //ztodo:gbuffer可能为null?
+    if(buffer->gbuffer == NULL) {
+        qemu_put_be32(f, 0);
+        return;
+    }
+    qemu_put_be32(f, 1);
     uint64_t gbuffer_id = (buffer->gbuffer)->gbuffer_id;
     int target = 0;
     if(gbuffer_id == 0){
@@ -2473,6 +2552,11 @@ int load_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_m
     }
 
     // buffer->gbuffer = load_hardware_buffer(f);
+    int has_gbuffer = qemu_get_be32(f);
+    if(has_gbuffer == 0) {
+        buffer->gbuffer = NULL;
+        return 0;
+    }
 
     int target = qemu_get_be32(f);
     if(target == 0) {
@@ -2497,27 +2581,86 @@ int load_window_buffer(QEMUFile *f, Window_Buffer *buffer, GHashTable* gbuffer_m
 
 void save_scatter_data(QEMUFile *f, Scatter_Data *scatter_data, int count) {
     qemu_put_be32(f, count);
+    // qemu_put_be32(f, scatter_data->len);
 
-    int size = sizeof(Scatter_Data) * count;
-    qemu_put_buffer(f, (const uint8_t *)scatter_data, size);
+    // // int size = sizeof(Scatter_Data) * count;
+    // int size = scatter_data->len * count;
 
-    // for (int i = 0; i < count; i++) {
-    //     qemu_put_be32(f, scatter_data[i].len);
-    //     qemu_put_buffer(f, scatter_data[i].data, scatter_data[i].len);
-    // }
+    // qemu_put_buffer(f, (const uint8_t *)scatter_data, size);
+
+    for (int i = 0; i < count; i++) {
+        qemu_put_be32(f, scatter_data[i].len);
+        // qemu_put_buffer(f, scatter_data[i].data, scatter_data[i].len);
+        uint64_t address = 0;
+        address = ((uint64_t)scatter_data[i].data);// & 0xFFFFFFFFF;
+        void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)address);
+
+        qemu_put_be64(f, (uint64_t)real_guest_mem);
+        LOGI("scatter data size is %d data %llu %llu", sizeof(scatter_data[i].data), address, (uint64_t)real_guest_mem);
+
+        // LOGI("saving scatter data %d %lld", (int)scatter_data[i].data, (uint64_t)scatter_data[i].data);
+        // qemu_put_buffer(f, scatter_data[i].data, scatter_data[i].len);
+    }
 }
+
+// void save_scatter_data_sync(QEMUFile *f, Scatter_Data *scatter_data, int count) {
+//     qemu_put_be32(f, count);
+//     // qemu_put_be32(f, scatter_data->len);
+
+//     int size = sizeof(Scatter_Data) * count;
+
+//     qemu_put_buffer(f, (const uint8_t *)scatter_data, size);
+// }
 
 Scatter_Data* load_scatter_data(QEMUFile *f, int *count) {
     *count = qemu_get_be32(f);
+    // int len = qemu_get_be32(f);
     int size = sizeof(Scatter_Data) * (*count);
+    // int size = len * (*count);
+
+    // LOGI("scatter data size is %d", sizeof(data));
 
     Scatter_Data *scatter_data = g_malloc0(size);
-    qemu_get_buffer(f, (const uint8_t *)scatter_data, size);
-    // for (int i = 0; i < *count; i++) {
-    //     scatter_data[i].len = qemu_get_be32(f);
-    //     scatter_data[i].data = g_malloc0(scatter_data[i].len);
-    //     qemu_get_buffer(f, scatter_data[i].data, scatter_data[i].len);
-    // }
+    memset(scatter_data, 0, size);
+    // qemu_get_buffer(f, (const uint8_t *)scatter_data, size);
+    for (int i = 0; i < *count; i++) {
+        scatter_data[i].len = qemu_get_be32(f);
+        hwaddr len = scatter_data[i].len;
+        // LOGI("loading scatter data len %d", len);
+
+        uint64_t address = qemu_get_be64(f); //存的是gpa
+        // uint64_t hva = (uint64_t)cpu_physical_memory_map((hwaddr)address, &len, false);
+        // uint64_t hva1 = (uint64_t)cpu_physical_memory_map((hwaddr)address, &len, true);
+
+        hwaddr xlat;
+
+        MemoryRegion *mr = address_space_translate(&address_space_memory,
+            (hwaddr)address,
+            &xlat, &len, false,
+            MEMTXATTRS_UNSPECIFIED);
+
+        // void *hva = cpu_physical_memory_map((hwaddr)real_guest_mem, &len, false);
+        void *hva = NULL;
+        if (mr) {
+            hva = qemu_map_ram_ptr(mr->ram_block, xlat);
+            // printf("GPA 0x%lx corresponds to HVA %p\n", gpa, hva);
+        } 
+
+        // qemu_get_buffer(f, (void*)&address, sizeof(address));
+        scatter_data[i].data = (unsigned char *)hva;
+    
+        // LOGI("loading scatter data %d %lld", (int)scatter_data[i].data, (uint64_t)scatter_data[i].data);
+
+        // if(scatter_data[i].len == 0) {
+        //     scatter_data[i].data = NULL;
+        //     continue;
+        // }
+        // void* tmpptr = g_malloc0(scatter_data[i].len);
+        // qemu_get_buffer(f, tmpptr, scatter_data[i].len);
+        // memcpy(scatter_data[i].data, tmpptr, scatter_data[i].len);
+        LOGI("loading scatter data len %d %d %llu %llu", len, *count, (unsigned long long)hva, (unsigned long long)address);
+    }
+    
 
     return scatter_data;
 }
@@ -2545,7 +2688,7 @@ Guest_Mem* load_guest_mem(QEMUFile *f, int strategy) {
 
     LOGI("going to load scatter data %d %d", guest_mem->num, guest_mem->all_len);
     guest_mem->scatter_data = load_scatter_data(f, &guest_mem->num);
-    LOGI("successfully load scatter data %d %d", guest_mem->num, guest_mem->all_len);
+    LOGI("successfully load scatter data %d %d %d data %llx", guest_mem->num, guest_mem->all_len, guest_mem->scatter_data[0].len, guest_mem->scatter_data[0].data);
     return guest_mem;
 }
 
@@ -2874,8 +3017,12 @@ Buffer_Status* load_buffer_status(QEMUFile *f) {
 void save_bound_buffer(QEMUFile *f, Bound_Buffer *buffer) {
     save_attrib_point(f, buffer->attrib_point);
     save_buffer_status(f, &buffer->buffer_status);
-    qemu_put_be32(f, buffer->asyn_unpack_texture_buffer);
-    qemu_put_be32(f, buffer->asyn_pack_texture_buffer);
+    // qemu_put_be32(f, buffer->asyn_unpack_texture_buffer);
+    // qemu_put_be32(f, buffer->asyn_pack_texture_buffer);
+
+    save_native_buffer(f, buffer->asyn_unpack_texture_buffer, GL_PIXEL_UNPACK_BUFFER);
+    save_native_buffer(f, buffer->asyn_pack_texture_buffer, GL_PIXEL_PACK_BUFFER);
+
     qemu_put_be32(f, buffer->has_init);
 
     guint num_entries = g_hash_table_size(buffer->vao_point_data);
@@ -2901,13 +3048,12 @@ Bound_Buffer* load_bound_buffer(QEMUFile *f) {
     buffer->buffer_status = *load_buffer_status(f);
 
     GLuint old_asyn_unpack_texture_buffer = qemu_get_be32(f);
+    load_native_buffer(f, old_asyn_unpack_texture_buffer, GL_PIXEL_UNPACK_BUFFER, 2);
+    buffer->asyn_unpack_texture_buffer = get_host_id_map(RESOURCE_TYPE_BUFFER, old_asyn_unpack_texture_buffer);
     GLuint old_asyn_pack_texture_buffer = qemu_get_be32(f);
-
-    buffer->asyn_unpack_texture_buffer = old_asyn_unpack_texture_buffer;
-    buffer->asyn_pack_texture_buffer = old_asyn_pack_texture_buffer;
-
-    // buffer->asyn_unpack_texture_buffer = get_host_id_map(RESOURCE_TYPE_BUFFER, old_asyn_unpack_texture_buffer);
-    // buffer->asyn_pack_texture_buffer = get_host_id_map(RESOURCE_TYPE_BUFFER, old_asyn_pack_texture_buffer);
+    load_native_buffer(f, old_asyn_pack_texture_buffer, GL_PIXEL_PACK_BUFFER, 2);
+    buffer->asyn_pack_texture_buffer = get_host_id_map(RESOURCE_TYPE_BUFFER, old_asyn_pack_texture_buffer);
+    
     LOGI("old and new pack and unpack texture buffer %d %d %d %d", old_asyn_unpack_texture_buffer, buffer->asyn_unpack_texture_buffer, old_asyn_pack_texture_buffer, buffer->asyn_pack_texture_buffer);
 
     buffer->has_init = qemu_get_be32(f);

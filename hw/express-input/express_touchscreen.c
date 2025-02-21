@@ -72,7 +72,12 @@ void save_touchscreen_context(QEMUFile* f){
     qemu_put_be32(f, static_touchscreen_context.need_sync);
     qemu_put_be32(f, static_touchscreen_context.device_context.irq_enabled);
 
-    save_teleport_express_call(f, static_touchscreen_context.device_context.irq_call);
+    if(static_touchscreen_context.device_context.irq_call == NULL){
+        qemu_put_be32(f, 0);
+    } else {
+        qemu_put_be32(f, 1);
+        save_teleport_express_call(f, static_touchscreen_context.device_context.irq_call);
+    }    
 }
 
 void load_touchscreen_data(QEMUFile *f, Touchscreen_Data *data)
@@ -98,7 +103,10 @@ void load_touchscreen_context(QEMUFile *f){
     Express_Device_Info *device_info = get_express_device_info(EXPRESS_TOUCHSCREEN_DEVICE_ID);
     static_touchscreen_context.device_context.device_info = device_info;
 
-    static_touchscreen_context.device_context.irq_call = load_teleport_express_call(f);
+    int has_call = qemu_get_be32(f);
+    if(has_call) {
+        static_touchscreen_context.device_context.irq_call = load_teleport_express_call(f);
+    }
 }
 
 // 触摸屏的物理大小，可以通过命令行来设置
