@@ -676,7 +676,15 @@ void d_glGenProgramPipelines(void *context, GLsizei n, const GLuint *pipelines)
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     glGenProgramPipelines(n, host_buffers);
 
-    // LOGI("gen program pipeline %d %d", n, host_buffers[0]);
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM_PIPELINE]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_PROGRAM_PIPELINE];
+    for(int i = 0; i < n; i++)
+    {
+        GLuint pp = host_buffers[i];
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(pp), GUINT_TO_POINTER(pp));
+        LOGD("in gen program pipelines and count is %d id %d", n, host_buffers[i]);
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM_PIPELINE]);
 
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
