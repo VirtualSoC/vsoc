@@ -153,7 +153,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     LOGD("in glbuffersubdata of id %d type %d", bind_buffer, target);
     if (bind_buffer == 0)
     {
-        LOGI("d_glBufferSubData_custom target %x", target);
+        LOGD("d_glBufferSubData_custom target %x", target);
     }
 
     if (guest_mem->all_len == 0)
@@ -348,7 +348,7 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
         LOGD("flush mapbufferrange target %x offset %d length %d access %x crc %x", (int)target, (int)offset, (int)length, (int)map_res->access, crc);
         if ((map_res->access & GL_MAP_FLUSH_EXPLICIT_BIT))
         {
-            LOGI("going to flush data");
+            // LOGI("going to flush data");
             if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
             {
                 GLuint bind_buffer = get_guest_binding_buffer(context, target);
@@ -359,7 +359,7 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
                 glFlushMappedBufferRange(target, offset, length);
                 GLenum error = glGetError();
                 if(error != GL_NO_ERROR) {
-                    LOGI("error when flush map data %x", error);
+                    LOGE("error when flush map data %x", error);
                 }
             }
         }

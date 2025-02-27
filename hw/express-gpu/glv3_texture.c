@@ -138,7 +138,7 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
     GLuint bind_texture = get_guest_binding_texture(context, target);
-    LOGI("with bound going to upload data for texture target %d id %d width %d height %d format %x type %x",target, bind_texture, width, height, format, type);
+    // LOGI("with bound going to upload data for texture target %d id %d width %d height %d format %x type %x",target, bind_texture, width, height, format, type);
 
     if (bind_texture == 0)
     {
@@ -220,7 +220,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     {
         if (target == GL_TEXTURE_EXTERNAL_OES)
         {
-            LOGI("going to tex subimage 2d for GL_TEXTURE_EXTERNAL_OES!");
+            // LOGI("going to tex subimage 2d for GL_TEXTURE_EXTERNAL_OES!");
             if (texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
@@ -256,7 +256,7 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
 
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
 
-    LOGI("with bound going to upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, type);
+    // LOGI("with bound going to upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, type);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
@@ -840,7 +840,7 @@ void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable
 {
     GLuint framebuffer;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
-    LOGI("current binding framebuffer is %d", framebuffer);
+    // LOGI("current binding framebuffer is %d", framebuffer);
 
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
     // GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];

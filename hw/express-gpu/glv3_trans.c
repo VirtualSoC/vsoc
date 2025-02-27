@@ -8390,7 +8390,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
 
             if (target == GL_TEXTURE_EXTERNAL_OES)
             {
-                LOGI("glTexStorage2D external texture");
+                // LOGI("glTexStorage2D external texture");
                 if (texture_status->host_current_active_texture != 0)
                 {
                     glActiveTexture(GL_TEXTURE0);
@@ -14944,11 +14944,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         // uint64_t attached_id = (host_program << 32) | host_shader;
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
         Express_Native_Program* program_info = (Express_Native_Program*)g_hash_table_lookup(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program));
-        if(program_info != NULL){
+        if (program_info != NULL) {
             // g_hash_table_remove(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program));
             GHashTable *shader_table = program_info->shader_map;
             g_hash_table_remove(shader_table, GUINT_TO_POINTER(host_shader));
-            LOGI("detach shader success! program_id: %d, shader_id: %d", program, shader);
+            // LOGI("detach shader success! program_id: %d, shader_id: %d", program, shader);
 
         } else {
             LOGE("error! detach shader not exist!");
@@ -21600,7 +21600,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
         GLint current_program = 0;
         glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *)&current_program);
-        LOGI("glUniform1iv current program %d location %d count %d value %d\n", current_program, location, count, *value);
+        // LOGI("glUniform1iv current program %d location %d count %d value %d\n", current_program, location, count, *value);
         glUniform1iv(location, count, value);
     }
     break;
@@ -26550,7 +26550,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                LOGI("get tmp %d tmp len %d", temp, temp_len);
+                // LOGI("get tmp %d tmp len %d", temp, temp_len);
                 read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else

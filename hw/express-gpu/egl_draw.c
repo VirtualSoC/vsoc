@@ -234,7 +234,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     }
 
     if (express_gpu_gl_debug_enable) {
-        LOGI("%s: eglMakeCurrent real_surface_draw type %x width %d height %d gbuffer %p gbuffer_id %llu",process_context->guest_process_name, real_surface_draw->type, real_surface_draw->width, real_surface_draw->height, real_surface_draw->gbuffer, real_surface_draw->gbuffer_id);
+        LOGI("(%s) eglMakeCurrent real_surface_draw type %x width %d height %d gbuffer %p gbuffer_id %llu",process_context->guest_process_name, real_surface_draw->type, real_surface_draw->width, real_surface_draw->height, real_surface_draw->gbuffer, real_surface_draw->gbuffer_id);
     }
 
     connect_gbuffer_to_surface(gbuffer, real_surface_draw, real_opengl_context->framebuffer_map);

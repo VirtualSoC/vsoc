@@ -214,7 +214,7 @@ void resource_context_destroy(Resource_Context *resources)
                 if (resources->shader_resource->resource_id_map[i] != 0)
                 {
                     glDeleteShader((GLuint)resources->shader_resource->resource_id_map[i]);
-                    LOGI("delete shader id %d", (GLuint)resources->shader_resource->resource_id_map[i]);
+                    // LOGI("delete shader id %d", (GLuint)resources->shader_resource->resource_id_map[i]);
                 }
             }
             g_free(resources->shader_resource->resource_id_map);
@@ -235,7 +235,7 @@ void resource_context_destroy(Resource_Context *resources)
                         g_hash_table_remove(program_data_map, GUINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
                     }
                     glDeleteProgram((GLuint)resources->program_resource->resource_id_map[i]);
-                    LOGI("delete program of id %d", (GLuint)resources->program_resource->resource_id_map[i]);
+                    // LOGI("delete program of id %d", (GLuint)resources->program_resource->resource_id_map[i]);
                 }
             }
             g_free(resources->program_resource->resource_id_map);
@@ -546,7 +546,7 @@ void opengl_context_init(Opengl_Context *context)
 
         // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
 
-        LOGI("context %llx init vao %d",(uint64_t)context, vao0);
+        // LOGI("context %llx init vao %d",(uint64_t)context, vao0);
 
         temp_host_vao = vao0;
         create_host_map_ids(map_status, 1, &temp_guest_vao, &temp_host_vao);
@@ -681,7 +681,7 @@ static void g_buffer_map_destroy(gpointer data)
 
 static void g_framebuffer_map_destroy(gpointer data)
 {
-    LOGI("framebuffer_map destroy\n");
+    LOGD("framebuffer_map destroy");
     Express_Native_Framebuffer *fb = (Express_Native_Framebuffer *)data;
     g_free(fb);
 }

@@ -634,9 +634,7 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
     {
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
 
-
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
-
 
         // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
         GHashTable* resource_list = ((Opengl_Context *)context)->framebuffer_map;
@@ -651,8 +649,7 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
         }
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
 
-
-        LOGI("context %llx create framebuffer guest %u host %u",(uint64_t)context,framebuffers[i],host_buffers[i]);
+        LOGD("context %llx create framebuffer guest %u host %u",(uint64_t)context,framebuffers[i],host_buffers[i]);
     }
 
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
@@ -669,7 +666,7 @@ void d_glGenProgramPipelines(void *context, GLsizei n, const GLuint *pipelines)
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     glGenProgramPipelines(n, host_buffers);
 
-    LOGI("gen program pipeline %d %d", n, host_buffers[0]);
+    // LOGI("gen program pipeline %d %d", n, host_buffers[0]);
 
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
@@ -752,7 +749,7 @@ void d_glGenVertexArrays(void *context, GLsizei n, const GLuint *arrays)
             glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, point_data->buffer_object); //ztodo:这些还没保存
         }
 
-        LOGI("%llx genVertexArray guest %d host %d", (uint64_t)context, arrays[i], host_buffers[i]);
+        // LOGI("%llx genVertexArray guest %d host %d", (uint64_t)context, arrays[i], host_buffers[i]);
         g_hash_table_insert(bound_buffer->vao_point_data, GUINT_TO_POINTER(host_buffers[i]), (gpointer)point_data);
 
         // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_VERTEX_ARRAY]);
@@ -834,7 +831,7 @@ void d_glDeleteBuffers(void *context, GLsizei n, const GLuint *buffers)
         GL_BUFFER_STATUS_RESTORE(buffer_status, texture_buffer, host_buffers[i]);
         GL_BUFFER_STATUS_RESTORE(buffer_status, vao_ebo, host_buffers[i]);
 
-        LOGI("gldelete buffers of id %d", host_buffers[i]);
+        // LOGI("gldelete buffers of id %d", host_buffers[i]);
 
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
         GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
@@ -952,7 +949,7 @@ void d_glDeleteProgram(void *context, GLuint program)
     }
 
     glDeleteProgram(host_program);
-    LOGI("delete program %d %d", program, host_program);
+    // LOGI("delete program %d %d", program, host_program);
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
     GHashTable *program_table = g_resource_list[RESOURCE_TYPE_PROGRAM];
     g_hash_table_remove(program_table, GUINT_TO_POINTER(host_program)); //ztodo:释放资源！！！
@@ -1009,7 +1006,7 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
 
     for(int i = 0; i < n; i++)
     {
-        LOGI("context %llx delete framebuffer guest %d host %d\n", (uint64_t)context, framebuffers[i], host_buffers[i]);
+        // LOGI("context %llx delete framebuffer guest %d host %d\n", (uint64_t)context, framebuffers[i], host_buffers[i]);
 
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
         // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];

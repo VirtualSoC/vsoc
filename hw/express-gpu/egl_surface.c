@@ -956,7 +956,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         glBindFramebuffer(GL_FRAMEBUFFER, surface->sampler_fbo[surface->now_fbo_loc]);
         // 附加颜色缓冲区
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, gbuffer->sampler_rbo);
-        LOGI("connect sampler fbo %d to gbuffer %llx", surface->sampler_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
+        // LOGI("connect sampler fbo %d to gbuffer %llx", surface->sampler_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
         error = glGetError();
         if(error!=GL_NO_ERROR) {
             LOGE("error! sampler framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
@@ -967,7 +967,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     if (surface->depth_internal_format == GL_DEPTH24_STENCIL8)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_depth);
-        LOGI("connect depth fbo %d to gbuffer %llx", gbuffer->rbo_depth, gbuffer->gbuffer_id);
+        // LOGI("connect depth fbo %d to gbuffer %llx", gbuffer->rbo_depth, gbuffer->gbuffer_id);
         error = glGetError();
         if(error!=GL_NO_ERROR) {
             LOGE("error! depth framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
@@ -976,7 +976,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     else if (surface->depth_internal_format != 0)
     {
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, gbuffer->rbo_depth);
-        LOGI("connect depth fbo %d to gbuffer %llx", gbuffer->rbo_depth, gbuffer->gbuffer_id);
+        // LOGI("connect depth fbo %d to gbuffer %llx", gbuffer->rbo_depth, gbuffer->gbuffer_id);
         error = glGetError();
         if(error!=GL_NO_ERROR) {
             LOGE("error! depth framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->sampler_fbo[surface->now_fbo_loc], gbuffer->data_texture);
@@ -1033,11 +1033,11 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer)
 {
-    LOGI("destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, (unsigned long long)gbuffer);
+    LOGD("destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, (unsigned long long)gbuffer);
     if (gbuffer->data_texture != 0)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));
-        LOGD("in delete gbuffers delete texture %d", gbuffer->data_texture);
+        // LOGD("in delete gbuffers delete texture %d", gbuffer->data_texture);
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
         GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(gbuffer->data_texture)) != NULL) {
@@ -1217,7 +1217,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 
     Hardware_Buffer *gbuffer = (Hardware_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, (gpointer)(gbuffer_id));
 
-    LOGI("destroyImage gbuffer %llx ptr %llx", gbuffer_id, gbuffer);
+    LOGD("destroyImage gbuffer %llx ptr %llx", gbuffer_id, gbuffer);
 
     if (gbuffer)
     {
