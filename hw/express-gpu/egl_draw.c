@@ -16,8 +16,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
 
+    LOGD("in eglMakecurrent opengl_context %llx ctx %llx", real_opengl_context, ctx); //一次绑定一次解绑（绑定0
+
     express_printf("makecurrent guest draw %llx read %llx context %llx\n", (uint64_t)draw, (uint64_t)read, (uint64_t)ctx);
-    express_printf("makecurrent host draw %llx read %llx context %llx\n", (uint64_t)real_surface_draw, (uint64_t)real_surface_read, (uint64_t)real_opengl_context);
+    LOGD("makecurrent host draw %llx read %llx context %llx", (uint64_t)real_surface_draw, (uint64_t)real_surface_read, (uint64_t)real_opengl_context);
 
     if (thread_context->opengl_context == real_opengl_context && thread_context->render_double_buffer_draw == real_surface_draw && thread_context->render_double_buffer_read == real_surface_read)
     {
@@ -27,7 +29,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if (thread_context->render_double_buffer_draw != NULL && thread_context->render_double_buffer_draw != real_surface_draw)
     {
         thread_context->render_double_buffer_draw->is_current = 0;
-        render_surface_uninit(thread_context->render_double_buffer_draw);
+        render_surface_uninit(thread_context->render_double_buffer_draw, real_opengl_context? real_opengl_context->framebuffer_map : NULL);
 
         express_printf("makecurrent free draw surface %llx\n", (uint64_t)thread_context->render_double_buffer_draw);
 
@@ -40,7 +42,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     if (thread_context->render_double_buffer_read != NULL && thread_context->render_double_buffer_read != thread_context->render_double_buffer_draw && thread_context->render_double_buffer_read != real_surface_read)
     {
         thread_context->render_double_buffer_read->is_current = 0;
-        render_surface_uninit(thread_context->render_double_buffer_read);
+        render_surface_uninit(thread_context->render_double_buffer_read, real_opengl_context? real_opengl_context->framebuffer_map : NULL);
 
         express_printf("makecurrent free read surface %llx\n", (uint64_t)thread_context->render_double_buffer_read);
 
@@ -115,7 +117,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     }
     else
     {
-        express_printf("thread %llx context %llx makecurrent window %llx\n", thread_context, real_opengl_context, real_opengl_context->window);
+        LOGD("thread %llx context %llx makecurrent window %llx", thread_context, real_opengl_context, real_opengl_context->window);
         if (egl_makeCurrent(real_opengl_context->window) != EGL_TRUE) return EGL_FALSE;
     }
 
@@ -225,17 +227,17 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         return EGL_TRUE;
     }
 
-    render_surface_init(real_surface_draw);
+    render_surface_init(real_surface_draw, real_opengl_context->framebuffer_map);
     if (real_surface_read != real_surface_draw)
     {
-        render_surface_init(real_surface_read);
+        render_surface_init(real_surface_read, real_opengl_context->framebuffer_map);
     }
 
     if (express_gpu_gl_debug_enable) {
         LOGI("%s: eglMakeCurrent real_surface_draw type %x width %d height %d gbuffer %p gbuffer_id %llu",process_context->guest_process_name, real_surface_draw->type, real_surface_draw->width, real_surface_draw->height, real_surface_draw->gbuffer, real_surface_draw->gbuffer_id);
     }
 
-    connect_gbuffer_to_surface(gbuffer, real_surface_draw);
+    connect_gbuffer_to_surface(gbuffer, real_surface_draw, real_opengl_context->framebuffer_map);
 
     //@todo 设置各种config、attrib
 
@@ -289,8 +291,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
 
     if (real_surface != thread_context->render_double_buffer_draw)
     {
-        //感觉这里不该改，但加了snapshot之后暂时会有这个报错且不影响正确性
-        LOGD("error! real_surface != thread_context->render_double_buffer_draw %llx %llx", (uint64_t)real_surface, (uint64_t)thread_context->render_double_buffer_draw);
+        LOGE("error! real_surface != thread_context->render_double_buffer_draw %llx %llx", (uint64_t)real_surface, (uint64_t)thread_context->render_double_buffer_draw);
     }
 
     egl_surface_swap_buffer(context, real_surface, gbuffer_id, width, height, hal_format);
@@ -301,19 +302,32 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     }
     else
     {
-        real_opengl_context->draw_fbo0 = real_surface->gbuffer->data_fbo;
+        real_opengl_context->draw_fbo0 = real_surface->gbuffer->data_fbo; //swapbuffer的时候已经bind好了
     }
 
     real_opengl_context->read_fbo0 = thread_context->render_double_buffer_read->gbuffer->data_fbo;
+
+
     glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
 
-    // LOGI("context %llx swapbuffer fbo %d %d gbuffer %llx texture %d", real_opengl_context, real_opengl_context->draw_fbo0, real_opengl_context->read_fbo0, real_surface->gbuffer->gbuffer_id, real_surface->gbuffer->data_texture);
+    GLuint glerror = glGetError();
+    if (glerror != GL_NO_ERROR) {
+        LOGE("error! swapbuffer glGetError %x", glerror);
+    }
+
+    LOGD("context %llx swapbuffer fbo %d %d gbuffer %llx texture %d", real_opengl_context, real_opengl_context->draw_fbo0, real_opengl_context->read_fbo0, real_surface->gbuffer->gbuffer_id, real_surface->gbuffer->data_texture);
 
     return EGL_TRUE;
 }
 
 void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
 {
+    GLuint error = glGetError();
+    if (error != GL_NO_ERROR)
+    {
+        LOGE("error! queuebuffer glGetError %x", error);
+    }
+
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
     // Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = thread_context->opengl_context;
@@ -384,7 +398,13 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         return EGL_FALSE;
     }
 
-    express_printf("#%llx swapbuffer real_surface %llx\n", thread_context->opengl_context, real_surface);
+    LOGD("#%llx swapbuffer real_surface %llx", thread_context->opengl_context, real_surface);
+
+    GLuint glerror = glGetError();
+    if (glerror != GL_NO_ERROR)
+    {
+        LOGE("error! swapbuffer glGetError %x", glerror);
+    }
 
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface, gbuffer_id, width, height, hal_format);
 

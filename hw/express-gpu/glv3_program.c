@@ -152,7 +152,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            express_printf("uniform |%d %d| |%s|\n", location, type, name_buf);
+            LOGD("program %d uniform value |%d %d| |%s|", program, location, type, name_buf);
         }
 
         for (int i = 0; i < attrib_num; i++)
@@ -172,7 +172,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            express_printf("attrib |%d %d| |%s|\n", location, type, name_buf);
+            LOGD("attrib |%d %d| |%s|", location, type, name_buf);
         }
 
         int uniform_block_active_uniforms;
@@ -190,7 +190,7 @@ int init_program_data(GLuint program)
             temp_ptr += 3 * sizeof(int);
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
-            express_printf("uniform block |%d %d| |%s| index %d\n", uniform_block_active_uniforms, size, name_buf, i);
+            LOGD("uniform block |%d %d| |%s| index %d\n", uniform_block_active_uniforms, size, name_buf, i);
         }
 
         if (has_image)
@@ -203,7 +203,7 @@ int init_program_data(GLuint program)
             program_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_program_data_destroy);
         }
 
-        g_hash_table_insert(program_data_map, GUINT_TO_POINTER(program), program_data);
+        g_hash_table_insert(program_data_map, GUINT_TO_POINTER(program), program_data); //ztodo:恢复program data map
 
         if (buf_len > temp_ptr - program_data + 10)
         {
@@ -235,6 +235,8 @@ void d_glUseProgram_special(void *context, GLuint program)
         ret = (int)(uint64_t)g_hash_table_lookup(program_is_external_map, GUINT_TO_POINTER(program));
     }
 
+    LOGD("in d_glUseProgram use program %d external %d", program, ret);
+
     if (ret == 1)
     {
         //当前需要使用external纹理
@@ -244,13 +246,20 @@ void d_glUseProgram_special(void *context, GLuint program)
     {
         opengl_context->is_using_external_program = 0;
     }
+    opengl_context->current_program = program;
 
     glUseProgram(program);
+
+    GLuint error = glGetError();
+    if (error != GL_NO_ERROR)
+    {
+        LOGE("error! use program glGetError %x %d", error, program);
+    }
 }
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
-{
-
+{ //直接加载已经编译和链接好的程序二进制格式,就不用编译链接那些了
+    LOGD("in d_glProgramBinary_special program %d binaryFormat %d length %d", program, binaryFormat, length);
     glProgramBinary(program, binaryFormat, binary, length);
 
     *program_data_len = init_program_data(program);
@@ -285,11 +294,13 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
         return;
     }
 
-    express_printf("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
+    LOGD("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
     write_to_guest_mem(guest_mem, save_program_data, 0, buf_len);
 
     //读取完成后直接删除就行了
     g_hash_table_remove(program_data_map, GUINT_TO_POINTER(program));
+
+    LOGD("current program map size %d", g_hash_table_size(program_data_map));
 
     return;
 }
@@ -691,7 +702,7 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
         new_string1[loc] = 0;
         length[0] = loc;
         string[0] = new_string1;
-        // LOGI("%s", new_string1);
+        LOGD("in shader source %s", new_string1);
     }
 
     GLint shader_type;
@@ -839,6 +850,8 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
 {
     GLuint host_id = (GLuint)get_host_shader_id(context, (unsigned int)guest_id);
 
+    LOGD("in d_glCompileShader_special with guest id %d host id %d", guest_id, host_id);
+
     glCompileShader(host_id);
     GLenum error = glGetError();
 
@@ -891,7 +904,7 @@ void d_glCompileShader_special(void *context, GLuint guest_id)
                 glShaderSource(host_id, 1, (const char *const *)&source, &source_len);
                 glCompileShader(host_id);
                 glGetShaderiv(host_id, GL_COMPILE_STATUS, &compiled);
-                // LOGI("try change(%d) source compiled %d:%s", try_cnt, compiled, source);
+                LOGI("try change(%d) source compiled %d:%s", try_cnt, compiled, source);
                 if (compiled)
                 {
                     break;

@@ -138,7 +138,7 @@ typedef struct Teleport_Express_Call
 
     uint64_t thread_id;
 
-    uint64_t process_id;
+    uint64_t process_id; //guest传下来的：flag_buf->thread_id = (u64)current->pid; flag_buf->process_id = (u64)current->tgid;
 
     uint64_t unique_id;
 
@@ -195,6 +195,10 @@ typedef struct Thread_Context
 
     //对应到guest端调用起这个设备的线程的线程id
     uint64_t thread_id;
+
+    uint64_t unique_id;
+
+    uint64_t process_id;
 
     //标示当前线程
     QemuThread this_thread;

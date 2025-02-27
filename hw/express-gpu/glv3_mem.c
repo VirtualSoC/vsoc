@@ -1,6 +1,8 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-gpu/glv3_mem.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 GLuint get_guest_buffer_binding_id(void *context, GLenum target);
 
@@ -61,12 +63,24 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
     Scatter_Data *s_data = guest_mem->scatter_data;
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
 
-    express_printf("%llx %s target %x bind_buffer %d size %lld usage %x real size %d\n", (uint64_t)context, __FUNCTION__, target, bind_buffer, size, usage, guest_mem->all_len);
+    LOGI("target %x bind_buffer %d size %lld usage %x real size %d", target, bind_buffer, size, usage, guest_mem->all_len);
 
     if (size == 0)
     {
         return;
     }
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+    Express_Native_buffer_Simple* newBuffer = g_hash_table_lookup(resource_list, GUINT_TO_POINTER(bind_buffer));
+    if(newBuffer != NULL) {
+        if(guest_mem->all_len == 0) {
+            newBuffer->data_upload_strategy = 2;
+        } else {
+            newBuffer->data_upload_strategy = 1;
+        }           
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
 
     if (guest_mem->all_len == 0)
     {
@@ -136,6 +150,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     Guest_Mem *guest_mem = (Guest_Mem *)data;
     Scatter_Data *s_data = guest_mem->scatter_data;
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
+    LOGD("in glbuffersubdata of id %d type %d", bind_buffer, target);
     if (bind_buffer == 0)
     {
         LOGI("d_glBufferSubData_custom target %x", target);
@@ -209,9 +224,9 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     // }
 }
 
-void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf)
+void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf) //需要读权限，读到mem_buf里面
 {
-
+    LOGD("in glmap bufferrange read");
     d_glMapBufferRange_write(context, target, offset, length, access);
 
     //写入的情况需要把map里的数据读取到缓冲区里
@@ -230,9 +245,11 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     // GLint size = 0;
 
     // glGetBufferParameteriv(target, GL_BUFFER_SIZE, &size);
-    // express_printf("mapbufferrange target %x offset %d length %d end %d buffer id %d buffer size %d access %x\n",(int)target,(int)offset,(int)length,(int)offset+(int)length,buffer,size,(int)access);
-
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
+
+    LOGI("mapbufferrange target %x offset %d length %d end %d buffer id %d buffer access %x",(int)target,(int)offset,(int)length,(int)offset+(int)length,bind_buffer,(int)access);
+
+
 
     GLubyte *map_pointer = NULL;
 
@@ -281,7 +298,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
         return GL_FALSE;
     }
 
-    express_printf("unmap target %x\n", target);
+    LOGI("unmap target %x", target);
 
     //这里不需要更新映射的这个缓冲区
     GLboolean ret = GL_TRUE;
@@ -321,16 +338,17 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
     if (map_res->access & GL_MAP_WRITE_BIT)
     {
         read_from_guest_mem((Guest_Mem *)data, map_res->host_data + offset, 0, length);
-
+    
         uint32_t crc = 0;
         // for(int i=0;i<length;i++)
         // {
         //     crc = updateCRC32((map_res->host_data + offset)[i],crc);
         // }
 
-        express_printf("flush mapbufferrange target %x offset %d length %d access %x crc %x\n", (int)target, (int)offset, (int)length, (int)map_res->access, crc);
+        LOGI("flush mapbufferrange target %x offset %d length %d access %x crc %x", (int)target, (int)offset, (int)length, (int)map_res->access, crc);
         if ((map_res->access & GL_MAP_FLUSH_EXPLICIT_BIT))
         {
+            LOGI("going to flush data");
             if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
             {
                 GLuint bind_buffer = get_guest_binding_buffer(context, target);
@@ -339,6 +357,10 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
             else
             {
                 glFlushMappedBufferRange(target, offset, length);
+                GLenum error = glGetError();
+                if(error != GL_NO_ERROR) {
+                    LOGI("error when flush map data %x", error);
+                }
             }
         }
     }

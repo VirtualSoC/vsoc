@@ -11,6 +11,8 @@
 #include "hw/express-gpu/express_gpu.h"
 #include "hw/teleport-express/express_event.h"
 #include "hw/express-mem/express_mem.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 
 void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
@@ -36,6 +38,17 @@ void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffe
     {
         glBindFramebuffer(target, framebuffer);
     }
+
+    if (target == GL_DRAW_FRAMEBUFFER){
+        ((Opengl_Context *)context)->current_write_fbo = framebuffer;
+    } 
+    else if(target == GL_READ_FRAMEBUFFER){
+        ((Opengl_Context *)context)->current_read_fbo = framebuffer;
+    } else {
+        ((Opengl_Context *)context)->current_write_fbo = framebuffer;
+        ((Opengl_Context *)context)->current_read_fbo = framebuffer;
+    }
+
 }
 
 void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
@@ -63,6 +76,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         // opengl_context->bound_buffer_status.attrib_point->element_array_buffer = buffer;
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
+            LOGD("in dsa mode bind ebo!");
             if (buffer == 0)
             {
                 Attrib_Point *point_data = opengl_context->bound_buffer_status.attrib_point;
@@ -172,6 +186,25 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
     express_printf("context %llx glBindBuffer target %x buffer %d guest %d\n", (uint64_t)context, target, buffer, guest_buffer);
 
     // if((host_opengl_version < 45 || DSA_enable == 0) || is_init == 0)
+
+    if(buffer != 0){
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        LOGD("binding buffer of id %d type %x", buffer, target);
+        GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(buffer)) == NULL) {
+            Express_Native_buffer_Simple* newBuffer = g_malloc0(sizeof(Express_Native_buffer_Simple));
+            newBuffer->bufferId = buffer;  
+            newBuffer->target = target;     
+
+            
+            
+            g_hash_table_insert(resource_list, GUINT_TO_POINTER(buffer), newBuffer);            
+        }
+
+
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);        
+    }
+
     if (host_opengl_version < 45 || DSA_enable == 0)
     // if(target != GL_ELEMENT_ARRAY_BUFFER)
     {
@@ -211,7 +244,7 @@ void d_glBindBufferRange_special(void *context, GLenum target, GLuint index, GLu
 
     express_printf("context %llx glBindBufferRange target %x buffer %d\n", (uint64_t)context, target, buffer);
 
-    glBindBufferRange(target, index, buffer, offset, size);
+    glBindBufferRange(target, index, buffer, offset, size); //ztodo:处理这个情况
 }
 
 void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLuint guest_buffer)
@@ -245,7 +278,7 @@ void d_glBindBufferBase_special(void *context, GLenum target, GLuint index, GLui
     }
 
     express_printf("context %llx glBindBufferBase target %x buffer %d\n", (uint64_t)context, target, buffer);
-    glBindBufferBase(target, index, buffer);
+    glBindBufferBase(target, index, buffer); //ztodo:处理这个情况
 }
 
 void buffer_binding_status_sync(void *context, GLenum target)
@@ -436,7 +469,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
 
     Process_Context *process_context = thread_context->process_context;
     Opengl_Context *opengl_context = (Opengl_Context *)thread_context->opengl_context;
-    uint64_t gbuffer_id = (uint64_t)image;
+    uint64_t gbuffer_id = (uint64_t)image; //image在guest端就是取的gbuffer_id
     Hardware_Buffer *gbuffer = NULL;
 
     GLuint host_share_texture;
@@ -448,10 +481,12 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         return;
     }
 
-    gbuffer = (Hardware_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id));
+    gbuffer = (Hardware_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, GUINT_TO_POINTER(gbuffer_id)); //process自己的gbuffer
     if (gbuffer == NULL) 
     {
+        LOGD("getting gbuffer from global map buffer %llx", gbuffer_id); //在桌面运行全进这里了
         gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+        // LOGI("getting from map gbuffer %llx texture %d", gbuffer_id, gbuffer->data_texture);
     }
     if (gbuffer == NULL)
     {
@@ -459,18 +494,18 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         return;
     }
 
-    LOGD("glBindEGLImage gbuffer %llx ptr %llx type %d is_texture2d (%d)",gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D);
+    LOGD("glBindEGLImage gbuffer %d %llx ptr %llx type %d is_texture2d (%d) %d texture %d ",gbuffer->data_texture, gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D, target, gbuffer->data_texture);
 
-    if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE)
+    if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE) //基本都会进这里
     {
-        set_texture_gbuffer_ptr(opengl_context, texture, gbuffer);
-        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync);
+        set_texture_gbuffer_ptr(opengl_context, texture, gbuffer); //将texture和gbuffer关联起来
+        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d texture %d %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         if (target == GL_TEXTURE_2D)
         {
             status->current_2D_gbuffer = gbuffer;
         }
-        else
+        else //基本都是这里
         {
             status->current_external_gbuffer = gbuffer;
         }
@@ -485,6 +520,8 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
                 glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
                 glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
+                LOGI("upload data for texture from gbuffer of %d", gbuffer->data_texture);
+
                 glTexImage2D(GL_TEXTURE_2D, 0, gbuffer->internal_format, gbuffer->width, gbuffer->height, 0, gbuffer->format, gbuffer->pixel_type, gbuffer->host_data);
 
                 glBindTexture(GL_TEXTURE_2D, prev_texture);
@@ -497,13 +534,32 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         update_gbuffer_phy_usage(gbuffer, EXPRESS_MEM_TYPE_TEXTURE, false);
     }
 
-    host_share_texture = gbuffer->data_texture;
+    host_share_texture = gbuffer->data_texture; //这个是gbuffer绑的texture
 
     //原来的texture直接删除掉，假设原来的texture不会再被正常使用——不确定@todo
     unsigned int origin_texture = (int)set_share_texture(opengl_context, texture, host_share_texture);
     if (origin_texture > 0)
     {
+        if (glIsTexture(origin_texture)){
+            LOGI("have this texture to delete");
+        }
         glDeleteTextures(1, &origin_texture);
+        GLenum glerror = glGetError();
+        if (glerror != GL_NO_ERROR) {
+            LOGI("delete texture failed!");
+        }
+        LOGD("in bind image delete texture %d", origin_texture);
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+        GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(origin_texture)) != NULL) {
+            g_hash_table_remove(resource_list, GUINT_TO_POINTER(origin_texture));
+            LOGD("in bind image remove texture %d", origin_texture);
+
+        }
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    } else {
+        LOGI("origin texture less than zero of value %d", origin_texture);
     }
 
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
@@ -547,11 +603,11 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
 
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
 
-    GLuint texture = (GLuint)get_host_texture_id(opengl_context, (unsigned int)guest_texture);
+    GLuint texture = (GLuint)get_host_texture_id(opengl_context, (unsigned int)guest_texture, 1);
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
-    express_printf("context %llx target %x texture %u guest %d current %d\n", (uint64_t)opengl_context, target, texture, guest_texture, status->guest_current_active_texture);
+    LOGD("context %llx target %x texture %u guest %d current %d", (uint64_t)opengl_context, target, texture, guest_texture, status->guest_current_active_texture);
 
     if (is_init == 0)
     {
@@ -572,7 +628,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         }
         if (is_init == 2)
         {
-            status->current_2D_gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
+            status->current_2D_gbuffer = get_texture_gbuffer_ptr(context, guest_texture); //对应的缓冲区也要更新
         }
         else
         {
@@ -644,7 +700,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         break;
     }
 
-    if (target != GL_TEXTURE_EXTERNAL_OES)
+    if (target != GL_TEXTURE_EXTERNAL_OES) //所以这种情况不用真的调用bind？
     {
         if (host_opengl_version < 45 || DSA_enable == 0)
         {
@@ -659,6 +715,24 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
             }
         }
     }
+
+    if(texture == 0) {
+        return;
+    }
+//ztodo:真的放在这里吗？还是初始化的时候存，这个时候再改？先这样吧
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(texture)) == NULL) {
+        struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
+        texture_resource->target = target;
+        texture_resource->textureId = texture;        
+        LOGD("in bindtexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(texture), texture_resource);            
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
+    LOGD("after save map in bindtexture save texture host id %d target %d is init %d", texture, target, is_init);
+
 }
 
 void texture_binding_status_sync(void *context, GLenum target)
@@ -915,7 +989,7 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
     Attrib_Point *pre_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(pre_vao));
 
-    express_printf("context %llx bind vao host %d guest %d pre %d\n", (uint64_t)context, now_vao, array, pre_vao);
+    LOGI("context %llx bind vao host %d guest %d pre %d", (uint64_t)context, now_vao, array, pre_vao);
 
     if (now_point == NULL)
     {

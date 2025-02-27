@@ -11,6 +11,7 @@
 
 // #define STD_DEBUG_LOG
 #include "hw/express-gpu/express_display.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 #include "hw/teleport-express/express_log.h"
 
@@ -21,6 +22,8 @@
 
 #include "hw/express-input/express_keyboard.h"
 #include "hw/express-input/express_touchscreen.h"
+
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 #include "hw/express-mem/express_sync.h"
 
@@ -38,6 +41,7 @@ static GHashTable *g_display_contexts = NULL;
 int sdl2_no_need = 0;
 
 static void display_context_init(Thread_Context *context);
+static void display_context_destroy(Thread_Context *context);
 static void window_size_change_callback(GLFWwindow *window, int width, int height);
 static void close_window_callback(GLFWwindow *window);
 static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
@@ -53,6 +57,8 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     char *no_ptr_buf = NULL;
     int para_num = get_para_from_call(call, all_para, 10);
     Display_Context *disp = (Display_Context *)g_hash_table_lookup(g_display_contexts, GUINT_TO_POINTER(call->unique_id));
+
+    LOGD("display decode invoke id %llx", call->id);
 
     switch (call->id)
     {
@@ -75,6 +81,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Commit_Composer_Layer:
     {
+        LOGD("display commit composer layer");
         GBuffer_Layers *layers;
         size_t layers_size;
 
@@ -261,6 +268,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         g_free(no_ptr_buf);
     }
 
+    LOGD("finish one display call of id %llx", call->id);
     call->callback(call, 1);
 
     return;
@@ -270,7 +278,7 @@ static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_i
 {
     if (g_display_contexts == NULL) // init
     {
-        g_display_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_display_contexts = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)display_context_destroy);
     }
 
     Thread_Context *context = (Thread_Context *)g_hash_table_lookup(g_display_contexts, GUINT_TO_POINTER(unique_id));
@@ -435,8 +443,8 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
             Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
             if (gbuffer != NULL)
             {
-                LOGD("draw layer %d gbuffer %llx xywh %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
-                               i, layer.gbuffer_id, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+                LOGD("draw layer %d gbuffer_id %llx texture %d xywh %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
+                               i, layer.gbuffer_id, gbuffer->data_texture, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
                 // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
                 // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
                 // 两者间可能存在缩放关系
@@ -496,7 +504,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
                 opengl_paint_gbuffer(gbuffer);
 
-                express_printf("composer set read sync %d\n", layer.read_sync_id);
+                LOGD("composer set sync %d", layer.read_sync_id);
 
                 signal_express_sync(layer.read_sync_id, true);
             }
@@ -651,6 +659,65 @@ static void close_window_callback(GLFWwindow *window)
         qemu_system_powerdown_request();
     }
     last_click_time = now_time;
+}
+
+void save_display_context(QEMUFile *f) {
+    LOGI("in save_display_context");
+
+    if (g_display_contexts == NULL) {
+        return;
+    }
+
+    // get and save total displays
+    int display_count = (int)g_hash_table_size(g_display_contexts);
+    qemu_put_be32(f, display_count);
+
+    // iter through all display contexts and save them
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, g_display_contexts);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Display_Context *disp = (Display_Context *)value;
+        qemu_put_buffer(f, (uint8_t *)disp, sizeof(Display_Context));
+    }
+}
+
+void load_display_context(QEMUFile *f) {
+    LOGI("in load_display_context");
+
+    // clear all old display contexts
+    if (g_display_contexts != NULL) {
+        g_hash_table_remove_all(g_display_contexts);
+    }
+
+    // get total displays
+    int display_count = qemu_get_be32(f);
+
+    // load all display contexts
+    Express_Device_Info *display_device_info = get_express_device_info(EXPRESS_DISPLAY_DEVICE_ID);
+
+    for (int i = 0; i < display_count; i++) {
+        Display_Context *old_disp = g_malloc0(sizeof(Display_Context));
+        qemu_get_buffer(f, (uint8_t *)old_disp, sizeof(Display_Context));
+
+        Display_Context *new_disp = (Display_Context *)display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, old_disp->thread_context.thread_id, old_disp->thread_context.process_id, old_disp->thread_context.unique_id, display_device_info);
+
+        // copy all the members of the Display_Context struct except the thread_context
+        int offset = offsetof(Display_Context, thread_context);
+        memcpy(new_disp + offset, old_disp + offset, sizeof(Display_Context) - offset);
+
+        // these resources needs to be re-created
+        new_disp->window = NULL;
+        new_disp->programID = 0;
+        new_disp->drawVAO = 0;
+        new_disp->last_fps_timestamp = 0;
+        new_disp->fps_counter = 0;
+
+        if (old_disp->window != NULL) {
+            display_context_init((Thread_Context *)new_disp);
+        }
+        g_free(old_disp);
+    }
 }
 
 static Express_Device_Info express_display_info = {

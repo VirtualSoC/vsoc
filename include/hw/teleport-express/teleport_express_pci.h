@@ -16,8 +16,8 @@
 
 #define MAX_EXPRESS_DEVICE_NUM 256
 
-typedef struct Teleport_Express_PCI{
-    VirtIOPCIProxy parent_obj;
+typedef struct Teleport_Express_PCI{ //就类似于VirtIONetPCI那样 定义了
+    VirtIOPCIProxy parent_obj; //将virtio和pci设备关联起来。VirtIOPCIProxy存储virtio信息，kvm给guest注册了很多memory region，driver写这些memory region，kvm拦截，把写的值放在VirtIOPCIProxy中。
     Teleport_Express teleport_express;
     bool express_device_enable[MAX_EXPRESS_DEVICE_NUM];
     bool enable_opengl_debug;

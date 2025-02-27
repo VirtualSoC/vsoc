@@ -32,6 +32,8 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapNamedBufferRange(point_data->buffer_object[index], offset, length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d",point_data->buffer_object[index], index, offset, length);
+
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], 0, length);
 
@@ -44,6 +46,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], index, offset, length, map_pointer);
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], offset, length);
@@ -56,6 +59,8 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapNamedBufferRange(point_data->buffer_object[index],
                                                 point_data->buffer_len[index] - point_data->remain_buffer_len[index], length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], index, offset, length, map_pointer);
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
@@ -74,6 +79,13 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
         GLint padding = -min(point_data->buffer_len[index] - point_data->remain_buffer_len[index] - (GLint)offset, 0);
 
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
+
+        GLenum glerror = glGetError();
+        if (glerror != GL_NO_ERROR)
+        {
+            LOGE("error! glBindBuffer GL_ARRAY_BUFFER %x", glerror);
+        }
+        LOGD("set_vertex_attrib_data vbo index %d offset %d length %d padding %d",point_data->buffer_object[index], index, offset, length, padding);
 
         //@todo 扩大提前申请的量级
 
@@ -94,6 +106,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             point_data->buffer_loc[index] = 0;
@@ -107,6 +120,8 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             // TODO 测试是否需要从0开始映射
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
 
+            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
+
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, offset, length);
 
             point_data->buffer_loc[index] = 0;
@@ -117,8 +132,20 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER,
                                            point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+            
+            GLenum glerror = glGetError();
+            if (glerror != GL_NO_ERROR)
+            {
+                LOGE("error! glMapBufferRange GL_ARRAY_BUFFER %x", glerror);
+            }
+
+            GLuint current_buffer;
+            glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_buffer);
+
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
+
+            LOGD("set_vertex_attrib_data vbo current %d index %d offset %d length %d pointer %d %d length %d", current_buffer, point_data->buffer_object[index], offset, length, (int)map_pointer, padding, point_data->buffer_len[index] - point_data->remain_buffer_len[index]);
 
             glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
@@ -159,10 +186,41 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
 
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
-        express_printf("d_glVertexAttribPointer_without_bound index %u size %d type %x normalized %d stride %d offset %u length %d origin vbo %d\n", index, size, type, normalized, stride, offset, length, vbo);
+        LOGD("d_glVertexAttribPointer_without_bound index %u size %d type %x normalized %d stride %d offset %u length %d origin vbo %d", index, size, type, normalized, stride, offset, length, vbo);
+        
+
+        // GLint bufferSize = 0;
+        // glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
+        // void* bufferData = malloc(bufferSize);
+        // if (!bufferData) {
+        //     fprintf(stderr, "Failed to allocate memory for VBO data\n");
+        //     return;
+        // }
+
+        // glGetBufferSubData(GL_ARRAY_BUFFER, 0, bufferSize, bufferData);
+
+        // for (int i = 0; i < 4; i++) {        //     unsigned char* vertexData = (unsigned char*)bufferData + i * stride + (size_t)offset;
+
+        //     // LOGI("Vertex %d: ", i);
+        //     for (int j = 0; j < 4; j++) {
+        //         if (type == GL_FLOAT) {
+        //             float value = ((float*)vertexData)[j];
+        //             LOGI("Vertex %d %f ", j, value);
+        //         } else if (type == GL_INT) {
+        //             int value = ((int*)vertexData)[j];
+        //             LOGI("%d ", value);
+        //         } else if (type == GL_UNSIGNED_INT) {
+        //             unsigned int value = ((unsigned int*)vertexData)[j];
+        //             LOGI("%u ", value);
+        //         }
+        //     }
+        // }
+        // free(bufferData);
+        
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)(uint64_t)loc);
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
+        LOGD("binding buffer vbo of %d", status->host_array_buffer);
     }
 
     return;
@@ -222,7 +280,7 @@ void d_glVertexAttribPointer_offset(void *context, GLuint index, GLuint size, GL
         glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index_father]);
 
         glVertexAttribPointer(index, size, type, normalized, stride, (const void *)(offset + point_data->buffer_loc[index_father]));
-
+        LOGD("d_glVertexAttribPointer_offset vbo %d index %u size %d type %x normalized %d stride %d offset %u real offset %d", point_data->buffer_object[index_father], index, size, type, normalized, stride, offset, offset + point_data->buffer_loc[index_father]);
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
     }
 
@@ -275,8 +333,13 @@ void d_glVertexAttribPointer_with_bound(void *context, GLuint index, GLint size,
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
         express_printf("%llx d_glVertexAttribPointer_with_bound index %u size %d type %x normalized %d stride %d pointer %llx ebo %d vbo %d\n", (uint64_t)context, index, size, type, normalized, stride, pointer, ebo, vbo);
 #endif
+        GLint ebo = 0;
+        GLint vbo = 0;
+        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &ebo);
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &vbo);
 
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)pointer);
+        LOGD("%llx d_glVertexAttribPointer_with_bound index %d size %d type %x normalized %d stride %d pointer %llx vbo %d ebo %d", (uint64_t)context, index, size, type, normalized, stride, pointer, vbo, ebo);
     }
     return;
 }
@@ -343,7 +406,7 @@ void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
 void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
 {
     //这个enable和disable不需要设置本地状态，因为guest在发送顶点数据的时候会告知是否enable
-    express_printf("%llx glEnableVertexAttribArray %u\n", (uint64_t)context, index);
+    LOGD("%llx glEnableVertexAttribArray %u", (uint64_t)context, index);
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
 
@@ -355,6 +418,50 @@ void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
     {
         glEnableVertexAttribArray(index);
     }
+    LOGD("d_glEnableVertexAttribArray_origin index %d", index);
+}
+
+
+void ReadAndPrintFirst10Texels()
+{
+    GLuint curtex = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &curtex);
+
+    GLuint textureId1 = 0;
+    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&textureId1);
+    glBindTexture(GL_TEXTURE_2D, textureId1);
+
+    
+    GLint width, height;
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+    if (width * height < 5) {
+        LOGI("small texture with width %d height %d", width, height);
+        return;
+    }
+
+    GLenum format = GL_RGBA;
+    GLenum type = GL_UNSIGNED_BYTE;
+    int pixelSize = 4;
+    unsigned char *pixels = (unsigned char*)malloc(width * height * pixelSize);
+    if (!pixels) {
+        LOGE("内存分配失败。");
+        return;
+    }
+
+    glGetTexImage(GL_TEXTURE_2D, 0, format, type, pixels);
+
+    for (int i = 0; i < 5; i++) {
+        unsigned char r = pixels[i * pixelSize + 0];
+        unsigned char g = pixels[i * pixelSize + 1];
+        unsigned char b = pixels[i * pixelSize + 2];
+        unsigned char a = pixels[i * pixelSize + 3];
+        LOGI("Tex %d: R=%d, G=%d, B=%d, A=%d", i, r, g, b, a);
+    }
+
+    free(pixels);
+
+    glBindTexture(GL_TEXTURE_2D, curtex);
 }
 
 void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei count)
@@ -394,11 +501,64 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
             glActiveTexture(GL_TEXTURE0);
 
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // LOGI("use external texture %d", opengl_context->current_texture_external);
+
+            LOGD("gldrawarrays use external texture %d", status->current_texture_external);
+
+            GLuint glerror = glGetError();
+            if (glerror != GL_NO_ERROR) {
+                LOGE("error! glDrawArrays glBindTexture glGetError %x texture %d", glerror, status->current_texture_external);
+            }
+            
+            GLint width, height;
+            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+            LOGD("use external texture %d %d %d", status->current_texture_external, width, height);
+        }
+
+        GLint programID = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, &programID);
+        GLint texCoordsLocation = glGetAttribLocation(programID, "texCoords");
+        GLint positionLocation = glGetAttribLocation(programID, "position");
+        GLint enabled;
+
+    // 是否启用
+        glGetVertexAttribiv(0, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled);
+        LOGD("glDrawArrays programID %d texCoordsLocation %d positionLocation %d %d", programID, texCoordsLocation, positionLocation, enabled);
+
+        GLuint glerror = glGetError();
+        if (glerror != GL_NO_ERROR) {
+            LOGE("error! before glDrawArrays glGetError %x", glerror);
         }
 
         glDrawArrays(mode, first, count);
 
+        // float r = (float)rand() / RAND_MAX;
+        // float g = (float)rand() / RAND_MAX;
+        // float b = (float)rand() / RAND_MAX;
+
+        // glClearColor(r, g, b, 1.0f);
+        // glClear(GL_COLOR_BUFFER_BIT);
+
+        GLuint rtextureId1 = 0;
+        GLuint rfboID = 0;
+        GLuint wtextureId1 = 0;
+        GLuint wfboID = 0;
+
+        GLuint curtex = 0;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &curtex);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &rfboID);
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &wfboID);
+
+        glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&rtextureId1);
+        glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&wtextureId1);
+
+        LOGD("current glDrawArrays %d %d %d fbo binded texture %d %d current texture %d fbo %d %d", mode, first, count, rtextureId1, wtextureId1, curtex, rfboID, wfboID);
+
+        glerror = glGetError();
+        if (glerror != GL_NO_ERROR) {
+            LOGE("error! after glDrawArrays glGetError %x", glerror);
+        }
+        
         if (opengl_context->is_using_external_program == 1)
         {
             glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
@@ -481,7 +641,7 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // LOGI("use external texture %d", opengl_context->current_texture_external);
+            LOGD("use external texture %d", status->current_texture_external);
         }
         if (express_gpu_gl_debug_enable)
         {
@@ -503,6 +663,7 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
         }
 
         glDrawElements(mode, count, type, (void *)indices);
+
         if (opengl_context->is_using_external_program == 1)
         {
             glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);
@@ -635,7 +796,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
 }
 
 void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, GLenum type, const void *indices)
-{
+{ //没有绑定ebo的情况。这个时候indices是真实的数组，而不是偏移
 
     int len = count * gl_sizeof(type);
 
@@ -643,7 +804,7 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
 
     vao_binding_status_sync(context);
 
-    GLint buffer_loc = set_indices_data(context, (void *)indices, len);
+    GLint buffer_loc = set_indices_data(context, (void *)indices, len); //非dsa模式，会在这个函数里绑定ebo，所以这个buffer_loc是offset
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
@@ -672,6 +833,13 @@ void d_glDrawElements_without_bound(void *context, GLenum mode, GLsizei count, G
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
             // LOGI("use external texture %d", opengl_context->current_texture_external);
         }
+
+        // GLuint currentVAO = 0;
+        // glGetIntegerv(GL_VERTEX_ARRAY_BINDING, (GLint*)&currentVAO);
+        //     GLuint currentVBO = 0, currentEBO = 0;
+        // glGetIntegerv(GL_ARRAY_BUFFER_BINDING, (GLint*)&currentVBO);
+        // glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, (GLint*)&currentEBO);
+        // LOGI("Current VAO ID: %d %d %d", currentVAO, currentVBO, currentEBO);
 
         glDrawElements(mode, count, type, (const void *)(uint64_t)buffer_loc);
 
@@ -802,9 +970,66 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            // LOGI("use external texture %d", opengl_context->current_texture_external);
+            LOGI("gldrawRangeElements use external texture %d", status->current_texture_external);
         }
+
+
+        GLint current_vao;
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &current_vao);
+        if (current_vao == 0) {
+            LOGE("No VAO bound! context %llx window %llx", (int64_t)context, (int64_t)opengl_context->window);
+        }
+
+        GLint current_vbo;
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_vbo);
+        if (current_vbo == 0) {
+            LOGD("No VBO bound!");
+        }
+
+        GLint current_ebo;
+        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &current_ebo);
+        if (current_ebo == 0) {
+            LOGE("No EBO bound!");
+            // GLuint ebo = get_guest_binding_buffer(context, GL_ELEMENT_ARRAY_BUFFER);
+            
+        }
+        // LOGI("current ebo should be %d %d", current_ebo, (&(opengl_context->bound_buffer_status.buffer_status))->guest_element_array_buffer);
+        // LOGI("current vbo should be %d %d", current_vbo, (&(opengl_context->bound_buffer_status.buffer_status))->guest_array_buffer);
+        GLint currentFBO = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFBO);
+        GLint textureID = 0;
+        glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &textureID);
+
+        LOGD("in drawRangeElements %d start %d end %d count %d type %d currentFBO %d %d %d %d %d %d", indices, start, end, count, type, currentFBO, textureID, current_ebo, current_vbo, opengl_context->current_read_fbo, opengl_context->current_write_fbo);
+
+        // GLint size;
+        // void* data;
+        // glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+        // if (size > 0) {
+        //     // void* data = g_malloc0(size);
+        //     // if (data) {
+        //     //     memset(data, 0, size);
+        //     //     glGetBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, size, data);
+        //     //     LOGI("saving elementbuffer %d context first 4 bytes %x %x %x %x", current_ebo, ((char*)data)[1], ((char*)data)[12], ((char*)data)[22], ((char*)data)[16]);
+        //     // }
+        //     data = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, size, GL_MAP_READ_BIT);
+        //     if (data) {
+        //         // 如果映射成功，直接访问数据
+        //         LOGI("saving elementbuffer %d context first 4 bytes %x %x %x %x", current_ebo, ((char*)data)[1], ((char*)data)[12], ((char*)data)[22], ((char*)data)[16]);
+                
+        //         // 完成后取消映射
+        //         glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+        //     }
+        // }
+
+        
         glDrawRangeElements(mode, start, end, count, type, (void *)indices);
+        // float r = (float)rand() / RAND_MAX;
+        // float g = (float)rand() / RAND_MAX;
+        // float b = (float)rand() / RAND_MAX;
+
+        // glClearColor(r, g, b, 1.0f);
+        // glClear(GL_COLOR_BUFFER_BIT);
         if (opengl_context->is_using_external_program == 1)
         {
             glBindTexture(GL_TEXTURE_2D, status->host_current_texture_2D[0]);

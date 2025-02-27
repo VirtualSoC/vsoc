@@ -152,6 +152,7 @@ void egl_init(void *dpy, void *father_context)
 
 void *egl_createContext(int context_flags)
 {
+    LOGD("in egl_create_context for wgl context!");
     HPBUFFERARB pbuffer = wglCreatePbuffer(main_window_hdc, static_pixel_format, 1, 1, static_pbuffer_attribs);
     HDC pbuffer_dc = wglGetPbufferDC(pbuffer);
     HGLRC context = NULL;
@@ -210,6 +211,7 @@ void *egl_createContext(int context_flags)
 
 int egl_makeCurrent(void *context)
 {
+    LOGD("in egl_makecurrent of context %llx", (uint64_t)context);
     if (context != NULL)
     {
         HDC pbuffer_dc = g_hash_table_lookup(context_dc_map, (gpointer)context);

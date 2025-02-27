@@ -68,6 +68,8 @@ typedef enum ExpressMemType {
     EXPRESS_MEM_TYPE_GUEST_MEM = 0x20,
 } ExpressMemType;
 
+// struct Opengl_Context;
+
 typedef struct Hardware_Buffer{
 
      int is_writing;
@@ -84,6 +86,8 @@ typedef struct Hardware_Buffer{
      //这两个fbo不是gbuffer自己产生的
      GLuint data_fbo;
      GLuint sampler_fbo;
+     bool data_fbo_changed;
+     bool sampler_fbo_changed;
 
      //这个用来指示surface连接上gbuffer，防止出现三个gbuffer都连接到surface了，然后一个gbuffer长时间没用释放了，而surface的connect_texture还有值，导致后续绘制时新生成的gbuffer无法连接到surface
      int has_connected_fbo;
@@ -134,9 +138,9 @@ typedef struct Window_Buffer
 
      GLFWHints window_hints;
      
-     eglConfig *config;
+     eglConfig *config; //感觉不需要保存？先试试吧
 
-     EGLSurface guest_surface;
+     EGLSurface guest_surface; //guest_surface不会变
 
      Hardware_Buffer *gbuffer;
      uint64_t gbuffer_id;
@@ -169,9 +173,13 @@ typedef struct Window_Buffer
      int stencil_internal_format;
      
      GLuint now_fbo_loc;
-     GLuint data_fbo[3];
-     GLuint sampler_fbo[3];
+     GLuint data_fbo[3]; //三缓冲（如果是window_surface）
+     bool date_fbo_changed[3];
+     GLuint sampler_fbo[3]; //多重采样
+     bool sampler_fbo_changed[3];
      GLuint connect_texture[3];
+
+     GHashTable* framebuffer_map;
 } Window_Buffer;
 
 
@@ -189,7 +197,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
 Hardware_Buffer *create_gbuffer_from_surface(Window_Buffer *surface);
 
-void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface);
+void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface, GHashTable *framebuffer_map);
 
 void reverse_gbuffer(Hardware_Buffer *gbuffer);
 
@@ -199,9 +207,9 @@ int render_surface_destroy(Window_Buffer *surface);
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer);
 
-void render_surface_init(Window_Buffer *surface);
+void render_surface_init(Window_Buffer *surface, GHashTable *framebuffer_map);
 
-void render_surface_uninit(Window_Buffer *surface);
+void render_surface_uninit(Window_Buffer *surface, GHashTable *framebuffer_map);
 
 void d_eglIamComposer(void *context, EGLSurface surface, unsigned int pid);
 

@@ -72,7 +72,7 @@ void d_glShadeModel_special(void *context, GLenum mode)
 }
 
 void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint width, GLint height, GLfloat left_x, GLfloat right_x, GLfloat bottom_y, GLfloat top_y)
-{
+{ //ztodo:这里的buffer的save和load
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     GLuint pre_vbo;
     GLuint pre_vao;
@@ -177,7 +177,7 @@ void d_glDrawTexiOES_special(void *context, GLint x, GLint y, GLint z, GLint wid
             glEnableVertexAttribArray(1);
         }
 
-        // LOGI("glv1 draw texture %d x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f",opengl_context->current_texture_2D[opengl_context->current_active_texture], x, y, z, width, height, left_x, right_x, bottom_y, top_y);
+        LOGD("glv1 draw texture x %d y %d z %d width %d height %d left_x %f right_x %f bottom_y %f top_y %f", x, y, z, width, height, left_x, right_x, bottom_y, top_y);
 
         GLint now_texture_target;
         glGetIntegerv(GL_ACTIVE_TEXTURE, &now_texture_target);

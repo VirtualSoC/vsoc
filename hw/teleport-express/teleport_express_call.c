@@ -12,6 +12,8 @@
 #include "hw/teleport-express/express_device_common.h"
 
 #include "hw/teleport-express/teleport_express_call.h"
+#include "exec/cpu-common.h"
+
 
 // static Teleport_Express_Call pre_alloc_call[CALL_BUF_SIZE * 2];
 // static bool pre_alloc_call_flag[CALL_BUF_SIZE * 2];
@@ -161,6 +163,7 @@ Teleport_Express_Call *alloc_one_call(void)
 
 void release_one_call(Teleport_Express_Call *call, bool notify)
 {
+    LOGD("going to release call of id %lld", call->unique_id);
     VirtQueue *vq = call->vq;
     VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, call->elem_header, 1, next);
     TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(call->elem_header);
@@ -224,7 +227,7 @@ void read_from_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t 
     Scatter_Data *guest_data = guest->scatter_data;
     if (unlikely(host == NULL || length > guest->all_len))
     {
-        LOGE("read_from_guest_mem error host %llx len %d %lld", (uint64_t)host, guest->all_len, length);
+        LOGE("read_from_guest_mem error host %llx len %d %lld %d", (uint64_t)host, guest->all_len, length, (host==NULL));
         return;
     }
 
@@ -389,7 +392,7 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
     {
         if (guest_mem->scatter_data[i].len == 4 && guest_mem->scatter_data[i].data == guest_null_ptr && v_elem->out_num == 1 && v_elem->in_num == 0)
         {
-            express_printf("find null prt!!!\n");
+            LOGI("find null prt!!!");
             guest_mem->scatter_data[i].data = NULL;
             guest_mem->scatter_data[i].len = 0;
         }
@@ -467,7 +470,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
     while (elem)
     {
 
-        if (packaging_call[index] != NULL)
+        if (packaging_call[index] != NULL) //还有调用未完成
         {
             call = packaging_call[index];
             packaging_call[index] = NULL;
@@ -489,9 +492,9 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
             call->elem_tail->next = elem;
             call->elem_tail = elem;
         }
-        else
+        else //新调用
         {
-            if (unlikely(fill_teleport_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0))
+            if (unlikely(fill_teleport_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0)) //解析一些call的性质
             {
                 //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
                 VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, elem, 1, next);
@@ -530,7 +533,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
 
             elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
 
-            if (unlikely(elem == NULL))
+            if (unlikely(elem == NULL)) //数据没完全到达，存下来
             {
                 packaging_call[index] = call;
                 remain_elem_num[index] = para_num - i;
@@ -596,7 +599,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
  */
 int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsigned long max_para_num)
 {
-
+    // LOGD("in get para from call %lld", call->unique_id);
     Teleport_Express_Queue_Elem *header = call->elem_header;
     Teleport_Express_Queue_Elem *now_elem = header->next;
     if (max_para_num < call->para_num)
@@ -617,6 +620,7 @@ int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsign
         call_para[i].data_len = now_elem->len;
         now_elem = now_elem->next;
     }
+    // LOGI("get params %d %lld", call->para_num, call->unique_id);
     return call->para_num;
 }
 
@@ -628,6 +632,25 @@ Guest_Mem *copy_guest_mem_from_call(Teleport_Express_Call *call, int index)
     {
         Guest_Mem *save_mem = g_malloc(sizeof(Guest_Mem));
         Guest_Mem *old_mem = para[index - 1].data;
+
+        // void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)old_mem->scatter_data->data);
+
+        // hwaddr len = old_mem->all_len;
+        // hwaddr xlat;
+
+        // MemoryRegion *mr = address_space_translate(&address_space_memory,
+        //     (hwaddr)real_guest_mem,
+        //     &xlat, &len, false,
+        //     MEMTXATTRS_UNSPECIFIED);
+
+        // // void *hva = cpu_physical_memory_map((hwaddr)real_guest_mem, &len, false);
+        // void *hva;
+        // if (mr) {
+        //     hva = qemu_map_ram_ptr(mr->ram_block, xlat);
+        //     LOGI("GPA 0x%lx corresponds to HVA %p", real_guest_mem, hva);
+        // } 
+
+        // LOGI("get old mem %d %d %lld real mem %lld hva %lld", old_mem->num, old_mem->all_len, (uint64_t)old_mem->scatter_data->data, (uint64_t)real_guest_mem, (uint64_t)hva);
 
         save_mem->num = old_mem->num;
         save_mem->all_len = old_mem->all_len;
@@ -661,13 +684,13 @@ void guest_null_ptr_init(VirtQueue *vq)
         elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
         express_printf("error elem is NULL\n");
     }
-    express_printf("get first one ptr %llu %llu %llu\n", elem->out_sg->iov_len, elem->out_num, elem->in_num);
+    LOGI("get first one ptr %llu %llu %llu", elem->out_sg->iov_len, elem->out_num, elem->in_num);
 
     if (elem->out_sg->iov_len == 4 && elem->out_num == 1 && elem->in_num == 0)
     {
         guest_null_ptr = elem->out_sg->iov_base;
 
-        express_printf("null ptr %llu\n", (uint64_t)guest_null_ptr);
+        LOGD("null ptr %llu", (uint64_t)guest_null_ptr);
 
         //计算内存复制速度
         char *temp1 = g_malloc(1024 * 1024 * 24);
@@ -702,6 +725,8 @@ void common_call_callback(Teleport_Express_Call *call)
 
     //设置guest端的flag标志，防止中断丢失
     Guest_Mem *mem = call->elem_header->para;
+
+    LOGD("in release commom call mem %lld", (uint64_t)mem);
 
     unsigned long long t_flag = 1;
     write_to_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, flag), 8);

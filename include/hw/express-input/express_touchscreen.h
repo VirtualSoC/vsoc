@@ -25,4 +25,7 @@ void express_touchscreen_entered_handle(GLFWwindow *window, int entered);
 
 void sync_express_touchscreen_input(GLFWwindow *window, bool need_send);
 
+void load_touchscreen_context(QEMUFile *f);
+void save_touchscreen_context(QEMUFile* f);
+
 #endif

@@ -17,12 +17,21 @@
 
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/express_gpu.h"
+#include "hw/express-gpu/express_gpu_main_window.h"
+#include "hw/express-gpu/express_display.h"
+#include "hw/express-gpu/glv3_context.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+#include "hw/express-mem/express_sync.h"
+#include "hw/express-input/express_touchscreen.h"
+
 
 #include "hw/virtio/virtio.h"
 
 // #define express_printf null_printf
 
 bool teleport_express_should_stop = 0;
+
+
 
 /**
  * @brief 当vring有数据来的之后的回调函数，在aio线程中运行
@@ -37,7 +46,7 @@ static void teleport_express_output_handle(VirtIODevice *vdev, VirtQueue *vq)
     if (g->distribute_thread_run == 0) //第一次调用到，新建分发线程
     {
         guest_null_ptr_init(vq);
-        express_printf("start handle thread\n");
+        // LOGI("start handle thread");
         g->distribute_thread_run = 1;
         qemu_thread_create(&g->distribute_thread, "teleport-express-distribute", call_distribute_thread,
                            vdev, QEMU_THREAD_JOINABLE);
@@ -121,6 +130,7 @@ static void teleport_express_input_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
     if(g->input_thread_run == 0){
         qemu_thread_create(&g->input_thread, "teleport-express-input", input_sync_thread,
                            vdev, QEMU_THREAD_JOINABLE);
+        LOGI("start input thread");
         g->input_thread_run = 1;
     }
 
@@ -160,8 +170,11 @@ static void teleport_express_output_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 
 static void teleport_express_realize(DeviceState *qdev, Error **errp)
 {
-
+    LOGD("in teleport_express realize!");
     VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
+
+    startup_vdev = vdev;
+
     Teleport_Express *g = TELEPORT_EXPRESS(qdev);
 
     //初始化使用virtio的gpu设备
@@ -177,13 +190,15 @@ static void teleport_express_realize(DeviceState *qdev, Error **errp)
 
     g->out_data_queue = virtio_get_queue(vdev, 0); //在主机端真正 获取 Virtqueue 的位置？打断点看一下
     g->in_data_queue = virtio_get_queue(vdev, 1);
+    startup_out_data_queue = g->out_data_queue;
+    startup_in_data_queue = g->in_data_queue;
 
     //在aio线程处理中处理数据的函数
     // g->data_bh = qemu_bh_new(teleport_express_output_handle_bh, g);
 
     virtio_add_feature(&vdev->host_features, VIRTIO_RING_F_INDIRECT_DESC);
 
-    express_printf("express gpu realized\n");
+    LOGD("express gpu realized");
 }
 
 static uint64_t
@@ -224,10 +239,24 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
         LOGE("error when performing virtio save for teleport express!");
         return -1;
     }
-    save_render_thread_contexts(f);
-    save_render_process_contexts(f);
+    init_saving_snapshot();
 
-    LOGI("succcefully perform virtio save for teleport express!");
+    qemu_put_be32(f, display_context_thread_id);
+
+    save_sync_context(f);
+    save_touchscreen_context(f);
+
+
+    save_native_resources(f);
+    save_gbuffer_global_map(f);    
+
+    save_display_context(f);
+
+    save_render_process_contexts(f);    
+
+
+    save_render_thread_contexts(f);
+    LOGI("successfully perform virtio save for teleport express!");
     return 0;
 }
 
@@ -244,10 +273,36 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
         LOGE("error when performing virtio load for teleport express!");
         return -1;
     }
-    load_render_thread_contexts(f);
+
+    // Express_Device_Info *device_info = get_express_device_info(EXPRESS_GPU_DEVICE_ID);
+
+    remove_all_render_thread_contexts();
+    
+    // display_context_thread_id = qemu_get_be32(f);
+
+    init_loading_snapshot(f);
+
+    load_sync_context(f);
+    load_touchscreen_context(f);
+
+    loaded_hardware_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
+    loaded_window_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
+    load_native_resources(f);
+    load_gbuffer_global_map(f);
+
+    load_display_context(f);
+
+
     load_render_process_contexts(f);
 
-     LOGI("succcefully perform virtio load for teleport express!");
+
+    load_render_thread_contexts(f);
+    // clear_resource_tables();
+
+    
+    // Express_Device_Info *display_device_info = get_express_device_info(EXPRESS_DISPLAY_DEVICE_ID);
+    // Thread_Context* display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
+    LOGI("succcefully perform virtio load for teleport express!");
     return 0;
 }
 
@@ -286,6 +341,8 @@ static void teleport_express_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &vmstate_teleport_express;
 
     vdc->realize = teleport_express_realize;
+    // init_saving_snapshot();
+
 }
 
 static void teleport_express_register_types(void)

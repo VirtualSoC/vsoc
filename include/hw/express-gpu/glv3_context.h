@@ -6,25 +6,28 @@
 #include "hw/express-gpu/express_gpu_main_window.h"
 
 #include "hw/express-gpu/glv3_status.h"
+#include "migration/qemu-file.h"
+
 
 #define MAX_VERTEX_ATTRIBS_NUM 16
 
 
 typedef struct Attrib_Point
 {
-    GLuint buffer_object[MAX_VERTEX_ATTRIBS_NUM];
+    //这些也都主要用于处理with_bound的情况
+    GLuint buffer_object[MAX_VERTEX_ATTRIBS_NUM]; //vbo，不同index对应着色器中不同的采样点layout(location = 0/1/2...)
     GLint buffer_loc[MAX_VERTEX_ATTRIBS_NUM];
 
     GLint remain_buffer_len[MAX_VERTEX_ATTRIBS_NUM];
-    GLint buffer_len[MAX_VERTEX_ATTRIBS_NUM];
+    GLint buffer_len[MAX_VERTEX_ATTRIBS_NUM]; //这几个是glVertexAttribPointer等一系列函数的时候用的，和下面那些含义差不多
 
-    GLuint indices_buffer_object;
-    GLint indices_buffer_len;
+    GLuint indices_buffer_object; //默认的ebo(ibo),指向在set_indices_data里绑定的ebo，处理guest没有绑定ebo的情况
+    GLint indices_buffer_len; //用来算ebo要从哪开始映射
 
-    GLint remain_indices_buffer_len;
+    GLint remain_indices_buffer_len; //用来算ebo要从哪里开始映射 这几个是gldrawelements等一系列函数的时候用的
 
     // GLint buffer_num;
-    GLint element_array_buffer; //ebo
+    GLint element_array_buffer; //指示现在被指定绑定的ebo
 
 } Attrib_Point;
 
@@ -38,10 +41,10 @@ typedef struct Bound_Buffer
     GLuint asyn_unpack_texture_buffer;
     GLuint asyn_pack_texture_buffer;
 
-    Buffer_Status buffer_status;
+    Buffer_Status buffer_status; //这个就是记录具体的bound情况的,特别是DSA的情况
 
     int has_init;
-} Bound_Buffer;
+} Bound_Buffer; //关注一下，有点意思
 
 
 
@@ -52,10 +55,10 @@ typedef struct Resource_Map_Status
     unsigned int map_size;
     // unsigned int now_map_len;
     long long *resource_id_map;
-    char *resource_is_init;
+    char *resource_is_init; //texture用的，是1代表init了，是2代表已经关联了gbuffer。
     
-    unsigned int gbuffer_map_max_size;
-    Hardware_Buffer **gbuffer_ptr_map;
+    unsigned int gbuffer_map_max_size; //整个按照maxsize全存下来吧
+    Hardware_Buffer **gbuffer_ptr_map; //相当于一个存储Hardware_Buffer* 的数组, 暂未存下来。得存下来！
     
 } Resource_Map_Status;
 
@@ -137,8 +140,16 @@ typedef struct Opengl_Context
 
     void *share_context;
     GHashTable *buffer_map;
-    GLuint draw_fbo0;
+    GLuint draw_fbo0; //默认读取/绘制的地方 ztodo:Gluint用32位够不够
     GLuint read_fbo0;
+
+    GLuint current_read_fbo;
+    GLuint current_write_fbo;
+
+    GLuint current_program;
+    GHashTable *framebuffer_map;
+
+
     GLuint vao0;
 
     GLint view_x;
@@ -163,6 +174,9 @@ typedef struct Opengl_Context
     GLuint draw_texi_vao;
     GLuint draw_texi_vbo;
     GLuint draw_texi_ebo;
+
+    GLenum blendfunc_sfactor;
+    GLenum blendfunc_dfactor;
 
     void *debug_message_buffer;
 } Opengl_Context;
@@ -193,5 +207,12 @@ void opengl_context_destroy(Opengl_Context *context);
 void *get_native_opengl_context(int context_flags);
 
 void release_native_opengl_context(void *native_context, int context_flags);
+
+int get_window_id(void *window);
+
+void save_native_context_pool(QEMUFile *f);
+
+void load_native_context_pool(QEMUFile *f);
+
 
 #endif

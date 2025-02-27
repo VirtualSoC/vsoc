@@ -7,6 +7,8 @@
 #include "glad/glad.h"
 #include "hw/express-gpu/egl_window.h"
 #include "hw/express-gpu/express_gpu.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 #define MAX_PRELOAD_CONTEXT_NUM 10
 
@@ -18,6 +20,82 @@ static void g_vao_point_data_destroy(gpointer data);
 static GList *volatile native_context_pool = NULL;
 static int native_context_pool_size = 0;
 static int native_context_pool_lock = 0;
+
+// GHashTable *window_id_map;
+// static int next_window_id = 1;
+
+// int get_window_id(void *window) {
+//     if (window_id_map == NULL) {
+//         window_id_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+//     }
+//     gpointer id = g_hash_table_lookup(window_id_map, window);
+//     if (id == NULL) {
+//         g_hash_table_insert(window_id_map, window, GINT_TO_POINTER(next_window_id));
+//         return next_window_id++;
+//     }
+//     return GPOINTER_TO_INT(id);
+// }
+
+// void save_opengl_window(QEMUFile *f, Opengl_Context *context) {
+//     if (context->window != NULL) {
+//         int window_id = get_window_id(context->window);
+//         qemu_put_be32(f, window_id);
+//     } else {
+//         qemu_put_be32(f, 0);
+//     }
+// }
+
+// void load_opengl_window(QEMUFile *f, Opengl_Context *context) {
+//     int window_id = qemu_get_be32(f);
+
+//     if (window_id != 0) {
+//         context->window = g_hash_table_lookup(window_id_map, GINT_TO_POINTER(window_id));
+//         if (context->window == NULL) {
+//             LOGE("Failed to load window with id %d", window_id);
+//         }
+//     } else {
+//         context->window = NULL;
+//     }
+// }
+
+
+
+// void save_native_context_pool(QEMUFile *f) {
+//     qemu_put_be32(f, native_context_pool_size);
+
+//     GList *iter = native_context_pool;
+//     while (iter != NULL) {
+//         void *native_context = iter->data;
+//         save_native_context(f, native_context);
+
+//         iter = iter->next;
+//     }
+// }
+
+// void release_native_opengl_context_wrapper(gpointer data) {
+// #ifdef STD_DEBUG_INDEPENDENT_WINDOW
+//         release_native_opengl_context(data, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+// #else
+//         release_native_opengl_context(data, 0);
+// #endif
+// }
+
+
+// void load_native_context_pool(QEMUFile *f) {
+//     g_list_free_full(native_context_pool, release_native_opengl_context_wrapper);
+//     native_context_pool = NULL;
+
+//     native_context_pool_size = qemu_get_be32(f);
+
+//     for (int i = 0; i < native_context_pool_size; i++) {
+//         int context_flags = qemu_get_be32(f);
+//         int context_id = qemu_get_be32(f);
+
+//         void *new_context = load_native_context(f, context_flags);
+
+//         native_context_pool = g_list_append(native_context_pool, new_context);
+//     }
+// }
 
 void d_glGetString_special(void *context, GLenum name, GLubyte *buffer)
 {
@@ -136,6 +214,7 @@ void resource_context_destroy(Resource_Context *resources)
                 if (resources->shader_resource->resource_id_map[i] != 0)
                 {
                     glDeleteShader((GLuint)resources->shader_resource->resource_id_map[i]);
+                    LOGI("delete shader id %d", (GLuint)resources->shader_resource->resource_id_map[i]);
                 }
             }
             g_free(resources->shader_resource->resource_id_map);
@@ -156,6 +235,7 @@ void resource_context_destroy(Resource_Context *resources)
                         g_hash_table_remove(program_data_map, GUINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
                     }
                     glDeleteProgram((GLuint)resources->program_resource->resource_id_map[i]);
+                    LOGI("delete program of id %d", (GLuint)resources->program_resource->resource_id_map[i]);
                 }
             }
             g_free(resources->program_resource->resource_id_map);
@@ -204,7 +284,7 @@ void *get_native_opengl_context(int context_flags)
         native_context = (void*)(intptr_t)context_flags;
 
         // 不能在子线程中创建context，不然会为空
-        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context);
+        send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &native_context); //传参进去，然后出来的时候的值就是一个正常的指针了
 
         ATOMIC_LOCK(native_context_pool_lock);
         //链表为空，则要多填充1个，反正之后要等待
@@ -262,16 +342,18 @@ void *get_native_opengl_context(int context_flags)
             native_context_pool = g_list_append(native_context_pool, NULL);
 
             GList *last = g_list_last(native_context_pool);
-            send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data));
+            send_message_to_main_window(MAIN_CREATE_CHILD_WINDOW, &(last->data)); //第二个参数是null
             native_context_pool_size++;
         }
         ATOMIC_UNLOCK(native_context_pool_lock);
     }
+    LOGI("returning native context %llx", (int64_t)native_context);
     return native_context;
 }
 
 void release_native_opengl_context(void *native_context, int context_flags)
 {
+    LOGI("going to release native context %llx", (int64_t)native_context);
     //假如已经保存有闲置的超过MAX_PRELOAD_CONTEXT_NUM个context，则新释放的context直接销毁，否则保存下来
     //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建MAX_PRELOAD_CONTEXT_NUM个备用的
 
@@ -378,6 +460,8 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
 
     opengl_context->buffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
 
+    opengl_context->framebuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
+
     bound_buffer->vao_point_data = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_vao_point_data_destroy);
 
     Attrib_Point *temp_point = g_malloc0(sizeof(Attrib_Point));
@@ -436,14 +520,37 @@ void opengl_context_init(Opengl_Context *context)
         {
             glGenVertexArrays(1, &vao0);
 
+            LOGI("create vao when init! %d %d", vao0, context->window);
+
             glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
             glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
 
+            LOGI("create buffer when init! %d %d", bound_buffer->asyn_unpack_texture_buffer, bound_buffer->asyn_pack_texture_buffer);
+
             glGenBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
-            glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object);
+            glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object); //ztodo:这些buffer也没恢复
         }
 
-        // LOGI("context %llx init vao %d",(uint64_t)context, vao0);
+
+        Express_Native_buffer_Simple* newBuffer_pack = g_malloc0(sizeof(Express_Native_buffer_Simple));
+        Express_Native_buffer_Simple* newBuffer_unpack = g_malloc0(sizeof(Express_Native_buffer_Simple));
+
+        newBuffer_pack->bufferId = bound_buffer->asyn_pack_texture_buffer;  
+        newBuffer_pack->target = GL_PIXEL_PACK_BUFFER;
+
+        newBuffer_unpack->bufferId = bound_buffer->asyn_unpack_texture_buffer;    
+        newBuffer_unpack->target = GL_PIXEL_UNPACK_BUFFER;
+
+
+        // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        // g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_pack->bufferId), newBuffer_pack);
+        // g_hash_table_insert(resource_list, GUINT_TO_POINTER(newBuffer_unpack->bufferId), newBuffer_unpack);
+        // LOGI("inserting buffer of %d %d", newBuffer_pack->bufferId, newBuffer_unpack->bufferId);
+
+        // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+
+        LOGI("context %llx init vao %d",(uint64_t)context, vao0);
 
         temp_host_vao = vao0;
         create_host_map_ids(map_status, 1, &temp_guest_vao, &temp_host_vao);
@@ -478,7 +585,7 @@ void opengl_context_init(Opengl_Context *context)
  */
 void opengl_context_destroy(Opengl_Context *context)
 {
-    express_printf("opengl context destroy %llx guest %llx\n", (uint64_t)context, (uint64_t)context->guest_context);
+    LOGI("opengl context destroy %llx guest %llx\n", (uint64_t)context, (uint64_t)context->guest_context);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
@@ -518,6 +625,12 @@ void opengl_context_destroy(Opengl_Context *context)
     {
         glDeleteBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
         glDeleteBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
+        // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
+        // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+        // g_hash_table_remove(resource_list, GUINT_TO_POINTER(bound_buffer->asyn_pack_texture_buffer));
+        // g_hash_table_remove(resource_list, GUINT_TO_POINTER(bound_buffer->asyn_unpack_texture_buffer));
+        // LOGI("removing buffer of %d %d", bound_buffer->asyn_pack_texture_buffer, bound_buffer->asyn_unpack_texture_buffer);
+        // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
     }
 
     if (opengl_context->draw_texi_vbo != 0)
@@ -568,6 +681,13 @@ static void g_buffer_map_destroy(gpointer data)
     express_printf("buffer_map destroy\n");
     Guest_Host_Map *map_res = (Guest_Host_Map *)data;
     g_free(map_res);
+}
+
+static void g_framebuffer_map_destroy(gpointer data)
+{
+    LOGI("framebuffer_map destroy\n");
+    Express_Native_Framebuffer *fb = (Express_Native_Framebuffer *)data;
+    g_free(fb);
 }
 
 static void g_vao_point_data_destroy(gpointer data)

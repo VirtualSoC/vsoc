@@ -7,6 +7,8 @@
 #include "hw/express-gpu/express_gpu.h"
 
 #include "hw/teleport-express/express_log.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, int end_loc);
 
@@ -37,7 +39,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
     else
     {
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, asyn_texture);
-        status->host_pixel_unpack_buffer = asyn_texture;
+        status->host_pixel_unpack_buffer = asyn_texture; //能调到这说明本身也没绑定pbo，所以不担心覆盖
 
         //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
         glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc, NULL, GL_STREAM_DRAW);
@@ -47,14 +49,36 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
 
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
 
+
+        // unsigned char* zero_buffer = (unsigned char*)malloc(end_loc - start_loc);
+        // memset(zero_buffer, 0, end_loc - start_loc);
+        // if (memcmp(map_pointer, (const void*)zero_buffer, end_loc - start_loc) == 0) {
+        // // 说明 state->pixels 的内容全为 0
+        //     LOGI("Memory is all zeros in updload");
+        // }
+        // free(zero_buffer);
+
+        // LOGI("First pixels in RGBA format:");
+
+        // for (int i = 0; i < min(30, (end_loc - start_loc)/4); i++) {
+        //     LOGI("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
+        //         i, 
+        //         map_pointer[i * 4 + 0], //R
+        //         map_pointer[i * 4 + 1], //G
+        //         map_pointer[i * 4 + 2], //B
+        //         map_pointer[i * 4 + 3]  //A
+        //     );
+        // }
+
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
     }
-    express_printf("unpack texture start %d end %d\n", start_loc, end_loc);
+    LOGD("unpack texture pbo %lld %d start %d end %d", (uint64_t)opengl_context->window, asyn_texture, start_loc, end_loc);
 }
 
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
-{
-    LOGD("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
+{ //没有绑定GL_PIXEL_UNPACK_BUFFER(PBO) buffer
+//数据首先写入到 GL_PIXEL_UNPACK_BUFFER，然后 OpenGL 会从该缓冲区将数据上传到纹理中
+    LOGI("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
          "%d h %d format %x type %x pixels %x",
          target, level, internalformat, width, height, format, type, pixels);
 
@@ -73,7 +97,10 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (guest_mem->all_len == 0)
     {
-        if (status->host_pixel_unpack_buffer != 0)
+        LOGI("going to upload data for texture null value target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
+    
+
+        if (status->host_pixel_unpack_buffer != 0) //说明是guest那边解绑pbo的同步
         {
             status->host_pixel_unpack_buffer = 0;
             glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
@@ -92,9 +119,10 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     int start_loc = 0, end_loc = buf_len;
 
+    LOGI("going to upload data for texture target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
-    //这时候是立即返回的，后续会进行dma传输
+    //这时候是立即返回的，后续会进行dma传输(只分配空间)
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         glTextureImage2DEXT(bind_texture, target, level, internalformat, width, height, border, format, type, NULL);
@@ -109,6 +137,7 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
     GLuint bind_texture = get_guest_binding_texture(context, target);
+    LOGI("with bound going to upload data for texture target %d id %d width %d height %d format %x type %x",target, bind_texture, width, height, format, type);
 
     if (bind_texture == 0)
     {
@@ -128,11 +157,12 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
 
 void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
-
+    // LOGI("going upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d length %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, buf_len, type);
     Guest_Mem *guest_mem = (Guest_Mem *)pixels;
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     GLuint bind_texture = get_guest_binding_texture(context, target);
+    LOGD("going upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d length %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, buf_len, type);
 
     if (bind_texture == 0)
     {
@@ -189,6 +219,7 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     {
         if (target == GL_TEXTURE_EXTERNAL_OES)
         {
+            LOGI("going to tex subimage 2d for GL_TEXTURE_EXTERNAL_OES!");
             if (texture_status->host_current_active_texture != 0)
             {
                 glActiveTexture(GL_TEXTURE0);
@@ -223,6 +254,8 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
     }
 
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
+
+    LOGI("with bound going to upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, type);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
@@ -802,11 +835,31 @@ void d_glReadBuffer_special(void *context, GLenum src)
     glReadBuffer(src);
 }
 
+void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable* fb_resource_list)
+{
+    GLuint framebuffer;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
+    LOGI("current binding framebuffer is %d", framebuffer);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+    // GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+    if(g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer)) != NULL) {
+        Express_Native_Framebuffer* newFramebuffer = g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer));
+        newFramebuffer->framebufferId = framebuffer;
+        // newFramebuffer->texture_id = texture_id;
+        // newFramebuffer->attachment_target = attachment;
+        newFramebuffer->attachment_target[attachment - GL_COLOR_ATTACHMENT0] = texture_id;
+        LOGD("in update framebuffer texture of id %d texture %d type %x", framebuffer, texture_id, attachment);
+
+        // g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+}
 
 void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint guest_texture, GLint level)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture);
+    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture, 2);
 
     char is_init = set_host_texture_init(opengl_context, guest_texture);
 
@@ -814,21 +867,77 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
     {
         if (textarget == GL_TEXTURE_EXTERNAL_OES)
         {
+            LOGD("going to bind framebuffer for GL_TEXTURE_EXTERNAL_OES! texture: %d", host_texture);
+
             textarget = GL_TEXTURE_2D;
         }
     }
 
+
     glFramebufferTexture2D(target, attachment, textarget, host_texture, level);
+
+
+    
+    if(host_texture == 0) {
+        return;
+    }
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_texture)) == NULL) {
+        struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
+        texture_resource->target = target;
+        texture_resource->textureId = host_texture;        
+        LOGD("in framebuffertexture2D save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+
+    update_framebuffer_texture(host_texture, attachment, opengl_context->framebuffer_map);
+    // GLuint framebuffer;
+    // glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
+    // LOGI("current binding framebuffer is %d", framebuffer);
+
+    // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+    // GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+    // if(g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer)) != NULL) {
+    //     Express_Native_Framebuffer* newFramebuffer = g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer));
+    //     newFramebuffer->framebufferId = framebuffer;
+    //     newFramebuffer->texture_id = host_texture;
+    //     newFramebuffer->attachment_target = attachment;
+
+    //     g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
+    // }
+
+
+    // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+
+
 }
 
 void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachment, GLuint guest_texture, GLint level)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;
-    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture);
+    GLuint host_texture = (GLuint)get_host_texture_id(opengl_context, guest_texture, 3);
 
     set_host_texture_init(opengl_context, guest_texture);
 
     glFramebufferTexture(target, attachment, host_texture, level);
+
+    if(host_texture == 0) {
+        return;
+    }
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_texture)) == NULL) {
+        struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
+        texture_resource->target = target;
+        texture_resource->textureId = host_texture;
+        LOGD("in framebuffertexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
+    } 
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 }
 
 void d_glCopyImageSubData(void *context, GLuint srcName, GLenum srcTarget, GLint srcLevel, GLint srcX, GLint srcY, GLint srcZ, GLuint dstName, GLenum dstTarget, GLint dstLevel, GLint dstX, GLint dstY, GLint dstZ, GLsizei srcWidth, GLsizei srcHeight, GLsizei srcDepth)
@@ -840,14 +949,14 @@ void d_glCopyImageSubData(void *context, GLuint srcName, GLenum srcTarget, GLint
         srcName = get_host_renderbuffer_id(context, srcName);
     } else {
         // 一定是texture
-        srcName = get_host_texture_id(context, srcName);
+        srcName = get_host_texture_id(context, srcName, 4);
         gbuffer_src = get_texture_gbuffer_ptr(context, srcName);
     }
     if (dstTarget == GL_RENDERBUFFER) {
         dstName = get_host_renderbuffer_id(context, dstName);
     }
     else {
-        dstName = get_host_texture_id(context, dstName);
+        dstName = get_host_texture_id(context, dstName, 5);
         gbuffer_dst = get_texture_gbuffer_ptr(context, srcName);
     }
 

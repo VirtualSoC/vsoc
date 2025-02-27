@@ -26,6 +26,8 @@
 
 #include "hw/express-gpu/glv1.h"
 #include "hw/teleport-express/express_event.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 
 // 更新：下面的描述已经过时，仅供参考
@@ -13281,7 +13283,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
         express_printf("mapbufferrange glbindbufferRange target %x index %d buffer %d offset %lld size %lld end %lld\n", target, index, (GLuint)get_host_buffer_id(opengl_context, (unsigned int)buffer), offset, size, offset + size);
 
-        d_glBindBufferRange_special(opengl_context, target, index, buffer, offset, size);
+        d_glBindBufferRange_special(opengl_context, target, index, buffer, offset, size); //ztodo:处理这里的情况
     }
     break;
 
@@ -13536,7 +13538,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-
+        LOGD("in glbindsampler unit %d sampler %d\n", unit, sampler);
         glBindSampler(unit, (GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler));
     }
     break;
@@ -13908,7 +13910,40 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
-        // LOGI("attach shader %u to program %u",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+        //因为shader可能在program被link之后就删除，所以得在这里保存shader的完整的内容
+
+        GHashTable *program_table = g_resource_list[RESOURCE_TYPE_PROGRAM];
+        
+        GLuint host_program = (GLuint)get_host_program_id(opengl_context, (unsigned int)program);
+        GLuint host_shader = (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader);
+        // uint64_t attached_id = (host_program << 32) | host_shader;
+
+        Express_Native_Program *current_program = g_hash_table_lookup(program_table, GUINT_TO_POINTER(host_program));
+        if(current_program == NULL)
+        {
+            current_program = g_malloc0(sizeof(Express_Native_Program));
+            current_program->shader_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+            current_program->shader_num = 0;
+            LOGI("new program struct for id %u", host_program);
+        }
+        GHashTable *shader_map = current_program->shader_map;
+        Express_Native_Program_Shader *current_shader = g_malloc0(sizeof(Express_Native_Program_Shader));
+        current_shader->shader_id = host_shader;
+        current_shader->attached_order = current_program->shader_num;
+        current_program->shader_num++;
+        glGetShaderiv(host_shader, GL_SHADER_TYPE, &(current_shader->shader_type));
+        glGetShaderiv(host_shader, GL_SHADER_SOURCE_LENGTH, &(current_shader->shader_source_length));
+        current_shader->shader_source = g_malloc0(current_shader->shader_source_length);
+        glGetShaderSource(host_shader, current_shader->shader_source_length, NULL, current_shader->shader_source);
+        g_hash_table_insert(shader_map, GUINT_TO_POINTER(host_shader), current_shader);
+
+        g_hash_table_insert(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program), GUINT_TO_POINTER(current_program));
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+        LOGD("attach program %u to shader %d source %s", host_program, host_shader, current_shader->shader_source);
+
+        // LOGI("attach program %u to shader %u %lld",(GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader), attached_id);
+        
         glAttachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
     break;
@@ -14162,6 +14197,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
 
         glBlendFunc(sfactor, dfactor);
+        r_context->opengl_context->blendfunc_dfactor = dfactor;
+        r_context->opengl_context->blendfunc_sfactor = sfactor;
+        LOGD("context %llx glBlendFunc %x %x", (uint64_t)opengl_context, sfactor, dfactor);
     }
     break;
 
@@ -14901,6 +14939,25 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+        uint64_t host_program = (uint64_t)get_host_program_id(opengl_context, (unsigned int)program);
+        uint64_t host_shader = (uint64_t)get_host_shader_id(opengl_context, (unsigned int)shader);
+        // uint64_t attached_id = (host_program << 32) | host_shader;
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+        Express_Native_Program* program_info = (Express_Native_Program*)g_hash_table_lookup(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program));
+        if(program_info != NULL){
+            // g_hash_table_remove(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(host_program));
+            GHashTable *shader_table = program_info->shader_map;
+            g_hash_table_remove(shader_table, GUINT_TO_POINTER(host_shader));
+            LOGI("detach shader success! program_id: %d, shader_id: %d", program, shader);
+
+        } else {
+            LOGE("error! detach shader not exist!");
+        }
+        
+
+        ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
+
+
         glDetachShader((GLuint)get_host_program_id(opengl_context, (unsigned int)program), (GLuint)get_host_shader_id(opengl_context, (unsigned int)shader));
     }
     break;
@@ -15029,6 +15086,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             opengl_context->enable_scissor = 1;
         }
+        // LOGD("in glEnable %x", cap);
 
         glEnable(cap);
     }
@@ -15099,7 +15157,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-
+        LOGD("in FramebufferRenderbuffer %x %x %x %x", target, attachment, renderbuffertarget, renderbuffer);
         glFramebufferRenderbuffer(target, attachment, renderbuffertarget, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer));
     }
     break;
@@ -16407,7 +16465,12 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
+        GLint current_program = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *)&current_program);
+        LOGD("glUniform1i current program %d location %d value %d\n", current_program, location, v0);
+       
         glUniform1i(location, v0);
+        // LOGD("glUniform1i location=%d, v0=%d", location, v0);
     }
     break;
 
@@ -17459,7 +17522,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
 
-        glFramebufferTextureLayer(target, attachment, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level, layer);
+        glFramebufferTextureLayer(target, attachment, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture, 6), level, layer);
     }
     break;
 
@@ -21535,7 +21598,9 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-
+        GLint current_program = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *)&current_program);
+        LOGI("glUniform1iv current program %d location %d count %d value %d\n", current_program, location, count, *value);
         glUniform1iv(location, count, value);
     }
     break;
@@ -22378,6 +22443,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
 
         glUniformMatrix4fv(location, count, transpose, value);
+        // LOGI("pid = %d, glUniformMatrix4fv called. location = %d, count = %d, transpose = %d, value = %p\n", location, count, transpose, value);
     }
     break;
 
@@ -26459,6 +26525,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         GLuint offset;
         GLuint length;
 
+        LOGD("in glVertexAttribPointer_without_bound");
+
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribPointer_without_bound))
         {
@@ -26482,6 +26550,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
+                LOGI("get tmp %d tmp len %d", temp, temp_len);
                 read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
@@ -27828,7 +27897,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-        glBindImageTexture(unit, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture), level, layered, layer, access, format);
+        glBindImageTexture(unit, (GLuint)get_host_texture_id(opengl_context, (unsigned int)texture, 7), level, layered, layer, access, format);
     }
     break;
 

@@ -14,6 +14,7 @@
 #include "hw/express-input/express_touchscreen.h"
 #include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/teleport_express_register.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 typedef struct Touchscreen_Prop
 {
@@ -662,10 +663,14 @@ static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uin
     context->guest_buffer = data;
 }
 
+static void remove_touchscreen_device_context(Device_Context *context) {
+    g_free(context);
+}
+
 static Device_Context *get_touchscreen_device_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     if (g_touchscreen_contexts == NULL) {
-        g_touchscreen_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_touchscreen_contexts = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)remove_touchscreen_device_context);
     }
 
     Touchscreen_Context *context = (Touchscreen_Context *)g_hash_table_lookup(g_touchscreen_contexts, GUINT_TO_POINTER(unique_id));
@@ -691,6 +696,54 @@ static void init_touchscreen(void)
 {
     static_prop.count = get_display_count();
     get_display_info(0, &static_prop.width, &static_prop.height, NULL);
+}
+
+void save_touchscreen_context(QEMUFile* f) {
+    // save total touchscreen count
+    int context_count = (int)g_hash_table_size(g_touchscreen_contexts);
+    qemu_put_be32(f, context_count);
+
+    // iter through all touchscreen contexts and save them
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, g_touchscreen_contexts);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Touchscreen_Context *context = (Touchscreen_Context *)value;
+        qemu_put_buffer(f, (uint8_t *)context, sizeof(Touchscreen_Context));
+        save_guest_mem(f, context->guest_buffer);
+        if (context->device_context.irq_call == NULL) {
+            qemu_put_be32(f, 0);
+        } else {
+            qemu_put_be32(f, 1);
+            save_teleport_express_call(f, context->device_context.irq_call);
+        }
+    }
+
+}
+
+void load_touchscreen_context(QEMUFile *f){
+    // clear all old touchscreen contexts
+    if (g_touchscreen_contexts != NULL) {
+        g_hash_table_remove_all(g_touchscreen_contexts);
+    }
+
+    // get total touchscreen count
+    int context_count = qemu_get_be32(f);
+
+    // load all touchscreen contexts
+    for (int i = 0; i < context_count; i++) {
+        Touchscreen_Context *context = g_malloc0(sizeof(Touchscreen_Context));
+        qemu_get_buffer(f, (uint8_t *)context, sizeof(Touchscreen_Context));
+
+        // these resources needs to be re-created
+        context->guest_buffer = load_guest_mem(f, 0);
+
+        int has_call = qemu_get_be32(f);
+        if (has_call) {
+            context->device_context.irq_call = load_teleport_express_call(f);
+        }
+        g_hash_table_insert(g_touchscreen_contexts, GUINT_TO_POINTER(context->id), (gpointer)context);
+    }
 }
 
 static Express_Device_Info express_touchscreen_info = {

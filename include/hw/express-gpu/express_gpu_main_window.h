@@ -106,6 +106,9 @@ void *main_window_thread(void *opaque);
 
 void start_main_window_thread(void);
 
+int save_gbuffer_global_map(QEMUFile *f);
+int load_gbuffer_global_map(QEMUFile *f);
+
 void remove_gbuffer_from_global_map(uint64_t gbuffer_id);
 
 void add_gbuffer_to_global(Hardware_Buffer *global_gbuffer);

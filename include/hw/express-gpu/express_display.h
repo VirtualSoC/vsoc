@@ -25,15 +25,18 @@ typedef struct Display_Status
 typedef struct
 {
     Thread_Context thread_context;
-    uint64_t unique_id;
-
-    // const display attributes
-    Display_Info info;
-    Display_Status status;
-    int is_open;
 
     // offscreen graphics context
     GLFWwindow *window;
+
+    GLuint programID;
+    GLuint drawVAO;
+
+    // const display attributes
+    uint64_t unique_id;
+    Display_Info info;
+    Display_Status status;
+    int is_open;
 
     // QEMU的主窗口的长宽
     int window_width;
@@ -45,9 +48,6 @@ typedef struct
     int content_w;
     int content_h;
 
-    GLuint programID;
-    GLuint drawVAO;
-    
     int transform_uniform;
     int transform_type;
 
@@ -86,5 +86,8 @@ typedef struct
 uint64_t get_display_count(void);
 void get_display_info(int displayIndex, int *width, int *height,
                       int *refreshRate);
+
+void save_display_context(QEMUFile *f);
+void load_display_context(QEMUFile *f);
 
 #endif
