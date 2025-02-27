@@ -784,6 +784,88 @@ void save_native_renderbuffers(QEMUFile *f) {
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
 }
 
+void save_single_program_pipeline(QEMUFile *f, GLint pp_id) {
+    LOGI("saving program_pipeline ID: %d", pp_id);
+    qemu_put_be32(f, pp_id);
+
+    GLint vertProgBound;
+    glGetProgramPipelineiv(pp_id, GL_VERTEX_SHADER, &vertProgBound);
+    qemu_put_be32(f, vertProgBound);
+    GLint fragProgBound;
+    glGetProgramPipelineiv(pp_id, GL_FRAGMENT_SHADER, &fragProgBound);
+    qemu_put_be32(f, fragProgBound);
+    GLint geomProgBound;
+    glGetProgramPipelineiv(pp_id, GL_GEOMETRY_SHADER, &geomProgBound);
+    qemu_put_be32(f, geomProgBound);
+    GLint tessCtrlProgBound;
+    glGetProgramPipelineiv(pp_id, GL_TESS_CONTROL_SHADER, &tessCtrlProgBound);
+    qemu_put_be32(f, tessCtrlProgBound);
+    GLint tessEvalProgBound;
+    glGetProgramPipelineiv(pp_id, GL_TESS_EVALUATION_SHADER, &tessEvalProgBound);
+    qemu_put_be32(f, tessEvalProgBound);
+    GLint compProgBound;
+    glGetProgramPipelineiv(pp_id, GL_COMPUTE_SHADER, &compProgBound);
+    qemu_put_be32(f, compProgBound);
+
+    int activeStagesMask = 0;
+    
+    glBindProgramPipeline(pp_id);
+    GLint activeProg;
+    glGetProgramPipelineiv(pp_id, GL_ACTIVE_PROGRAM, &activeProg);
+    qemu_put_be32(f, activeProg);
+}
+
+void load_single_program_pipeline(QEMUFile *f, GLint old_pp_id) {
+    GLint pp_id;
+    glGenProgramPipelines(1, (GLuint*)&pp_id);
+    change_host_id_map(RESOURCE_TYPE_PROGRAM_PIPELINE, old_pp_id, pp_id);
+
+    GLint vertProgBound = get_host_id_map(RESOURCE_TYPE_PROGRAM, qemu_get_be32(f));
+    glUseProgramStages(pp_id, GL_VERTEX_SHADER_BIT, vertProgBound);
+    GLint fragProgBound = get_host_id_map(RESOURCE_TYPE_PROGRAM, qemu_get_be32(f));
+    glUseProgramStages(pp_id, GL_FRAGMENT_SHADER_BIT, fragProgBound);
+    GLint geomProgBound = get_host_id_map(RESOURCE_TYPE_PROGRAM, qemu_get_be32(f));
+    glUseProgramStages(pp_id, GL_GEOMETRY_SHADER_BIT, geomProgBound);
+    GLint tessCtrlProgBound = get_host_id_map(RESOURCE_TYPE_PROGRAM, qemu_get_be32(f));
+    glUseProgramStages(pp_id, GL_TESS_CONTROL_SHADER_BIT, tessCtrlProgBound);
+    GLint tessEvalProgBound = get_host_id_map(RESOURCE_TYPE_PROGRAM, qemu_get_be32(f));
+    glUseProgramStages(pp_id, GL_TESS_EVALUATION_SHADER_BIT, tessEvalProgBound);
+    GLint compProgBound = get_host_id_map(RESOURCE_TYPE_PROGRAM, qemu_get_be32(f));
+    glUseProgramStages(pp_id, GL_COMPUTE_SHADER_BIT, compProgBound);
+
+    glBindProgramPipeline(pp_id);
+
+    GLint activeProg = get_host_id_map(RESOURCE_TYPE_PROGRAM, qemu_get_be32(f));
+    glActiveShaderProgram(pp_id, activeProg);
+
+    LOGI("loading program_pipeline ID: old %d new %d", old_pp_id, pp_id);
+}
+
+void save_native_program_pipelines(QEMUFile *f) {
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM_PIPELINE]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_PROGRAM_PIPELINE];
+    qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many samplers
+    LOGI("saving program_pipeline num %d", g_hash_table_size(resource_list));
+
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        GLint pp_id = (GLint)value;
+        save_single_program_pipeline(f, pp_id);
+    }
+
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM_PIPELINE]);
+}
+
+void load_native_program_pipelines(QEMUFile *f) {
+    int pp_num = qemu_get_be32(f);
+    for(int i = 0; i < pp_num ; i++) {
+        GLint old_pp_id = qemu_get_be32(f);
+        load_single_program_pipeline(f, old_pp_id);
+    }
+}
+
 void load_single_sampler(QEMUFile *f, GLint old_sampler_id) {
 
 
@@ -893,6 +975,8 @@ void save_native_resources(QEMUFile *f){
     save_native_samplers(f);
 
     save_native_renderbuffers(f);
+
+    save_native_program_pipelines(f);
 }
 
 void load_native_resources(QEMUFile *f){
@@ -906,6 +990,7 @@ void load_native_resources(QEMUFile *f){
     load_native_buffers(f);
     load_native_samplers(f);
     load_native_renderbuffers(f);
+    load_native_program_pipelines(f);
 }
 
 void save_virtqueue_element(QEMUFile *f, VirtQueueElement *elem) {
