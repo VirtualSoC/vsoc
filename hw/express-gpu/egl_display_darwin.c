@@ -92,7 +92,7 @@ void init_display(Egl_Display **display_point) {
     Egl_Display_DARWIN *darwin_display = (Egl_Display_DARWIN *)display;
     memset(darwin_display, 0, sizeof(Egl_Display_DARWIN));
 
-    LOGI("init darwin display");
+    LOGD("init darwin display");
     // init_darwin_extension(display);
     init_configs(display);
 

@@ -78,7 +78,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 { //没有绑定GL_PIXEL_UNPACK_BUFFER(PBO) buffer
 //数据首先写入到 GL_PIXEL_UNPACK_BUFFER，然后 OpenGL 会从该缓冲区将数据上传到纹理中
-    LOGD("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
+    LOGI("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
          "%d h %d format %x type %x pixels %x",
          target, level, internalformat, width, height, format, type, pixels);
 
@@ -173,6 +173,7 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
 {
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
     GLuint bind_texture = get_guest_binding_texture(context, target);
+    LOGI("with bound going to upload data for texture target %d id %d width %d height %d format %x type %x",target, bind_texture, width, height, format, type);
 
     if (bind_texture == 0)
     {
@@ -192,11 +193,12 @@ void d_glTexImage2D_with_bound(void *context, GLenum target, GLint level, GLint 
 
 void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint buf_len, const void *pixels)
 {
-
+    // LOGI("going upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d length %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, buf_len, type);
     Guest_Mem *guest_mem = (Guest_Mem *)pixels;
 
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     GLuint bind_texture = get_guest_binding_texture(context, target);
+    LOGD("going upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d length %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, buf_len, type);
 
     if (bind_texture == 0)
     {
@@ -229,7 +231,6 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
     }
 
     int start_loc = 0, end_loc = buf_len;
-    LOGI("going upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d length %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, buf_len, type);
 
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
@@ -289,6 +290,8 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
     }
 
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
+
+    LOGI("with bound going to upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, type);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
@@ -879,8 +882,9 @@ void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable
     if(g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer)) != NULL) {
         Express_Native_Framebuffer* newFramebuffer = g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer));
         newFramebuffer->framebufferId = framebuffer;
-        newFramebuffer->texture_id = texture_id;
-        newFramebuffer->attachment_target = attachment;
+        // newFramebuffer->texture_id = texture_id;
+        // newFramebuffer->attachment_target = attachment;
+        newFramebuffer->attachment_target[attachment - GL_COLOR_ATTACHMENT0] = texture_id;
         LOGI("in update framebuffer texture of id %d texture %d type %x", framebuffer, texture_id, attachment);
 
         // g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);

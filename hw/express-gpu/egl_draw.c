@@ -16,10 +16,10 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     Opengl_Context *real_opengl_context = (Opengl_Context *)g_hash_table_lookup(process_context->context_map, GUINT_TO_POINTER(ctx));
 
-    LOGI("in eglMakecurrent opengl_context %llx ctx %llx", real_opengl_context, ctx); //一次绑定一次解绑（绑定0
+    LOGD("in eglMakecurrent opengl_context %llx ctx %llx", real_opengl_context, ctx); //一次绑定一次解绑（绑定0
 
     express_printf("makecurrent guest draw %llx read %llx context %llx\n", (uint64_t)draw, (uint64_t)read, (uint64_t)ctx);
-    LOGI("makecurrent host draw %llx read %llx context %llx", (uint64_t)real_surface_draw, (uint64_t)real_surface_read, (uint64_t)real_opengl_context);
+    LOGD("makecurrent host draw %llx read %llx context %llx", (uint64_t)real_surface_draw, (uint64_t)real_surface_read, (uint64_t)real_opengl_context);
 
     if (thread_context->opengl_context == real_opengl_context && thread_context->render_double_buffer_draw == real_surface_draw && thread_context->render_double_buffer_read == real_surface_read)
     {
@@ -116,7 +116,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     }
     else
     {
-        LOGI("thread %llx context %llx makecurrent window %llx", thread_context, real_opengl_context, real_opengl_context->window);
+        LOGD("thread %llx context %llx makecurrent window %llx", thread_context, real_opengl_context, real_opengl_context->window);
         if (egl_makeCurrent(real_opengl_context->window) != EGL_TRUE) return EGL_FALSE;
     }
 
@@ -221,7 +221,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (real_surface_draw == NULL && real_surface_read == NULL)
     {
-        LOGI("host create surfaceless context %llx", (uint64_t)ctx);
+        LOGD("host create surfaceless context %llx", (uint64_t)ctx);
         real_opengl_context->read_fbo0 = 0;
         real_opengl_context->draw_fbo0 = 0;
         return EGL_TRUE;

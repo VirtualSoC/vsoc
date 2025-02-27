@@ -55,7 +55,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     {
         next_draw_gbuffer = now_draw_gbuffer;
     }
-    LOGI("going to swapbuffer next gbuffer %llx %d", next_draw_gbuffer->gbuffer_id, next_draw_gbuffer->data_texture);
+    LOGD("going to swapbuffer next gbuffer %llx %d", next_draw_gbuffer->gbuffer_id, next_draw_gbuffer->data_texture);
     connect_gbuffer_to_surface(next_draw_gbuffer, surface, opengl_context->framebuffer_map);
 
     GLuint glerror = glGetError();
@@ -74,7 +74,7 @@ void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface, uint6
     {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, surface->gbuffer->data_fbo);
     }
-    LOGI("in swapbuffer bind gbuffer %x fbo %d", surface->gbuffer->gbuffer_id, surface->gbuffer->data_fbo);
+    LOGD("in swapbuffer bind gbuffer %x fbo %d", surface->gbuffer->gbuffer_id, surface->gbuffer->data_fbo);
     glerror = glGetError();
     if (glerror != GL_NO_ERROR)
     {
@@ -301,7 +301,7 @@ Window_Buffer *render_surface_create(EGLConfig eglconfig, int width, int height,
     surface->depth_internal_format = depth_internal_format;
     surface->stencil_internal_format = stencil_internal_format;
 
-    LOGI("create surface %llx\n", (uint64_t)surface);
+    LOGD("create surface %llx\n", (uint64_t)surface);
 
     return surface;
 }
@@ -319,7 +319,7 @@ void render_surface_init(Window_Buffer *surface, GHashTable* resource_list)
         return;
     }
     glGenFramebuffers(num, surface->data_fbo);
-    LOGI("create fbo in init surface of num %d %d %d %d", num, surface->data_fbo[0], surface->data_fbo[1], surface->data_fbo[2]);
+    LOGD("create fbo in init surface of num %d %d %d %d", num, surface->data_fbo[0], surface->data_fbo[1], surface->data_fbo[2]);
 
     // resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
     surface->framebuffer_map = resource_list;
@@ -338,7 +338,7 @@ void render_surface_init(Window_Buffer *surface, GHashTable* resource_list)
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(surface->data_fbo[i])) == NULL) {
             Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
             newFramebuffer->framebufferId = surface->data_fbo[i];
-            LOGI("in render_surface_init save framebuffer of id %d", surface->data_fbo[i])
+            LOGD("in render_surface_init save framebuffer of id %d", surface->data_fbo[i]);
             g_hash_table_insert(resource_list, GUINT_TO_POINTER(surface->data_fbo[i]), newFramebuffer);
 
             // if(surface->data_fbo[i] == 1){
@@ -374,23 +374,23 @@ void render_surface_uninit(Window_Buffer *surface, GHashTable* resource_list)
     }
     glDeleteFramebuffers(num, surface->data_fbo);
 
-    LOGI("delete fbo in uninit surface %d %d %d", surface->data_fbo[0], surface->data_fbo[1], surface->data_fbo[2]);
+    LOGD("delete fbo in uninit surface %d %d %d", surface->data_fbo[0], surface->data_fbo[1], surface->data_fbo[2]);
 
     // resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
     if(!resource_list) {
         resource_list = surface->framebuffer_map;
-        LOGI("get old resource list of %d", resource_list);
+        LOGD("get old resource list of %d", resource_list);
     }
     for (int i = 0; i < num; i++)
     {
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
         // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
         // GHashTable* resource_list = opengl_context->framebuffer_map;
-        LOGI("in render surface uninit of map size %d", g_hash_table_size(resource_list));
+        LOGD("in render surface uninit of map size %d", g_hash_table_size(resource_list));
         Express_Native_Framebuffer* current_buffer = g_hash_table_lookup(resource_list, GUINT_TO_POINTER(surface->data_fbo[i]));
         
         if(current_buffer != NULL) {
-            LOGI("in render surface uninit delete %d", current_buffer->framebufferId);
+            LOGD("in render surface uninit delete %d", current_buffer->framebufferId);
             g_hash_table_remove(resource_list, GUINT_TO_POINTER(surface->data_fbo[i]));
 
         } else {
@@ -902,7 +902,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
 
         GLuint current_fbo = 0;
         glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&current_fbo);
-        LOGI("gbuffer %llx already connected to surface %llx current fbo %d", gbuffer->gbuffer_id, (uint64_t)surface, current_fbo);
+        LOGD("gbuffer %llx already connected to surface %llx current fbo %d", gbuffer->gbuffer_id, (uint64_t)surface, current_fbo);
         return;
     }
     LOGD("connect surface %llx fbo %d to gbuffer %llx", surface, surface->data_fbo[surface->now_fbo_loc], gbuffer->gbuffer_id);
@@ -934,7 +934,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &wfboID);
     glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&rtextureId1); //ztodo:去掉这些
     glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&wtextureId1);
-    LOGI("before connect gbuffer to surface read fbo %d texture %d write fbo %d texture %d binding %d", rfboID, rtextureId1, wfboID, wtextureId1, gbuffer->data_texture);
+    LOGD("before connect gbuffer to surface read fbo %d texture %d write fbo %d texture %d binding %d", rfboID, rtextureId1, wfboID, wtextureId1, gbuffer->data_texture);
 
     // 附加颜色缓冲区
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);
@@ -955,8 +955,9 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     if(oldFramebuffer != NULL) {
         // Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
         oldFramebuffer->framebufferId = surface->data_fbo[surface->now_fbo_loc];
-        oldFramebuffer->texture_id = gbuffer->data_texture;
-        oldFramebuffer->attachment_target = GL_COLOR_ATTACHMENT0;
+        // oldFramebuffer->texture_id = gbuffer->data_texture;
+        // oldFramebuffer->attachment_target = GL_COLOR_ATTACHMENT0;
+        oldFramebuffer->attachment_target[0] = gbuffer->data_texture;
         // g_hash_table_insert(resource_list, GUINT_TO_POINTER(surface->data_fbo[surface->now_fbo_loc]), oldFramebuffer);
         LOGD("update framebuffer info of id %d texture %d type %d", oldFramebuffer->framebufferId, oldFramebuffer->texture_id, oldFramebuffer->attachment_target);
     } else {

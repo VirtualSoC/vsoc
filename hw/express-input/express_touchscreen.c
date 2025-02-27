@@ -670,7 +670,7 @@ void sync_express_touchscreen_input(bool need_send)
 
     if (need_send)
     {
-        LOGI("going to set touchscreen irq");
+        LOGD("going to set touchscreen irq");
         write_to_guest_mem(static_touchscreen_context.guest_buffer, &(static_touchscreen_context.data), 0, sizeof(Touchscreen_Data));
         set_express_device_irq((Device_Context *)&static_touchscreen_context, 0, sizeof(Touchscreen_Data));
     }

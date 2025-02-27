@@ -560,7 +560,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
         glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&rtextureId1);
         glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&wtextureId1);
 
-        LOGI("current glDrawArrays %d %d %d fbo binded texture %d %d current texture %d fbo %d %d", mode, first, count, rtextureId1, wtextureId1, curtex, rfboID, wfboID);
+        LOGD("current glDrawArrays %d %d %d fbo binded texture %d %d current texture %d fbo %d %d", mode, first, count, rtextureId1, wtextureId1, curtex, rfboID, wfboID);
 
         glerror = glGetError();
         if(glerror != GL_NO_ERROR) {
@@ -991,7 +991,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
         GLint current_vbo;
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_vbo);
         if (current_vbo == 0) {
-            LOGE("No VBO bound!");
+            LOGD("No VBO bound!");
         }
 
         GLint current_ebo;
@@ -1008,7 +1008,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
         GLint textureID = 0;
         glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &textureID);
 
-        LOGI("in drawRangeElements %d start %d end %d count %d type %d currentFBO %d %d %d %d %d %d", indices, start, end, count, type, currentFBO, textureID, current_ebo, current_vbo, opengl_context->current_read_fbo, opengl_context->current_write_fbo);
+        LOGD("in drawRangeElements %d start %d end %d count %d type %d currentFBO %d %d %d %d %d %d", indices, start, end, count, type, currentFBO, textureID, current_ebo, current_vbo, opengl_context->current_read_fbo, opengl_context->current_write_fbo);
 
         // GLint size;
         // void* data;

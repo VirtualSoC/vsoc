@@ -48,6 +48,26 @@ typedef struct Express_Native_Shader {
 
 // program处理方法：（program_id<<32）| shader_id
 
+typedef struct Express_Native_Sampler {
+    GLuint sampler_id;
+    GLint min_filter;
+    GLint mag_filter;
+    GLint wrap_s;
+    GLint wrap_t;
+    GLint wrap_r;
+    GLint compare_mode;
+    GLint compare_func;
+    GLint max_anisotropy;
+    GLint min_lod;
+    GLint max_lod;
+    GLint lod_bias;
+    GLint border_color[4];
+    GLint swizzle_r;
+    GLint swizzle_g;
+    GLint swizzle_b;
+    GLint swizzle_a;
+} Express_Native_Sampler;
+
 
 typedef struct Express_Native_Program_Shader{
     GLuint shader_id;
@@ -85,7 +105,8 @@ typedef struct Express_Native_Texture_Simple {
 
 typedef struct Express_Native_Framebuffer { //ztodo:没处理renderbuffer相关。此外现在只能绑一个东西，需要重新处理一下怎么定key(类似program那样，关于前两个字段独一无二）！！
     GLuint framebufferId;
-    GLenum attachment_target;
+    GLenum attachment_target[16]; //attach的texture
+    GLenum renderbuffer_attachment[19];//前16个是GL_COLOR_ATTACHMENT0~15，后3个是GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMEN
     GLuint texture_id;
 } Express_Native_Framebuffer;
 

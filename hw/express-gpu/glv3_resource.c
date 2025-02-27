@@ -448,7 +448,7 @@ void d_glGenTextures(void *context, GLsizei n, const GLuint *textures)
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
     {
-        LOGI("create texture id %d %d", host_buffers[i], textures[i]);
+        LOGD("create texture id %d %d", host_buffers[i], textures[i]);
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
     }
 
@@ -510,6 +510,16 @@ void d_glGenSamplers(void *context, GLsizei count, const GLuint *samplers)
 {
     GLuint *host_buffers = g_malloc(count * sizeof(GLuint));
     glGenSamplers(count, host_buffers);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SAMPLER];
+    for(int i = 0; i < count; i++)
+    {
+        GLuint sampler = host_buffers[i];
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(sampler), GUINT_TO_POINTER(sampler));
+        LOGI("in gen samplers and count is %d samplers %d", count, host_buffers[i]);
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);
 
     unsigned long long *host_buffers_long = g_malloc(count * sizeof(unsigned long long));
     for (int i = 0; i < count; i++)
@@ -628,7 +638,8 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
             Express_Native_Framebuffer* newFramebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
             newFramebuffer->framebufferId = host_buffers[i];
             newFramebuffer->texture_id = 0;
-            newFramebuffer->attachment_target = 0;
+            memset(newFramebuffer->attachment_target, 0, sizeof(newFramebuffer->attachment_target));
+            // newFramebuffer->attachment_target = 0;
             g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_buffers[i]), newFramebuffer);
         }
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
@@ -872,7 +883,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     glDeleteTextures(n, host_buffers);
     for (int i = 0; i < n; i++)
     {
-        LOGI("delete texture of id %d", host_buffers[i]);
+        LOGD("delete texture of id %d", host_buffers[i]);
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
         GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) != NULL) {
@@ -902,6 +913,16 @@ void d_glDeleteSamplers(void *context, GLsizei count, const GLuint *samplers)
     GLuint *host_buffers = g_malloc(count * sizeof(GLuint));
     get_host_resource_ids(map_status, count, samplers, host_buffers);
     glDeleteSamplers(count, host_buffers);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SAMPLER];
+    for(int i = 0; i < count; i++)
+    {
+        GLuint sampler = host_buffers[i];
+        g_hash_table_remove(resource_list, GUINT_TO_POINTER(sampler));
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);    
+
     g_free(host_buffers);
 
     remove_host_map_ids(map_status, count, samplers);
@@ -951,7 +972,7 @@ void d_glDeleteShader(void *context, GLuint shader)
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
     GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SHADER];
 
-    LOGI("delete shader %d %d", host_shader, g_hash_table_size(resource_list));
+    LOGD("delete shader %d %d", host_shader, g_hash_table_size(resource_list));
 
     g_hash_table_remove(resource_list, GUINT_TO_POINTER(host_shader));
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);

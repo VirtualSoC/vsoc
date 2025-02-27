@@ -152,7 +152,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            LOGI("program %d uniform value |%d %d| |%s|", program, location, type, name_buf);
+            LOGD("program %d uniform value |%d %d| |%s|", program, location, type, name_buf);
         }
 
         for (int i = 0; i < attrib_num; i++)
@@ -172,7 +172,7 @@ int init_program_data(GLuint program)
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
 
-            LOGI("attrib |%d %d| |%s|", location, type, name_buf);
+            LOGD("attrib |%d %d| |%s|", location, type, name_buf);
         }
 
         int uniform_block_active_uniforms;
@@ -190,7 +190,7 @@ int init_program_data(GLuint program)
             temp_ptr += 3 * sizeof(int);
             strncpy(temp_ptr, name_buf, name_len);
             temp_ptr += strlen(name_buf) + 1;
-            LOGI("uniform block |%d %d| |%s| index %d\n", uniform_block_active_uniforms, size, name_buf, i);
+            LOGD("uniform block |%d %d| |%s| index %d\n", uniform_block_active_uniforms, size, name_buf, i);
         }
 
         if (has_image)
@@ -300,7 +300,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     //读取完成后直接删除就行了
     g_hash_table_remove(program_data_map, GUINT_TO_POINTER(program));
 
-    LOGI("current program map size %d", g_hash_table_size(program_data_map));
+    LOGD("current program map size %d", g_hash_table_size(program_data_map));
 
     return;
 }

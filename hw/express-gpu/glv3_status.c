@@ -194,7 +194,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
 
     if(buffer != 0){
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);
-        LOGI("binding buffer of id %d type %x", buffer, target);
+        LOGD("binding buffer of id %d type %x", buffer, target);
         GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(buffer)) == NULL) {
             Express_Native_buffer_Simple* newBuffer = g_malloc0(sizeof(Express_Native_buffer_Simple));
@@ -208,11 +208,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
 
 
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);        
-    } else {
-        LOGI("bind buffer 0 %d", target); //基本全是GL_ELEMENT_ARRAY_BUFFER,少部分GL_ARRAY_BUFFER
     }
-
-
 
     if (host_opengl_version < 45 || DSA_enable == 0)
     // if(target != GL_ELEMENT_ARRAY_BUFFER)
@@ -503,12 +499,12 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         return;
     }
 
-    LOGI("glBindEGLImage gbuffer %d %llx ptr %llx type %d is_texture2d (%d) %d texture %d ",gbuffer->data_texture, gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D, target, gbuffer->data_texture);
+    LOGD("glBindEGLImage gbuffer %d %llx ptr %llx type %d is_texture2d (%d) %d texture %d ",gbuffer->data_texture, gbuffer->gbuffer_id, gbuffer, gbuffer->usage_type, target == GL_TEXTURE_2D, target, gbuffer->data_texture);
 
     if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE) //基本都会进这里
     {
         set_texture_gbuffer_ptr(opengl_context, texture, gbuffer); //将texture和gbuffer关联起来
-        LOGI("glBindEGLImage gbuffer_id %llx is_writing %d sync %d texture %d %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
+        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d texture %d %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         if (target == GL_TEXTURE_2D)
         {

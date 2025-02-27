@@ -13544,7 +13544,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-
+        LOGD("in glbindsampler unit %d sampler %d\n", unit, sampler);
         glBindSampler(unit, (GLuint)get_host_sampler_id(opengl_context, (unsigned int)sampler));
     }
     break;
@@ -26531,7 +26531,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         GLuint offset;
         GLuint length;
 
-        LOGI("in glVertexAttribPointer_without_bound");
+        LOGD("in glVertexAttribPointer_without_bound");
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_glVertexAttribPointer_without_bound))

@@ -71,9 +71,6 @@ void init_saving_snapshot() {
 
 void init_loading_snapshot(QEMUFile *f) {
     LOGI("init_loading_snapshot");
-    // if (is_init) {
-    //     return;
-    // }
     is_init = true;
 
     init_render_thread_contexts_resources();
@@ -442,7 +439,11 @@ void load_native_buffers(QEMUFile *f) {
 
 GLuint save_single_framebuffer(QEMUFile* f, Express_Native_Framebuffer *framebuffer){
     qemu_put_be64(f, framebuffer->framebufferId);
-    qemu_put_be32(f, framebuffer->attachment_target);
+    // qemu_put_be32(f, framebuffer->attachment_target);
+    for(int i = 0; i < 16; i++) {
+        qemu_put_be32(f, framebuffer->attachment_target[i]);
+        LOGI("saving framebuffer attachment %d %d", i, framebuffer->attachment_target[i]);
+    }
     qemu_put_be64(f, framebuffer->texture_id);
 
 
@@ -506,10 +507,15 @@ GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer) {
     }
 
     GLuint framebuffer_id = framebuffer->framebufferId;
-    GLuint attachment_type = framebuffer->attachment_target;
-    GLuint texture_id = framebuffer->texture_id;
-
-    LOGI("loading framebuffer all info %d %x %d", framebuffer_id, attachment_type, texture_id); //0x8CE0 GL_COLOR_ATTACHMENT0
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id);
+    for(int i = 0; i < 16; i++) {
+        if(framebuffer->attachment_target[i] != 0) {
+            GLuint attachment_type = GL_COLOR_ATTACHMENT0 + i;
+            GLuint texture_id = framebuffer->attachment_target[i];
+            glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_type, GL_TEXTURE_2D, texture_id, 0);
+            LOGI("loading framebuffer attachment %d old %d new %d", i, texture_id, attachment_type);
+        }    
+    }
 
     // GLuint framebuffer_id = old_framebuffer_id;
 
@@ -517,15 +523,10 @@ GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer) {
     // GLint new_framebuffer_id;
     // glGenFramebuffers(1, (GLuint*)&new_framebuffer_id);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id);
+
     // LOGI("loading framebuffer ID: old %d new %d", framebuffer_id, new_framebuffer_id);
 
-    glerror = glGetError();
-    if (glerror != GL_NO_ERROR) {
-        LOGE("error! glBindFramebuffer failed! gl error %x ", glerror);
-    }
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_type, GL_TEXTURE_2D, texture_id, 0);
+    // glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_type, GL_TEXTURE_2D, texture_id, 0);
 
     // for (int j = 0; j < 16; j++) {
     //     GLuint attachment_object = qemu_get_be32(f);
@@ -552,42 +553,42 @@ GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer) {
 
     glerror = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (glerror != GL_FRAMEBUFFER_COMPLETE) {
-        LOGE("error! framebuffer not complete! status %x gl error %x texture %d", glerror, glGetError(), texture_id);
-        GLint currentTexture;
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture); 
+        LOGE("error! framebuffer not complete! status %x gl error %x", glerror, glGetError());
+        // GLint currentTexture;
+        // glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture); 
 
-        GLint width, height, internalFormat, format, type;
+        // GLint width, height, internalFormat, format, type;
 
-        GLboolean isValid = glIsTexture(texture_id);
-        if (isValid) {
-            LOGI("Texture is valid");
-        } else {
-            LOGI("Texture is invalid");
-        }
+        // GLboolean isValid = glIsTexture(texture_id);
+        // if (isValid) {
+        //     LOGI("Texture is valid");
+        // } else {
+        //     LOGI("Texture is invalid");
+        // }
 
 
-        // 绑定指定纹理 ID 进行检查
-        glBindTexture(GL_TEXTURE_2D, texture_id);
+        // // 绑定指定纹理 ID 进行检查
+        // glBindTexture(GL_TEXTURE_2D, texture_id);
 
-        GLenum bindError = glGetError();
-        if (bindError != GL_NO_ERROR) {
-            glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture); 
+        // GLenum bindError = glGetError();
+        // if (bindError != GL_NO_ERROR) {
+        //     glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture); 
 
-            LOGE("Error occurred during texture bind operation: %x current %d new %d", bindError, currentTexture, texture_id);
-        }        
+        //     LOGE("Error occurred during texture bind operation: %x current %d new %d", bindError, currentTexture, texture_id);
+        // }        
 
-        // 获取纹理尺寸
-        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
-        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+        // // 获取纹理尺寸
+        // glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+        // glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
 
-        // 获取纹理的内部格式
-        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &internalFormat);
+        // // 获取纹理的内部格式
+        // glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &internalFormat);
 
-        // 输出纹理的属性
-        LOGE("Texture ID: %d Width: %d, Height: %d, Internal Format: %d", texture_id, width, height, internalFormat, format, type);
+        // // 输出纹理的属性
+        // LOGE("Texture ID: %d Width: %d, Height: %d, Internal Format: %d", texture_id, width, height, internalFormat, format, type);
 
-        // 恢复之前的纹理绑定状态
-        glBindTexture(GL_TEXTURE_2D, currentTexture);
+        // // 恢复之前的纹理绑定状态
+        // glBindTexture(GL_TEXTURE_2D, currentTexture);
 
         // 可选：检查纹理绑定操作是否有错误
 
@@ -611,16 +612,21 @@ void load_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
 
     int framebuffer_num = qemu_get_be32(f);
     for (int i = 0; i < framebuffer_num; i++) {
-        uint64_t framebuffer_id = qemu_get_be64(f);
-        GLuint type = qemu_get_be32(f);
-        uint64_t texture_id = qemu_get_be64(f);
+        // uint64_t framebuffer_id = qemu_get_be64(f);
+        // GLuint type = qemu_get_be32(f);
+        // uint64_t texture_id = qemu_get_be64(f);
         Express_Native_Framebuffer *new_framebuffer = g_malloc0(sizeof(Express_Native_Framebuffer));
 
-        new_framebuffer->framebufferId = framebuffer_id;
-        new_framebuffer->attachment_target = type;
+        new_framebuffer->framebufferId = qemu_get_be64(f);
+        for(int i = 0; i < 16; i++) {
+            new_framebuffer->attachment_target[i] = get_host_id_map(RESOURCE_TYPE_TEXTURE, qemu_get_be32(f));
+            LOGI("loading framebuffer attachment %d %d", i, new_framebuffer->attachment_target[i]);
+        }
+        // new_framebuffer->attachment_target = type;
+        uint64_t texture_id = qemu_get_be64(f);
         new_framebuffer->texture_id = get_host_id_map(RESOURCE_TYPE_TEXTURE, texture_id);
-        LOGI("loading framebuffer ID: %d, Type: %d, Texture ID: %d %d", framebuffer_id, type, texture_id, new_framebuffer->texture_id);
-        g_hash_table_insert(resource_list, GUINT_TO_POINTER(framebuffer_id), new_framebuffer);
+        LOGI("loading framebuffer ID: %d, Texture ID: %d %d", new_framebuffer->framebufferId, texture_id, new_framebuffer->texture_id);
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(new_framebuffer->framebufferId), new_framebuffer);
         // texture_id = get_host_id_map(RESOURCE_TYPE_TEXTURE, texture_id);
         // if(g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id)) == NULL) {
         //     GLint new_framebuffer_id;
@@ -645,7 +651,152 @@ void load_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
     // g_free(loaded_framebuffers);
 }
 
+void save_single_sampler(QEMUFile *f, GLint sampler_id) {
+    LOGI("saving sampler ID: %d", sampler_id);
+    qemu_put_be32(f, sampler_id);
+    GLint param;
+    GLint border_color[4];
+    GLfloat paramf;
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_WRAP_S, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_WRAP_T, &param);
+    qemu_put_be32(f, param);
 
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_WRAP_R, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_MIN_FILTER, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_MAG_FILTER, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_COMPARE_MODE, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_COMPARE_FUNC, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameterfv(sampler_id, GL_TEXTURE_MAX_ANISOTROPY_EXT, &paramf);
+    qemu_put_be32(f, *(GLuint *)&paramf);
+    
+    glGetSamplerParameterfv(sampler_id, GL_TEXTURE_MIN_LOD, &paramf);
+    qemu_put_be32(f, *(GLuint *)&paramf);
+    
+    glGetSamplerParameterfv(sampler_id, GL_TEXTURE_MAX_LOD, &paramf);
+    qemu_put_be32(f, *(GLuint *)&paramf);
+    
+    glGetSamplerParameterfv(sampler_id, GL_TEXTURE_LOD_BIAS, &paramf);
+    qemu_put_be32(f, *(GLuint *)&paramf);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_BORDER_COLOR, border_color);
+    qemu_put_be32(f, border_color[0]);
+    qemu_put_be32(f, border_color[1]);
+    qemu_put_be32(f, border_color[2]);
+    qemu_put_be32(f, border_color[3]);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_SWIZZLE_R, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_SWIZZLE_G, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_SWIZZLE_B, &param);
+    qemu_put_be32(f, param);
+    
+    glGetSamplerParameteriv(sampler_id, GL_TEXTURE_SWIZZLE_A, &param);
+    qemu_put_be32(f, param);
+}
+
+void save_native_samplers(QEMUFile *f) {
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SAMPLER];
+    qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many samplers
+    LOGI("saving sampler num %d", g_hash_table_size(resource_list));
+
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        GLint sampler_id = (GLint)value;
+        save_single_sampler(f, sampler_id);
+    }
+
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);
+}
+
+void load_single_sampler(QEMUFile *f, GLint old_sampler_id) {
+
+
+    GLint param;
+    GLint border_color[4];
+    GLuint sampler_id;
+    glGenSamplers(1, &sampler_id);
+
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_T, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_R, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_COMPARE_MODE, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_COMPARE_FUNC, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameterf(sampler_id, GL_TEXTURE_MAX_ANISOTROPY_EXT, *(GLfloat *)&param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameterf(sampler_id, GL_TEXTURE_MIN_LOD, *(GLfloat *)&param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameterf(sampler_id, GL_TEXTURE_MAX_LOD, *(GLfloat *)&param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameterf(sampler_id, GL_TEXTURE_LOD_BIAS, *(GLfloat *)&param);
+    
+    border_color[0] = qemu_get_be32(f);
+    border_color[1] = qemu_get_be32(f);
+    border_color[2] = qemu_get_be32(f);
+    border_color[3] = qemu_get_be32(f);
+    glSamplerParameteriv(sampler_id, GL_TEXTURE_BORDER_COLOR, border_color);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_SWIZZLE_R, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_SWIZZLE_G, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_SWIZZLE_B, param);
+    
+    param = qemu_get_be32(f);
+    glSamplerParameteri(sampler_id, GL_TEXTURE_SWIZZLE_A, param);
+
+
+    change_host_id_map(RESOURCE_TYPE_SAMPLER, old_sampler_id, sampler_id);
+    LOGI("loading sampler ID: old %d new %d", old_sampler_id, sampler_id);
+}
+
+void load_native_samplers(QEMUFile *f) {
+    int sampler_num = qemu_get_be32(f);
+    for(int i = 0; i < sampler_num ; i++) {
+        GLint old_sampler_id = qemu_get_be32(f);
+        load_single_sampler(f, old_sampler_id);
+    }
+}
 
 void save_native_resources(QEMUFile *f){
     save_native_shaders(f);
@@ -653,6 +804,8 @@ void save_native_resources(QEMUFile *f){
     save_native_textures(f);
 
     save_native_buffers(f);
+
+    save_native_samplers(f);
 }
 
 void load_native_resources(QEMUFile *f){
@@ -665,6 +818,7 @@ void load_native_resources(QEMUFile *f){
 
 
     load_native_buffers(f);
+    load_native_samplers(f);
 
 }
 

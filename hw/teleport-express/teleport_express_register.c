@@ -125,11 +125,11 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
     int t = origin_tail;
     do
     {
-        LOGI("in input call release queue full %d", t);
+        LOGD("in input call release queue full %d", t);
         while (call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)] != NULL)
         {
             t = (t + 1) % (CALL_BUF_SIZE + 2);
-            LOGI("input call release queue full %d", t);
+            LOGD("input call release queue full %d", t);
         }
     } while (qatomic_cmpxchg(&(call_recycle_queue[(t + 1) % (CALL_BUF_SIZE + 2)]), NULL, call) != NULL);
 
@@ -200,7 +200,7 @@ void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int
 
     Guest_Mem *mem = irq_call->elem_header->para;
 
-    LOGI("mem is %lld", (uint64_t)mem);
+    LOGD("mem is %lld", (uint64_t)mem);
 
     unsigned long long t_data = ((((uint64_t)buf_index) << 32) + (uint64_t)len);
     write_to_guest_mem(mem, &t_data, __builtin_offsetof(Teleport_Express_Flag_Buf, ret_data), 8);
@@ -300,7 +300,7 @@ void express_input_device_sync(void)
 
 void common_device_irq_register(Device_Context *device_context, Teleport_Express_Call *irq_call)
 {
-    LOGI("irq register %s", device_context->device_info->name);
+    LOGD("irq register %s", device_context->device_info->name);
 
     Teleport_Express_Call *origin_call = NULL;
     if ((origin_call = qatomic_xchg(&device_context->irq_call, irq_call)) != NULL)

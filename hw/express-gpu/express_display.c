@@ -52,7 +52,6 @@ void update_display_gbuffer_texture_and_framebuffer() {
     display_write_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_write_gbuffer->data_texture);
     display_read_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_read_gbuffer->data_texture);
     LOGI("restore display read and write %d %d %d %d", display_write_gbuffer->data_fbo, display_read_gbuffer->data_fbo, display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
-
 }
 
 static Display_Info express_display_info = {
@@ -359,9 +358,6 @@ void init_display_context_vmload(){
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
 
         //ztodo:这个要重新创建，在重启的情况下
-
-
-
         main_window_opengl_prepare(&programID, &drawVAO);
         glBindVertexArray(drawVAO);
 

@@ -69,6 +69,7 @@ void save_sync_context(QEMUFile *f){
     qemu_put_be32(f, static_sync_context.need_sync);
     save_guest_mem(f, static_sync_context.guest_buffer);
     // save_sync_flag_data(f, static_sync_context.sync_data);
+    LOGI("saveing sync flag data guest waitting cnt %d", static_sync_context.sync_data->guest_waitting_cnt);
     qemu_put_be32(f, static_sync_context.device_context.irq_enabled);
 
     if(static_sync_context.device_context.irq_call == NULL){
@@ -161,7 +162,7 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
         int old_waitting_cnt = 0;
         if ((old_waitting_cnt = qatomic_xchg(&static_sync_context.sync_data->guest_waitting_cnt, 0)) != 0)
         {
-            LOGI("going to set sync irq");
+            LOGD("going to set sync irq");
             set_express_device_irq((Device_Context *)&static_sync_context, old_waitting_cnt, sizeof(Sync_Context));
         }
     }
@@ -178,7 +179,6 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     int64_t start_time = g_get_real_time();
     if (static_sync_context.sync_data != NULL)
     {
-        LOGD("wwwait for sync %d", sync_id);
         while (!SYNC_FLAG_SIGNAL(static_sync_context.sync_data, sync_id))
         {
 #ifdef _WIN32

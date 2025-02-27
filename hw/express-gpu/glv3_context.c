@@ -236,12 +236,6 @@ void resource_context_destroy(Resource_Context *resources)
                     }
                     glDeleteProgram((GLuint)resources->program_resource->resource_id_map[i]);
                     LOGI("delete program of id %d", (GLuint)resources->program_resource->resource_id_map[i]);
-                    // ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
-                    // GHashTable *program_table = g_resource_list[RESOURCE_TYPE_PROGRAM];
-                    // g_hash_table_remove(program_table, GUINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
-                    // ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_PROGRAM]);
-
-
                 }
             }
             g_free(resources->program_resource->resource_id_map);

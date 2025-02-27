@@ -633,24 +633,24 @@ Guest_Mem *copy_guest_mem_from_call(Teleport_Express_Call *call, int index)
         Guest_Mem *save_mem = g_malloc(sizeof(Guest_Mem));
         Guest_Mem *old_mem = para[index - 1].data;
 
-        void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)old_mem->scatter_data->data);
+        // void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)old_mem->scatter_data->data);
 
-        hwaddr len = old_mem->all_len;
-        hwaddr xlat;
+        // hwaddr len = old_mem->all_len;
+        // hwaddr xlat;
 
-        MemoryRegion *mr = address_space_translate(&address_space_memory,
-            (hwaddr)real_guest_mem,
-            &xlat, &len, false,
-            MEMTXATTRS_UNSPECIFIED);
+        // MemoryRegion *mr = address_space_translate(&address_space_memory,
+        //     (hwaddr)real_guest_mem,
+        //     &xlat, &len, false,
+        //     MEMTXATTRS_UNSPECIFIED);
 
-        // void *hva = cpu_physical_memory_map((hwaddr)real_guest_mem, &len, false);
-        void *hva;
-        if (mr) {
-            hva = qemu_map_ram_ptr(mr->ram_block, xlat);
-            // printf("GPA 0x%lx corresponds to HVA %p\n", gpa, hva);
-        } 
+        // // void *hva = cpu_physical_memory_map((hwaddr)real_guest_mem, &len, false);
+        // void *hva;
+        // if (mr) {
+        //     hva = qemu_map_ram_ptr(mr->ram_block, xlat);
+        //     LOGI("GPA 0x%lx corresponds to HVA %p", real_guest_mem, hva);
+        // } 
 
-        LOGI("get old mem %d %d %lld real mem %lld hva %lld", old_mem->num, old_mem->all_len, (uint64_t)old_mem->scatter_data->data, (uint64_t)real_guest_mem, (uint64_t)hva);
+        // LOGI("get old mem %d %d %lld real mem %lld hva %lld", old_mem->num, old_mem->all_len, (uint64_t)old_mem->scatter_data->data, (uint64_t)real_guest_mem, (uint64_t)hva);
 
         save_mem->num = old_mem->num;
         save_mem->all_len = old_mem->all_len;

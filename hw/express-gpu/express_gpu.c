@@ -57,6 +57,7 @@ void init_render_thread_contexts_resources() {
     }
 
     if (g_resource_list[0] == NULL){ //ztodo:要放在这里吗？？？
+        LOGI("in init_render_thread_contexts_resources");
         for (int i = 0; i < NUM_RESOURCES; i++) {
             ATOMIC_LOCK(g_resource_locker[i]);
             g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -66,7 +67,6 @@ void init_render_thread_contexts_resources() {
 }
 
 Process_Context* get_process_context_form_id(uint64_t process_id) {
-    // LOGI("in get_process_context_form_id with map size %d", g_hash_table_size(render_process_contexts));
     return g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
 }
 
@@ -413,10 +413,10 @@ void restore_framebuffer_binding(Opengl_Context *context) {
         }
         GLint new_framebuffer_id = (GLint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id));
         framebuffer->framebufferId = new_framebuffer_id;
-        if(framebuffer->attachment_target != 0) {
-            restore_single_framebuffer(framebuffer);
-        }
-        // restore_single_framebuffer(framebuffer);
+        // if(framebuffer->attachment_target != 0) {
+        //     restore_single_framebuffer(framebuffer);
+        // }
+        restore_single_framebuffer(framebuffer);
     }
     Resource_Map_Status* framebuffer_resource = (&context->resource_status)->frame_buffer_resource; //ztodo:exclusive_resources又咋办呢
     for(int i = 0; i < framebuffer_resource->map_size; i++) {
@@ -642,6 +642,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
     }
 
     if (g_resource_list[0] == NULL){ //ztodo:要放在这里吗？？？
+        LOGI("init resource list");
         for (int i = 0; i < NUM_RESOURCES; i++) {
             ATOMIC_LOCK(g_resource_locker[i]);
             g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);

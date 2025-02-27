@@ -79,7 +79,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         express_printf("eglcontext %llx attrib_list %x %x\n", (uint64_t)opengl_context, attrib_list[i], attrib_list[i + 1]);
     }
 
-    LOGI("create context guest %llx host %llx", (uint64_t)guest_context, (uint64_t)opengl_context);
+    LOGD("create context guest %llx host %llx", (uint64_t)guest_context, (uint64_t)opengl_context);
     LOGD("#%llx create context share %llx", (uint64_t)opengl_context, (uint64_t)real_share_context);
 
     opengl_context->guest_context = guest_context;
