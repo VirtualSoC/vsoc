@@ -498,8 +498,8 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
 
     if (gbuffer->usage_type != GBUFFER_TYPE_TEXTURE) //基本都会进这里
     {
-        set_texture_gbuffer_ptr(opengl_context, texture, gbuffer); //将texture和gbuffer关联起来
-        LOGD("glBindEGLImage gbuffer_id %llx is_writing %d sync %d texture %d %d", gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
+        set_texture_gbuffer_id(opengl_context, texture, gbuffer); //将texture和gbuffer关联起来
+        LOGI("glBindEGLImage gbuffer %p id %llx is_writing %d sync %d texture %d %d", gbuffer, gbuffer_id, gbuffer->is_writing, gbuffer->data_sync, texture, gbuffer->data_texture);
         Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
         if (target == GL_TEXTURE_2D)
         {

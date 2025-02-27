@@ -58,7 +58,7 @@ typedef struct Resource_Map_Status
     char *resource_is_init; //texture用的，是1代表init了，是2代表已经关联了gbuffer。
     
     unsigned int gbuffer_map_max_size; //整个按照maxsize全存下来吧
-    Hardware_Buffer **gbuffer_ptr_map; //相当于一个存储Hardware_Buffer* 的数组
+    uint64_t *gbuffer_id_map; //相当于一个存储Hardware_Buffer* 的数组
     
 } Resource_Map_Status;
 
