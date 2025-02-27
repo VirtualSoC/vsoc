@@ -127,17 +127,16 @@ static void teleport_express_input_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 
     Teleport_Express *g = TELEPORT_EXPRESS(vdev);
 
-    if(g->input_thread_run == 0){
-        qemu_thread_create(&g->input_thread, "teleport-express-input", input_sync_thread,
-                           vdev, QEMU_THREAD_JOINABLE);
-        LOGI("start input thread");
-        g->input_thread_run = 1;
-    }
-
     if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
     {
         register_input_buffer_call(vdev, vq);
         qatomic_set(&(g->register_input_vq_locker), 0);
+    }
+
+    if(g->input_thread_run == 0){
+        qemu_thread_create(&g->input_thread, "teleport-express-input", input_sync_thread,
+                           vdev, QEMU_THREAD_JOINABLE);
+        g->input_thread_run = 1;
     }
 
     return;
