@@ -106,7 +106,7 @@ typedef struct Express_Native_Texture_Simple {
 typedef struct Express_Native_Framebuffer { //ztodo:没处理renderbuffer相关。此外现在只能绑一个东西，需要重新处理一下怎么定key(类似program那样，关于前两个字段独一无二）！！
     GLuint framebufferId;
     GLenum attachment_target[16]; //attach的texture
-    GLenum renderbuffer_attachment[19];//前16个是GL_COLOR_ATTACHMENT0~15，后3个是GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMEN
+    GLenum renderbuffer_attachment[19];//后16个是GL_COLOR_ATTACHMENT0~15，前3个是GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMEN
     GLuint texture_id;
 } Express_Native_Framebuffer;
 

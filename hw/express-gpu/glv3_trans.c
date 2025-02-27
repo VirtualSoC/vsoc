@@ -15163,7 +15163,10 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-        LOGD("in FramebufferRenderbuffer %x %x %x %x", target, attachment, renderbuffertarget, renderbuffer);
+        LOGD("in FramebufferRenderbuffer %x %x %x %d", target, attachment, renderbuffertarget, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer));
+
+        update_framebuffer_renderbuffer((GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer), attachment, opengl_context->framebuffer_map);
+
         glFramebufferRenderbuffer(target, attachment, renderbuffertarget, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer));
     }
     break;

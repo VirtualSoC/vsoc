@@ -425,15 +425,16 @@ void load_native_buffers(QEMUFile *f) {
 
                 g_free(data);
             }
-        } else {
-            void* data = malloc(size);
-            if (data) {
-                qemu_get_buffer(f, data, size);
-                glBufferData(target, size, data, GL_STATIC_DRAW);
-                LOGI("loading buffer context of size 0");
-                free(data);
-            }
-        }
+        } 
+        // else {
+        //     void* data = malloc(size);
+        //     if (data) {
+        //         qemu_get_buffer(f, data, size);
+        //         glBufferData(target, size, data, GL_STATIC_DRAW);
+        //         LOGI("loading buffer context of size 0");
+        //         free(data);
+        //     }
+        // }
     }
 }
 
@@ -443,6 +444,10 @@ GLuint save_single_framebuffer(QEMUFile* f, Express_Native_Framebuffer *framebuf
     for(int i = 0; i < 16; i++) {
         qemu_put_be32(f, framebuffer->attachment_target[i]);
         LOGI("saving framebuffer attachment %d %d", i, framebuffer->attachment_target[i]);
+    }
+    for(int i = 0; i < 19; i++) {
+        qemu_put_be32(f, framebuffer->renderbuffer_attachment[i]);
+        LOGI("saving framebuffer renderbuffer attachment %d %d", i, framebuffer->renderbuffer_attachment[i]);
     }
     qemu_put_be64(f, framebuffer->texture_id);
 
@@ -515,6 +520,23 @@ GLuint restore_single_framebuffer(Express_Native_Framebuffer *framebuffer) {
             glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_type, GL_TEXTURE_2D, texture_id, 0);
             LOGI("loading framebuffer attachment %d old %d new %d", i, texture_id, attachment_type);
         }    
+    }
+    if(framebuffer->renderbuffer_attachment[0] != 0) {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, framebuffer->renderbuffer_attachment[0]);
+        LOGI("loading framebuffer attachment depth old %d new %d", framebuffer->renderbuffer_attachment[0], GL_DEPTH_ATTACHMENT);
+    }
+    if(framebuffer->renderbuffer_attachment[1] != 0) {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, framebuffer->renderbuffer_attachment[1]);
+        LOGI("loading framebuffer attachment GL_STENCIL_ATTACHMENT old %d new %d", framebuffer->renderbuffer_attachment[0], GL_DEPTH_ATTACHMENT);
+
+    }
+    if(framebuffer->renderbuffer_attachment[2] != 0) {
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, framebuffer->renderbuffer_attachment[2]);
+    }
+    for(int i = 3; i < 19; i++) {
+        if(framebuffer->renderbuffer_attachment[i] != 0) {
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_RENDERBUFFER, framebuffer->renderbuffer_attachment[i]);
+        }
     }
 
     // GLuint framebuffer_id = old_framebuffer_id;
@@ -622,6 +644,10 @@ void load_native_framebuffers(QEMUFile *f, GHashTable* resource_list) {
             new_framebuffer->attachment_target[i] = get_host_id_map(RESOURCE_TYPE_TEXTURE, qemu_get_be32(f));
             LOGI("loading framebuffer attachment %d %d", i, new_framebuffer->attachment_target[i]);
         }
+        for(int i = 0; i < 19; i++) {
+            new_framebuffer->renderbuffer_attachment[i] = get_host_id_map(RESOURCE_TYPE_RENDERBUFFER, qemu_get_be32(f));
+            LOGI("loading framebuffer renderbuffer attachment %d %d", i, new_framebuffer->renderbuffer_attachment[i]);
+        }
         // new_framebuffer->attachment_target = type;
         uint64_t texture_id = qemu_get_be64(f);
         new_framebuffer->texture_id = get_host_id_map(RESOURCE_TYPE_TEXTURE, texture_id);
@@ -726,6 +752,38 @@ void save_native_samplers(QEMUFile *f) {
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);
 }
 
+void save_single_renderbuffer(QEMUFile *f, GLint rb_id) {
+    LOGI("saving renderbuffer ID: %d", rb_id);
+    qemu_put_be32(f, rb_id);
+    GLint width, height, format, samples;
+    glBindRenderbuffer(GL_RENDERBUFFER, rb_id);
+    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &width);
+    qemu_put_be32(f, width);
+    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &height);
+    qemu_put_be32(f, height);
+    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_INTERNAL_FORMAT, &format);
+    qemu_put_be32(f, format);
+    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_SAMPLES, &samples);
+    qemu_put_be32(f, samples);
+}
+
+void save_native_renderbuffers(QEMUFile *f) {
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_RENDERBUFFER];
+    qemu_put_be32(f, g_hash_table_size(resource_list)); //first save how many samplers
+    LOGI("saving renderbuffer num %d", g_hash_table_size(resource_list));
+
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        GLint rb_id = (GLint)value;
+        save_single_renderbuffer(f, rb_id);
+    }
+
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
+}
+
 void load_single_sampler(QEMUFile *f, GLint old_sampler_id) {
 
 
@@ -798,6 +856,33 @@ void load_native_samplers(QEMUFile *f) {
     }
 }
 
+void load_single_renderbuffer(QEMUFile *f, GLint old_rb_id) {
+    GLint rb_id;
+    glGenRenderbuffers(1, (GLuint*)&rb_id);
+    GLint width, height, format, samples;
+    width = qemu_get_be32(f);
+    height = qemu_get_be32(f);
+    format = qemu_get_be32(f);
+    samples = qemu_get_be32(f);
+    glBindRenderbuffer(GL_RENDERBUFFER, rb_id);
+    if (samples > 0) {
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, format, width, height);
+    } else {
+        glRenderbufferStorage(GL_RENDERBUFFER, format, width, height);
+    }
+
+    change_host_id_map(RESOURCE_TYPE_RENDERBUFFER, old_rb_id, rb_id);
+    LOGI("loading renderbuffer ID: old %d new %d width %d height %d format %x samples %d", old_rb_id, rb_id, width, height, format, samples);
+}
+
+void load_native_renderbuffers(QEMUFile *f) {
+    int rb_num = qemu_get_be32(f);
+    for(int i = 0; i < rb_num ; i++) {
+        GLint old_rb_id = qemu_get_be32(f);
+        load_single_renderbuffer(f, old_rb_id);
+    }
+}
+
 void save_native_resources(QEMUFile *f){
     save_native_shaders(f);
     save_native_programs(f);
@@ -806,6 +891,8 @@ void save_native_resources(QEMUFile *f){
     save_native_buffers(f);
 
     save_native_samplers(f);
+
+    save_native_renderbuffers(f);
 }
 
 void load_native_resources(QEMUFile *f){
@@ -816,10 +903,9 @@ void load_native_resources(QEMUFile *f){
     // update_render_gbuffer_texture_and_framebuffer();
     // update_display_gbuffer_texture_and_framebuffer();
 
-
     load_native_buffers(f);
     load_native_samplers(f);
-
+    load_native_renderbuffers(f);
 }
 
 void save_virtqueue_element(QEMUFile *f, VirtQueueElement *elem) {
@@ -2783,6 +2869,7 @@ Scatter_Data* load_scatter_data(QEMUFile *f, int *count) {
         // LOGI("loading scatter data len %d", len);
 
         uint64_t address = qemu_get_be64(f); //存的是gpa
+        LOGI("loading scatter data address %llu", address);
         // uint64_t hva = (uint64_t)cpu_physical_memory_map((hwaddr)address, &len, false);
         // uint64_t hva1 = (uint64_t)cpu_physical_memory_map((hwaddr)address, &len, true);
 

@@ -420,6 +420,16 @@ void d_glGenRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffers)
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     glGenRenderbuffers(n, host_buffers);
 
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_RENDERBUFFER];
+    for(int i = 0; i < n; i++)
+    {
+        GLuint rb = host_buffers[i];
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(rb), GUINT_TO_POINTER(rb));
+        LOGI("in gen renderbuffers and count is %d renderbuffer %d", n, host_buffers[i]);
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
+
     unsigned long long *host_buffers_long = g_malloc(n * sizeof(unsigned long long));
     for (int i = 0; i < n; i++)
     {

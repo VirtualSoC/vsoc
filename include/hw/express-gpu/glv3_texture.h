@@ -36,6 +36,8 @@ void d_glReadBuffer_special(void *context, GLenum src);
 
 void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
 
+void update_framebuffer_renderbuffer(GLuint renderbuffer_id, GLenum attachment, GHashTable* fb_resource_list);
+
 #include "glv3_decl.h"
 
 #endif

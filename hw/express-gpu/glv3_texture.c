@@ -892,6 +892,34 @@ void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
 }
 
+void update_framebuffer_renderbuffer(GLuint renderbuffer_id, GLenum attachment, GHashTable* fb_resource_list)
+{
+    GLuint framebuffer;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
+    LOGI("current binding framebuffer is %d", framebuffer);
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+    // GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
+    if(g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer)) != NULL) {
+        Express_Native_Framebuffer* newFramebuffer = g_hash_table_lookup(fb_resource_list, GUINT_TO_POINTER(framebuffer));
+        newFramebuffer->framebufferId = framebuffer;
+        //后16个是GL_COLOR_ATTACHMENT0~15，前3个是GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT, GL_DEPTH_STENCIL_ATTACHMEN
+        int attachment_index = attachment - GL_COLOR_ATTACHMENT0 + 3;
+        if(attachment == GL_DEPTH_ATTACHMENT) {
+            attachment_index = 0;
+        } else if(attachment == GL_STENCIL_ATTACHMENT) {
+            attachment_index = 1;
+        } else if(attachment == GL_DEPTH_STENCIL_ATTACHMENT) {
+            attachment_index = 2;
+        }
+        newFramebuffer->renderbuffer_attachment[attachment_index] = renderbuffer_id;
+        LOGI("in update framebuffer texture of id %d texture %d type %x", framebuffer, renderbuffer_id, attachment_index);
+
+        // g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+}
+
 void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attachment, GLenum textarget, GLuint guest_texture, GLint level)
 {
     Opengl_Context *opengl_context = (Opengl_Context *)context;

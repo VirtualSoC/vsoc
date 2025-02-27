@@ -165,7 +165,22 @@
         "avdevice.h": "c",
         "avcodec.h": "c",
         "avformat.h": "c",
-        "imgutils.h": "c"
+        "imgutils.h": "c",
+        "vk_trans.h": "c",
+        "savevm.h": "c",
+        "snapshot.h": "c",
+        "numbers": "c",
+        "charconv": "c",
+        "complex": "c",
+        "variant": "c",
+        "express_gpu_snapshot.h": "c",
+        "qemu-file.h": "c",
+        "register.h": "c",
+        "blocker.h": "c",
+        "qemu-file-types.h": "c",
+        "vmstate.h": "c",
+        "channel.h": "c",
+        "format": "c"
     },
     "cmake.configureOnOpen": false
 }
