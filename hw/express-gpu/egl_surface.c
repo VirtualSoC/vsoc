@@ -1033,7 +1033,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer)
 {
-    // LOGI("destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, (unsigned long long)gbuffer);
+    LOGI("destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, (unsigned long long)gbuffer);
     if (gbuffer->data_texture != 0)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));
@@ -1208,7 +1208,6 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 {
-
     uint64_t gbuffer_id = (uint64_t)image;
 
     // LOGI("send destroy gbuffer %llx message",gbuffer->gbuffer_id);
@@ -1218,7 +1217,7 @@ EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image)
 
     Hardware_Buffer *gbuffer = (Hardware_Buffer *)g_hash_table_lookup(process_context->gbuffer_map, (gpointer)(gbuffer_id));
 
-    express_printf("destroyImage gbuffer %llx ptr %llx\n", gbuffer_id, gbuffer);
+    LOGI("destroyImage gbuffer %llx ptr %llx", gbuffer_id, gbuffer);
 
     if (gbuffer)
     {

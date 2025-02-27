@@ -76,9 +76,10 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
 }
 
 void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, GLint buf_len, const void *pixels)
-{ //没有绑定GL_PIXEL_UNPACK_BUFFER(PBO) buffer
-//数据首先写入到 GL_PIXEL_UNPACK_BUFFER，然后 OpenGL 会从该缓冲区将数据上传到纹理中
-    LOGI("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
+{ 
+    //没有绑定GL_PIXEL_UNPACK_BUFFER(PBO) buffer
+    //数据首先写入到 GL_PIXEL_UNPACK_BUFFER，然后 OpenGL 会从该缓冲区将数据上传到纹理中
+    LOGD("d_glTexImage2D_without_bound target %x level %d internalFormat %x w "
          "%d h %d format %x type %x pixels %x",
          target, level, internalformat, width, height, format, type, pixels);
 

@@ -114,7 +114,7 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
     context->data_event = create_event(0, 0);
 #endif
 
-    LOGI("ready to create thread for device %d", info->device_id);
+    LOGD("ready to create thread for device %d", info->device_id);
     qemu_thread_create(&context->this_thread, "handle_thread", handle_thread_run, context, QEMU_THREAD_JOINABLE);
 
     return context;

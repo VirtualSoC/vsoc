@@ -63,7 +63,7 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
     Scatter_Data *s_data = guest_mem->scatter_data;
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
 
-    LOGI("target %x bind_buffer %d size %lld usage %x real size %d", target, bind_buffer, size, usage, guest_mem->all_len);
+    LOGD("target %x bind_buffer %d size %lld usage %x real size %d", target, bind_buffer, size, usage, guest_mem->all_len);
 
     if (size == 0)
     {
@@ -247,7 +247,7 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     // glGetBufferParameteriv(target, GL_BUFFER_SIZE, &size);
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
 
-    LOGI("mapbufferrange target %x offset %d length %d end %d buffer id %d buffer access %x",(int)target,(int)offset,(int)length,(int)offset+(int)length,bind_buffer,(int)access);
+    LOGD("mapbufferrange target %x offset %d length %d end %d buffer id %d buffer access %x",(int)target,(int)offset,(int)length,(int)offset+(int)length,bind_buffer,(int)access);
 
 
 
@@ -298,7 +298,7 @@ GLboolean d_glUnmapBuffer_special(void *context, GLenum target)
         return GL_FALSE;
     }
 
-    LOGI("unmap target %x", target);
+    LOGD("unmap target %x", target);
 
     //这里不需要更新映射的这个缓冲区
     GLboolean ret = GL_TRUE;
@@ -345,7 +345,7 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
         //     crc = updateCRC32((map_res->host_data + offset)[i],crc);
         // }
 
-        LOGI("flush mapbufferrange target %x offset %d length %d access %x crc %x", (int)target, (int)offset, (int)length, (int)map_res->access, crc);
+        LOGD("flush mapbufferrange target %x offset %d length %d access %x crc %x", (int)target, (int)offset, (int)length, (int)map_res->access, crc);
         if ((map_res->access & GL_MAP_FLUSH_EXPLICIT_BIT))
         {
             LOGI("going to flush data");
