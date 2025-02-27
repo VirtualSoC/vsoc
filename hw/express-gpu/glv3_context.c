@@ -197,10 +197,10 @@ void resource_context_destroy(Resource_Context *resources)
     if (resources->share_resources->counter == 0)
     {
         DESTROY_RESOURCES(texture_resource, glDeleteTextures);
-        // gbuffer_ptr_map 只有texture_resource有
-        if (resources->texture_resource->gbuffer_ptr_map != NULL)
+        // gbuffer_id_map 只有texture_resource有
+        if (resources->texture_resource->gbuffer_id_map != NULL)
         {
-            g_free(resources->texture_resource->gbuffer_ptr_map);
+            g_free(resources->texture_resource->gbuffer_id_map);
         }
 
         DESTROY_RESOURCES(buffer_resource, glDeleteBuffers);
@@ -348,13 +348,13 @@ void *get_native_opengl_context(int context_flags)
         }
         ATOMIC_UNLOCK(native_context_pool_locker);
     }
-    LOGI("returning native context %llx", (int64_t)native_context);
+    // LOGI("returning native context %llx", (int64_t)native_context);
     return native_context;
 }
 
 void release_native_opengl_context(void *native_context, int context_flags)
 {
-    LOGI("going to release native context %llx", (int64_t)native_context);
+    // LOGI("going to release native context %llx", (int64_t)native_context);
     //假如已经保存有闲置的超过MAX_PRELOAD_CONTEXT_NUM个context，则新释放的context直接销毁，否则保存下来
     //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建MAX_PRELOAD_CONTEXT_NUM个备用的
 
@@ -521,12 +521,8 @@ void opengl_context_init(Opengl_Context *context)
         {
             glGenVertexArrays(1, &vao0);
 
-            LOGI("create vao when init! %d %d", vao0, context->window);
-
             glGenBuffers(1, &(bound_buffer->asyn_unpack_texture_buffer));
             glGenBuffers(1, &(bound_buffer->asyn_pack_texture_buffer));
-
-            LOGI("create buffer when init! %d %d", bound_buffer->asyn_unpack_texture_buffer, bound_buffer->asyn_pack_texture_buffer);
 
             glGenBuffers(1, &(bound_buffer->attrib_point->indices_buffer_object));
             glGenBuffers(MAX_VERTEX_ATTRIBS_NUM, bound_buffer->attrib_point->buffer_object); //ztodo:这些buffer也没恢复

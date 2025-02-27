@@ -2836,7 +2836,7 @@ void save_scatter_data(QEMUFile *f, Scatter_Data *scatter_data, int count) {
         void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)address);
 
         qemu_put_be64(f, (uint64_t)real_guest_mem);
-        LOGI("scatter data size is %d data %llu %llu", sizeof(scatter_data[i].data), address, (uint64_t)real_guest_mem);
+        // LOGI("scatter data size is %d data %llx %llx", sizeof(scatter_data[i].data), address, (uint64_t)real_guest_mem);
 
         // LOGI("saving scatter data %d %lld", (int)scatter_data[i].data, (uint64_t)scatter_data[i].data);
         // qemu_put_buffer(f, scatter_data[i].data, scatter_data[i].len);
@@ -2874,6 +2874,8 @@ Scatter_Data* load_scatter_data(QEMUFile *f, int *count) {
         // uint64_t hva1 = (uint64_t)cpu_physical_memory_map((hwaddr)address, &len, true);
 
         hwaddr xlat;
+
+        // LOGI("loading scatter data address %llx", address);
 
         MemoryRegion *mr = address_space_translate(&address_space_memory,
             (hwaddr)address,
@@ -3330,16 +3332,15 @@ void save_resource_map_status(QEMUFile *f, Resource_Map_Status *status) {
     qemu_put_be32(f, status->gbuffer_map_max_size);
 
     for (unsigned int i = 0; i < status->gbuffer_map_max_size; i++) {
-        if (status->gbuffer_ptr_map[i] != NULL) {
+        if (status->gbuffer_id_map[i] != 0 && get_gbuffer_from_global_map(status->gbuffer_id_map[i]) != NULL) {
             qemu_put_byte(f, 1); //有有效数据
-            LOGD("save resource map status with gbuffer id %lld id %d", status->gbuffer_ptr_map[i]->gbuffer_id, i);
-            save_hardware_buffer(f, status->gbuffer_ptr_map[i]);
+            LOGI("save resource map status with gbuffer id %lld id %d", status->gbuffer_id_map[i], i);
+            save_hardware_buffer(f, get_gbuffer_from_global_map(status->gbuffer_id_map[i]));
         } else {
             LOGD("buffer of %d is null!", i);
             qemu_put_byte(f, 0);
         }
     }
-    
 }
 
 Resource_Map_Status* load_resource_map_status(QEMUFile *f, int resource_type) {
@@ -3363,15 +3364,15 @@ Resource_Map_Status* load_resource_map_status(QEMUFile *f, int resource_type) {
     }
 
     status->gbuffer_map_max_size = qemu_get_be32(f);
-    status->gbuffer_ptr_map = g_malloc0(sizeof(void*) * status->gbuffer_map_max_size);
+    status->gbuffer_id_map = g_malloc0(sizeof(uint64_t) * status->gbuffer_map_max_size);
 
     for (unsigned int i = 0; i < status->gbuffer_map_max_size; i++) {
         if (qemu_get_byte(f)) {
-            status->gbuffer_ptr_map[i] = load_hardware_buffer(f);
-            LOGD("load resource map status with gbuffer id %lld id %d", status->gbuffer_ptr_map[i]->gbuffer_id, i);
+            status->gbuffer_id_map[i] = load_hardware_buffer(f)->gbuffer_id;
+            LOGD("load resource map status with gbuffer id %lld id %d", status->gbuffer_id_map[i], i);
 
         } else {
-            status->gbuffer_ptr_map[i] = NULL;
+            status->gbuffer_id_map[i] = 0;
         }
     }
     LOGD("load resource map status with map_size %d max size %d", status->map_size, status->gbuffer_map_max_size);

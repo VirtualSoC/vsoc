@@ -308,7 +308,6 @@ int save_gbuffer_global_map(QEMUFile *f)
     qemu_put_be32(f, num_entries);
     g_hash_table_iter_init(&iter, gbuffer_global_map);
     while (g_hash_table_iter_next(&iter, &key, &value)) {
-        
         Hardware_Buffer *global_gbuffer = (Hardware_Buffer *)value;
         // qemu_put_be64(f, (uint64_t)key);
         LOGI("gbuffer id is %llx %llx", key, global_gbuffer->gbuffer_id);
@@ -544,9 +543,9 @@ static void handle_child_window_event(void)
             {
                 g_free(status->resource_is_init);
             }
-            if (status->gbuffer_ptr_map != NULL)
+            if (status->gbuffer_id_map != NULL)
             {
-                g_free(status->gbuffer_ptr_map);
+                g_free(status->gbuffer_id_map);
             }
             g_free(status);
         }

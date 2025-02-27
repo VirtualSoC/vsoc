@@ -64,9 +64,9 @@ int create_host_map_ids(Resource_Map_Status *status, int n, const unsigned int *
         // LOGI("create texture id %d %d",(int)guest_ids[i],(int)host_ids[i]);
         status->resource_id_map[guest_ids[i]] = host_ids[i];
         status->resource_is_init[guest_ids[i]] = 0;
-        if (status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
+        if (status->gbuffer_id_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
         {
-            status->gbuffer_ptr_map[guest_ids[i]] = NULL;
+            status->gbuffer_id_map[guest_ids[i]] = 0;
         }
     }
     if (status->max_id < max_id)
@@ -124,9 +124,9 @@ void remove_host_map_ids(Resource_Map_Status *status, int n, const unsigned int 
         }
         status->resource_id_map[guest_ids[i]] = 0;
         status->resource_is_init[guest_ids[i]] = 0;
-        if (status->gbuffer_ptr_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
+        if (status->gbuffer_id_map != NULL && status->gbuffer_map_max_size > guest_ids[i])
         {
-            status->gbuffer_ptr_map[guest_ids[i]] = NULL;
+            status->gbuffer_id_map[guest_ids[i]] = 0;
         }
     }
     while (status->max_id > 0 && status->resource_id_map[status->max_id] == 0)
@@ -483,34 +483,41 @@ Hardware_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
 {
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
-    if (map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size)
+    if (map_status->gbuffer_id_map == NULL || texture >= map_status->gbuffer_map_max_size)
     {
         return NULL;
     }
     else
     {
-        // LOGI("returning gbuffer_ptr_map!");
-        return map_status->gbuffer_ptr_map[texture];
+        // LOGI("returning gbuffer_id_map!");
+        Hardware_Buffer * gbuffer = get_gbuffer_from_global_map(map_status->gbuffer_id_map[texture]);
+        
+        // clean up gbuffer entries that have been destroyed from express-mem
+        if (gbuffer == NULL) {
+            map_status->gbuffer_id_map[texture] = 0;
+        }
+        return gbuffer;
     }
 }
 
-void set_texture_gbuffer_ptr(void *context, GLuint texture, Hardware_Buffer *gbuffer)
-{ //将context的gbuffer_ptr_map第“texture”号资源设为gbuffer
-    LOGD("in context %lld %lld set_texture_gbuffer_ptr with texture %d buffer %llx", (uint64_t)context, (uint64_t)((Opengl_Context *)context)->guest_context, texture, gbuffer->gbuffer_id);
+void set_texture_gbuffer_id(void *context, GLuint texture, Hardware_Buffer *gbuffer)
+{ 
+    // 将context的gbuffer_id_map第“texture”号资源设为gbuffer
+    LOGD("in context %lld %lld set_texture_gbuffer_id with texture %d buffer %llx", (uint64_t)context, (uint64_t)((Opengl_Context *)context)->guest_context, texture, gbuffer->gbuffer_id);
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
-    if (map_status->gbuffer_ptr_map == NULL || texture >= map_status->gbuffer_map_max_size) //扩容一下
+    if (map_status->gbuffer_id_map == NULL || texture >= map_status->gbuffer_map_max_size) //扩容一下
     {
-        void **temp = g_malloc0(sizeof(void *) * map_status->map_size);
-        if (map_status->gbuffer_ptr_map != NULL)
+        void **temp = g_malloc0(sizeof(uint64_t) * map_status->map_size);
+        if (map_status->gbuffer_id_map != NULL)
         {
-            memcpy(temp, map_status->gbuffer_ptr_map, map_status->gbuffer_map_max_size * sizeof(void *));
-            g_free(map_status->gbuffer_ptr_map);
+            memcpy(temp, map_status->gbuffer_id_map, map_status->gbuffer_map_max_size * sizeof(uint64_t));
+            g_free(map_status->gbuffer_id_map);
         }
-        map_status->gbuffer_ptr_map = (Hardware_Buffer **)temp;
+        map_status->gbuffer_id_map = (uint64_t *)temp;
         map_status->gbuffer_map_max_size = map_status->map_size;
     }
-    map_status->gbuffer_ptr_map[texture] = gbuffer;
+    map_status->gbuffer_id_map[texture] = gbuffer->gbuffer_id;
     map_status->resource_is_init[texture] = 2;
 
     return;
