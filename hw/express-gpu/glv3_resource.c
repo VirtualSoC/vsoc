@@ -485,7 +485,8 @@ Hardware_Buffer *get_texture_gbuffer_ptr(void *context, GLuint texture)
 }
 
 void set_texture_gbuffer_ptr(void *context, GLuint texture, Hardware_Buffer *gbuffer)
-{ //将context的gbuffer_ptr_map第“texture”号资源设为gbuffer
+{ 
+    // 将context的gbuffer_ptr_map第“texture”号资源设为gbuffer
     LOGD("in context %lld %lld set_texture_gbuffer_ptr with texture %d buffer %llx", (uint64_t)context, (uint64_t)((Opengl_Context *)context)->guest_context, texture, gbuffer->gbuffer_id);
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->texture_resource;
@@ -573,7 +574,7 @@ void d_glCreateShader(void *context, GLenum type, GLuint shader)
     //     resource_list = g_hash_table_new(g_direct_hash, g_direct_equal);  //ztodo:真要在这里初始化吗？？
     // }
     g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_shader), newShader);
-    LOGI("created shader! host shader id %d type %d all %d", host_shader, type, g_hash_table_size(resource_list));
+    LOGD("created shader! host shader id %d type %d all %d", host_shader, type, g_hash_table_size(resource_list));
 
     // g_resource_list[RESOURCE_TYPE_SHADER] = g_list_append(g_resource_list[RESOURCE_TYPE_SHADER], newShader);
     // g_resource_count[RESOURCE_TYPE_SHADER]++;

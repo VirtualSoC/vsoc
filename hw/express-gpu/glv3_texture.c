@@ -97,7 +97,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     if (guest_mem->all_len == 0)
     {
-        LOGI("going to upload data for texture null value target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
+        LOGD("going to upload data for texture null value target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
     
 
         if (status->host_pixel_unpack_buffer != 0) //说明是guest那边解绑pbo的同步
@@ -119,7 +119,7 @@ void d_glTexImage2D_without_bound(void *context, GLenum target, GLint level, GLi
 
     int start_loc = 0, end_loc = buf_len;
 
-    LOGI("going to upload data for texture target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
+    LOGD("going to upload data for texture target %d id %d width %d height %d len %d",target, bind_texture, width, height, guest_mem->all_len);
     prepare_unpack_texture(context, guest_mem, start_loc, end_loc);
 
     //这时候是立即返回的，后续会进行dma传输(只分配空间)

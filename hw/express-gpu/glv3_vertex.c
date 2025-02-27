@@ -970,7 +970,7 @@ void d_glDrawRangeElements_with_bound(void *context, GLenum mode, GLuint start, 
         {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
-            LOGI("gldrawRangeElements use external texture %d", status->current_texture_external);
+            LOGD("gldrawRangeElements use external texture %d", status->current_texture_external);
         }
 
 

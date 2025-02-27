@@ -13925,7 +13925,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             current_program = g_malloc0(sizeof(Express_Native_Program));
             current_program->shader_map = g_hash_table_new(g_direct_hash, g_direct_equal);
             current_program->shader_num = 0;
-            LOGI("new program struct for id %u", host_program);
+            LOGD("new program struct for id %u", host_program);
         }
         GHashTable *shader_map = current_program->shader_map;
         Express_Native_Program_Shader *current_shader = g_malloc0(sizeof(Express_Native_Program_Shader));

@@ -257,15 +257,8 @@ void *input_sync_thread(void *opaque)
         Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
         if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
         {
-            // Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
-            // if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
-            // {
-            //     register_input_buffer_call(in_teleport_express, g->in_data_queue);
-            //     qatomic_set(&(g->register_input_vq_locker), 0);
-            // }
             register_input_buffer_call(in_teleport_express, g->in_data_queue);
             qatomic_set(&(g->register_input_vq_locker), 0);
-
         }
     }
 #ifdef _WIN32
