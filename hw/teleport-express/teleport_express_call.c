@@ -599,7 +599,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
  */
 int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsigned long max_para_num)
 {
-    // LOGI("in get para from call %lld", call->unique_id);
+    // LOGD("in get para from call %lld", call->unique_id);
     Teleport_Express_Queue_Elem *header = call->elem_header;
     Teleport_Express_Queue_Elem *now_elem = header->next;
     if (max_para_num < call->para_num)

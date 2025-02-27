@@ -304,7 +304,7 @@ int save_gbuffer_global_map(QEMUFile *f)
     GHashTableIter iter;
     gpointer key, value;
     guint num_entries = g_hash_table_size(gbuffer_global_map);
-    LOGI("in save_gbuffer_global_map with %d", num_entries);
+    LOGD("in save_gbuffer_global_map with %d", num_entries);
     qemu_put_be32(f, num_entries);
     g_hash_table_iter_init(&iter, gbuffer_global_map);
     while (g_hash_table_iter_next(&iter, &key, &value)) {

@@ -885,7 +885,7 @@ void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable
         // newFramebuffer->texture_id = texture_id;
         // newFramebuffer->attachment_target = attachment;
         newFramebuffer->attachment_target[attachment - GL_COLOR_ATTACHMENT0] = texture_id;
-        LOGI("in update framebuffer texture of id %d texture %d type %x", framebuffer, texture_id, attachment);
+        LOGD("in update framebuffer texture of id %d texture %d type %x", framebuffer, texture_id, attachment);
 
         // g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
     }
@@ -903,7 +903,7 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
     {
         if (textarget == GL_TEXTURE_EXTERNAL_OES)
         {
-            LOGI("going to bind framebuffer for GL_TEXTURE_EXTERNAL_OES! texture: %d", host_texture);
+            LOGD("going to bind framebuffer for GL_TEXTURE_EXTERNAL_OES! texture: %d", host_texture);
 
             textarget = GL_TEXTURE_2D;
         }
@@ -924,7 +924,7 @@ void d_glFramebufferTexture2D_special(void *context, GLenum target, GLenum attac
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = target;
         texture_resource->textureId = host_texture;        
-        LOGI("in framebuffertexture2D save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        LOGD("in framebuffertexture2D save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
@@ -970,7 +970,7 @@ void d_glFramebufferTexture_special(void *context, GLenum target, GLenum attachm
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = target;
         texture_resource->textureId = host_texture;
-        LOGI("in framebuffertexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        LOGD("in framebuffertexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(host_texture), texture_resource);            
     } 
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);

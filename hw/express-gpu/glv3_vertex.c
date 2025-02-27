@@ -513,7 +513,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
             LOGD("gldrawarrays use external texture %d", status->current_texture_external);
 
             GLuint glerror = glGetError();
-            if(glerror != GL_NO_ERROR) {
+            if (glerror != GL_NO_ERROR) {
                 LOGE("error! glDrawArrays glBindTexture glGetError %x texture %d", glerror, status->current_texture_external);
             }
             
@@ -534,7 +534,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
         LOGD("glDrawArrays programID %d texCoordsLocation %d positionLocation %d %d", programID, texCoordsLocation, positionLocation, enabled);
 
         GLuint glerror = glGetError();
-        if(glerror != GL_NO_ERROR) {
+        if (glerror != GL_NO_ERROR) {
             LOGE("error! before glDrawArrays glGetError %x", glerror);
         }
 
@@ -563,7 +563,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
         LOGD("current glDrawArrays %d %d %d fbo binded texture %d %d current texture %d fbo %d %d", mode, first, count, rtextureId1, wtextureId1, curtex, rfboID, wfboID);
 
         glerror = glGetError();
-        if(glerror != GL_NO_ERROR) {
+        if (glerror != GL_NO_ERROR) {
             LOGE("error! after glDrawArrays glGetError %x", glerror);
         }
         

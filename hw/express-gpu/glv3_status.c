@@ -81,7 +81,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         // opengl_context->bound_buffer_status.attrib_point->element_array_buffer = buffer;
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            LOGI("in dsa mode bind ebo!");
+            LOGD("in dsa mode bind ebo!");
             if (buffer == 0)
             {
                 Attrib_Point *point_data = opengl_context->bound_buffer_status.attrib_point;
@@ -552,7 +552,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         }
         glDeleteTextures(1, &origin_texture);
         GLenum glerror = glGetError();
-        if(glerror != GL_NO_ERROR) {
+        if (glerror != GL_NO_ERROR) {
             LOGI("delete texture failed!");
         }
         LOGD("in bind image delete texture %d", origin_texture);
@@ -561,7 +561,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(origin_texture)) != NULL) {
             g_hash_table_remove(resource_list, GUINT_TO_POINTER(origin_texture));
-            LOGI("in bind image remove texture %d", origin_texture);
+            LOGD("in bind image remove texture %d", origin_texture);
 
         }
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
@@ -733,7 +733,7 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = target;
         texture_resource->textureId = texture;        
-        LOGI("in bindtexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        LOGD("in bindtexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(texture), texture_resource);            
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);

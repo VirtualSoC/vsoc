@@ -259,7 +259,7 @@ void d_glUseProgram_special(void *context, GLuint program)
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)
 { //直接加载已经编译和链接好的程序二进制格式,就不用编译链接那些了
-    LOGI("in d_glProgramBinary_special program %d binaryFormat %d length %d", program, binaryFormat, length);
+    LOGD("in d_glProgramBinary_special program %d binaryFormat %d length %d", program, binaryFormat, length);
     glProgramBinary(program, binaryFormat, binary, length);
 
     *program_data_len = init_program_data(program);

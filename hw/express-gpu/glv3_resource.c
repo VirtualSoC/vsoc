@@ -218,7 +218,7 @@ unsigned long long get_host_texture_id(void *context, unsigned int id, int targe
     
     unsigned long long ret = get_host_resource_id(map_status, id, 0);
     if (ret == 0) {
-        LOGI("in get_host_texture_id with context %llx window %lld get 0 id %d target %d", context, ((Opengl_Context *)context)->window, id, target);
+        LOGD("in get_host_texture_id with context %llx window %lld get 0 id %d target %d", context, ((Opengl_Context *)context)->window, id, target);
     }
     return ret;
     // return get_host_resource_id(map_status, id, 0);
@@ -517,7 +517,7 @@ void d_glGenSamplers(void *context, GLsizei count, const GLuint *samplers)
     {
         GLuint sampler = host_buffers[i];
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(sampler), GUINT_TO_POINTER(sampler));
-        LOGI("in gen samplers and count is %d samplers %d", count, host_buffers[i]);
+        LOGD("in gen samplers and count is %d samplers %d", count, host_buffers[i]);
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SAMPLER]);
 
@@ -1052,7 +1052,7 @@ void d_glDeleteTransformFeedbacks(void *context, GLsizei n, const GLuint *ids)
 
 void d_glDeleteVertexArrays(void *context, GLsizei n, const GLuint *arrays)
 {
-    // LOGI("in delete vertex arrays %d vao %d", n, arrays[0]);
+    // LOGD("in delete vertex arrays %d vao %d", n, arrays[0]);
     Resource_Context *resource_status = &(((Opengl_Context *)context)->resource_status);
     Resource_Map_Status *map_status = resource_status->vertex_array_resource;
 

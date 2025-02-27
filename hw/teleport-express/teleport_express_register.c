@@ -80,7 +80,7 @@ static void push_to_device(Teleport_Express_Call *call)
 
     if (fun_id == EXPRESS_REGISTER_BUFFER_FUN_ID)
     {
-        LOGI("in function of register buffer of device %s", device_info->name);
+        LOGD("in function of register buffer of device %s", device_info->name);
         Guest_Mem *data = copy_guest_mem_from_call(call, 1);
         device_info->buffer_register(data, thread_id, process_id, unique_id);
         call->callback(call, 0);
@@ -225,7 +225,7 @@ void set_input_event_startup(){
 void *input_sync_thread(void *opaque)
 {
 
-    LOGI("in input sync thread!");
+    LOGD("in input sync thread!");
 #ifdef _WIN32
     input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 #else

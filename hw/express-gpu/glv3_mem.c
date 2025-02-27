@@ -150,7 +150,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     Guest_Mem *guest_mem = (Guest_Mem *)data;
     Scatter_Data *s_data = guest_mem->scatter_data;
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
-    LOGI("in glbuffersubdata of id %d type %d", bind_buffer, target);
+    LOGD("in glbuffersubdata of id %d type %d", bind_buffer, target);
     if (bind_buffer == 0)
     {
         LOGI("d_glBufferSubData_custom target %x", target);
@@ -226,7 +226,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
 
 void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access, void *mem_buf) //需要读权限，读到mem_buf里面
 {
-    LOGI("in glmap bufferrange read");
+    LOGD("in glmap bufferrange read");
     d_glMapBufferRange_write(context, target, offset, length, access);
 
     //写入的情况需要把map里的数据读取到缓冲区里

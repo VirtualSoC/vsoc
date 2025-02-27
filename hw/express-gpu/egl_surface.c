@@ -357,7 +357,7 @@ void render_surface_init(Window_Buffer *surface, GHashTable* resource_list)
     if (surface->sampler_num > 1)
     {
         glGenFramebuffers(num, surface->sampler_fbo);
-        LOGI("in surface of fbo %d sampler %d", surface->data_fbo[0], surface->sampler_fbo[0]);
+        LOGD("in surface of fbo %d sampler %d", surface->data_fbo[0], surface->sampler_fbo[0]);
     }
 }
 
@@ -707,7 +707,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     glGenTextures(1, &(gbuffer->data_texture)); //创建一个fbo，然后它的颜色缓冲用的是texture，深度和模板缓冲用的是fbo
 
-    LOGI("in create gbuffer gen texture of id %d", gbuffer->data_texture);
+    LOGD("in create gbuffer gen texture of id %d", gbuffer->data_texture);
 
     glGenRenderbuffers(1, &(gbuffer->rbo_depth));
     glGenRenderbuffers(1, &(gbuffer->rbo_stencil));
@@ -725,7 +725,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
         struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
         texture_resource->target = GL_TEXTURE_2D;
         texture_resource->textureId = gbuffer->data_texture; 
-        LOGI("in create_gbuffer save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        LOGD("in create_gbuffer save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(gbuffer->data_texture), texture_resource);            
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
@@ -1054,7 +1054,7 @@ void destroy_gbuffer(Hardware_Buffer *gbuffer)
     if (gbuffer->data_texture != 0)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));
-        LOGI("in delete gbuffers delete texture %d", gbuffer->data_texture);
+        LOGD("in delete gbuffers delete texture %d", gbuffer->data_texture);
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
         GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(gbuffer->data_texture)) != NULL) {

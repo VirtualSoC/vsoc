@@ -321,7 +321,7 @@ void init_display_context_vmload(){
     if(display_has_inited != 0){
         return;
     }
-    LOGI("in init display context vmload!");
+    LOGD("in init display context vmload!");
     display_has_inited = 1;
     if (native_display_context == NULL)
     {

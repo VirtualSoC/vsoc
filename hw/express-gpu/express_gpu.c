@@ -57,7 +57,7 @@ void init_render_thread_contexts_resources() {
     }
 
     if (g_resource_list[0] == NULL){ //ztodo:要放在这里吗？？？
-        LOGI("in init_render_thread_contexts_resources");
+        LOGD("in init_render_thread_contexts_resources");
         for (int i = 0; i < NUM_RESOURCES; i++) {
             ATOMIC_LOCK(g_resource_locker[i]);
             g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -75,7 +75,7 @@ int save_render_process_contexts(QEMUFile *f)
     GHashTableIter iter;
     gpointer key, value;
     guint num_entries = g_hash_table_size(render_process_contexts);
-    LOGI("in save_render_process_contexts with %d", num_entries);
+    LOGD("in save_render_process_contexts with %d", num_entries);
     qemu_put_be32(f, num_entries);
     g_hash_table_iter_init(&iter, render_process_contexts);
     while (g_hash_table_iter_next(&iter, &key, &value)) {
@@ -85,7 +85,7 @@ int save_render_process_contexts(QEMUFile *f)
         LOGI("process id is %d", key);
         save_process_context(f, process_context);   
     }
-    LOGI("in save_render_process_contexts with size %d", g_hash_table_size(render_process_contexts));
+    LOGD("in save_render_process_contexts with size %d", g_hash_table_size(render_process_contexts));
     return 0;
 }
 
@@ -104,7 +104,7 @@ int load_render_process_contexts(QEMUFile *f) {
         g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), process_context);
 
     }
-    LOGI("in load_render_process_contexts with size %d", g_hash_table_size(render_process_contexts));
+    LOGD("in load_render_process_contexts with size %d", g_hash_table_size(render_process_contexts));
     // render_process_contexts = process_contexts;
     return 0;
 }
@@ -124,7 +124,7 @@ void remove_all_render_thread_contexts(){
 
 int save_render_thread_contexts(QEMUFile *f)
 {
-    LOGI("in save render thread contexts!");
+    LOGD("in save render thread contexts!");
     GHashTableIter iter;
     gpointer key, value;
     guint num_entries = g_hash_table_size(render_thread_contexts);
@@ -147,7 +147,7 @@ int load_render_thread_contexts(QEMUFile *f) {
     guint num_entries = qemu_get_be32(f);
     uint64_t thread_id;
 
-    LOGI("in load render thread contexts with num entries %d!", num_entries);
+    LOGD("in load render thread contexts with num entries %d!", num_entries);
 
     for (guint i = 0; i < num_entries; i++) {
         Render_Thread_Context *thread_context;
@@ -231,7 +231,7 @@ void restore_opengl_vao_binding(Opengl_Context *context) {
 
     // Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
 
-    // LOGI("in loading vao context %llx window %llx bind vao host %d", (uint64_t)context, (uint64_t)context->window, now_vao);
+    // LOGD("in loading vao context %llx window %llx bind vao host %d", (uint64_t)context, (uint64_t)context->window, now_vao);
 
     // if (now_point == NULL)
     // {
@@ -454,7 +454,7 @@ void restore_framebuffer_binding(Opengl_Context *context) {
     LOGI("now current fbo is %d", current_fbo);
 
     GLuint glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
+    if (glerror != GL_NO_ERROR) {
         LOGE("error! restore_framebuffer_binding glGetError %x", glerror);
     }
 
@@ -469,7 +469,7 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
     
     Opengl_Context* opengl_context = thread_context->opengl_context;
     // Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
-    LOGI("in recover_snapshot_states_after_load for process %d opengl window %lld", ((Thread_Context*)thread_context)->thread_id, (uint64_t)opengl_context->window);
+    LOGD("in recover_snapshot_states_after_load for process %d opengl window %lld", ((Thread_Context*)thread_context)->thread_id, (uint64_t)opengl_context->window);
     Window_Buffer * real_surface_draw = thread_context->render_double_buffer_draw;
     Window_Buffer * real_surface_read = thread_context->render_double_buffer_read; 
 
@@ -501,28 +501,28 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
     glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
 
     GLuint glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
+    if (glerror != GL_NO_ERROR) {
         LOGE("error! recover_snapshot_states_after_load glGetError %x", glerror);
     }
 
     restore_opengl_context_textures(opengl_context);
 
     glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
+    if (glerror != GL_NO_ERROR) {
         LOGE("error! recover_snapshot_states_after_load after bind textures glerror %x", glerror);
     }
 
     restore_opengl_vao_binding(opengl_context);
 
     glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
+    if (glerror != GL_NO_ERROR) {
         LOGE("error! recover_snapshot_states_after_load after bind vao glerror %x", glerror);
     }
 
     restore_buffers_binding(opengl_context);
 
     glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
+    if (glerror != GL_NO_ERROR) {
         LOGE("error! recover_snapshot_states_after_load after bind buffers glerror %x", glerror);
     }
 
@@ -568,7 +568,7 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 
     uint64_t fun_id = GET_FUN_ID(call->id);
     GLuint glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
+    if (glerror != GL_NO_ERROR) {
         LOGE("error! decode_invoke glGetError %x", glerror);
     }
     LOGD("enter gpu decode invoke id %llu", fun_id);
@@ -626,7 +626,7 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     }
 
     // GLuint glerror = glGetError();
-    // if(glerror != GL_NO_ERROR) {
+    // if (glerror != GL_NO_ERROR) {
     //     LOGE("error! decode_invoke glGetError %x", glerror);
     // }
     return;

@@ -15092,7 +15092,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             opengl_context->enable_scissor = 1;
         }
-        // LOGI("in glEnable %x", cap);
+        // LOGD("in glEnable %x", cap);
 
         glEnable(cap);
     }
@@ -15163,7 +15163,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-        LOGI("in FramebufferRenderbuffer %x %x %x %x", target, attachment, renderbuffertarget, renderbuffer);
+        LOGD("in FramebufferRenderbuffer %x %x %x %x", target, attachment, renderbuffertarget, renderbuffer);
         glFramebufferRenderbuffer(target, attachment, renderbuffertarget, (GLuint)get_host_renderbuffer_id(opengl_context, (unsigned int)renderbuffer));
     }
     break;

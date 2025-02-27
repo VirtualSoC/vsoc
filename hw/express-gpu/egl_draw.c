@@ -311,7 +311,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
 
     GLuint glerror = glGetError();
-    if(glerror != GL_NO_ERROR) {
+    if (glerror != GL_NO_ERROR) {
         LOGE("error! swapbuffer glGetError %x", glerror);
     }
 

@@ -169,7 +169,7 @@ static void teleport_express_output_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 
 static void teleport_express_realize(DeviceState *qdev, Error **errp)
 {
-    LOGI("in teleport_express realize!");
+    LOGD("in teleport_express realize!");
     VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
 
     startup_vdev = vdev;

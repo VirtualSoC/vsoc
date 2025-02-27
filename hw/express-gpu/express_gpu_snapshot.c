@@ -268,7 +268,7 @@ void save_native_buffers(QEMUFile *f) {
         GLint size;
         glBindBuffer(buffer->target, buffer->bufferId);
         GLint glerror = glGetError();
-        if(glerror != GL_NO_ERROR) {
+        if (glerror != GL_NO_ERROR) {
             LOGE("error! glBindBuffer failed! gl error %x ", glerror);
         }
         glGetBufferParameteriv(buffer->target, GL_BUFFER_SIZE, &size);
@@ -338,7 +338,7 @@ void load_native_buffers_tmp(QEMUFile *f) {
                 // if(size > 40000)
                 //     LOGI("loading buffer context first 4 bytes %x %x %x %x", ((char*)data)[1], ((char*)data)[12], ((char*)data)[22], ((char*)data)[16]);
                 // GLuint glerror = glGetError();
-                // if(glerror != GL_NO_ERROR) {
+                // if (glerror != GL_NO_ERROR) {
                 //     LOGI("error when loading buffer!");
                 // }
                 g_free(data);
@@ -1171,7 +1171,7 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
             glAttachShader(new_program_id, shader_attached_order[j]);
             LOGI("link program of %d shader %d", new_program_id, shader_attached_order[j]);
             GLenum glerror = glGetError();
-            if(glerror != GL_NO_ERROR) {
+            if (glerror != GL_NO_ERROR) {
                 LOGE("error! in loading program glAttachShader failed! gl error %x ", glerror);
             }
             glDeleteShader(shader_attached_order[j]);
