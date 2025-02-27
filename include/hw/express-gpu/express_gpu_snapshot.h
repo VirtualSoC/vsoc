@@ -175,8 +175,6 @@ extern VirtIODevice *startup_vdev;
 extern VirtQueue *startup_out_data_queue;
 extern VirtQueue *startup_in_data_queue;
 
-extern int display_context_thread_id;
-
 void clear_resource_tables(void);
 void init_saving_snapshot(void);
 void init_loading_snapshot(QEMUFile *f);

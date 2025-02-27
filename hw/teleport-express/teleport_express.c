@@ -240,8 +240,6 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
     }
     init_saving_snapshot();
 
-    qemu_put_be32(f, display_context_thread_id);
-
     save_sync_context(f);
     save_touchscreen_context(f);
 
@@ -277,8 +275,6 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
 
     remove_all_render_thread_contexts();
     
-    // display_context_thread_id = qemu_get_be32(f);
-
     init_loading_snapshot(f);
 
     load_sync_context(f);
@@ -298,10 +294,7 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     load_render_thread_contexts(f);
     // clear_resource_tables();
 
-    
-    // Express_Device_Info *display_device_info = get_express_device_info(EXPRESS_DISPLAY_DEVICE_ID);
-    // Thread_Context* display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
-    LOGI("succcefully perform virtio load for teleport express!");
+    LOGI("successfully perform virtio load for teleport express!");
     return 0;
 }
 

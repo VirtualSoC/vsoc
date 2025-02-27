@@ -41,8 +41,6 @@ GHashTable *loaded_window_buffers;
 // int g_resource_count[NUM_RESOURCES] = { 0 };
 int g_resource_locker[NUM_RESOURCES] = { 0 }; 
 
-int display_context_thread_id = 0;
-
 VirtIODevice *startup_vdev;
 VirtQueue *startup_out_data_queue;
 VirtQueue *startup_in_data_queue;
