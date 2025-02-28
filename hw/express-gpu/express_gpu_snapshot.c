@@ -73,6 +73,15 @@ void init_loading_snapshot(QEMUFile *f) {
     LOGI("init_loading_snapshot");
     is_init = true;
 
+    if (g_resource_list[0] == NULL){
+        LOGD("in init_render_thread_contexts_resources");
+        for (int i = 0; i < NUM_RESOURCES; i++) {
+            ATOMIC_LOCK(g_resource_locker[i]);
+            g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
+            ATOMIC_UNLOCK(g_resource_locker[i]);
+        }
+    }
+
     init_render_thread_contexts_resources();
     display_fbo_has_loaded = 0;
 
@@ -217,6 +226,13 @@ void load_native_buffer(QEMUFile *f, GLint buffer_id, GLenum buffer_target, int 
     GLint new_buffer_id = 0;
     glGenBuffers(1, (GLuint*)&new_buffer_id);
     change_host_id_map(RESOURCE_TYPE_BUFFER, buffer_id, new_buffer_id);
+
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_BUFFER];
+    Express_Native_buffer_Simple* newBuffer = g_malloc0(sizeof(Express_Native_buffer_Simple));
+    newBuffer->bufferId = new_buffer_id;  
+    newBuffer->target = buffer_target;     
+    newBuffer->data_upload_strategy = strategy;
+    g_hash_table_insert(resource_list, GUINT_TO_POINTER(new_buffer_id), newBuffer);            
 
     glBindBuffer(buffer_target, new_buffer_id);
     if (size > 0) {
@@ -874,6 +890,9 @@ void load_single_sampler(QEMUFile *f, GLint old_sampler_id) {
     GLuint sampler_id;
     glGenSamplers(1, &sampler_id);
 
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SAMPLER];
+    g_hash_table_insert(resource_list, GUINT_TO_POINTER(sampler_id), GUINT_TO_POINTER(sampler_id));
+
     param = qemu_get_be32(f);
     glSamplerParameteri(sampler_id, GL_TEXTURE_WRAP_S, param);
     
@@ -941,6 +960,10 @@ void load_native_samplers(QEMUFile *f) {
 void load_single_renderbuffer(QEMUFile *f, GLint old_rb_id) {
     GLint rb_id;
     glGenRenderbuffers(1, (GLuint*)&rb_id);
+
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_RENDERBUFFER];
+    g_hash_table_insert(resource_list, GUINT_TO_POINTER(rb_id), GUINT_TO_POINTER(rb_id));
+
     GLint width, height, format, samples;
     width = qemu_get_be32(f);
     height = qemu_get_be32(f);
@@ -983,9 +1006,6 @@ void load_native_resources(QEMUFile *f){
     load_native_shaders(f);
     load_native_programs(f);
     load_native_textures(f);
-
-    // update_render_gbuffer_texture_and_framebuffer();
-    // update_display_gbuffer_texture_and_framebuffer();
 
     load_native_buffers(f);
     load_native_samplers(f);
@@ -1275,25 +1295,6 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
     for(int i = 0; i < program_num ; i++) {
         GLuint program_id = qemu_get_be32(f);
         GLint new_program_id = 0;
-        // if(program_id == 39 || program_id ==45) {
-        //     new_program_id = program_id;
-        //     change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id);
-                    
-        //     int shader_num = qemu_get_be32(f);
-        //     for (int j = 0; j < shader_num; j++) {
-        //         GLint shader_type = qemu_get_be32(f);
-        //         GLint shader_source_length = qemu_get_be32(f);
-        //         char* shader_source = g_malloc0(shader_source_length);
-        //         if (shader_source) {
-        //             qemu_get_buffer(f, shader_source, shader_source_length);
-        //             g_free(shader_source);
-        //         }
-        //     }
-        //     continue;
-        // }
-        
-        // glDeleteProgram(program_id);//ztodo:重启场景应该可以去掉这个
-
         // while(new_program_id != program_id){
             new_program_id = glCreateProgram();
         //     LOGI("create program of old %d new %d", program_id, new_program_id);
@@ -1304,18 +1305,17 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
         //     change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, program_id);
         // }
         // else    
-        change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id); //重新映射guest-host的id            
+        change_host_id_map(RESOURCE_TYPE_PROGRAM, program_id, new_program_id); //重新映射guest-host的id       
+        
+        Express_Native_Program *current_program = g_malloc0(sizeof(Express_Native_Program));
+        current_program = g_malloc0(sizeof(Express_Native_Program));
+        current_program->shader_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_hash_table_insert(g_resource_list[RESOURCE_TYPE_PROGRAM], GUINT_TO_POINTER(new_program_id), GUINT_TO_POINTER(current_program));
+        GHashTable *shader_map = current_program->shader_map;
 
-
-
-        // GLint linked = (GLint)qemu_get_byte(f);
-        // g_hash_table_insert(programs, GUINT_TO_POINTER(new_program_id), GUINT_TO_POINTER(program_id));
-
-        // if(linked) {
-        //     glLinkProgram(program_id);
-        // } 
         int shader_num = qemu_get_be32(f);
         LOGI("program %d has shader num %d", new_program_id, shader_num);
+        current_program->shader_num = shader_num;
 
         int shader_attached_order[10] = {0};
 
@@ -1333,7 +1333,15 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                 // glAttachShader(new_program_id, shader_id);
                 LOGI("loading program of old %d %d shader %d %d %s",program_id, new_program_id, shader_id, shader_type, shader_source);
                 // glDeleteShader(shader_id);
-                g_free(shader_source);
+                // g_free(shader_source);
+
+                Express_Native_Program_Shader *current_shader = g_malloc0(sizeof(Express_Native_Program_Shader));
+                current_shader->shader_id = shader_id;
+                current_shader->attached_order = j;
+                current_shader->shader_type = shader_type;
+                current_shader->shader_source_length = shader_source_length;
+                current_shader->shader_source = shader_source;
+                g_hash_table_insert(shader_map, GUINT_TO_POINTER(shader_id), current_shader);
             }
         }
         
@@ -1536,42 +1544,6 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
         LOGI("in load native programs loading program of %d %d", program_id, new_program_id);
     }
 
-    // int linked_program_num = qemu_get_be32(f);   
-    // LOGD("in load native programs! num %d", linked_program_num);
-
-    // GLenum error;
-
-    // for (int i = 0; i < linked_program_num; i++) {
-    //     uint64_t linked_program = qemu_get_be64(f);
-    //     uint64_t program_id = (linked_program >> 32) & ((1 << 32) - 1); //取高32位
-    //     GLint new_program_id = get_host_id_map(RESOURCE_TYPE_PROGRAM, program_id);
-    //     uint64_t shader_id = linked_program & ((1 << 32) - 1); //取低32位
-
-    //     GLuint new_shader_id = get_host_id_map(RESOURCE_TYPE_SHADER, shader_id);
-
-    //     glAttachShader(new_program_id, new_shader_id);
-
-
-    //     LOGI("attaching program of %lld shader %d %d", new_program_id, shader_id, new_shader_id);
-    //     error = glGetError();
-    //     if(error != GL_NO_ERROR) {
-    //         LOGE("error! glAttachShader failed! gl error %x ", error);
-    //     }
-
-    // }
-
-    // GHashTableIter iter;
-    // gpointer key, value;
-    // g_hash_table_iter_init(&iter, programs); //最后link
-    // while (g_hash_table_iter_next(&iter, &key, &value)) {
-    //     uint64_t program_id = (uint64_t)key;
-    //     GLint status = (GLint)value;
-    //     if(status) {
-    //         glLinkProgram(program_id);
-    //     } 
-
-    //     LOGI("linking program of id %lld status %d", program_id, status);
-    // }
 
     if (program_is_external_map == NULL)
     {
@@ -1910,6 +1882,16 @@ void update_native_shader(GLint shader_id, GLenum shader_type, GLboolean deleted
     }
     LOGD("change when load shader from %d to %d", shader_id, new_shader_id);
     change_host_id_map(RESOURCE_TYPE_SHADER, shader_id, new_shader_id); //ztodo: 重新映射guest-host的id
+
+    Express_Native_Shader* newShader = g_malloc0(sizeof(Express_Native_Shader));
+    newShader->id = new_shader_id;
+    newShader->type = shader_type;
+    newShader->deleteStatus = GL_FALSE;
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_SHADER];
+    g_hash_table_insert(resource_list, GUINT_TO_POINTER(new_shader_id), newShader);
+    LOGI("created shader! host shader id %d type %d all %d", new_shader_id, shader_type, g_hash_table_size(resource_list));
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_SHADER]);
 }
 
 void load_native_shaders_tmp(QEMUFile *f) {
@@ -1949,10 +1931,6 @@ void load_native_shaders(QEMUFile *f) {
         const char* shader_source = (char*)malloc(source_length);
         qemu_get_buffer(f, shader_source, source_length);
         LOGI("loading shader of id %d type %d content %s", shader_id, shader_type, shader_source);
-        // bool isSame = compare_shader(shader_id, shader_type, deleted_status, compile_status, source_length, shader_source);
-        // if(isSame) { //如果没变就不操作了 update:不再复用资源，全部重建
-        //     continue;
-        // }
         update_native_shader(shader_id, shader_type, deleted_status, compile_status, source_length, shader_source);
     }
 }
@@ -2272,21 +2250,6 @@ void save_native_textures(QEMUFile *f){
 
 
 void update_native_texture(Express_Native_Texture* texture_data){
-    // if(texture_data->textureId == 1 || texture_data->textureId == 3) {
-    //     GLint new_texture_id = texture_data->textureId;
-
-    //     change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
-
-    //     return;
-    // } 
-
-    // if(texture_data->width == 1 && texture_data->height == 1) {
-
-    //     texture_data->width = 1920;
-    //     texture_data->height = 1080;
-    // }
-
-
     GLuint glerror = 0;
     GLint width = 0, height = 0, currentTexture = 0;
     GLenum binding_target = texture_data->target;
@@ -2300,6 +2263,16 @@ void update_native_texture(Express_Native_Texture* texture_data){
     //     glGenTextures(1, &new_texture_id);
     // }
     glGenTextures(1, &new_texture_id);
+
+    GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
+    if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(new_texture_id)) == NULL) {
+        struct Express_Native_Texture_Simple* texture_resource = g_malloc0(sizeof(Express_Native_Texture_Simple));
+        texture_resource->target = binding_target;
+        texture_resource->textureId = new_texture_id;        
+        LOGD("in bindtexture save texture host id %d target %d", texture_resource->textureId, texture_resource->target);
+        g_hash_table_insert(resource_list, GUINT_TO_POINTER(new_texture_id), texture_resource);            
+    }
+
     glBindTexture(binding_target, new_texture_id);
 
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture); 

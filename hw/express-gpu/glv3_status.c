@@ -201,11 +201,8 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
             newBuffer->bufferId = buffer;  
             newBuffer->target = target;     
 
-            
-            
             g_hash_table_insert(resource_list, GUINT_TO_POINTER(buffer), newBuffer);            
         }
-
 
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_BUFFER]);        
     }
