@@ -3367,22 +3367,17 @@ void save_texture_binding_status(QEMUFile *f, Texture_Binding_Status *status) {
         qemu_put_be32(f, status->host_current_texture_buffer[i]);
     }
 
-    LOGI("value of all status are %d %d %d %d %d %d %llx %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->current_external_gbuffer, status->guest_current_texture_2D[0], status->host_current_texture_2D[0], status->guest_current_texture_cube_map[0], status->host_current_texture_cube_map[0], status->guest_current_texture_3D[0], status->host_current_texture_3D[0], status->guest_current_texture_2D_array[0], status->host_current_texture_2D_array[0]);
+    LOGI("value of all status are %d %d %d %d %d %d %llx %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->guest_current_texture_2D[0], status->host_current_texture_2D[0], status->guest_current_texture_cube_map[0], status->host_current_texture_cube_map[0], status->guest_current_texture_3D[0], status->host_current_texture_3D[0], status->guest_current_texture_2D_array[0], status->host_current_texture_2D_array[0]);
 
     qemu_put_be32(f, status->texture_unit_num);
     
     qemu_put_be32(f, status->current_texture_external);
 
     qemu_put_be64(f, (uint64_t)status->current_2D_gbuffer);
-    qemu_put_be64(f, (uint64_t)status->current_external_gbuffer);
 
     if(status->current_2D_gbuffer != NULL) {
         save_hardware_buffer(f, status->current_2D_gbuffer);
     }
-    if(status->current_external_gbuffer != NULL) {
-        save_hardware_buffer(f, status->current_external_gbuffer);
-    }
-    
 }
 
 Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) { //ztodo:这些都得改
@@ -3432,7 +3427,7 @@ Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) { //ztodo:这�
         status->host_current_texture_buffer[i] = get_host_id_map(RESOURCE_TYPE_TEXTURE, qemu_get_be32(f));
     }
 
-    LOGI("loaded values of all status are %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->current_external_gbuffer, status->guest_current_texture_2D[status->guest_current_active_texture], status->host_current_texture_2D[status->guest_current_active_texture], status->guest_current_texture_cube_map[status->guest_current_active_texture], status->host_current_texture_cube_map[status->guest_current_active_texture], status->guest_current_texture_3D[0], status->host_current_texture_3D[0], status->guest_current_texture_2D_array[0], status->host_current_texture_2D_array[0]);
+    LOGI("loaded values of all status are %d %d %d %d %d %d %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->guest_current_texture_2D[status->guest_current_active_texture], status->host_current_texture_2D[status->guest_current_active_texture], status->guest_current_texture_cube_map[status->guest_current_active_texture], status->host_current_texture_cube_map[status->guest_current_active_texture], status->guest_current_texture_3D[0], status->host_current_texture_3D[0], status->guest_current_texture_2D_array[0], status->host_current_texture_2D_array[0]);
 
 
     status->texture_unit_num = qemu_get_be32(f);
@@ -3440,12 +3435,8 @@ Texture_Binding_Status* load_texture_binding_status(QEMUFile *f) { //ztodo:这�
     status->current_texture_external = get_host_id_map(RESOURCE_TYPE_TEXTURE, qemu_get_be32(f));
 
     status->current_2D_gbuffer = (Hardware_Buffer *)(uint64_t)qemu_get_be64(f);
-    status->current_external_gbuffer = (Hardware_Buffer *)(uint64_t)qemu_get_be64(f);
     if(status->current_2D_gbuffer != 0) {
         status->current_2D_gbuffer = load_hardware_buffer(f);
-    }
-    if(status->current_external_gbuffer != 0) {
-        status->current_external_gbuffer = load_hardware_buffer(f);
     }
 
     return status;
@@ -3599,7 +3590,7 @@ void restore_opengl_context_textures(Opengl_Context *context) {
     // glBindTexture(GL_TEXTURE_CUBE_MAP, status->guest_current_texture_cube_map[current_active_texture]);
     // glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, status->guest_current_texture_cube_map_array[current_active_texture]);
     // glBindTexture(GL_TEXTURE_BUFFER, status->guest_current_texture_buffer[current_active_texture]);
-    LOGI("restoring textures all values %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->current_external_gbuffer, status->guest_current_texture_2D[current_active_texture], status->host_current_texture_2D[current_active_texture], status->guest_current_texture_cube_map[current_active_texture], status->host_current_texture_cube_map[current_active_texture], status->guest_current_texture_3D[current_active_texture], status->host_current_texture_3D[current_active_texture], status->guest_current_texture_2D_array[current_active_texture], status->host_current_texture_2D_array[current_active_texture]);
+    LOGI("restoring textures all values %d %d %d %d %d %d %d %d %d %d %d %d %d %d", status->texture_unit_num, status->guest_current_active_texture, status->host_current_active_texture, status->now_max_texture_unit, status->current_texture_external, status->current_2D_gbuffer, status->guest_current_texture_2D[current_active_texture], status->host_current_texture_2D[current_active_texture], status->guest_current_texture_cube_map[current_active_texture], status->host_current_texture_cube_map[current_active_texture], status->guest_current_texture_3D[current_active_texture], status->host_current_texture_3D[current_active_texture], status->guest_current_texture_2D_array[current_active_texture], status->host_current_texture_2D_array[current_active_texture]);
 }
 
 int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
