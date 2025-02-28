@@ -238,21 +238,20 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
         LOGE("error when performing virtio save for teleport express!");
         return -1;
     }
-    init_saving_snapshot();
+    init_saving_snapshot(); //初始化保存快照的环境
 
-    save_sync_context(f);
-    save_touchscreen_context(f);
+    save_sync_context(f); //保存同步上下文
+    save_touchscreen_context(f); //保存触摸屏上下文
 
+    save_native_resources(f); //保存native资源
 
-    save_native_resources(f);
-    save_gbuffer_global_map(f);    
+    save_gbuffer_global_map(f); //保存全局gbuffer映射
 
-    save_display_context(f);
+    save_display_context(f); //保存显示器上下文
 
-    save_render_process_contexts(f);    
+    save_render_process_contexts(f);   //保存渲染进程上下文
 
-
-    save_render_thread_contexts(f);
+    save_render_thread_contexts(f); //保存渲染线程上下文
     LOGI("successfully perform virtio save for teleport express!");
     return 0;
 }

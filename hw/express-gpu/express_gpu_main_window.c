@@ -28,6 +28,7 @@
 #include "hw/express-gpu/device_interface_window.h"
 
 #include "hw/express-gpu/express_gpu_snapshot.h"
+#include "migration/snapshot.h"
 
 
 GAsyncQueue *main_window_event_queue = NULL;
@@ -205,6 +206,8 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
             LOGI("wait time too long!");
         }
     }
+    Error *err = NULL;
+    save_snapshot("snapshot", true, NULL, false, NULL, &err);
 }
 
 int save_gbuffer_global_map(QEMUFile *f)
