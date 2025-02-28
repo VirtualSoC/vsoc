@@ -944,7 +944,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         // g_hash_table_insert(resource_list, GUINT_TO_POINTER(surface->data_fbo[surface->now_fbo_loc]), oldFramebuffer);
         LOGD("update framebuffer info of id %d texture %d type %d", oldFramebuffer->framebufferId, oldFramebuffer->texture_id, oldFramebuffer->attachment_target);
     } else {
-        LOGE("error! can't find framebuffer of %d", surface->data_fbo[surface->now_fbo_loc]);
+        LOGE("error!! can't find framebuffer of %d", surface->data_fbo[surface->now_fbo_loc]);
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
 
