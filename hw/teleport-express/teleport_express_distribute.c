@@ -46,7 +46,6 @@ static volatile int call_recycle_queue_tail;
 int atomic_distribute_thread_running = 0;
 
 static void push_free_callback(Teleport_Express_Call *call, int notify);
-void push_to_thread(Teleport_Express_Call *call);
 void init_distribute_event(void);
 void distribute_wait(void);
 

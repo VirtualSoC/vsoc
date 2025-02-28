@@ -2753,6 +2753,10 @@ int save_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread
     return 0;
 }
 
+static void local_free_callback(Teleport_Express_Call *call, int notify) {
+    g_free(call);
+}
+
 Render_Thread_Context* load_single_render_thread_context(QEMUFile *f) {
     LOGI("in load single render thread context!");
 
@@ -2834,11 +2838,12 @@ Render_Thread_Context* load_single_render_thread_context(QEMUFile *f) {
     call->thread_id = (thread_context->context).thread_id;
     call->process_id = (thread_context->context).process_id;
     call->unique_id = (thread_context->context).unique_id;
+    call->callback = local_free_callback;
 
     if(has_opengl_context) {
-        call_push((Thread_Context*)thread_context, call);
+        push_to_thread(call);
     }
-    
+
     return thread_context;
 }
 
