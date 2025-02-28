@@ -37,6 +37,7 @@
 #include "hw/express-input/express_touchscreen.h"
 #include "hw/express-input/express_keyboard.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
+#include "migration/snapshot.h"
 
 
 GAsyncQueue *main_window_event_queue = NULL;
@@ -292,6 +293,8 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
             LOGI("wait time too long!");
         }
     }
+    Error *err = NULL;
+    save_snapshot("snapshot", true, NULL, false, NULL, &err);
 }
 
 
