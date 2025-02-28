@@ -11,7 +11,7 @@
 
 // #define STD_DEBUG_LOG
 #include "hw/express-gpu/express_display.h"
-#include "hw/express-gpu/express_gpu_snapshot.h"
+#include "hw/teleport-express/express_handle_thread.h"
 
 #include "hw/teleport-express/express_log.h"
 
@@ -22,8 +22,6 @@
 
 #include "hw/express-input/express_keyboard.h"
 #include "hw/express-input/express_touchscreen.h"
-
-#include "hw/express-gpu/express_gpu_snapshot.h"
 
 #include "hw/express-mem/express_sync.h"
 
@@ -40,8 +38,8 @@ static GHashTable *g_display_contexts = NULL;
 
 int sdl2_no_need = 0;
 
-static void display_context_init(Thread_Context *context);
-static void display_context_destroy(Thread_Context *context);
+static void display_context_init(Display_Context *disp);
+static void display_context_destroy(Display_Context *disp);
 static void window_size_change_callback(GLFWwindow *window, int width, int height);
 static void close_window_callback(GLFWwindow *window);
 static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
@@ -64,8 +62,8 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     {
     case FUNID_Terminate:
     {
-        // do nothing or hide window
-        LOGI("display uid %" PRIx64 " terminate", disp->unique_id);
+        LOGI("display uid %" PRId64 " terminate", call->unique_id);
+        display_context_destroy(disp);
     }
     break;
     case FUNID_Get_Display_Count:
@@ -214,7 +212,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             break;
         }
 
-        display_context_init((Thread_Context *)disp);
+        display_context_init(disp);
         write_to_guest_mem(all_para[0].data, &disp->info, 0, sizeof(Display_Info));
         // LOGI("FUNID_Get_Display_Mods");
     }
@@ -257,6 +255,10 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         write_to_guest_mem(all_para[0].data, &disp->status, 0, sizeof(Display_Status));
     }
     break;
+    case FUNID_Snapshot_Load:
+    {
+        display_context_init(disp);
+    }
     default:
     {
         LOGE("error! unknown display invoke id %llx para_num %d", call->id, para_num);
@@ -269,7 +271,10 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     }
 
     LOGD("finish one display call of id %llx", call->id);
-    call->callback(call, 1);
+
+    if (call->callback) {
+        call->callback(call, 1);
+    }
 
     return;
 }
@@ -278,7 +283,7 @@ static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_i
 {
     if (g_display_contexts == NULL) // init
     {
-        g_display_contexts = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)display_context_destroy);
+        g_display_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 
     Thread_Context *context = (Thread_Context *)g_hash_table_lookup(g_display_contexts, GUINT_TO_POINTER(unique_id));
@@ -297,9 +302,8 @@ static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_i
     return context;
 }
 
-static void display_context_init(Thread_Context *context)
+static void display_context_init(Display_Context *disp)
 {
-    Display_Context *disp = (Display_Context *)context;
     start_main_window_thread();
 
     int width, height, refresh_rate;
@@ -409,14 +413,16 @@ static void display_context_init(Thread_Context *context)
     }
 }
 
-static void display_context_destroy(Thread_Context *context)
+static void display_context_destroy(Display_Context *disp)
 {
-    Display_Context *disp = (Display_Context *)context;
+    g_hash_table_remove(g_display_contexts, GUINT_TO_POINTER(disp->unique_id));
     if (disp->window != NULL) {
         glfwMakeContextCurrent(NULL);
+        glfwHideWindow(disp->window);
         glfwDestroyWindow(disp->window);
         disp->window = NULL;
     }
+    g_free(disp);
 }
 
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers)
@@ -661,6 +667,10 @@ static void close_window_callback(GLFWwindow *window)
     last_click_time = now_time;
 }
 
+static void local_free_callback(Teleport_Express_Call *call, int notify) {
+    g_free(call);
+}
+
 void save_display_context(QEMUFile *f) {
     LOGI("in save_display_context");
 
@@ -685,10 +695,40 @@ void save_display_context(QEMUFile *f) {
 void load_display_context(QEMUFile *f) {
     LOGI("in load_display_context");
 
-    // clear all old display contexts
-    if (g_display_contexts != NULL) {
-        g_hash_table_remove_all(g_display_contexts);
+    // copy old display contexts from g_display_contexts to a new g_array
+    GArray *old_displays = g_array_new(FALSE, FALSE, sizeof(Display_Context *));
+    if (g_display_contexts && g_hash_table_size(g_display_contexts) > 0) {
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, g_display_contexts);
+        while (g_hash_table_iter_next(&iter, &key, &value)) {
+            Display_Context *disp = (Display_Context *)value;
+            g_array_append_val(old_displays, disp);
+            LOGI("terminating old display key %lld id %d name %s", key, disp->unique_id, disp->info.name);
+        }
     }
+
+    // iter through the array and terminate all threads
+    for (int i = 0; i < old_displays->len; i++) {
+        Display_Context *disp = g_array_index(old_displays, Display_Context *, i);
+
+        Teleport_Express_Call* call = g_malloc0(sizeof(Teleport_Express_Call));
+        call->id = FUNID_Terminate;
+        call->thread_id = disp->thread_context.thread_id;
+        call->process_id = disp->thread_context.process_id;
+        call->unique_id = disp->unique_id;
+        call->callback = local_free_callback;
+
+        push_to_thread(call);
+    }
+
+    // wait for all threads to terminate
+    while (g_display_contexts && g_hash_table_size(g_display_contexts) > 0) {
+        LOGI("waiting for %d old displays to terminate...", g_hash_table_size(g_display_contexts));
+        g_usleep(10000);
+    }
+
+    g_array_free(old_displays, TRUE);
 
     // get total displays
     int display_count = qemu_get_be32(f);
@@ -699,12 +739,13 @@ void load_display_context(QEMUFile *f) {
     for (int i = 0; i < display_count; i++) {
         Display_Context *old_disp = g_malloc0(sizeof(Display_Context));
         qemu_get_buffer(f, (uint8_t *)old_disp, sizeof(Display_Context));
+        LOGI("recovering display id %d name vSoC:%s (%dx%d) window %p", old_disp->unique_id, old_disp->info.name, old_disp->info.pixel_width, old_disp->info.pixel_height, old_disp->window);
 
-        Display_Context *new_disp = (Display_Context *)display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, old_disp->thread_context.thread_id, old_disp->thread_context.process_id, old_disp->thread_context.unique_id, display_device_info);
+        Display_Context *new_disp = (Display_Context *)display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, old_disp->thread_context.thread_id, old_disp->thread_context.process_id, old_disp->unique_id, display_device_info);
 
         // copy all the members of the Display_Context struct except the thread_context
-        int offset = offsetof(Display_Context, thread_context);
-        memcpy(new_disp + offset, old_disp + offset, sizeof(Display_Context) - offset);
+        int offset = sizeof(Thread_Context);
+        memcpy((uint8_t *)new_disp + offset, (uint8_t *)old_disp + offset, sizeof(Display_Context) - offset);
 
         // these resources needs to be re-created
         new_disp->window = NULL;
@@ -714,7 +755,14 @@ void load_display_context(QEMUFile *f) {
         new_disp->fps_counter = 0;
 
         if (old_disp->window != NULL) {
-            display_context_init((Thread_Context *)new_disp);
+            Teleport_Express_Call* call = g_malloc0(sizeof(Teleport_Express_Call));
+            call->id = FUNID_Snapshot_Load;
+            call->thread_id = new_disp->thread_context.thread_id;
+            call->process_id = new_disp->thread_context.process_id;
+            call->unique_id = new_disp->unique_id;
+            call->callback = local_free_callback;
+
+            push_to_thread(call);
         }
         g_free(old_disp);
     }
@@ -727,7 +775,6 @@ static Express_Device_Info express_display_info = {
     .device_id = EXPRESS_DISPLAY_DEVICE_ID,
     .device_type = OUTPUT_DEVICE_TYPE,
     .call_handle = display_decode_invoke,
-    .context_destroy = display_context_destroy,
     .get_context = get_display_context,
 };
 
