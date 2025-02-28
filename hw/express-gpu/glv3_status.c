@@ -512,7 +512,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         }
         else //基本都是这里
         {
-            status->current_external_gbuffer = gbuffer;
+            // status->current_external_gbuffer = gbuffer;
         }
 
         GLuint prev_texture = 0;
@@ -693,14 +693,6 @@ void d_glBindTexture_special(void *context, GLenum target, GLuint guest_texture)
         break;
     case GL_TEXTURE_EXTERNAL_OES:
         status->current_texture_external = texture;
-        if (is_init == 2)
-        {
-            status->current_external_gbuffer = get_texture_gbuffer_ptr(context, guest_texture);
-        }
-        else
-        {
-            status->current_external_gbuffer = NULL;
-        }
         break;
     default:
         LOGE("error! glBindBuffer error target %x", target);
