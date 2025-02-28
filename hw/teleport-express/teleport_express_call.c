@@ -103,7 +103,7 @@ static void *get_one_cache(Fast_Alloc_Date_Cache *cache)
                 temp_flag[i] = real_flag + sizeof(bool) * (i - cache->num);
             }
 
-            printf("cache size bigger %d\n", cache->num);
+            LOGD("cache size bigger %d", cache->num);
             g_free(cache->data);
             cache->data = temp_data;
 

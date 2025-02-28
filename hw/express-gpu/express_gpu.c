@@ -641,8 +641,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 
-    if (g_resource_list[0] == NULL){ //ztodo:要放在这里吗？？？
-        LOGI("init resource list");
+    if (g_resource_list[0] == NULL) {
         for (int i = 0; i < NUM_RESOURCES; i++) {
             ATOMIC_LOCK(g_resource_locker[i]);
             g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -655,8 +654,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
     LOGD("getting new thread context with process id %lld unique id %lld thread id %lld device id %lld", process_id, unique_id, thread_id, device_id);
     if (thread_context == NULL)
     {
-        // express_printf("create new thread\n");
-        LOGI("create new thread context with thread id %lld device id %lld", thread_id, device_id);
+        LOGD("create new thread context with thread id %lld device id %lld", thread_id, device_id);
         thread_context = (Render_Thread_Context *)thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
 
         (thread_context->context).unique_id = unique_id;
@@ -669,7 +667,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
         if (process == NULL)
         {
-            LOGI("create new process context %lld", process_id);
+            LOGD("create new process context %lld", process_id);
             process = g_malloc0(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             // 注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要

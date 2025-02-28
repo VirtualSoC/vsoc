@@ -568,7 +568,6 @@ static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t th
     // 没有context就新建线程
     if (context == NULL)
     {
-        LOGI("create new thread context");
         context = thread_context_create(thread_id, device_id, sizeof(Camera_Thread_Context), info);
         Camera_Thread_Context *c_context = (Camera_Thread_Context *)context;
         c_context->camera_id = (int)unique_id;

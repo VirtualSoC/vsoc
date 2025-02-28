@@ -541,25 +541,25 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
     if (origin_texture > 0)
     {
         if (glIsTexture(origin_texture)){
-            LOGI("have this texture to delete");
+            // LOGI("have this texture to delete");
         }
         glDeleteTextures(1, &origin_texture);
         GLenum glerror = glGetError();
         if (glerror != GL_NO_ERROR) {
-            LOGI("delete texture failed!");
+            LOGI("glBindEGLImage delete texture failed!");
         }
-        LOGD("in bind image delete texture %d", origin_texture);
+        // LOGD("in bind image delete texture %d", origin_texture);
 
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
         GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(origin_texture)) != NULL) {
             g_hash_table_remove(resource_list, GUINT_TO_POINTER(origin_texture));
-            LOGD("in bind image remove texture %d", origin_texture);
+            // LOGD("in bind image remove texture %d", origin_texture);
 
         }
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
     } else {
-        LOGI("origin texture less than zero of value %d", origin_texture);
+        LOGW("origin texture less than zero of value %d", origin_texture);
     }
 
     Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
