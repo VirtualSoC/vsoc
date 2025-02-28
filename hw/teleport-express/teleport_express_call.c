@@ -601,11 +601,12 @@ int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsign
 {
     // LOGD("in get para from call %lld", call->unique_id);
     Teleport_Express_Queue_Elem *header = call->elem_header;
-    Teleport_Express_Queue_Elem *now_elem = header->next;
-    if (max_para_num < call->para_num)
+    if (max_para_num < call->para_num || unlikely(header == NULL))
     {
         return 0;
     }
+
+    Teleport_Express_Queue_Elem *now_elem = header->next;
     call->spend_time = g_get_real_time();
 
     for (int i = 0; i < call->para_num; i++)

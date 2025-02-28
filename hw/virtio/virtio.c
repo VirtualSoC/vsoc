@@ -2908,7 +2908,6 @@ static const VMStateDescription vmstate_virtio = {
 
 int virtio_save(VirtIODevice *vdev, QEMUFile *f)
 {
-    LOGI("in virtio save %s device %d %d %d", vdev->name, (int)vdev->status, (int)vdev->isr, (int)vdev->nvectors);
     BusState *qbus = qdev_get_parent_bus(DEVICE(vdev));
     VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
     VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(vdev);

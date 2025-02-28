@@ -19,4 +19,6 @@ void wake_up_distribute(void);
 
 void (*get_push_free_callback_ptr(void))(Teleport_Express_Call *, int);
 
+void push_to_thread(Teleport_Express_Call *call);
+
 #endif
