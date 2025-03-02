@@ -1030,7 +1030,7 @@ void d_glDeleteFramebuffers(void *context, GLsizei n, const GLuint *framebuffers
         // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
         GHashTable* resource_list = ((Opengl_Context *)context)->framebuffer_map;
 
-        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) == NULL) {
+        if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) != NULL) {
             g_hash_table_remove(resource_list, GUINT_TO_POINTER(host_buffers[i]));
         }
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
