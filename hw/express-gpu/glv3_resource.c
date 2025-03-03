@@ -874,6 +874,18 @@ void d_glDeleteRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffe
     GLuint *host_buffers = g_malloc(n * sizeof(GLuint));
     get_host_resource_ids(map_status, n, renderbuffers, host_buffers);
     glDeleteRenderbuffers(n, host_buffers);
+    
+
+    ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
+    GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_RENDERBUFFER];
+    for(int i = 0; i < n; i++)
+    {
+        GLuint rb = host_buffers[i];
+        g_hash_table_remove(resource_list, GUINT_TO_POINTER(rb));
+        LOGI("in delete renderbuffers and count is %d buffer is guest %d host %d", n, renderbuffers[i], host_buffers[i]);
+    }
+    ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
+
     g_free(host_buffers);
 
     remove_host_map_ids(map_status, n, renderbuffers);
