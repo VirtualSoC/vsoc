@@ -320,6 +320,7 @@ void common_device_irq_register(Device_Context *device_context, Teleport_Express
     device_context->irq_enabled = true;
     if(device_context->device_info->irq_register != NULL)
     {
+        // LOGI("register irq!");//ztodo:一些device需要手动操作
         device_context->device_info->irq_register(device_context);
     }
 }

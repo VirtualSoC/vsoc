@@ -385,6 +385,12 @@ void d_glVertexAttribDivisor_origin(void *context, GLuint index, GLuint divisor)
     {
         glVertexAttribDivisor(index, divisor);
     }
+    Bound_Buffer *bound_buffer = &(((Opengl_Context *)context)->bound_buffer_status);
+    Attrib_Point *point_data = bound_buffer->attrib_point;
+    point_data->divisors[index] = divisor;
+    GLint currentVAO;
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &currentVAO);
+    LOGD("d_glVertexAttribDivisor_origin index %d divisor %d guest vao %d vao %d", index, divisor, ((Opengl_Context *)context)->bound_buffer_status.buffer_status.guest_vao, currentVAO);
 }
 
 void d_glDisableVertexAttribArray_origin(void *context, GLuint index)
@@ -556,7 +562,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
         glerror = glGetError();
         if (glerror != GL_NO_ERROR) {
-            LOGE("error! after glDrawArrays glGetError %x", glerror);
+            LOGE("error! after glDrawArrays glGetError %x fbo %d %d", glerror, rfboID, wfboID);
         }
         
         if (opengl_context->is_using_external_program == 1)

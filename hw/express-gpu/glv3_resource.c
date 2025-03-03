@@ -644,7 +644,8 @@ void d_glGenFramebuffers(void *context, GLsizei n, const GLuint *framebuffers)
     {
         host_buffers_long[i] = (unsigned long long)host_buffers[i];
 
-        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
+
+        ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]); //ztodo:似乎framebuffer不用lock
 
         // GHashTable* resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
         GHashTable* resource_list = ((Opengl_Context *)context)->framebuffer_map;

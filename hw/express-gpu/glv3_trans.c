@@ -13600,7 +13600,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
-        // LOGI("context %llx glBindFramebuffer %x guest %d host %d",(uint64_t)opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
+        LOGD("context %llx glBindFramebuffer %x guest %d host %d",(uint64_t)opengl_context,target,framebuffer,(GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
         d_glBindFramebuffer_special(opengl_context, target, (GLuint)get_host_framebuffer_id(opengl_context, (unsigned int)framebuffer));
     }
     break;
@@ -15767,6 +15767,13 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         {
             break;
         }
+
+        LOGD("in glScissor %d %d %d %d", x, y, width, height);
+        Opengl_Context *opengl_context = r_context->opengl_context;
+        opengl_context->gl_scissor_value[0] = x;
+        opengl_context->gl_scissor_value[1] = y;
+        opengl_context->gl_scissor_value[2] = width;
+        opengl_context->gl_scissor_value[3] = height;
 
         glScissor(x, y, width, height);
     }

@@ -685,7 +685,7 @@ void guest_null_ptr_init(VirtQueue *vq)
         elem = virtqueue_pop(vq, sizeof(VirtQueueElement));
         express_printf("error elem is NULL\n");
     }
-    LOGI("get first one ptr %llu %llu %llu", elem->out_sg->iov_len, elem->out_num, elem->in_num);
+    // LOGI("get first one ptr %llu %llu %llu", elem->out_sg->iov_len, elem->out_num, elem->in_num);
 
     if (elem->out_sg->iov_len == 4 && elem->out_num == 1 && elem->in_num == 0)
     {

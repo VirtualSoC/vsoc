@@ -29,6 +29,8 @@ typedef struct Attrib_Point
     // GLint buffer_num;
     GLint element_array_buffer; //指示现在被指定绑定的ebo
 
+    GLint divisors[MAX_VERTEX_ATTRIBS_NUM];
+
 } Attrib_Point;
 
 typedef struct Bound_Buffer
@@ -174,6 +176,8 @@ typedef struct Opengl_Context
     GLuint draw_texi_vao;
     GLuint draw_texi_vbo;
     GLuint draw_texi_ebo;
+
+    GLuint gl_scissor_value[4];
 
     GLenum blendfunc_sfactor;
     GLenum blendfunc_dfactor;
