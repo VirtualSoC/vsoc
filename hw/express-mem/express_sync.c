@@ -240,7 +240,7 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
     int null_flag = 0;
     static_sync_context.sync_data = (Sync_Flag_Data *)get_direct_ptr(data, &null_flag);
 
-    LOGI("sync register buffer %llu", (unsigned long long)static_sync_context.sync_data);
+    // LOGI("sync register buffer %llu", (unsigned long long)static_sync_context.sync_data);
 
     if (null_flag != 0 && static_sync_context.sync_data == NULL)
     {

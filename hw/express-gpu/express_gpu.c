@@ -170,7 +170,7 @@ void restore_opengl_vao_binding(Opengl_Context *context) {
     Buffer_Status *status = &(bound_buffer->buffer_status);
 
     GHashTable* new_vao_point_data = g_hash_table_new(g_direct_hash, g_direct_equal);
-    Attrib_Point *now_point = NULL;
+    // Attrib_Point *now_point = NULL;
     
     GHashTableIter iter;
     gpointer key, value;
@@ -206,6 +206,13 @@ void restore_opengl_vao_binding(Opengl_Context *context) {
     // Attrib_Point *attrib_point = (Attrib_Point *)value;
     LOGI("current vao is %d", now_vao);
     glBindVertexArray(now_vao);
+    Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
+    for(int i = 0; i < MAX_VERTEX_ATTRIBS_NUM; i++) {
+        if(now_point->divisors[i] != 0) {
+            glVertexAttribDivisor(i, now_point->divisors[i]);
+            LOGI("restoring divisor %d %d", i, now_point->divisors[i]);
+        }
+    }
     // GLenum error = glGetError();
     // if (error == GL_NO_ERROR) {
     //     LOGI("VAO is valid.");
@@ -310,6 +317,8 @@ void restore_buffers_binding(Opengl_Context *context) {
     }
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, status->host_pixel_unpack_buffer);
 
+    LOGI("in restore buffer binding bind pixel pack buffer %d unpack buffer %d", status->host_pixel_pack_buffer, status->host_pixel_unpack_buffer);
+
     if(status->guest_transform_feedback_buffer != status->host_transform_feedback_buffer) {
         status->host_transform_feedback_buffer = status->guest_transform_feedback_buffer;
     }
@@ -361,10 +370,13 @@ void restore_framebuffer_binding(Opengl_Context *context) {
 
     GHashTable* loaded_framebuffers = g_hash_table_new(g_direct_hash, g_direct_equal);
 
+    LOGI("current framebuffer resource size is %d", g_hash_table_size(resource_list));
+
     g_hash_table_iter_init(&iter, resource_list);
     while (g_hash_table_iter_next(&iter, &key, &value)) {
         Express_Native_Framebuffer *framebuffer = (Express_Native_Framebuffer *)value;
         GLuint framebuffer_id = framebuffer->framebufferId;
+        LOGI("in loop of loading framebuffer ID: %d", framebuffer_id);
         if(g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(framebuffer_id)) == NULL) {
             GLint new_framebuffer_id;
             // glDeleteFramebuffers(1, (GLuint*)&framebuffer_id);
@@ -450,7 +462,12 @@ void restore_framebuffer_binding(Opengl_Context *context) {
     for(int i = 0; i < framebuffer_resource->map_size; i++) {
         GLuint fb_id = framebuffer_resource->resource_id_map[i];
         GLuint new_id = (GLuint)g_hash_table_lookup(loaded_framebuffers, GUINT_TO_POINTER(fb_id));
-        LOGI("has old framebuffer of id %d new %d", fb_id, new_id);
+
+        Express_Native_Framebuffer *framebuffer = (Express_Native_Framebuffer *)g_hash_table_lookup(resource_list, GUINT_TO_POINTER(fb_id));
+        // g_hash_table_remove(resource_list, GUINT_TO_POINTER(fb_id));
+        // g_hash_table_insert(resource_list, GUINT_TO_POINTER(new_id), framebuffer);
+
+        LOGI("has old framebuffer of guest id %d id %d new %d", i, fb_id, new_id);
         framebuffer_resource->resource_id_map[i] = new_id;
     }
     
@@ -525,8 +542,9 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
 #endif
     glEnable(GL_FRAMEBUFFER_SRGB);
 
-
     glViewport(opengl_context->view_x, opengl_context->view_y, opengl_context->view_w, opengl_context->view_h);
+
+    glScissor(opengl_context->gl_scissor_value[0], opengl_context->gl_scissor_value[1], opengl_context->gl_scissor_value[2], opengl_context->gl_scissor_value[3]);
 
     GLuint glerror = glGetError();
     if (glerror != GL_NO_ERROR) {
