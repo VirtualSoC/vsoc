@@ -418,6 +418,34 @@ void restore_framebuffer_binding(Opengl_Context *context) {
         // }
         restore_single_framebuffer(framebuffer);
     }
+
+    GHashTable *new_resource_list = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+    g_hash_table_iter_init(&iter, loaded_framebuffers);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        GLuint fb_id = (GLuint)key;
+        GLuint new_id = (GLuint)value;
+        LOGI("has loaded framebuffer ID: %d %d", (int)key, (int)value);
+        Express_Native_Framebuffer *framebuffer = (Express_Native_Framebuffer *)g_hash_table_lookup(resource_list, GUINT_TO_POINTER(fb_id));
+        // g_hash_table_remove(resource_list, GUINT_TO_POINTER(fb_id));
+        g_hash_table_insert(new_resource_list, GUINT_TO_POINTER(new_id), framebuffer);
+    }
+
+    g_hash_table_remove_all(resource_list);
+
+    g_hash_table_iter_init(&iter, new_resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        g_hash_table_insert(resource_list, key, value);
+    }
+
+    g_hash_table_iter_init(&iter, resource_list);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Express_Native_Framebuffer *framebuffer = (Express_Native_Framebuffer *)value;
+        LOGI("framebuffer ID: %d key %d", framebuffer->framebufferId, (int)key);
+    }
+
+
+
     Resource_Map_Status* framebuffer_resource = (&context->resource_status)->frame_buffer_resource; //ztodo:exclusive_resources又咋办呢
     for(int i = 0; i < framebuffer_resource->map_size; i++) {
         GLuint fb_id = framebuffer_resource->resource_id_map[i];

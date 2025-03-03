@@ -3376,6 +3376,35 @@ void save_resource_map_status(QEMUFile *f, Resource_Map_Status *status) {
     }
 }
 
+Resource_Map_Status* load_resource_map_status_without_share(QEMUFile *f, int resource_type) { //不可共享的资源要在别的地方映射（在线程中创建并映射）
+    Resource_Map_Status *status = g_malloc0(sizeof(Resource_Map_Status));
+    status->max_id = qemu_get_be32(f);
+    status->map_size = qemu_get_be32(f);
+    status->resource_id_map = g_malloc0(sizeof(long long) * status->map_size);
+    status->resource_is_init = g_malloc0(sizeof(char) * status->map_size);
+    for (unsigned int i = 0; i < status->map_size; i++) {
+        status->resource_id_map[i] = qemu_get_be64(f);
+        status->resource_is_init[i] = qemu_get_byte(f);
+
+        LOGI("finish not share loading guest id %d host %d %d %d %d", i, resource_type, status->resource_id_map[i], status->resource_is_init[i], g_hash_table_size(g_resource_ids_map[resource_type]));
+    }
+
+    status->gbuffer_map_max_size = qemu_get_be32(f);
+    status->gbuffer_id_map = g_malloc0(sizeof(uint64_t) * status->gbuffer_map_max_size);
+
+    for (unsigned int i = 0; i < status->gbuffer_map_max_size; i++) {
+        if (qemu_get_byte(f)) {
+            status->gbuffer_id_map[i] = load_hardware_buffer(f)->gbuffer_id;
+            LOGD("load resource map status with gbuffer id %lld id %d", status->gbuffer_id_map[i], i);
+
+        } else {
+            status->gbuffer_id_map[i] = 0;
+        }
+    }
+    LOGD("load resource map status with map_size %d max size %d", status->map_size, status->gbuffer_map_max_size);
+    return status;
+}
+
 Resource_Map_Status* load_resource_map_status(QEMUFile *f, int resource_type) {
     Resource_Map_Status *status = g_malloc0(sizeof(Resource_Map_Status));
     status->max_id = qemu_get_be32(f);
@@ -3463,10 +3492,11 @@ Resource_Context* load_resource_context(QEMUFile *f) {
 
     context->sync_resource = load_resource_map_status(f, RESOURCE_TYPE_SYNC);
 
-    context->frame_buffer_resource = load_resource_map_status(f, RESOURCE_TYPE_FRAMEBUFFER);
-    context->program_pipeline_resource = load_resource_map_status(f, RESOURCE_TYPE_PROGRAM_PIPELINE);
-    context->transform_feedback_resource = load_resource_map_status(f, RESOURCE_TYPE_TRANSFORM_FEEDBACK);
-    context->vertex_array_resource = load_resource_map_status(f, RESOURCE_TYPE_VERTEX_ARRAY);
+//线程之间不可共享资源目前还未完成重建，暂时不做id映射
+    context->frame_buffer_resource = load_resource_map_status_without_share(f, RESOURCE_TYPE_FRAMEBUFFER);
+    context->program_pipeline_resource = load_resource_map_status_without_share(f, RESOURCE_TYPE_PROGRAM_PIPELINE);
+    context->transform_feedback_resource = load_resource_map_status_without_share(f, RESOURCE_TYPE_TRANSFORM_FEEDBACK);
+    context->vertex_array_resource = load_resource_map_status_without_share(f, RESOURCE_TYPE_VERTEX_ARRAY);
 
     context->query_resource = load_resource_map_status(f, RESOURCE_TYPE_QUERY);
 
