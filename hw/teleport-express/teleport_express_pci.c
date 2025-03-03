@@ -43,6 +43,7 @@ static Property teleport_express_base_properties[] = {
 
     DEFINE_PROP_INT32("gl_log_level", Teleport_Express_PCI, gpu_debug_level, 1),
     DEFINE_PROP_BOOL("gl_log_to_host", Teleport_Express_PCI, gpu_log_to_host, true),
+    DEFINE_PROP_BOOL("save_snapshot", Teleport_Express_PCI, save_snapshot, true),
     DEFINE_PROP_BOOL("buffer_log", Teleport_Express_PCI, gpu_log_with_buffer, false),
     DEFINE_PROP_BOOL("opengl_trace", Teleport_Express_PCI, opengl_trace, false),
 
@@ -269,6 +270,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     express_gpu_gl_debug_enable = express_pci->enalbe_opengl_debug;
     express_gpu_independ_window_enable = express_pci->enable_independ_window;
     express_device_input_window_enable = express_pci->show_device_input_window;
+    teleport_express_save_snapshot = express_pci->save_snapshot;
     express_gpu_keep_window_scale = express_pci->keep_window_scale;
     express_gpu_window_width = express_pci->window_width;
     express_gpu_window_height = express_pci->window_height;
