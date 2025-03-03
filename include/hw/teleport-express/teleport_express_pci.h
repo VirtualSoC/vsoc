@@ -38,6 +38,7 @@ typedef struct Teleport_Express_PCI{ //就类似于VirtIONetPCI那样 定义了
 
     int gpu_debug_level;
     bool gpu_log_to_host;
+    bool save_snapshot;
     bool gpu_log_with_buffer;
     bool opengl_trace;
 

@@ -206,8 +206,11 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
             LOGI("wait time too long!");
         }
     }
-    // Error *err = NULL;
-    // save_snapshot("snapshot", true, NULL, false, NULL, &err);
+
+    if (teleport_express_save_snapshot) {
+        Error *err = NULL;
+        save_snapshot("snapshot", true, NULL, false, NULL, &err);        
+    }
 }
 
 int save_gbuffer_global_map(QEMUFile *f)
