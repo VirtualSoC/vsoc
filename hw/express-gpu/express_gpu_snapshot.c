@@ -49,12 +49,18 @@ VirtQueue *startup_in_data_queue;
 
 int display_fbo_has_loaded = 1;
 
+Thread_Context* display_thread_context = NULL;
+
 //hashtable肯定不是效率最高的，先这样吧.直接用数组肯定是最快的
 static GHashTable *g_resource_ids_map[NUM_RESOURCES] = { NULL };
 
 
 static __thread void *g_gl_context = NULL;
 static bool is_init = false;
+
+static void local_free_callback(Teleport_Express_Call *call, int notify) {
+    g_free(call);
+}
 
 void init_saving_snapshot() {
     if (is_init) {
@@ -67,6 +73,19 @@ void init_saving_snapshot() {
         g_resource_ids_map[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
         // g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
+}
+
+void wake_up_display(){
+    Teleport_Express_Call* call = g_malloc0(sizeof(Teleport_Express_Call));
+    call->id = FUNID_Snapshot_Load;
+    call->thread_id = display_thread_context->thread_id;
+    call->process_id = display_thread_context->process_id;
+    call->unique_id = display_thread_context->unique_id;
+    call->callback = local_free_callback;
+
+    push_to_thread(call);
+
+    // call_push(display_thread_context, call);
 }
 
 void init_loading_snapshot(QEMUFile *f) {
@@ -130,7 +149,7 @@ void init_loading_snapshot(QEMUFile *f) {
 
     display_context_thread_id = qemu_get_be32(f);
     Express_Device_Info *display_device_info = get_express_device_info(EXPRESS_DISPLAY_DEVICE_ID);
-    Thread_Context* display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
+    display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
 
     // main_window_event_queue = g_async_queue_new();
     g_gl_context = get_native_opengl_context(0);
@@ -1460,7 +1479,7 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
                 // glCompileShader(shader_id);
                 shader_attached_order[attached_order] = shader_id;
                 // glAttachShader(new_program_id, shader_id);
-                LOGI("loading program of old %d %d shader %d %d %s",program_id, new_program_id, shader_id, shader_type, shader_source);
+                LOGD("loading program of old %d %d shader %d %d %s",program_id, new_program_id, shader_id, shader_type, shader_source);
                 // glDeleteShader(shader_id);
                 // g_free(shader_source);
 
@@ -2753,10 +2772,6 @@ int save_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread
     return 0;
 }
 
-static void local_free_callback(Teleport_Express_Call *call, int notify) {
-    g_free(call);
-}
-
 Render_Thread_Context* load_single_render_thread_context(QEMUFile *f) {
     LOGI("in load single render thread context!");
 
@@ -3730,13 +3745,13 @@ Resource_Map_Status* load_resource_map_status(QEMUFile *f, int resource_type) {
         status->resource_is_init[i] = qemu_get_byte(f);
         long long new_id = (long long)g_hash_table_lookup(g_resource_ids_map[resource_type], GUINT_TO_POINTER(status->resource_id_map[i])); 
         if(new_id != NULL) {
-            LOGI("in load resource of type %d change id from %lld to %lld", resource_type, status->resource_id_map[i], new_id);
+            LOGD("in load resource of type %d change id from %lld to %lld", resource_type, status->resource_id_map[i], new_id);
             status->resource_id_map[i] = new_id;//ztodo：这里的语法？
         }
 
         // if(status->resource_id_map[i] != 0) 
 
-        LOGI("finish action loading %d %d %d %d", resource_type, status->resource_id_map[i], status->resource_is_init[i], g_hash_table_size(g_resource_ids_map[resource_type]));
+        LOGD("finish action loading %d %d %d %d", resource_type, status->resource_id_map[i], status->resource_is_init[i], g_hash_table_size(g_resource_ids_map[resource_type]));
     }
 
     status->gbuffer_map_max_size = qemu_get_be32(f);

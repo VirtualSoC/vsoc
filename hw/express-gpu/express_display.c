@@ -46,12 +46,19 @@ static Hardware_Buffer *display_read_gbuffer;
 static int display_has_inited = 0;
 
 
+void save_display_texture_ids(QEMUFile *f) {
+    qemu_put_be32(f, display_write_gbuffer->data_texture);
+    qemu_put_be32(f, display_read_gbuffer->data_texture);
+    LOGI("save display texture %d %d", display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
+}
 
-void update_display_gbuffer_texture_and_framebuffer() {
-    LOGI("before update date texture %d %d", display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
-    display_write_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_write_gbuffer->data_texture);
-    display_read_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, display_read_gbuffer->data_texture);
-    LOGI("restore display read and write %d %d %d %d", display_write_gbuffer->data_fbo, display_read_gbuffer->data_fbo, display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
+void update_display_gbuffer_texture(QEMUFile *f) {
+    GLint write_texture = qemu_get_be32(f);
+    GLint read_texture = qemu_get_be32(f);
+    // LOGI("before update date texture %d %d", display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
+    display_write_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, write_texture);
+    display_read_gbuffer->data_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, read_texture);
+    LOGI("restore display read and write %d %d %d %d", write_texture, read_texture, display_write_gbuffer->data_texture, display_read_gbuffer->data_texture);
 }
 
 static Display_Info express_display_info = {
@@ -98,6 +105,17 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     {
         // do nothing or hide window
         LOGI("display terminate");
+    }
+    break;
+    case FUNID_Snapshot_Load:
+    {
+        LOGI("display snapshot load");
+        glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
+        main_display_gbuffer = display_read_gbuffer;
+        send_message_to_main_window(MAIN_PAINT, display_read_gbuffer);
     }
     break;
     case FUNID_Commit_Composer_Layer:
@@ -488,53 +506,53 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
 {
     int display_height = express_display_info.pixel_height;
 
-    if(!display_fbo_has_loaded) {
-        GLint currentFBO = 0;
-        GLint currentTexture;
-        glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture);
+    // if(!display_fbo_has_loaded) {
+    //     GLint currentFBO = 0;
+    //     GLint currentTexture;
+    //     glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture);
 
         
-        display_write_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
-            0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
-        display_read_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
-           0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
-        GLenum glerror = glGetError();
-        if (glerror != GL_NO_ERROR)
-        {
-            LOGE("error1 when glGenFramebuffers display fbo %x", glerror);
-        }
+    //     // display_write_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
+    //     //     0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
+    //     // display_read_gbuffer = create_gbuffer(express_display_info.pixel_width, express_display_info.pixel_height,
+    //     //    0, GL_RGBA, GL_UNSIGNED_BYTE, GL_RGBA8, 0, 0, 0);
+    //     // GLenum glerror = glGetError();
+    //     // if (glerror != GL_NO_ERROR)
+    //     // {
+    //     //     LOGE("error1 when glGenFramebuffers display fbo %x", glerror);
+    //     // }
 
-        glGenFramebuffers(1, &display_write_gbuffer->data_fbo);
-        glGenFramebuffers(1, &display_read_gbuffer->data_fbo);
+    //     // glGenFramebuffers(1, &display_write_gbuffer->data_fbo);
+    //     // glGenFramebuffers(1, &display_read_gbuffer->data_fbo);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
-        // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    //     glBindFramebuffer(GL_FRAMEBUFFER, display_read_gbuffer->data_fbo);
+    //     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_read_gbuffer->data_texture, 0);
+    //     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    //     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        glerror = glGetError();
-        if (glerror != GL_NO_ERROR)
-        {
-            LOGE("error1 when reconnecting display fbo %x", glerror);
-        }  
+    //     // glerror = glGetError();
+    //     // if (glerror != GL_NO_ERROR)
+    //     // {
+    //     //     LOGE("error1 when reconnecting display fbo %x", glerror);
+    //     // }  
 
-        // glBindTexture(GL_TEXTURE_2D, display_write_gbuffer->data_texture);
-        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, express_display_info.pixel_width, express_display_info.pixel_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    //     // glBindTexture(GL_TEXTURE_2D, display_write_gbuffer->data_texture);
+    //     // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, express_display_info.pixel_width, express_display_info.pixel_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
+    //     glBindFramebuffer(GL_FRAMEBUFFER, display_write_gbuffer->data_fbo);
+    //     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, display_write_gbuffer->data_texture, 0);
 
-        // glBindTexture(GL_TEXTURE_2D, currentTexture);
-        glerror = glGetError();
-        if (glerror != GL_NO_ERROR)
-        {
-            LOGE("error when reconnecting display fbo %x", glerror);
-        }  
+    //     // glBindTexture(GL_TEXTURE_2D, currentTexture);
+    //     // glerror = glGetError();
+    //     // if (glerror != GL_NO_ERROR)
+    //     // {
+    //     //     LOGE("error when reconnecting display fbo %x", glerror);
+    //     // }  
         
-        display_fbo_has_loaded = 1;
+    //     display_fbo_has_loaded = 1;
 
-        LOGI("reset display_fbo_has_loaded after load of read fbo %d write fbo %d texture %d %d", display_read_gbuffer->data_fbo, display_write_gbuffer->data_fbo, display_read_gbuffer->data_texture, display_write_gbuffer->data_texture);
-    }
+    //     LOGI("reset display_fbo_has_loaded after load of read fbo %d write fbo %d texture %d %d", display_read_gbuffer->data_fbo, display_write_gbuffer->data_fbo, display_read_gbuffer->data_texture, display_write_gbuffer->data_texture);
+    // }
 
 
     if (layers != NULL)

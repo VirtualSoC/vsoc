@@ -202,7 +202,7 @@ void clear_resource_tables(void);
 void init_saving_snapshot(void);
 void init_loading_snapshot(QEMUFile *f);
 
-
+void wake_up_display();
 
 void save_native_resources(QEMUFile *f);
 void load_native_resources(QEMUFile *f);

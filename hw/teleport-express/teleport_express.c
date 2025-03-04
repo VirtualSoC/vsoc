@@ -246,6 +246,9 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
     save_touchscreen_context(f); //保存触摸屏上下文
 
     save_native_resources(f); //保存native资源
+
+    save_display_texture_ids(f);
+
     save_force_show_native_render_window(f); //保存是否强制显示native窗口
 
     save_gbuffer_global_map(f); //保存全局gbuffer映射
@@ -287,6 +290,8 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     loaded_window_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
     load_native_resources(f);
 
+    update_display_gbuffer_texture(f);
+
     load_force_show_native_render_window(f);
     load_gbuffer_global_map(f);
 
@@ -301,6 +306,9 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     
     // Express_Device_Info *display_device_info = get_express_device_info(EXPRESS_DISPLAY_DEVICE_ID);
     // Thread_Context* display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
+
+    wake_up_display();
+
     LOGI("succcefully perform virtio load for teleport express!");
     return 0;
 }

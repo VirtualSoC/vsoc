@@ -41,6 +41,7 @@ typedef struct Display_Status
 
 #define FUNID_Show_Window_FLIP_V (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 15))
 
+#define FUNID_Snapshot_Load (DEVICE_FUN_ID(EXPRESS_DISPLAY_DEVICE_ID, 16))
 
 #define PARA_NUM_Commit_Composer_Layer 1
 #define PARA_NUM_Set_Sync_Flag 1
@@ -49,7 +50,8 @@ typedef struct Display_Status
 #define PARA_NUM_Set_Display_Status 1
 #define PARA_NUM_Get_Display_Status 1
 
-void update_display_gbuffer_texture_and_framebuffer();
+void save_display_texture_ids(QEMUFile *f);
+void update_display_gbuffer_texture(QEMUFile *f);
 void init_display_context_vmload();
 extern int display_is_open;
 

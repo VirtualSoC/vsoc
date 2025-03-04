@@ -558,7 +558,7 @@ void d_glBindEGLImage(void *t_context, GLenum target, uint64_t image, GLuint tex
         GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(origin_texture)) != NULL) {
             g_hash_table_remove(resource_list, GUINT_TO_POINTER(origin_texture));
-            LOGD("in bind image remove texture %d", origin_texture);
+            LOGI("in bind image remove texture %d", origin_texture);
 
         }
         ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
