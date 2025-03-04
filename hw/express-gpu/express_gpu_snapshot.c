@@ -2280,6 +2280,36 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     glGetTexParameteriv(target, GL_TEXTURE_SWIZZLE_B, &state->texture_swizzle_b);
     glGetTexParameteriv(target, GL_TEXTURE_SWIZZLE_A, &state->texture_swizzle_a);
 
+    glGetTexParameteriv(target, GL_TEXTURE_BASE_LEVEL, (GLint*)&state->baselevel);
+    glGetTexParameteriv(target, GL_TEXTURE_MAX_LEVEL, (GLint*)&state->maxlevel);
+
+    glGetTexParameterfv(target, GL_TEXTURE_MIN_LOD, &state->minlod);
+    glGetTexParameterfv(target, GL_TEXTURE_MAX_LOD, &state->maxlod);
+
+    glGetTexParameterfv(target, GL_TEXTURE_LOD_BIAS, &state->lod_bias);
+    glGetTexParameterfv(target, GL_TEXTURE_MAX_ANISOTROPY, &state->max_anisotropy);
+
+    glGetTexParameteriv(target, GL_TEXTURE_COMPARE_MODE, (GLint*)&state->compare_mode);
+    glGetTexParameteriv(target, GL_TEXTURE_COMPARE_FUNC, (GLint*)&state->compare_func);
+
+    glGetTexParameteriv(target, GL_DEPTH_STENCIL_TEXTURE_MODE, (GLint*)&state->depth_stencil_mode);
+
+    glGetTexParameteriv(target, GL_DEPTH_TEXTURE_MODE, (GLint*)&state->depth_texture_mode);
+
+    glGetTexParameteriv(target, GL_TEXTURE_IMMUTABLE_FORMAT, (GLint*)&state->immutable_format);
+
+    glGetTexParameteriv(target, GL_TEXTURE_CUBE_MAP_SEAMLESS, (GLint*)&state->texture_cube_map_seamless);
+
+    glGetTexParameteriv(target, GL_TEXTURE_SRGB_DECODE_EXT, (GLint*)&state->SRGB_decode);
+
+    glGetTexParameteriv(target, GL_TEXTURE_SPARSE_ARB, (GLint*)&state->texture_sparse);
+
+    glGetTexParameteriv(target, GL_TEXTURE_REDUCTION_MODE_EXT, (GLint*)&state->reduction_mode);
+
+    glGetTexParameteriv(target, GL_TEXTURE_TILING_EXT, (GLint*)&state->texture_tiling);
+
+    glGetTexParameteriv(target, GL_PER_GPU_STORAGE_NV, (GLint*)&state->per_gpu_storage_NV);
+
     qemu_put_be32(f, state->width);
     qemu_put_be32(f, state->height);
     qemu_put_be32(f, state->depth);
@@ -2294,6 +2324,35 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     qemu_put_be32(f, state->texture_swizzle_g);
     qemu_put_be32(f, state->texture_swizzle_b);
     qemu_put_be32(f, state->texture_swizzle_a);
+
+    qemu_put_be32(f, state->baselevel);
+    qemu_put_be32(f, state->maxlevel);
+
+    qemu_put_be32(f, *(uint32_t*)&state->minlod);
+    qemu_put_be32(f, *(uint32_t*)&state->maxlod);
+
+    qemu_put_be32(f, *(uint32_t*)&state->lod_bias);
+    qemu_put_be32(f, *(uint32_t*)&state->max_anisotropy);
+
+    qemu_put_be32(f, state->compare_mode);
+    qemu_put_be32(f, state->compare_func);
+
+    qemu_put_be32(f, state->depth_stencil_mode);
+    qemu_put_be32(f, state->depth_texture_mode);
+
+    qemu_put_be32(f, state->immutable_format);
+
+    qemu_put_be32(f, state->texture_cube_map_seamless);
+
+    qemu_put_be32(f, state->SRGB_decode);
+
+    qemu_put_be32(f, state->texture_sparse);
+
+    qemu_put_be32(f, state->reduction_mode);
+
+    qemu_put_be32(f, state->texture_tiling);
+
+    qemu_put_be32(f, state->per_gpu_storage_NV);
 
     qemu_put_be32(f, state->binding2D);
     qemu_put_be32(f, state->bindingCubeMap);
@@ -2416,6 +2475,35 @@ void update_native_texture(Express_Native_Texture* texture_data){
     glTexParameteri(texture_data->target, GL_TEXTURE_SWIZZLE_G, texture_data->texture_swizzle_g);
     glTexParameteri(texture_data->target, GL_TEXTURE_SWIZZLE_B, texture_data->texture_swizzle_b);
     glTexParameteri(texture_data->target, GL_TEXTURE_SWIZZLE_A, texture_data->texture_swizzle_a);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_BASE_LEVEL, texture_data->baselevel);
+    glTexParameteri(texture_data->target, GL_TEXTURE_MAX_LEVEL, texture_data->maxlevel);
+
+    glTexParameterf(texture_data->target, GL_TEXTURE_MIN_LOD, texture_data->minlod);
+    glTexParameterf(texture_data->target, GL_TEXTURE_MAX_LOD, texture_data->maxlod);
+
+    glTexParameterf(texture_data->target, GL_TEXTURE_LOD_BIAS, texture_data->lod_bias);
+    glTexParameterf(texture_data->target, GL_TEXTURE_MAX_ANISOTROPY, texture_data->max_anisotropy);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_COMPARE_MODE, texture_data->compare_mode);
+    glTexParameteri(texture_data->target, GL_TEXTURE_COMPARE_FUNC, texture_data->compare_func);
+
+    glTexParameteri(texture_data->target, GL_DEPTH_STENCIL_TEXTURE_MODE, texture_data->depth_stencil_mode);
+    glTexParameteri(texture_data->target, GL_DEPTH_TEXTURE_MODE, texture_data->depth_texture_mode);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_IMMUTABLE_FORMAT, texture_data->immutable_format);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_CUBE_MAP_SEAMLESS, texture_data->texture_cube_map_seamless);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_SRGB_DECODE_EXT, texture_data->SRGB_decode);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_SPARSE_ARB, texture_data->texture_sparse);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_REDUCTION_MODE_EXT, texture_data->reduction_mode);
+
+    glTexParameteri(texture_data->target, GL_TEXTURE_TILING_EXT, texture_data->texture_tiling);
+
+    glTexParameteri(texture_data->target, GL_PER_GPU_STORAGE_NV, texture_data->per_gpu_storage_NV);
     
     GLenum format = get_format_for_internal_format(texture_data->internalFormat); //ztodo:这么转换吗？
 
@@ -2539,6 +2627,39 @@ void load_native_textures(QEMUFile *f){
         native_texture->texture_swizzle_g = qemu_get_be32(f);
         native_texture->texture_swizzle_b = qemu_get_be32(f);
         native_texture->texture_swizzle_a = qemu_get_be32(f);
+
+        native_texture->baselevel = qemu_get_be32(f);
+        native_texture->maxlevel = qemu_get_be32(f);
+
+        uint32_t raw_value = qemu_get_be32(f);
+        native_texture->minlod = *(GLfloat*)&raw_value;
+        raw_value = qemu_get_be32(f);
+        native_texture->maxlod = *(GLfloat*)&raw_value;
+
+        raw_value = qemu_get_be32(f);
+        native_texture->lod_bias = *(GLfloat*)&raw_value;
+        raw_value = qemu_get_be32(f);
+        native_texture->max_anisotropy = *(GLfloat*)&raw_value;
+
+        native_texture->compare_mode = qemu_get_be32(f);
+        native_texture->compare_func = qemu_get_be32(f);
+
+        native_texture->depth_stencil_mode = qemu_get_be32(f);
+        native_texture->depth_texture_mode = qemu_get_be32(f);
+
+        native_texture->immutable_format = qemu_get_be32(f);
+
+        native_texture->texture_cube_map_seamless = qemu_get_be32(f);
+
+        native_texture->SRGB_decode = qemu_get_be32(f);
+
+        native_texture->texture_sparse = qemu_get_be32(f);
+
+        native_texture->reduction_mode = qemu_get_be32(f);
+
+        native_texture->texture_tiling = qemu_get_be32(f);
+
+        native_texture->per_gpu_storage_NV = qemu_get_be32(f);
         
         native_texture->binding2D = qemu_get_be32(f);
         native_texture->bindingCubeMap = qemu_get_be32(f);
