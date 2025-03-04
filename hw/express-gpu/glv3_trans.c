@@ -14764,6 +14764,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
 
         glDepthFunc(func);
+        r_context->opengl_context->depth_func = func;
     }
     break;
 
@@ -14822,6 +14823,8 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         }
 
         glDepthMask(flag);
+
+        r_context->opengl_context->depth_mask = flag;
     }
     break;
 
@@ -15031,6 +15034,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
             break;
         }
         glDisable(cap);
+        GHashTable *hash_table = opengl_context->enable_map;
+        if (hash_table != NULL)
+        {
+            g_hash_table_remove(hash_table, GUINT_TO_POINTER(cap));
+        }
     }
     break;
 
@@ -15095,6 +15103,11 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
         // LOGD("in glEnable %x", cap);
 
         glEnable(cap);
+        GHashTable *hash_table = opengl_context->enable_map;
+        if (hash_table != NULL)
+        {
+            g_hash_table_insert(hash_table, GUINT_TO_POINTER(cap), GUINT_TO_POINTER(1));
+        }
     }
     break;
 

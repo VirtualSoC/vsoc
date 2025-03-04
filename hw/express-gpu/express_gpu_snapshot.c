@@ -4013,6 +4013,10 @@ void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
     qemu_put_be32(f, context->blendfunc_dfactor);
     qemu_put_be32(f, context->blendfunc_sfactor);
 
+    qemu_put_be32(f, context->depth_func);
+    qemu_put_be32(f, context->depth_mask);
+    qemu_put_be32(f, context->depth_test);
+
     guint num_entries = g_hash_table_size(context->buffer_map);
     LOGI("in save opengl context with num_entries %d", num_entries);
 
@@ -4027,6 +4031,13 @@ void save_opengl_context(QEMUFile *f, Opengl_Context *context) {
 
         qemu_put_be64(f, buffer_key);
         save_guest_host_map(f, map);
+    }
+
+    g_hash_table_iter_init(&iter, context->enable_map);
+    qemu_put_be32(f, g_hash_table_size(context->enable_map));
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        guint32 buffer_key = (guint32)key;
+        qemu_put_be32(f, buffer_key);
     }
 
     for(int i = 0; i < 4 ; i++) {
@@ -4048,6 +4059,19 @@ void restore_opengl_context_textures(Opengl_Context *context) {
     texture_binding_status_sync(context, GL_TEXTURE_CUBE_MAP_ARRAY);
     texture_binding_status_sync(context, GL_TEXTURE_BUFFER);
     texture_binding_status_sync(context, GL_TEXTURE_EXTERNAL_OES);
+
+    for(int i = 0; i <= status->now_max_texture_unit; i++) {
+        glActiveTexture(i + GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, status->guest_current_texture_2D[i]);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, status->guest_current_texture_2D_multisample[i]);
+        glBindTexture(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, status->guest_current_texture_2D_multisample_array[i]);
+        glBindTexture(GL_TEXTURE_3D, status->guest_current_texture_3D[i]);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, status->guest_current_texture_2D_array[i]);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, status->guest_current_texture_cube_map[i]);
+        glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY, status->guest_current_texture_cube_map_array[i]);
+        glBindTexture(GL_TEXTURE_BUFFER, status->guest_current_texture_buffer[i]);
+        LOGD("restore texture max unit %d now %d 2d %d", status->now_max_texture_unit, i, status->guest_current_texture_2D[i]);
+    }
 
     GLuint current_active_texture = status->guest_current_active_texture;
     glActiveTexture(current_active_texture + GL_TEXTURE0);
@@ -4172,6 +4196,10 @@ int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
     context->blendfunc_dfactor = qemu_get_be32(f);
     context->blendfunc_sfactor = qemu_get_be32(f);
 
+    context->depth_func = qemu_get_be32(f);
+    context->depth_mask = qemu_get_be32(f);
+    context->depth_test = qemu_get_be32(f);
+
     guint num_entries = qemu_get_be32(f);
     context->buffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);
     // g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy); ztodo:改成这个
@@ -4190,6 +4218,13 @@ int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
         Guest_Host_Map *map = load_guest_host_map(f); //ztodo:还得重新map。。。。。
 
         g_hash_table_insert(context->buffer_map, (gpointer)((((guint64)target) << 32) + new_buffer_id), map);
+    }
+
+    context->enable_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+    int enable_map_size = qemu_get_be32(f);
+    for (int i = 0; i < enable_map_size; i++) {
+        guint32 buffer_key = qemu_get_be32(f);
+        g_hash_table_insert(context->enable_map, GUINT_TO_POINTER(buffer_key), GUINT_TO_POINTER(1));
     }
 
     for(int i = 0; i < 4 ; i++) {
