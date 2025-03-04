@@ -464,6 +464,8 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
 
     bound_buffer->vao_point_data = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_vao_point_data_destroy);
 
+    opengl_context->enable_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+
     Attrib_Point *temp_point = g_malloc0(sizeof(Attrib_Point));
 
     bound_buffer->attrib_point = temp_point;
@@ -483,6 +485,10 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
     opengl_context->draw_texi_ebo = 0;
 
     opengl_context->debug_message_buffer = NULL;
+
+    opengl_context->depth_mask = GL_TRUE;
+    opengl_context->depth_test = GL_FALSE;
+    opengl_context->depth_func = GL_LESS;
 
     return opengl_context;
 }
@@ -616,6 +622,7 @@ void opengl_context_destroy(Opengl_Context *context)
     //这两个个都有默认的销毁函数
     g_hash_table_destroy(opengl_context->buffer_map);
     g_hash_table_destroy(bound_buffer->vao_point_data);
+    g_hash_table_destroy(opengl_context->enable_map);
 
     if (bound_buffer->has_init == 1)
     {

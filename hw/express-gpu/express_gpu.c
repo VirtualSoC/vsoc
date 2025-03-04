@@ -588,10 +588,18 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
 
-
-
-
-
+    glDepthMask(opengl_context->depth_mask);
+    // glDepthFunc(opengl_context->depth_func);
+    LOGI("depth mask is %d depth func is %d", opengl_context->depth_mask, opengl_context->depth_func);
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, opengl_context->enable_map);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        GLenum cap = (GLenum)key;
+        glEnable(cap);
+        LOGI("recover cap %x", cap);
+    }
+    
     // if(opengl_context->current_read_fbo != 0){
     //     glBindFramebuffer(GL_READ_FRAMEBUFFER, opengl_context->current_read_fbo);
     // } else {

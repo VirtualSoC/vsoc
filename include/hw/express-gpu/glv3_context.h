@@ -181,6 +181,10 @@ typedef struct Opengl_Context
 
     GLenum blendfunc_sfactor;
     GLenum blendfunc_dfactor;
+    GLenum depth_func;
+    GLboolean depth_mask;
+    GLboolean depth_test;
+    GHashTable *enable_map;
 
     void *debug_message_buffer;
 } Opengl_Context;
