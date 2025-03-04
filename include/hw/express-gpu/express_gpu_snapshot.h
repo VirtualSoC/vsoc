@@ -133,6 +133,25 @@ typedef struct Express_Native_Texture {
     GLenum texture_swizzle_b;
     GLenum texture_swizzle_a;
 
+    GLuint baselevel;
+    GLuint maxlevel;
+    GLfloat minlod;
+    GLfloat maxlod;
+    GLfloat lod_bias;
+    GLfloat max_anisotropy;
+    GLenum compare_mode;
+    GLenum compare_func;
+    GLenum depth_stencil_mode;
+    GLenum depth_texture_mode;
+    GLenum image_format;
+    GLenum immutable_format;
+    GLenum texture_cube_map_seamless;
+    GLenum SRGB_decode;
+    GLenum texture_sparse;
+    GLenum reduction_mode;
+    GLenum texture_tiling;
+    GLenum per_gpu_storage_NV;
+
 
     // // 2D mipmap数据
     // GLenum format2D;
