@@ -193,6 +193,14 @@ void restore_opengl_vao_binding(Opengl_Context *context) {
         if(old_vao == status->guest_vao) {
             status->guest_vao = new_vao;
         }
+
+        glBindVertexArray(new_vao);
+        for(int i = 0; i < MAX_VERTEX_ATTRIBS_NUM; i++) {
+            if(attrib_point->divisors[i] != 0) {
+                glVertexAttribDivisor(i, attrib_point->divisors[i]);
+                LOGI("restoring divisor %d %d", i, attrib_point->divisors[i]);
+            }
+        }
     }
 
             // LOGI("current ebo should be %d %d", current_ebo, (&(opengl_context->bound_buffer_status.buffer_status))->guest_element_array_buffer);
@@ -207,13 +215,13 @@ void restore_opengl_vao_binding(Opengl_Context *context) {
     // Attrib_Point *attrib_point = (Attrib_Point *)value;
     LOGI("current vao is %d", now_vao);
     glBindVertexArray(now_vao);
-    Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
-    for(int i = 0; i < MAX_VERTEX_ATTRIBS_NUM; i++) {
-        if(now_point->divisors[i] != 0) {
-            glVertexAttribDivisor(i, now_point->divisors[i]);
-            LOGI("restoring divisor %d %d", i, now_point->divisors[i]);
-        }
-    }
+    // Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
+    // for(int i = 0; i < MAX_VERTEX_ATTRIBS_NUM; i++) {
+    //     if(now_point->divisors[i] != 0) {
+    //         glVertexAttribDivisor(i, now_point->divisors[i]);
+    //         LOGI("restoring divisor %d %d", i, now_point->divisors[i]);
+    //     }
+    // }
     // GLenum error = glGetError();
     // if (error == GL_NO_ERROR) {
     //     LOGI("VAO is valid.");
