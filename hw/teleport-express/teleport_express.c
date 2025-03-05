@@ -23,6 +23,8 @@
 #include "hw/express-gpu/express_gpu_snapshot.h"
 #include "hw/express-mem/express_sync.h"
 #include "hw/express-input/express_touchscreen.h"
+#include "hw/express-input/express_keyboard.h"
+#include "hw/express-sensor/express_accel.h"
 
 
 #include "hw/virtio/virtio.h"
@@ -243,6 +245,8 @@ static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
 
     save_sync_context(f); //保存同步上下文
     save_touchscreen_context(f); //保存触摸屏上下文
+    save_keyboard_context(f); //保存键盘上下文
+
 
     save_native_resources(f); //保存native资源
 
@@ -279,6 +283,7 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
 
     load_sync_context(f);
     load_touchscreen_context(f);
+    load_keyboard_context(f);
 
     loaded_hardware_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
     loaded_window_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);

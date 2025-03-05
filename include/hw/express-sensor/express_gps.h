@@ -32,6 +32,9 @@ enum {
 
 void express_gps_status_changed(int status_type, int value);
 
+void load_gps_context(QEMUFile *f);
+void save_gps_context(QEMUFile *f);
+
 void sync_express_gps_status(void);
 
 #endif

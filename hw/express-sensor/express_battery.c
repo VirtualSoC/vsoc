@@ -12,6 +12,7 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-sensor/express_battery.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 typedef struct Express_Battery_Data
 {
@@ -56,6 +57,69 @@ static Battery_Context static_battery_context = {
     }};
 
 static bool battery_data_init = false;
+
+void save_battery_data(QEMUFile *f, Express_Battery_Data *data)
+{
+    qemu_put_be32(f, data->status_changed);
+    qemu_put_be32(f, data->online);
+    qemu_put_be32(f, data->status);
+    qemu_put_be32(f, data->health);
+    qemu_put_be32(f, data->present);
+    qemu_put_be32(f, data->capacity);
+    qemu_put_be32(f, data->voltage);
+    qemu_put_be32(f, data->temperature);
+    qemu_put_be32(f, data->technology);
+    qemu_put_be32(f, data->cycle_count);
+    qemu_put_be32(f, data->current_now);
+    qemu_put_be32(f, data->charge_full);
+    qemu_put_be32(f, data->charge_counter);
+}
+
+void load_battery_data(QEMUFile *f, Express_Battery_Data *data)
+{
+    data->status_changed = qemu_get_be32(f);
+    data->online = qemu_get_be32(f);
+    data->status = qemu_get_be32(f);
+    data->health = qemu_get_be32(f);
+    data->present = qemu_get_be32(f);
+    data->capacity = qemu_get_be32(f);
+    data->voltage = qemu_get_be32(f);
+    data->temperature = qemu_get_be32(f);
+    data->technology = qemu_get_be32(f);
+    data->cycle_count = qemu_get_be32(f);
+    data->current_now = qemu_get_be32(f);
+    data->charge_full = qemu_get_be32(f);
+    data->charge_counter = qemu_get_be32(f);
+}
+
+void save_battery_context(QEMUFile* f){
+    save_battery_data(f, &(static_battery_context.data));
+    save_guest_mem(f, static_battery_context.guest_buffer);
+    qemu_put_be32(f, static_battery_context.need_sync);
+    qemu_put_be32(f, static_battery_context.device_context.irq_enabled);
+
+    if(static_battery_context.device_context.irq_call == NULL){
+        qemu_put_be32(f, 0);
+    } else {
+        qemu_put_be32(f, 1);
+        save_teleport_express_call(f, static_battery_context.device_context.irq_call);
+    }    
+}
+
+void load_battery_context(QEMUFile *f){
+    load_battery_data(f, &(static_battery_context.data));
+    static_battery_context.guest_buffer = load_guest_mem(f, 0);
+    static_battery_context.need_sync = qemu_get_be32(f);
+    static_battery_context.device_context.irq_enabled = qemu_get_be32(f);
+
+    Express_Device_Info *device_info = get_express_device_info(EXPRESS_BATTERY_DEVICE_ID);
+    static_battery_context.device_context.device_info = device_info;
+
+    int has_call = qemu_get_be32(f);
+    if(has_call) {
+        static_battery_context.device_context.irq_call = load_teleport_express_call(f);
+    }
+}
 
 void express_ac_plug_status_changed(bool is_pluged)
 {

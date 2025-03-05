@@ -12,6 +12,7 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-sensor/express_gps.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 typedef struct
 {
@@ -111,6 +112,109 @@ static GPS_Context static_gps_context = {
              {0, 0, 0, 0}}}}};
 
 static bool gps_data_init = false;
+
+void save_gps_data(QEMUFile *f, Express_GPS_Data *data)
+{
+    qemu_put_be32(f, data->status.new_data);
+    qemu_put_be32(f, data->status.gps2dfix);
+    qemu_put_be32(f, data->status.gps3dfix);
+    qemu_put_be32(f, data->status.wp_reached);
+    qemu_put_be32(f, data->status.numsats);
+    qemu_put_be32(f, data->location.lat);
+    qemu_put_be32(f, data->location.lon);
+    qemu_put_be32(f, data->detail.num_sv_inview);
+    qemu_put_be32(f, data->detail.pdop);
+    qemu_put_be32(f, data->detail.hdop);
+    qemu_put_be32(f, data->detail.vdop);
+    qemu_put_be32(f, data->detail.month);
+    qemu_put_be32(f, data->detail.day);
+    qemu_put_be32(f, data->detail.hr);
+    qemu_put_be32(f, data->detail.min);
+    qemu_put_be32(f, data->detail.sec);
+    qemu_put_be32(f, data->detail.ground_speed);
+    qemu_put_be32(f, data->detail.altitude);
+    qemu_put_be32(f, data->detail.speed_dir);
+    qemu_put_be32(f, data->detail.year);
+
+    for (int i = 0; i < 16; i++)
+    {
+        qemu_put_be32(f, data->detail.sv_inview[i].prn);
+        qemu_put_be32(f, data->detail.sv_inview[i].elevation);
+        qemu_put_be32(f, data->detail.sv_inview[i].snr);
+        qemu_put_be32(f, data->detail.sv_inview[i].azimuth);
+    }
+
+    for (int i = 0; i < 12; i++)
+    {
+        qemu_put_be32(f, data->detail.active_sv_prn[i]);
+    }
+}
+
+void load_gps_data(QEMUFile *f, Express_GPS_Data *data)
+{
+    data->status.new_data = qemu_get_be32(f);
+    data->status.gps2dfix = qemu_get_be32(f);
+    data->status.gps3dfix = qemu_get_be32(f);
+    data->status.wp_reached = qemu_get_be32(f);
+    data->status.numsats = qemu_get_be32(f);
+    data->location.lat = qemu_get_be32(f);
+    data->location.lon = qemu_get_be32(f);
+    data->detail.num_sv_inview = qemu_get_be32(f);
+    data->detail.pdop = qemu_get_be32(f);
+    data->detail.hdop = qemu_get_be32(f);
+    data->detail.vdop = qemu_get_be32(f);
+    data->detail.month = qemu_get_be32(f);
+    data->detail.day = qemu_get_be32(f);
+    data->detail.hr = qemu_get_be32(f);
+    data->detail.min = qemu_get_be32(f);
+    data->detail.sec = qemu_get_be32(f);
+    data->detail.ground_speed = qemu_get_be32(f);
+    data->detail.altitude = qemu_get_be32(f);
+    data->detail.speed_dir = qemu_get_be32(f);
+    data->detail.year = qemu_get_be32(f);
+
+    for (int i = 0; i < 16; i++)
+    {
+        data->detail.sv_inview[i].prn = qemu_get_be32(f);
+        data->detail.sv_inview[i].elevation = qemu_get_be32(f);
+        data->detail.sv_inview[i].snr = qemu_get_be32(f);
+        data->detail.sv_inview[i].azimuth = qemu_get_be32(f);
+    }
+
+    for (int i = 0; i < 12; i++)
+    {
+        data->detail.active_sv_prn[i] = qemu_get_be32(f);
+    }
+}
+
+void save_gps_context(QEMUFile* f){
+    save_gps_data(f, &(static_gps_context.data));
+    save_guest_mem(f, static_gps_context.guest_buffer);
+    qemu_put_be32(f, static_gps_context.need_sync);
+    qemu_put_be32(f, static_gps_context.device_context.irq_enabled);
+
+    if(static_gps_context.device_context.irq_call == NULL){
+        qemu_put_be32(f, 0);
+    } else {
+        qemu_put_be32(f, 1);
+        save_teleport_express_call(f, static_gps_context.device_context.irq_call);
+    }    
+}
+
+void load_gps_context(QEMUFile *f){
+    load_gps_data(f, &(static_gps_context.data));
+    static_gps_context.guest_buffer = load_guest_mem(f, 0);
+    static_gps_context.need_sync = qemu_get_be32(f);
+    static_gps_context.device_context.irq_enabled = qemu_get_be32(f);
+
+    Express_Device_Info *device_info = get_express_device_info(EXPRESS_GPS_DEVICE_ID);
+    static_gps_context.device_context.device_info = device_info;
+
+    int has_call = qemu_get_be32(f);
+    if(has_call) {
+        static_gps_context.device_context.irq_call = load_teleport_express_call(f);
+    }
+}
 
 void express_gps_status_changed(int status_type, int value)
 {

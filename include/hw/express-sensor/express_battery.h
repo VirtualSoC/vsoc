@@ -286,6 +286,8 @@ enum {
 #define BATTERY_STATUS_CHANGED	(1 << 0)
 #define AC_STATUS_CHANGED (1 << 1)
 
+void save_battery_context(QEMUFile* f);
+void load_battery_context(QEMUFile *f);
 
 void express_ac_plug_status_changed(bool is_pluged);
 

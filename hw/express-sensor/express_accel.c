@@ -12,6 +12,7 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-sensor/express_accel.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 typedef struct Express_Accel_Data
 {
@@ -43,6 +44,60 @@ static Accel_Context static_accel_context = {
         .temperature = 30000000,
         .voltage = 230000,
         .enable = 1}};
+
+
+void save_accel_data(QEMUFile *f, Express_Accel_Data *data)
+{
+    qemu_put_be32(f, data->x);
+    qemu_put_be32(f, data->y);
+    qemu_put_be32(f, data->z);
+    qemu_put_be32(f, data->scale);
+    qemu_put_be32(f, data->sample_hz);
+    qemu_put_be32(f, data->temperature);
+    qemu_put_be32(f, data->voltage);
+    qemu_put_be32(f, data->enable);
+}
+
+void load_accel_data(QEMUFile *f, Express_Accel_Data *data)
+{
+    data->x = qemu_get_be32(f);
+    data->y = qemu_get_be32(f);
+    data->z = qemu_get_be32(f);
+    data->scale = qemu_get_be32(f);
+    data->sample_hz = qemu_get_be32(f);
+    data->temperature = qemu_get_be32(f);
+    data->voltage = qemu_get_be32(f);
+    data->enable = qemu_get_be32(f);
+}
+
+void save_accel_context(QEMUFile* f){
+    save_accel_data(f, &(static_accel_context.data));
+    save_guest_mem(f, static_accel_context.guest_buffer);
+    qemu_put_be32(f, static_accel_context.need_sync);
+    qemu_put_be32(f, static_accel_context.device_context.irq_enabled);
+
+    if(static_accel_context.device_context.irq_call == NULL){
+        qemu_put_be32(f, 0);
+    } else {
+        qemu_put_be32(f, 1);
+        save_teleport_express_call(f, static_accel_context.device_context.irq_call);
+    }    
+}
+
+void load_accel_context(QEMUFile *f){
+    load_accel_data(f, &(static_accel_context.data));
+    static_accel_context.guest_buffer = load_guest_mem(f, 0);
+    static_accel_context.need_sync = qemu_get_be32(f);
+    static_accel_context.device_context.irq_enabled = qemu_get_be32(f);
+
+    Express_Device_Info *device_info = get_express_device_info(EXPRESS_ACCELEROMTETER_DEVICE_ID);
+    static_accel_context.device_context.device_info = device_info;
+
+    int has_call = qemu_get_be32(f);
+    if(has_call) {
+        static_accel_context.device_context.irq_call = load_teleport_express_call(f);
+    }
+}
 
 void express_accel_status_changed(int status_type, int value)
 {
