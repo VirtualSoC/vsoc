@@ -8,7 +8,7 @@
 #define MAX_RECORD_SLOT 100
 #define MAX_RECORD_NUM 100
 
-void set_touchscreen_window_size(GLFWwindow *window, int max_width, int max_height);
+void set_touchscreen_window_size(GLFWwindow *window, int max_width, int max_height, int rotation);
 
 void start_mouse_record(GLFWwindow *window, int index);
 void stop_mouse_record(GLFWwindow *window);

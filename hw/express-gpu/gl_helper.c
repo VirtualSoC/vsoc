@@ -1292,53 +1292,34 @@ GLuint load_shader(GLenum type, const char *shaderSrc)
 int display_opengl_prepare(GLuint *program, GLuint *VAO)
 {
 
-    // @todo 暂时未支持旋转和翻转操作
     char vShaderStr[] =
-    #ifdef _WIN32
-        "#version 300 es\n"
-    #else
-        "#version 330\n"
-    #endif
-        "layout (location = 0) in vec2 position;\n"
-        "layout (location = 1) in vec2 texCoords;\n"
-        "uniform int transform_loc;\n"
-        "out vec2 TexCoords;\n"
-        "void main()\n"
-        "{\n"
-        "    if(transform_loc == 1)\n"
-        "    {\n"
-        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
-        "    }\n"
-        "    else if(transform_loc == 2)\n"
-        "    {\n"
-        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
-        "    }\n"
-        "    else if(transform_loc == 3)\n"
-        "    {\n"
-        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
-        "    }\n"
-        "    else if(transform_loc == 4)\n"
-        "    {\n"
-        "       gl_Position = vec4(-position.x, position.y, 0.0f, 1.0f);\n"
-        "    }\n"
-        "    else if(transform_loc == 5)\n"
-        "    {\n"
-        "       gl_Position = vec4(position.x, -position.y, 0.0f, 1.0f);\n"
-        "    }\n"
-        "    else\n"
-        "    {\n"
-        "       gl_Position = vec4(position.x, position.y, 0.0f, 1.0f);\n"
-        "    }\n"
-        "    TexCoords = texCoords;\n"
-        "}\n";
+    "#version 330\n"
+    "layout (location = 0) in vec2 position;\n"
+    "layout (location = 1) in vec2 texCoords;\n"
+    "uniform int transform_loc;\n"
+    "out vec2 TexCoords;\n"
+    "void main()\n"
+    "{\n"
+    "    // 根据 transform_loc 选择对应的变换\n"
+    "    if(transform_loc == 4) // FLIP_H (水平翻转)\n"
+    "    {\n"
+    "       gl_Position = vec4(-position.x, position.y, 0.0, 1.0);\n"
+    "    }\n"
+    "    else if(transform_loc == 5) // FLIP_V (垂直翻转)\n"
+    "    {\n"
+    "       gl_Position = vec4(position.x, -position.y, 0.0, 1.0);\n"
+    "    }\n"
+    "    else\n"
+    "    {\n"
+    "       // 默认使用无变换\n"
+    "       gl_Position = vec4(position.x, position.y, 0.0, 1.0);\n"
+    "    }\n"
+    "    TexCoords = texCoords;\n"
+    "}\n";
 
     char fShaderStr[] =
-    #ifdef _WIN32
-        "#version 300 es\n"
-    #else
         "#version 330\n"
-    #endif
-        "precision mediump float;                     \n"
+        "precision mediump float;\n"
         "in vec2 TexCoords;\n"
         "out vec4 color;\n"
         "uniform sampler2D screenTexture;\n"

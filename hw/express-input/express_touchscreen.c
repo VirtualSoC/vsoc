@@ -40,9 +40,14 @@ typedef struct Touchscreen_Context
     Guest_Mem *guest_buffer;
     bool need_sync;
 
-    // qemu这边的窗口大小
+    // 触摸屏的物理大小
+    int touchscreen_width;
+    int touchscreen_height;
+
+    // qemu的窗口大小
     int window_width;
     int window_height;
+    int window_rotation;
 
     int current_finger_xpos;
     int current_finger_ypos;
@@ -115,12 +120,20 @@ static inline Touchscreen_Context *get_touchscreen_context(GLFWwindow *window)
  * @param max_width qemu显示的窗口的宽度
  * @param max_height qemu显示的窗口的高度
  */
-void set_touchscreen_window_size(GLFWwindow *window, int max_width, int max_height)
+void set_touchscreen_window_size(GLFWwindow *window, int max_width, int max_height, int rotation)
 {
     Touchscreen_Context *context = get_touchscreen_context(window);
 
     context->window_width = max_width;
     context->window_height = max_height;
+
+    bool prev_rotated = context->window_rotation == ROTATE_90 || context->window_rotation == ROTATE_270;
+    bool current_rotated = rotation == ROTATE_90 || rotation == ROTATE_270;
+
+    if (prev_rotated != current_rotated) {
+        swap(context->touchscreen_width, context->touchscreen_height, int);
+    }
+    context->window_rotation = rotation;
 }
 
 void start_mouse_record(GLFWwindow *window, int index)
@@ -262,25 +275,25 @@ void express_touchscreen_mouse_move_handle(GLFWwindow *window, double xpos, doub
     int real_display_height = context->window_height;
     if (express_gpu_keep_window_scale)
     {
-        context->current_finger_xpos = (int)((double)xpos / context->window_width * static_prop.width);
-        context->current_finger_ypos = (int)((double)ypos / context->window_height * static_prop.height);
+        context->current_finger_xpos = (int)((double)xpos / context->window_width * context->touchscreen_width);
+        context->current_finger_ypos = (int)((double)ypos / context->window_height * context->touchscreen_height);
     }
     else
     {
-        if ((double)static_prop.width / static_prop.height > (double)context->window_width / context->window_height)
+        if ((double)context->touchscreen_width / context->touchscreen_height > (double)context->window_width / context->window_height)
         {
-            real_display_height = (double)static_prop.height / static_prop.width * context->window_width;
+            real_display_height = (double)context->touchscreen_height / context->touchscreen_width * context->window_width;
             ypos = min(max((ypos - (double)(context->window_height - real_display_height) / 2), 0), (double)real_display_height);
         }
         else
         {
-            real_display_width = (double)static_prop.width / static_prop.height * context->window_height;
+            real_display_width = (double)context->touchscreen_width / context->touchscreen_height * context->window_height;
             xpos = min(max((xpos - (double)(context->window_width - real_display_width) / 2), 0), (double)real_display_width);
         }
     }
 
-    context->current_finger_xpos = (int)(xpos / real_display_width * static_prop.width);
-    context->current_finger_ypos = (int)(ypos / real_display_height * static_prop.height);
+    context->current_finger_xpos = (int)(xpos / real_display_width * context->touchscreen_width);
+    context->current_finger_ypos = (int)(ypos / real_display_height * context->touchscreen_height);
 
     // printf("now mouse %d %d %d %d %d %d\n", context->current_finger_xpos, context->current_finger_ypos, real_display_width, real_display_height, context->window_width, context->window_height);
 
@@ -375,7 +388,7 @@ void express_touchscreen_mouse_scroll_handle(GLFWwindow *window, double xoffset,
     if (express_touchscreen_scroll_is_zoom)
     {
         int temp_yoffset = ((int)yoffset) * express_touchscreen_scroll_ratio;
-        int temp_finger_offset = min(context->current_finger_ypos, static_prop.height - context->current_finger_ypos) - 100;
+        int temp_finger_offset = min(context->current_finger_ypos, context->touchscreen_height - context->current_finger_ypos) - 100;
 
         // 加上offset不改变正负号才能加上去（同正同负）
         if (context->scroll_yoffset * (context->scroll_yoffset + temp_yoffset) > 0 || context->scroll_yoffset == 0)
@@ -447,25 +460,25 @@ void express_touchscreen_touch_handle(GLFWwindow *window, int touch_id, int acti
     int real_display_height = context->window_height;
     if (express_gpu_keep_window_scale)
     {
-        context->current_finger_xpos = (int)((double)xpos / context->window_width * static_prop.width);
-        context->current_finger_ypos = (int)((double)ypos / context->window_height * static_prop.height);
+        context->current_finger_xpos = (int)((double)xpos / context->window_width * context->touchscreen_width);
+        context->current_finger_ypos = (int)((double)ypos / context->window_height * context->touchscreen_height);
     }
     else
     {
-        if ((double)static_prop.width / static_prop.height > (double)context->window_width / context->window_height)
+        if ((double)context->touchscreen_width / context->touchscreen_height > (double)context->window_width / context->window_height)
         {
-            real_display_height = (double)static_prop.height / static_prop.width * context->window_width;
+            real_display_height = (double)context->touchscreen_height / context->touchscreen_width * context->window_width;
             ypos = min(max((ypos - (double)(context->window_height - real_display_height) / 2), 0), (double)real_display_height);
         }
         else
         {
-            real_display_width = (double)static_prop.width / static_prop.height * static_prop.height;
+            real_display_width = (double)context->touchscreen_width / context->touchscreen_height * context->touchscreen_height;
             xpos = min(max((xpos - (double)(context->window_width - real_display_width) / 2), 0), (double)real_display_width);
         }
     }
 
-    context->current_finger_xpos = (int)(xpos / real_display_width * static_prop.width);
-    context->current_finger_ypos = (int)(ypos / real_display_height * static_prop.height);
+    context->current_finger_xpos = (int)(xpos / real_display_width * context->touchscreen_width);
+    context->current_finger_ypos = (int)(ypos / real_display_height * context->touchscreen_height);
 
     if (context->real_touch_id_map == NULL)
     {
@@ -595,8 +608,16 @@ static void set_express_touchscreen_input(Touchscreen_Context *context, int x, i
         return;
     }
 
+    if (context->window_rotation == ROTATE_90) {
+        x = context->touchscreen_width - x;
+        swap(x, y, int);
+    } else if (context->window_rotation == ROTATE_270) {
+        swap(x, y, int);
+    }
     x = max(min(x, static_prop.width), 1);
     y = max(min(y, static_prop.height), 1);
+
+    LOGD("touchscreen id %d wh %d %d rotate %d touch xy %d %d transformed %d %d", context->id, context->touchscreen_width, context->touchscreen_height, context->window_rotation, context->current_finger_xpos, context->current_finger_ypos, x, y);
 
     if (context->data.touch_cnt <= index)
     {
@@ -678,6 +699,8 @@ static Device_Context *get_touchscreen_device_context(uint64_t device_id, uint64
     if (context == NULL) {
         context = g_malloc0(sizeof(Touchscreen_Context));
         context->id = unique_id;
+        context->touchscreen_width = static_prop.width;
+        context->touchscreen_height = static_prop.height;
 
         context->mouse_left_finger = -1,
         context->mouse_right_finger1 = -1,

@@ -71,6 +71,13 @@
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
+#define swap(a, b, type) \
+    {                    \
+        type temp = a;   \
+        a = b;           \
+        b = temp;        \
+    }
+
 #ifdef __APPLE__
 #include <dispatch/dispatch.h>
 #define THREAD_CONTROL_BEGIN \

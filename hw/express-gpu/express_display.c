@@ -43,6 +43,7 @@ static void display_context_destroy(Display_Context *disp);
 static void window_size_change_callback(GLFWwindow *window, int width, int height);
 static void close_window_callback(GLFWwindow *window);
 static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
+static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layers);
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers);
 static void display_present(Display_Context *disp);
 void display_status_change(Display_Context *disp, Display_Status status);
@@ -79,7 +80,6 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     break;
     case FUNID_Commit_Composer_Layer:
     {
-        LOGD("display commit composer layer");
         GBuffer_Layers *layers;
         size_t layers_size;
 
@@ -106,6 +106,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             break;
         }
 
+        handle_display_rotation(disp, layers);
         opengl_paint_composer_layers(disp, layers);
         g_free(layers);
 
@@ -259,6 +260,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     {
         display_context_init(disp);
     }
+    break;
     default:
     {
         LOGE("error! unknown display invoke id %llx para_num %d", call->id, para_num);
@@ -370,7 +372,7 @@ static void display_context_init(Display_Context *disp)
         glfwGetWindowContentScale(disp->window, &xscale, &yscale);
 #endif
         glfwSetWindowSize(disp->window, disp->window_width / xscale, disp->window_height / yscale);
-        set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale);
+        set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale, disp->transform_type);
         glfwSetFramebufferSizeCallback(disp->window, window_size_change_callback);
         glfwSetWindowCloseCallback(disp->window, close_window_callback);
 
@@ -425,6 +427,59 @@ static void display_context_destroy(Display_Context *disp)
     g_free(disp);
 }
 
+static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layers) {
+    int target_transform = ROTATE_NONE;
+    for (int i = 0; i < layers->layer_num; i++) {
+        GBuffer_Layer *layer = &layers->layer[i];
+        int layer_transform = ROTATE_NONE;
+        switch (layer->transform_type) {
+            case ROTATE_90:
+            case FLIP_H_ROT:
+            case FLIP_V_ROT:
+                layer_transform = ROTATE_90;
+                break;
+            case ROTATE_180:
+                layer_transform = ROTATE_180;
+                break;
+            case ROTATE_270:
+                layer_transform = ROTATE_270;
+                break;
+            default:
+                break;
+        }
+
+        // todo: handle conflicting rotation
+        // report conflicting rotation
+        // if (target_transform != ROTATE_NONE && layer_transform != ROTATE_NONE && target_transform != layer_transform) {
+        //     LOGW("conflicting layer rotation %d vs %d", target_transform, layer_transform);
+        //     target_transform = ROTATE_NONE;
+        //     break;
+        // }
+
+        // if any layer is rotated, treat the display as rotated
+        if (layer_transform != ROTATE_NONE) {
+            target_transform = layer_transform;
+        }
+    }
+
+    if (disp->transform_type != target_transform) {
+        LOGD("display %s rotation change %d -> %d", disp->info.name, disp->transform_type, target_transform);
+
+        bool prev_rotated = disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270;
+        bool current_rotated = target_transform == ROTATE_90 || target_transform == ROTATE_270;
+
+        disp->transform_type = target_transform;
+        glUniform1i(disp->transform_uniform, disp->transform_type);
+
+        if (prev_rotated == current_rotated) {
+            glfwSetWindowSize(disp->window, disp->window_width, disp->window_height);
+        }
+        else {
+            glfwSetWindowSize(disp->window, disp->window_height, disp->window_width);
+        }
+    }
+}
+
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers)
 {
     if (layers != NULL)
@@ -440,17 +495,22 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
         {
             GBuffer_Layer layer = layers->layer[i];
 
-            express_printf("composer wait for write sync %d\n", layer.write_sync_id);
-
-            LOGD("going to wait for sync in display layer %d", layer.write_sync_id);
+            LOGD("composer wait for write sync %d", layer.write_sync_id);
 
             wait_for_express_sync(layer.write_sync_id, true);
 
             Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
             if (gbuffer != NULL)
             {
-                LOGD("draw layer %d gbuffer_id %llx texture %d xywh %d %d %d %d gbuffer_size %d %d blend_type %d transform_type %d",
-                               i, layer.gbuffer_id, gbuffer->data_texture, layer.x, layer.y, layer.width, layer.height, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+                if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
+                    // layer xywh 是旋转前的，但layer crop是旋转后的，所以要调整一下
+                    swap(layer.x, layer.y, int);
+                    swap(layer.width, layer.height, int);
+                }
+
+                LOGD("draw layer %d xywh %d %d %d %d crop %d %d %d %d gbuffer id %llx texture %d size %d %d blend_type %d transform_type %d",
+                               i, layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height, layer.gbuffer_id, gbuffer->data_texture, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+
                 // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
                 // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
                 // 两者间可能存在缩放关系
@@ -458,38 +518,39 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                 int view_w = gbuffer->width * layer.width / layer.crop_width;
                 int view_h = gbuffer->height * layer.height / layer.crop_height;
                 int view_x = layer.x - layer.crop_x * layer.width / layer.crop_width;
-                int view_y = 0;
-                if (disp->transform_type == FLIP_V)
-                {
-                    // 安卓9的显示
-                    view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
-                    if (layer.transform_type == FLIP_V)
-                    {
-                        // guest在设置了上下翻转的情况下，layer的crop坐标也会是翻转后的图像区域坐标,
-                        // 也就是，crop的xy实际是翻转后的图像的左上角（即实际的左下角）
-                        // 需要手动把这个crop坐标上下翻转过来，获得真正图像左上角的xy坐标
-                        view_y = layer.y - (gbuffer->height - layer.crop_height - layer.crop_y) * layer.height / layer.crop_height;
-                    }
+                int view_y = layer.y - layer.crop_y * layer.height / layer.crop_height; // 按缩放计算原始gbuffer左上角位置（按窗口上方为坐标零点）
+
+                if (disp->transform_type == FLIP_V && layer.transform_type == FLIP_V) {
+                    // 安卓9下FLIP_V处理
+                    // guest设置了上下翻转时，crop坐标也是翻转后的，
+                    // 这里需要将crop的y反转，恢复成原始图像左上角的坐标
+                    view_y = layer.y - (gbuffer->height - layer.crop_height - layer.crop_y) * layer.height / layer.crop_height;
                 }
-                else if (disp->transform_type == ROTATE_NONE)
-                {
-                    // 先进行缩放，计算原始gbuffer的左上角应该在哪（以窗口上面为y轴零点）
-                    view_y = layer.y - layer.crop_y * layer.height / layer.crop_height;
-                    // 然后计算gbuffer的左下角应该在哪（以窗口下面为y轴零点）
+                else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
+                    // 转换成以窗口下方为零点的位置
+                    view_y = disp->info.pixel_width - view_y - view_h;
+                }
+                else {
                     view_y = disp->info.pixel_height - view_y - view_h;
                 }
 
-                LOGD("view %d %d %d %d layer %d %d %d %d crop %d %d %d %d", view_x, view_y, view_w, view_h, layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
+                LOGD("non-scaled view %d %d %d %d", view_x, view_y, view_w, view_h);
 
-                float xscale = (float)disp->content_w / disp->info.pixel_width;
-                float yscale = (float)disp->content_h / disp->info.pixel_height;
+                float xscale, yscale;
+                if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
+                    xscale = (float)disp->content_w / disp->info.pixel_height;
+                    yscale = (float)disp->content_h / disp->info.pixel_width;
+                }
+                else {
+                    xscale = (float)disp->content_w / disp->info.pixel_width;
+                    yscale = (float)disp->content_h / disp->info.pixel_height;
+                }
                 view_x = round(view_x * xscale);
                 view_y = round(view_y * yscale);
                 view_w = round(view_w * xscale);
                 view_h = round(view_h * yscale);
 
-                LOGD("content xywh %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, disp->transform_type, layer.transform_type);
-                LOGD("glviewport %d %d %d %d glScissor %d %d %d %d", view_x, view_y, view_w, view_h, layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
+                LOGD("content xywh %d %d %d %d glviewport %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, view_x, view_y, view_w, view_h, disp->transform_type, layer.transform_type);
 
                 glViewport(view_x, view_y, view_w, view_h);
 
@@ -504,6 +565,10 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                 else if (disp->transform_type == ROTATE_NONE)
                 {
                     glScissor(layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
+                }
+                else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270)
+                {
+                    glScissor(layer.x, disp->info.pixel_width - layer.y - layer.height, layer.width, layer.height);
                 }
 
                 adjust_blend_type(layer.blend_type);
@@ -588,63 +653,68 @@ static void window_size_change_callback(GLFWwindow *window, int width, int heigh
 {
     Display_Context *disp = (Display_Context *)glfwGetWindowUserPointer(window);
 
+    if (disp->window_width == width && disp->window_height == height)
+        return;
+
     // macos retina screen handling
     float xscale = 1, yscale = 1;
 #ifdef __APPLE__
     glfwGetWindowContentScale(window, &xscale, &yscale);
 #endif
 
+    disp->window_width = width;
+    disp->window_height = height;
+
+    int temp_window_width = disp->window_width;
+    int temp_window_height = disp->window_height;
+    int x = 0;
+    int y = 0;
+
     // 需要保证画面比例不变
-    if (disp->window_width != width || disp->window_height != height)
+    double target_ratio = (double)disp->info.pixel_width / disp->info.pixel_height;
+    double current_ratio = (double)disp->window_width / disp->window_height;
+    if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270)
     {
-
-        disp->window_width = width;
-        disp->window_height = height;
-
-        int temp_window_width = disp->window_width;
-        int temp_window_height = disp->window_height;
-        int x = 0;
-        int y = 0;
-
-        if ((double)disp->info.pixel_width / disp->info.pixel_height > (double)disp->window_width / disp->window_height)
-        {
-            temp_window_height = (int)((double)disp->info.pixel_height / disp->info.pixel_width * disp->window_width);
-            y = (disp->window_height - temp_window_height) / 2;
-        }
-        else
-        {
-            temp_window_width = (int)((double)disp->info.pixel_width / disp->info.pixel_height * disp->window_height);
-            x = (disp->window_width - temp_window_width) / 2;
-        }
-
-        if (express_gpu_keep_window_scale)
-        {
-            //printf("set window size %d %d  %d %d %d %d %d %dkeep scale\n", window_width, window_height,temp_window_width,temp_window_height,disp->info.pixel_width,disp->info.pixel_height,x,y);
-            disp->window_width = temp_window_width;
-            disp->window_height = temp_window_height;
-
-            glViewport(0, 0, disp->window_width, disp->window_height);
-
-            disp->content_x = 0;
-            disp->content_y = 0;
-            disp->content_w = disp->window_width;
-            disp->content_h = disp->window_height;
-
-            glfwSetWindowSize(window, disp->window_width / xscale, disp->window_height / yscale);
-        }
-        else
-        {
-            glViewport(x, y, temp_window_width, temp_window_height);
-
-            disp->content_x = x;
-            disp->content_y = y;
-            disp->content_w = temp_window_width;
-            disp->content_h = temp_window_height;
-        }
-
-        express_printf("set touchscreen size %d %d\n", disp->window_width, disp->window_height);
-        set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale);
+        target_ratio = (double)disp->info.pixel_height / disp->info.pixel_width;
     }
+
+    if (target_ratio > current_ratio + 0.001)
+    {
+        temp_window_height = (int)(disp->window_width / target_ratio);
+        y = (disp->window_height - temp_window_height) / 2;
+    }
+    else if (target_ratio < current_ratio - 0.001)
+    {
+        temp_window_width = (int)(target_ratio * disp->window_height);
+        x = (disp->window_width - temp_window_width) / 2;
+    }
+
+    if (express_gpu_keep_window_scale)
+    {
+        //printf("set window size %d %d  %d %d %d %d %d %dkeep scale\n", window_width, window_height,temp_window_width,temp_window_height,disp->info.pixel_width,disp->info.pixel_height,x,y);
+        disp->window_width = temp_window_width;
+        disp->window_height = temp_window_height;
+
+        disp->content_x = 0;
+        disp->content_y = 0;
+        disp->content_w = disp->window_width;
+        disp->content_h = disp->window_height;
+
+        glfwSetWindowSize(window, disp->window_width / xscale, disp->window_height / yscale);
+        glViewport(0, 0, disp->window_width, disp->window_height);
+    }
+    else
+    {
+        glViewport(x, y, temp_window_width, temp_window_height);
+
+        disp->content_x = x;
+        disp->content_y = y;
+        disp->content_w = temp_window_width;
+        disp->content_h = temp_window_height;
+    }
+
+    LOGD("set window size (%d %d) -> (%d %d) ratio %.2f -> %.2f info wh %d %d", width, height, disp->window_width, disp->window_height, current_ratio, target_ratio, disp->info.pixel_width, disp->info.pixel_height);
+    set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale, disp->transform_type);
 
     return;
 }
