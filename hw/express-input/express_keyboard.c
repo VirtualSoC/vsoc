@@ -13,6 +13,8 @@
 
 #include "hw/express-input/express_keyboard.h"
 #include "hw/express-input/express_touchscreen.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
+
 
 #include "ui/input.h"
 
@@ -34,6 +36,53 @@ typedef struct Keyboard_Context
 static Keyboard_Context static_keyboard_context;
 
 bool express_keyboard_finger_replay = false;
+
+void save_keyboard_data(QEMUFile *f, Keyboard_Data *data)
+{
+    for (int i = 0; i < MAX_KEY_CODE; i++)
+    {
+        qemu_put_be32(f, data->key[i]);
+        qemu_put_be32(f, data->key_is_refresh[i]);
+    }
+}
+
+void load_keyboard_data(QEMUFile *f, Keyboard_Data *data)
+{
+    for (int i = 0; i < MAX_KEY_CODE; i++)
+    {
+        data->key[i] = qemu_get_be32(f);
+        data->key_is_refresh[i] = qemu_get_be32(f);
+    }
+}
+
+void save_keyboard_context(QEMUFile* f){
+    save_keyboard_data(f, &(static_keyboard_context.data));
+    save_guest_mem(f, static_keyboard_context.guest_buffer);
+    qemu_put_be32(f, static_keyboard_context.need_sync);
+    qemu_put_be32(f, static_keyboard_context.device_context.irq_enabled);
+
+    if(static_keyboard_context.device_context.irq_call == NULL){
+        qemu_put_be32(f, 0);
+    } else {
+        qemu_put_be32(f, 1);
+        save_teleport_express_call(f, static_keyboard_context.device_context.irq_call);
+    }    
+}
+
+void load_keyboard_context(QEMUFile *f){
+    load_keyboard_data(f, &(static_keyboard_context.data));
+    static_keyboard_context.guest_buffer = load_guest_mem(f, 0);
+    static_keyboard_context.need_sync = qemu_get_be32(f);
+    static_keyboard_context.device_context.irq_enabled = qemu_get_be32(f);
+
+    Express_Device_Info *device_info = get_express_device_info(EXPRESS_KEYBOARD_DEVICE_ID);
+    static_keyboard_context.device_context.device_info = device_info;
+
+    int has_call = qemu_get_be32(f);
+    if(has_call) {
+        static_keyboard_context.device_context.irq_call = load_teleport_express_call(f);
+    }
+}
 
 void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
 {

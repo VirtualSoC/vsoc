@@ -12,6 +12,7 @@
 // #define STD_DEBUG_LOG
 
 #include "hw/express-sensor/express_gyro.h"
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 typedef struct Express_Gyro_Data
 {
@@ -45,6 +46,59 @@ static Gyro_Context static_gyro_context = {
         .enable = 1}};
 
 static bool gyro_data_init = false;
+
+void save_gyro_data(QEMUFile *f, Express_Gyro_Data *data)
+{
+    qemu_put_be32(f, data->x);
+    qemu_put_be32(f, data->y);
+    qemu_put_be32(f, data->z);
+    qemu_put_be32(f, data->scale);
+    qemu_put_be32(f, data->sample_hz);
+    qemu_put_be32(f, data->temperature);
+    qemu_put_be32(f, data->voltage);
+    qemu_put_be32(f, data->enable);
+}
+
+void load_gyro_data(QEMUFile *f, Express_Gyro_Data *data)
+{
+    data->x = qemu_get_be32(f);
+    data->y = qemu_get_be32(f);
+    data->z = qemu_get_be32(f);
+    data->scale = qemu_get_be32(f);
+    data->sample_hz = qemu_get_be32(f);
+    data->temperature = qemu_get_be32(f);
+    data->voltage = qemu_get_be32(f);
+    data->enable = qemu_get_be32(f);
+}
+
+void save_gyro_context(QEMUFile* f){
+    save_gyro_data(f, &(static_gyro_context.data));
+    save_guest_mem(f, static_gyro_context.guest_buffer);
+    qemu_put_be32(f, static_gyro_context.need_sync);
+    qemu_put_be32(f, static_gyro_context.device_context.irq_enabled);
+
+    if(static_gyro_context.device_context.irq_call == NULL){
+        qemu_put_be32(f, 0);
+    } else {
+        qemu_put_be32(f, 1);
+        save_teleport_express_call(f, static_gyro_context.device_context.irq_call);
+    }    
+}
+
+void load_gyro_context(QEMUFile *f){
+    load_gyro_data(f, &(static_gyro_context.data));
+    static_gyro_context.guest_buffer = load_guest_mem(f, 0);
+    static_gyro_context.need_sync = qemu_get_be32(f);
+    static_gyro_context.device_context.irq_enabled = qemu_get_be32(f);
+
+    Express_Device_Info *device_info = get_express_device_info(EXPRESS_GYROSCOPE_DEVICE_ID);
+    static_gyro_context.device_context.device_info = device_info;
+
+    int has_call = qemu_get_be32(f);
+    if(has_call) {
+        static_gyro_context.device_context.irq_call = load_teleport_express_call(f);
+    }
+}
 
 void express_gyro_status_changed(int status_type, int value)
 {

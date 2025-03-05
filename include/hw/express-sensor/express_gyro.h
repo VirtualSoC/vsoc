@@ -18,6 +18,9 @@ enum {
 
 void express_gyro_status_changed(int status_type, int value);
 
+void load_gyro_context(QEMUFile *f);
+void save_gyro_context(QEMUFile *f);
+
 void sync_express_gyro_status(void);
 
 #endif

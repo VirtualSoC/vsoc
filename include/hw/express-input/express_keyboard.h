@@ -33,6 +33,8 @@
 #define KEY_HOMEPAGE		172	/* AC Home */
 
 void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods);
+void load_keyboard_context(QEMUFile *f);
+void save_keyboard_context(QEMUFile *f);
 
 void sync_express_keyboard_input(bool need_send);
 

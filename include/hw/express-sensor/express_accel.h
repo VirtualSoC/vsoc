@@ -18,6 +18,9 @@ enum {
 
 void express_accel_status_changed(int status_type, int value);
 
+void save_accel_context(QEMUFile* f);
+void load_accel_context(QEMUFile *f);
+
 void sync_express_accel_status(void);
 
 #endif
