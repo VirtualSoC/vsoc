@@ -4135,8 +4135,7 @@ int load_opengl_context(QEMUFile *f, Opengl_Context *context) {
     context->enable_scissor = qemu_get_be32(f);
     context->context_flags = qemu_get_be32(f);
 
-    context->window = get_native_opengl_context(context->context_flags);
-
+    // context->window = get_native_opengl_context(context->context_flags);
     
     // restore_opengl_context_textures(context);
 
