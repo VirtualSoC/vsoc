@@ -392,7 +392,7 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
     {
         if (guest_mem->scatter_data[i].len == 4 && guest_mem->scatter_data[i].data == guest_null_ptr && v_elem->out_num == 1 && v_elem->in_num == 0)
         {
-            LOGI("find null prt!!!");
+            LOGI("find null ptr!!!");
             guest_mem->scatter_data[i].data = NULL;
             guest_mem->scatter_data[i].len = 0;
         }

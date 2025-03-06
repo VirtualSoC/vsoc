@@ -86,12 +86,8 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
 {
 
     Thread_Context *context = g_malloc0(len);
-    memset(context, 0, len);
     context->device_id = device_id;
     context->thread_id = thread_id;
-
-    //环形缓冲区初始化
-    memset(context->call_buf, 0, (CALL_BUF_SIZE + 2) * sizeof(Teleport_Express_Call *));
 
     context->read_loc = 0;
     context->write_loc = 0;

@@ -426,7 +426,7 @@ void d_glGenRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffers)
     {
         GLuint rb = host_buffers[i];
         g_hash_table_insert(resource_list, GUINT_TO_POINTER(rb), GUINT_TO_POINTER(rb));
-        LOGI("in gen renderbuffers and count is %d renderbuffer %d", n, host_buffers[i]);
+        // LOGI("in gen renderbuffers and count is %d renderbuffer %d", n, host_buffers[i]);
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
 
@@ -880,7 +880,7 @@ void d_glDeleteRenderbuffers(void *context, GLsizei n, const GLuint *renderbuffe
     {
         GLuint rb = host_buffers[i];
         g_hash_table_remove(resource_list, GUINT_TO_POINTER(rb));
-        LOGI("in delete renderbuffers and count is %d buffer is guest %d host %d", n, renderbuffers[i], host_buffers[i]);
+        // LOGI("in delete renderbuffers and count is %d buffer is guest %d host %d", n, renderbuffers[i], host_buffers[i]);
     }
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_RENDERBUFFER]);
 

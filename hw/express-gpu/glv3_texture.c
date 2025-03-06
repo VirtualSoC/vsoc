@@ -861,7 +861,7 @@ void update_framebuffer_renderbuffer(GLuint renderbuffer_id, GLenum attachment, 
 {
     GLuint framebuffer;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);
-    LOGI("current binding framebuffer is %d", framebuffer);
+    // LOGI("current binding framebuffer is %d", framebuffer);
 
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);
     // GHashTable* fb_resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
@@ -878,7 +878,7 @@ void update_framebuffer_renderbuffer(GLuint renderbuffer_id, GLenum attachment, 
             attachment_index = 2;
         }
         newFramebuffer->renderbuffer_attachment[attachment_index] = renderbuffer_id;
-        LOGI("in update framebuffer texture of id %d texture %d type %x", framebuffer, renderbuffer_id, attachment_index);
+        // LOGI("in update framebuffer texture of id %d texture %d type %x", framebuffer, renderbuffer_id, attachment_index);
 
         // g_hash_table_insert(fb_resource_list, GUINT_TO_POINTER(framebuffer), newFramebuffer);
     }

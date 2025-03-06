@@ -63,8 +63,8 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     {
     case FUNID_Terminate:
     {
-        LOGI("display uid %" PRId64 " terminate", call->unique_id);
         display_context_destroy(disp);
+        LOGI("display uid %" PRId64 " terminate", call->unique_id);
     }
     break;
     case FUNID_Get_Display_Count:

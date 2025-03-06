@@ -394,7 +394,7 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
         return;
     }
 
-    LOGI("alloc_gbuffer_with_gralloc id %" PRIx64 " width %d height %d size %d", info.gbuffer_id, info.width, info.height, info.size);
+    LOGD("alloc_gbuffer_with_gralloc id %" PRIx64 " width %d height %d size %d", info.gbuffer_id, info.width, info.height, info.size);
 
     Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
     if (gbuffer == NULL)

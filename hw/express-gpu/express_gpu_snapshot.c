@@ -1417,7 +1417,7 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
         GHashTable *shader_map = current_program->shader_map;
 
         int shader_num = qemu_get_be32(f);
-        LOGI("program %d has shader num %d", new_program_id, shader_num);
+        LOGI("program (%d -> %d) has shader num %d", program_id, new_program_id, shader_num);
         current_program->shader_num = shader_num;
 
         int shader_attached_order[10] = {0};
@@ -2333,8 +2333,7 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     GLint pixel_size = get_pixel_size(state->internalFormat);
     LOGI("get pixel size %d", pixel_size);
     GLint size = state->width * state->height * pixel_size;
-    state->pixels = (GLubyte *)malloc(state->width * state->height * pixel_size * 4); //ztodo:记得free
-    memset(state->pixels, 0, size);
+    state->pixels = (GLubyte *)g_malloc0(state->width * state->height * pixel_size * 4);
 
     //ztodo:使用pbo加速!!!
 
@@ -2345,7 +2344,7 @@ void save_single_texture(QEMUFile *f, GLint texture_id, GLenum texture_type) {
     LOGI("in saving texture of id %d target %d height %d width %d depth %d format %x pixels %d", texture_id, state->target, state->height, state->width, state->depth, state->internalFormat, size);
     qemu_put_buffer(f, state->pixels, size);    
 
-    free(state->pixels);
+    g_free(state->pixels);
 
     // unsigned char* zero_buffer = (unsigned char*)malloc(size);
     // memset(zero_buffer, 0, size);

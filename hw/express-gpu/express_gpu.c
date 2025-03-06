@@ -751,7 +751,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
-    LOGI("going to remove render thread context with thread id %lld process id %lld unique id %lld", thread_id, process_id, unique_id);
+    // LOGI("going to remove render thread context with thread id %lld process id %lld unique id %lld", thread_id, process_id, unique_id);
     g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
 
     if (g_hash_table_size(render_context->thread_unique_ids) == 0)
