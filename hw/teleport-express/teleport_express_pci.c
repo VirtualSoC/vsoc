@@ -328,6 +328,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
 static void teleport_express_pci_class_init(ObjectClass *klass, void *data)
 {
+    register_signal_handlers();
     LOGD("in teleport_express_pci_class_init!");
     DeviceClass *dc = DEVICE_CLASS(klass);
     VirtioPCIClass *k = VIRTIO_PCI_CLASS(klass);

@@ -115,4 +115,7 @@ int null_printf(const char *a, ...);
 
 unsigned int updateCRC32(unsigned char ch, unsigned int crc);
 
+void backtrace(void);
+void register_signal_handlers(void);
+
 #endif

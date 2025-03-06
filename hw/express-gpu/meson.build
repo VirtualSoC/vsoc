@@ -33,6 +33,9 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
 cimgui = cc.find_library('cimgui')
 express_gpu.add(cimgui)
 
+backtrace = cc.find_library('backtrace')
+express_gpu.add(backtrace)
+
 targetos = host_machine.system()
 if targetos == 'windows'
      express_gpu.add(when: 'CONFIG_EXPRESS_GPU',

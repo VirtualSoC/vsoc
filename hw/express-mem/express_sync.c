@@ -181,10 +181,10 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     int64_t start_time = g_get_real_time();
     if (static_sync_context.sync_data != NULL)
     {
+        bool has_printed_backtrace = false;
         while (!SYNC_FLAG_SIGNAL(static_sync_context.sync_data, sync_id))
         {
 #ifdef _WIN32
-            LOGD("wait success");
             qatomic_add(&sync_wait_cnt, 1);
             DWORD ret = WaitForSingleObject(sync_event, 1);
             if (ret == WAIT_FAILED)
@@ -201,9 +201,15 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
                 break;
             }
 #endif
+            //特定的 sync_id 在 wait_for_express_sync 中等待了较长时间，但始终未收到对应的 signal 信号
             if (sync_wait_cnt != 0 && sync_wait_cnt % 1000 == 0) {
                 // helps debugging deadlocks
-                LOGI("still waiting for sync %d after %d ms...", sync_id, sync_wait_cnt); //特定的 sync_id 在 wait_for_express_sync 中等待了较长时间，但始终未收到对应的 signal 信号
+                LOGI("still waiting for sync %d (gpu %d) after %d ms...", sync_id, need_gpu_sync, sync_wait_cnt);
+
+                if (!has_printed_backtrace) {
+                    has_printed_backtrace = true;
+                    backtrace();
+                }
             }
         }
 

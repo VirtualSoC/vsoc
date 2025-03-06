@@ -14,6 +14,8 @@
 #include "hw/teleport-express/teleport_express_call.h"
 
 #include <glib/gstdio.h>
+#include <backtrace.h>
+#include <signal.h>
 
 #define LOG_DIR "log/"
 
@@ -277,6 +279,49 @@ void call_printf_flush(void)
 unsigned int updateCRC32(unsigned char ch, unsigned int crc)
 {
     return UPDC32(ch, crc);
+}
+
+/* Error callback: Prints errors that occur during backtrace processing */
+static void error_callback(void *data, const char *msg, int errnum) {
+    fprintf(stderr, "libbacktrace error: %s (errnum: %d)\n", msg, errnum);
+}
+
+/* Full callback: Called for every stack frame retrieved.
+   It prints the program counter (PC), file name, line number, and function name. */
+static int full_callback(void *data, uintptr_t pc, const char *filename, int lineno, const char *function) {
+    if (filename == NULL)
+        filename = "unknown";
+    if (function == NULL)
+        function = "unknown";
+
+    fprintf(stderr, "PC: %p, file: %s:%d, function: %s()\n", (void *)pc, filename, lineno, function);
+    return 0; /* return 0 to tell libbacktrace to continue the trace */
+}
+
+/* print qemu backtrace */
+void backtrace(void) {
+    printf("Stack trace:\n");
+    // todo: remove hardcoded path
+    struct backtrace_state *state = backtrace_create_state("bin/qemu-system-x86_64.exe", 1, error_callback, NULL);
+    if (state == NULL) {
+        fprintf(stderr, "backtrace_create_state error\n");
+        return;
+    }
+
+    int ret = backtrace_full(state, 0, full_callback, error_callback, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "error: backtrace_full() failed\n");
+    }
+}
+
+void segfault_handler(int signum) {
+    fprintf(stderr, "*** Caught signal %d (SIGSEGV) ***\n", signum);
+    backtrace();
+    exit(1);
+}
+
+void register_signal_handlers(void) {
+    signal(SIGSEGV, segfault_handler);
 }
 
 static Express_Device_Info express_log_info = {
