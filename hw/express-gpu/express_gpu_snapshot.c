@@ -2510,15 +2510,12 @@ void update_native_texture(Express_Native_Texture* texture_data){
     // glBindTexture(texture_data->target, 0); //ztodo:应该不用
     LOGI("loaded native texture new id %d old id %d width %d height %d", new_texture_id, texture_data->textureId, texture_data->width, texture_data->height);
     LOGI("loaded texture all info: minFilter %d magFilter %d wrapS %d wrapT %d", texture_data->minFilter, texture_data->magFilter, texture_data->wrapS, texture_data->wrapT);
-    // if(texture_data->width == 1024){ //ztodo:这个可以删了吧？？？
-    //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
-    //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
-    //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
-    //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
-    //     // change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, texture_data->textureId);
-    //     // memset(texture_data->pixels, 0, texture_data->width * texture_data->height * 4);
-    // }
-    // else
+
+#ifdef __APPLE__
+// sync data
+    // GLubyte* readPixels = (GLubyte*)malloc(2772 * 2772 * 4);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data->pixels);
+#endif
     change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
 }
 

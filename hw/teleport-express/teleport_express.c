@@ -278,8 +278,10 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     // Express_Device_Info *device_info = get_express_device_info(EXPRESS_GPU_DEVICE_ID);
 
     remove_all_render_thread_contexts();
-    
+
+    THREAD_CONTROL_BEGIN
     init_loading_snapshot(f);
+    THREAD_CONTROL_END
 
     load_sync_context(f);
     load_touchscreen_context(f);
