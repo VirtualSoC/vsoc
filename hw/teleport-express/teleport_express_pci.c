@@ -77,7 +77,7 @@ void express_device_init_common(Express_Device_Info *info)
     }
 
     g_hash_table_insert(all_register_device_info, GUINT_TO_POINTER(info->device_id), (gpointer)info);
-    LOGI("has init device info %s", info->name);
+    LOGD("has init device info %s", info->name);
 }
 
 Express_Device_Info *get_express_device_info(unsigned int device_id)
