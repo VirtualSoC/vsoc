@@ -296,7 +296,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
 
     if(teleport_express_save_snapshot) {
         Error *err = NULL;
-        save_snapshot("snapshot", true, NULL, false, NULL, &err);        
+        save_snapshot("zzj", true, NULL, false, NULL, &err);        
     }
 }
 
@@ -304,8 +304,6 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
 int save_gbuffer_global_map(QEMUFile *f)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);
-
-    
 
     GHashTableIter iter;
     gpointer key, value;
@@ -338,7 +336,7 @@ int load_gbuffer_global_map(QEMUFile *f) {
         // gbuffer_id = qemu_get_be64(f);
         
         global_gbuffer = load_hardware_buffer(f);
-        LOGD("gbuffer id in load is %lld %lld", gbuffer_id, global_gbuffer->gbuffer_id);
+        LOGI("gbuffer id in load is %lld %llx size %d", gbuffer_id, global_gbuffer->gbuffer_id, global_gbuffer->size);
         g_hash_table_insert(gbuffer_map, GUINT_TO_POINTER(global_gbuffer->gbuffer_id), global_gbuffer);
     }
     gbuffer_global_map = gbuffer_map;
