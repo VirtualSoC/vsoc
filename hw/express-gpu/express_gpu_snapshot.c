@@ -2565,6 +2565,7 @@ void update_native_texture(Express_Native_Texture* texture_data){
     //     // memset(texture_data->pixels, 0, texture_data->width * texture_data->height * 4);
     // }
     // else
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data->pixels);
     change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
 }
 

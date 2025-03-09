@@ -273,6 +273,10 @@ static void close_window_callback(GLFWwindow *window)
 static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
     LOGI("notify shutdown! %lld", g_get_real_time());
+    if(teleport_express_save_snapshot) {
+        Error *err = NULL;
+        save_snapshot("zzj", true, NULL, false, NULL, &err);        
+    }
 
     ATOMIC_UNLOCK(main_window_event_queue_lock);
     main_display_gbuffer = NULL;
@@ -292,11 +296,6 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
         {
             LOGI("wait time too long!");
         }
-    }
-
-    if(teleport_express_save_snapshot) {
-        Error *err = NULL;
-        save_snapshot("zzj", true, NULL, false, NULL, &err);        
     }
 }
 
@@ -1183,6 +1182,9 @@ void *native_window_thread(void *opaque)
     }
 
     // qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+
+    
+
     glfwMakeContextCurrent(NULL);
 
     THREAD_CONTROL_BEGIN
