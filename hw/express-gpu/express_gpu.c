@@ -522,6 +522,10 @@ void restore_framebuffer_binding(Opengl_Context *context) {
 void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) { //ztodo:这些操作的顺序？
     
     Opengl_Context* opengl_context = thread_context->opengl_context;
+
+    opengl_context->window = get_native_opengl_context(opengl_context->context_flags);
+
+
     // Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
     LOGD("in recover_snapshot_states_after_load for process %d opengl window %lld", ((Thread_Context*)thread_context)->thread_id, (uint64_t)opengl_context->window);
     Window_Buffer * real_surface_draw = thread_context->render_double_buffer_draw;
