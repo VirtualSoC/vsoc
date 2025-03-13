@@ -38,10 +38,10 @@ static GHashTable *render_thread_contexts = NULL;
 
 static GHashTable *render_process_contexts = NULL;
 
-bool express_gpu_gl_debug_enable = false;
-bool express_gpu_independ_window_enable = false;
-bool express_device_input_window_enable = false;
-bool teleport_express_save_snapshot = true;
+bool express_gpu_gl_debug_enable;
+bool express_gpu_independ_window_enable;
+bool express_device_input_window_enable;
+bool teleport_express_save_snapshot;
 
 static void g_surface_map_destroy(gpointer data);
 

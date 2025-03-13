@@ -45,7 +45,7 @@ static Property teleport_express_base_properties[] = {
 
     DEFINE_PROP_INT32("gl_log_level", Teleport_Express_PCI, gpu_debug_level, 1),
     DEFINE_PROP_BOOL("gl_log_to_host", Teleport_Express_PCI, gpu_log_to_host, true),
-    DEFINE_PROP_BOOL("save_snapshot", Teleport_Express_PCI, save_snapshot, true),
+    DEFINE_PROP_BOOL("save_snapshot", Teleport_Express_PCI, save_snapshot, false),
     DEFINE_PROP_BOOL("buffer_log", Teleport_Express_PCI, gpu_log_with_buffer, false),
     DEFINE_PROP_BOOL("opengl_trace", Teleport_Express_PCI, opengl_trace, false),
 
