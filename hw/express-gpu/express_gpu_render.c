@@ -273,6 +273,7 @@ static void close_window_callback(GLFWwindow *window)
 static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
     LOGI("notify shutdown! %lld", g_get_real_time());
+    glfwHideWindow(glfw_window);
     if(teleport_express_save_snapshot) {
         Error *err = NULL;
         save_snapshot("zzj", true, NULL, false, NULL, &err);        
