@@ -915,7 +915,7 @@ void *interface_window_thread(void *data)
         THREAD_CONTROL_END
 
         // TIMER_END(draw);
-        // TIMER_OUTPUT(draw, 100);
+        // TIMER_PRINT(draw, 100);
 
         THREAD_CONTROL_BEGIN
 

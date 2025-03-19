@@ -10,6 +10,7 @@
  */
 
 // #define STD_DEBUG_LOG
+// #define TIMER_LOG
 #include "hw/express-gpu/express_display.h"
 #include "hw/teleport-express/express_handle_thread.h"
 
@@ -106,13 +107,15 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             break;
         }
 
+        TIMER_START(compose_layer);
         handle_display_rotation(disp, layers);
         opengl_paint_composer_layers(disp, layers);
         g_free(layers);
 
         display_present(disp);
-    }
-    break;
+        TIMER_END(compose_layer);
+        TIMER_PRINT_MOVING_GT(compose_layer, 1, 16.67);
+    } break;
     case FUNID_Show_Window:
     {
         LOGD("disp %s: Show_Window", disp->info.name);
@@ -495,7 +498,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
         {
             GBuffer_Layer layer = layers->layer[i];
 
-            LOGD("composer wait for write sync %d", layer.write_sync_id);
+            LOGD("composer wait for write sync gbuffer %" PRIx64 " sync %d", layer.gbuffer_id, layer.write_sync_id);
 
             wait_for_express_sync(layer.write_sync_id, true);
 
@@ -587,7 +590,10 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
 static void display_present(Display_Context *disp)
 {
+    TIMER_START(swap_buffer);
     glfwSwapBuffers(disp->window);
+    TIMER_END(swap_buffer);
+    TIMER_PRINT_MOVING_GT(swap_buffer, 1, 16.67);
 
     sync_express_touchscreen_input(disp->window, (bool)disp->is_open || !express_display_switch_open);
     sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);

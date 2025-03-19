@@ -82,20 +82,37 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 
 #define TIMER_END(a)                                       \
     timer_spend_##a += g_get_real_time() - temp_timer_##a; \
-    timer_cnt_##a += 1;
+    timer_cnt_##a += 1; \
 
-#define TIMER_OUTPUT(a, fre)                  \
-    if (fre == 0 || timer_cnt_##a % fre == 0) \
-        printf("timer-" #a " cnt %lld all %lld avg %lf\n", timer_cnt_##a, timer_spend_##a, timer_spend_##a * 1.0 / timer_cnt_##a);
+#define TIMER_PRINT(a, freq)                    \
+    if (freq == 0 || timer_cnt_##a % freq == 0) \
+        LOGI("timer-" #a " cnt %lld total %.3f ms avg %.3f ms", timer_cnt_##a, (double)timer_spend_##a / 1000, (double)timer_spend_##a / timer_cnt_##a / 1000);
+
+#define TIMER_PRINT_MOVING(a, freq) \
+if (freq == 0 || timer_cnt_##a % freq == 0) { \
+    LOGI("timer-" #a " cnt %lld total %.3f ms moving avg %.3f ms", timer_cnt_##a, (double)timer_spend_##a / 1000, (double)timer_spend_##a / freq / 1000); \
+    timer_spend_##a = 0; \
+}
+
+#define TIMER_PRINT_MOVING_GT(a, freq, threshold) \
+if (freq == 0 || timer_cnt_##a % freq == 0) { \
+    if ((double)timer_spend_##a / freq / 1000 > threshold) { \
+        LOGI("timer-" #a " cnt %lld total %.3f ms moving avg %.3f ms", timer_cnt_##a, (double)timer_spend_##a / 1000, (double)timer_spend_##a / freq / 1000); \
+    } \
+    timer_spend_##a = 0; \
+}
 
 #define TIMER_RESET(a)   \
     timer_spend_##a = 0; \
     timer_cnt_##a = 0;
+
 #else
 
 #define TIMER_START(a)
 #define TIMER_END(a)
-#define TIMER_OUTPUT(a, fre)
+#define TIMER_PRINT(a, fre)
+#define TIMER_PRINT_MOVING(a, fre)
+#define TIMER_PRINT_MOVING_GT(a, fre, threshold)
 #define TIMER_RESET(a)
 
 #endif
