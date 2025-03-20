@@ -577,11 +577,12 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                 adjust_blend_type(layer.blend_type);
 
                 opengl_paint_gbuffer(gbuffer);
-
-                LOGD("composer set sync %d", layer.read_sync_id);
-
-                signal_express_sync(layer.read_sync_id, true);
             }
+            else {
+                LOGW("display %s: cannot find layer gbuffer %llx", disp->unique_id, layer.gbuffer_id);
+            }
+            LOGD("composer set sync %d", layer.read_sync_id);
+            signal_express_sync(layer.read_sync_id, true);
         }
 
         glFlush();
