@@ -393,12 +393,11 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
 
     if (real_surface == NULL)
     {
-        express_printf(RED("real surface is null!"));
-        express_printf("surface %lx real %lx dpy %lx invoke_time %lld\n", surface, real_surface, dpy, invoke_time);
+        LOGE("real surface is null! surface %p real %p dpy %p invoke_time %" PRId64, surface, real_surface, dpy, invoke_time);
         return EGL_FALSE;
     }
 
-    LOGD("#%llx swapbuffer real_surface %llx", thread_context->opengl_context, real_surface);
+    LOGD("(%s) swapbuffer gbuffer %" PRIx64, process_context->guest_process_name, gbuffer_id);
 
     GLuint glerror = glGetError();
     if (glerror != GL_NO_ERROR)
