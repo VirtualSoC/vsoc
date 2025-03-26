@@ -778,7 +778,7 @@ static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, u
 
 static void render_context_init(Thread_Context *context)
 {
-    express_printf("render context init!\n");
+    LOGD("render context init!");
     start_main_window_thread();
 }
 

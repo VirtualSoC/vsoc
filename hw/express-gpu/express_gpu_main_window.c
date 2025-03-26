@@ -623,6 +623,8 @@ void *main_window_thread(void *opaque)
 {
     main_window_event_queue = g_async_queue_new();
 
+    glfwSetErrorCallback(glfw_error_callback);
+
 #if defined(__linux__) && defined(GLFW_PLATFORM_WAYLAND)
     if (glfwPlatformSupported(GLFW_PLATFORM_WAYLAND)) {
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
@@ -636,13 +638,13 @@ void *main_window_thread(void *opaque)
     // 初始化glfw
     THREAD_CONTROL_BEGIN
     if (!glfwInit()){
+        LOGF("fatal: cannot initialize glfw");
     #ifdef __APPLE__ 
         exit(-1);
     #else
         return NULL;
     #endif
     }
-    glfwSetErrorCallback(glfw_error_callback);
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 #ifdef __linux__

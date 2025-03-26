@@ -1,3 +1,4 @@
+#include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/egl_display.h"
 #include "hw/express-gpu/egl_config.h"
 #include <GLFW/glfw3.h>
@@ -281,7 +282,7 @@ void set_val_by_enum(eglConfig *config, EGLint val, EGLint attr_enum)
 EGLint d_eglGetEGLConfigParam(void *context, EGLint *num_configs)
 {
     *num_configs = g_hash_table_size(default_egl_display->egl_config_set);
-    // LOGI("d_eglGetEGLConfigParam %d",(int)(sizeof(config_attrs) / sizeof(config_attrs[0])));
+    LOGD("d_eglGetEGLConfigParam %d", (int)(sizeof(config_attrs) / sizeof(config_attrs[0])));
     return sizeof(config_attrs) / sizeof(config_attrs[0]);
 }
 

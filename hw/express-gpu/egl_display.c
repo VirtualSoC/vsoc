@@ -91,12 +91,12 @@ void init_display(Egl_Display **display_point)
 {
     default_egl_display = g_malloc0(sizeof(Egl_Display));
 
-    LOGD("init display");
     init_configs(default_egl_display);
 
     default_egl_display->guest_ver_major = 1;
     default_egl_display->guest_ver_minor = 5;
 
+    LOGD("egl display init, config size %d", g_hash_table_size(default_egl_display->egl_config_set));
     default_egl_display->is_init = true;
 }
 
