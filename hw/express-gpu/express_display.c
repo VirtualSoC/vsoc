@@ -361,9 +361,13 @@ static void display_context_init(Display_Context *disp)
         glfwSetMouseButtonCallback(disp->window, express_touchscreen_mouse_click_handle);
         glfwSetScrollCallback(disp->window, express_touchscreen_mouse_scroll_handle);
 
+#ifdef GLFW_TOUCH
         // 开启触摸屏支持
         glfwSetInputMode(disp->window, GLFW_TOUCH, GLFW_TRUE);
         glfwSetTouchCallback(disp->window, express_touchscreen_touch_handle);
+#else
+#warning "Touchscreen not supported! Please use GLFW from https://github.com/torkeldanielsson/glfw/tree/touch."
+#endif
 
         // 捕获鼠标进出事件，在鼠标移动出窗口时，需要停用输入，即需要传递触摸屏release消息
         glfwSetCursorEnterCallback(disp->window, express_touchscreen_entered_handle);
@@ -605,9 +609,10 @@ static void display_present(Display_Context *disp)
 
     if (now_time - disp->last_fps_timestamp > 1000000)
     {
-        float gen_frame_time_avg = 1.0f * (now_time - disp->last_fps_timestamp) / disp->fps_counter;
-        LOGD("composer draw avg %.2f us %.2f FPS", gen_frame_time_avg, disp->fps_counter * 1000000.0f / (now_time - disp->last_fps_timestamp));
-        sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, disp->fps_counter * 1000000.0f / (now_time - disp->last_fps_timestamp));
+        float gen_frame_time_avg = 1.0f * (now_time - disp->last_fps_timestamp) / disp->fps_counter / 1000.0f;
+        float fps = disp->fps_counter * 1000000.0f / (now_time - disp->last_fps_timestamp);
+        LOGD("display %s: composer draw avg %.2f ms %.2f FPS", disp->info.name, gen_frame_time_avg, fps);
+        sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, fps);
         glfwSetWindowTitle(disp->window, name);
 
         disp->last_fps_timestamp = now_time;

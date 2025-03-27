@@ -625,13 +625,14 @@ void *main_window_thread(void *opaque)
 
     glfwSetErrorCallback(glfw_error_callback);
 
-#if defined(__linux__) && defined(GLFW_PLATFORM_WAYLAND)
-    if (glfwPlatformSupported(GLFW_PLATFORM_WAYLAND)) {
+#if defined(__linux__) && defined(GLFW_PLATFORM_X11)
+    if (glfwPlatformSupported(GLFW_PLATFORM_X11)) {
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+    }
+    else if (glfwPlatformSupported(GLFW_PLATFORM_WAYLAND)) {
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
         glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_FALSE);
-    }
-    else {
-        LOGE("glfw+wayland not supported, using x11. x11 does not play nice with egl, so expect errors to occur");
+        LOGW("glfw+x11 not supported, using wayland. Wayland does not play nice with egl, so expect errors to occur");
     }
 #endif
 
