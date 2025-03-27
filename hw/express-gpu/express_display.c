@@ -470,7 +470,7 @@ static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layer
     }
 
     if (disp->transform_type != target_transform) {
-        LOGD("display %s rotation change %d -> %d", disp->info.name, disp->transform_type, target_transform);
+        LOGI("display %s rotation change %d -> %d", disp->info.name, disp->transform_type, target_transform);
 
         bool prev_rotated = disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270;
         bool current_rotated = target_transform == ROTATE_90 || target_transform == ROTATE_270;

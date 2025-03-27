@@ -467,7 +467,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
         double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);
-        LOGD("%llx surface draw %.2lfHz", (uint64_t)real_surface, hz);
+        LOGD("(%s) %p surface draw %.2fHz", process_context->guest_process_name, real_surface, hz);
         real_surface->now_screen_hz = 0;
 
         real_surface->last_calc_time = now_time;

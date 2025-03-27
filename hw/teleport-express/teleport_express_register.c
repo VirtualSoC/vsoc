@@ -68,7 +68,7 @@ static void push_to_device(Teleport_Express_Call *call)
     Device_Context *device_context = device_info->get_device_context(device_id, thread_id, process_id, unique_id, device_info);
     if(unlikely(device_context == NULL))
     {
-        LOGI("device %s: input call received with null device context! call id %llx", device_info->name, call->id);
+        LOGD("device %s: input call received with null device context! call id %llx", device_info->name, call->id);
         call->callback(call, 0);
         return;
     }
