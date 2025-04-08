@@ -1,35 +1,29 @@
 /**
- * @file express_modem.c
+ * @file em_core.c
  * @author Haitao Su (haitaosu2002@gmail.com)
  * @brief
  * @version 0.1
- * @date 2023-7-24
+ * @date 2023-7-26
  *
  * @copyright Copyright (c) 2022
  *
  */
 
-#include "hw/express-network/express_modem.h"
-#include "hw/express-network/em_core.h"
-#include "hw/express-network/em_input.h"
 
 // #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
-
-#include "hw/express-network/express_bridge.h"
+#include "hw/teleport-express/express_device_common.h"
+#include "hw/express-network/express_modem.h"
+#include "hw/express-network/em_core.h"
+#include "hw/express-network/em_config.h"
 
 #include "qemu/sockets.h"
 #include "qemu/thread.h"
 
-#include "hw/express-network/modem/general.h"
-#include "hw/express-network/modem/umts.h"
+Express_Modem *modems = NULL;
+GMutex modems_mutex;
 
-#define RIL_MODEM_PORT 28256
-
-#ifndef STRINGIFY
-#define  _STRINGIFY(x)  #x
-#define  STRINGIFY(x)  _STRINGIFY(x)
-#endif
+static QemuThread em_thread_id[NR_MODEM];
 
 void sync_express_modem_status(void)
 {
@@ -37,10 +31,39 @@ void sync_express_modem_status(void)
     return;
 }
 
-void express_modem_status_changed(Express_Modem *modem, int status)
+void *express_modem_get_status_field(int slot, int status)
 {
-    switch (status)
-    {
+    Express_Modem *modem = &modems[slot];
+    switch (status) {
+        case EXPRESS_MODEM_SIGNAL_QUALITY:
+            return &modem->quality;
+        case EXPRESS_MODEM_OPERATOR_HOME:
+            return &modem->operators[DEFCONF_OPERATOR_HOME_INDEX];
+        case EXPRESS_MODEM_OPERATOR_ROAMING:
+            return &modem->operators[DEFCONF_OPERATOR_ROAMING_INDEX];
+        case EXPRESS_MODEM_AREA_CODE:
+            return &modem->area_code;
+        case EXPRESS_MODEM_CELL_ID:
+            return &modem->cell_id;
+        case EXPRESS_MODEM_VOICE_STATE:
+            return &modem->voice_state;
+        case EXPRESS_MODEM_DATA_STATE:
+            return &modem->data_state;
+        case EXPRESS_MODEM_DATA_NETWORK:
+            return &modem->data_network_requested;
+        case EXPRESS_MODEM_FROM_NUMBER:
+            return &modem->input_from_number;
+        case EXPRESS_MODEM_INPUT_SMS_STR:
+            return &modem->input_sms_str;
+        default:
+            return NULL;
+    }
+}
+
+void express_modem_status_changed(int slot, int status)
+{
+    Express_Modem *modem = &modems[slot];
+    switch (status) {
         case EXPRESS_MODEM_RSSI:
             /* The extent to which RSSI can represent the signal strength 
                is closely related to the modem itself, so the calculation 
@@ -49,6 +72,20 @@ void express_modem_status_changed(Express_Modem *modem, int status)
             break;
         case EXPRESS_MODEM_RECEIVE_SMS:
             express_modem_receive_sms(modem, modem->input_from_number, modem->input_sms_str);
+            break;
+        case EXPRESS_MODEM_DATA_NETWORK:
+            em_set_data_network_type(modem, dataNetworkTypeFromInt(modem->data_network_requested));
+            break;
+        case EXPRESS_MODEM_AREA_CODE:
+        case EXPRESS_MODEM_CELL_ID:
+            em_set_data_registration(modem, modem->data_state);
+            em_set_voice_registration(modem, modem->voice_state);
+            break;
+        case EXPRESS_MODEM_DATA_STATE:
+            em_set_data_registration(modem, modem->data_state);
+            break;
+        case EXPRESS_MODEM_VOICE_STATE:
+            em_set_voice_registration(modem, modem->voice_state);
             break;
         default:
             break;
@@ -69,13 +106,13 @@ em_loop(int slot, int port)
         if (fd >= 0) {
             LOGI("Connected to RIL on localhost:%d, fd=%d", port, fd);
             break;
-        } else {
-            LOGW("Retry connecting to RIL");
         }
     }
 
     Express_Modem *modem = &modems[slot];
-    em_init(modem, slot, fd);
+    modem->serial = fd;
+    modem->slot = slot;
+    em_init(modem);
 
     while (true) {
         char c;
@@ -132,10 +169,9 @@ em_loop(int slot, int port)
         }
     }
 
-    LOGE("RIL connection closed, restarting...");
+    LOGW("RIL connection closed, restarting...");
 }
 
-static QemuThread em_thread_id[NR_MODEM];
 static void *em_thread(void *opaque)
 {
     unsigned long long slot = (unsigned long long)opaque;
@@ -143,6 +179,24 @@ static void *em_thread(void *opaque)
         em_loop(slot, RIL_MODEM_PORT + slot * 2);
     }
     return NULL;
+}
+
+void express_modem_init(void) {
+    bool need_init = false;
+    g_mutex_lock(&modems_mutex);
+    if (modems == NULL) {
+        modems = g_malloc0(NR_MODEM * sizeof(Express_Modem));
+        need_init = true;
+    }
+    g_mutex_unlock(&modems_mutex);
+
+    if (need_init) {
+        for (int i = 0; i < NR_MODEM; i++) {
+            LOGI("express modem init");
+            qemu_thread_create(&em_thread_id[i], "modem", 
+                    em_thread, (void*)i, QEMU_THREAD_DETACHED);
+        }
+    }
 }
 
 static Express_Device_Info express_modem_info = {
@@ -156,11 +210,4 @@ static Express_Device_Info express_modem_info = {
     .static_prop_size = 0,
 };
 
-static void __attribute__((constructor))
-express_thread_init_express_modem(void) {
-    express_device_init_common(&express_modem_info);
-    for (unsigned long long i = 0; i < NR_MODEM; ++i) {
-        qemu_thread_create(&em_thread_id[i], "modem", 
-                        em_thread, (void*)i, QEMU_THREAD_DETACHED);
-    }
-}
+EXPRESS_DEVICE_INIT(express_modem, &express_modem_info)

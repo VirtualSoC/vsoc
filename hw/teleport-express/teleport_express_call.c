@@ -227,7 +227,7 @@ void read_from_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t 
     Scatter_Data *guest_data = guest->scatter_data;
     if (unlikely(host == NULL || length > guest->all_len))
     {
-        LOGE("read_from_guest_mem error host %llx len %d %lld %d", (uint64_t)host, guest->all_len, length, (host==NULL));
+        LOGE("read_from_guest_mem error host %p len %d %lld %d", host, guest->all_len, length, (host==NULL));
         return;
     }
 

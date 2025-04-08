@@ -15,13 +15,6 @@
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/express-network/em_input.h"
-#include "hw/express-network/em_ruim.h"
-#include "hw/express-network/express_modem.h"
-
-#include "hw/express-network/em_remote_call.h"
-#include "hw/express-network/em_sim_card.h"
-#include "hw/express-network/em_sms.h"
-#include "hw/express-network/em_utils.h"
 
 #include "hw/express-network/express_bridge.h"
 
@@ -133,235 +126,6 @@ android_parse_network_type( const char*  speed )
     return A_DATA_NETWORK_GPRS;
 }
 
-/* 'mode' for +CREG/+CGREG commands */
-typedef enum {
-    A_REGISTRATION_UNSOL_DISABLED     = 0,
-    A_REGISTRATION_UNSOL_ENABLED      = 1,
-    A_REGISTRATION_UNSOL_ENABLED_FULL = 2
-} ARegistrationUnsolMode;
-
-/* Operator selection mode, see +COPS commands */
-typedef enum {
-    A_SELECTION_AUTOMATIC,
-    A_SELECTION_MANUAL,
-    A_SELECTION_DEREGISTRATION,
-    A_SELECTION_SET_FORMAT,
-    A_SELECTION_MANUAL_AUTOMATIC
-} AOperatorSelection;
-
-/* General error codes for AT commands, see 3gpp.org document 27.007 */
-typedef enum {
-    kCmeErrorMemoryFull = 20,
-    kCmeErrorInvalidIndex = 21,
-    kCmeErrorInvalidCharactersInTextString = 25,
-    kCmeErrorNoNetworkService = 30,
-    kCmeErrorNetworkNotAllowedEmergencyCallsOnly = 32,
-    kCmeErrorUnknownError = 100,
-    kCmeErrorSelectionFailureEmergencyCallsOnly = 529,
-} CmeErrorCode;
-
-/* Command APDU instructions, see ETSI 102 221 and globalplatform.org's
- * Secure Elements Access Control (SEAC) document for more instructions. */
-typedef enum {
-    kSimApduGetData = 0xCA, // Global Platform SEAC section 4.1 GET DATA Command
-    kSimApduSelect = 0xA4, // Command: SELECT
-    kSimApduReadBinary = 0xB0, // Command: READ_BINARY
-    kSimApduStatus = 0xF2, // Command: STATUS
-    kSimApduManageChannel = 0x70, // Command: MANAGE_CHANNEL
-} SimApduInstruction;
-
-/* APDU class, see ETSI 102 221 and globalplatform.org's
- * Secure Elements Access Control (SEAC) document for more instructions. */
-typedef enum {
-    kSimApduClaGetResponse = 0x00, // CLA_GET_RESPONSE
-    kSimApduClaManageChannel = 0x00, // CLA_MANAGE_CHANNEL
-    kSimApduClaReadBinary = 0x00, // CLA_READ_BINARY
-    kSimApduClaSelect = 0x00, // CLA_SELECT
-    kSimApduClaStatus = 0x80, // CLA_STATUS
-} SimApduClass;
-
-typedef struct AVoiceCallRec {
-    ACallRec    call;
-    // XXX: disable timer here
-    // SysTimer    timer;
-    Express_Modem *modem;
-    char        is_remote;
-} AVoiceCallRec, *AVoiceCall;
-
-#define  MAX_OPERATORS  4
-
-typedef enum {
-    A_DATA_IP = 0,
-    A_DATA_PPP,
-    A_DATA_IPV6,
-    A_DATA_IPV4V6,
-} ADataType;
-
-#define  A_DATA_APN_SIZE  32
-
-typedef struct {
-    int        id;
-    int        active;
-    ADataType  type;
-    char       apn[ A_DATA_APN_SIZE ];
-    int        connected;
-} ADataContextRec, *ADataContext;
-
-/* the spec says that there can only be a max of 4 contexts */
-#define  MAX_DATA_CONTEXTS  16
-#define  MAX_CALLS          4
-#define  MAX_EMERGENCY_NUMBERS 16
-#define  MAX_LOGICAL_CHANNELS 16
-
-#define  A_MODEM_SELF_SIZE   3
-
-typedef struct _signal {
-    int gsm_rssi;
-    int gsm_ber;
-    int cdma_dbm;
-    int cdma_ecio;
-    int evdo_dbm;
-    int evdo_ecio;
-    int evdo_snr;
-    int lte_rssi;
-    int lte_rsrp;
-    int lte_rsrq;
-    int lte_rssnr;
-    int lte_cqi;
-    int lte_timing;
-} signal_t;
-
-typedef enum {
-    NONE = 0,
-    POOR = 1,
-    MODERATE = 2,
-    GOOD = 3,
-    GREAT = 4,
-} signal_strength;
-
-/*
- * Values derived from the ranges used in the SignalStrength
- * class in the frameworks/base telephony framework.
- */
-static const signal_t NET_PROFILES[5] = {
-    /* NONE */
-    {0, 7, 105, 160, 110, 160, 0, 105, 140, 3, -200, 0, 500},
-    /* POOR (one bar) */
-    {5, 5, 100, 150, 100, 150, 2, 100, 110,  5, 0, 2, 300},
-    /* MODERATE (2 bars) */
-    {12, 4, 90, 120, 80, 120, 4, 90, 100, 10, 30, 7, 200},
-    /* GOOD (3 bars) */
-    {20, 2, 80, 100, 70, 100, 6, 70, 90, 15, 100, 12, 100},
-    /* GREAT (4 bars) */
-    {30, 0, 70, 80, 60, 80, 7, 60, 80, 20, 200, 15, 50},
-};
-
-typedef struct Express_Modem
-{
-    int slot;
-
-    /* For communication with express bridge */
-    int               serial;
-    char              in_buff[1024];
-    int               in_pos;
-    int               in_sms;
-    int               out_size;
-    char              out_buff[1024];
-
-    /* Legacy support */
-    char          supportsNetworkDataType;
-    char          snapshotTimeUpdateRequested;
-
-    /* Radio state */
-    ARadioState   radio_state;
-    int           area_code;
-    int           cell_id;
-    int           base_port;
-
-    int           send_phys_channel_cfg_unsol;
-
-    /* Signal strength variables */
-    int             use_signal_profile;
-    signal_strength quality;
-    int             rssi;
-    int             ber;
-
-    /* SMS */
-    int           wait_sms;
-
-    /* SIM card */
-    ASimCard      sim;
-    SmsReceiver   sms_receiver;
-
-    /* voice and data network registration */
-    ARegistrationUnsolMode   voice_mode;
-    ARegistrationState       voice_state;
-    ARegistrationUnsolMode   data_mode;
-    ARegistrationState       data_state;
-    ADataNetworkType         data_network;
-    int                      data_network_requested;
- 
-    /* operator names */
-    AOperatorSelection  oper_selection_mode;
-    ANameIndex          oper_name_index;
-    int                 oper_index;
-    int                 oper_count;
-    AOperatorRec        operators[ MAX_OPERATORS ];
-    bool                has_allowed_carriers;
-    bool                has_excluded_carriers;
-
-    /* data connection contexts */
-    ADataContextRec     data_contexts[ MAX_DATA_CONTEXTS ];
-
-    /* call */
-    AVoiceCallRec       calls[ MAX_CALLS ];
-    int                 call_count;
-    bool                ring_type_enabled;
-    int                 voice_domain_pref;
-
-    /*
-     * Hold non-volatile ram configuration for modem
-     */
-    Ruim *ruim;
-
-    // XXX: Deprecated in Huawei modem
-    AModemTech technology;
-    /*
-     * This is are really 4 byte-sized prioritized masks.
-     * Byte order gives the priority for the specific bitmask.
-     * Each bit position in each of the masks is indexed by the different
-     * A_TECH_XXXX values.
-     * e.g. 0x01 means only GSM is set (bit index 0), whereas 0x0f
-     * means that GSM,WCDMA,CDMA and EVDO are set
-     */
-    int32_t preferred_mask;
-    ACdmaSubscriptionSource subscription_source;
-    ACdmaRoamingPref roaming_pref;
-    int in_emergency_mode;
-    int prl_version;
-
-    const char *emergency_numbers[MAX_EMERGENCY_NUMBERS];
-    int nr_emergency_numbers;
-
-    /*
-     * Call-back function to receive notifications of
-     * changes in status
-     */
-    ModemCallback* notify_call_back; // The function
-    void*          notify_user_data; // Some opaque data to give the function
-
-    /* Logical channels */
-    struct {
-        char* df_name;
-        bool is_open;
-        uint16_t file_id;
-    } logical_channels[MAX_LOGICAL_CHANNELS];
-
-    /* Used in device input */
-    char input_from_number[32];
-    char input_sms_str[1024];
-} Express_Modem;
-
 /* send unsolicited messages to the device */
 static void
 em_unsol( Express_Modem *modem, const char* format, ... )
@@ -444,7 +208,7 @@ parseSimApduCommand(const char* command, int length, SIM_APDU* apdu) {
     return true;
 }
 
-void
+static void
 em_receive_sms( Express_Modem *modem, SmsPDU  sms )
 {
 #define  SMS_UNSOL_HEADER  "+CMT: 0\r\n"
@@ -524,8 +288,7 @@ static ACdmaRoamingPref _em_get_cdma_roaming_preference( Express_Modem *modem )
    return rp;
 }
 
-static ADataNetworkType
-dataNetworkTypeFromInt(int type)
+ADataNetworkType dataNetworkTypeFromInt(int type)
 {
     switch (type) {
         case 1: return A_DATA_NETWORK_GPRS;
@@ -703,8 +466,7 @@ int em_state_load(Express_Modem *modem, SysFile* file, int version_id)
 }
 */
 
-static void 
-em_init( Express_Modem *modem )
+void em_init( Express_Modem *modem )
 {
     // Delegate base_port and sim_present here
     int sim_present = true;
@@ -1076,7 +838,7 @@ em_find_call_by_number( Express_Modem *modem, const char*  number )
     return  NULL;
 }
 
-void
+static void
 em_set_signal_strength( Express_Modem *modem, int rssi, int ber )
 {
     modem->rssi = rssi;
@@ -1084,7 +846,7 @@ em_set_signal_strength( Express_Modem *modem, int rssi, int ber )
     modem->use_signal_profile = 0;
 }
 
-void
+static void
 em_set_signal_strength_profile( Express_Modem *modem, int quality )
 {
     if (quality >= NONE && quality <= GREAT) {
@@ -3291,8 +3053,7 @@ const char* em_send_unsol_nitz( Express_Modem *modem )
     REPLY(em_end_line(modem));
 }
 
-static void
-express_modem_receive_sms( Express_Modem *modem, char *from, char *sms)
+void express_modem_receive_sms( Express_Modem *modem, char *from, char *sms)
 {
     // Get the "from" number
     SmsAddressRec sender;
@@ -3335,187 +3096,4 @@ express_modem_receive_sms( Express_Modem *modem, char *from, char *sms)
     }
 
     smspdu_free_list( pdus );
-}
-
-struct Express_Modem *modems = NULL;
-
-void sync_express_modem_status(void)
-{
-    // The modem device is independent from kernel so there's no need to sync.
-    return;
-}
-
-void *express_modem_get_status_field(int slot, int status)
-{
-    Express_Modem *modem = &modems[slot];
-    switch (status) {
-        case EXPRESS_MODEM_SIGNAL_QUALITY:
-            return &modem->quality;
-        case EXPRESS_MODEM_OPERATOR_HOME:
-            return &modem->operators[DEFCONF_OPERATOR_HOME_INDEX];
-        case EXPRESS_MODEM_OPERATOR_ROAMING:
-            return &modem->operators[DEFCONF_OPERATOR_ROAMING_INDEX];
-        case EXPRESS_MODEM_AREA_CODE:
-            return &modem->area_code;
-        case EXPRESS_MODEM_CELL_ID:
-            return &modem->cell_id;
-        case EXPRESS_MODEM_VOICE_STATE:
-            return &modem->voice_state;
-        case EXPRESS_MODEM_DATA_STATE:
-            return &modem->data_state;
-        case EXPRESS_MODEM_DATA_NETWORK:
-            return &modem->data_network_requested;
-        case EXPRESS_MODEM_FROM_NUMBER:
-            return &modem->input_from_number;
-        case EXPRESS_MODEM_INPUT_SMS_STR:
-            return &modem->input_sms_str;
-        default:
-            return NULL;
-    }
-}
-
-void express_modem_status_changed(int slot, int status)
-{
-    Express_Modem *modem = &modems[slot];
-    switch (status) {
-        case EXPRESS_MODEM_RSSI:
-            /* The extent to which RSSI can represent the signal strength 
-               is closely related to the modem itself, so the calculation 
-               method here is just for reference. */ 
-            modem->rssi = (modem->rssi - (-113)) / 2;
-            break;
-        case EXPRESS_MODEM_RECEIVE_SMS:
-            express_modem_receive_sms(modem, modem->input_from_number, modem->input_sms_str);
-            break;
-        case EXPRESS_MODEM_DATA_NETWORK:
-            em_set_data_network_type(modem, dataNetworkTypeFromInt(modem->data_network_requested));
-            break;
-        case EXPRESS_MODEM_AREA_CODE:
-        case EXPRESS_MODEM_CELL_ID:
-            em_set_data_registration(modem, modem->data_state);
-            em_set_voice_registration(modem, modem->voice_state);
-            break;
-        case EXPRESS_MODEM_DATA_STATE:
-            em_set_data_registration(modem, modem->data_state);
-            break;
-        case EXPRESS_MODEM_VOICE_STATE:
-            em_set_voice_registration(modem, modem->voice_state);
-            break;
-        default:
-            break;
-    }
-}
-
-static void
-em_loop(int slot, int port)
-{
-    int fd;
-    char addr_str[32];
-    Error *err;
-
-    sprintf(addr_str, "127.0.0.1:%d", port);
-    while (true) {
-        err = NULL;
-        fd = inet_connect(addr_str, &err);
-        if (fd >= 0) {
-            LOGI("Connected to RIL on localhost:%d, fd=%d", port, fd);
-            break;
-        }
-    }
-
-    Express_Modem *modem = &modems[slot];
-    modem->serial = fd;
-    modem->slot = slot;
-    em_init(modem);
-
-    while (true) {
-        char c;
-        int ret = recv(modem->serial, &c, 1, 0);
-        if (ret <= 0) {
-            LOGE("Error return value %d: %s", errno, strerror(errno));
-            break;
-        } else {
-            // LOGD("Receive 1 byte from RIL");
-        }
-
-        if (modem->in_sms) {
-            if (c != 26)
-                goto AppendChar;
-
-            modem->in_buff[ modem->in_pos ] = c;
-            modem->in_pos++;
-            modem->in_sms = 0;
-            c = '\n';
-        }
-
-        if (c == '\n' || c == '\r') {
-            const char*  answer;
-
-            if (modem->in_pos == 0)  /* skip empty lines */
-                continue;
-
-            modem->in_buff[ modem->in_pos ] = 0;
-            // print_command(modem->in_buff, modem->in_pos);
-            LOGD("Command received: %s", modem->in_buff);
-            modem->in_pos                = 0;
-
-            LOGD( "%s: << %s\n", __FUNCTION__, modem->in_buff );
-            answer = em_send(modem, modem->in_buff);
-            if (answer != NULL) {
-                LOGD( "%s: >> %s\n", __FUNCTION__, answer );
-                int len = strlen(answer);
-                if (len == 2 && answer[0] == '>' && answer[1] == ' ')
-                    modem->in_sms = 1;
-
-                send(modem->serial, (const uint8_t*)answer, len, 0);
-                send(modem->serial, (const uint8_t*)"\r", 1, 0);
-
-            } else
-                LOGD( "%s: -- NO ANSWER\n", __FUNCTION__ );
-
-            continue;
-        }
-    AppendChar:
-        modem->in_buff[ modem->in_pos++ ] = c;
-        if (modem->in_pos == sizeof(modem->in_buff)) {
-            /* input is too long !! */
-            modem->in_pos = 0;
-        }
-    }
-
-    LOGE("RIL connection closed, restarting...");
-}
-
-#define RIL_MODEM_PORT 28256
-
-static QemuThread em_thread_id[NR_MODEM];
-static void *em_thread(void *opaque)
-{
-    unsigned long long slot = (unsigned long long)opaque;
-    while (true) {
-        em_loop(slot, RIL_MODEM_PORT + slot * 2);
-    }
-    return NULL;
-}
-
-static Express_Device_Info express_modem_info = {
-    .enable_default = true,
-    .name = "express-modem",
-    // .option_name = "modem",
-    .device_id = EXPRESS_MODEM_DEVICE_ID,
-    .device_type = INPUT_DEVICE_TYPE | OUTPUT_DEVICE_TYPE,
-
-    .static_prop = NULL,
-    .static_prop_size = 0,
-};
-
-static void __attribute__((constructor))
-express_thread_init_express_modem(void) {
-    express_device_init_common(&express_modem_info);
-    modems = g_malloc(NR_MODEM * sizeof(Express_Modem));
-    memset(modems, 0, NR_MODEM * sizeof(Express_Modem));
-    for (unsigned long long i = 0; i < NR_MODEM; ++i) {
-        qemu_thread_create(&em_thread_id[i], "modem", 
-                        em_thread, (void*)i, QEMU_THREAD_DETACHED);
-    }
 }

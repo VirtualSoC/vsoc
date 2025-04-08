@@ -3,6 +3,7 @@ express_network = ss.source_set()
 express_network.add(when: 'CONFIG_EXPRESS_NETWORK',
                if_true: files(
                     'express_bridge.c',
+                    'express_modem.c',
                     'em_core.c',
                     'em_gsm.c',
                     'em_remote_call.c',

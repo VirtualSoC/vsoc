@@ -22,6 +22,7 @@
 #define DEBUG_HEAD "express_bridge "
 
 #include "hw/express-network/express_bridge.h"
+#include "hw/express-network/express_modem.h"
 #include "qemu/sockets.h"
 
 #define WRITE_CACHE_SIZE (1024 * 1024 + 512)
@@ -83,13 +84,13 @@ static void bridge_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t
     context->connection_context.guest_data = data;
 }
 
-static int bridge_socket_listern(int port)
+static int bridge_socket_listen(int port)
 {
     struct sockaddr_in saddr;
     int fd, ret, opt;
 
     memset(&saddr, 0, sizeof(saddr));
-    inet_aton("127.0.0.1", &saddr.sin_addr);
+    inet_aton("0.0.0.0", &saddr.sin_addr);
 
     saddr.sin_port = htons(port);
     saddr.sin_family = AF_INET;
@@ -401,13 +402,13 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
 
             LOGD("BIND(port=%d)", *port_ptr);
 
-            int ret_fd = bridge_socket_listern(*port_ptr);
+            int ret_fd = bridge_socket_listen(*port_ptr);
             int try_cnt = 0;
             while (ret_fd == -1 && try_cnt < 50)
             {
                 *port_ptr = *port_ptr + 1;
                 try_cnt++;
-                ret_fd = bridge_socket_listern(*port_ptr);
+                ret_fd = bridge_socket_listen(*port_ptr);
             }
 
             if (ret_fd == -1)
@@ -420,6 +421,9 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
             bridge_context->status_id = BIND_STATUS;
             bridge_context->connection_context.socket_fd = ret_fd;
             qemu_thread_create(&bridge_context->connection_context.read_thread, "bridge_accept_host_thread", bridge_accept_host_thread, bridge_context, QEMU_THREAD_JOINABLE);
+            if (*port_ptr == RIL_MODEM_PORT) {
+                express_modem_init();
+            }
         }
     }
     break;

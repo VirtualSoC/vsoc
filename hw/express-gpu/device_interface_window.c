@@ -12,6 +12,7 @@
 #include "hw/express-sensor/express_gps.h"
 #include "hw/express-sensor/express_mic.h"
 #include "hw/express-network/express_modem.h"
+#include "hw/express-network/em_core.h"
 
 
 #define IM_COL32_R_SHIFT 0
