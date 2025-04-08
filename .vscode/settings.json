@@ -180,7 +180,10 @@
         "qemu-file-types.h": "c",
         "vmstate.h": "c",
         "channel.h": "c",
-        "format": "c"
+        "format": "c",
+        "express_gps.h": "c",
+        "express_accel.h": "c",
+        "express_gyro.h": "c"
     },
     "cmake.configureOnOpen": false
 }
