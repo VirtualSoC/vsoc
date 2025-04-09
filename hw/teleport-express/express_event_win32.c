@@ -13,7 +13,7 @@
  * @param initial_state 初始的信号状态
  * @return void* 事件句柄
  */
-void *create_event(int manual_reset, int initial_state) {
+void *create_event(bool manual_reset, bool initial_state) {
     express_printf("Create Event\n");
     return CreateEvent(NULL, manual_reset, initial_state, NULL);
 }
@@ -22,7 +22,7 @@ void *create_event(int manual_reset, int initial_state) {
  * @brief 阻塞等待事件
  * 
  * @param event 事件句柄
- * @param milliseconds 超时时长
+ * @param milliseconds 超时时长，0xffffffff代表无限等待
  * @return int 0成功等待，1超时，-1出错
  */
 int wait_event(void *event, long milliseconds) {
