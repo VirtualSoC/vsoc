@@ -11,7 +11,18 @@ teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                    'teleport_express_register.c',
                    'express_handle_thread.c',
                    'express_device_ctrl.c',
-                   'express_event.c'
                ))
+
+if targetos == 'windows'
+    teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
+                if_true: files(
+                    'express_event_win32.c',
+                ))
+else
+    teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
+                if_true: files(
+                    'express_event_posix.c',
+                ))
+endif
 
 softmmu_ss.add_all(teleport_express)

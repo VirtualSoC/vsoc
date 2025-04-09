@@ -1,17 +1,12 @@
-#define STD_DEBUG_LOG
-#define STD_DEBUG_LOG_GLOBAL_ON
+// #define STD_DEBUG_LOG
 
 #include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/express_event.h"
 #include <string.h>
 #include <stdlib.h>
-#ifdef _WIN32 
-#include <windows.h>
-#else
 #include <time.h>
 #include <sys/time.h>  
 #include <errno.h>  
-#endif
 
 /**
  * @brief 创建一个事件
@@ -22,9 +17,6 @@
  */
 void *create_event(int manual_reset, int initial_state) {
     express_printf("Create Event\n");
-#ifdef _WIN32
-    HANDLE event = CreateEvent(NULL, manual_reset, initial_state, NULL);
-#else
     POSIX_HANDLE event = (POSIX_HANDLE)malloc(HANDLE_SIZE);
     if (event == NULL) return NULL;
     memset(event, 0, HANDLE_SIZE);
@@ -38,7 +30,6 @@ void *create_event(int manual_reset, int initial_state) {
         free(event);
         return NULL;
     }
-#endif
     return event;
 }
 
@@ -50,14 +41,6 @@ void *create_event(int manual_reset, int initial_state) {
  * @return int 0成功等待，1超时，-1出错
  */
 int wait_event(void *event, long milliseconds) {
-#ifdef _WIN32
-    DWORD ret = WaitForSingleObject(event, milliseconds);
-    if (ret == WAIT_OBJECT_0) 
-        return 0;
-    else if (ret == WAIT_TIMEOUT) 
-        return 1;
-    return -1;
-#else
     POSIX_HANDLE pevent = (POSIX_HANDLE) event;
     struct timespec target_time;
     struct timeval current_time;
@@ -92,7 +75,6 @@ int wait_event(void *event, long milliseconds) {
     }
         
     return 0;
-#endif
 }
 
 /**
@@ -102,10 +84,6 @@ int wait_event(void *event, long milliseconds) {
  * @return int 0成功触发，-1失败
  */
 int set_event(void *event) {
-    //express_printf("Set Event\n");
-#ifdef _WIN32
-    return SetEvent(event) ? 0 : -1;
-#else
     POSIX_HANDLE pevent = (POSIX_HANDLE) event;
     if (pthread_mutex_lock(&pevent->event_lock)) {
         express_printf("Set Event: Failed to lock");
@@ -129,7 +107,6 @@ int set_event(void *event) {
         return -1;
     }
     return 0;
-#endif
 }
 
 /**
@@ -139,10 +116,7 @@ int set_event(void *event) {
  * @return int 0成功触发，-1失败
  */
 int reset_event(void *event) {
-    //express_printf("Set Event\n");
-#ifdef _WIN32
-    return ResetEvent(event) ? 0 : -1;
-#else
+    express_printf("Reset Event\n");
     POSIX_HANDLE pevent = (POSIX_HANDLE) event;
     if (pthread_mutex_lock(&pevent->event_lock)) {
         express_printf("Reset Event: Failed to lock");
@@ -166,7 +140,6 @@ int reset_event(void *event) {
         return -1;
     }
     return 0;
-#endif
 }
 
 /**
@@ -175,13 +148,9 @@ int reset_event(void *event) {
  * @param event 事件句柄
  */
 void delete_event(void *event) {
-    express_printf("DeleteB Event\n");
-#ifdef _WIN32
-    CloseHandle(event);
-#else
+    express_printf("Delete Event\n");
     POSIX_HANDLE pevent = (POSIX_HANDLE) event;
     pthread_mutex_destroy(&pevent->event_lock);
     pthread_cond_destroy(&pevent->event_cond);
     free(pevent);
-#endif
 }
