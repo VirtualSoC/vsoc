@@ -140,11 +140,7 @@ static void input_call_release(Teleport_Express_Call *call, int notify)
     // need_send_irq = true;
     if (input_event != NULL && now_can_set_event)
     {
-#ifdef _WIN32
-        SetEvent(input_event);
-#else
         set_event(input_event);
-#endif
         LOGD("slow input_event!");
     }
     else
@@ -197,7 +193,6 @@ void register_input_buffer_call(VirtIODevice *vdev, VirtQueue *vq)
 
 void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int len)
 {
-
     Guest_Mem *mem = irq_call->elem_header->para;
 
     LOGD("mem is %lld", (uint64_t)mem);
@@ -208,14 +203,10 @@ void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int
     irq_call->callback(irq_call, 0);
 }
 
-void set_input_event_startup(){
-#ifdef _WIN32
-    input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    SetEvent(input_event);
-#else
+void set_input_event_startup(void) {
     input_event = create_event(0,0);
     set_event(input_event);
-#endif
+
     need_send_irq = false;
     call_recycle_queue_header = 0;
     call_recycle_queue_tail = 0;
@@ -224,36 +215,20 @@ void set_input_event_startup(){
 
 void *input_sync_thread(void *opaque)
 {
-
-    LOGD("in input sync thread!");
-#ifdef _WIN32
-    input_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-#else
-    input_event = create_event(0,0);
-#endif
+    input_event = create_event(0, 0);
     while (!teleport_express_should_stop)
     {
-        #ifdef _WIN32
         // 有一个中断时，之后的1ms超时内的中断都不再使能中断的打断，以防止中断过于频繁
-        DWORD ret = WaitForSingleObject(input_event, 1);
-        if (ret == WAIT_TIMEOUT)
+        int ret = wait_event(input_event, 1);
+        if (ret == 1)
         {
             now_can_set_event = true;
         }
         else
         {
-            express_printf("intrupted by event\n");
+            express_printf("interrupted by event\n");
             now_can_set_event = false;
         }
-    #else    
-        int ret=wait_event(input_event,1);
-        if(ret == 0){
-            now_can_set_event = true;
-        }
-        else{
-            now_can_set_event = false;
-        }
-    #endif
         Teleport_Express *g = TELEPORT_EXPRESS(in_teleport_express);
         if (qatomic_cmpxchg(&(g->register_input_vq_locker), 0, 1) == 0)
         {
@@ -261,11 +236,7 @@ void *input_sync_thread(void *opaque)
             qatomic_set(&(g->register_input_vq_locker), 0);
         }
     }
-#ifdef _WIN32
-    CloseHandle(input_event);
-#else
     delete_event(input_event);
-#endif
     return NULL;
 }
 

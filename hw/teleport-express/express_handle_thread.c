@@ -32,11 +32,7 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
 // qemu_event_wait(&(context->data_event));
         if (context->data_event != NULL)
         {
-#ifdef _WIN32
-            WaitForSingleObject(context->data_event, INFINITE);
-#else
             wait_event(context->data_event, 0xffffffff);
-#endif
         }
 
         if (teleport_express_should_stop)
@@ -55,18 +51,11 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
 
     context->read_loc = (context->read_loc + 1) % CALL_BUF_SIZE;
 
-//通知已经非满
-#ifdef _WIN32
-    if (context->data_event != NULL)
-    {
-        SetEvent(context->data_event);
-    }
-#else
+    // 通知已经非满
     if (context->data_event != NULL)
     {
         set_event(context->data_event);
     }
-#endif
 
     return ret;
 }
@@ -85,11 +74,7 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
 //缓冲区为满
         if (context->data_event != NULL)
         {
-#ifdef _WIN32
-            WaitForSingleObject(context->data_event, INFINITE);
-#else
             wait_event(context->data_event, 0xffffffff);
-#endif
         }
 
         if (teleport_express_should_stop)
@@ -108,19 +93,11 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
 
     LOGD("finish call push device id %llu thread_id %llu %08x fun id %llu unique id %08x loc %d %d", context->device_id, call->thread_id, call->thread_id, call->id, call->unique_id, context->write_loc, context->read_loc);
 
-
-//通知已经非空
-#ifdef _WIN32
-    if (context->data_event != NULL)
-    {
-        SetEvent(context->data_event);
-    }
-#else
+    //通知已经非空
     if (context->data_event != NULL)
     {
         set_event(context->data_event);
     }
-#endif
 
     return;
 }
@@ -177,14 +154,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
         LOGD("finish one call of device %d id %llx",context->device_id, call->id);
     }
 
-#ifdef _WIN32
-    if (context->data_event != NULL)
-    {
-        CloseHandle(context->data_event);
-    }
-#else
     delete_event(context->data_event);
-#endif
 
     if (context->context_destroy != NULL)
     {

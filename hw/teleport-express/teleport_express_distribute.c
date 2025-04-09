@@ -102,12 +102,7 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
     context->teleport_express_device = teleport_express_device;
 
 //线程缓冲区事件初始化
-// qemu_event_init(&(context->data_event), false);
-#ifdef _WIN32
-    context->data_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-#else
     context->data_event = create_event(0, 0);
-#endif
 
     LOGD("ready to create thread for device %d", info->device_id);
     qemu_thread_create(&context->this_thread, "handle_thread", handle_thread_run, context, QEMU_THREAD_JOINABLE);
@@ -178,17 +173,10 @@ void push_to_thread(Teleport_Express_Call *call)
  */
 void init_distribute_event(void)
 {
-#ifdef _WIN32
-    if (recycle_event.win_event == NULL)
-    {
-        recycle_event.win_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    }
-#else
     if (recycle_event.win_event == NULL)
     {
         recycle_event.win_event = create_event(0, 0);
     }
-#endif
 }
 
 /**
@@ -197,17 +185,10 @@ void init_distribute_event(void)
  */
 void wake_up_distribute(void)
 {
-#ifdef _WIN32
-    if (recycle_event.win_event != NULL)
-    {
-        SetEvent(recycle_event.win_event);
-    }
-#else
     if (recycle_event.win_event != NULL)
     {
         set_event(recycle_event.win_event);
     }
-#endif
 }
 
 /**
@@ -216,17 +197,10 @@ void wake_up_distribute(void)
  */
 void distribute_wait(void)
 {
-#ifdef _WIN32
-    if (recycle_event.win_event != NULL)
-    {
-        WaitForSingleObject(recycle_event.win_event, 1);
-    }
-#else
     if (recycle_event.win_event != NULL)
     {
         wait_event(recycle_event.win_event, 1);
     }
-#endif
 }
 
 // int push_cnt = 0;

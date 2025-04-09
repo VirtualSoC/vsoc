@@ -153,11 +153,7 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
 
         if (qatomic_xchg(&sync_wait_cnt, 0) != 0)
         {
-#ifdef _WIN32
-            SetEvent(sync_event);
-#else
             set_event(sync_event);
-#endif
         }
         int old_waitting_cnt = 0;
         if ((old_waitting_cnt = qatomic_xchg(&static_sync_context.sync_data->guest_waitting_cnt, 0)) != 0)
@@ -184,15 +180,6 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
         bool has_printed_backtrace = false;
         while (!SYNC_FLAG_SIGNAL(static_sync_context.sync_data, sync_id))
         {
-#ifdef _WIN32
-            qatomic_add(&sync_wait_cnt, 1);
-            DWORD ret = WaitForSingleObject(sync_event, 1);
-            if (ret == WAIT_FAILED)
-            {
-                LOGI("wait for sync failed! error code: %lld", (int64_t)GetLastError());
-                break;
-            }
-#else
             qatomic_add(&sync_wait_cnt, 1);
             int ret = wait_event(sync_event, 1);
             if (ret == -1)
@@ -200,7 +187,6 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
                 LOGI("wait for sync failed!");
                 break;
             }
-#endif
             //特定的 sync_id 在 wait_for_express_sync 中等待了较长时间，但始终未收到对应的 signal 信号
             if (sync_wait_cnt != 0 && sync_wait_cnt % 1000 == 0) {
                 // helps debugging deadlocks
@@ -262,11 +248,7 @@ static Device_Context *get_sync_context(uint64_t device_id, uint64_t thread_id, 
     LOGD("going to get sync context");
     if (sync_event == NULL)
     {
-#ifdef _WIN32
-        sync_event = CreateEvent(NULL, FALSE, FALSE, NULL);
-#else
-        sync_event = create_event(0,0);
-#endif
+        sync_event = create_event(0, 0);
     }
 
     return (Device_Context *)&static_sync_context;

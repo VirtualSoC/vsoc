@@ -27,6 +27,6 @@ void realize_input_device(VirtIODevice *vdev);
 
 void (*get_input_call_release_ptr(void))(Teleport_Express_Call *, int);
 
-void set_input_event_startup();
+void set_input_event_startup(void);
 
 #endif
