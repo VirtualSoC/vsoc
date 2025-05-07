@@ -210,7 +210,7 @@
                 "-kernel", "${workspaceFolder}/../../img/bliss/kernel",
                 "-append", "nokaslr no_timer_check initrd=/initrd.img root=/dev/ram0 DATA=vdb console=ttyS0 DEBUG=0 quiet",
                 "-initrd", "${workspaceFolder}/../../img/bliss/initrd.img",
-                "-drive", "index=0,if=virtio,id=system,file=${workspaceFolder}/../../img/bliss/system.qcow2,format=qcow2",
+                "-drive", "index=0,if=virtio,id=system,file=${workspaceFolder}/../../img/bliss/system.img,format=raw",
                 "-drive", "index=1,if=virtio,id=userdata,file=${workspaceFolder}/../../img/bliss/userdata.qcow2,format=qcow2",
                 "-display", "sdl",
                 "-device", "teleport,gl_debug=off,gl_log_level=0,display_width=1920,display_height=1080,refresh_rate=60",

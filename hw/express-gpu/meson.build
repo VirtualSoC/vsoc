@@ -74,6 +74,12 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                     'device_interface_window.c',
                     'express_display.c',
                     'express_gpu_snapshot.c' # snapshot_mac_new中被添加
+                    'express_display_options.c',
+                    'express_gpu_snapshot.c',
+                    'vk_trans.c',
+                    'express_vk_decode_from_stream.c',
+                    'express_vk_extension_structs.c',
+                    'express_vk_handle_mapping.c'
                ))
 
 glfw = cc.find_library('glfw')
