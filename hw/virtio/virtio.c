@@ -3045,7 +3045,7 @@ size_t virtio_feature_get_config_size(const VirtIOFeature *feature_sizes,
 
     return config_size;
 }
-#ifdef __APPLE
+#ifdef __APPLE__
     bool load_report_error = false;
 #endif
 int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
