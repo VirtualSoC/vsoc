@@ -25,7 +25,9 @@
 //用于EXPRESS_GPU驱动加载的非常重要的ID，需要与驱动保持一致
 #define TELEPORT_EXPRESS_DEVICE_ID 32
 
-
+#ifdef __APPLE__
+extern int display_context_thread_id;
+#endif
 
 
 #define TELEPORT_EXPRESS(obj) \

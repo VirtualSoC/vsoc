@@ -23,6 +23,9 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv1.h"
 #include "hw/express-gpu/gl_helper.h"
+#ifdef __APPLE__
+#include "hw/virtio/virtio.h"
+#endif
 
 #include "hw/express-mem/express_sync.h"
 
@@ -75,6 +78,11 @@ static gint64 last_calc_time = 0;
 
 static QemuThread device_interface_thread;
 
+#ifdef __APPLE__
+int loaded_snapshot = 0;
+bool normal_shutdown = true;
+#endif
+
 #define EVENT_QUEUE_LOCK                                    \
     while (qatomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
         ;
@@ -94,6 +102,9 @@ static bool window_is_shown = false;
 // QEMU的主窗口的长宽
 static int window_width = 0;
 static int window_height = 0;
+#ifdef __APPLE__
+static bool has_restarted = false;
+#endif
 
 // 显示的内容的实际位置和长宽
 static int main_display_content_x = 0;
@@ -274,11 +285,18 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
     LOGI("notify shutdown! %lld", g_get_real_time());
     glfwHideWindow(glfw_window);
+#ifdef _WIN32
     if(teleport_express_save_snapshot) {
         Error *err = NULL;
         save_snapshot("zzj", true, NULL, false, NULL, &err);        
     }
-
+#endif
+#ifdef __APPLE__
+    if(teleport_express_save_snapshot && normal_shutdown) {
+        Error *err = NULL;
+        save_snapshot("zzj", true, NULL, false, NULL, &err);        
+    }
+#endif
     ATOMIC_UNLOCK(main_window_event_queue_lock);
     main_display_gbuffer = NULL;
     teleport_express_should_stop = true;
@@ -298,6 +316,12 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
             LOGI("wait time too long!");
         }
     }
+#ifdef __APPLE__
+    // if(teleport_express_save_snapshot && normal_shutdown) {
+    //     Error *err = NULL;
+    //     save_snapshot("zzj", true, NULL, false, NULL, &err);
+    // }
+#endif
 }
 
 
@@ -336,7 +360,12 @@ int load_gbuffer_global_map(QEMUFile *f) {
         // gbuffer_id = qemu_get_be64(f);
         
         global_gbuffer = load_hardware_buffer(f);
+    #ifdef _WIN32
         LOGI("gbuffer id in load is %lld %llx size %d", gbuffer_id, global_gbuffer->gbuffer_id, global_gbuffer->size);
+    #endif
+    #ifdef __APPLE__
+        LOGD("gbuffer id in load is %lld %lld", gbuffer_id, global_gbuffer->gbuffer_id);
+    #endif
         g_hash_table_insert(gbuffer_map, GUINT_TO_POINTER(global_gbuffer->gbuffer_id), global_gbuffer);
     }
     gbuffer_global_map = gbuffer_map;
@@ -786,6 +815,14 @@ static void opengl_paint_composer_gbuffer(void)
     Hardware_Buffer *gbuffer = main_display_gbuffer;
 
     LOGD("in main thread paint gbuffer %d", gbuffer->data_texture); 
+#ifdef __APPLE__
+    if(display_read_gbuffer_texture != 0 && gbuffer->data_texture == old_display_read_gbuffer){
+        gbuffer->data_texture = display_read_gbuffer_texture;
+    }
+    if(display_write_gbuffer_texture != 0 && gbuffer->data_texture == old_display_write_gbuffer){
+        gbuffer->data_texture = display_write_gbuffer_texture;
+    }
+#endif
 
     if (display_width != gbuffer->width || display_height == gbuffer->height)
     {
@@ -805,6 +842,31 @@ static void opengl_paint_composer_gbuffer(void)
 
     glFlush();
 }
+#ifdef __APPLE__
+#include "hw/core/cpu.h"
+#include "qemu-main.h"
+#include "qapi/error.h"
+
+
+static int is_port_available(int port) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(port),
+        .sin_addr.s_addr = INADDR_ANY,
+    };
+
+    int reuse = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
+    if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) == 0) {
+        close(sock);
+        return 0; // 端口可用
+    }
+    close(sock);
+    return -1; // 端口被占用
+}
+#endif
 
 /**
  * @brief 界面上用于画出图像的函数，实际逻辑为取出gbuffer中的display_texture，然后画出来
@@ -1065,6 +1127,67 @@ void *native_window_thread(void *opaque)
     bool has_refresh = false;
 
     last_calc_time = frame_start_time;
+
+#ifdef __APPLE__
+    if(!loaded_snapshot){
+        LOGI("load_snapshot");
+        loaded_snapshot = true;
+    }
+
+    if(teleport_express_load_snapshot && (!has_restarted)) {
+        THREAD_CONTROL_BEGIN
+        int saved_vm_running  = runstate_is_running();
+        const char *name = "zzj";
+        Error *err = NULL;
+        qemu_mutex_lock_iothread();
+        LOGI("going to load snapshot");
+        vm_stop(RUN_STATE_RESTORE_VM);
+        LOGI("vm stopped");
+        if (load_snapshot(name, NULL, false, NULL, &err) && saved_vm_running) {
+            vm_start();
+        }
+
+        qemu_mutex_unlock_iothread();
+        if (err || load_report_error) {
+            LOGI("switching to cold boot...normal shutdown is %d %d", normal_shutdown, has_restarted);
+            normal_shutdown = false;
+            has_restarted = true;
+            pid_t pid = fork();
+            if (pid == 0) {
+                pid_t parent_pid = getppid();
+                while (kill(parent_pid, 0) == 0) {
+                    usleep(100000);
+                }
+                for (int i = 0; i < qemu_argc; i++) { //failed once, don't load the next time
+                    if (strstr(qemu_argv[i], "teleport")) {
+                        char *load_pos = strstr(qemu_argv[i], "load_snapshot=on");
+                        if (load_pos) {
+                            size_t prefix_len = load_pos - qemu_argv[i];
+                            char *prefix = g_strndup(qemu_argv[i], prefix_len);
+                            char *suffix = load_pos + strlen("load_snapshot=on");
+                            char *new_arg = g_strdup_printf("%sload_snapshot=off%s", prefix, suffix);
+                            qemu_argv[i] = new_arg;
+                            g_free(prefix);
+                        }
+                    }
+                }
+                int port = 4444; //monitor port
+                int retries = 0;
+                while (is_port_available(port) != 0 && retries++ < 10) {
+                    usleep(500000);
+                }
+
+                execv(qemu_argv[0], qemu_argv);
+                _exit(1);
+            } else if (pid > 0) {
+                qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_ERROR);
+            }
+            error_free(err);
+        }
+        THREAD_CONTROL_END
+    }
+#endif
+
 
     while (!glfwWindowShouldClose(glfw_window) && native_render_run == 2)
     {

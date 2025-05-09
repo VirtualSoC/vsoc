@@ -5,6 +5,11 @@
 #ifndef QEMU_MAIN_H
 #define QEMU_MAIN_H
 
+#ifdef __APPLE__
+extern char **qemu_argv;
+extern int qemu_argc;
+#endif
+
 int qemu_main(int argc, char **argv, char **envp);
 
 #endif /* QEMU_MAIN_H */

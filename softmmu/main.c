@@ -29,11 +29,18 @@
 #ifdef CONFIG_SDL
 #include <SDL.h>
 #endif
-
+#ifdef __APPLE__
+char **qemu_argv;
+int qemu_argc;
+#include "hw/teleport-express/express_log.h"
+#endif
 int qemu_main(int argc, char **argv, char **envp)
 {
     int status;
-
+#ifdef __APPLE__
+    qemu_argc = argc;
+    qemu_argv = argv;
+#endif
     qemu_init(argc, argv, envp);
     status = qemu_main_loop();
     qemu_cleanup();
@@ -42,8 +49,15 @@ int qemu_main(int argc, char **argv, char **envp)
 }
 
 #ifndef CONFIG_COCOA
+
+
 int main(int argc, char **argv)
 {
+#ifdef __APPLE__
+    // qemu_argc = argc;
+    // qemu_argv = argv;
+    // LOGI("in qemu main with argv %s",argv);
+#endif
     return qemu_main(argc, argv, NULL);
 }
 #endif

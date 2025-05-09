@@ -28,7 +28,6 @@
 #include "hw/express-gpu/express_gpu_snapshot.h"
 #include "hw/express-gpu/glv3_resource.h"
 
-#include "hw/express-gpu/vk_trans.h"
 
 
 #include "qemu/atomic.h"
@@ -42,6 +41,9 @@ bool express_gpu_gl_debug_enable = false;
 bool express_gpu_independ_window_enable = false;
 bool express_device_input_window_enable = false;
 bool teleport_express_save_snapshot = true;
+#ifdef __APPLE__
+bool teleport_express_load_snapshot = true;
+#endif
 
 static void g_surface_map_destroy(gpointer data);
 
@@ -525,7 +527,6 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
 
     opengl_context->window = get_native_opengl_context(opengl_context->context_flags);
 
-
     // Texture_Binding_Status *status = &(opengl_context->texture_binding_status);
     LOGD("in recover_snapshot_states_after_load for process %d opengl window %lld", ((Thread_Context*)thread_context)->thread_id, (uint64_t)opengl_context->window);
     Window_Buffer * real_surface_draw = thread_context->render_double_buffer_draw;
@@ -549,9 +550,9 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
     glBlendFunc(thread_context->opengl_context->blendfunc_sfactor, thread_context->opengl_context->blendfunc_dfactor);
 #ifdef __APPLE__
     glPointSize(10.0f);
-    // 启用混合
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 #endif
     glEnable(GL_FRAMEBUFFER_SRGB);
 
@@ -593,7 +594,9 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
     glEnableVertexAttribArray(1);
 
     glDepthMask(opengl_context->depth_mask);
-    // glDepthFunc(opengl_context->depth_func);
+#ifdef __APPLE__
+    glDepthFunc(opengl_context->depth_func);
+#endif
     LOGI("depth mask is %d depth func is %d", opengl_context->depth_mask, opengl_context->depth_func);
     GHashTableIter iter;
     gpointer key, value;
@@ -646,24 +649,6 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     else if (fun_id >= 200000)
     {
         test_decode_invoke(render_context, call);
-    }
-    else if (fun_id >= 1000 && fun_id < 2000)
-    {
-        vk_decode_invoke(render_context, call);
-        // LOGD("get call vkCreateDevice!");
-        // const VkInstanceCreateInfo* pCreateInfo;
-        // const VkAllocationCallbacks* pAllocator;
-
-        // Call_Para all_para[MAX_PARA_NUM];      
-        // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        // LOGI("get vk param number %d", para_num);
-
-        // int need_free = 0;
-        // char *_ptr;
-        // _ptr = call_para_to_ptr(all_para[0], &need_free);
-        // VkInstanceCreateInfo* local_pCreateInfo = _ptr;
-        // LOGI("got vkCreateinfo with %lld %d %s %d %s",(long long)local_pCreateInfo->sType, local_pCreateInfo->enabledLayerCount, local_pCreateInfo->ppEnabledLayerNames, local_pCreateInfo->enabledExtensionCount, local_pCreateInfo->ppEnabledExtensionNames);
-
     }
     else if (fun_id > 10000)
     {

@@ -32,6 +32,9 @@
                                 (0x1ULL << VIRTIO_F_ANY_LAYOUT))
 
 struct VirtQueue;
+#ifdef __APPLE__
+extern bool load_report_error;
+#endif
 
 static inline hwaddr vring_align(hwaddr addr,
                                              unsigned long align)

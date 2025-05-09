@@ -3045,7 +3045,9 @@ size_t virtio_feature_get_config_size(const VirtIOFeature *feature_sizes,
 
     return config_size;
 }
-
+#ifdef __APPLE
+    bool load_report_error = false;
+#endif
 int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 {
     LOGI("in virtio load %s device", vdev->name);
@@ -3120,6 +3122,9 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
         vdev->vq[i].notification = true;
 
         if (!vdev->vq[i].vring.desc && vdev->vq[i].last_avail_idx) {
+        #ifdef __APPLE__
+            load_report_error = true;
+        #endif
             error_report("VQ %d address 0x0 "
                          "inconsistent with Host index 0x%x",
                          i, vdev->vq[i].last_avail_idx);
@@ -3220,6 +3225,9 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
                 vdev->vq[i].used_idx = 0;
                 vdev->vq[i].shadow_avail_idx = 0;
                 vdev->vq[i].inuse = 0;
+            #ifdef __APPLE__
+                load_report_error = true;
+            #endif
                 continue;
             }
             vdev->vq[i].used_idx = vring_used_idx(&vdev->vq[i]);
@@ -3239,6 +3247,9 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
                              i, vdev->vq[i].vring.num,
                              vdev->vq[i].last_avail_idx,
                              vdev->vq[i].used_idx);
+            #ifdef __APPLE__
+                load_report_error = true;
+            #endif
                 return -1;
             }
         }

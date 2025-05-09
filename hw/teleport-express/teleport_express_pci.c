@@ -44,6 +44,9 @@ static Property teleport_express_base_properties[] = {
     DEFINE_PROP_INT32("gl_log_level", Teleport_Express_PCI, gpu_debug_level, 1),
     DEFINE_PROP_BOOL("gl_log_to_host", Teleport_Express_PCI, gpu_log_to_host, true),
     DEFINE_PROP_BOOL("save_snapshot", Teleport_Express_PCI, save_snapshot, true),
+#ifdef __APPLE__
+    DEFINE_PROP_BOOL("load_snapshot", Teleport_Express_PCI, load_snapshot, true),
+#endif
     DEFINE_PROP_BOOL("buffer_log", Teleport_Express_PCI, gpu_log_with_buffer, false),
     DEFINE_PROP_BOOL("opengl_trace", Teleport_Express_PCI, opengl_trace, false),
 
@@ -77,7 +80,12 @@ void express_device_init_common(Express_Device_Info *info)
     }
 
     g_hash_table_insert(all_register_device_info, GUINT_TO_POINTER(info->device_id), (gpointer)info);
+#ifdef _WIN32
     LOGD("has init device info %s", info->name);
+#endif
+#ifdef __APPLE__
+    LOGI("has init device info %s", info->name);
+#endif
 }
 
 Express_Device_Info *get_express_device_info(unsigned int device_id)
@@ -271,6 +279,9 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     express_gpu_independ_window_enable = express_pci->enable_independ_window;
     express_device_input_window_enable = express_pci->show_device_input_window;
     teleport_express_save_snapshot = express_pci->save_snapshot;
+#ifdef __APPLE__
+    teleport_express_load_snapshot = express_pci->load_snapshot;
+#endif
     express_gpu_keep_window_scale = express_pci->keep_window_scale;
     express_gpu_window_width = express_pci->window_width;
     express_gpu_window_height = express_pci->window_height;

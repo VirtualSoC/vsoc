@@ -113,6 +113,9 @@ typedef struct GBuffer_Layers{
      struct GBuffer_Layer layer[0];
 } __attribute__((packed, aligned(4))) GBuffer_Layers;
 
+#ifdef __APPLE__
+extern bool normal_shutdown;
+#endif
 
 extern GAsyncQueue *main_window_event_queue;
 

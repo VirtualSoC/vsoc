@@ -192,6 +192,13 @@ extern GHashTable *loaded_window_buffers;
 extern GHashTable *registered_express_buffers;
 extern GHashTable *registered_express_irqs;
 
+#ifdef __APPLE__
+extern int old_display_read_gbuffer;
+extern int old_display_write_gbuffer;
+extern int display_read_gbuffer_texture;
+extern int display_write_gbuffer_texture;
+#endif
+
 extern VirtIODevice *startup_vdev;
 extern VirtQueue *startup_out_data_queue;
 extern VirtQueue *startup_in_data_queue;

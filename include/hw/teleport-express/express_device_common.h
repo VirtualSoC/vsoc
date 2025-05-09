@@ -279,6 +279,9 @@ extern bool express_gpu_gl_debug_enable;
 extern bool express_gpu_independ_window_enable;
 extern bool express_device_input_window_enable;
 extern bool teleport_express_save_snapshot;
+#ifdef __APPLE__
+extern bool teleport_express_load_snapshot;
+#endif
 
 extern bool express_gpu_keep_window_scale;
 

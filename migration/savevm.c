@@ -2785,7 +2785,11 @@ int qemu_load_device_state(QEMUFile *f)
 bool save_snapshot(const char *name, bool overwrite, const char *vmstate,
                   bool has_devices, strList *devices, Error **errp)
 {
+
     // LOGI("in save_snapshot!");
+#ifdef __APPLE__
+    LOGD("in save_snapshot!");
+#endif
     BlockDriverState *bs;
     QEMUSnapshotInfo sn1, *sn = &sn1; //save snapshot infomation
     int ret = -1, ret2;

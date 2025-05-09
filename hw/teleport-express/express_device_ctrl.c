@@ -3,6 +3,10 @@
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/teleport-express/express_device_ctrl.h"
+#ifdef __APPLE__
+#include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/egl_display.h"
+#endif
 
 int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Teleport_Express_Call *pre_call, Teleport_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
 void release_call_none(Teleport_Express_Call *call, int notify);
@@ -26,6 +30,22 @@ void express_device_ctrl_invoke(Teleport_Express_Call *call)
         }
         uint64_t ret_data = (((uint64_t)kernel_load_express_driver_num) << 32) + (uint64_t)(strlen(kernel_load_express_driver_names) + 1);
         write_to_guest_mem(all_para[0].data, &ret_data, 0, 8);
+    #ifdef __APPLE__
+        if (qatomic_cmpxchg(&native_render_run, 0, 1) == 0)
+        {
+            LOGI("create native window");
+            qemu_thread_create(&native_window_render_thread, "handle_thread", native_window_thread, call->vdev, QEMU_THREAD_DETACHED);
+            init_display(&default_egl_display);
+        }
+
+        if (native_render_run == 1)
+        {
+            do
+            {
+                g_usleep(5000);
+            } while (native_render_run != 2);
+        }
+    #endif
     }
     break;
 

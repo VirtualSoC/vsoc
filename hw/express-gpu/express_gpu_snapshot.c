@@ -63,9 +63,11 @@ static void local_free_callback(Teleport_Express_Call *call, int notify) {
 }
 
 void init_saving_snapshot() {
+#ifdef _WIN32
     if (is_init) {
         return;
     }
+#endif
     is_init = true;
     g_gl_context = get_native_opengl_context(0);
     egl_makeCurrent(g_gl_context);
@@ -108,6 +110,7 @@ void init_loading_snapshot(QEMUFile *f) {
 
     realize_input_device(startup_vdev);
 
+
     if (g->distribute_thread_run == 0) //第一次调用到，新建分发线程
     {
         LOGD("start handle thread");
@@ -136,7 +139,7 @@ void init_loading_snapshot(QEMUFile *f) {
         qemu_thread_create(&native_window_render_thread, "handle_thread", native_window_thread, startup_vdev, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);
     }
-
+#ifdef _WIN32
     if (native_render_run == 1)
     {
         do
@@ -144,7 +147,7 @@ void init_loading_snapshot(QEMUFile *f) {
             g_usleep(5000);
         } while (native_render_run != 2);
     }
-
+#endif
     // init_display_context_vmload();
 
     display_context_thread_id = qemu_get_be32(f);
@@ -152,7 +155,13 @@ void init_loading_snapshot(QEMUFile *f) {
     display_thread_context = display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, display_context_thread_id, 0, 0, display_device_info);
 
     // main_window_event_queue = g_async_queue_new();
+#ifdef _WIN32
     g_gl_context = get_native_opengl_context(0);
+#endif
+#ifdef __APPLE__
+    g_gl_context = egl_createContext();
+#endif
+
     egl_makeCurrent(g_gl_context);
     for (int i = 0; i < NUM_RESOURCES; i++) {
         g_resource_ids_map[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -160,8 +169,12 @@ void init_loading_snapshot(QEMUFile *f) {
     }
 
     set_input_event_startup();
-
+#ifdef _WIN32
     LOGD("init_loading_snapshot end");
+#endif
+#ifdef __APPLE__
+    LOGD("init_loading_snapshot end gl context %x", g_gl_context);
+#endif
 }
 
 void clear_resource_tables() {
@@ -1444,8 +1457,15 @@ void load_native_programs(QEMUFile *f){  //ztodo:应该先重新创建program、
         GLuint program_id = qemu_get_be32(f);
         GLint new_program_id = 0;
         // while(new_program_id != program_id){
-            new_program_id = glCreateProgram();
+    #ifdef __APPLE__
+        LOGD("loading program of old %d", program_id);
+        new_program_id = glCreateProgram();
+        LOGD("create program of old %d new %d", program_id, new_program_id);
+    #endif
+    #ifdef _WIN32
+        new_program_id = glCreateProgram();
         //     LOGD("create program of old %d new %d", program_id, new_program_id);
+    #endif
 
         // }
         // if(program_id == 82){
@@ -2556,6 +2576,8 @@ void update_native_texture(Express_Native_Texture* texture_data){
     // glBindTexture(texture_data->target, 0); //ztodo:应该不用
     LOGD("loaded native texture new id %d old id %d width %d height %d", new_texture_id, texture_data->textureId, texture_data->width, texture_data->height);
     LOGD("loaded texture all info: minFilter %d magFilter %d wrapS %d wrapT %d", texture_data->minFilter, texture_data->magFilter, texture_data->wrapS, texture_data->wrapT);
+
+#ifdef _WIN32
     // if(texture_data->width == 1024){ //ztodo:这个可以删了吧？？？
     //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
     //     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
@@ -2565,6 +2587,11 @@ void update_native_texture(Express_Native_Texture* texture_data){
     //     // memset(texture_data->pixels, 0, texture_data->width * texture_data->height * 4);
     // }
     // else
+#endif
+#ifdef __APPLE__
+    // sync data
+    // GLubyte* readPixels = (GLubyte*)malloc(2772 * 2772 * 4);
+#endif
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, texture_data->pixels);
     change_host_id_map(RESOURCE_TYPE_TEXTURE, texture_data->textureId, new_texture_id);
 }
@@ -3162,7 +3189,13 @@ void save_scatter_data(QEMUFile *f, Scatter_Data *scatter_data, int count) {
         // qemu_put_buffer(f, scatter_data[i].data, scatter_data[i].len);
         uint64_t address = 0;
         address = ((uint64_t)scatter_data[i].data);// & 0xFFFFFFFFF;
+
+
         void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)address);
+
+        #ifdef __APPLE__
+        real_guest_mem = ((uint64_t)scatter_data[i].data);
+        #endif
 
         qemu_put_be64(f, (uint64_t)real_guest_mem);
         // LOGD("scatter data size is %d data %llx %llx", sizeof(scatter_data[i].data), address, (uint64_t)real_guest_mem);
@@ -3202,10 +3235,12 @@ Scatter_Data* load_scatter_data(QEMUFile *f, int *count) {
         // uint64_t hva = (uint64_t)cpu_physical_memory_map((hwaddr)address, &len, false);
         // uint64_t hva1 = (uint64_t)cpu_physical_memory_map((hwaddr)address, &len, true);
 
+        #ifdef __APPLE__
+        void* hva = (void *)address;
+        #else
+
         hwaddr xlat;
-
         // LOGD("loading scatter data address %llx", address);
-
         MemoryRegion *mr = address_space_translate(&address_space_memory,
             (hwaddr)address,
             &xlat, &len, false,
@@ -3217,6 +3252,7 @@ Scatter_Data* load_scatter_data(QEMUFile *f, int *count) {
             hva = qemu_map_ram_ptr(mr->ram_block, xlat);
             // printf("GPA 0x%lx corresponds to HVA %p\n", gpa, hva);
         } 
+        #endif
 
         // qemu_get_buffer(f, (void*)&address, sizeof(address));
         scatter_data[i].data = (unsigned char *)hva;
