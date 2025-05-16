@@ -42,7 +42,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     case FUNID_vkCreateInstance:
 
     {
-        LOGI("get call vkCreateDevice!");
+        LOGI("get call FUNID_vkCreateInstance!");
 
         const VkInstanceCreateInfo* pCreateInfo = malloc(sizeof(VkInstanceCreateInfo));
         const VkAllocationCallbacks* pAllocator = NULL; //ztodo:暂时全部用null
@@ -69,8 +69,8 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, pAllocator, stream_ptr_ptr);
         }
 
-        uint64_t guest_instance = (uint64_t)(**stream_ptr_ptr);
-        *stream_ptr_ptr += 8;
+        uint64_t guest_instance = *(uint64_t*)(*stream_ptr_ptr);
+        *stream_ptr_ptr += sizeof(uint64_t);
 
         VkResult result = vkCreateInstance(pCreateInfo, pAllocator, &pInstance);
 
@@ -78,14 +78,11 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("got result %d instance %lld %lld size %d guest %lld", result, pInstance, &pInstance, sizeof(VkInstance), guest_instance);
             insert_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_instance, (uint64_t)(uintptr_t)pInstance);
             LOGI("map result is %lld", lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_instance));
-
-            
-
         }
         write_to_guest_mem(all_para[1].data, &result, 0, sizeof(VkResult));
-        // return;
     }
     break;
+    
     }
     call->callback(call, 1);
 }

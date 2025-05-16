@@ -5,41 +5,54 @@
 #include <stdint.h>
 #include <assert.h>
 
+#include "hw/express-gpu/uthash.h"
+
 typedef struct {
-    ExpressVkObjectType type; // 指明是哪种 Vulkan 对象
-    uint64_t guest_id;        // 来自 Guest 的伪句柄编号
-    uint64_t host_id;         // 真正的 Host 句柄值（uint64_t 表示）
+    ExpressVkObjectType type; // Vulkan 对象类型
+    uint64_t         guest_id; // 来自 Guest 的虚拟句柄（64 位稀疏）
+    uint64_t         host_id;  // 真正的 Host 句柄
+    UT_hash_handle   hh;       // uthash 必需的句柄
 } ExpressObjectEntry;
 
-// 全局映射表（简化版，无 is_init）
-ExpressObjectEntry *g_entries = NULL;
-size_t g_entry_count = 0;
-size_t g_entry_capacity = 0;
+static ExpressObjectEntry *g_map = NULL; // 哈希表的“头指针”，初始为 NULL
 
-int ensure_capacity(size_t min_capacity) {
-    if (min_capacity <= g_entry_capacity)
-        return 1;
-    size_t new_cap = g_entry_capacity ? g_entry_capacity * 2 : 16;
-    if (new_cap < min_capacity) new_cap = min_capacity;
-    ExpressObjectEntry *new_buf = realloc(g_entries, new_cap * sizeof(*new_buf));
-    if (!new_buf) return 0;
-    g_entries = new_buf;
-    g_entry_capacity = new_cap;
-    return 1;
-}
-
+// 插入／更新一条映射
 int insert_mapping(ExpressVkObjectType type, uint64_t guest_id, uint64_t host_id) {
-    if (!ensure_capacity(g_entry_count + 1)) return 0;
-    g_entries[g_entry_count++] = (ExpressObjectEntry){ type, guest_id, host_id };
+    ExpressObjectEntry *e;
+    // 先尝试查找已有条目
+    HASH_FIND(hh, g_map, &guest_id, sizeof(guest_id), e);
+    if (e) {
+        // 如果已存在，只更新 host_id
+        e->host_id = host_id;
+    } else {
+        // 否则 new 一个新条目并插入
+        e = malloc(sizeof(*e));
+        if (!e) return 0;
+        e->type     = type;
+        e->guest_id = guest_id;
+        e->host_id  = host_id;
+        HASH_ADD(hh, g_map, guest_id, sizeof(guest_id), e);
+    }
     return 1;
 }
 
+// 查找映射，失败返回 UINT64_MAX
 uint64_t lookup_mapping(ExpressVkObjectType type, uint64_t guest_id) {
-    for (size_t i = 0; i < g_entry_count; ++i) {
-        if (g_entries[i].type == type && g_entries[i].guest_id == guest_id)
-            return g_entries[i].host_id;
+    ExpressObjectEntry *e;
+    HASH_FIND(hh, g_map, &guest_id, sizeof(guest_id), e);
+    if (e && e->type == type) {
+        return e->host_id;
     }
-    return -1;
+    return UINT64_MAX;
+}
+
+// 清空所有映射，用于销毁时释放内存
+void clear_mappings(void) {
+    ExpressObjectEntry *current, *tmp;
+    HASH_ITER(hh, g_map, current, tmp) {
+        HASH_DEL(g_map, current);
+        free(current);
+    }
 }
 
 // map_handle_<Type> 实现：目前直接原样返回，可自行改写为真正的映射逻辑
