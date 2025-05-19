@@ -79,7 +79,8 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                     'vk_trans.c',
                     'express_vk_decode_from_stream.c',
                     'express_vk_extension_structs.c',
-                    'express_vk_handle_mapping.c'
+                    'express_vk_handle_mapping.c',
+                    'vk_helper.c'
                ))
 
 glfw = cc.find_library('glfw')
