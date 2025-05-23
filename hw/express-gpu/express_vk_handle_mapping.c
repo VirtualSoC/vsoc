@@ -43,7 +43,7 @@ uint64_t lookup_mapping(ExpressVkObjectType type, uint64_t guest_id) {
     if (e && e->type == type) {
         return e->host_id;
     }
-    return UINT64_MAX;
+    return 0;
 }
 
 // 清空所有映射，用于销毁时释放内存
@@ -55,164 +55,163 @@ void clear_mappings(void) {
     }
 }
 
-// map_handle_<Type> 实现：目前直接原样返回，可自行改写为真正的映射逻辑
 VkInstance map_handle_VkInstance(VkInstance boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkInstance)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkPhysicalDevice map_handle_VkPhysicalDevice(VkPhysicalDevice boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkPhysicalDevice)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDevice map_handle_VkDevice(VkDevice boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDevice)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkQueue map_handle_VkQueue(VkQueue boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkQueue)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUEUE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkCommandBuffer map_handle_VkCommandBuffer(VkCommandBuffer boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkCommandBuffer)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)(uintptr_t)boxed);
 }
 
 VkBuffer map_handle_VkBuffer(VkBuffer boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkBuffer)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER, (uint64_t)(uintptr_t)boxed);
 }
 
 VkBufferView map_handle_VkBufferView(VkBufferView boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkBufferView)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER_VIEW, (uint64_t)(uintptr_t)boxed);
 }
 
 VkImage map_handle_VkImage(VkImage boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkImage)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkImageView map_handle_VkImageView(VkImageView boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkImageView)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE_VIEW, (uint64_t)(uintptr_t)boxed);
 }
 
 VkShaderModule map_handle_VkShaderModule(VkShaderModule boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkShaderModule)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SHADER_MODULE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDescriptorPool map_handle_VkDescriptorPool(VkDescriptorPool boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDescriptorPool)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_POOL, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDescriptorSetLayout map_handle_VkDescriptorSetLayout(VkDescriptorSetLayout boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDescriptorSetLayout)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDescriptorSet map_handle_VkDescriptorSet(VkDescriptorSet boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDescriptorSet)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, (uint64_t)(uintptr_t)boxed);
 }
 
 VkSampler map_handle_VkSampler(VkSampler boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkSampler)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SAMPLER, (uint64_t)(uintptr_t)boxed);
 }
 
 VkPipeline map_handle_VkPipeline(VkPipeline boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkPipeline)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PIPELINE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkPipelineCache map_handle_VkPipelineCache(VkPipelineCache boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkPipelineCache)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PIPELINE_CACHE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkPipelineLayout map_handle_VkPipelineLayout(VkPipelineLayout boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkPipelineLayout)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PIPELINE_LAYOUT, (uint64_t)(uintptr_t)boxed);
 }
 
 VkRenderPass map_handle_VkRenderPass(VkRenderPass boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkRenderPass)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)(uintptr_t)boxed);
 }
 
 VkFramebuffer map_handle_VkFramebuffer(VkFramebuffer boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkFramebuffer)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FRAMEBUFFER, (uint64_t)(uintptr_t)boxed);
 }
 
 VkCommandPool map_handle_VkCommandPool(VkCommandPool boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkCommandPool)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_POOL, (uint64_t)(uintptr_t)boxed);
 }
 
 VkFence map_handle_VkFence(VkFence boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkFence)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkSemaphore map_handle_VkSemaphore(VkSemaphore boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkSemaphore)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SEMAPHORE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkEvent map_handle_VkEvent(VkEvent boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkEvent)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_EVENT, (uint64_t)(uintptr_t)boxed);
 }
 
 VkQueryPool map_handle_VkQueryPool(VkQueryPool boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkQueryPool)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUERY_POOL, (uint64_t)(uintptr_t)boxed);
 }
 
 VkSamplerYcbcrConversion map_handle_VkSamplerYcbcrConversion(VkSamplerYcbcrConversion boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkSamplerYcbcrConversion)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDescriptorUpdateTemplate map_handle_VkDescriptorUpdateTemplate(VkDescriptorUpdateTemplate boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDescriptorUpdateTemplate)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE, (uint64_t)(uintptr_t)boxed);
 }
 
 VkSurfaceKHR map_handle_VkSurfaceKHR(VkSurfaceKHR boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkSurfaceKHR)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, (uint64_t)(uintptr_t)boxed);
 }
 
 VkSwapchainKHR map_handle_VkSwapchainKHR(VkSwapchainKHR boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkSwapchainKHR)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDisplayKHR map_handle_VkDisplayKHR(VkDisplayKHR boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDisplayKHR)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDisplayModeKHR map_handle_VkDisplayModeKHR(VkDisplayModeKHR boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDisplayModeKHR)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_MODE_KHR, (uint64_t)(uintptr_t)boxed);
 }
 
 VkValidationCacheEXT map_handle_VkValidationCacheEXT(VkValidationCacheEXT boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkValidationCacheEXT)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_VALIDATION_CACHE_EXT, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDebugReportCallbackEXT map_handle_VkDebugReportCallbackEXT(VkDebugReportCallbackEXT boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDebugReportCallbackEXT)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEBUG_REPORT_CALLBACK_EXT, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDebugUtilsMessengerEXT map_handle_VkDebugUtilsMessengerEXT(VkDebugUtilsMessengerEXT boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDebugUtilsMessengerEXT)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT, (uint64_t)(uintptr_t)boxed);
 }
 
 VkAccelerationStructureNV map_handle_VkAccelerationStructureNV(VkAccelerationStructureNV boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkAccelerationStructureNV)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV, (uint64_t)(uintptr_t)boxed);
 }
 
 VkIndirectCommandsLayoutNV map_handle_VkIndirectCommandsLayoutNV(VkIndirectCommandsLayoutNV boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkIndirectCommandsLayoutNV)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NV, (uint64_t)(uintptr_t)boxed);
 }
 
 VkAccelerationStructureKHR map_handle_VkAccelerationStructureKHR(VkAccelerationStructureKHR boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkAccelerationStructureKHR)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, (uint64_t)(uintptr_t)boxed);
 }
 
 VkCuModuleNVX map_handle_VkCuModuleNVX(VkCuModuleNVX boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkCuModuleNVX)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_CU_MODULE_NVX, (uint64_t)(uintptr_t)boxed);
 }
 
 VkCuFunctionNVX map_handle_VkCuFunctionNVX(VkCuFunctionNVX boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkCuFunctionNVX)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_CU_FUNCTION_NVX, (uint64_t)(uintptr_t)boxed);
 }
 
 VkMicromapEXT map_handle_VkMicromapEXT(VkMicromapEXT boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkMicromapEXT)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_MICROMAP_EXT, (uint64_t)(uintptr_t)boxed);
 }
 
 VkDeviceMemory map_handle_VkDeviceMemory(VkDeviceMemory boxed) {
-    return boxed;  // TODO: 实际映射逻辑
+    return (VkDeviceMemory)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)(uintptr_t)boxed);
 }
 

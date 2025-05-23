@@ -255,6 +255,7 @@
 #define FUNID_vkUpdateDescriptorSetWithTemplate            1250
 #define FUNID_vkWaitForFences                              1251
 #define FUNID_vkWaitSemaphores                             1252
+#define FUNID_vkCreateAndroidSurfaceKHR                    1253
 
 
 void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call);

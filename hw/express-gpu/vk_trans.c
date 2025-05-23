@@ -74,7 +74,30 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         uint64_t guest_instance = *(uint64_t*)(*stream_ptr_ptr);
         *stream_ptr_ptr += sizeof(uint64_t);
 
+        uint32_t glfwExtCount = 0;
+        const char** glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+        uint32_t origExtCount = pCreateInfo->enabledExtensionCount;
+        const char* const* origExts = pCreateInfo->ppEnabledExtensionNames;
+
+        uint32_t totalExtCount = origExtCount + glfwExtCount;
+        const char** mergedExts = malloc(sizeof(char*) * totalExtCount);
+        for (uint32_t i = 0; i < origExtCount; i++) {
+            mergedExts[i] = origExts[i];
+        }
+        for (uint32_t i = 0; i < glfwExtCount; i++) {
+            mergedExts[origExtCount + i] = glfwExts[i];
+            LOGI("glfw ext %d %s", i, glfwExts[i]);
+        }
+
+        // 修改 pCreateInfo 指向新的扩展列表
+        ((VkInstanceCreateInfo*)pCreateInfo)->enabledExtensionCount   = totalExtCount;
+        ((VkInstanceCreateInfo*)pCreateInfo)->ppEnabledExtensionNames = mergedExts;
+
         VkResult result = vkCreateInstance(pCreateInfo, pAllocator, &pInstance);
+
+        free(mergedExts);
+
+        // VkResult result = vkCreateInstance(pCreateInfo, pAllocator, &pInstance);
 
         if (result == VK_SUCCESS) {
             LOGI("got result %d instance %lld %lld size %d guest %lld", result, pInstance, &pInstance, sizeof(VkInstance), guest_instance);
@@ -82,6 +105,188 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("map result is %lld", lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_instance));
         }
         write_to_guest_mem(all_para[1].data, &result, 0, sizeof(VkResult));
+    }
+    break;
+
+    case FUNID_vkCreateAndroidSurfaceKHR: {
+        LOGI("Host: vkCreateAndroidSurfaceKHR request");
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vk param number %d instance is", para_num);
+
+        char *stream_ptr;
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t* ptr = (uint8_t*)stream;
+
+        uint64_t guest_inst = *(uint64_t*)(ptr);
+        ptr += sizeof(uint64_t);
+
+        uint64_t guest_window_ptr = *(uint64_t*)(ptr);
+        ptr += sizeof(uint64_t);
+
+        // uint64_t guest_hostSurf_addr = *(uint64_t*)(ptr);
+        // ptr += sizeof(uint64_t);
+        VkSurfaceKHR guestSurface = VK_NULL_HANDLE;
+        void*   guest_surface_ptr  = all_para[1].data;
+        read_from_guest_mem(guest_surface_ptr, &guestSurface, 0, sizeof(VkSurfaceKHR));
+
+        if (need_free) free(stream);
+
+        VkInstance hostInst = (VkInstance)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_inst);
+        LOGI("Host: mapped guestInst %llu → hostInst %p",
+            (unsigned long long)guest_inst, (void*)hostInst);
+
+        GLFWwindow* win = (GLFWwindow*)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW, guest_window_ptr);
+        if (!win) {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            win = glfwCreateWindow(1, 1, "Guest Window", NULL, NULL);
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW,
+                        guest_window_ptr,
+                        (uint64_t)(uintptr_t)win);
+            LOGI("Host: created GLFW window %p for guest window %llu",
+                win, (unsigned long long)guest_window_ptr);
+        }
+
+        VkSurfaceKHR hostSurface = VK_NULL_HANDLE;
+        VkResult res = glfwCreateWindowSurface(hostInst, win, NULL, &hostSurface);
+        if (res != VK_SUCCESS) {
+            LOGE("Host: vkCreateAndroidSurfaceKHR failed %d", res);
+            return;
+        }
+        
+        LOGI("Host: created hostSurface %lld %d", (long long)hostSurface, res);
+
+        insert_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE, (uint64_t)guestSurface, (uint64_t)(uintptr_t)hostSurface);
+    }
+    break;
+
+    case FUNID_vkCreateSwapchainKHR: {
+        LOGI("Host: vkCreateSwapchainKHR request %lld", (long long)vkCreateSwapchainKHR);
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t* ptr = (uint8_t*)stream;
+
+        // 解包参数
+        uint64_t guest_device        = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        uint64_t guest_surface       = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        uint32_t minImageCount       = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
+        uint32_t imageFormat         = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
+        uint32_t width               = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
+        uint32_t height              = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
+        uint32_t presentMode         = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
+
+        void*   guest_swapchain_ptr  = all_para[1].data;
+        VkSwapchainKHR guestSwapchain = VK_NULL_HANDLE; //ztodo：这里直接改成发送值应该会更快
+        read_from_guest_mem(guest_swapchain_ptr, &guestSwapchain, 0, sizeof(VkSwapchainKHR));
+
+        LOGI("Host: vkCreateSwapchainKHR guest_device %llu guest_surface %llu minImageCount %d imageFormat %d width %d height %d presentMode %d",
+            (unsigned long long)guest_device,
+            (unsigned long long)guest_surface,
+            minImageCount, imageFormat, width, height, presentMode);
+
+        if (need_free) free(stream);
+
+        // 查映射
+        VkDevice       hostDevice  = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkSurfaceKHR   hostSurface = (VkSurfaceKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE, guest_surface);
+
+        // 准备 CreateInfo
+        VkSwapchainCreateInfoKHR sci = {
+            .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .pNext            = NULL,
+            .flags            = 0,
+            .surface          = hostSurface,
+            .minImageCount    = minImageCount,
+            .imageFormat      = (VkFormat)imageFormat,
+            .imageColorSpace  = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+            .imageExtent      = { width, height },
+            .imageArrayLayers = 1,
+            .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount   = 0,
+            .pQueueFamilyIndices     = NULL,
+            .preTransform            = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+            .compositeAlpha          = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode             = (VkPresentModeKHR)presentMode,
+            .clipped                 = VK_TRUE,
+            .oldSwapchain            = VK_NULL_HANDLE
+        };
+
+        LOGI("sci info is %d %lld %d %d %d %d %d", sci.sType, sci.surface, sci.minImageCount, sci.imageFormat, sci.imageExtent.width, sci.imageExtent.height, sci.presentMode);
+
+        VkSwapchainKHR hostSwapchain = VK_NULL_HANDLE;
+        VkResult res = vkCreateSwapchainKHR(hostDevice, &sci, NULL, &hostSwapchain);
+        if (res != VK_SUCCESS) {
+            LOGE("Host: vkCreateSwapchainKHR failed %d", res);
+            return;
+        }
+
+        // 存映射
+        insert_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+                    (uint64_t)(uintptr_t)guestSwapchain,
+                    (uint64_t)(uintptr_t)hostSwapchain);
+
+        LOGI("Host: created hostSwapchain guest %llu -> host %p",
+            (unsigned long long)guestSwapchain,
+            (void*)hostSwapchain);
+    }
+    break;
+
+    case FUNID_vkGetSwapchainImagesKHR: {
+        LOGI("Host: vkGetSwapchainImagesKHR");
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+        int need_free = 0;
+        char*     stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t*  ptr    = (uint8_t*)stream;
+
+        uint64_t guest_device    = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        uint64_t guest_swapchain = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        uint32_t count           = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
+
+        VkDevice       realDev       = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkSwapchainKHR realSwapchain = (VkSwapchainKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR, guest_swapchain);
+        
+        LOGI("Host: vkGetSwapchainImagesKHR guest_device %llu guest_swapchain %llu count %d real swapchain %lld",
+            (unsigned long long)guest_device,
+            (unsigned long long)guest_swapchain,
+            count, (long long)realSwapchain);
+        
+        uint64_t* guestImages = malloc(sizeof(uint64_t) * count);
+        read_from_guest_mem(
+            all_para[1].data,
+            guestImages,
+            0,
+            sizeof(uint64_t) * count);
+
+        VkImage* images = malloc(sizeof(VkImage) * count);
+        VkResult res = vkGetSwapchainImagesKHR(realDev, realSwapchain, &count, images);
+        if (res != VK_SUCCESS) {
+            LOGE("vkGetSwapchainImagesKHR failed: %d", res);
+        } else {
+            for (uint32_t i = 0; i < count; i++) {
+                insert_mapping(
+                    EXPRESS_VK_OBJECT_TYPE_IMAGE,
+                    guestImages[i],
+                    (uint64_t)(uintptr_t)images[i]);
+                LOGI("Host: vkGetSwapchainImagesKHR guest %llu mapped to host %lld",guestImages[i], (uint64_t)(uintptr_t)images[i]);
+            }
+        }
+
+        free(images);
+        if (need_free) free(stream);
     }
     break;
 
@@ -193,37 +398,33 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkExtensionProperties* availProps = malloc(sizeof(VkExtensionProperties) * availCount);
         vkEnumerateDeviceExtensionProperties(physicalDevice, NULL, &availCount, availProps);
 
-        // 构建最终 extension 名称数组
-        const char** newExts = malloc(sizeof(char*) * (pCreateInfo->enabledExtensionCount + 4));
-        uint32_t     newCount = 0;
+        // 重建扩展数组
+        uint32_t origCount = pCreateInfo->enabledExtensionCount;
+        const char* const* origExts = pCreateInfo->ppEnabledExtensionNames;
+        // 最多增加 1 个 swapchain 扩展
+        const char** newExts = malloc(sizeof(char*) * (origCount + 1));
+        uint32_t newCount = 0;
 
-        for (uint32_t i = 0; i < pCreateInfo->enabledExtensionCount; i++) {
-            const char* ext = pCreateInfo->ppEnabledExtensionNames[i];
-
-            // 显式过滤 VK_ANDROID_native_buffer
-            // if (strcmp(ext, "VK_ANDROID_native_buffer") == 0) {
-            //     LOGI("Filter out unsupported extension %s", ext);
-            //     continue;
-            // }
-
-            // 如果 host 支持这个扩展，则保留
+        for (uint32_t i = 0; i < origCount; i++) {
+            const char* ext = origExts[i];
             if (has_device_extension(availProps, availCount, ext)) {
                 newExts[newCount++] = ext;
-            } else {
-                LOGI("Host does not support extension %s, filtered", ext);
             }
         }
-
-        // 可选：你也可以按需添加 PC 特有的扩展（如果支持的话）
-        const char* extra_exts[] = {
-            VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
-        };
-
-        for (size_t i = 0; i < sizeof(extra_exts) / sizeof(extra_exts[0]); i++) {
-            if (has_device_extension(availProps, availCount, extra_exts[i])) {
-                newExts[newCount++] = extra_exts[i];
+        // 确保有 VK_KHR_swapchain
+        if (!has_device_extension(availProps, availCount, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) {
+            // 如果 Host 不支持 swapchain，就不添加
+        } else {
+            // 如果 Guest 原来没加，补上
+            bool found = false;
+            for (uint32_t i = 0; i < newCount; i++) {
+                if (strcmp(newExts[i], VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                newExts[newCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
             }
         }
 
@@ -400,6 +601,8 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             VK_STRUCTURE_TYPE_MAX_ENUM,
             pInfo,
             ptr);
+        
+        LOGI("info image is %d %lld %d %d %d", pInfo->sType, (long long)pInfo->image, pInfo->viewType, pInfo->format, pInfo->components.r);
 
         uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
         *ptr += sizeof(uint64_t);
