@@ -52,6 +52,11 @@ typedef enum ExpressVkObjectType {
 
 int insert_mapping(ExpressVkObjectType type, uint64_t guest_id, uint64_t host_id);
 uint64_t lookup_mapping(ExpressVkObjectType type, uint64_t guest_id);
+void set_memory_map(uint64_t host_mem, void* mappedPtr);
+void* get_memory_map(uint64_t host_mem);
+
+void set_device_pd(uint64_t host_dev, VkPhysicalDevice phys);
+VkPhysicalDevice get_device_pd(uint64_t host_dev);
 
 // 只提供 map_handle_<Type> 声明，用于 guest→host 句柄映射
 VkInstance map_handle_VkInstance(VkInstance boxed);

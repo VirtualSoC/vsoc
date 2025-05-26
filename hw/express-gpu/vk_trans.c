@@ -17,7 +17,34 @@
 #include "hw/express-gpu/express_vk_handle_mapping.h"
 #include "hw/express-gpu/vk_helper.h"
 
+void checkHostVisible(VkPhysicalDevice physicalDevice, uint32_t memoryTypeIndex) {
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
 
+    if (memoryTypeIndex >= memProps.memoryTypeCount) {
+        LOGI("Invalid memoryTypeIndex %u (max %u)",
+               memoryTypeIndex, memProps.memoryTypeCount - 1);
+        return;
+    }
+
+    VkMemoryPropertyFlags flags =
+        memProps.memoryTypes[memoryTypeIndex].propertyFlags;
+
+    LOGI("MemoryType %u flags: 0x%08x",
+           memoryTypeIndex, flags);
+
+    if (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        LOGI("  -> HOST_VISIBLE is PRESENT");
+    } else {
+        LOGI("  -> HOST_VISIBLE is NOT present");
+    }
+
+    if (flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) {
+        LOGI("  -> HOST_COHERENT is PRESENT");
+    } else {
+        LOGI("  -> HOST_COHERENT is NOT present");
+    }
+}
 void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
 
 {
@@ -453,6 +480,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 EXPRESS_VK_OBJECT_TYPE_DEVICE,
                 guest_dev,
                 (uint64_t)(uintptr_t)realDevice);
+            set_device_pd((uint64_t)(uintptr_t)realDevice, realPD);
             LOGI("Host: mapped guest Dev %llu -> host %p",
                 (unsigned long long)guest_dev,
                 (void*)realDevice);
@@ -778,9 +806,11 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         vkGetBufferMemoryRequirements(realDev, realBuf, &req);
         LOGI("Host: vkGetBufferMemoryRequirements size %d alignment %d type %d",
             req.size, req.alignment, req.memoryTypeBits);
+        
+        LOGI("size is %d", sizeof(VkMemoryRequirements));
 
         write_to_guest_mem(
-            all_para[2].data,
+            all_para[1].data,
             &req,
             0,
             sizeof(VkMemoryRequirements));
@@ -790,6 +820,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     break;
 
     case FUNID_vkAllocateMemory: {
+        LOGI("Host: vkAllocateMemory");
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
 
         int need_free = 0;
@@ -813,6 +844,35 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
 
+        /*如果应用请求的内存类型本身不带 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT，
+        那么在 Host 端调用 vkMapMemory 时就会直接报 VK_ERROR_MEMORY_MAP_FAILED。
+        这一点完全由真实物理设备决定，应用无法绕过。
+        驱动层的兼容补偿通过在分配阶段将 memoryTypeIndex 替换为一个真正可映射的类型，保证后续所有的 vkMapMemory 调用都能成功
+        不会改变vulkan语义。*/ 
+        VkPhysicalDevice hostPD = get_device_pd((uint64_t)(uintptr_t)realDev);
+        if (hostPD != VK_NULL_HANDLE) {
+            VkPhysicalDeviceMemoryProperties memProps;
+            vkGetPhysicalDeviceMemoryProperties(hostPD, &memProps);
+
+            uint32_t reqType = pInfo->memoryTypeIndex;
+            VkMemoryPropertyFlags flags =
+                memProps.memoryTypes[reqType].propertyFlags;
+            LOGI("Requested memoryTypeIndex=%u flags=0x%x",
+                reqType, flags);
+
+            if (!(flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+                for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+                    if (memProps.memoryTypes[i].propertyFlags &
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+                        LOGI("Override memoryTypeIndex %u -> %u (HOST_VISIBLE)",
+                            reqType, i);
+                        pInfo->memoryTypeIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+
         VkDeviceMemory realMem;
         VkResult result = vkAllocateMemory(realDev, pInfo, pAllocator, &realMem);
 
@@ -825,14 +885,13 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkAllocateMemory failed: %d", result);
         }
 
-        write_to_guest_mem(all_para[3].data, &result, 0, sizeof(VkResult));
-
         if (need_free) free(stream);
         free(pInfo);
     }
     break;
 
-    case FUNID_vkMapMemory: { //ztodo:这个指针map之后不知道怎么处理，先这样
+    case FUNID_vkMapMemory: {
+        //ztodo：如果guest是写而不是读，这一步就需要把数据write to guest，暂未实现！！！
         LOGI("Host: vkMapMemory");
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
 
@@ -845,19 +904,23 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkDeviceSize offset = *(VkDeviceSize*)(*ptr); *ptr += sizeof(VkDeviceSize);
         VkDeviceSize size   = *(VkDeviceSize*)(*ptr); *ptr += sizeof(VkDeviceSize);
         VkMemoryMapFlags flags = *(VkMemoryMapFlags*)(*ptr); *ptr += sizeof(VkMemoryMapFlags);
+        LOGI("size of flags is %d", sizeof(VkMemoryMapFlags));
 
-        void** guest_ppData;
-        read_from_guest_mem(all_para[5].data, &guest_ppData, 0, sizeof(void*));
+        // void** guest_ppData;
+        // read_from_guest_mem(all_para[5].data, &guest_ppData, 0, sizeof(void*));
 
         VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
         VkDeviceMemory realMem = (VkDeviceMemory)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_mem);
 
         void* mappedPtr = NULL;
         VkResult result = vkMapMemory(realDev, realMem, offset, size, flags, &mappedPtr);
+        LOGI("real dev %p real mem %p offset %d size %d flags %d",
+            (void*)realDev, (void*)realMem, offset, size, flags);
         if (result != VK_SUCCESS) {
             LOGE("vkMapMemory failed: %d", result);
         } else {
-            write_to_guest_mem(all_para[5].data, &mappedPtr, 0, sizeof(void*));
+            // write_to_guest_mem(all_para[5].data, &mappedPtr, 0, sizeof(void*));
+            set_memory_map((uint64_t)realMem, mappedPtr);
             LOGI("Mapped memory guest %llu -> host %p",
                 (unsigned long long)guest_mem,
                 mappedPtr);
@@ -880,6 +943,21 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
         VkDeviceMemory realMem = (VkDeviceMemory)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_mem);
+
+        void* hostPtr = get_memory_map((uint64_t)realMem);
+        if (hostPtr) {
+            // all_para[1].data 对应 addPtr(mem->map_data, mem->length)
+            // all_para[1].size 存储了 mem->length
+            read_from_guest_mem(
+                all_para[1].data,
+                hostPtr,
+                0,
+                all_para[1].data_len);
+            LOGI("Host: synced %zu bytes to mappedPtr %p",
+                (size_t)all_para[1].data_len, hostPtr);
+        } else {
+            LOGE("Host: no mapping found for guest_mem %llu", guest_mem);
+        }
 
         vkUnmapMemory(realDev, realMem);
 

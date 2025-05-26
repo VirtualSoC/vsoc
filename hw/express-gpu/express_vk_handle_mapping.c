@@ -55,6 +55,61 @@ void clear_mappings(void) {
     }
 }
 
+// maps host VkDeviceMemory handle → host pointer
+typedef struct MemoryMapEntry {
+    uint64_t          host_mem;   // key is now host-side VkDeviceMemory handle
+    void*             host_ptr;
+    UT_hash_handle    hh;
+} MemoryMapEntry;
+
+static MemoryMapEntry* g_memory_map = NULL;
+
+void set_memory_map(uint64_t host_mem, void* mappedPtr) {
+    MemoryMapEntry* e;
+    HASH_FIND(hh, g_memory_map, &host_mem, sizeof(host_mem), e);
+    if (e) {
+        e->host_ptr = mappedPtr;
+    } else {
+        e = malloc(sizeof(*e));
+        e->host_mem = host_mem;
+        e->host_ptr = mappedPtr;
+        HASH_ADD(hh, g_memory_map, host_mem, sizeof(host_mem), e);
+    }
+}
+
+void* get_memory_map(uint64_t host_mem) {
+    MemoryMapEntry* e;
+    HASH_FIND(hh, g_memory_map, &host_mem, sizeof(host_mem), e);
+    return e ? e->host_ptr : NULL;
+}
+
+typedef struct DevPDEntry {
+    uint64_t           host_dev;  // key：host-side VkDevice (pointer value)
+    VkPhysicalDevice   phys;      // value：真实的 VkPhysicalDevice
+    UT_hash_handle     hh;
+} DevPDEntry;
+
+static DevPDEntry* g_devpd_map = NULL;
+
+void set_device_pd(uint64_t host_dev, VkPhysicalDevice phys) {
+    DevPDEntry* e;
+    HASH_FIND(hh, g_devpd_map, &host_dev, sizeof(host_dev), e);
+    if (e) {
+        e->phys = phys;
+    } else {
+        e = malloc(sizeof(*e));
+        e->host_dev = host_dev;
+        e->phys     = phys;
+        HASH_ADD(hh, g_devpd_map, host_dev, sizeof(host_dev), e);
+    }
+}
+
+VkPhysicalDevice get_device_pd(uint64_t host_dev) {
+    DevPDEntry* e;
+    HASH_FIND(hh, g_devpd_map, &host_dev, sizeof(host_dev), e);
+    return e ? e->phys : VK_NULL_HANDLE;
+}
+
 VkInstance map_handle_VkInstance(VkInstance boxed) {
     return (VkInstance)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, (uint64_t)(uintptr_t)boxed);
 }
