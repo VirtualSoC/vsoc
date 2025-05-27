@@ -1002,6 +1002,252 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     }
     break;
 
+    case FUNID_vkCreateShaderModule: {
+        LOGI("Host: vkCreateShaderModule");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+        int need_free = 0;
+        char*     stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr    = (uint8_t**)&stream;
+
+        VkShaderModuleCreateInfo* pInfo = malloc(sizeof(VkShaderModuleCreateInfo));
+        decode_from_stream_VkShaderModuleCreateInfo(
+            VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            pInfo,
+            ptr);
+
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(
+                VK_STRUCTURE_TYPE_MAX_ENUM,
+                &allocStruct,
+                ptr);
+            pAllocator = &allocStruct;
+        }
+
+        uint64_t guest_dev     = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_module  = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+
+        VkDevice realDev = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+
+        VkShaderModule realModule;
+        VkResult result = vkCreateShaderModule(
+            realDev,
+            pInfo,
+            pAllocator,
+            &realModule);
+
+        if (result == VK_SUCCESS) {
+            insert_mapping(
+                EXPRESS_VK_OBJECT_TYPE_SHADER_MODULE,
+                guest_module,
+                (uint64_t)(uintptr_t)realModule);
+            LOGI("Mapped ShaderModule guest %llu -> host %p",
+                (unsigned long long)guest_module,
+                (void*)realModule);
+        } else {
+            LOGE("vkCreateShaderModule failed: %d", result);
+        }
+        if (need_free) free(stream);
+        free(pInfo);
+    }
+    break;
+
+    case FUNID_vkCreatePipelineLayout: {
+        LOGI("Host: vkCreatePipelineLayout");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+        int need_free = 0;
+        char*     stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr    = (uint8_t**)&stream;
+
+        VkPipelineLayoutCreateInfo* pInfo = malloc(sizeof(VkPipelineLayoutCreateInfo));
+        decode_from_stream_VkPipelineLayoutCreateInfo(
+            VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            pInfo,
+            ptr);
+
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(
+                VK_STRUCTURE_TYPE_MAX_ENUM,
+                &allocStruct,
+                ptr);
+            pAllocator = &allocStruct;
+        }
+
+        uint64_t guest_dev     = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint64_t guest_layout  = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+
+        VkDevice realDev = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+
+        VkPipelineLayout realLayout;
+        VkResult result = vkCreatePipelineLayout(
+            realDev,
+            pInfo,
+            pAllocator,
+            &realLayout);
+
+        if (result == VK_SUCCESS) {
+            insert_mapping(
+                EXPRESS_VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+                guest_layout,
+                (uint64_t)(uintptr_t)realLayout);
+            LOGI("Mapped PipelineLayout guest %llu -> host %p",
+                (unsigned long long)guest_layout,
+                (void*)realLayout);
+        } else {
+            LOGE("vkCreatePipelineLayout failed: %d", result);
+        }
+
+        if (need_free) free(stream);
+        free(pInfo);
+    }
+    break;
+
+    case FUNID_vkCreatePipelineCache: {
+        LOGI("Host: vkCreatePipelineCache");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+        int need_free = 0;
+        char*     stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr    = (uint8_t**)&stream;
+
+        VkPipelineCacheCreateInfo* pInfo = malloc(sizeof(VkPipelineCacheCreateInfo));
+        decode_from_stream_VkPipelineCacheCreateInfo(
+            VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO,
+            pInfo,
+            ptr);
+
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(
+                VK_STRUCTURE_TYPE_MAX_ENUM,
+                &allocStruct,
+                ptr);
+            pAllocator = &allocStruct;
+        }
+
+        uint64_t guest_dev    = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_cache  = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+
+        VkDevice realDev = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+
+        VkPipelineCache realCache;
+        VkResult result = vkCreatePipelineCache(
+            realDev,
+            pInfo,
+            pAllocator,
+            &realCache);
+
+        if (result == VK_SUCCESS) {
+            insert_mapping(
+                EXPRESS_VK_OBJECT_TYPE_PIPELINE_CACHE,
+                guest_cache,
+                (uint64_t)(uintptr_t)realCache);
+            LOGI("Mapped PipelineCache guest %llu -> host %p",
+                (unsigned long long)guest_cache,
+                (void*)realCache);
+        } else {
+            LOGE("vkCreatePipelineCache failed: %d", result);
+        }
+
+        if (need_free) free(stream);
+        free(pInfo);
+    }
+    break;
+
+    case FUNID_vkCreateGraphicsPipelines: {
+        LOGI("Host: vkCreateGraphicsPipelines request");
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+
+        int need_free = 0;
+        char*     stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr    = (uint8_t**)&stream;
+
+        uint64_t guest_dev     = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_pipelineCache   = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t createInfoCount     = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        // createInfoCount     = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        LOGI("Host: vkCreateGraphicsPipelines createInfoCount = %u guest dev %lld cache %lld", createInfoCount, (long long)guest_dev, (long long)guest_pipelineCache);
+
+        // 2) Decode each VkGraphicsPipelineCreateInfo from the buffer
+        VkGraphicsPipelineCreateInfo* infos =
+            malloc(sizeof(VkGraphicsPipelineCreateInfo) * createInfoCount);
+        for (uint32_t i = 0; i < createInfoCount; i++) {
+            memset(&infos[i], 0, sizeof(VkGraphicsPipelineCreateInfo));
+            decode_from_stream_VkGraphicsPipelineCreateInfo(
+                VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+                &infos[i],
+                ptr);
+        }
+        LOGI("Decoded %u VkGraphicsPipelineCreateInfo structures", createInfoCount);
+
+        // 3) Decode allocator pointer and callbacks at end of buffer
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct, *pAllocator = NULL;
+        LOGI("Guest allocator pointer: %llu", (unsigned long long)guest_alloc_ptr);
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(
+                VK_STRUCTURE_TYPE_MAX_ENUM,
+                &allocStruct,
+                ptr);
+            pAllocator = &allocStruct;
+        }
+
+        if (need_free) free(stream);
+
+        // 4) Map guest handles to host
+        VkDevice       realDev    = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+        VkPipelineCache realCache = (VkPipelineCache)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PIPELINE_CACHE, guest_pipelineCache);
+
+        // 5) Call the real Vulkan function
+        VkPipeline* hostPipelines = malloc(sizeof(VkPipeline) * createInfoCount);
+        VkResult result = vkCreateGraphicsPipelines(
+            realDev,
+            realCache,
+            createInfoCount,
+            infos,
+            pAllocator,
+            hostPipelines);
+
+        // 6) On error, log; on success, insert mappings
+        if (result != VK_SUCCESS) {
+            LOGE("vkCreateGraphicsPipelines failed: %d", result);
+        } else {
+            for (uint32_t i = 0; i < createInfoCount; i++) {
+                uint64_t guest_pipe = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+                insert_mapping(
+                    EXPRESS_VK_OBJECT_TYPE_PIPELINE,
+                    guest_pipe,
+                    (uint64_t)(uintptr_t)hostPipelines[i]);
+                LOGI("Mapped GraphicsPipeline guest %llu -> host %p",
+                    (unsigned long long)guest_pipe,
+                    (void*)hostPipelines[i]);
+            }
+            LOGI("Mapped %u VkPipelines", createInfoCount);
+        }
+
+        free(infos);
+        free(hostPipelines);
+    }
+    break;
 
     }
     call->callback(call, 1);

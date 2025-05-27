@@ -4227,7 +4227,7 @@ size_t express_vk_extension_struct_size_with_stream_features(uint32_t streamFeat
         }
 #endif
         default: {
-            LOGE("Unhandled Vulkan structure type, aborting.");
+            LOGE("Unhandled Vulkan structure type, aborting. Type: %d", structType);
             return (size_t)0;
         }
     }

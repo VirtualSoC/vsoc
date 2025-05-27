@@ -48,6 +48,7 @@ void zmalloc(void** ptr, size_t size) {
     if (*ptr == NULL) {
         LOGE("malloc failed");
     }
+    // memset(*ptr, 0, size);
 } 
 void loadStringInPlaceWithStreamPtr(char** forOutput, uint8_t** streamPtr) {
     uint32_t len;
@@ -2410,7 +2411,10 @@ void decode_from_stream_VkGraphicsPipelineCreateInfo(VkStructureType rootType,
             ptr);
     }
 
-    if (forUnmarshaling->pVertexInputState) {
+    memcpy((VkPipelineTessellationStateCreateInfo**)&forUnmarshaling->pVertexInputState, (*ptr),
+           8);
+    *ptr += 8;
+    if (forUnmarshaling->pVertexInputState) { //ztodo:里肯定不能这么写，需要有个标志判断它是否有
         zmalloc((void**)&forUnmarshaling->pVertexInputState,
                         sizeof(const VkPipelineVertexInputStateCreateInfo));
         decode_from_stream_VkPipelineVertexInputStateCreateInfo(
@@ -2418,6 +2422,9 @@ void decode_from_stream_VkGraphicsPipelineCreateInfo(VkStructureType rootType,
             (VkPipelineVertexInputStateCreateInfo*)(forUnmarshaling->pVertexInputState), ptr);
     }
 
+    memcpy((VkPipelineTessellationStateCreateInfo**)&forUnmarshaling->pInputAssemblyState, (*ptr),
+           8);
+    *ptr += 8;
     if (forUnmarshaling->pInputAssemblyState) {
         zmalloc((void**)&forUnmarshaling->pInputAssemblyState,
                         sizeof(const VkPipelineInputAssemblyStateCreateInfo));
@@ -2455,6 +2462,9 @@ void decode_from_stream_VkGraphicsPipelineCreateInfo(VkStructureType rootType,
         }
     }
 
+    memcpy((VkPipelineTessellationStateCreateInfo**)&forUnmarshaling->pRasterizationState, (*ptr),
+           8);
+    *ptr += 8;
     if (forUnmarshaling->pRasterizationState) {
         zmalloc((void**)&forUnmarshaling->pRasterizationState,
                         sizeof(const VkPipelineRasterizationStateCreateInfo));
