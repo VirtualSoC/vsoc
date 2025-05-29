@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <assert.h>
+#include "hw/teleport-express/express_log.h"
 
 #include "hw/express-gpu/uthash.h"
 
@@ -43,6 +44,7 @@ uint64_t lookup_mapping(ExpressVkObjectType type, uint64_t guest_id) {
     if (e && e->type == type) {
         return e->host_id;
     }
+    LOGE("lookup mapping failed! Type: %d, Guest ID: %llu", type, (unsigned long long)guest_id);
     return 0;
 }
 
