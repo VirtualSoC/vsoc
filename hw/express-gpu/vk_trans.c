@@ -1499,6 +1499,619 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     }
     break;
 
+    case FUNID_vkCmdDraw: {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t vertexCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t instanceCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t firstVertex = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t firstInstance = *(uint32_t*)(*ptr);
+        
+        VkCommandBuffer realCmd = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
+        
+        vkCmdDraw(realCmd, vertexCount, instanceCount, firstVertex, firstInstance);
+        
+        LOGI("CmdDraw executed cmd=%p vertices=%d", (void*)realCmd, vertexCount);
+        
+        if (need_free) free(stream);
+        
+    }
+    break;
+
+    case FUNID_vkCmdEndRenderPass: {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd = *(uint64_t*)(*ptr);
+        
+        VkCommandBuffer realCmd = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
+        
+        vkCmdEndRenderPass(realCmd);
+        
+        LOGI("CmdEndRenderPass executed cmd=%p", (void*)realCmd);
+        
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkEndCommandBuffer: {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd = *(uint64_t*)(*ptr);
+        
+        VkCommandBuffer realCmd = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
+        
+        VkResult result = vkEndCommandBuffer(realCmd);
+        
+        LOGI("EndCommandBuffer executed cmd=%p result=%d", (void*)realCmd, result);
+        
+        if (need_free) free(stream); 
+    }
+    break;
+
+    case FUNID_vkCreateFence: {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        VkFenceCreateInfo* pInfo = malloc(sizeof(VkFenceCreateInfo));
+        decode_from_stream_VkFenceCreateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, pInfo, ptr);
+        
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+        
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_fence = *(uint64_t*)(*ptr);
+        
+        VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+        VkFence realFence;
+        
+        VkResult result = vkCreateFence(realDev, pInfo, pAllocator, &realFence);
+        if (result == VK_SUCCESS) {
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, guest_fence, (uint64_t)(uintptr_t)realFence);
+            LOGI("Mapped Fence guest=%llu host=%p", (unsigned long long)guest_fence, (void*)realFence);
+        } else {
+            LOGI("vkCreateFence failed: %d", result);
+        }
+        
+        if (need_free) free(stream);
+        free(pInfo);
+    }
+    break;
+
+    case FUNID_vkCreateSemaphore: {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        VkSemaphoreCreateInfo* pInfo = malloc(sizeof(VkSemaphoreCreateInfo));
+        decode_from_stream_VkSemaphoreCreateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, pInfo, ptr);
+        
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+        
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_semaphore = *(uint64_t*)(*ptr);
+        
+        VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+        VkSemaphore realSemaphore;
+        
+        VkResult result = vkCreateSemaphore(realDev, pInfo, pAllocator, &realSemaphore);
+        if (result == VK_SUCCESS) {
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_SEMAPHORE, guest_semaphore, (uint64_t)(uintptr_t)realSemaphore);
+            LOGI("Mapped Semaphore guest=%llu host=%p", (unsigned long long)guest_semaphore, (void*)realSemaphore);
+        } else {
+            LOGI("vkCreateSemaphore failed: %d", result);
+        }
+        
+        if (need_free) free(stream);
+        free(pInfo);
+        break;
+    }
+
+    case FUNID_vkAcquireNextImageKHR:{
+        LOGI("Host: vkAcquireNextImageKHR");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_swapchain = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t timeout = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_semaphore = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_fence = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkSwapchainKHR swapchain = (VkSwapchainKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR, guest_swapchain);
+        VkSemaphore semaphore = guest_semaphore ? (VkSemaphore)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SEMAPHORE, guest_semaphore) : VK_NULL_HANDLE;
+        VkFence fence = guest_fence ? (VkFence)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, guest_fence) : VK_NULL_HANDLE;
+        
+        uint32_t imageIndex;
+        VkResult result = vkAcquireNextImageKHR(device, swapchain, timeout, semaphore, fence, &imageIndex);
+        
+        write_to_guest_mem(all_para[1].data, &imageIndex, 0, sizeof(uint32_t));
+        
+        LOGI("Host: vkAcquireNextImageKHR result=%d imageIndex=%d", result, imageIndex); 
+    }
+    break;
+
+    case FUNID_vkResetFences: {
+        LOGI("Host: vkResetFences");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t fenceCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkFence* fences = NULL;
+        if (fenceCount > 0) {
+            fences = (VkFence*)malloc(fenceCount * sizeof(VkFence));
+            uint64_t* guest_fences = (uint64_t*)(*ptr);
+            for (uint32_t i = 0; i < fenceCount; ++i) {
+                fences[i] = (VkFence)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, guest_fences[i]);
+                LOGI("get Mapped Fence guest %llu -> host %p", (unsigned long long)guest_fences[i], (void*)fences[i]);
+            }
+        }
+        
+        VkResult result = vkResetFences(device, fenceCount, fences);
+        
+        if (fences) free(fences);
+        
+        LOGI("Host: vkResetFences result=%d fenceCount=%d", result, fenceCount);
+    }
+    break;
+
+    case FUNID_vkQueueSubmit: {
+        LOGI("Host: vkQueueSubmit");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_queue = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t submitCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint64_t guest_fence = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        
+        VkQueue queue = (VkQueue)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUEUE, guest_queue);
+        VkFence fence = guest_fence ? (VkFence)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, guest_fence) : VK_NULL_HANDLE;
+        
+        VkSubmitInfo* pSubmits = NULL;
+        if (submitCount > 0) {
+            pSubmits = (VkSubmitInfo*)malloc(submitCount * sizeof(VkSubmitInfo));
+            char* data_ptr = (char*)(*ptr);
+            
+            for (uint32_t i = 0; i < submitCount; ++i) {
+                memcpy(&pSubmits[i], data_ptr, sizeof(VkSubmitInfo));
+                data_ptr += sizeof(VkSubmitInfo);
+                
+                if (pSubmits[i].waitSemaphoreCount > 0) {
+                    VkSemaphore* waitSems = (VkSemaphore*)malloc(pSubmits[i].waitSemaphoreCount * sizeof(VkSemaphore));
+                    uint64_t* guest_sems = (uint64_t*)data_ptr;
+                    for (uint32_t j = 0; j < pSubmits[i].waitSemaphoreCount; ++j) {
+                        waitSems[j] = (VkSemaphore)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SEMAPHORE, guest_sems[j]);
+                    }
+                    pSubmits[i].pWaitSemaphores = waitSems;
+                    data_ptr += pSubmits[i].waitSemaphoreCount * sizeof(uint64_t);
+                    
+                    if (pSubmits[i].pWaitDstStageMask) {
+                        pSubmits[i].pWaitDstStageMask = (VkPipelineStageFlags*)data_ptr;
+                        data_ptr += pSubmits[i].waitSemaphoreCount * sizeof(VkPipelineStageFlags);
+                    }
+                }
+                
+                if (pSubmits[i].commandBufferCount > 0) {
+                    VkCommandBuffer* cmdBufs = (VkCommandBuffer*)malloc(pSubmits[i].commandBufferCount * sizeof(VkCommandBuffer));
+                    uint64_t* guest_cmds = (uint64_t*)data_ptr;
+                    for (uint32_t j = 0; j < pSubmits[i].commandBufferCount; ++j) {
+                        cmdBufs[j] = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmds[j]);
+                    }
+                    pSubmits[i].pCommandBuffers = cmdBufs;
+                    data_ptr += pSubmits[i].commandBufferCount * sizeof(uint64_t);
+                }
+                
+                if (pSubmits[i].signalSemaphoreCount > 0) {
+                    VkSemaphore* signalSems = (VkSemaphore*)malloc(pSubmits[i].signalSemaphoreCount * sizeof(VkSemaphore));
+                    uint64_t* guest_sems = (uint64_t*)data_ptr;
+                    for (uint32_t j = 0; j < pSubmits[i].signalSemaphoreCount; ++j) {
+                        signalSems[j] = (VkSemaphore)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SEMAPHORE, guest_sems[j]);
+                    }
+                    pSubmits[i].pSignalSemaphores = signalSems;
+                    data_ptr += pSubmits[i].signalSemaphoreCount * sizeof(uint64_t);
+                }
+            }
+        }
+        
+        VkResult result = vkQueueSubmit(queue, submitCount, pSubmits, fence);
+        
+        if (pSubmits) {
+            for (uint32_t i = 0; i < submitCount; ++i) {
+                if (pSubmits[i].pWaitSemaphores) free((void*)pSubmits[i].pWaitSemaphores);
+                if (pSubmits[i].pCommandBuffers) free((void*)pSubmits[i].pCommandBuffers);
+                if (pSubmits[i].pSignalSemaphores) free((void*)pSubmits[i].pSignalSemaphores);
+            }
+            free(pSubmits);
+        }
+        
+        LOGI("Host: vkQueueSubmit result=%d submitCount=%d", result, submitCount);
+    }
+    break;
+
+    case FUNID_vkWaitForFences:
+    {
+        LOGI("Host: vkWaitForFences");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t fenceCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        VkBool32 waitAll = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint64_t timeout = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkFence* fences = NULL;
+        if (fenceCount > 0) {
+            fences = (VkFence*)malloc(fenceCount * sizeof(VkFence));
+            uint64_t* guest_fences = (uint64_t*)(*ptr);
+            for (uint32_t i = 0; i < fenceCount; ++i) {
+                fences[i] = (VkFence)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, guest_fences[i]);
+            }
+        }
+        
+        VkResult result = vkWaitForFences(device, fenceCount, fences, waitAll, timeout);
+        
+        if (fences) free(fences);
+        
+        LOGI("Host: vkWaitForFences result=%d fenceCount=%d waitAll=%d", result, fenceCount, waitAll);
+        break;
+    }
+
+    case FUNID_vkQueuePresentKHR:
+    {
+        LOGI("Host: vkQueuePresentKHR request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_queue = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkQueue queue = (VkQueue)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUEUE, guest_queue);
+        
+        VkPresentInfoKHR presentInfo;
+        decode_from_stream_VkPresentInfoKHR(VK_STRUCTURE_TYPE_MAX_ENUM, &presentInfo, ptr);
+        
+        LOGI("Host: vkQueuePresentKHR queue=%lld swapchainCount=%d", 
+            (uint64_t)(uintptr_t)queue, presentInfo.swapchainCount);
+        
+        VkResult result = vkQueuePresentKHR(queue, &presentInfo);
+        
+        LOGI("Host: vkQueuePresentKHR result=%d", result);
+        
+        if (need_free) free(stream);
+        break;
+    }
+
+
+/*
+not tested yet!
+    case FUNID_vkFreeCommandBuffers:
+    {
+        LOGI("Host: vkFreeCommandBuffers");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_pool = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t bufferCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkCommandPool commandPool = (VkCommandPool)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_POOL, guest_pool);
+        
+        VkCommandBuffer* commandBuffers = NULL;
+        if (bufferCount > 0) {
+            commandBuffers = (VkCommandBuffer*)malloc(bufferCount * sizeof(VkCommandBuffer));
+            uint64_t* guest_buffers = (uint64_t*)(*ptr);
+            for (uint32_t i = 0; i < bufferCount; ++i) {
+                commandBuffers[i] = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_buffers[i]);
+                remove_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_buffers[i]);
+            }
+        }
+        
+        vkFreeCommandBuffers(device, commandPool, bufferCount, commandBuffers);
+        
+        if (commandBuffers) free(commandBuffers);
+        
+        LOGI("Host: vkFreeCommandBuffers device=%lld pool=%lld count=%d", 
+            (long long)guest_device, (long long)guest_pool, bufferCount);
+    }
+    break;
+
+    case FUNID_vkQueueSubmit2: {
+        LOGI("Host: vkQueueSubmit2");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_queue = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t submitCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint64_t guest_fence = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+
+        VkQueue queue = (VkQueue)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUEUE, guest_queue);
+        VkFence fence = guest_fence ? (VkFence)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, guest_fence) : VK_NULL_HANDLE;
+
+        VkSubmitInfo2* pSubmits = NULL;
+        if (submitCount > 0) {
+            pSubmits = (VkSubmitInfo2*)malloc(submitCount * sizeof(VkSubmitInfo2));
+            for (uint32_t i = 0; i < submitCount; ++i) {
+                decode_from_stream_VkSubmitInfo2(VK_STRUCTURE_TYPE_MAX_ENUM, &pSubmits[i], ptr);
+            }
+        }
+
+        VkResult result = vkQueueSubmit2(queue, submitCount, pSubmits, fence);
+        if (pSubmits) free(pSubmits);
+        LOGI("Host: vkQueueSubmit2 result=%d submitCount=%d", result, submitCount);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkQueueWaitIdle: {
+        LOGI("Host: vkQueueWaitIdle");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_queue = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkQueue queue = (VkQueue)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUEUE, guest_queue);
+        VkResult result = vkQueueWaitIdle(queue);
+        LOGI("Host: vkQueueWaitIdle result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkResetCommandBuffer: {
+        LOGI("Host: vkResetCommandBuffer");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_cmd_buf = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkCommandBufferResetFlags flags = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        VkCommandBuffer cmd_buf = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd_buf);
+        VkResult result = vkResetCommandBuffer(cmd_buf, flags);
+        LOGI("Host: vkResetCommandBuffer result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkResetCommandPool: {
+        LOGI("Host: vkResetCommandPool");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_pool = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkCommandPoolResetFlags flags = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkCommandPool pool = (VkCommandPool)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_POOL, guest_pool);
+        VkResult result = vkResetCommandPool(device, pool, flags);
+        LOGI("Host: vkResetCommandPool result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkResetDescriptorPool: {
+        LOGI("Host: vkResetDescriptorPool");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_pool = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkDescriptorPoolResetFlags flags = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkDescriptorPool pool = (VkDescriptorPool)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_POOL, guest_pool);
+        VkResult result = vkResetDescriptorPool(device, pool, flags);
+        LOGI("Host: vkResetDescriptorPool result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkResetEvent: {
+        LOGI("Host: vkResetEvent");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_event = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkEvent event = (VkEvent)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_EVENT, guest_event);
+        VkResult result = vkResetEvent(device, event);
+        LOGI("Host: vkResetEvent result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkResetQueryPool: {
+        LOGI("Host: vkResetQueryPool");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_pool = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t firstQuery = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t queryCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkQueryPool pool = (VkQueryPool)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUERY_POOL, guest_pool);
+        vkResetQueryPool(device, pool, firstQuery, queryCount);
+        LOGI("Host: vkResetQueryPool device=%p pool=%p firstQuery=%u queryCount=%u", (void*)device, (void*)pool, firstQuery, queryCount);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkSetEvent: {
+        LOGI("Host: vkSetEvent");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_event = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkEvent event = (VkEvent)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_EVENT, guest_event);
+        VkResult result = vkSetEvent(device, event);
+        LOGI("Host: vkSetEvent result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkSetPrivateData: {
+        LOGI("Host: vkSetPrivateData");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t objectType = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint64_t objectHandle = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t privateDataSlot = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t data = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkResult result = vkSetPrivateData(device, (VkObjectType)objectType, (uint64_t)objectHandle, (VkPrivateDataSlot)privateDataSlot, data);
+        LOGI("Host: vkSetPrivateData result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkSignalSemaphore: {
+        LOGI("Host: vkSignalSemaphore");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_semaphore = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkSemaphoreSignalInfo signalInfo;
+        decode_from_stream_VkSemaphoreSignalInfo(VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, &signalInfo, ptr);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkResult result = vkSignalSemaphore(device, &signalInfo);
+        LOGI("Host: vkSignalSemaphore result=%d", result);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkAcquireNextImage2KHR: {
+        LOGI("Host: vkAcquireNextImage2KHR");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        VkAcquireNextImageInfoKHR* pInfo = malloc(sizeof(VkAcquireNextImageInfoKHR));
+        decode_from_stream_VkAcquireNextImageInfoKHR(VK_STRUCTURE_TYPE_MAX_ENUM, pInfo, ptr);
+
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+
+        uint32_t imageIndex = 0;
+        VkResult result = vkAcquireNextImage2KHR(device, pInfo, &imageIndex);
+
+        write_to_guest_mem(all_para[1].data, &imageIndex, 0, sizeof(uint32_t));
+        LOGI("vkAcquireNextImage2KHR result=%d imageIndex=%u", result, imageIndex);
+
+        if (need_free) free(stream);
+        free(pInfo);
+    }
+    break;
+
+    case FUNID_vkAllocateDescriptorSets: {
+        LOGI("Host: vkAllocateDescriptorSets");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        VkDescriptorSetAllocateInfo* pInfo = malloc(sizeof(VkDescriptorSetAllocateInfo));
+        decode_from_stream_VkDescriptorSetAllocateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, pInfo, ptr);
+
+        uint64_t guest_dev = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+
+        VkDescriptorSet* realSets = malloc(pInfo->descriptorSetCount * sizeof(VkDescriptorSet));
+        VkResult result = vkAllocateDescriptorSets(realDev, pInfo, realSets);
+
+        if (result == VK_SUCCESS) {
+            for (uint32_t i = 0; i < pInfo->descriptorSetCount; ++i) {
+                uint64_t guest_set = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, guest_set, (uint64_t)(uintptr_t)realSets[i]);
+                LOGI("Mapped DescriptorSet %d guest %llu -> host %p", i, (unsigned long long)guest_set, (void*)realSets[i]);
+            }
+        } else {
+            LOGE("vkAllocateDescriptorSets failed: %d", result);
+        }
+
+        free(realSets);
+        if (need_free) free(stream);
+        free(pInfo);
+    }
+    break;
+*/
     }
     call->callback(call, 1);
 }

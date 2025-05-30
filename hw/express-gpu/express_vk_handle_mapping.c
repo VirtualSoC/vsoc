@@ -48,13 +48,23 @@ uint64_t lookup_mapping(ExpressVkObjectType type, uint64_t guest_id) {
     return 0;
 }
 
-// 清空所有映射，用于销毁时释放内存
 void clear_mappings(void) {
     ExpressObjectEntry *current, *tmp;
     HASH_ITER(hh, g_map, current, tmp) {
         HASH_DEL(g_map, current);
         free(current);
     }
+}
+
+int remove_mapping(ExpressVkObjectType type, uint64_t guest_id) {
+    ExpressObjectEntry *e;
+    HASH_FIND(hh, g_map, &guest_id, sizeof(guest_id), e);
+    if (e && e->type == type) {
+        HASH_DEL(g_map, e);
+        free(e);
+        return 1;
+    }
+    return 0;
 }
 
 // maps host VkDeviceMemory handle → host pointer
