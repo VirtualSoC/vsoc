@@ -129,7 +129,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         return EGL_FALSE;
     }
     thread_context->opengl_context = real_opengl_context;
-    LOGI("(%s) makecurrent opengl_context %llx guest_context %llx window %llx", process_context->guest_process_name, (uint64_t)real_opengl_context, (uint64_t)ctx, (uint64_t)real_opengl_context->window);
 
     if (real_opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
