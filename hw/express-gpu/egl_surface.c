@@ -13,6 +13,7 @@
 // #define TIMER_LOG
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/egl_display.h"
+#include "hw/express-gpu/egl_draw.h"
 
 #include "hw/express-gpu/express_gpu_main_window.h"
 #include "hw/express-gpu/express_gpu.h"
@@ -1173,28 +1174,15 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
         if (thread_context->opengl_context != share_opengl_context)
         {
             //假如现在opengl不对
-            LOGE("error! eglCreateImage share texture get different opengl_context %llx %llx", (uint64_t)thread_context->opengl_context, (uint64_t)share_opengl_context);
-            if (share_opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-            {
-                glfwMakeContextCurrent((GLFWwindow *)share_opengl_context->window);
-            }
-            else
-            {
-                egl_makeCurrent(share_opengl_context->window);
-            }
+            LOGI("eglCreateImage share texture get different opengl_context %llx share %llx is_current %d", (uint64_t)thread_context->opengl_context, (uint64_t)share_opengl_context, share_opengl_context->is_current);
+            make_opengl_current(share_opengl_context, true);
         }
         gbuffer->data_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        // glFinish();
 
-        if (thread_context->opengl_context == NULL)
-        {
-            if (share_opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-            {
-                glfwMakeContextCurrent(NULL);
-            }
-            else
-            {
-                egl_makeCurrent(NULL);
+        if (thread_context->opengl_context != share_opengl_context) {
+            make_opengl_current(share_opengl_context, false);
+            if (thread_context->opengl_context != NULL && thread_context->opengl_context->is_current) {
+                make_opengl_current(thread_context->opengl_context, true);
             }
         }
 

@@ -1,5 +1,6 @@
 // #define STD_DEBUG_LOG
 // #define TIMER_LOG
+#include "hw/express-gpu/egl_draw.h"
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/glv3_resource.h"
 #include "hw/express-gpu/glv3_program.h"
@@ -610,14 +611,7 @@ void opengl_context_destroy(Opengl_Context *context)
     g_free(texture_status->guest_current_texture_buffer);
     g_free(texture_status->host_current_texture_buffer);
 
-    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-    {
-        glfwMakeContextCurrent((GLFWwindow *)opengl_context->window);
-    }
-    else
-    {
-        egl_makeCurrent(opengl_context->window);
-    }
+    make_opengl_current(opengl_context, true);
 
     //这两个个都有默认的销毁函数
     g_hash_table_destroy(opengl_context->buffer_map);
@@ -658,16 +652,7 @@ void opengl_context_destroy(Opengl_Context *context)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
-    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-    {
-        glfwHideWindow(opengl_context->window);
-        glfwMakeContextCurrent(NULL);
-    }
-    else
-    {
-        express_printf("context %llx windows %llx makecurrent null\n", (uint64_t)opengl_context, opengl_context->window);
-        egl_makeCurrent(NULL);
-    }
+    make_opengl_current(opengl_context, false);
 
     if ((opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) && (opengl_context->debug_message_buffer))
     {

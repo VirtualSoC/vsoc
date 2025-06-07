@@ -18,11 +18,6 @@ EGLBoolean d_eglTerminate(void *context, EGLDisplay dpy)
     // g_hash_table_remove_all(process_context->native_window_surface_map);
     // g_hash_table_remove_all(process_context->gbuffer_image_map);
 
-    // 此时不能设为空，不然makecurrent NULL的时候就无法销毁相关资源了
-    // thread_context->opengl_context = NULL;
-    // thread_context->render_double_buffer_read = NULL;
-    // thread_context->render_double_buffer_draw = NULL;
-
     express_printf("eglTerminate context %llx\n", (uint64_t)thread_context->opengl_context);
     return GL_TRUE;
 }

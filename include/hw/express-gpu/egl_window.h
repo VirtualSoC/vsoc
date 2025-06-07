@@ -6,7 +6,7 @@ void *egl_createContext(int context_flags);
 
 /**
  * Attempt to make current the context specified.
- * return 0 on success, or a platform-dependent code on error.
+ * return EGL_TRUE on success, or a platform-dependent code on error.
 */
 int egl_makeCurrent(void *context);
 void egl_destroyContext(void *context);

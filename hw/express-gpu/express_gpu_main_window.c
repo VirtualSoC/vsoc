@@ -349,13 +349,13 @@ static void handle_child_window_event(void)
             LOGD("child window message %d not handled", child_event->event_code);
             break;
         }
-        g_free(child_event);
         int64_t end_time = g_get_real_time();
         if (end_time - start_time > 20000 && child_event != NULL)
         {
             LOGW("slow child event %d, spent %lld ms queue_size %d", child_event->event_code, (end_time - start_time) / 1000, g_async_queue_length(main_window_event_queue));
         }
 
+        g_free(child_event);
         child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
     }
     return;

@@ -6,6 +6,43 @@
 #include "hw/express-gpu/glv3_context.h"
 #include "hw/express-gpu/express_gpu_main_window.h"
 
+/**
+ * @brief 将OpenGL上下文设置为当前上下文
+ * @param opengl_context OpenGL上下文
+ * @param current 需要绑定还是解绑定
+
+ * @return 返回EGL_TRUE表示成功，其余表示失败
+ */
+int make_opengl_current(Opengl_Context *opengl_context, bool current) {
+    if (opengl_context == NULL) {
+        return -1;
+    }
+
+    void *window;
+    if (current) {
+        window = opengl_context->window;
+    } else {
+        window = NULL;
+    }
+
+    int ret = EGL_TRUE;
+    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT) {
+        // 在独立模式下，使用glfwMakeContextCurrent
+        glfwMakeContextCurrent((GLFWwindow *)window);
+    } else {
+        // 在EGL模式下，使用egl_makeCurrent
+        ret = egl_makeCurrent(window);
+    }
+
+    if (current) {
+        opengl_context->is_current = 1;
+    } else {
+        opengl_context->is_current = 0;
+    }
+
+    return ret;
+}
+
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format)
 {
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;
@@ -75,30 +112,33 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         if (thread_context->opengl_context != NULL)
         {
             express_printf("thread %llx context %llx window %llx makecurrent null\n", thread_context, thread_context->opengl_context, thread_context->opengl_context->window);
-        }
-        if (thread_context->opengl_context != NULL && thread_context->opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-        {
-            glfwMakeContextCurrent(NULL);
-        }
-        else
-        {
-            egl_makeCurrent(NULL);
+            make_opengl_current(thread_context->opengl_context, false);
         }
 
+        LOGI("thread %llx context %llx makecurrent null", thread_context, thread_context->opengl_context);
         thread_context->opengl_context = NULL;
         thread_context->render_double_buffer_draw = NULL;
         thread_context->render_double_buffer_read = NULL;
         return EGL_TRUE;
     }
 
+    LOGD("thread %llx context %llx makecurrent window %llx", thread_context, real_opengl_context, real_opengl_context->window);
+
+    if (make_opengl_current(real_opengl_context, true) != EGL_TRUE) {
+        LOGE("error! makecurrent opengl_context %llx failed", real_opengl_context);
+        return EGL_FALSE;
+    }
+    thread_context->opengl_context = real_opengl_context;
+    LOGI("(%s) makecurrent opengl_context %llx guest_context %llx window %llx", process_context->guest_process_name, (uint64_t)real_opengl_context, (uint64_t)ctx, (uint64_t)real_opengl_context->window);
+
     if (real_opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
     {
-        glfwMakeContextCurrent((GLFWwindow *)real_opengl_context->window);
         if (real_surface_draw != NULL && real_surface_draw->type == WINDOW_SURFACE && real_surface_draw->width > 10 && real_surface_draw->height > 10)
         {
+            LOGI("(%s) independent window width %d height %d width %d height %d", process_context->guest_process_name, real_surface_draw->width, real_surface_draw->height, width, height);
+
             THREAD_CONTROL_BEGIN
 
-            LOGI("(%s) independent window width %d height %d width %d height %d", process_context->guest_process_name, real_surface_draw->width, real_surface_draw->height, width, height);
             glfwSetWindowSize(real_opengl_context->window, width, height);
             glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_FALSE);
             glfwShowWindow((GLFWwindow *)real_opengl_context->window);
@@ -114,11 +154,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
             THREAD_CONTROL_END
         }
-    }
-    else
-    {
-        LOGD("thread %llx context %llx makecurrent window %llx", thread_context, real_opengl_context, real_opengl_context->window);
-        if (egl_makeCurrent(real_opengl_context->window) != EGL_TRUE) return EGL_FALSE;
     }
 
     if (express_gpu_gl_debug_enable || real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
@@ -143,12 +178,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         real_surface_draw->is_current = 1;
         real_surface_draw->frame_start_time = 0;
     }
-    thread_context->opengl_context = real_opengl_context;
-    real_opengl_context->is_current = 1;
-    // real_opengl_context->draw_surface = real_surface_read;
-
-    // LOGI("#%llx makecurrent draw surface %llx",real_opengl_context, real_surface_draw);
-    // 窗口大小设置一定要在init之前
 
     if (gbuffer_id != 0)
     {

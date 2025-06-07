@@ -7,6 +7,7 @@
 
 #include "hw/express-gpu/egl.h"
 
+int make_opengl_current(Opengl_Context *opengl_context, bool current);
 
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read,
                                     EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format);
