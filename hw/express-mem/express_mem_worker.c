@@ -97,7 +97,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
     if (task->dst_dev == EXPRESS_MEM_TYPE_TEXTURE) {
         mapped_addr = begin_dma_to_gbuffer(task->dst_len);
         if (!mapped_addr) {
-            LOGE("failed to map gbuffer!");
+            LOGE("failed to map gbuffer! glerror %x", glGetError());
             ret = -1;
             goto EXIT;
         }

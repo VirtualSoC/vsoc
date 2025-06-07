@@ -32,7 +32,6 @@
 
 
 GAsyncQueue *main_window_event_queue = NULL;
-int main_window_event_queue_lock = 0;
 
 Static_Context_Values *preload_static_context_value = NULL;
 
@@ -188,7 +187,6 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
     LOGI("notify shutdown! %lld", g_get_real_time());
 
-    ATOMIC_UNLOCK(main_window_event_queue_lock);
     teleport_express_should_stop = true;
     device_interface_run = 0;
 
@@ -259,9 +257,7 @@ int load_gbuffer_global_map(QEMUFile *f) {
 
 static void handle_child_window_event(void)
 {
-    ATOMIC_LOCK(main_window_event_queue_lock);
     Main_window_Event *child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
-    ATOMIC_UNLOCK(main_window_event_queue_lock);
 
     int paint_event_cnt = 0;
     while (child_event != NULL)
@@ -360,9 +356,7 @@ static void handle_child_window_event(void)
             LOGW("slow child event %d, spent %lld ms queue_size %d", child_event->event_code, (end_time - start_time) / 1000, g_async_queue_length(main_window_event_queue));
         }
 
-        ATOMIC_LOCK(main_window_event_queue_lock);
         child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
-        ATOMIC_UNLOCK(main_window_event_queue_lock);
     }
     return;
 }
@@ -712,7 +706,7 @@ void *main_window_thread(void *opaque)
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-        LOGI("load glad error");
+        LOGF("fatal: load glad error");
         return NULL;
     }
 
@@ -739,12 +733,12 @@ void *main_window_thread(void *opaque)
 
     if (express_gpu_gl_debug_enable)
     {
-    #ifdef _WIN32
+#ifndef __APPLE__
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallback(d_debug_message_callback, NULL);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-    #endif
+#endif
     }
 
     while (!glfwWindowShouldClose(main_window) && main_window_run == 2)
@@ -824,9 +818,9 @@ void send_message_to_main_window(int message_code, void *data)
     Main_window_Event *event = g_malloc(sizeof(Main_window_Event));
     event->event_code = message_code;
     event->data = data;
-    ATOMIC_LOCK(main_window_event_queue_lock);
+
     g_async_queue_push(main_window_event_queue, (gpointer)event);
-    ATOMIC_UNLOCK(main_window_event_queue_lock);
+
     if (message_code == MAIN_PAINT || message_code == MAIN_PAINT_LAYERS || message_code == MAIN_CREATE_CHILD_WINDOW)
     {
         glfwPostEmptyEvent();
