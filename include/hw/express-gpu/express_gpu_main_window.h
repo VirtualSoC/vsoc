@@ -30,16 +30,29 @@
 #define MAIN_DESTROY_ONE_SYNC 6
 #define MAIN_DESTROY_GBUFFER 7
 
+typedef struct Main_window_Event
+{
+     int event_code;
+     void *data;
+} Main_window_Event;
+
+typedef struct Create_Child_Window_Event_Data
+{
+     void **window; //指向子窗口的指针
+     int context_flags; //子窗口的上下文标志
+} Create_Child_Window_Event_Data;
+
+typedef struct Destroy_Child_Window_Event_Data
+{
+     void *window; //指向子窗口的指针
+     int context_flags; //子窗口的上下文标志
+} Destroy_Child_Window_Event_Data;
+
 #define ATOMIC_LOCK(s)                                              \
      int atomic_cnt = 1;                                            \
      while (qatomic_cmpxchg(&(s), 0, 1) == 1 && atomic_cnt < 10000) \
           if(atomic_cnt % 10 == 0) LOGD("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
-
-
-//是否启用opengl执行性能警告输出
-#define ENABLE_OPENGL_PERFORMANCE_WARNING
-
 
 //是否启用DSA模式
 // DSA模式尚未测试确定可用，而且性能提升并不明显，暂时不支持
@@ -50,42 +63,6 @@
 #else
 #define DSA_LIKELY(t) unlikely(t)
 #endif
-
-typedef struct Main_window_Event
-{
-     int event_code;
-     void *data;
-} Main_window_Event;
-
-typedef struct Destroy_Child_Window_Event_Data
-{
-     void *window; //指向子窗口的指针
-     int context_flags; //子窗口的上下文标志
-} Destroy_Child_Window_Event_Data;
-
-typedef struct GBuffer_Layer{
-     int x;
-     int y;
-     int z;
-     int width;
-     int height;
-     int blend_type;
-     int transform_type;
-     int crop_x;
-     int crop_y;
-     int crop_width;
-     int crop_height;
-     int write_sync_id;
-     int read_sync_id;
-     //SetLayerVisibleRegion暂时先不支持
-     uint64_t gbuffer_id;
-} __attribute__((packed, aligned(4))) GBuffer_Layer;
-
-typedef struct GBuffer_Layers{
-     int layer_num;
-     struct GBuffer_Layer layer[0];
-} __attribute__((packed, aligned(4))) GBuffer_Layers;
-
 
 extern Static_Context_Values *preload_static_context_value;
 

@@ -22,6 +22,29 @@ typedef struct Display_Status
     uint32_t backlight;
 } __attribute__((packed, aligned(4))) Display_Status;
 
+typedef struct GBuffer_Layer{
+     int x;
+     int y;
+     int z;
+     int width;
+     int height;
+     int blend_type;
+     int transform_type;
+     int crop_x;
+     int crop_y;
+     int crop_width;
+     int crop_height;
+     int write_sync_id;
+     int read_sync_id;
+     //SetLayerVisibleRegion暂时先不支持
+     uint64_t gbuffer_id;
+} __attribute__((packed, aligned(4))) GBuffer_Layer;
+
+typedef struct GBuffer_Layers{
+     int layer_num;
+     struct GBuffer_Layer layer[0];
+} __attribute__((packed, aligned(4))) GBuffer_Layers;
+
 typedef struct
 {
     Thread_Context thread_context;

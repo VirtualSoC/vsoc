@@ -263,9 +263,10 @@ static void handle_child_window_event(void)
         case MAIN_CREATE_CHILD_WINDOW:
         {
             // context只能是由父线程创建，以进行资源共享
-            void **window_ptr = (void **)child_event->data;
+            Create_Child_Window_Event_Data* data = (Create_Child_Window_Event_Data *)child_event->data;
+            int context_flags = data->context_flags;
 
-            if (window_ptr == NULL)
+            if (data->window == NULL)
             {
                 LOGW("warning: create child window empty window_ptr");
                 break;
@@ -273,9 +274,11 @@ static void handle_child_window_event(void)
 
             THREAD_CONTROL_BEGIN
 
-            *window_ptr = (void *)sub_window_create((int)(intptr_t)*window_ptr);
+            *(data->window) = (void *)sub_window_create(context_flags);
 
             THREAD_CONTROL_END
+
+            g_free(data);
         }
         break;
 

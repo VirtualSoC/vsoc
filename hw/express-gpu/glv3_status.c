@@ -13,7 +13,8 @@
 #include "hw/express-mem/express_mem.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
-
+//是否启用opengl执行性能警告输出
+#define ENABLE_OPENGL_PERFORMANCE_WARNING
 
 void d_glBindFramebuffer_special(void *context, GLenum target, GLuint framebuffer)
 {

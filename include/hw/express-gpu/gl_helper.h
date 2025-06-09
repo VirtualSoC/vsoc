@@ -240,8 +240,6 @@ int display_opengl_prepare(GLuint *program, GLuint *VAO);
 
 void adjust_blend_type(int blend_type);
 
-void APIENTRY gl_debug_output(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
-
 
 void glTestIntAsyn(GLint a, GLuint b, GLfloat c, GLdouble d);
 
