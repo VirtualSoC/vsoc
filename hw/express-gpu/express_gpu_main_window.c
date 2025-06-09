@@ -47,16 +47,10 @@ int main_window_run = 0;
 int device_interface_run = 0;
 int host_opengl_version = 0;
 
-#define EVENT_QUEUE_LOCK                                    \
-    while (qatomic_cmpxchg(&(event_queue_lock), 0, 1) == 1) \
-        ;
-
-#define EVENT_QUEUE_UNLOCK qatomic_cmpxchg(&(event_queue_lock), 1, 0);
-
 static GHashTable *gbuffer_global_map = NULL;
 static GHashTable *gbuffer_global_types = NULL;
 
-static volatile int gbuffer_global_map_lock = 0;
+static int gbuffer_global_map_lock = 0;
 
 static QemuThread qemu_main_window_thread;
 static QemuThread qemu_device_interface_thread;
@@ -173,7 +167,6 @@ static const char *SPECIAL_EXTENSIONS[] = {
 };
 static const int SPECIAL_EXTENSIONS_SIZE = 73;
 
-extern Hardware_Buffer *main_display_gbuffer;
 
 static void *sub_window_create(int context_flags);
 
@@ -193,6 +186,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
     if (main_window_run == 2)
     {
         main_window_run = -1;
+        glfwPostEmptyEvent(); // wake up the main window thread
         int wait_cnt = 0;
         while (main_window_run == -1 && wait_cnt < 200)
         {
@@ -201,7 +195,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
         }
         if (main_window_run == -1)
         {
-            LOGI("wait time too long!");
+            LOGW("wait for main window thread exit timeout!");
         }
     }
 
@@ -259,44 +253,59 @@ static void handle_child_window_event(void)
 {
     Main_window_Event *child_event = (Main_window_Event *)g_async_queue_try_pop(main_window_event_queue);
 
-    int paint_event_cnt = 0;
     while (child_event != NULL)
     {
         int64_t start_time = 0;
-
-        if (paint_event_cnt >= 2)
-        {
-            LOGE("error! too many event %d paint_num %d", child_event->event_code, paint_event_cnt);
-        }
 
         start_time = g_get_real_time();
         switch (child_event->event_code)
         {
         case MAIN_CREATE_CHILD_WINDOW:
-
+        {
             // context只能是由父线程创建，以进行资源共享
+            void **window_ptr = (void **)child_event->data;
+
+            if (window_ptr == NULL)
             {
-            #ifdef __APPLE__
-                __block void **window_ptr = (Window_Buffer *)child_event->data;
-            #else
-                void **window_ptr = (void **)child_event->data;
-            #endif
-
-                if (window_ptr == NULL)
-                {
-                    LOGW("warning: create child window empty window_ptr");
-                    break;
-                }
-                // LOGI("start create window ptr %llx", window_ptr);
-
-                THREAD_CONTROL_BEGIN
-
-                *window_ptr = (void *)sub_window_create((int)(intptr_t)*window_ptr);
-
-                THREAD_CONTROL_END
+                LOGW("warning: create child window empty window_ptr");
+                break;
             }
 
-            break;
+            THREAD_CONTROL_BEGIN
+
+            *window_ptr = (void *)sub_window_create((int)(intptr_t)*window_ptr);
+
+            THREAD_CONTROL_END
+        }
+        break;
+
+        case MAIN_DESTROY_CHILD_WINDOW:
+        {
+            Destroy_Child_Window_Event_Data* data = (Destroy_Child_Window_Event_Data *)child_event->data;
+            void *window_ptr = data->window;
+            int context_flags = data->context_flags;
+
+            if (window_ptr == NULL)
+            {
+                LOGW("warning: destroy child window empty window_ptr");
+                break;
+            }
+
+            THREAD_CONTROL_BEGIN
+
+            if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
+            {
+                glfwSetWindowShouldClose(window_ptr, 1);
+                glfwDestroyWindow((GLFWwindow *)window_ptr);
+            } else {
+                egl_destroyContext(window_ptr);
+            }
+
+            THREAD_CONTROL_END
+
+            g_free(data);
+        }
+        break;
 
         case MAIN_DESTROY_GBUFFER:
         {
@@ -334,6 +343,7 @@ static void handle_child_window_event(void)
             g_free(status);
         }
         break;
+
         case MAIN_DESTROY_ONE_SYNC:
         {
             GLsync sync = (GLsync)child_event->data;
@@ -350,7 +360,7 @@ static void handle_child_window_event(void)
             break;
         }
         int64_t end_time = g_get_real_time();
-        if (end_time - start_time > 20000 && child_event != NULL)
+        if (end_time - start_time > 16666 && child_event != NULL)
         {
             LOGW("slow child event %d, spent %lld ms queue_size %d", child_event->event_code, (end_time - start_time) / 1000, g_async_queue_length(main_window_event_queue));
         }
@@ -613,7 +623,7 @@ static void *sub_window_create(int context_flags)
  * Main window thread entry point 
  * Unique per emulator instance
  */
-void *main_window_thread(void *opaque)
+static void *main_window_thread(void *opaque)
 {
     main_window_event_queue = g_async_queue_new();
 
@@ -700,9 +710,7 @@ void *main_window_thread(void *opaque)
     HGLRC gl_context = glfwGetWGLContext(main_window);
 #endif
 
-#ifndef USE_GLFW_AS_WGL
     egl_init(dpy_dc, gl_context);
-#endif
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
@@ -743,14 +751,14 @@ void *main_window_thread(void *opaque)
 
     while (!glfwWindowShouldClose(main_window) && main_window_run == 2)
     {
+        handle_child_window_event();
+
         THREAD_CONTROL_BEGIN
 
         //处理各种输入事件、opengl事件
         glfwWaitEventsTimeout(0.001);
 
         THREAD_CONTROL_END
-
-        handle_child_window_event();
     }
 
     glfwMakeContextCurrent(NULL);
@@ -821,7 +829,7 @@ void send_message_to_main_window(int message_code, void *data)
 
     g_async_queue_push(main_window_event_queue, (gpointer)event);
 
-    if (message_code == MAIN_PAINT || message_code == MAIN_PAINT_LAYERS || message_code == MAIN_CREATE_CHILD_WINDOW)
+    if (message_code == MAIN_CREATE_CHILD_WINDOW)
     {
         glfwPostEmptyEvent();
     }

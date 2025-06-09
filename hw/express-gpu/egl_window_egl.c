@@ -1,5 +1,6 @@
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/egl_window.h"
+
 #include <glib.h>
 #include <dlfcn.h>
 #include <stdio.h>
@@ -15,6 +16,9 @@ typedef void *EGLDisplay;
 typedef void *EGLSurface;
 
 #define EGL_NONE 0x3038 /* Attrib list terminator */
+
+#define EGL_TRUE 1
+#define EGL_FALSE 0
 
 #define EGL_CONTEXT_MAJOR_VERSION 0x3098
 #define EGL_CONTEXT_MINOR_VERSION 0x30FB
@@ -69,7 +73,7 @@ static EGLContext main_window_context;
 static GHashTable *context_pbuffer_map;
 
 static EGLConfig static_config;
-static GMutex egl_mutex;
+static GMutex main_window_mutex;
 
 static int static_context_attribs[] = {
     EGL_CONTEXT_MAJOR_VERSION, 4,
@@ -158,21 +162,13 @@ void egl_init(void *dpy, void *father_context)
 
 void *egl_createContext(int context_flags)
 {
-    g_mutex_lock(&egl_mutex);
-    
-    // Verify display is still initialized
-    EGLint major, minor;
-    if (!eglInitialize(main_window_display, &major, &minor)) {
-        LOGE("Display not initialized, error: %x", eglGetError());
-        g_mutex_unlock(&egl_mutex);
-        return EGL_NO_CONTEXT;
-    }
-    
+    g_mutex_lock(&main_window_mutex);
+
     EGLContext context = eglCreateContext(main_window_display, static_config, main_window_context, static_context_attribs);
     if (context == EGL_NO_CONTEXT)
     {
         LOGE("error! eglCreateContext failed with error 0x%x main_window_display %p main_window_context %p", eglGetError(), main_window_display, main_window_context);
-        g_mutex_unlock(&egl_mutex);
+        g_mutex_unlock(&main_window_mutex);
         return EGL_NO_CONTEXT;
     }
 
@@ -182,39 +178,47 @@ void *egl_createContext(int context_flags)
     {
         LOGE("error! eglCreatePbufferSurface failed with error 0x%x main_window_display %p main_window_context %p", eglGetError(), main_window_display, main_window_context);
         eglDestroyContext(main_window_display, context);
-        g_mutex_unlock(&egl_mutex);
+        g_mutex_unlock(&main_window_mutex);
         return EGL_NO_CONTEXT;
     }
 
     g_hash_table_insert(context_pbuffer_map, (gpointer)context, pbuffer);
-    g_mutex_unlock(&egl_mutex);
+    g_mutex_unlock(&main_window_mutex);
     return context;
 }
 
 int egl_makeCurrent(void *context)
 {
-    g_mutex_lock(&egl_mutex);
     int result;
-    
+    EGLSurface pbuffer;
+
+    g_mutex_lock(&main_window_mutex);
+
     if (context != NULL)
     {
-        EGLSurface pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
+        pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
         result = eglMakeCurrent(main_window_display, pbuffer, pbuffer, context);
     }
     else
     {
-        result = eglMakeCurrent(main_window_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        pbuffer = EGL_NO_SURFACE;
+        result = eglMakeCurrent(main_window_display, pbuffer, pbuffer, EGL_NO_CONTEXT);
     }
-    
-    g_mutex_unlock(&egl_mutex);
-    return result;
+    g_mutex_unlock(&main_window_mutex);
+
+    if (result != EGL_TRUE) {
+        LOGE("error! eglMakeCurrent failed with error 0x%x main_window_display %p context %p pbuffer %p", eglGetError(), main_window_display, context, pbuffer);
+        return EGL_FALSE;
+    }
+
+    return EGL_TRUE;
 }
 
 void egl_destroyContext(void *context)
 {
     if (context != NULL)
     {
-        g_mutex_lock(&egl_mutex);
+        g_mutex_lock(&main_window_mutex);
         
         EGLSurface pbuffer = g_hash_table_lookup(context_pbuffer_map, (gpointer)context);
 
@@ -223,6 +227,6 @@ void egl_destroyContext(void *context)
 
         g_hash_table_remove(context_pbuffer_map, (gpointer)context);
         
-        g_mutex_unlock(&egl_mutex);
+        g_mutex_unlock(&main_window_mutex);
     }
 }

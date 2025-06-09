@@ -19,36 +19,22 @@
 #include <GLFW/glfw3native.h>
 
 #include "hw/express-gpu/egl_window.h"
-
 #include "hw/express-gpu/gl_helper.h"
-
 #include "hw/express-gpu/egl_surface.h"
-
 #include "hw/express-gpu/glv3_decl.h"
 
 #define MAIN_PAINT 1
 #define MAIN_CREATE_CHILD_WINDOW 2
-#define MAIN_DESTROY_SURFACE 3
-#define MAIN_DESTROY_CONTEXT 4
-#define MAIN_DESTROY_IMAGE 5
-#define MAIN_DESTROY_ALL_EGLSYNC 6
-#define MAIN_DESTROY_ONE_SYNC 7
-#define MAIN_DESTROY_ONE_TEXTURE 8
-#define MAIN_DESTROY_GBUFFER 9
-// #define MAIN_CANCEL_GBUFFER 10
-#define MAIN_PAINT_LAYERS 11
-
-#define GBUFFER_TYPE_WINDOW 1
-#define GBUFFER_TYPE_TEXTURE 2
+#define MAIN_DESTROY_CHILD_WINDOW 3
+#define MAIN_DESTROY_ALL_EGLSYNC 5
+#define MAIN_DESTROY_ONE_SYNC 6
+#define MAIN_DESTROY_GBUFFER 7
 
 #define ATOMIC_LOCK(s)                                              \
      int atomic_cnt = 1;                                            \
      while (qatomic_cmpxchg(&(s), 0, 1) == 1 && atomic_cnt < 10000) \
           if(atomic_cnt % 10 == 0) LOGD("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
-
-#define ATOMIC_SET_USED(s) (qatomic_cmpxchg(&(s), 0, 1))
-#define ATOMIC_SET_UNUSED(s) (qatomic_cmpxchg(&(s), 1, 0))
 
 
 //是否启用opengl执行性能警告输出
@@ -71,6 +57,11 @@ typedef struct Main_window_Event
      void *data;
 } Main_window_Event;
 
+typedef struct Destroy_Child_Window_Event_Data
+{
+     void *window; //指向子窗口的指针
+     int context_flags; //子窗口的上下文标志
+} Destroy_Child_Window_Event_Data;
 
 typedef struct GBuffer_Layer{
      int x;
@@ -101,8 +92,6 @@ extern Static_Context_Values *preload_static_context_value;
 extern int host_opengl_version;
 
 extern int DSA_enable;
-
-void *main_window_thread(void *opaque);
 
 void start_main_window_thread(void);
 

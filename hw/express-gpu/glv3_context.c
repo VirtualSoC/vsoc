@@ -354,9 +354,7 @@ void *get_native_opengl_context(int context_flags)
 
 void release_native_opengl_context(void *native_context, int context_flags)
 {
-    // LOGI("going to release native context %llx", (int64_t)native_context);
-    //假如已经保存有闲置的超过MAX_PRELOAD_CONTEXT_NUM个context，则新释放的context直接销毁，否则保存下来
-    //----由于context的状态实在难以全部清空，因此还是销毁，但是为了复用，还是最多新建MAX_PRELOAD_CONTEXT_NUM个备用的
+    // context的状态实在难以全部清空，因此还是销毁旧context，但是为了复用，还是最多新建MAX_PRELOAD_CONTEXT_NUM个备用的
 
     if (native_context_pool_size < MAX_PRELOAD_CONTEXT_NUM && !(context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT))
     {
@@ -369,22 +367,12 @@ void release_native_opengl_context(void *native_context, int context_flags)
         native_context_pool_size++;
         ATOMIC_UNLOCK(native_context_pool_lock);
     }
-    // LOGI("context_num %d",context_num);
 
-    if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
-    {
+    Destroy_Child_Window_Event_Data *data = g_malloc0(sizeof(Destroy_Child_Window_Event_Data));
+    data->window = native_context;
+    data->context_flags = context_flags;
 
-        THREAD_CONTROL_BEGIN
-
-        glfwSetWindowShouldClose(native_context, 1);
-        glfwDestroyWindow(native_context);
-
-        THREAD_CONTROL_END
-    }
-    else
-    {
-        egl_destroyContext(native_context);
-    }
+    send_message_to_main_window(MAIN_DESTROY_CHILD_WINDOW, data);
 }
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context_flags)
@@ -440,7 +428,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
     opengl_context->view_h = 0;
 
     //要在opengl_context里创建window，因为opengl环境保存在window里
-    // #ifdef USE_GLFW_AS_WGL
     opengl_context->window = get_native_opengl_context(context_flags);
 
     if (opengl_context->window == NULL)

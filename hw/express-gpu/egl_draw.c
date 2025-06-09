@@ -34,13 +34,17 @@ int make_opengl_current(Opengl_Context *opengl_context, bool current) {
         ret = egl_makeCurrent(window);
     }
 
+    if (ret != EGL_TRUE) {
+        return EGL_FALSE;
+    }
+
     if (current) {
         opengl_context->is_current = 1;
     } else {
         opengl_context->is_current = 0;
     }
 
-    return ret;
+    return EGL_TRUE;
 }
 
 EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx, uint64_t gbuffer_id, int width, int height, int hal_format)
@@ -125,7 +129,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     LOGD("thread %llx context %llx makecurrent window %llx", thread_context, real_opengl_context, real_opengl_context->window);
 
     if (make_opengl_current(real_opengl_context, true) != EGL_TRUE) {
-        LOGE("error! makecurrent opengl_context %llx failed", real_opengl_context);
+        LOGE("error! makecurrent opengl_context %p failed, window %p", real_opengl_context, real_opengl_context->window);
         return EGL_FALSE;
     }
     thread_context->opengl_context = real_opengl_context;

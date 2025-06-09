@@ -91,7 +91,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
 
         if (max_len > point_data->buffer_len[index])
         {
-            //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的10倍，类似于vector的翻倍机制，因为会画很多下，所以用10倍
+            //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的BUFFER_MULTIPLY_FACTOR倍，类似于vector的翻倍机制
 
             int alloc_size = max_len * BUFFER_MULTIPLY_FACTOR;
             if (alloc_size < 1024)
@@ -132,16 +132,18 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER,
                                            point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
                                            GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+
+            GLuint current_buffer;
+            glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_buffer);
             
             GLenum glerror = glGetError();
             if (glerror != GL_NO_ERROR)
             {
-                LOGE("error! glMapBufferRange GL_ARRAY_BUFFER %x", glerror);
+                LOGE("error! glMapBufferRange glerror %x, buffen_len %d remain_len %d length %d padding %d", glerror, point_data->buffer_len[index], point_data->remain_buffer_len[index], length, padding);
+                GLint buffer_size = 0;
+                glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &buffer_size);
+                LOGE("VAO %u buffer_size %d", current_buffer, buffer_size);
             }
-
-            GLuint current_buffer;
-            glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_buffer);
-
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
 

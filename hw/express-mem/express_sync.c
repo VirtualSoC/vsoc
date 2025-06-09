@@ -160,7 +160,7 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
         {
             // LOGD("going to set sync irq");
             while (set_express_device_irq((Device_Context *)&static_sync_context, old_waitting_cnt, sizeof(Sync_Context)) == IRQ_NOT_READY) {
-                g_usleep(100);
+                g_usleep(1000);
             }
         }
     }

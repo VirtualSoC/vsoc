@@ -728,9 +728,13 @@ static void mem_context_destroy(Thread_Context *context)
     if (g_gl_context != NULL)
     {
         glDeleteBuffers(1, &unpack_buffer);
-
         egl_makeCurrent(NULL);
-        egl_destroyContext(g_gl_context);
+
+        Destroy_Child_Window_Event_Data *data = g_malloc0(sizeof(Destroy_Child_Window_Event_Data));
+        data->window = g_gl_context;
+
+        send_message_to_main_window(MAIN_DESTROY_CHILD_WINDOW, data);
+
         g_gl_context = NULL;
     }
 }
@@ -766,9 +770,8 @@ static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *ca
         Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
         if (gbuffer != NULL)
         {
-            LOGI("terminate gbuffer id %llx", info.gbuffer_id);
             remove_gbuffer_from_global_map(info.gbuffer_id);
-            destroy_gbuffer(gbuffer);
+            send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
         }
     }
     break;

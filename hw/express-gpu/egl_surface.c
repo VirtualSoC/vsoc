@@ -1034,7 +1034,8 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer)
 {
-    LOGD("destroy gbuffer %llx ptr %llx", gbuffer->gbuffer_id, (unsigned long long)gbuffer);
+    LOGI("terminate gbuffer id %" PRIx64 " w %d h %d", gbuffer->gbuffer_id, gbuffer->width, gbuffer->height);
+
     if (gbuffer->data_texture != 0)
     {
         glDeleteTextures(1, &(gbuffer->data_texture));

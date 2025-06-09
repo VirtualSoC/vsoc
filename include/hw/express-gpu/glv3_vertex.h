@@ -8,7 +8,7 @@
 #include "hw/express-gpu/gl_helper.h"
 
 
-#define BUFFER_MULTIPLY_FACTOR 10
+#define BUFFER_MULTIPLY_FACTOR 4
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer);
 

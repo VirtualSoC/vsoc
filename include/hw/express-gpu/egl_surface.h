@@ -8,6 +8,9 @@
 #include <GLFW/glfw3.h>
 
 
+#define GBUFFER_TYPE_WINDOW 1
+#define GBUFFER_TYPE_TEXTURE 2
+
 #define P_SURFACE 1
 #define WINDOW_SURFACE 2
 

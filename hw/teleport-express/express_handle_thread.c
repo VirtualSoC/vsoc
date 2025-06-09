@@ -32,7 +32,7 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
 // qemu_event_wait(&(context->data_event));
         if (context->data_event != NULL)
         {
-            wait_event(context->data_event, 0xffffffff);
+            wait_event(context->data_event, 1000);
         }
 
         if (teleport_express_should_stop)
@@ -128,7 +128,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
 
         if (teleport_express_should_stop)
         {
-            return NULL;
+            break;
         }
 
         if (call == NULL)
