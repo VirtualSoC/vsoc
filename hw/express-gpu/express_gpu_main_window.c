@@ -359,7 +359,7 @@ static void handle_child_window_event(void)
         }
         break;
         default:
-            LOGD("child window message %d not handled", child_event->event_code);
+            LOGW("child window message %d not handled", child_event->event_code);
             break;
         }
         int64_t end_time = g_get_real_time();
@@ -786,7 +786,6 @@ static void *main_window_thread(void *opaque)
 void start_main_window_thread(void) {
     if (qatomic_cmpxchg(&main_window_run, 0, 1) == 0)
     {
-        express_printf("create main window\n");
         // main_window线程只能创建一次，且其他线程必须等待该线程运行成功
         qemu_thread_create(&qemu_main_window_thread, "main_window_thread", main_window_thread, NULL, QEMU_THREAD_DETACHED);
         init_display(&default_egl_display);

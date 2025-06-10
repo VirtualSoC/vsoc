@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include "hw/express-gpu/egl.h"
+#include "glad/glad.h"
 
 typedef void (*EGLproc)(void);
 
@@ -47,22 +48,6 @@ static GHashTable *context_pbuffer_map;
 
 static EGLConfig static_config;
 static GMutex main_window_mutex;
-
-static int static_context_attribs[] = {
-    EGL_CONTEXT_MAJOR_VERSION, 4,
-#ifdef __APPLE__
-    EGL_CONTEXT_MINOR_VERSION, 1,
-#else
-    EGL_CONTEXT_MINOR_VERSION, 6,
-#endif
-    EGL_NONE
-};
-
-static int static_pbuffer_attribs[] = {
-    EGL_WIDTH, 1,
-    EGL_HEIGHT, 1,
-    EGL_NONE
-};
 
 static EGLproc load_egl_fun(const char *name)
 {
@@ -161,7 +146,23 @@ void *egl_createContext(int context_flags)
 {
     g_mutex_lock(&main_window_mutex);
 
-    EGLContext context = platform.eglCreateContext(main_window_display, static_config, main_window_context, static_context_attribs);
+    int enable_debug = EGL_FALSE;
+    if ((context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) || express_gpu_gl_debug_enable) {
+        enable_debug = EGL_TRUE;
+    }
+
+    int context_attribs[] = {
+        EGL_CONTEXT_MAJOR_VERSION, 4,
+#ifdef __APPLE__
+        EGL_CONTEXT_MINOR_VERSION, 1,
+#else
+        EGL_CONTEXT_MINOR_VERSION, 6,
+#endif
+        EGL_CONTEXT_OPENGL_DEBUG, enable_debug,
+        EGL_NONE
+    };
+
+    EGLContext context = platform.eglCreateContext(main_window_display, static_config, main_window_context, context_attribs);
     if (context == EGL_NO_CONTEXT)
     {
         LOGE("error! eglCreateContext failed with error 0x%x main_window_display %p main_window_context %p", platform.eglGetError(), main_window_display, main_window_context);
@@ -170,6 +171,13 @@ void *egl_createContext(int context_flags)
     }
 
     if (!supports_surfaceless_context) {
+        
+        static int static_pbuffer_attribs[] = {
+            EGL_WIDTH, 1,
+            EGL_HEIGHT, 1,
+            EGL_NONE
+        };
+
         EGLSurface pbuffer = platform.eglCreatePbufferSurface(main_window_display, static_config, static_pbuffer_attribs);
 
         if (pbuffer == EGL_NO_SURFACE)

@@ -391,12 +391,12 @@ static void display_context_init(Display_Context *disp)
 
         if (express_gpu_gl_debug_enable)
         {
-        #ifdef _WIN32
+#ifndef __APPLE__
             glEnable(GL_DEBUG_OUTPUT);
             glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
             glDebugMessageCallback(d_debug_message_callback, NULL);
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-        #endif
+#endif
         }
 
         display_opengl_prepare(&disp->programID, &disp->drawVAO);

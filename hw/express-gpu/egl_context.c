@@ -63,7 +63,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         }
     }
 
-    if(express_gpu_independ_window_enable)
+    if (express_gpu_independ_window_enable)
     {
         context_flags |= DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT;
     }
@@ -134,9 +134,9 @@ void d_eglDestroyDebugMessageBuffer(void *context, EGLContext guest_gl_context, 
     }
     if (real_opengl_context->is_current)
     {
-        #ifndef __APPLE__
+#ifndef __APPLE__
         glDebugMessageCallback(NULL, NULL);
-        #endif
+#endif
     }
     
     if ((real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) && real_opengl_context->debug_message_buffer)

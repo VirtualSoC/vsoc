@@ -905,14 +905,6 @@ void prepare_integer_value(Static_Context_Values *s_values)
     glGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, (GLint *)temp_int_value);
     s_values->num_program_binary_formats = temp_int_value[0];
 
-#ifdef _WIN32
-    int *temp_int_array = g_alloca(max(max(s_values->num_shader_binary_formats, s_values->num_compressed_texture_formats), s_values->num_program_binary_formats) * sizeof(int));
-
-    glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->program_binary_formats, temp_int_array, max(s_values->num_program_binary_formats, 8) * sizeof(int));
-    glGetIntegerv(GL_SHADER_BINARY_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->shader_binary_formats, temp_int_array, max(s_values->num_shader_binary_formats, 8) * sizeof(int));
-#else
     int *temp_int_array = g_alloca(max(max(s_values->num_shader_binary_formats, s_values->num_compressed_texture_formats), s_values->num_program_binary_formats) * sizeof(int));
     glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, (GLint *)temp_int_array);
     memcpy(s_values->compressed_texture_formats, temp_int_array, max(s_values->num_compressed_texture_formats, 128) * sizeof(int));
@@ -920,7 +912,7 @@ void prepare_integer_value(Static_Context_Values *s_values)
     memcpy(s_values->program_binary_formats, temp_int_array, max(s_values->num_program_binary_formats, 8) * sizeof(int));
     glGetIntegerv(GL_SHADER_BINARY_FORMATS, (GLint *)temp_int_array);
     memcpy(s_values->shader_binary_formats, temp_int_array, max(s_values->num_shader_binary_formats, 8) * sizeof(int));
-#endif
+
     glGetIntegerv(GL_SUBPIXEL_BITS, (GLint *)temp_int_value);
     s_values->subpixel_bits = temp_int_value[0];
     glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, (GLint *)temp_int_value);

@@ -161,12 +161,12 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (express_gpu_gl_debug_enable || real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
     {
-    #ifdef _WIN32        
+#ifndef __APPLE__
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
         glDebugMessageCallback(d_debug_message_callback, real_opengl_context);
         glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-    #endif
+#endif
     }
 
     // 然后设置当前的surface和context
