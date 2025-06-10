@@ -38,10 +38,10 @@ int init_program_data(GLuint program)
 
         if (infoLen > 1)
         {
-            char *infoLog = (char *)malloc(sizeof(char) * infoLen);
+            char *infoLog = (char *)g_malloc(sizeof(char) * infoLen);
             glGetProgramInfoLog(program, infoLen, NULL, infoLog);
             LOGE("error linking program:\n%s", infoLog);
-            free(infoLog);
+            g_free(infoLog);
         }
         else
         {
@@ -465,7 +465,7 @@ static char *adjust_shader_for_core_profile(GLuint shader, char *shader_source, 
     GLenum shader_type;
     glGetShaderiv(shader, GL_SHADER_TYPE, &shader_type);
 
-    char *adjusted_source = (char *)malloc(source_length + 1);
+    char *adjusted_source = (char *)g_malloc(source_length + 1);
     memcpy(adjusted_source, shader_source, source_length);
     adjusted_source[source_length] = 0;
     *adjusted_length = source_length;
@@ -484,11 +484,11 @@ static char *adjust_shader_for_core_profile(GLuint shader, char *shader_source, 
         length = end_pos - start_pos;
         space_length = length - min_length;
         assert(space_length >= 0);
-        char *spaces = (char *)malloc(space_length);
+        char *spaces = (char *)g_malloc(space_length);
         memset(spaces, ' ', space_length);
         memcpy(adjusted_source + start_pos, STR_VERSION, min_length);
         memcpy(adjusted_source + start_pos + min_length, spaces, space_length);
-        free(spaces);
+        g_free(spaces);
     }
     g_free(version_num);
     g_free(version_suffix);
@@ -773,8 +773,8 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     }
 
 #ifdef __APPLE__
-    GLchar **adjusted_sources = (GLchar **)malloc(count * sizeof(GLchar *));
-    GLint *adjusted_length = (GLint *)malloc(count * sizeof(GLint));
+    GLchar **adjusted_sources = (GLchar **)g_malloc(count * sizeof(GLchar *));
+    GLint *adjusted_length = (GLint *)g_malloc(count * sizeof(GLint));
     for (int i = 0; i < count; i++) {
         char *adjusted_source = adjust_shader_for_core_profile(shader, string[i], length[i], adjusted_length + i);
         adjusted_sources[i] = adjusted_source;
@@ -782,10 +782,10 @@ void d_glShaderSource_special(void *context, GLuint shader, GLsizei count, GLint
     //printf("gl shader source count %d:\n%s\n", count, adjusted_sources[0]);
     glShaderSource(shader, count, adjusted_sources, adjusted_length);
     for (int i = 0; i < count; i++) {
-        free(adjusted_sources[i]);
+        g_free(adjusted_sources[i]);
     }
-    free(adjusted_sources);
-    free(adjusted_length);
+    g_free(adjusted_sources);
+    g_free(adjusted_length);
 #else
     glShaderSource(shader, count, (const GLchar *const *)string, length);
 #endif

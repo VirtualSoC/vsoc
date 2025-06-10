@@ -49,27 +49,6 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
 
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
 
-
-        // unsigned char* zero_buffer = (unsigned char*)malloc(end_loc - start_loc);
-        // memset(zero_buffer, 0, end_loc - start_loc);
-        // if (memcmp(map_pointer, (const void*)zero_buffer, end_loc - start_loc) == 0) {
-        // // 说明 state->pixels 的内容全为 0
-        //     LOGI("Memory is all zeros in updload");
-        // }
-        // free(zero_buffer);
-
-        // LOGI("First pixels in RGBA format:");
-
-        // for (int i = 0; i < min(30, (end_loc - start_loc)/4); i++) {
-        //     LOGI("unpack texture %d: R=%d, G=%d, B=%d, A=%d\n",
-        //         i, 
-        //         map_pointer[i * 4 + 0], //R
-        //         map_pointer[i * 4 + 1], //G
-        //         map_pointer[i * 4 + 2], //B
-        //         map_pointer[i * 4 + 3]  //A
-        //     );
-        // }
-
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
     }
     LOGD("unpack texture pbo %lld %d start %d end %d", (uint64_t)opengl_context->window, asyn_texture, start_loc, end_loc);

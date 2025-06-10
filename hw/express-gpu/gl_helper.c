@@ -1259,11 +1259,11 @@ GLuint load_shader(GLenum type, const char *shaderSrc)
 
         if (infoLen > 1)
         {
-            char *infoLog = malloc(sizeof(char) * infoLen);
+            char *infoLog = g_malloc(sizeof(char) * infoLen);
 
             glGetShaderInfoLog(shader, infoLen, NULL, infoLog);
 
-            free(infoLog);
+            g_free(infoLog);
         }
 
         glDeleteShader(shader);

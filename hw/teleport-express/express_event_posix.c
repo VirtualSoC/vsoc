@@ -22,11 +22,11 @@ void *create_event(bool manual_reset, bool initial_state) {
     event->manual_reset = manual_reset;
     event->signal_state = initial_state;
     if (pthread_mutex_init(&event->event_lock, NULL)) {
-        free(event);
+        g_free(event);
         return NULL;
     }
     if (pthread_cond_init(&event->event_cond, NULL)) {
-        free(event);
+        g_free(event);
         return NULL;
     }
     return event;

@@ -189,36 +189,7 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
         GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
         LOGD("d_glVertexAttribPointer_without_bound index %u size %d type %x normalized %d stride %d offset %u length %d origin vbo %d", index, size, type, normalized, stride, offset, length, vbo);
-        
 
-        // GLint bufferSize = 0;
-        // glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &bufferSize);
-        // void* bufferData = malloc(bufferSize);
-        // if (!bufferData) {
-        //     fprintf(stderr, "Failed to allocate memory for VBO data\n");
-        //     return;
-        // }
-
-        // glGetBufferSubData(GL_ARRAY_BUFFER, 0, bufferSize, bufferData);
-
-        // for (int i = 0; i < 4; i++) {        //     unsigned char* vertexData = (unsigned char*)bufferData + i * stride + (size_t)offset;
-
-        //     // LOGI("Vertex %d: ", i);
-        //     for (int j = 0; j < 4; j++) {
-        //         if (type == GL_FLOAT) {
-        //             float value = ((float*)vertexData)[j];
-        //             LOGI("Vertex %d %f ", j, value);
-        //         } else if (type == GL_INT) {
-        //             int value = ((int*)vertexData)[j];
-        //             LOGI("%d ", value);
-        //         } else if (type == GL_UNSIGNED_INT) {
-        //             unsigned int value = ((unsigned int*)vertexData)[j];
-        //             LOGI("%u ", value);
-        //         }
-        //     }
-        // }
-        // free(bufferData);
-        
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)(uint64_t)loc);
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
@@ -427,49 +398,6 @@ void d_glEnableVertexAttribArray_origin(void *context, GLuint index)
         glEnableVertexAttribArray(index);
     }
     LOGD("d_glEnableVertexAttribArray_origin index %d", index);
-}
-
-
-void ReadAndPrintFirst10Texels()
-{
-    GLuint curtex = 0;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &curtex);
-
-    GLuint textureId1 = 0;
-    glGetFramebufferAttachmentParameteriv(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint*)&textureId1);
-    glBindTexture(GL_TEXTURE_2D, textureId1);
-
-    
-    GLint width, height;
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
-    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
-    if (width * height < 5) {
-        LOGI("small texture with width %d height %d", width, height);
-        return;
-    }
-
-    GLenum format = GL_RGBA;
-    GLenum type = GL_UNSIGNED_BYTE;
-    int pixelSize = 4;
-    unsigned char *pixels = (unsigned char*)malloc(width * height * pixelSize);
-    if (!pixels) {
-        LOGE("内存分配失败。");
-        return;
-    }
-
-    glGetTexImage(GL_TEXTURE_2D, 0, format, type, pixels);
-
-    for (int i = 0; i < 5; i++) {
-        unsigned char r = pixels[i * pixelSize + 0];
-        unsigned char g = pixels[i * pixelSize + 1];
-        unsigned char b = pixels[i * pixelSize + 2];
-        unsigned char a = pixels[i * pixelSize + 3];
-        LOGI("Tex %d: R=%d, G=%d, B=%d, A=%d", i, r, g, b, a);
-    }
-
-    free(pixels);
-
-    glBindTexture(GL_TEXTURE_2D, curtex);
 }
 
 void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei count)

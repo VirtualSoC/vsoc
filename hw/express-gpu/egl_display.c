@@ -164,8 +164,7 @@ void add_window_independent_config(Egl_Display *display, EGLint attr_enum, const
 }
 
 static void parse_pixel_format(Egl_Display *display, int index) {
-    eglConfig *config = (eglConfig *)malloc(sizeof(eglConfig));
-    memset(config, 0, sizeof(eglConfig));
+    eglConfig *config = (eglConfig *)g_malloc0(sizeof(eglConfig));
 
     config->surface_type = EGL_WINDOW_BIT | EGL_PBUFFER_BIT;
     
@@ -209,7 +208,7 @@ static void parse_pixel_format(Egl_Display *display, int index) {
     config->framebuffer_target_android = (config->buffer_size == 16 || config->buffer_size == 32) ? EGL_TRUE : EGL_FALSE;
     
     if (!add_config(display, config)) {
-        free(config);
+        g_free(config);
     }
 }
 
