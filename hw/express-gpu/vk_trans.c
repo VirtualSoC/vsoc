@@ -16,6 +16,9 @@
 #include "hw/express-gpu/express_vk_decode_from_stream.h"
 #include "hw/express-gpu/express_vk_handle_mapping.h"
 #include "hw/express-gpu/vk_helper.h"
+#include "hw/express-gpu/vulkan_surface.h"
+
+static __thread void *g_gl_context = NULL;
 
 void checkHostVisible(VkPhysicalDevice physicalDevice, uint32_t memoryTypeIndex) {
     VkPhysicalDeviceMemoryProperties memProps;
@@ -116,7 +119,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("glfw ext %d %s", i, glfwExts[i]);
         }
 
-        // 修改 pCreateInfo 指向新的扩展列表
         ((VkInstanceCreateInfo*)pCreateInfo)->enabledExtensionCount   = totalExtCount;
         ((VkInstanceCreateInfo*)pCreateInfo)->ppEnabledExtensionNames = mergedExts;
 
@@ -132,6 +134,10 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("map result is %lld", lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_instance));
         }
         write_to_guest_mem(all_para[1].data, &result, 0, sizeof(VkResult));
+
+        //create gl context and bind
+        g_gl_context = get_native_opengl_context(0);
+        egl_makeCurrent(g_gl_context);
     }
     break;
 
@@ -200,7 +206,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         char* stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t* ptr = (uint8_t*)stream;
 
-        // 解包参数
         uint64_t guest_device        = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
         uint64_t guest_surface       = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
         uint32_t minImageCount       = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
@@ -219,49 +224,10 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             minImageCount, imageFormat, width, height, presentMode);
 
         if (need_free) free(stream);
-
-        VkDevice       hostDevice  = (VkDevice)(uintptr_t)
-            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
-        VkSurfaceKHR   hostSurface = (VkSurfaceKHR)(uintptr_t)
-            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE, guest_surface);
-
-        VkSwapchainCreateInfoKHR sci = {
-            .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .pNext            = NULL,
-            .flags            = 0,
-            .surface          = hostSurface,
-            .minImageCount    = minImageCount,
-            .imageFormat      = (VkFormat)imageFormat,
-            .imageColorSpace  = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-            .imageExtent      = { width, height },
-            .imageArrayLayers = 1,
-            .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .queueFamilyIndexCount   = 0,
-            .pQueueFamilyIndices     = NULL,
-            .preTransform            = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-            .compositeAlpha          = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            .presentMode             = (VkPresentModeKHR)presentMode,
-            .clipped                 = VK_TRUE,
-            .oldSwapchain            = VK_NULL_HANDLE
-        };
-
-        LOGI("sci info is %d %lld %d %d %d %d %d", sci.sType, sci.surface, sci.minImageCount, sci.imageFormat, sci.imageExtent.width, sci.imageExtent.height, sci.presentMode);
-
-        VkSwapchainKHR hostSwapchain = VK_NULL_HANDLE;
-        VkResult res = vkCreateSwapchainKHR(hostDevice, &sci, NULL, &hostSwapchain);
-        if (res != VK_SUCCESS) {
-            LOGE("Host: vkCreateSwapchainKHR failed %d", res);
-            return;
-        }
-
-        insert_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR,
-                    (uint64_t)(uintptr_t)guestSwapchain,
-                    (uint64_t)(uintptr_t)hostSwapchain);
-
-        LOGI("Host: created hostSwapchain guest %llu -> host %p",
-            (unsigned long long)guestSwapchain,
-            (void*)hostSwapchain);
+        VkDevice hostDevice  = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkSurfaceKHR hostSurface = (VkSurfaceKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE, guest_surface);
+        
+        vulkan_surface_create_swapchain(hostDevice, hostSurface, guestSwapchain, minImageCount, imageFormat, width, height, presentMode);
     }
     break;
 
@@ -269,48 +235,86 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         LOGI("Host: vkGetSwapchainImagesKHR");
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-
         int need_free = 0;
         char*     stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t*  ptr    = (uint8_t*)stream;
-
         uint64_t guest_device    = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
         uint64_t guest_swapchain = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
         uint32_t count           = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
-
-        VkDevice       realDev       = (VkDevice)(uintptr_t)
-            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
-        VkSwapchainKHR realSwapchain = (VkSwapchainKHR)(uintptr_t)
-            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR, guest_swapchain);
-        
+        VkDevice       realDev       = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkSwapchainKHR realSwapchain = (VkSwapchainKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR, guest_swapchain);
         LOGI("Host: vkGetSwapchainImagesKHR guest_device %llu guest_swapchain %llu count %d real swapchain %lld",
             (unsigned long long)guest_device,
             (unsigned long long)guest_swapchain,
             count, (long long)realSwapchain);
         
         uint64_t* guestImages = malloc(sizeof(uint64_t) * count);
+        int* buffer_width = malloc(sizeof(int) * count);
+        int* buffer_height = malloc(sizeof(int) * count);
         read_from_guest_mem(
             all_para[1].data,
             guestImages,
             0,
             sizeof(uint64_t) * count);
+        
+        uint64_t* guestBuffers = malloc(sizeof(uint64_t) * count);
+        read_from_guest_mem(
+            all_para[2].data,
+            guestBuffers,
+            0,
+            sizeof(uint64_t) * count);
 
+        read_from_guest_mem(
+            all_para[3].data,
+            buffer_width,
+            0,
+            sizeof(int) * count);
+        
+        read_from_guest_mem(
+            all_para[4].data,
+            buffer_height,
+            0,
+            sizeof(int) * count);
+        
+        LOGI("Host: vkGetSwapchainImagesKHR guestImages %lld guestBuffers %lld", (long long)guestImages[0], (long long)guestBuffers[0]);
+        
         VkImage* images = malloc(sizeof(VkImage) * count);
         VkResult res = vkGetSwapchainImagesKHR(realDev, realSwapchain, &count, images);
         if (res != VK_SUCCESS) {
             LOGE("vkGetSwapchainImagesKHR failed: %d", res);
         } else {
             for (uint32_t i = 0; i < count; i++) {
+
                 insert_mapping(
                     EXPRESS_VK_OBJECT_TYPE_IMAGE,
                     guestImages[i],
                     (uint64_t)(uintptr_t)images[i]);
                 LOGI("Host: vkGetSwapchainImagesKHR guest %llu mapped to host %lld",guestImages[i], (uint64_t)(uintptr_t)images[i]);
+
+                Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(guestBuffers[i]);
+                if (gbuffer == NULL) {
+                    gbuffer = create_gbuffer_from_vulkan(
+                        buffer_width[i],
+                        buffer_height[i],
+                        guestBuffers[i],
+                        images[i], //这里用guest还得host的再议
+                        NULL,
+                        realDev,
+                        NULL
+                    );
+                    if (gbuffer != NULL) {
+                        add_gbuffer_to_global(gbuffer);
+                    }
+                }
             }
         }
 
-        free(images);
+        // vulkan_surface_register_swapchain_images(realDev, realSwapchain, guestImages, count);
         if (need_free) free(stream);
+        free(guestImages);
+        free(guestBuffers);
+        free(buffer_width);
+        free(buffer_height);
     }
     break;
 
@@ -327,7 +331,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         // stream_ptr = call_para_to_ptr(all_para[0], &need_free);
         // uint8_t ** stream_ptr_ptr = (uint8_t **)&stream_ptr;
 
-        // 解包参数流
         int need_free = 0;
         char* stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t** ptr = (uint8_t**)&stream;
@@ -338,20 +341,16 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         // uint64_t guest_count_ptr = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
         // uint64_t guest_devs_ptr  = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
 
-        // 映射实例句柄
         VkInstance instance = (VkInstance)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_inst);
         LOGI("before and after map instance %lld %lld", guest_inst, (uint64_t)(uintptr_t)instance);
 
-        // 读取guest给出的count值（第一次调用时为0，第二次为应用层更新后的值）
         LOGI("Host: vkEnumeratePhysicalDevices count %d", count);
 
         VkResult result;
         if (count == 0) {
-            // 应用第一次调用，仅查询数量
             result = vkEnumeratePhysicalDevices(instance, &count, NULL);
             LOGI("Host: vkEnumeratePhysicalDevices count after call %d", count);
-            // 写回数量
             write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
         } else {
             VkPhysicalDevice* devices = (VkPhysicalDevice*)malloc(count * sizeof(VkPhysicalDevice));
@@ -361,7 +360,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 uint64_t* guest_devs = malloc(count * sizeof(uint64_t));
                 read_from_guest_mem(all_para[2].data, guest_devs, 0, count * sizeof(uint64_t));
                 result = vkEnumeratePhysicalDevices(instance, &count, devices);
-                // 写回每个设备句柄并建立映射
                 for (uint32_t i = 0; i < count; ++i) {
                     uint64_t host_dev  = (uint64_t)(uintptr_t)devices[i];
                     insert_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE,
@@ -380,7 +378,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     case FUNID_vkCreateDevice: {
         LOGI("Host: vkCreateDevice request");
 
-        // 1. 拆包所有参数流
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         LOGI("Host: vkCreateDevice para count = %d", para_num);
 
@@ -388,14 +385,12 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         char*     stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t** ptr    = (uint8_t**)&stream;
 
-        // 2. 反序列化 VkDeviceCreateInfo
         VkDeviceCreateInfo* pCreateInfo = malloc(sizeof(VkDeviceCreateInfo));
         decode_from_stream_VkDeviceCreateInfo(
             VK_STRUCTURE_TYPE_MAX_ENUM,
             pCreateInfo,
             ptr);
 
-        // 3. 读取 guest 的 allocator 指针并可选地反序列化回调
         VkAllocationCallbacks guestAllocStruct;
         const VkAllocationCallbacks* pAllocator = NULL;
         uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
@@ -408,13 +403,10 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             pAllocator = &guestAllocStruct;
         }
 
-        // 4. 取出两个 64 位 handle：物理设备和 guest-VkDevice
         uint64_t guest_phys = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
         uint64_t guest_dev  = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
 
-        // —— 在这里做扩展过滤 —— //
-
-        // 查 host 支持的 extension
+        // filter extensions
         uint32_t availCount = 0;
         VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys);
@@ -422,10 +414,8 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkExtensionProperties* availProps = malloc(sizeof(VkExtensionProperties) * availCount);
         vkEnumerateDeviceExtensionProperties(physicalDevice, NULL, &availCount, availProps);
 
-        // 重建扩展数组
         uint32_t origCount = pCreateInfo->enabledExtensionCount;
         const char* const* origExts = pCreateInfo->ppEnabledExtensionNames;
-        // 最多增加 1 个 swapchain 扩展
         const char** newExts = malloc(sizeof(char*) * (origCount + 1));
         uint32_t newCount = 0;
 
@@ -435,11 +425,8 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 newExts[newCount++] = ext;
             }
         }
-        // 确保有 VK_KHR_swapchain
         if (!has_device_extension(availProps, availCount, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) {
-            // 如果 Host 不支持 swapchain，就不添加
         } else {
-            // 如果 Guest 原来没加，补上
             bool found = false;
             for (uint32_t i = 0; i < newCount; i++) {
                 if (strcmp(newExts[i], VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0) {
@@ -458,7 +445,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         free(availProps);
 
 
-        // 5. 在 host 端调用真正的 vkCreateDevice
         VkPhysicalDevice realPD = (VkPhysicalDevice)(uintptr_t)
             lookup_mapping(
                 EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE,
@@ -471,7 +457,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             pAllocator,
             &realDevice);
 
-        // 6. 如果成功，建立 guest->host 的映射
         if (result == VK_SUCCESS) {
             insert_mapping(
                 EXPRESS_VK_OBJECT_TYPE_DEVICE,
@@ -485,14 +470,12 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkCreateDevice failed: %d", result);
         }
 
-        // 7. 写回 VkResult
         write_to_guest_mem(
             all_para[1].data,
             &result,
             0,
             sizeof(VkResult));
 
-        // 8. 清理
         if (need_free) free(stream);
         free(pCreateInfo);
         free(newExts);
@@ -502,7 +485,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     case FUNID_vkGetDeviceQueue: {
         LOGI("Host: vkGetDeviceQueue");
 
-        // 1. 拆包
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         LOGI("Host vkGetDeviceQueue para_num=%d", para_num);
 
@@ -522,13 +504,11 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         uint64_t guest_queue_handle = *(uint64_t*)(*ptr);
         *ptr += sizeof(uint64_t);
 
-        // 2. 查映射，拿到真实的 VkDevice
         VkDevice realDevice = (VkDevice)(uintptr_t)
             lookup_mapping(
                 EXPRESS_VK_OBJECT_TYPE_DEVICE,
                 guest_dev_handle);
 
-        // 3. 调用底层 Vulkan
         VkQueue realQueue;
         vkGetDeviceQueue(
             realDevice,
@@ -536,7 +516,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             queueIndex,
             &realQueue);
 
-        // 4. 建立 guest→host Queue 映射
         insert_mapping(
             EXPRESS_VK_OBJECT_TYPE_QUEUE,
             guest_queue_handle,
@@ -546,7 +525,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             (unsigned long long)guest_queue_handle,
             (void*)realQueue);
 
-        // 5. 清理
         if (need_free) free(stream);
     }
     break;
@@ -1649,6 +1627,8 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         uint64_t timeout = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
         uint64_t guest_semaphore = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
         uint64_t guest_fence = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+
         
         VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
         VkSwapchainKHR swapchain = (VkSwapchainKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR, guest_swapchain);
@@ -1658,7 +1638,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         uint32_t imageIndex;
         VkResult result = vkAcquireNextImageKHR(device, swapchain, timeout, semaphore, fence, &imageIndex);
         
-        write_to_guest_mem(all_para[1].data, &imageIndex, 0, sizeof(uint32_t));
         
         LOGI("Host: vkAcquireNextImageKHR result=%d imageIndex=%d", result, imageIndex); 
     }
@@ -1804,7 +1783,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         break;
     }
 
-    case FUNID_vkQueuePresentKHR:
+    case FUNID_vkQueuePresentKHR: //ztodo:目前处理的应该是单swapchain的情况？
     {
         LOGI("Host: vkQueuePresentKHR request");
         
@@ -1820,14 +1799,18 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         VkPresentInfoKHR presentInfo;
         decode_from_stream_VkPresentInfoKHR(VK_STRUCTURE_TYPE_MAX_ENUM, &presentInfo, ptr);
+
+        uint64_t* buffer_ids = malloc(presentInfo.swapchainCount * sizeof(uint64_t));
+        read_from_guest_mem(
+            all_para[1].data,
+            buffer_ids,
+            0,
+            sizeof(uint64_t) * presentInfo.swapchainCount);
         
-        LOGI("Host: vkQueuePresentKHR queue=%lld swapchainCount=%d", 
-            (uint64_t)(uintptr_t)queue, presentInfo.swapchainCount);
-        
-        VkResult result = vkQueuePresentKHR(queue, &presentInfo);
-        
-        LOGI("Host: vkQueuePresentKHR result=%d", result);
-        
+        LOGI("Host: vkQueuePresentKHR queue=%lld swapchainCount=%d buffer %llx", 
+            (uint64_t)(uintptr_t)queue, presentInfo.swapchainCount, buffer_ids[0]);
+        // 新逻辑：present前后做buffer管理和上屏
+        vulkan_surface_present_images(queue, &presentInfo, buffer_ids);
         if (need_free) free(stream);
         break;
     }

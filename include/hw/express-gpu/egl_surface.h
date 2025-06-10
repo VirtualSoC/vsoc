@@ -70,6 +70,11 @@ typedef enum ExpressMemType {
     EXPRESS_MEM_TYPE_GUEST_MEM = 0x20,
 } ExpressMemType;
 
+typedef enum HardwareBufferBackendType {
+    HARDWARE_BUFFER_BACKEND_OPENGL = 0,
+    HARDWARE_BUFFER_BACKEND_VULKAN = 1,
+} HardwareBufferBackendType;
+
 // struct Opengl_Context;
 
 typedef struct Hardware_Buffer{
@@ -132,6 +137,15 @@ typedef struct Hardware_Buffer{
      int last_virt_dev;
      int last_virt_usage;
      int last_virt_time;
+
+     //vulkan
+     HardwareBufferBackendType backend_type;
+
+     void *vk_image;        
+     void *vk_device_memory; 
+     void *vk_device;       
+     void *vk_format;        
+     uint32_t vk_image_index;
 
 } Hardware_Buffer;
 
@@ -225,12 +239,10 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
 
 EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface, EGLint attribute,EGLint value);
 
-
 EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target,
                                   EGLClientBuffer buffer, const EGLint *attrib_list,EGLImage guest_image);
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
-
 
 int egl_surface_init(Window_Buffer *d_buffer, void *now_window, int need_draw);
 
