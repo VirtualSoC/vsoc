@@ -20,6 +20,69 @@
 
 static __thread void *g_gl_context = NULL;
 
+VkResult destroy_vulkan_object_other(
+    uint64_t guest_dev,
+    uint64_t guest_obj,
+    VkObjectType obj_type1,
+    VkObjectType obj_type2,
+    void (*destroy_func)(void*, void*, const VkAllocationCallbacks*),
+    const VkAllocationCallbacks* pAllocator) {
+    
+    void* realDev = (void*)(uintptr_t)lookup_mapping(obj_type1, guest_dev);
+    void* realObj = (void*)(uintptr_t)lookup_mapping(obj_type2, guest_obj);
+    if (realDev == (void*)(uintptr_t)UINT64_MAX || realObj == (void*)(uintptr_t)UINT64_MAX) {
+        LOGE("Failed to destroy Vulkan object");
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    destroy_func(realDev, realObj, pAllocator);
+    if (!remove_mapping(obj_type2, guest_obj)) {
+        LOGE("Failed to remove mapping for Vulkan object %llu", (unsigned long long)guest_obj);
+    } else {
+        LOGI("Successfully removed mapping for Vulkan object %llu", (unsigned long long)guest_obj);
+    }
+    return VK_SUCCESS;
+}
+VkResult destroy_vulkan_object_essential(
+    uint64_t guest_dev,
+    VkObjectType obj_type,
+    void (*destroy_func)(void*, const VkAllocationCallbacks*),
+    const VkAllocationCallbacks* pAllocator) {
+    
+    void* realDev = (void*)(uintptr_t)lookup_mapping(obj_type, guest_dev);
+    if (realDev == (void*)(uintptr_t)UINT64_MAX) {
+    LOGE("Failed to destroy Vulkan object, invalid mapping for guest_dev %llu",
+        (unsigned long long)guest_dev);
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    destroy_func(realDev, pAllocator);
+    if (!remove_mapping(obj_type, guest_dev)) {
+        LOGE("Failed to remove mapping for Vulkan object %llu", (unsigned long long)guest_dev);
+    } else {
+        LOGI("Successfully removed mapping for Vulkan object %llu", (unsigned long long)guest_dev);
+    }
+    return VK_SUCCESS;
+}
+
+VkResult destroy_vulkan_object_device(
+    uint64_t guest_dev,
+    uint64_t guest_obj,
+    VkObjectType obj_type,
+    void (*destroy_func)(VkDevice, void*, const VkAllocationCallbacks*),
+    const VkAllocationCallbacks* pAllocator) {
+    
+    VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+    void* realObj = (void*)(uintptr_t)lookup_mapping(obj_type, guest_obj);
+    if (realDev == (VkDevice)(uintptr_t)UINT64_MAX || realObj == (void*)(uintptr_t)UINT64_MAX) {
+        LOGE("Failed to destroy Vulkan object, invalid mapping for guest_dev");
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    destroy_func(realDev, realObj, pAllocator);
+    if (!remove_mapping(obj_type, guest_obj)) {
+        LOGE("Failed to remove mapping for Vulkan object %llu", (unsigned long long)guest_obj);
+    }
+    return VK_SUCCESS;
+}
+
 void checkHostVisible(VkPhysicalDevice physicalDevice, uint32_t memoryTypeIndex) {
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
@@ -2095,6 +2158,1153 @@ not tested yet!
     }
     break;
 */
+    case FUNID_vkDestroyBuffer: {
+        LOGI("Host: vkDestroyBuffer request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyBuffer para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyBuffer failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_buf = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_buf,
+            EXPRESS_VK_OBJECT_TYPE_BUFFER,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyBuffer,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyBuffer failed for guest buffer %llu", (unsigned long long)guest_buf);
+        } else {
+            LOGI("Host: vkDestroyBuffer completed for guest buffer %llu", (unsigned long long)guest_buf);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyBufferView: {
+        LOGI("Host: vkDestroyBufferView request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyBufferView para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyBufferView failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_buf_view = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_buf_view,
+            EXPRESS_VK_OBJECT_TYPE_BUFFER_VIEW,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyBufferView,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyBufferView failed for guest buffer view %llu", (unsigned long long)guest_buf_view);
+        } else {
+            LOGI("Host: vkDestroyBufferView completed for guest buffer view %llu", (unsigned long long)guest_buf_view);
+        }
+    
+        if (need_free) free(stream);
+     }
+     break;
+    
+    case FUNID_vkDestroyCommandPool: {
+        LOGI("Host: vkDestroyCommandPool request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyCommandPool para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyCommandPool failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_cmd_pool = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_cmd_pool,
+            EXPRESS_VK_OBJECT_TYPE_COMMAND_POOL,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyCommandPool,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyCommandPool failed for guest command pool %llu", (unsigned long long)guest_cmd_pool);
+        } else {
+            LOGI("Host: vkDestroyCommandPool completed for guest command pool %llu", (unsigned long long)guest_cmd_pool);
+        }
+    
+        if (need_free) free(stream);
+     }
+    break;
+
+    case FUNID_vkDestroyDescriptorPool: {
+        LOGI("Host: vkDestroyDescriptorPool request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyDescriptorPool para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyDescriptorPool failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_desc_pool = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_desc_pool,
+            EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_POOL,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyDescriptorPool,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyDescriptorPool failed for guest descriptor pool %llu", (unsigned long long)guest_desc_pool);
+        } else {
+            LOGI("Host: vkDestroyDescriptorPool completed for guest descriptor pool %llu", (unsigned long long)guest_desc_pool);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyDescriptorSetLayout: {
+        LOGI("Host: vkDestroyDescriptorSetLayout request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyDescriptorSetLayout para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyDescriptorSetLayout failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_desc_set_layout = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_desc_set_layout,
+            EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyDescriptorSetLayout,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyDescriptorSetLayout failed for guest descriptor set layout %llu", (unsigned long long)guest_desc_set_layout);
+        } else {
+            LOGI("Host: vkDestroyDescriptorSetLayout completed for guest descriptor set layout %llu", (unsigned long long)guest_desc_set_layout);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyDescriptorUpdateTemplate: {
+        LOGI("Host: vkDestroyDescriptorUpdateTemplate request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyDescriptorUpdateTemplate para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyDescriptorUpdateTemplate failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_desc_update_template = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_desc_update_template,
+            EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyDescriptorUpdateTemplate,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyDescriptorUpdateTemplate failed for guest descriptor update template %llu", (unsigned long long)guest_desc_update_template);
+        } else {
+            LOGI("Host: vkDestroyDescriptorUpdateTemplate completed for guest descriptor update template %llu", (unsigned long long)guest_desc_update_template);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+
+    //note: device
+    case FUNID_vkDestroyDevice: {
+        LOGI("Host: vkDestroyDevice request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyDevice para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyDevice failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_essential(
+            guest_dev,
+            EXPRESS_VK_OBJECT_TYPE_DEVICE,
+            (void (*)(void*, const VkAllocationCallbacks*))vkDestroyDevice,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyDevice failed for guest device %llu", (unsigned long long)guest_dev);
+        } else {
+            LOGI("Host: vkDestroyDevice completed for guest device %llu", (unsigned long long)guest_dev);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkDestroyEvent: {
+        LOGI("Host: vkDestroyEvent request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyEvent para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyEvent failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_event = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_event,
+            EXPRESS_VK_OBJECT_TYPE_EVENT,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyEvent,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyEvent failed for guest event %llu", (unsigned long long)guest_event);
+        } else {
+            LOGI("Host: vkDestroyEvent completed for guest event %llu", (unsigned long long)guest_event);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyFence: {
+        LOGI("Host: vkDestroyFence request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyFence para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyFence failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_fence = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_fence,
+            EXPRESS_VK_OBJECT_TYPE_FENCE,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyFence,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyFence failed for guest fence %llu", (unsigned long long)guest_fence);
+        } else {
+            LOGI("Host: vkDestroyFence completed for guest fence %llu", (unsigned long long)guest_fence);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyFramebuffer: {
+        LOGI("Host: vkDestroyFramebuffer request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyFramebuffer para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyFramebuffer failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_framebuffer = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_framebuffer,
+            EXPRESS_VK_OBJECT_TYPE_FRAMEBUFFER,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyFramebuffer,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyFramebuffer failed for guest framebuffer %llu", (unsigned long long)guest_framebuffer);
+        } else {
+            LOGI("Host: vkDestroyFramebuffer completed for guest framebuffer %llu", (unsigned long long)guest_framebuffer);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkDestroyImage: {
+        LOGI("Host: vkDestroyImage request");
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyImage para count = %d", para_num);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyImage failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_image = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_image,
+            EXPRESS_VK_OBJECT_TYPE_IMAGE,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyImage,
+            pAllocator
+        );
+
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyImage failed for guest image %llu", (unsigned long long)guest_image);
+        } else {
+            LOGI("Host: vkDestroyImage completed for guest image %llu", (unsigned long long)guest_image);
+        }
+
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkDestroyImageView: {
+        LOGI("Host: vkDestroyImageView request");
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyImageView para count = %d", para_num);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyImageView failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_image_view = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_image_view,
+            EXPRESS_VK_OBJECT_TYPE_IMAGE_VIEW,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyImageView,
+            pAllocator
+        );
+
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyImageView failed for guest image view %llu", (unsigned long long)guest_image_view);
+        } else {
+            LOGI("Host: vkDestroyImageView completed for guest image view %llu", (unsigned long long)guest_image_view);
+        }
+
+        if (need_free) free(stream);
+    }
+    break;
+
+    //note: instance
+    case FUNID_vkDestroyInstance: {
+        LOGI("Host: vkDestroyInstance request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyInstance para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyInstance failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_instance = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+
+        VkResult result = destroy_vulkan_object_essential(
+            guest_instance,
+            EXPRESS_VK_OBJECT_TYPE_INSTANCE,
+            (void (*)(void*, const VkAllocationCallbacks*))vkDestroyInstance,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyInstance failed for guest instance %llu", (unsigned long long)guest_instance);
+        } else {
+            LOGI("Host: vkDestroyInstance completed for guest instance %llu", (unsigned long long)guest_instance);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkDestroyPipeline: {
+        LOGI("Host: vkDestroyPipeline request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyPipeline para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyPipeline failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_pipeline = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_pipeline,
+            EXPRESS_VK_OBJECT_TYPE_PIPELINE,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyPipeline,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyPipeline failed for guest pipeline %llu", (unsigned long long)guest_pipeline);
+        } else {
+            LOGI("Host: vkDestroyPipeline completed for guest pipeline %llu", (unsigned long long)guest_pipeline);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyPipelineCache: {
+        LOGI("Host: vkDestroyPipelineCache request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyPipelineCache para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyPipelineCache failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_pipeline_cache = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_pipeline_cache,
+            EXPRESS_VK_OBJECT_TYPE_PIPELINE_CACHE,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyPipelineCache,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyPipelineCache failed for guest pipeline cache %llu", (unsigned long long)guest_pipeline_cache);
+        } else {
+            LOGI("Host: vkDestroyPipelineCache completed for guest pipeline cache %llu", (unsigned long long)guest_pipeline_cache);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyPipelineLayout: {
+        LOGI("Host: vkDestroyPipelineLayout request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyPipelineLayout para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyPipelineLayout failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_pipeline_layout = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_pipeline_layout,
+            EXPRESS_VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyPipelineLayout,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyPipelineLayout failed for guest pipeline layout %llu", (unsigned long long)guest_pipeline_layout);
+        } else {
+            LOGI("Host: vkDestroyPipelineLayout completed for guest pipeline layout %llu", (unsigned long long)guest_pipeline_layout);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkDestroyPrivateDataSlot: {
+        LOGI("Host: vkDestroyPrivateDataSlot request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyPrivateDataSlot para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyPrivateDataSlot failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_private_data_slot = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_private_data_slot,
+            EXPRESS_VK_OBJECT_TYPE_PRIVATE_DATA_SLOT,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyPrivateDataSlot,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyPrivateDataSlot failed for guest private data slot %llu", (unsigned long long)guest_private_data_slot);
+        } else {
+            LOGI("Host: vkDestroyPrivateDataSlot completed for guest private data slot %llu", (unsigned long long)guest_private_data_slot);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyQueryPool: {
+        LOGI("Host: vkDestroyQueryPool request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyQueryPool para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyQueryPool failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_query_pool = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_query_pool,
+            EXPRESS_VK_OBJECT_TYPE_QUERY_POOL,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyQueryPool,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyQueryPool failed for guest query pool %llu", (unsigned long long)guest_query_pool);
+        } else {
+            LOGI("Host: vkDestroyQueryPool completed for guest query pool %llu", (unsigned long long)guest_query_pool);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroyRenderPass: {
+        LOGI("Host: vkDestroyRenderPass request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyRenderPass para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyRenderPass failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_render_pass = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_render_pass,
+            EXPRESS_VK_OBJECT_TYPE_RENDER_PASS,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyRenderPass,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyRenderPass failed for guest render pass %llu", (unsigned long long)guest_render_pass);
+        } else {
+            LOGI("Host: vkDestroyRenderPass completed for guest render pass %llu", (unsigned long long)guest_render_pass);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkDestroySampler: {
+        LOGI("Host: vkDestroySampler request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroySampler para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroySampler failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_sampler = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_sampler,
+            EXPRESS_VK_OBJECT_TYPE_SAMPLER,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroySampler,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroySampler failed for guest sampler %llu", (unsigned long long)guest_sampler);
+        } else {
+            LOGI("Host: vkDestroySampler completed for guest sampler %llu", (unsigned long long)guest_sampler);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroySamplerYcbcrConversion: {
+        LOGI("Host: vkDestroySamplerYcbcrConversion request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroySamplerYcbcrConversion para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroySamplerYcbcrConversion failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_ycbcr_conversion = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_ycbcr_conversion,
+            EXPRESS_VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroySamplerYcbcrConversion,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroySamplerYcbcrConversion failed for guest sampler YCbCr conversion %llu", (unsigned long long)guest_ycbcr_conversion);
+        } else {
+            LOGI("Host: vkDestroySamplerYcbcrConversion completed for guest sampler YCbCr conversion %llu", (unsigned long long)guest_ycbcr_conversion);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroySemaphore: {
+        LOGI("Host: vkDestroySemaphore request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroySemaphore para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroySemaphore failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_semaphore = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_semaphore,
+            EXPRESS_VK_OBJECT_TYPE_SEMAPHORE,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroySemaphore,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroySemaphore failed for guest semaphore %llu", (unsigned long long)guest_semaphore);
+        } else {
+            LOGI("Host: vkDestroySemaphore completed for guest semaphore %llu", (unsigned long long)guest_semaphore);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkDestroyShaderModule: {
+        LOGI("Host: vkDestroyShaderModule request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroyShaderModule para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroyShaderModule failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_shader_module = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_shader_module,
+            EXPRESS_VK_OBJECT_TYPE_SHADER_MODULE,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroyShaderModule,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroyShaderModule failed for guest shader module %llu", (unsigned long long)guest_shader_module);
+        } else {
+            LOGI("Host: vkDestroyShaderModule completed for guest shader module %llu", (unsigned long long)guest_shader_module);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    //note: surface binded to instance
+    case FUNID_vkDestroySurfaceKHR: {
+        LOGI("Host: vkDestroySurfaceKHR request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroySurfaceKHR para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroySurfaceKHR failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_instance = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_surface = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_other(
+            guest_instance,
+            guest_surface,
+            EXPRESS_VK_OBJECT_TYPE_INSTANCE,
+            EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR,
+            (void (*)(void*, void*, const VkAllocationCallbacks*))vkDestroySurfaceKHR,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroySurfaceKHR failed for guest surface %llu", (unsigned long long)guest_surface);
+        } else {
+            LOGI("Host: vkDestroySurfaceKHR completed for guest surface %llu", (unsigned long long)guest_surface);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
+    
+    case FUNID_vkDestroySwapchainKHR: {
+        LOGI("Host: vkDestroySwapchainKHR request");
+    
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("Host vkDestroySwapchainKHR para count = %d", para_num);
+    
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        if (!stream) {
+            LOGE("Host: vkDestroySwapchainKHR failed, stream is NULL");
+            break;
+        }
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_dev = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_swapchain = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+    
+        uint64_t guest_alloc_ptr = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkAllocationCallbacks allocStruct;
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_alloc_ptr) {
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocStruct, ptr);
+            pAllocator = &allocStruct;
+        }
+    
+        VkResult result = destroy_vulkan_object_device(
+            guest_dev,
+            guest_swapchain,
+            EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR,
+            (void (*)(VkDevice, void*, const VkAllocationCallbacks*))vkDestroySwapchainKHR,
+            pAllocator
+        );
+    
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkDestroySwapchainKHR failed for guest swapchain %llu", (unsigned long long)guest_swapchain);
+        } else {
+            LOGI("Host: vkDestroySwapchainKHR completed for guest swapchain %llu", (unsigned long long)guest_swapchain);
+        }
+    
+        if (need_free) free(stream);
+    }
+    break;
     }
     call->callback(call, 1);
 }
