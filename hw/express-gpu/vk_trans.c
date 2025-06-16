@@ -111,6 +111,77 @@ void checkHostVisible(VkPhysicalDevice physicalDevice, uint32_t memoryTypeIndex)
         LOGI("  -> HOST_COHERENT is NOT present");
     }
 }
+
+void transitionImageLayoutForSampling(VkDevice device, VkImage image, VkImageLayout format) {
+    // 创建临时命令缓冲区
+    VkCommandPool commandPool = getOrCreateCommandPool(device); // 你需要实现
+
+    LOGI("going to update image layout for sampling image %llx", (unsigned long long)image);
+    
+    VkCommandBufferAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+    
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+    
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    
+    // 创建图像内存屏障
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; // 或者你当前的布局
+    barrier.newLayout = format;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+    
+    // 从UNDEFINED转换
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        sourceStage, destinationStage,
+        0,
+        0, NULL,
+        0, NULL,
+        1, &barrier
+    );
+    
+    vkEndCommandBuffer(commandBuffer);
+    
+    // 提交命令缓冲区
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    
+    VkQueue graphicsQueue = getGraphicsQueue(device); // 你需要实现
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    
+    vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+    
+    LOGI("Host: Image layout transition completed");
+}
+
 void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
 
 {
@@ -526,6 +597,11 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 guest_dev,
                 (uint64_t)(uintptr_t)realDevice);
             set_device_pd((uint64_t)(uintptr_t)realDevice, realPD);
+
+            VkQueue graphicsQueue;
+            vkGetDeviceQueue(realDevice, 0, 0, &graphicsQueue);
+            set_device_graphics_queue((uint64_t)(uintptr_t)realDevice, (uint64_t)(uintptr_t)graphicsQueue);
+
             LOGI("Host: mapped guest Dev %llu -> host %p",
                 (unsigned long long)guest_dev,
                 (void*)realDevice);
@@ -583,6 +659,9 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             EXPRESS_VK_OBJECT_TYPE_QUEUE,
             guest_queue_handle,
             (uint64_t)(uintptr_t)realQueue);
+        
+        //ztodo:判断一下是否是图形队列
+        set_device_graphics_queue((uint64_t)(uintptr_t)realDevice, (uint64_t)(uintptr_t)realQueue);
 
         LOGI("guest queue %llu mapped to host %p",
             (unsigned long long)guest_queue_handle,
@@ -702,6 +781,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 EXPRESS_VK_OBJECT_TYPE_IMAGE_VIEW,
                 guest_iv,
                 (uint64_t)(uintptr_t)realIv);
+            set_imageview_to_image((uint64_t)(uintptr_t)realIv, (uint64_t)(uintptr_t)pInfo->image);
             LOGI("Mapped ImageView guest %llu -> host %p",
                 (unsigned long long)guest_iv,
                 (void*)realIv);
@@ -1878,6 +1958,457 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         break;
     }
 
+    case FUNID_vkGetImageMemoryRequirements: {
+        LOGI("Host: vkGetImageMemoryRequirements request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkGetImageMemoryRequirements param count %d", para_num);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        uint64_t guest_device = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint64_t guest_image  = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+
+        void* guest_mem_req_ptr = all_para[1].data;
+
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkImage image   = (VkImage)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_image);
+
+        VkMemoryRequirements memReq;
+        vkGetImageMemoryRequirements(device, image, &memReq);
+
+        write_to_guest_mem(guest_mem_req_ptr, &memReq, 0, sizeof(memReq));
+        LOGI("Host: vkGetImageMemoryRequirements done with value size %d alignment %d",
+             memReq.size, memReq.alignment);
+        break;
+    }
+
+    case FUNID_vkGetPhysicalDeviceMemoryProperties: {
+        LOGI("Host: vkGetPhysicalDeviceMemoryProperties request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkGetPhysicalDeviceMemoryProperties param count %d", para_num);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint64_t guest_pd = *(uint64_t*)stream;
+
+        void* guest_props_ptr = all_para[1].data;
+
+        VkPhysicalDevice pd = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_pd);
+
+        VkPhysicalDeviceMemoryProperties props;
+        vkGetPhysicalDeviceMemoryProperties(pd, &props);
+
+        write_to_guest_mem(guest_props_ptr, &props, 0, sizeof(props));
+        LOGI("Host: vkGetPhysicalDeviceMemoryProperties done with memoryTypeCount %d",
+             props.memoryTypeCount);
+        break;
+    }
+
+    case FUNID_vkGetPhysicalDeviceQueueFamilyProperties: {
+        LOGI("Host: vkGetPhysicalDeviceQueueFamilyProperties request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkGetPhysicalDeviceQueueFamilyProperties param count %d", para_num);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint64_t guest_pd = *(uint64_t*)stream;
+
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(count));
+        void* guest_props_ptr = all_para[2].data;
+
+        // 映射
+        VkPhysicalDevice pd = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_pd);
+
+        VkQueueFamilyProperties* props = NULL;
+        VkResult result;
+
+        if (count == 0) {
+            vkGetPhysicalDeviceQueueFamilyProperties(pd, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(count));
+            result = VK_SUCCESS;
+        } else {
+            props = malloc(sizeof(VkQueueFamilyProperties) * count);
+            if (!props) {
+                result = VK_ERROR_OUT_OF_HOST_MEMORY;
+            } else {
+                vkGetPhysicalDeviceQueueFamilyProperties(pd, &count, props);
+                write_to_guest_mem(guest_props_ptr, props, 0,
+                                   sizeof(VkQueueFamilyProperties) * count);
+                free(props);
+                result = VK_SUCCESS;
+            }
+        }
+
+        LOGI("Host: vkGetPhysicalDeviceQueueFamilyProperties done, count=%d", count);
+        break;
+    }
+
+    case FUNID_vkGetImageSubresourceLayout: {
+        LOGI("Host: vkGetImageSubresourceLayout request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkGetImageSubresourceLayout param count %d", para_num);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint64_t guest_image  = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+
+        VkImageSubresource subres;
+        read_from_guest_mem(all_para[1].data, &subres, 0, sizeof(subres));
+
+        void* guest_layout_ptr = all_para[2].data;
+
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkImage image   = (VkImage)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_image);
+
+        VkSubresourceLayout layout;
+        vkGetImageSubresourceLayout(device, image, &subres, &layout);
+
+        write_to_guest_mem(guest_layout_ptr, &layout, 0, sizeof(layout));
+        LOGI("Host: vkGetImageSubresourceLayout done with offset %lld size %lld",
+             (long long)layout.offset, (long long)layout.size);
+        break;
+    }
+
+    case FUNID_vkCreateImage: {
+        LOGI("Host: vkCreateImage request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkCreateImage para count %d", para_num);
+
+        int need_free = 0;
+        char* buf = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t* ptr = (uint8_t*)buf;
+
+        VkImageCreateInfo createInfo;
+        decode_from_stream_VkImageCreateInfo(
+            VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            &createInfo,
+            (uint8_t**)&ptr);
+        uint64_t guest_alloc_ptr = *(uint64_t*)ptr;
+        ptr += sizeof(uint64_t);
+
+        uint64_t guest_device = *(uint64_t*)ptr;  ptr += sizeof(uint64_t);
+        uint64_t guest_image  = *(uint64_t*)ptr;  ptr += sizeof(uint64_t);
+        LOGI("Decoded createInfo + guest_alloc=0x%llx, device=0x%llx, image=0x%llx layout %d",
+            guest_alloc_ptr, guest_device, guest_image, createInfo.initialLayout);
+
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+
+        VkImage hostImage;
+        VkResult result = vkCreateImage(device, &createInfo, NULL, &hostImage);
+        LOGI("vkCreateImage → %d, hostImage=0x%llx", result, (uint64_t)(uintptr_t)hostImage);
+
+        if (result == VK_SUCCESS) {
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE,
+                        guest_image,
+                        (uint64_t)(uintptr_t)hostImage);
+            LOGI("Mapped guest_image 0x%llx → hostImage 0x%llx",
+                guest_image, (uint64_t)(uintptr_t)hostImage);
+        } else {
+            LOGE("vkCreateImage failed with error %d", result);
+        }
+
+        write_to_guest_mem(all_para[1].data, &result, 0, sizeof(result));
+
+        if (need_free) free(buf);
+        break;
+    }
+
+    case FUNID_vkCreateSampler: {
+        LOGI("Host: vkCreateSampler request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkCreateSampler para count %d", para_num);
+
+        int need_free = 0;
+        char* buf = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t* ptr = (uint8_t*)buf;
+
+        VkSamplerCreateInfo samplerInfo;
+        decode_from_stream_VkSamplerCreateInfo(
+            VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            &samplerInfo,
+            (uint8_t**)&ptr);
+        uint64_t guest_alloc_ptr = *(uint64_t*)ptr;
+        ptr += sizeof(uint64_t);
+
+        uint64_t guest_device  = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        uint64_t guest_sampler = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        LOGI("Decoded samplerInfo + guest_alloc=0x%llx, device=0x%llx, sampler=0x%llx",
+            guest_alloc_ptr, guest_device, guest_sampler);
+
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+
+        VkSampler hostSampler;
+        VkResult result = vkCreateSampler(device, &samplerInfo, NULL, &hostSampler);
+        LOGI("vkCreateSampler → %d, hostSampler=0x%llx", result, (uint64_t)(uintptr_t)hostSampler);
+
+        if (result == VK_SUCCESS) {
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_SAMPLER,
+                        guest_sampler,
+                        (uint64_t)(uintptr_t)hostSampler);
+            LOGI("Mapped guest_sampler 0x%llx → hostSampler 0x%llx",
+                guest_sampler, (uint64_t)(uintptr_t)hostSampler);
+        } else {
+            LOGE("vkCreateSampler failed with error %d", result);
+        }
+
+        write_to_guest_mem(all_para[1].data, &result, 0, sizeof(result));
+
+        if (need_free) free(buf);
+        break;
+    }
+
+    case FUNID_vkCreateDescriptorSetLayout: {
+        LOGI("Host: vkCreateDescriptorSetLayout request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkCreateDescriptorSetLayout para count %d", para_num);
+
+        int need_free = 0;
+        char* buf = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t* ptr = (uint8_t*)buf;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo;
+        decode_from_stream_VkDescriptorSetLayoutCreateInfo(
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            &layoutInfo,
+            (uint8_t**)&ptr);
+        uint64_t guest_alloc_ptr = *(uint64_t*)ptr;
+        ptr += sizeof(uint64_t);
+
+        uint64_t guest_device    = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        uint64_t guest_layout    = *(uint64_t*)ptr; ptr += sizeof(uint64_t);
+        LOGI("Decoded layoutInfo + guest_alloc=0x%llx, device=0x%llx, layout=0x%llx",
+            guest_alloc_ptr, guest_device, guest_layout);
+
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+
+        VkDescriptorSetLayout hostLayout;
+        VkResult result = vkCreateDescriptorSetLayout(
+            device, &layoutInfo, NULL, &hostLayout);
+        LOGI("vkCreateDescriptorSetLayout → %d, hostLayout=0x%llx",
+            result, (uint64_t)(uintptr_t)hostLayout);
+
+        if (result == VK_SUCCESS) {
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+                        guest_layout,
+                        (uint64_t)(uintptr_t)hostLayout);
+            LOGI("Mapped guest_layout 0x%llx → hostLayout 0x%llx",
+                guest_layout, (uint64_t)(uintptr_t)hostLayout);
+        } else {
+            LOGE("vkCreateDescriptorSetLayout failed with error %d", result);
+        }
+
+        // write_to_guest_mem(all_para[1].data, &result, 0, sizeof(result));
+
+        if (need_free) free(buf);
+        break;
+    }
+
+    case FUNID_vkBindImageMemory: {
+        LOGI("Host: vkBindImageMemory request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkBindImageMemory para count %d", para_num);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint64_t guest_image  = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint64_t guest_mem    = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint64_t offset       = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        LOGI("guest_device=0x%llx, guest_image=0x%llx, guest_mem=0x%llx, offset=%llu",
+             guest_device, guest_image, guest_mem, offset);
+
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkImage  image  = (VkImage)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_image);
+        VkDeviceMemory mem = (VkDeviceMemory)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_mem);
+
+        VkResult result = vkBindImageMemory(device, image, mem, offset);
+        LOGI("vkBindImageMemory returned %d", result);
+
+        break;
+    }
+
+    case FUNID_vkFreeDescriptorSets: {
+        LOGI("Host: vkFreeDescriptorSets request");
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vkFreeDescriptorSets para count %d", para_num);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        uint64_t guest_device = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint64_t guest_pool   = *(uint64_t*)(*ptr);  *ptr += sizeof(uint64_t);
+        uint32_t count        = *(uint32_t*)(*ptr);  *ptr += sizeof(uint32_t);
+        LOGI("guest_device=0x%llx, guest_pool=0x%llx, count=%d",
+             guest_device, guest_pool, count);
+
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        LOGI("current guest_pool is 0x%llx, host device is 0x%llx",
+             guest_pool, (uint64_t)(uintptr_t)device);
+        VkDescriptorPool pool = (VkDescriptorPool)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_POOL, guest_pool);
+
+        VkDescriptorSet* hostSets = NULL;
+        if (count > 0) {
+            int need_free = 0;
+            // char* ret_ptr = call_para_to_ptr(all_para[1], &need_free);
+            // uint64_t* guest_sets = (uint64_t*)ret_ptr;
+            hostSets = malloc(count * sizeof(VkDescriptorSet));
+            uint64_t* guest_sets = malloc(count * sizeof(uint64_t));
+            for (uint32_t i = 0; i < count; ++i) {
+                guest_sets[i] = *(uint64_t*)(*ptr);
+                *ptr += sizeof(uint64_t);
+                hostSets[i] = (VkDescriptorSet)(uintptr_t)
+                    lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, guest_sets[i]);
+                LOGI("  mapped guest_set[%u]=0x%llx to host 0x%llx",
+                     i, guest_sets[i], (uint64_t)(uintptr_t)hostSets[i]);
+            }
+            if (guest_sets) free(guest_sets);
+            // if (need_free) free(ret_ptr);
+        }
+
+        VkResult result = vkFreeDescriptorSets(device, pool, count, hostSets);
+        LOGI("vkFreeDescriptorSets returned %d", result);
+        if (hostSets) free(hostSets);
+        LOGI("Host: vkFreeDescriptorSets not implemented yet, skipping actual call");
+        
+        break;
+    }
+
+    case FUNID_vkCreateDescriptorPool:
+    {
+        LOGI("Host: vkCreateDescriptorPool request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vk param number %d", para_num);
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** stream_ptr = (uint8_t**)&stream;
+
+        VkDescriptorPoolCreateInfo* pCreateInfo = (VkDescriptorPoolCreateInfo*)malloc(sizeof(VkDescriptorPoolCreateInfo));
+        decode_from_stream_VkDescriptorPoolCreateInfo(
+            VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            pCreateInfo,
+            stream_ptr);
+
+        VkAllocationCallbacks* guest_allocator = (VkAllocationCallbacks*)*(uint64_t*)(*stream_ptr);
+        *stream_ptr += sizeof(uint64_t);
+
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_allocator) {
+            VkAllocationCallbacks* temp_allocator = (VkAllocationCallbacks*)malloc(sizeof(VkAllocationCallbacks));
+            decode_from_stream_VkAllocationCallbacks(
+                VK_STRUCTURE_TYPE_MAX_ENUM,
+                temp_allocator,
+                stream_ptr);
+
+            free(temp_allocator);
+        }
+        
+        uint64_t guest_device = *(uint64_t*)(*stream_ptr);
+        *stream_ptr += sizeof(uint64_t);
+
+        uint64_t guest_descriptor_pool = *(uint64_t*)(*stream_ptr);
+        *stream_ptr += sizeof(uint64_t);
+
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        LOGI("Host: device mapping guest=%llx host=%llx", guest_device, (uint64_t)(uintptr_t)device);
+
+        VkDescriptorPool descriptor_pool;
+        VkResult result = vkCreateDescriptorPool(device, pCreateInfo, pAllocator, &descriptor_pool);
+        
+        if (result == VK_SUCCESS) {
+            LOGI("Host: vkCreateDescriptorPool success, guest=%llx host=%llx", 
+                guest_descriptor_pool, (uint64_t)(uintptr_t)descriptor_pool);
+
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_POOL, 
+                        guest_descriptor_pool, 
+                        (uint64_t)(uintptr_t)descriptor_pool);
+        } else {
+            LOGI("Host: vkCreateDescriptorPool failed with result=%d", result);
+        }
+
+        free(pCreateInfo);
+        if (need_free) {
+            free(stream);
+        }
+
+        break;
+    }
+
+    case FUNID_vkFlushMappedMemoryRanges:
+    {
+        LOGI("Host: vkFlushMappedMemoryRanges request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        uint32_t memoryRangeCount = *(uint32_t*)(*ptr);
+        *ptr += sizeof(uint32_t);
+        
+        VkMappedMemoryRange* pMemoryRanges = NULL;
+        if (memoryRangeCount > 0) {
+            pMemoryRanges = (VkMappedMemoryRange*)malloc(
+                memoryRangeCount * sizeof(VkMappedMemoryRange));
+            
+            for (uint32_t i = 0; i < memoryRangeCount; ++i) {
+                decode_from_stream_VkMappedMemoryRange(VK_STRUCTURE_TYPE_MAX_ENUM, 
+                                                    &pMemoryRanges[i], ptr);
+            }
+        }
+        for (uint32_t i = 0; i < memoryRangeCount; ++i) {
+            void* hostPtr = get_memory_map((uint64_t)pMemoryRanges[i].memory);
+            if (hostPtr) {
+                // all_para[1].data 对应 addPtr(mem->map_data, mem->length)
+                // all_para[1].size 存储了 mem->length
+                read_from_guest_mem(
+                    all_para[1+i].data,
+                    hostPtr,
+                    0,
+                    all_para[1+i].data_len);
+                LOGI("Host: synced %zu bytes to mappedPtr %p",
+                    (size_t)all_para[1+i].data_len, hostPtr);
+            } else {
+                LOGE("Host: no mapping found for guest_mem %llu", pMemoryRanges[i].memory);
+            }
+        }
+        
+        VkResult result = vkFlushMappedMemoryRanges(device, memoryRangeCount, pMemoryRanges);
+        
+        if (result != VK_SUCCESS) {
+            LOGE("Host: vkFlushMappedMemoryRanges failed with result %d", result);
+        }
+        
+        if (pMemoryRanges) free(pMemoryRanges);
+        if (need_free) free(stream);
+        break;
+    }
 
 /*
 not tested yet!
@@ -1959,6 +2490,8 @@ not tested yet!
         if (need_free) free(stream);
     }
     break;
+
+    */
 
     case FUNID_vkResetCommandBuffer: {
         LOGI("Host: vkResetCommandBuffer");
@@ -2047,6 +2580,7 @@ not tested yet!
         if (need_free) free(stream);
     }
     break;
+    /*
 
     case FUNID_vkSetEvent: {
         LOGI("Host: vkSetEvent");
@@ -2125,39 +2659,322 @@ not tested yet!
         free(pInfo);
     }
     break;
+*/
 
-    case FUNID_vkAllocateDescriptorSets: {
-        LOGI("Host: vkAllocateDescriptorSets");
+    case FUNID_vkAllocateDescriptorSets:
+    {
+        LOGI("Host: vkAllocateDescriptorSets request");
+        
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vk param number %d", para_num);
+        
         int need_free = 0;
         char* stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t** ptr = (uint8_t**)&stream;
 
-        VkDescriptorSetAllocateInfo* pInfo = malloc(sizeof(VkDescriptorSetAllocateInfo));
-        decode_from_stream_VkDescriptorSetAllocateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, pInfo, ptr);
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
 
-        uint64_t guest_dev = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
-        VkDevice realDev = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
+        VkDescriptorSetAllocateInfo allocate_info;
+        decode_from_stream_VkDescriptorSetAllocateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, &allocate_info, ptr);
 
-        VkDescriptorSet* realSets = malloc(pInfo->descriptorSetCount * sizeof(VkDescriptorSet));
-        VkResult result = vkAllocateDescriptorSets(realDev, pInfo, realSets);
+        LOGI("get descripter set count %d", allocate_info.descriptorSetCount);
 
+        VkDescriptorSet* host_descriptor_sets = (VkDescriptorSet*)malloc(
+            allocate_info.descriptorSetCount * sizeof(VkDescriptorSet));
+        
+        VkResult result = vkAllocateDescriptorSets(device, &allocate_info, host_descriptor_sets);
+        
         if (result == VK_SUCCESS) {
-            for (uint32_t i = 0; i < pInfo->descriptorSetCount; ++i) {
-                uint64_t guest_set = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
-                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, guest_set, (uint64_t)(uintptr_t)realSets[i]);
-                LOGI("Mapped DescriptorSet %d guest %llu -> host %p", i, (unsigned long long)guest_set, (void*)realSets[i]);
+            uint64_t* guest_descriptor_sets = (uint64_t*)malloc(
+                allocate_info.descriptorSetCount * sizeof(uint64_t));
+            read_from_guest_mem(all_para[1].data, guest_descriptor_sets, 0, 
+                            allocate_info.descriptorSetCount * sizeof(uint64_t));
+            
+            for (uint32_t i = 0; i < allocate_info.descriptorSetCount; ++i) {
+                uint64_t host_desc_set = (uint64_t)(uintptr_t)host_descriptor_sets[i];
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, 
+                            guest_descriptor_sets[i], host_desc_set);
+                LOGI("Host: mapped descriptor set %d: guest %lld -> host %lld", 
+                    i, guest_descriptor_sets[i], host_desc_set);
             }
+            
+            free(guest_descriptor_sets);
         } else {
-            LOGE("vkAllocateDescriptorSets failed: %d", result);
+            LOGE("Host: vkAllocateDescriptorSets failed with result %d", result);
         }
-
-        free(realSets);
+        
+        // free(host_layouts);
+        free(host_descriptor_sets);
+        
         if (need_free) free(stream);
-        free(pInfo);
     }
     break;
-*/
+
+    case FUNID_vkUpdateDescriptorSets:
+    {
+        LOGI("Host: vkUpdateDescriptorSets request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vk param number %d", para_num);
+        
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+
+        uint32_t descriptorWriteCount = *(uint32_t*)(*ptr);
+        *ptr += sizeof(uint32_t);
+        uint32_t descriptorCopyCount = *(uint32_t*)(*ptr);
+        *ptr += sizeof(uint32_t);
+        
+        LOGI("Host: vkUpdateDescriptorSets write count %d, copy count %d", 
+            descriptorWriteCount, descriptorCopyCount);
+
+        VkWriteDescriptorSet* pDescriptorWrites = NULL;
+        if (descriptorWriteCount > 0) {
+            pDescriptorWrites = (VkWriteDescriptorSet*)malloc(
+                descriptorWriteCount * sizeof(VkWriteDescriptorSet));
+            
+            for (uint32_t i = 0; i < descriptorWriteCount; ++i) {
+                decode_from_stream_VkWriteDescriptorSet(VK_STRUCTURE_TYPE_MAX_ENUM, 
+                                                    &pDescriptorWrites[i], ptr);
+                LOGI("Host: vkUpdateDescriptorSets copy %d: %llx",
+                    i, (long long)pDescriptorWrites[i].pImageInfo[0].imageView);
+                if (pDescriptorWrites[i].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+                    pDescriptorWrites[i].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) {
+                
+                    // 遍历这个write中的所有图像
+                    for (uint32_t j = 0; j < pDescriptorWrites[i].descriptorCount; ++j) {
+                        VkImageView imageView = pDescriptorWrites[i].pImageInfo[j].imageView;
+                        
+                        // 通过ImageView找到对应的Image
+                        VkImage hostImage = getImageFromImageView(imageView); // 你需要实现这个函数
+                        
+                        if (hostImage != VK_NULL_HANDLE) {
+                            LOGI("Host: Found image for layout transition, imageView=%llx", 
+                                (long long)imageView);
+                            
+                            // 执行布局转换
+                            // transitionImageLayoutForSampling(device, hostImage, pDescriptorWrites[i].pImageInfo[j].imageLayout);
+
+                            VkDescriptorImageInfo imageInfo = pDescriptorWrites[i].pImageInfo[j];
+                        }
+                    }
+                }          
+            }
+
+        }
+
+        VkCopyDescriptorSet* pDescriptorCopies = NULL;
+        if (descriptorCopyCount > 0) {
+            pDescriptorCopies = (VkCopyDescriptorSet*)malloc(
+                descriptorCopyCount * sizeof(VkCopyDescriptorSet));
+            
+            for (uint32_t i = 0; i < descriptorCopyCount; ++i) {
+                decode_from_stream_VkCopyDescriptorSet(VK_STRUCTURE_TYPE_MAX_ENUM, 
+                                                    &pDescriptorCopies[i], ptr);
+                // LOGI("Host: vkUpdateDescriptorSets copy %d: %llx",
+                //     i, (long long)pDescriptorCopies[i].pImageInfo.imageView);
+            }
+        }
+
+        vkUpdateDescriptorSets(device, descriptorWriteCount, pDescriptorWrites, 
+                            descriptorCopyCount, pDescriptorCopies);
+        
+        LOGI("Host: vkUpdateDescriptorSets completed successfully");
+
+        if (pDescriptorWrites) free(pDescriptorWrites);
+        if (pDescriptorCopies) free(pDescriptorCopies);
+        if (need_free) free(stream);
+    }
+    break;
+
+    case FUNID_vkCmdBindDescriptorSets:
+    {
+        LOGI("Host: vkCmdBindDescriptorSets request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkPipelineBindPoint bindPoint = *(VkPipelineBindPoint*)(*ptr); *ptr += sizeof(uint32_t);
+        uint64_t guest_layout = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t firstSet = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t setCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t dynamicOffsetCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
+        VkPipelineLayout layout = (VkPipelineLayout)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PIPELINE_LAYOUT, guest_layout);
+        
+        VkDescriptorSet* descriptorSets = NULL;
+        uint32_t* dynamicOffsets = NULL;
+        
+        if (setCount > 0 && para_num > 1) {
+            uint64_t* guest_sets = (uint64_t*)malloc(setCount * sizeof(uint64_t));
+            read_from_guest_mem(all_para[1].data, guest_sets, 0, setCount * sizeof(uint64_t));
+            
+            descriptorSets = (VkDescriptorSet*)malloc(setCount * sizeof(VkDescriptorSet));
+            for (uint32_t i = 0; i < setCount; ++i) {
+                descriptorSets[i] = (VkDescriptorSet)(uintptr_t)
+                    lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, guest_sets[i]);
+            }
+            free(guest_sets);
+            
+            if (para_num > 2) {
+                // Read dynamic offset count from guest memory structure
+                if (dynamicOffsetCount > 0) {
+                    dynamicOffsets = (uint32_t*)malloc(dynamicOffsetCount * sizeof(uint32_t));
+                    read_from_guest_mem(all_para[2].data, dynamicOffsets, 0, dynamicOffsetCount * sizeof(uint32_t));
+                }
+            }
+        } else if(dynamicOffsetCount > 0) {
+            // If no descriptor sets, but dynamic offsets are provided
+            dynamicOffsets = (uint32_t*)malloc(dynamicOffsetCount * sizeof(uint32_t));
+            read_from_guest_mem(all_para[1].data, dynamicOffsets, 0, dynamicOffsetCount * sizeof(uint32_t));
+        }
+        LOGI("Host: vkCmdBindDescriptorSets commandBuffer=%p bindPoint=%d layout=%p firstSet=%d setCount=%d dynamicOffsetCount=%d",
+            (void*)commandBuffer, bindPoint, (void*)layout, firstSet, setCount, dynamicOffsetCount);
+        
+        vkCmdBindDescriptorSets(commandBuffer, bindPoint, layout, firstSet, setCount,
+                            descriptorSets, dynamicOffsetCount, dynamicOffsets);
+        
+        if (descriptorSets) free(descriptorSets);
+        if (dynamicOffsets) free(dynamicOffsets);
+    }
+    break;
+
+    case FUNID_vkCmdCopyImage:
+    {
+        LOGI("Host: vkCmdCopyImage request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_src = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkImageLayout srcLayout = *(VkImageLayout*)(*ptr); *ptr += sizeof(uint32_t);
+        uint64_t guest_dst = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkImageLayout dstLayout = *(VkImageLayout*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t regionCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
+        VkImage srcImage = (VkImage)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_src);
+        VkImage dstImage = (VkImage)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_dst);
+        
+        VkImageCopy* regions = NULL;
+        if (regionCount > 0 && para_num > 1) {
+            regions = (VkImageCopy*)malloc(regionCount * sizeof(VkImageCopy));
+            read_from_guest_mem(all_para[1].data, regions, 0, regionCount * sizeof(VkImageCopy));
+        }
+        
+        vkCmdCopyImage(commandBuffer, srcImage, srcLayout, dstImage, dstLayout, regionCount, regions);
+        
+        if (regions) free(regions);
+    }
+    break;
+    case FUNID_vkFreeMemory:
+    {
+        LOGI("Host: vkFreeMemory request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_memory = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkDeviceMemory memory = (VkDeviceMemory)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_memory);
+        
+        vkFreeMemory(device, memory, NULL);
+        
+        remove_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_memory);
+        
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceFormatProperties:
+    {
+        LOGI("Host: vkGetPhysicalDeviceFormatProperties request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkFormat format = *(VkFormat*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
+        
+        VkFormatProperties properties;
+        vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+        LOGI("Host: vkGetPhysicalDeviceFormatProperties format=%d result %d", format, properties.linearTilingFeatures);
+        
+        write_to_guest_mem(all_para[1].data, &properties, 0, sizeof(VkFormatProperties));
+        
+    }
+    break;
+
+    case FUNID_vkInvalidateMappedMemoryRanges:
+    {
+        LOGI("Host: vkInvalidateMappedMemoryRanges request");
+        
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t rangeCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkMappedMemoryRange* ranges = NULL;
+        if (rangeCount > 0 && para_num > 1) {
+            VkMappedMemoryRange* guest_ranges = (VkMappedMemoryRange*)malloc(rangeCount * sizeof(VkMappedMemoryRange));
+            read_from_guest_mem(all_para[1].data, guest_ranges, 0, rangeCount * sizeof(VkMappedMemoryRange));
+            
+            ranges = (VkMappedMemoryRange*)malloc(rangeCount * sizeof(VkMappedMemoryRange));
+            for (uint32_t i = 0; i < rangeCount; ++i) {
+                ranges[i] = guest_ranges[i];
+                uint64_t guest_memory = (uint64_t)(uintptr_t)guest_ranges[i].memory;
+                ranges[i].memory = (VkDeviceMemory)(uintptr_t)
+                    lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_memory);
+            }
+            free(guest_ranges);
+        }
+        
+        VkResult result = vkInvalidateMappedMemoryRanges(device, rangeCount, ranges);
+        
+        write_to_guest_mem(all_para[2].data, &result, 0, sizeof(VkResult));
+        
+        if (ranges) free(ranges);
+        
+    }
+    break;
+
     case FUNID_vkDestroyBuffer: {
         LOGI("Host: vkDestroyBuffer request");
     

@@ -57,6 +57,15 @@ void set_memory_map(uint64_t host_mem, void* mappedPtr);
 void* get_memory_map(uint64_t host_mem);
 int remove_mapping(ExpressVkObjectType type, uint64_t guest_id);
 
+void set_imageview_to_image(uint64_t host_imageview, uint64_t host_image);
+VkImage getImageFromImageView(VkImageView imageView);
+void set_device_graphics_queue(uint64_t host_device, uint64_t graphics_queue);
+void set_device_command_pool(uint64_t host_device, uint64_t command_pool);
+VkQueue getGraphicsQueue(VkDevice device);
+VkCommandPool getOrCreateCommandPool(VkDevice device);
+void clear_imageview_mappings(void);
+void clear_device_queue_mappings(void);
+
 void set_device_pd(uint64_t host_dev, VkPhysicalDevice phys);
 VkPhysicalDevice get_device_pd(uint64_t host_dev);
 

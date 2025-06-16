@@ -149,12 +149,6 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
             LOGE("[vulkan_surface] No gbuffer found for buffer id %llx", buffer_ids[i]);
         }
     }
-
-    // Present the images
-    // VkResult res = vkQueuePresentKHR(queue, presentInfo);
-    // if (res != VK_SUCCESS) {
-    //     LOGE("[vulkan_surface] vkQueuePresentKHR failed: %d", res);
-    // }
 }
 
 // Read pixels from Vulkan image to host memory
