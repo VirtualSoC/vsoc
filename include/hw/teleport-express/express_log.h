@@ -75,6 +75,11 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 
 #ifdef TIMER_LOG
 
+#define TIMER_START_ON_THREAD(a)                \
+    static __thread gint64 timer_spend_##a = 0; \
+    static __thread gint64 timer_cnt_##a = 0;   \
+    gint64 temp_timer_##a = g_get_real_time();
+
 #define TIMER_START(a)                 \
     static gint64 timer_spend_##a = 0; \
     static gint64 timer_cnt_##a = 0;   \
@@ -109,6 +114,7 @@ if (freq == 0 || timer_cnt_##a % freq == 0) { \
 #else
 
 #define TIMER_START(a)
+#define TIMER_START_ON_THREAD(a)
 #define TIMER_END(a)
 #define TIMER_PRINT(a, fre)
 #define TIMER_PRINT_MOVING(a, fre)

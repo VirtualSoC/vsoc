@@ -11,11 +11,9 @@
 
 // #define STD_DEBUG_LOG
 // #define TIMER_LOG
-#include "hw/express-gpu/express_display.h"
-#include "hw/teleport-express/express_handle_thread.h"
-
 #include "hw/teleport-express/express_log.h"
 
+#include "hw/express-gpu/express_display.h"
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/express_gpu.h"
 #include "hw/express-gpu/express_gpu_main_window.h"
@@ -26,7 +24,6 @@
 
 #include "hw/express-mem/express_sync.h"
 
-#include "qemu/atomic.h"
 #include "sysemu/runstate.h"
 #include <math.h>
 
@@ -107,14 +104,14 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
             break;
         }
 
-        TIMER_START(compose_layer);
+        TIMER_START_ON_THREAD(compose_layer);
         handle_display_rotation(disp, layers);
         opengl_paint_composer_layers(disp, layers);
         g_free(layers);
 
         display_present(disp);
         TIMER_END(compose_layer);
-        TIMER_PRINT_MOVING_GT(compose_layer, 1, 16.67);
+        TIMER_PRINT_MOVING(compose_layer, 100);
     } break;
     case FUNID_Show_Window:
     {
@@ -489,116 +486,113 @@ static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layer
 
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers)
 {
-    if (layers != NULL)
+    if (layers == NULL || layers->layer_num <= 0)
     {
-        glClear(GL_COLOR_BUFFER_BIT);
+        LOGW("no layers to paint, return");
+        return;
+    }
 
-        if (!disp->is_open && express_display_switch_open)
+    if (!disp->is_open && express_display_switch_open)
+    {
+        return;
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    for (int i = 0; i < layers->layer_num; i++)
+    {
+        GBuffer_Layer layer = layers->layer[i];
+
+        LOGD("composer wait for write sync gbuffer %" PRIx64 " sync %d", layer.gbuffer_id, layer.write_sync_id);
+
+        wait_for_express_sync(layer.write_sync_id, true);
+
+        Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
+        if (gbuffer != NULL)
         {
-            return;
-        }
+            if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
+                // layer xywh 是旋转前的，但layer crop是旋转后的，所以要调整一下
+                swap(layer.x, layer.y, int);
+                swap(layer.width, layer.height, int);
+            }
 
-        for (int i = 0; i < layers->layer_num; i++)
-        {
-            GBuffer_Layer layer = layers->layer[i];
+            LOGD("draw layer %d xywh %d %d %d %d crop %d %d %d %d gbuffer id %llx texture %d size %d %d blend_type %d transform_type %d",
+                            i, layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height, layer.gbuffer_id, gbuffer->data_texture, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
 
-            LOGD("composer wait for write sync gbuffer %" PRIx64 " sync %d", layer.gbuffer_id, layer.write_sync_id);
+            // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
+            // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
+            // 两者间可能存在缩放关系
+            // 这里计算得到的是，在缩放正确的情况下，原始的整个gbuffer绘制到当前界面的位置
+            int view_w = gbuffer->width * layer.width / layer.crop_width;
+            int view_h = gbuffer->height * layer.height / layer.crop_height;
+            int view_x = layer.x - layer.crop_x * layer.width / layer.crop_width;
+            int view_y = layer.y - layer.crop_y * layer.height / layer.crop_height; // 按缩放计算原始gbuffer左上角位置（按窗口上方为坐标零点）
 
-            wait_for_express_sync(layer.write_sync_id, true);
-
-            Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(layer.gbuffer_id);
-            if (gbuffer != NULL)
-            {
-                if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
-                    // layer xywh 是旋转前的，但layer crop是旋转后的，所以要调整一下
-                    swap(layer.x, layer.y, int);
-                    swap(layer.width, layer.height, int);
-                }
-
-                LOGD("draw layer %d xywh %d %d %d %d crop %d %d %d %d gbuffer id %llx texture %d size %d %d blend_type %d transform_type %d",
-                               i, layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height, layer.gbuffer_id, gbuffer->data_texture, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
-
-                // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
-                // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
-                // 两者间可能存在缩放关系
-                // 这里计算得到的是，在缩放正确的情况下，原始的整个gbuffer绘制到当前界面的位置
-                int view_w = gbuffer->width * layer.width / layer.crop_width;
-                int view_h = gbuffer->height * layer.height / layer.crop_height;
-                int view_x = layer.x - layer.crop_x * layer.width / layer.crop_width;
-                int view_y = layer.y - layer.crop_y * layer.height / layer.crop_height; // 按缩放计算原始gbuffer左上角位置（按窗口上方为坐标零点）
-
-                if (disp->transform_type == FLIP_V && layer.transform_type == FLIP_V) {
-                    // 安卓9下FLIP_V处理
-                    // guest设置了上下翻转时，crop坐标也是翻转后的，
-                    // 这里需要将crop的y反转，恢复成原始图像左上角的坐标
-                    view_y = layer.y - (gbuffer->height - layer.crop_height - layer.crop_y) * layer.height / layer.crop_height;
-                }
-                else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
-                    // 转换成以窗口下方为零点的位置
-                    view_y = disp->info.pixel_width - view_y - view_h;
-                }
-                else {
-                    view_y = disp->info.pixel_height - view_y - view_h;
-                }
-
-                LOGD("non-scaled view %d %d %d %d", view_x, view_y, view_w, view_h);
-
-                float xscale, yscale;
-                if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
-                    xscale = (float)disp->content_w / disp->info.pixel_height;
-                    yscale = (float)disp->content_h / disp->info.pixel_width;
-                }
-                else {
-                    xscale = (float)disp->content_w / disp->info.pixel_width;
-                    yscale = (float)disp->content_h / disp->info.pixel_height;
-                }
-                view_x = round(view_x * xscale);
-                view_y = round(view_y * yscale);
-                view_w = round(view_w * xscale);
-                view_h = round(view_h * yscale);
-
-                LOGD("content xywh %d %d %d %d glviewport %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, view_x, view_y, view_w, view_h, disp->transform_type, layer.transform_type);
-
-                glViewport(view_x, view_y, view_w, view_h);
-
-                // glScissor是当前视口的裁剪情况，整个裁剪是说这个区域外就不绘制了，但是空间还是占着
-                // 而合成器的crop裁剪，是直接区域裁掉，所占的区域就没了
-                // 简单的说，从效果上来看，合成器的裁剪是把原来的图片给剪了一下，变小了后再缩放贴到屏幕缓冲区的相应位置
-                // 而glScissor，是原来的图片整个都贴到缓冲区的相应位置，但是屏幕缓冲区所指定的区域之外的地方用东西给盖住（其实是不绘制，而不是盖住）
-                if (disp->transform_type == FLIP_V)
-                {
-                    glScissor(layer.x, layer.y, layer.width, layer.height);
-                }
-                else if (disp->transform_type == ROTATE_NONE)
-                {
-                    glScissor(layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
-                }
-                else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270)
-                {
-                    glScissor(layer.x, disp->info.pixel_width - layer.y - layer.height, layer.width, layer.height);
-                }
-
-                adjust_blend_type(layer.blend_type);
-
-                opengl_paint_gbuffer(gbuffer);
+            if (disp->transform_type == FLIP_V && layer.transform_type == FLIP_V) {
+                // 安卓9下FLIP_V处理
+                // guest设置了上下翻转时，crop坐标也是翻转后的，
+                // 这里需要将crop的y反转，恢复成原始图像左上角的坐标
+                view_y = layer.y - (gbuffer->height - layer.crop_height - layer.crop_y) * layer.height / layer.crop_height;
+            }
+            else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
+                // 转换成以窗口下方为零点的位置
+                view_y = disp->info.pixel_width - view_y - view_h;
             }
             else {
-                LOGW("display %s: cannot find layer gbuffer %llx", disp->info.name, layer.gbuffer_id);
+                view_y = disp->info.pixel_height - view_y - view_h;
             }
-            LOGD("composer set sync %d", layer.read_sync_id);
-            signal_express_sync(layer.read_sync_id, true);
-        }
 
-        glFlush();
+            LOGD("non-scaled view %d %d %d %d", view_x, view_y, view_w, view_h);
+
+            float xscale, yscale;
+            if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270) {
+                xscale = (float)disp->content_w / disp->info.pixel_height;
+                yscale = (float)disp->content_h / disp->info.pixel_width;
+            }
+            else {
+                xscale = (float)disp->content_w / disp->info.pixel_width;
+                yscale = (float)disp->content_h / disp->info.pixel_height;
+            }
+            view_x = round(view_x * xscale);
+            view_y = round(view_y * yscale);
+            view_w = round(view_w * xscale);
+            view_h = round(view_h * yscale);
+
+            LOGD("content xywh %d %d %d %d glviewport %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, view_x, view_y, view_w, view_h, disp->transform_type, layer.transform_type);
+
+            glViewport(view_x, view_y, view_w, view_h);
+
+            // glScissor是当前视口的裁剪情况，整个裁剪是说这个区域外就不绘制了，但是空间还是占着
+            // 而合成器的crop裁剪，是直接区域裁掉，所占的区域就没了
+            // 简单的说，从效果上来看，合成器的裁剪是把原来的图片给剪了一下，变小了后再缩放贴到屏幕缓冲区的相应位置
+            // 而glScissor，是原来的图片整个都贴到缓冲区的相应位置，但是屏幕缓冲区所指定的区域之外的地方用东西给盖住（其实是不绘制，而不是盖住）
+            if (disp->transform_type == FLIP_V)
+            {
+                glScissor(layer.x, layer.y, layer.width, layer.height);
+            }
+            else if (disp->transform_type == ROTATE_NONE)
+            {
+                glScissor(layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
+            }
+            else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270)
+            {
+                glScissor(layer.x, disp->info.pixel_width - layer.y - layer.height, layer.width, layer.height);
+            }
+
+            adjust_blend_type(layer.blend_type);
+            opengl_paint_gbuffer(gbuffer);
+        }
+        else {
+            LOGW("display %s: cannot find layer gbuffer %llx", disp->info.name, layer.gbuffer_id);
+        }
+        LOGD("composer set sync %d", layer.read_sync_id);
+        signal_express_sync(layer.read_sync_id, true);
     }
 }
 
 static void display_present(Display_Context *disp)
 {
-    TIMER_START(swap_buffer);
     glfwSwapBuffers(disp->window);
-    TIMER_END(swap_buffer);
-    TIMER_PRINT_MOVING_GT(swap_buffer, 1, 16.67);
 
     sync_express_touchscreen_input(disp->window, (bool)disp->is_open || !express_display_switch_open);
     sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);
