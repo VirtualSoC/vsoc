@@ -32,7 +32,7 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
 // qemu_event_wait(&(context->data_event));
         if (context->data_event != NULL)
         {
-            wait_event(context->data_event, 1000);
+            wait_event(context->data_event, 0xffffffff);
         }
 
         if (teleport_express_should_stop)
