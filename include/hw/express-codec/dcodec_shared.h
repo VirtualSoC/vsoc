@@ -153,8 +153,8 @@ typedef struct {
 
 typedef struct {
 	int size;
-	int host_idx;
-	int guest_idx;
+	volatile int host_idx;
+	volatile int guest_idx;
 	CodecCallbackData callbacks[CODEC_CALLBACK_BUFFER_LEN];
 } __attribute__((packed, aligned(4))) CodecDMABuffer;
 

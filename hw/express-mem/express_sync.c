@@ -17,11 +17,12 @@
 #include "hw/teleport-express/express_event.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
+#define MAX_SYNC_NUM 512
 
-typedef struct Sync_Flag_Data
-{
-    volatile uint32_t guest_waitting_cnt;
-    uint32_t sync_status_id[MAX_SYNC_NUM]; // bitmap, to save DMA space
+typedef struct Sync_Flag_Data {
+    volatile uint32_t host_event_cnt; // only set by host, used for guest polling
+    volatile uint32_t guest_waits; // only set by guest, used by host to decide irq strategy
+	uint32_t sync_status_id[MAX_SYNC_NUM]; // bitmap, to save DMA space
 } __attribute__((packed, aligned(4))) Sync_Flag_Data;
 
 GLsync gpu_sync_id[MAX_SYNC_NUM * 32];
@@ -56,11 +57,11 @@ int sync_wait_cnt = 0;
 
 void save_sync_flag_data(QEMUFile *f, Sync_Flag_Data *data)
 {
-    qemu_put_be32(f, data->guest_waitting_cnt);
+    // qemu_put_be32(f, data->host_event_cnt);
     for (int i = 0; i < MAX_SYNC_NUM; i++)
     {
         qemu_put_be32(f, data->sync_status_id[i]);
-        LOGI("saving sync flag data %d %d", data->sync_status_id[i], data->guest_waitting_cnt);
+        // LOGI("saving sync flag data %d %d", data->sync_status_id[i], data->host_event_cnt);
     }
 }
 
@@ -69,7 +70,7 @@ void save_sync_context(QEMUFile *f){
     qemu_put_be32(f, static_sync_context.need_sync);
     save_guest_mem(f, static_sync_context.guest_buffer);
     // save_sync_flag_data(f, static_sync_context.sync_data);
-    LOGI("saveing sync flag data guest waitting cnt %d", static_sync_context.sync_data->guest_waitting_cnt);
+    // LOGI("saveing sync flag data guest waitting cnt %d", static_sync_context.sync_data->host_event_cnt);
     qemu_put_be32(f, static_sync_context.device_context.irq_enabled);
 
     if(static_sync_context.device_context.irq_call == NULL){
@@ -90,7 +91,7 @@ void load_sync_flag_data(QEMUFile *f, Sync_Flag_Data *data)
     // memset(data, 0, sizeof(data));
 
     // int a = qemu_get_be32(f);
-    // data->guest_waitting_cnt = a;
+    // data->host_event_cnt = a;
     // // data->sync_status_id = (uint32_t*)g_malloc0(MAX_SYNC_NUM * sizeof(uint32_t));
     // for (int i = 0; i < MAX_SYNC_NUM; i++)
     // {
@@ -107,7 +108,7 @@ void load_sync_context(QEMUFile *f){
     int null_flag = 0;
     LOGI("before load sync flag data %lld scatter data %d %d", static_sync_context.sync_data, static_sync_context.guest_buffer->scatter_data->len, static_sync_context.guest_buffer->scatter_data->data);
     static_sync_context.sync_data = (Sync_Flag_Data *)get_direct_ptr(static_sync_context.guest_buffer, &null_flag);
-    LOGI("after load sync flag data %lld %d", static_sync_context.sync_data, static_sync_context.sync_data->guest_waitting_cnt);
+    // LOGI("after load sync flag data %lld %d", static_sync_context.sync_data, static_sync_context.sync_data->host_event_cnt);
     load_sync_flag_data(f, static_sync_context.sync_data);
 
     // static_sync_context.sync_data = g_malloc0(sizeof(Sync_Flag_Data));
@@ -138,31 +139,40 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
         LOGE("invalid sync id %d!", sync_id);
         return;
     }
-    if (static_sync_context.sync_data != NULL)
-    {
-        if (need_gpu_sync)
-        {
-            if (gpu_sync_id[sync_id] != NULL)
-            {
-                glDeleteSync(gpu_sync_id[sync_id]);
-            }
-            gpu_sync_id[sync_id] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-            glFlush();
-        }
-        SET_SYNC_FLAG(static_sync_context.sync_data, sync_id);
 
-        if (qatomic_xchg(&sync_wait_cnt, 0) != 0)
+    if (static_sync_context.sync_data == NULL)
+    {
+        LOGE("error! signal_express_sync sync %d failed, sync_data is NULL!", sync_id);
+        return;
+    }
+
+    if (need_gpu_sync)
+    {
+        if (gpu_sync_id[sync_id] != NULL)
         {
-            set_event(sync_event);
+            glDeleteSync(gpu_sync_id[sync_id]);
         }
-        int old_waitting_cnt = 0;
-        if ((old_waitting_cnt = qatomic_xchg(&static_sync_context.sync_data->guest_waitting_cnt, 0)) != 0)
-        {
-            // LOGD("going to set sync irq");
-            while (set_express_device_irq((Device_Context *)&static_sync_context, old_waitting_cnt, sizeof(Sync_Context)) == IRQ_NOT_READY) {
-                g_usleep(1000);
-            }
-        }
+        gpu_sync_id[sync_id] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        glFlush();
+    }
+    SET_SYNC_FLAG(static_sync_context.sync_data, sync_id);
+
+    if (qatomic_xchg(&sync_wait_cnt, 0) != 0)
+    {
+        set_event(sync_event);
+    }
+
+    // if guest is already waiting for something, send an IRQ to notify it
+    // else set host_event_cnt and let guest poll for the event
+    int ret = IRQ_NOT_READY;
+    uint32_t guest_waits = qatomic_xchg(&static_sync_context.sync_data->guest_waits, 0);
+
+    if (guest_waits > 0) {
+        ret = set_express_device_irq((Device_Context *)&static_sync_context, 0, sizeof(Sync_Flag_Data));
+    }
+
+    if (ret != IRQ_SET_OK) {
+        static_sync_context.sync_data->host_event_cnt += 1;
     }
 }
 
@@ -234,7 +244,12 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
     int null_flag = 0;
     static_sync_context.sync_data = (Sync_Flag_Data *)get_direct_ptr(data, &null_flag);
 
-    // LOGI("sync register buffer %llu", (unsigned long long)static_sync_context.sync_data);
+    LOGI("sync register buffer %p size host %zu guest %d", static_sync_context.sync_data, sizeof(Sync_Flag_Data), data->all_len);
+
+    if (data->all_len != sizeof(Sync_Flag_Data))
+    {
+        LOGE("error! guest/host sync buffer size not equal: %d != %zu", data->all_len, sizeof(Sync_Flag_Data));
+    }
 
     if (null_flag != 0 && static_sync_context.sync_data == NULL)
     {
