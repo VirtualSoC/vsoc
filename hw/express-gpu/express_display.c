@@ -627,6 +627,8 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                     // 然后计算gbuffer的左下角应该在哪（以窗口下面为y轴零点）
                     view_y = display_height - view_y - view_h;
                 }
+                // LOGI("transform_type %d layer transform_type %d", disp->transform_type, layer.transform_type)
+
 
                 LOGD("glviewport %d %d %d %d glScissor %d %d %d %d", view_x, view_y, view_w, view_h, layer.x, display_height - layer.y - layer.height, layer.width, layer.height);
                 LOGD("layer %d %d %d %d crop %d %d %d %d", layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height);
@@ -659,7 +661,15 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                     glUniform1i(program_transform_loc, now_transform_type);
                 }
 
+                if(gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
+                    glUniform1i(disp->transform_uniform, FLIP_V);
+                    LOGI("set vulkan transform uniform %d", FLIP_V);
+                }
                 opengl_paint_gbuffer(gbuffer);
+                if(gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
+                    glUniform1i(disp->transform_uniform, disp->transform_type);
+                }
+
 
                 LOGD("composer set sync %d", layer.read_sync_id);
 
