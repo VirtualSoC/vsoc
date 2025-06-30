@@ -5826,36 +5826,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     }
     break;
 
-    case FUNID_vkCmdCopyImageToBuffer:
-    {
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-        int need_free = 0;
-        char* stream = call_para_to_ptr(all_para[0], &need_free);
-        uint8_t** ptr = (uint8_t**)&stream;
-        
-        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
-        uint64_t guest_src_image = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
-        uint32_t layout = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
-        uint64_t guest_dst_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
-        uint32_t regionCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
-        
-        VkBufferImageCopy* regions = malloc(regionCount * sizeof(VkBufferImageCopy));
-        for (uint32_t i = 0; i < regionCount; ++i) {
-            decode_from_stream_VkBufferImageCopy(VK_STRUCTURE_TYPE_MAX_ENUM, &regions[i], ptr);
-        }
-        
-        VkCommandBuffer cmdBuffer = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
-        VkImage srcImage = (VkImage)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_src_image);
-        VkBuffer dstBuffer = (VkBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER, guest_dst_buffer);
-        
-        vkCmdCopyImageToBuffer(cmdBuffer, srcImage, (VkImageLayout)layout, dstBuffer, regionCount, regions);
-        LOGI("Host: vkCmdCopyImageToBuffer called for command buffer %llu with source image %llu and destination buffer %llu", 
-             (unsigned long long)guest_cmd, (unsigned long long)guest_src_image, (unsigned long long)guest_dst_buffer);
-        
-        free(regions);
-    }
-    break;
-
     case FUNID_vkCmdCopyImageToBuffer2:
     {
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
@@ -6094,6 +6064,8 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
         
+        LOGI("Host: vkCmdNextSubpass called with contents %u", contents);
+        
         vkCmdNextSubpass(commandBuffer, (VkSubpassContents)contents);
         LOGI("Host: vkCmdNextSubpass called for command buffer %llu with contents %u", 
              (unsigned long long)guest_cmd, contents);
@@ -6143,15 +6115,15 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         char* stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t** ptr = (uint8_t**)&stream;
         
-        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
-        
         uint64_t dep_ptr = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
         VkDependencyInfo* pDependencyInfo = NULL;
         if (dep_ptr) {
             pDependencyInfo = malloc(sizeof(VkDependencyInfo));
+            LOGI("Host: vkCmdPipelineBarrier2 dep_ptr %llu", dep_ptr);
             decode_from_stream_VkDependencyInfo(VK_STRUCTURE_TYPE_MAX_ENUM,
                                                 pDependencyInfo, ptr);
         }
+        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
         
         VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
@@ -6261,6 +6233,27 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         vkCmdSetBlendConstants(commandBuffer, blendConstants);
         LOGI("Host: vkCmdSetBlendConstants called for command buffer %llu", (unsigned long long)guest_cmd);
+    }
+    break;
+
+    case FUNID_vkCmdSetDepthBounds:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+    
+        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+    
+        float minDepthBounds, maxDepthBounds;
+        memcpy(&minDepthBounds, *ptr, 4); *ptr += 4;
+        memcpy(&maxDepthBounds, *ptr, 4); *ptr += 4;
+    
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
+    
+        vkCmdSetDepthBounds(commandBuffer, minDepthBounds, maxDepthBounds);
+        LOGI("Host: vkCmdSetDepthBounds called");
     }
     break;
 
@@ -7053,6 +7046,115 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         LOGI("vkCreateSamplerYcbcrConversion result %d", result);
     }
     break;
+
+    case FUNID_vkDeviceWaitIdle:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkResult result = vkDeviceWaitIdle(device);
+        if (result != VK_SUCCESS) {
+            LOGE("vkDeviceWaitIdle failed with error %d", result);
+        } else {
+            LOGI("vkDeviceWaitIdle completed successfully");
+        }
+        LOGI("Host: vkDeviceWaitIdle result %d", result);
+    }
+    break;
+
+    case FUNID_vkCmdSetDepthBias:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        float depthBiasConstantFactor = *(float*)(*ptr); *ptr += sizeof(float);
+        float depthBiasClamp = *(float*)(*ptr); *ptr += sizeof(float);
+        float depthBiasSlopeFactor = *(float*)(*ptr); *ptr += sizeof(float);
+        
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd_buffer);
+        
+        vkCmdSetDepthBias(commandBuffer, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor);
+        LOGI("Host: vkCmdSetDepthBias executed");
+    }
+    break;
+
+    case FUNID_vkCmdCopyImageToBuffer:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_src_image = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        VkImageLayout srcImageLayout = *(VkImageLayout*)(*ptr); *ptr += sizeof(VkImageLayout);
+        uint64_t guest_dst_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t regionCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd_buffer);
+        VkImage srcImage = (VkImage)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_src_image);
+        VkBuffer dstBuffer = (VkBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER, guest_dst_buffer);
+        
+        VkBufferImageCopy* pRegions = (VkBufferImageCopy*)malloc(sizeof(VkBufferImageCopy) * regionCount);
+        memcpy(pRegions, *ptr, sizeof(VkBufferImageCopy) * regionCount);
+        
+        vkCmdCopyImageToBuffer(commandBuffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions);
+        
+        free(pRegions);
+        LOGI("Host: vkCmdCopyImageToBuffer executed with %d regions", regionCount);
+    }
+    break;
+
+    case FUNID_vkCmdCopyBuffer:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_src_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint64_t guest_dst_buffer = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t regionCount = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd_buffer);
+        VkBuffer srcBuffer = (VkBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER, guest_src_buffer);
+        VkBuffer dstBuffer = (VkBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER, guest_dst_buffer);
+        
+        VkBufferCopy* pRegions = (VkBufferCopy*)malloc(sizeof(VkBufferCopy) * regionCount);
+        memcpy(pRegions, *ptr, sizeof(VkBufferCopy) * regionCount);
+        
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions);
+        
+        free(pRegions);
+        LOGI("Host: vkCmdCopyBuffer executed with %d regions", regionCount);
+    }
+    break;
+
+    default:
+        LOGE("Unhandled Vulkan function ID: %d", fun_id);
+        break;
 
     }
     call->callback(call, 1);
