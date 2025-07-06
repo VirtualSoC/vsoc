@@ -7152,6 +7152,25 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     }
     break;
 
+    case FUNID_vkCmdSetDepthCompareOp:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t compare_op = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
+        
+        vkCmdSetDepthCompareOp(commandBuffer, (VkCompareOp)compare_op);
+        
+        LOGI("Host: CmdSetDepthCompareOp complete");
+    }
+    break;
+
     default:
         LOGE("Unhandled Vulkan function ID: %d", fun_id);
         break;
