@@ -60,7 +60,6 @@ static void end_dma_to_gbuffer(Hardware_Buffer *gbuffer) {
     glBindTexture(GL_TEXTURE_2D, 0);
 
     g_unpack_buffer_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-    glFlush();
 
 #ifdef STD_DEBUG_LOG
     GLenum error = glGetError();

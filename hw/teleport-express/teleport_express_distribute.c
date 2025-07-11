@@ -20,21 +20,6 @@
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
 
-//这是VirtQueueElement里面的实际东西
-// typedef struct VirtQueueElement
-// {
-//     //elem的翻译
-//     unsigned int index; // header
-//     unsigned int len;  //packe模式用的
-//     unsigned int ndescs; //消耗的desc数目
-//     unsigned int out_num; //out数组长度
-//     unsigned int in_num;  //in数组长度
-//     hwaddr *in_addr;  //desc中放的实际值（物理地址）
-//     hwaddr *out_addr; //
-//     struct iovec *in_sg;
-//     struct iovec *out_sg; //实际地址和长度
-// } VirtQueueElement;
-
 static VirtIODevice *teleport_express_device;
 
 //用于回收call的队列，实现了无锁的入队，这里将它的大小设置为CALL_BUF_SIZE+2是为了保证队列不会爆，大小一定满足要求
@@ -49,7 +34,6 @@ static void push_free_callback(Teleport_Express_Call *call, int notify);
 void init_distribute_event(void);
 void distribute_wait(void);
 
-//用于通知回收的事件，这里对于平台兼容性的部分尚未完成
 typedef struct
 {
 #ifdef _WIN32
@@ -60,22 +44,6 @@ typedef struct
 } RECYCLE_EVENT;
 
 RECYCLE_EVENT recycle_event;
-
-// /**
-//  * @brief 释放Draw_Call这个结构体本身占用的空间，并将其占用的vring空间部分返还给guest
-//  *
-//  * @param out_call 需要释放的Teleport_Express_Call
-//  */
-// static void release_call(Teleport_Express_Call *out_call)
-// {
-
-//     VirtQueue *vq = out_call->vq;
-//     VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, out_call->elem_header, 1, next);
-//     TELEPORT_EXPRESS_QUEUE_ELEMS_FREE(out_call->elem_header);
-
-//     release_one_call(out_call);
-//     return;
-// }
 
 /**
  * @brief 创建一个thread_context，并根据这个context新建一个线程
@@ -104,8 +72,11 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
 //线程缓冲区事件初始化
     context->data_event = create_event(0, 0);
 
-    LOGD("ready to create thread for device %d", info->device_id);
-    qemu_thread_create(&context->this_thread, "handle_thread", handle_thread_run, context, QEMU_THREAD_JOINABLE);
+    char thread_name[32];
+    snprintf(thread_name, sizeof(thread_name), "%s_handle_thread", info->name);
+    LOGD("ready to create handle thread for device %s", info->name);
+
+    qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
 
     return context;
 }

@@ -1077,8 +1077,6 @@ void destroy_gbuffer(Hardware_Buffer *gbuffer)
         free_copied_guest_mem(gbuffer->guest_data);
     }
 
-    glFlush();
-
     if (gbuffer->host_data != NULL) {
         g_free(gbuffer->host_data);
     }

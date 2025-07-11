@@ -188,8 +188,6 @@ void resource_context_destroy(Resource_Context *resources)
 
     DESTROY_RESOURCES(query_resource, glDeleteQueries);
 
-    glFlush();
-
     g_free(resources->exclusive_resources);
 }
 

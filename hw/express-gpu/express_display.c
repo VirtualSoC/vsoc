@@ -160,7 +160,7 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
         sync_id = *(uint64_t *)(temp);
 
-        signal_express_sync((int)sync_id, true);
+        signal_express_sync((int)sync_id, false);
     }
     break;
     case FUNID_Wait_Sync:
@@ -488,7 +488,6 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 {
     if (layers == NULL || layers->layer_num <= 0)
     {
-        LOGW("no layers to paint, return");
         return;
     }
 
@@ -496,8 +495,6 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
     {
         return;
     }
-
-    glClear(GL_COLOR_BUFFER_BIT);
 
     for (int i = 0; i < layers->layer_num; i++)
     {
