@@ -16,13 +16,6 @@
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
-typedef struct Touchscreen_Prop
-{
-    int count;
-    int width;
-    int height;
-} __attribute__((packed, aligned(4))) Touchscreen_Prop;
-
 typedef struct Touchscreen_Data {
 	int touch_x[10];
 	int touch_y[10];
@@ -83,13 +76,11 @@ typedef struct Touchscreen_Context
 } Touchscreen_Context;
 
 // 触摸屏的物理大小，可以通过命令行来设置
-static Touchscreen_Prop static_prop = {
+Touchscreen_Prop touchscreen_prop = {
     .count = 1,
     .width = 1920,
     .height = 1080,
 };
-
-int *express_touchscreen_size = (int *)&static_prop;
 
 int express_touchscreen_scroll_ratio = 10;
 bool express_touchscreen_scroll_is_zoom = false;
@@ -614,8 +605,8 @@ static void set_express_touchscreen_input(Touchscreen_Context *context, int x, i
     } else if (context->window_rotation == ROTATE_270) {
         swap(x, y, int);
     }
-    x = max(min(x, static_prop.width), 1);
-    y = max(min(y, static_prop.height), 1);
+    x = max(min(x, touchscreen_prop.width), 1);
+    y = max(min(y, touchscreen_prop.height), 1);
 
     LOGD("touchscreen id %d wh %d %d rotate %d touch xy %d %d transformed %d %d", context->id, context->touchscreen_width, context->touchscreen_height, context->window_rotation, context->current_finger_xpos, context->current_finger_ypos, x, y);
 
@@ -699,8 +690,8 @@ static Device_Context *get_touchscreen_device_context(uint64_t device_id, uint64
     if (context == NULL) {
         context = g_malloc0(sizeof(Touchscreen_Context));
         context->id = unique_id;
-        context->touchscreen_width = static_prop.width;
-        context->touchscreen_height = static_prop.height;
+        context->touchscreen_width = touchscreen_prop.width;
+        context->touchscreen_height = touchscreen_prop.height;
 
         context->mouse_left_finger = -1,
         context->mouse_right_finger1 = -1,
@@ -713,12 +704,6 @@ static Device_Context *get_touchscreen_device_context(uint64_t device_id, uint64
     }
 
     return (Device_Context *)context;
-}
-
-static void init_touchscreen(void)
-{
-    static_prop.count = get_display_count();
-    get_display_info(0, &static_prop.width, &static_prop.height, NULL);
 }
 
 void save_touchscreen_context(QEMUFile* f) {
@@ -780,10 +765,8 @@ static Express_Device_Info express_touchscreen_info = {
     .get_device_context = get_touchscreen_device_context,
     .buffer_register = touchscreen_buffer_register,
 
-    .static_prop = &(static_prop),
+    .static_prop = &touchscreen_prop,
     .static_prop_size = sizeof(Touchscreen_Prop),
-
-    .init = init_touchscreen,
 };
 
 EXPRESS_DEVICE_INIT(express_touchscreen, &express_touchscreen_info)

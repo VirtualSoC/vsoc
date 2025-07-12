@@ -8,6 +8,15 @@
 #define MAX_RECORD_SLOT 100
 #define MAX_RECORD_NUM 100
 
+typedef struct Touchscreen_Prop
+{
+    int count;
+    int width;
+    int height;
+} __attribute__((packed, aligned(4))) Touchscreen_Prop;
+
+extern Touchscreen_Prop touchscreen_prop;
+
 void set_touchscreen_window_size(GLFWwindow *window, int max_width, int max_height, int rotation);
 
 void start_mouse_record(GLFWwindow *window, int index);

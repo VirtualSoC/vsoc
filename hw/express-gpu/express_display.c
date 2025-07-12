@@ -592,7 +592,7 @@ static void display_present(Display_Context *disp)
     glfwSwapBuffers(disp->window);
 
     sync_express_touchscreen_input(disp->window, (bool)disp->is_open || !express_display_switch_open);
-    sync_express_keyboard_input((bool)disp->is_open || !express_display_switch_open);
+    sync_express_keyboard_input(disp->window, (bool)disp->is_open || !express_display_switch_open);
 
     uint64_t now_time = g_get_real_time();
     char name[64];
@@ -841,6 +841,15 @@ void load_display_context(QEMUFile *f) {
     }
 }
 
+static void init_display_options() {
+    int count = get_display_count();
+
+    touchscreen_prop.count = count;
+    get_display_info(0, &touchscreen_prop.width, &touchscreen_prop.height, NULL);
+
+    express_keyboard_count = count;
+}
+
 static Express_Device_Info express_display_info = {
     .enable_default = true,
     .name = "express-display",
@@ -849,6 +858,8 @@ static Express_Device_Info express_display_info = {
     .device_type = OUTPUT_DEVICE_TYPE,
     .call_handle = display_decode_invoke,
     .get_context = get_display_context,
+
+    .init = init_display_options,
 };
 
 EXPRESS_DEVICE_INIT(express_display, &express_display_info)
