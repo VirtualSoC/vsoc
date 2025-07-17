@@ -7171,6 +7171,760 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     }
     break;
 
+    case FUNID_vkGetBufferDeviceAddress:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkBufferDeviceAddressInfo info;
+        decode_from_stream_VkBufferDeviceAddressInfo(VK_STRUCTURE_TYPE_MAX_ENUM, &info, ptr);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkDeviceAddress result = vkGetBufferDeviceAddress(device, &info);
+        write_to_guest_mem(all_para[1].data, &result, 0, sizeof(VkDeviceAddress));
+        
+        LOGI("GetBufferDeviceAddress completed");
+    }
+    break;
+
+    case FUNID_vkGetBufferOpaqueCaptureAddress:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkBufferDeviceAddressInfo info;
+        decode_from_stream_VkBufferDeviceAddressInfo(VK_STRUCTURE_TYPE_MAX_ENUM, &info, ptr);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        uint64_t result = vkGetBufferOpaqueCaptureAddress(device, &info);
+        write_to_guest_mem(all_para[1].data, &result, 0, sizeof(uint64_t));
+        
+        LOGI("GetBufferOpaqueCaptureAddress completed");
+    }
+    break;
+
+    case FUNID_vkGetDeviceMemoryOpaqueCaptureAddress:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkDeviceMemoryOpaqueCaptureAddressInfo info;
+        decode_from_stream_VkDeviceMemoryOpaqueCaptureAddressInfo(VK_STRUCTURE_TYPE_MAX_ENUM, &info, ptr);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        uint64_t result = vkGetDeviceMemoryOpaqueCaptureAddress(device, &info);
+        write_to_guest_mem(all_para[1].data, &result, 0, sizeof(uint64_t));
+        
+        LOGI("GetDeviceMemoryOpaqueCaptureAddress completed");
+    }
+    break;
+
+    case FUNID_vkGetDescriptorSetLayoutSupport:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkDescriptorSetLayoutCreateInfo createInfo;
+        decode_from_stream_VkDescriptorSetLayoutCreateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, &createInfo, ptr);
+        
+        VkDescriptorSetLayoutSupport support;
+        decode_from_stream_VkDescriptorSetLayoutSupport(VK_STRUCTURE_TYPE_MAX_ENUM, &support, ptr);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        vkGetDescriptorSetLayoutSupport(device, &createInfo, &support);
+        write_to_guest_mem(all_para[1].data, &support, 0, sizeof(VkDescriptorSetLayoutSupport));
+        
+        LOGI("GetDescriptorSetLayoutSupport completed");
+    }
+    break;
+
+    case FUNID_vkGetDeviceBufferMemoryRequirements:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkDeviceBufferMemoryRequirements info;
+        decode_from_stream_VkDeviceBufferMemoryRequirements(VK_STRUCTURE_TYPE_MAX_ENUM, &info, ptr);
+        
+        VkMemoryRequirements2 memReq;
+        decode_from_stream_VkMemoryRequirements2(VK_STRUCTURE_TYPE_MAX_ENUM, &memReq, ptr);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        vkGetDeviceBufferMemoryRequirements(device, &info, &memReq);
+        write_to_guest_mem(all_para[1].data, &memReq, 0, sizeof(VkMemoryRequirements2));
+        
+        LOGI("GetDeviceBufferMemoryRequirements completed");
+    }
+    break;
+
+    case FUNID_vkGetDeviceImageMemoryRequirements:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkDeviceImageMemoryRequirements info;
+        decode_from_stream_VkDeviceImageMemoryRequirements(VK_STRUCTURE_TYPE_MAX_ENUM, &info, ptr);
+        
+        VkMemoryRequirements2 memReq;
+        decode_from_stream_VkMemoryRequirements2(VK_STRUCTURE_TYPE_MAX_ENUM, &memReq, ptr);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        vkGetDeviceImageMemoryRequirements(device, &info, &memReq);
+        write_to_guest_mem(all_para[1].data, &memReq, 0, sizeof(VkMemoryRequirements2));
+        
+        LOGI("GetDeviceImageMemoryRequirements completed");
+    }
+    break;
+
+    case FUNID_vkGetDeviceImageSparseMemoryRequirements:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        
+        VkDeviceImageMemoryRequirements info;
+        decode_from_stream_VkDeviceImageMemoryRequirements(VK_STRUCTURE_TYPE_MAX_ENUM, &info, ptr);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        if (count == 0) {
+            vkGetDeviceImageSparseMemoryRequirements(device, &info, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkSparseImageMemoryRequirements2* reqs = malloc(count * sizeof(VkSparseImageMemoryRequirements2));
+            vkGetDeviceImageSparseMemoryRequirements(device, &info, &count, reqs);
+            // write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            write_to_guest_mem(all_para[2].data, reqs, 0, count * sizeof(VkSparseImageMemoryRequirements2));
+            free(reqs);
+        }
+        
+        LOGI("GetDeviceImageSparseMemoryRequirements completed");
+    }
+    break;
+
+    case FUNID_vkGetDeviceGroupPeerMemoryFeatures:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr); 
+        *ptr += sizeof(uint64_t);
+        uint32_t heapIndex = *(uint32_t*)(*ptr); 
+        *ptr += sizeof(uint32_t);
+        uint32_t localDeviceIndex = *(uint32_t*)(*ptr); 
+        *ptr += sizeof(uint32_t);
+        uint32_t remoteDeviceIndex = *(uint32_t*)(*ptr); 
+        *ptr += sizeof(uint32_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkPeerMemoryFeatureFlags flags;
+        vkGetDeviceGroupPeerMemoryFeatures(device, heapIndex, localDeviceIndex, remoteDeviceIndex, &flags);
+        write_to_guest_mem(all_para[1].data, &flags, 0, sizeof(VkPeerMemoryFeatureFlags));
+        
+        LOGI("GetDeviceGroupPeerMemoryFeatures completed");
+    }
+    break;
+
+    case FUNID_vkEnumeratePhysicalDeviceGroups:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_instance = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkInstance instance = (VkInstance)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_instance);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkEnumeratePhysicalDeviceGroups(instance, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkPhysicalDeviceGroupProperties* properties = (VkPhysicalDeviceGroupProperties*)malloc(count * sizeof(VkPhysicalDeviceGroupProperties));
+            if (!properties) {
+                result = VK_ERROR_OUT_OF_HOST_MEMORY;
+            } else {
+                result = vkEnumeratePhysicalDeviceGroups(instance, &count, properties);
+                write_to_guest_mem(all_para[2].data, properties, 0, count * sizeof(VkPhysicalDeviceGroupProperties));
+                free(properties);
+            }
+        }
+        
+        write_to_guest_mem(all_para[3].data, &result, 0, sizeof(VkResult));
+        LOGI("EnumeratePhysicalDeviceGroups completed");
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceExternalBufferProperties:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
+        
+        VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo = (VkPhysicalDeviceExternalBufferInfo*)malloc(sizeof(VkPhysicalDeviceExternalBufferInfo));
+        decode_from_stream_VkPhysicalDeviceExternalBufferInfo(VK_STRUCTURE_TYPE_MAX_ENUM, pExternalBufferInfo, ptr);
+        
+        VkExternalBufferProperties properties;
+        vkGetPhysicalDeviceExternalBufferProperties(physicalDevice, pExternalBufferInfo, &properties);
+        
+        write_to_guest_mem(all_para[1].data, &properties, 0, sizeof(VkExternalBufferProperties));
+        free(pExternalBufferInfo);
+        LOGI("GetPhysicalDeviceExternalBufferProperties completed");
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceExternalFenceProperties:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
+        
+        VkPhysicalDeviceExternalFenceInfo* pExternalFenceInfo = (VkPhysicalDeviceExternalFenceInfo*)malloc(sizeof(VkPhysicalDeviceExternalFenceInfo));
+        decode_from_stream_VkPhysicalDeviceExternalFenceInfo(VK_STRUCTURE_TYPE_MAX_ENUM, pExternalFenceInfo, ptr);
+        
+        VkExternalFenceProperties properties;
+        vkGetPhysicalDeviceExternalFenceProperties(physicalDevice, pExternalFenceInfo, &properties);
+        
+        write_to_guest_mem(all_para[1].data, &properties, 0, sizeof(VkExternalFenceProperties));
+        free(pExternalFenceInfo);
+        LOGI("GetPhysicalDeviceExternalFenceProperties completed");
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceExternalSemaphoreProperties:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
+        
+        VkPhysicalDeviceExternalSemaphoreInfo* pExternalSemaphoreInfo = (VkPhysicalDeviceExternalSemaphoreInfo*)malloc(sizeof(VkPhysicalDeviceExternalSemaphoreInfo));
+        decode_from_stream_VkPhysicalDeviceExternalSemaphoreInfo(VK_STRUCTURE_TYPE_MAX_ENUM, pExternalSemaphoreInfo, ptr);
+        
+        VkExternalSemaphoreProperties properties;
+        vkGetPhysicalDeviceExternalSemaphoreProperties(physicalDevice, pExternalSemaphoreInfo, &properties);
+        
+        write_to_guest_mem(all_para[1].data, &properties, 0, sizeof(VkExternalSemaphoreProperties));
+        free(pExternalSemaphoreInfo);
+        LOGI("GetPhysicalDeviceExternalSemaphoreProperties completed");
+    }
+    break;
+
+    case FUNID_vkGetImageSparseMemoryRequirements:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_image = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkImage image = (VkImage)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE, guest_image);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        if (count == 0) {
+            vkGetImageSparseMemoryRequirements(device, image, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkSparseImageMemoryRequirements* requirements = (VkSparseImageMemoryRequirements*)malloc(count * sizeof(VkSparseImageMemoryRequirements));
+            if (requirements) {
+                vkGetImageSparseMemoryRequirements(device, image, &count, requirements);
+                write_to_guest_mem(all_para[2].data, requirements, 0, count * sizeof(VkSparseImageMemoryRequirements));
+                free(requirements);
+            }
+        }
+        LOGI("GetImageSparseMemoryRequirements completed");
+    }
+    break;
+
+    case FUNID_vkGetImageSparseMemoryRequirements2:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkImageSparseMemoryRequirementsInfo2* pInfo = (VkImageSparseMemoryRequirementsInfo2*)malloc(sizeof(VkImageSparseMemoryRequirementsInfo2));
+        decode_from_stream_VkImageSparseMemoryRequirementsInfo2(VK_STRUCTURE_TYPE_MAX_ENUM, pInfo, ptr);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        if (count == 0) {
+            vkGetImageSparseMemoryRequirements2(device, pInfo, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkSparseImageMemoryRequirements2* requirements = (VkSparseImageMemoryRequirements2*)malloc(count * sizeof(VkSparseImageMemoryRequirements2));
+            if (requirements) {
+                vkGetImageSparseMemoryRequirements2(device, pInfo, &count, requirements);
+                write_to_guest_mem(all_para[2].data, requirements, 0, count * sizeof(VkSparseImageMemoryRequirements2));
+                free(requirements);
+            }
+        }
+        free(pInfo);
+        LOGI("GetImageSparseMemoryRequirements2 completed");
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceFeatures2:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
+        
+        VkPhysicalDeviceFeatures2 features;
+        vkGetPhysicalDeviceFeatures2(physicalDevice, &features);
+        
+        write_to_guest_mem(all_para[1].data, &features, 0, sizeof(VkPhysicalDeviceFeatures2));
+        LOGI("GetPhysicalDeviceFeatures2 completed");
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSparseImageFormatProperties:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        VkFormat format = *(VkFormat*)(*ptr); *ptr += sizeof(VkFormat);
+        VkImageType type = *(VkImageType*)(*ptr); *ptr += sizeof(VkImageType);
+        VkSampleCountFlagBits samples = *(VkSampleCountFlagBits*)(*ptr); *ptr += sizeof(VkSampleCountFlagBits);
+        VkImageUsageFlags usage = *(VkImageUsageFlags*)(*ptr); *ptr += sizeof(VkImageUsageFlags);
+        VkImageTiling tiling = *(VkImageTiling*)(*ptr); *ptr += sizeof(VkImageTiling);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        if (count == 0) {
+            vkGetPhysicalDeviceSparseImageFormatProperties(physicalDevice, format, type, samples, usage, tiling, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkSparseImageFormatProperties* properties = (VkSparseImageFormatProperties*)malloc(count * sizeof(VkSparseImageFormatProperties));
+            if (properties) {
+                vkGetPhysicalDeviceSparseImageFormatProperties(physicalDevice, format, type, samples, usage, tiling, &count, properties);
+                write_to_guest_mem(all_para[2].data, properties, 0, count * sizeof(VkSparseImageFormatProperties));
+                free(properties);
+            }
+        }
+        LOGI("GetPhysicalDeviceSparseImageFormatProperties completed");
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSparseImageFormatProperties2:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
+        
+        VkPhysicalDeviceSparseImageFormatInfo2* pFormatInfo = (VkPhysicalDeviceSparseImageFormatInfo2*)malloc(sizeof(VkPhysicalDeviceSparseImageFormatInfo2));
+        decode_from_stream_VkPhysicalDeviceSparseImageFormatInfo2(VK_STRUCTURE_TYPE_MAX_ENUM, pFormatInfo, ptr);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        if (count == 0) {
+            vkGetPhysicalDeviceSparseImageFormatProperties2(physicalDevice, pFormatInfo, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkSparseImageFormatProperties2* properties = (VkSparseImageFormatProperties2*)malloc(count * sizeof(VkSparseImageFormatProperties2));
+            if (properties) {
+                vkGetPhysicalDeviceSparseImageFormatProperties2(physicalDevice, pFormatInfo, &count, properties);
+                write_to_guest_mem(all_para[2].data, properties, 0, count * sizeof(VkSparseImageFormatProperties2));
+                free(properties);
+            }
+        }
+        free(pFormatInfo);
+        LOGI("GetPhysicalDeviceSparseImageFormatProperties2 completed");
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceToolProperties:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_physical_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_physical_device);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceToolProperties(physicalDevice, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkPhysicalDeviceToolProperties* properties = 
+                (VkPhysicalDeviceToolProperties*)malloc(count * sizeof(VkPhysicalDeviceToolProperties));
+            result = vkGetPhysicalDeviceToolProperties(physicalDevice, &count, properties);
+            write_to_guest_mem(all_para[2].data, properties, 0, count * sizeof(VkPhysicalDeviceToolProperties));
+            free(properties);
+        }
+        
+        write_to_guest_mem(all_para[3].data, &result, 0, sizeof(VkResult));
+        LOGI("GetPhysicalDeviceToolProperties result: %d", result);
+    }
+    break;
+
+    case FUNID_vkGetRenderAreaGranularity:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_render_pass = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkRenderPass renderPass = (VkRenderPass)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_RENDER_PASS, guest_render_pass);
+        
+        VkExtent2D granularity;
+        vkGetRenderAreaGranularity(device, renderPass, &granularity);
+        
+        write_to_guest_mem(all_para[1].data, &granularity, 0, sizeof(VkExtent2D));
+        LOGI("GetRenderAreaGranularity complete");
+    }
+    break;
+
+    case FUNID_vkGetSemaphoreCounterValue:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_semaphore = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkSemaphore semaphore = (VkSemaphore)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SEMAPHORE, guest_semaphore);
+        
+        uint64_t value;
+        VkResult result = vkGetSemaphoreCounterValue(device, semaphore, &value);
+        
+        write_to_guest_mem(all_para[1].data, &value, 0, sizeof(uint64_t));
+        write_to_guest_mem(all_para[2].data, &result, 0, sizeof(VkResult));
+        LOGI("GetSemaphoreCounterValue result: %d", result);
+    }
+    break;
+
+    case FUNID_vkQueueSubmit2:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_queue = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_fence = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint32_t submitCount = *(uint32_t*)(*ptr);
+        *ptr += sizeof(uint32_t);
+        
+        VkQueue queue = (VkQueue)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUEUE, guest_queue);
+        VkFence fence = guest_fence ? (VkFence)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_FENCE, guest_fence) : VK_NULL_HANDLE;
+        
+        VkSubmitInfo2* pSubmits = (VkSubmitInfo2*)malloc(submitCount * sizeof(VkSubmitInfo2));
+        for (uint32_t i = 0; i < submitCount; ++i) {
+            decode_from_stream_VkSubmitInfo2(VK_STRUCTURE_TYPE_MAX_ENUM, 
+                                            &pSubmits[i], ptr);
+        }
+        
+        VkResult result = vkQueueSubmit2(queue, submitCount, pSubmits, fence);
+        if(result == VK_SUCCESS) {
+            LOGI("QueueSubmit2 completed successfully");
+        } else {
+            LOGE("QueueSubmit2 failed with error: %d", result);
+        }
+        
+        free(pSubmits);
+        LOGI("QueueSubmit2 result: %d", result);
+    }
+    break;
+
+    case FUNID_vkSetEvent:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_event = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkEvent event = (VkEvent)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_EVENT, guest_event);
+        
+        vkSetEvent(device, event);
+        LOGI("SetEvent complete");
+    }
+    break;
+
+    case FUNID_vkSignalSemaphore:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkSemaphoreSignalInfo signalInfo;
+        decode_from_stream_VkSemaphoreSignalInfo(VK_STRUCTURE_TYPE_MAX_ENUM, 
+                                                &signalInfo, ptr);
+        
+        VkResult result = vkSignalSemaphore(device, &signalInfo);
+        if(result == VK_SUCCESS) {
+            LOGI("SignalSemaphore completed successfully");
+        } else {
+            LOGE("SignalSemaphore failed with error: %d", result);
+        }
+        LOGI("SignalSemaphore result: %d", result);
+    }
+    break;
+
+    case FUNID_vkUpdateDescriptorSetWithTemplate:
+    youwenti!!!!!
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_descriptor_set = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_descriptor_update_template = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_data = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkDescriptorSet descriptorSet = (VkDescriptorSet)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, guest_descriptor_set);
+        VkDescriptorUpdateTemplate descriptorUpdateTemplate = (VkDescriptorUpdateTemplate)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE, guest_descriptor_update_template);
+        
+        // zTODO: Need to properly handle pData mapping from guest memory
+        vkUpdateDescriptorSetWithTemplate(device, descriptorSet, descriptorUpdateTemplate, NULL);
+        LOGI("UpdateDescriptorSetWithTemplate complete");
+    }
+    break;
+
+    case FUNID_vkWaitSemaphores:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t timeout = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkSemaphoreWaitInfo waitInfo;
+        decode_from_stream_VkSemaphoreWaitInfo(VK_STRUCTURE_TYPE_MAX_ENUM, 
+                                            &waitInfo, ptr);
+        
+        VkResult result = vkWaitSemaphores(device, &waitInfo, timeout);
+        if(result == VK_SUCCESS) {
+            LOGI("WaitSemaphores completed successfully");
+        } else {
+            LOGE("WaitSemaphores failed with error: %d", result);
+        }
+        LOGI("WaitSemaphores result: %d", result);
+    }
+    break;
+
+    case FUNID_vkGetPrivateData:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint32_t objectType = *(uint32_t*)(*ptr);
+        *ptr += sizeof(uint32_t);
+        uint64_t objectHandle = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_private_data_slot = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkPrivateDataSlot privateDataSlot = (VkPrivateDataSlot)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PRIVATE_DATA_SLOT, guest_private_data_slot);
+        
+        uint64_t data;
+        vkGetPrivateData(device, (VkObjectType)objectType, objectHandle, privateDataSlot, &data);
+        
+        write_to_guest_mem(all_para[1].data, &data, 0, sizeof(uint64_t));
+        LOGI("GetPrivateData complete");
+    }
+    break;
+
+    case FUNID_vkSetPrivateData:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint32_t objectType = *(uint32_t*)(*ptr);
+        *ptr += sizeof(uint32_t);
+        uint64_t objectHandle = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t guest_private_data_slot = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        uint64_t data = *(uint64_t*)(*ptr);
+        *ptr += sizeof(uint64_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkPrivateDataSlot privateDataSlot = (VkPrivateDataSlot)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PRIVATE_DATA_SLOT, guest_private_data_slot);
+        
+        VkResult result = vkSetPrivateData(device, (VkObjectType)objectType, objectHandle, privateDataSlot, data);
+        if(result == VK_SUCCESS) {
+            LOGI("SetPrivateData completed successfully");
+        } else {
+            LOGE("SetPrivateData failed with error: %d", result);
+        }
+        LOGI("SetPrivateData result: %d", result);
+    }
+    break;
+
     default:
         LOGE("Unhandled Vulkan function ID: %d", fun_id);
         break;
