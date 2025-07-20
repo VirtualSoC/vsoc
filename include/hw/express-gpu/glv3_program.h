@@ -5,11 +5,10 @@
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/express_gpu_main_window.h"
 
-
 extern GHashTable *program_is_external_map;
+extern GMutex program_is_external_map_mutex;
 extern GHashTable *program_data_map;
-
-
+extern GMutex program_data_map_mutex;
 
 void get_program_data(GLuint program, int buf_len, GLchar *program_data);
 

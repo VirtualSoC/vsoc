@@ -970,14 +970,18 @@ void d_glDeleteProgram(void *context, GLuint program)
 
     GLuint host_program = (GLuint)get_host_resource_id(map_status, program, 12);
 
+    g_mutex_lock(&program_is_external_map_mutex);
     if (program_is_external_map != NULL)
     {
         g_hash_table_remove(program_is_external_map, GUINT_TO_POINTER(host_program));
     }
+    g_mutex_unlock(&program_is_external_map_mutex);
+    g_mutex_lock(&program_data_map_mutex);
     if (program_data_map != NULL)
     {
         g_hash_table_remove(program_data_map, GUINT_TO_POINTER(host_program));
     }
+    g_mutex_unlock(&program_data_map_mutex);
 
     glDeleteProgram(host_program);
     // LOGI("delete program %d %d", program, host_program);

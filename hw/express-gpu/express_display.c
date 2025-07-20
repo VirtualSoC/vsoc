@@ -33,6 +33,7 @@ bool express_display_switch_open;
 bool express_gpu_keep_window_scale;
 
 static GHashTable *g_display_contexts = NULL;
+static GMutex g_display_contexts_mutex;
 
 int sdl2_no_need = 0;
 
@@ -299,7 +300,9 @@ static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_i
         disp->unique_id = unique_id;
 
         LOGD("display uid %" PRId64 " create context", unique_id);
+        g_mutex_lock(&g_display_contexts_mutex);
         g_hash_table_insert(g_display_contexts, GUINT_TO_POINTER(unique_id), (gpointer)context);
+        g_mutex_unlock(&g_display_contexts_mutex);
     }
     return context;
 }
@@ -421,7 +424,9 @@ static void display_context_init(Display_Context *disp)
 
 static void display_context_destroy(Display_Context *disp)
 {
+    g_mutex_lock(&g_display_contexts_mutex);
     g_hash_table_remove(g_display_contexts, GUINT_TO_POINTER(disp->unique_id));
+    g_mutex_unlock(&g_display_contexts_mutex);
     if (disp->window != NULL) {
         glfwMakeContextCurrent(NULL);
         glfwHideWindow(disp->window);
@@ -841,7 +846,7 @@ void load_display_context(QEMUFile *f) {
     }
 }
 
-static void init_display_options() {
+static void init_display_options(void) {
     int count = get_display_count();
 
     touchscreen_prop.count = count;

@@ -8,8 +8,10 @@
 #include "hw/express-gpu/express_gpu.h"
 
 GHashTable *program_is_external_map = NULL;
+GMutex program_is_external_map_mutex;
 
 GHashTable *program_data_map = NULL;
+GMutex program_data_map_mutex;
 
 int memcpy_with_add_vec(char *dst, char *origin, const char *fun, int len);
 void get_default_out(const char *string, char *out);
@@ -132,11 +134,13 @@ int init_program_data(GLuint program)
 
             if (strstr(name_buf, "has_EGL_image_external") != NULL)
             {
+                g_mutex_lock(&program_is_external_map_mutex);
                 if (program_is_external_map == NULL)
                 {
                     program_is_external_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
                 }
                 g_hash_table_insert(program_is_external_map, GUINT_TO_POINTER(program), GINT_TO_POINTER(1));
+                g_mutex_unlock(&program_is_external_map_mutex);
                 has_image = 1;
                 continue;
             }
@@ -198,12 +202,14 @@ int init_program_data(GLuint program)
             *((int *)program_data) = uniform_num - 1;
         }
 
+        g_mutex_lock(&program_data_map_mutex);
         if (program_data_map == NULL)
         {
             program_data_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_program_data_destroy);
         }
-
+        
         g_hash_table_insert(program_data_map, GUINT_TO_POINTER(program), program_data); //ztodo:恢复program data map
+        g_mutex_unlock(&program_data_map_mutex);
 
         if (buf_len > temp_ptr - program_data + 10)
         {
@@ -281,7 +287,6 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
 
     if (program_data_map == NULL || program == 0)
     {
-
         LOGE("error! program_data_map %llx program %d", (uint64_t)program_data_map, program);
         return;
     }
@@ -297,8 +302,10 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     LOGD("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
     write_to_guest_mem(guest_mem, save_program_data, 0, buf_len);
 
+    g_mutex_lock(&program_data_map_mutex);
     //读取完成后直接删除就行了
     g_hash_table_remove(program_data_map, GUINT_TO_POINTER(program));
+    g_mutex_unlock(&program_data_map_mutex);
 
     LOGD("current program map size %d", g_hash_table_size(program_data_map));
 

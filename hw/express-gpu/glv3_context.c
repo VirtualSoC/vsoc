@@ -150,14 +150,18 @@ void resource_context_destroy(Resource_Context *resources)
             {
                 if (resources->program_resource->resource_id_map[i] != 0)
                 {
+                    g_mutex_lock(&program_is_external_map_mutex);
                     if (program_is_external_map != NULL)
                     {
                         g_hash_table_remove(program_is_external_map, GUINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
                     }
+                    g_mutex_unlock(&program_is_external_map_mutex);
+                    g_mutex_lock(&program_data_map_mutex);
                     if (program_data_map != NULL)
                     {
                         g_hash_table_remove(program_data_map, GUINT_TO_POINTER((GLuint)resources->program_resource->resource_id_map[i]));
                     }
+                    g_mutex_unlock(&program_data_map_mutex);
                     glDeleteProgram((GLuint)resources->program_resource->resource_id_map[i]);
                     // LOGI("delete program of id %d", (GLuint)resources->program_resource->resource_id_map[i]);
                 }
