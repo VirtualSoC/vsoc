@@ -210,6 +210,10 @@ static void prepare_native_opengl_context_async() {
     }
 }
 
+/**
+ * @brief 向main window发送消息，创建新的OpenGL Context，其他线程可以直接使用
+ * @note 请使用release_native_opengl_context来释放context，以避免多线程竞争问题
+ */
 void *get_native_opengl_context(int context_flags)
 {
     void *native_context = NULL;
