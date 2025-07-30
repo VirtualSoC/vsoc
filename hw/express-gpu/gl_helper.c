@@ -907,11 +907,11 @@ void prepare_integer_value(Static_Context_Values *s_values)
 
     int *temp_int_array = g_alloca(max(max(s_values->num_shader_binary_formats, s_values->num_compressed_texture_formats), s_values->num_program_binary_formats) * sizeof(int));
     glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->compressed_texture_formats, temp_int_array, max(s_values->num_compressed_texture_formats, 128) * sizeof(int));
+    memcpy(s_values->compressed_texture_formats, temp_int_array, min(s_values->num_compressed_texture_formats, 128) * sizeof(int));
     glGetIntegerv(GL_PROGRAM_BINARY_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->program_binary_formats, temp_int_array, max(s_values->num_program_binary_formats, 8) * sizeof(int));
+    memcpy(s_values->program_binary_formats, temp_int_array, min(s_values->num_program_binary_formats, 8) * sizeof(int));
     glGetIntegerv(GL_SHADER_BINARY_FORMATS, (GLint *)temp_int_array);
-    memcpy(s_values->shader_binary_formats, temp_int_array, max(s_values->num_shader_binary_formats, 8) * sizeof(int));
+    memcpy(s_values->shader_binary_formats, temp_int_array, min(s_values->num_shader_binary_formats, 8) * sizeof(int));
 
     glGetIntegerv(GL_SUBPIXEL_BITS, (GLint *)temp_int_value);
     s_values->subpixel_bits = temp_int_value[0];

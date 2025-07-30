@@ -108,6 +108,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         {
             opengl_context_destroy(thread_context->opengl_context);
             g_free(thread_context->opengl_context);
+            thread_context->opengl_context = NULL;
         }
     }
 
@@ -499,7 +500,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
         double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);
-        LOGD("(%s) %p surface draw %.2fHz", process_context->guest_process_name, real_surface, hz);
+        LOGD("(%s) swapbuffer FPS %.2f", process_context->guest_process_name, hz);
         real_surface->now_screen_hz = 0;
 
         real_surface->last_calc_time = now_time;

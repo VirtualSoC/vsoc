@@ -123,9 +123,6 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
     {
         Teleport_Express_Call *call = call_pop(context);
 
-        //add some logs here
-        LOGD("in the while loop of handle_thread_run of device %lld thread %lld", context->device_id, context->thread_id);
-
         if (teleport_express_should_stop)
         {
             break;
@@ -147,11 +144,9 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
         //实际对每个call调用的操作
         if (context->call_handle != NULL)
         {
-            LOGD("handle thread call handle %llu", context->device_id);
+            LOGD("handle thread call_handle devid %llu callid %llu", context->device_id, call->id);
             context->call_handle(context, call);
         }
-
-        LOGD("finish one call of device %d id %llx",context->device_id, call->id);
     }
 
     delete_event(context->data_event);

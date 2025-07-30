@@ -433,7 +433,6 @@ static void display_context_destroy(Display_Context *disp)
         release_native_opengl_context(disp->window, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
         disp->window = NULL;
     }
-    g_free(disp);
 }
 
 static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layers) {
