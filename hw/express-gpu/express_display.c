@@ -117,15 +117,15 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
     case FUNID_Show_Window:
     {
         LOGD("disp %s: Show_Window", disp->info.name);
-        disp->transform_type = ROTATE_NONE;
-        glUniform1i(disp->transform_uniform, disp->transform_type);
+        disp->flip_type = ROTATE_NONE;
+        glUniform1i(disp->transform_uniform, disp->flip_type);
     }
     break;
     case FUNID_Show_Window_FLIP_V:
     {
         LOGD("disp %s: Show_Window_FLIP_V", disp->info.name);
-        disp->transform_type = FLIP_V;
-        glUniform1i(disp->transform_uniform, disp->transform_type);
+        disp->flip_type = FLIP_V;
+        glUniform1i(disp->transform_uniform, disp->flip_type);
     }
     break;
     case FUNID_Set_Sync_Flag:
@@ -216,7 +216,6 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
         display_context_init(disp);
         write_to_guest_mem(all_para[0].data, &disp->info, 0, sizeof(Display_Info));
-        // LOGI("FUNID_Get_Display_Mods");
     }
     break;
     case FUNID_Set_Display_Status:
@@ -387,7 +386,7 @@ static void display_context_init(Display_Context *disp)
 
         glfwMakeContextCurrent(disp->window);
 
-        glfwSwapInterval(0);
+        glfwSwapInterval(1);
 
         if (express_gpu_gl_debug_enable)
         {
@@ -477,7 +476,6 @@ static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layer
         bool current_rotated = target_transform == ROTATE_90 || target_transform == ROTATE_270;
 
         disp->transform_type = target_transform;
-        glUniform1i(disp->transform_uniform, disp->transform_type);
 
         if (prev_rotated == current_rotated) {
             glfwSetWindowSize(disp->window, disp->window_width, disp->window_height);
@@ -561,27 +559,44 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
             LOGD("content xywh %d %d %d %d glviewport %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, view_x, view_y, view_w, view_h, disp->transform_type, layer.transform_type);
 
-            glViewport(view_x, view_y, view_w, view_h);
+            if (layer.blend_type == BLEND_NONE) {
+                // quick path if no blending takes place
+                if (disp->flip_type == FLIP_V) {
+                    swap(layer.y, layer.height, int);
+                } else if (disp->flip_type == FLIP_H) {
+                    swap(layer.x, layer.width, int);
+                }
+                if (gbuffer->data_fbo == 0) {
+                    gbuffer_make_data_fbo(gbuffer);
+                }
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, gbuffer->data_fbo);
+                glBlitFramebuffer(layer.x, layer.y,
+                                    layer.width, layer.height, disp->content_x, disp->content_y, disp->content_w, disp->content_h,
+                                    GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            } else {
+                glViewport(view_x, view_y, view_w, view_h);
 
-            // glScissor是当前视口的裁剪情况，整个裁剪是说这个区域外就不绘制了，但是空间还是占着
-            // 而合成器的crop裁剪，是直接区域裁掉，所占的区域就没了
-            // 简单的说，从效果上来看，合成器的裁剪是把原来的图片给剪了一下，变小了后再缩放贴到屏幕缓冲区的相应位置
-            // 而glScissor，是原来的图片整个都贴到缓冲区的相应位置，但是屏幕缓冲区所指定的区域之外的地方用东西给盖住（其实是不绘制，而不是盖住）
-            if (disp->transform_type == FLIP_V)
-            {
-                glScissor(layer.x, layer.y, layer.width, layer.height);
+                // glScissor是当前视口的裁剪情况，整个裁剪是说这个区域外就不绘制了，但是空间还是占着
+                // 而合成器的crop裁剪，是直接区域裁掉，所占的区域就没了
+                // 简单的说，从效果上来看，合成器的裁剪是把原来的图片给剪了一下，变小了后再缩放贴到屏幕缓冲区的相应位置
+                // 而glScissor，是原来的图片整个都贴到缓冲区的相应位置，但是屏幕缓冲区所指定的区域之外的地方用东西给盖住（其实是不绘制，而不是盖住）
+                if (disp->transform_type == FLIP_V)
+                {
+                    glScissor(layer.x, layer.y, layer.width, layer.height);
+                }
+                else if (disp->transform_type == ROTATE_NONE)
+                {
+                    glScissor(layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
+                }
+                else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270)
+                {
+                    glScissor(layer.x, disp->info.pixel_width - layer.y - layer.height, layer.width, layer.height);
+                }
+    
+                adjust_blend_type(layer.blend_type);
+                opengl_paint_gbuffer(gbuffer);
             }
-            else if (disp->transform_type == ROTATE_NONE)
-            {
-                glScissor(layer.x, disp->info.pixel_height - layer.y - layer.height, layer.width, layer.height);
-            }
-            else if (disp->transform_type == ROTATE_90 || disp->transform_type == ROTATE_270)
-            {
-                glScissor(layer.x, disp->info.pixel_width - layer.y - layer.height, layer.width, layer.height);
-            }
-
-            adjust_blend_type(layer.blend_type);
-            opengl_paint_gbuffer(gbuffer);
         }
         else {
             LOGW("display %s: cannot find layer gbuffer %llx", disp->info.name, layer.gbuffer_id);
@@ -641,19 +656,16 @@ void display_status_change(Display_Context *disp, Display_Status status)
  */
 static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer)
 {
-    if (gbuffer != NULL)
+    if (gbuffer->is_writing != 0)
     {
-        if (gbuffer->is_writing != 0)
-        {
-            LOGE("error! get writing gbuffer when opengl_paint");
-        }
-
-        LOGD("draw gbuffer_id %llx data sync %lld", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
-
-        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        LOGE("error! get writing gbuffer when opengl_paint");
     }
+
+    LOGD("draw gbuffer_id %llx data sync %lld", gbuffer->gbuffer_id, (uint64_t)gbuffer->data_sync);
+
+    glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 static void window_size_change_callback(GLFWwindow *window, int width, int height)

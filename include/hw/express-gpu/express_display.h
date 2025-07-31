@@ -73,6 +73,7 @@ typedef struct
 
     int transform_uniform;
     int transform_type;
+    int flip_type; // todo: unify flip and transform
 
     int fps_counter;
     uint64_t last_fps_timestamp;

@@ -202,6 +202,8 @@ Hardware_Buffer *create_gbuffer_from_surface(Window_Buffer *surface);
 
 void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface, GHashTable *framebuffer_map);
 
+GLuint gbuffer_make_data_fbo(Hardware_Buffer *gbuffer);
+
 void reverse_gbuffer(Hardware_Buffer *gbuffer);
 
 void egl_surface_swap_buffer(void *render_context, Window_Buffer *surface,uint64_t gbuffer_id, int width, int height, int hal_format);

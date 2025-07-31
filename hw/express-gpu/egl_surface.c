@@ -901,8 +901,6 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         glDisable(GL_MULTISAMPLE);
     }
 
-
-
     glBindFramebuffer(GL_FRAMEBUFFER, surface->data_fbo[surface->now_fbo_loc]);
     GLint error = glGetError();
     if (error != GL_NO_ERROR)
@@ -1030,6 +1028,25 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     }
 
     return;
+}
+
+GLuint gbuffer_make_data_fbo(Hardware_Buffer *gbuffer) {
+    if (gbuffer->data_fbo != 0) {
+        LOGD("gbuffer %llx already has data fbo %d", gbuffer->gbuffer_id, gbuffer->data_fbo);
+        return gbuffer->data_fbo;
+    }
+
+    // save previous FBO
+    GLuint prev_fbo = 0;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, (GLint *)&prev_fbo);
+
+    glGenFramebuffers(1, &gbuffer->data_fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gbuffer->data_fbo);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, prev_fbo);
+
+    return gbuffer->data_fbo; 
 }
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer)

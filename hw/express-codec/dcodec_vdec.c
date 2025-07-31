@@ -755,11 +755,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
                           0,
                           desc->id);
 
-            glGenFramebuffers(1, &gbuffer->data_fbo);
-            glBindFramebuffer(GL_FRAMEBUFFER, gbuffer->data_fbo);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
+            gbuffer_make_data_fbo(gbuffer);
             add_gbuffer_to_global(gbuffer);
         }
 

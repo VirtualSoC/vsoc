@@ -300,7 +300,6 @@ static int full_callback(void *data, uintptr_t pc, const char *filename, int lin
 
 /* print qemu backtrace */
 void backtrace(void) {
-    fprintf(stderr, "Stack trace:\n");
     // todo: remove hardcoded path
     struct backtrace_state *state = backtrace_create_state("bin/qemu-system-x86_64.exe", 1, error_callback, NULL);
     if (state == NULL) {
@@ -315,7 +314,7 @@ void backtrace(void) {
 }
 
 void segfault_handler(int signum) {
-    fprintf(stderr, "*** Caught signal %d ***\n", signum);
+    fprintf(stderr, "*** Thread %d caught signal %d ***\n", CURRENT_TID(), signum);
     backtrace();
     exit(1);
 }
