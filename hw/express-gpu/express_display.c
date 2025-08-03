@@ -25,6 +25,7 @@
 #include "hw/express-mem/express_sync.h"
 
 #include "sysemu/runstate.h"
+#include "monitor/monitor.h"
 #include <math.h>
 
 int express_gpu_window_width;
@@ -621,6 +622,7 @@ static void display_present(Display_Context *disp)
     {
         float gen_frame_time_avg = 1.0f * (now_time - disp->last_fps_timestamp) / disp->fps_counter / 1000.0f;
         float fps = disp->fps_counter * 1000000.0f / (now_time - disp->last_fps_timestamp);
+        disp->last_fps = fps;
         LOGD("display %s: composer draw avg %.2f ms %.2f FPS", disp->info.name, gen_frame_time_avg, fps);
         sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, fps);
         glfwSetWindowTitle(disp->window, name);
@@ -866,16 +868,44 @@ static void init_display_options(void) {
     express_keyboard_count = count;
 }
 
+static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
+    if (argc < 1) {
+        monitor_printf(mon, "Usage: display <command> [args]\n");
+        monitor_printf(mon, "Available commands:\n");
+        monitor_printf(mon, "  count - Get the number of displays\n");
+        monitor_printf(mon, "  fps - Get the FPS of all displays\n");
+        return;
+    }
+
+    if (strcmp(argv[0], "count") == 0) {
+        int count = g_hash_table_size(g_display_contexts);
+        monitor_printf(mon, "%d\n", count);
+    }
+    else if (strcmp(argv[0], "fps") == 0) {
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, g_display_contexts);
+        while (g_hash_table_iter_next(&iter, &key, &value)) {
+            Display_Context *disp = (Display_Context *)value;
+            monitor_printf(mon, "%.2f ", disp->last_fps);
+        }
+        monitor_printf(mon, "\n");
+    }
+    else {
+        monitor_printf(mon, "Unknown display command: %s\n", argv[0]);
+    }
+}
+
 static Express_Device_Info express_display_info = {
     .enable_default = true,
     .name = "express-display",
     .option_name = "display",
     .device_id = EXPRESS_DISPLAY_DEVICE_ID,
     .device_type = OUTPUT_DEVICE_TYPE,
+    .init = init_display_options,
     .call_handle = display_decode_invoke,
     .get_context = get_display_context,
-
-    .init = init_display_options,
+    .hmp_handler = display_hmp_handler,
 };
 
 EXPRESS_DEVICE_INIT(express_display, &express_display_info)

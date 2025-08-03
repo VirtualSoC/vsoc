@@ -76,6 +76,7 @@ typedef struct
     int flip_type; // todo: unify flip and transform
 
     int fps_counter;
+    float last_fps;
     uint64_t last_fps_timestamp;
 } Display_Context;
 
