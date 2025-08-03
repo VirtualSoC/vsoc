@@ -279,6 +279,9 @@ typedef struct Express_Device_Info
     // 虚拟中断释放时的回调
     void (*irq_release)(Device_Context *context);
 
+    // QEMU monitor命令的处理函数
+    void (*hmp_handler)(Monitor *mon, int argc, const char **argv);
+
     // 给外设提供的静态属性参数值，可以在内核内通过调用get_teleport_input_device_prop来获得
     void *static_prop;
     int static_prop_size;
@@ -325,6 +328,7 @@ extern char *express_ruim_file;
 void express_device_init_common(Express_Device_Info *info);
 
 Express_Device_Info *get_express_device_info(unsigned int device_id);
+Express_Device_Info *get_express_device_info_by_name(const char *name);
 
 void cluster_decode_invoke(Teleport_Express_Call *call, void *context, EXPRESS_DECODE_FUN decode_fun);
 

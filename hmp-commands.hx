@@ -1800,3 +1800,17 @@ ERST
                       "\n\t\t\t\t\t limit on a specified virtual cpu",
         .cmd        = hmp_cancel_vcpu_dirty_limit,
     },
+
+SRST
+``vsoc`` [*dev_name*] [*args*]
+  Execute a vSoC-specific command. This command is used to interact with
+  vSoC virtual devices.
+ERST
+
+    {
+        .name       = "vsoc",
+        .args_type  = "args:S?",
+        .params     = "[dev_name] [args]",
+        .help       = "Execute a vSoC-specific command for virtual devices",
+        .cmd        = hmp_vsoc,
+    },

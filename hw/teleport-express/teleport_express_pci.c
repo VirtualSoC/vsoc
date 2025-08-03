@@ -91,6 +91,29 @@ Express_Device_Info *get_express_device_info(unsigned int device_id)
     return (Express_Device_Info *)g_hash_table_lookup(all_register_device_info, GUINT_TO_POINTER(device_id));
 }
 
+Express_Device_Info *get_express_device_info_by_name(const char *name)
+{
+    if (all_register_device_info == NULL)
+    {
+        return NULL;
+    }
+
+    GHashTableIter iter;
+    gpointer key, value;
+
+    g_hash_table_iter_init(&iter, all_register_device_info);
+    while (g_hash_table_iter_next(&iter, &key, &value))
+    {
+        Express_Device_Info *info = (Express_Device_Info *)value;
+        if (strcmp(info->option_name, name) == 0)
+        {
+            return info;
+        }
+    }
+
+    return NULL;
+}
+
 /**
  * @brief 根据Express_Device_Info里的内容产生给qemu命令行用的Property
  *

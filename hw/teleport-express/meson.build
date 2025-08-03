@@ -11,6 +11,7 @@ teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                    'teleport_express_register.c',
                    'express_handle_thread.c',
                    'express_device_ctrl.c',
+                   'teleport_express_hmp.c',
                ))
 
 if targetos == 'windows'
