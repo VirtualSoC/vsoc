@@ -882,7 +882,6 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         {
             surface->now_fbo_loc = (surface->now_fbo_loc + 1) % 3;
         }
-        
 
         GLuint current_fbo = 0;
         glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint *)&current_fbo);
@@ -901,6 +900,7 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
         glDisable(GL_MULTISAMPLE);
     }
 
+    glGetError();
     glBindFramebuffer(GL_FRAMEBUFFER, surface->data_fbo[surface->now_fbo_loc]);
     GLint error = glGetError();
     if (error != GL_NO_ERROR)
@@ -915,7 +915,6 @@ void connect_gbuffer_to_surface(Hardware_Buffer *gbuffer, Window_Buffer *surface
     if(error!=GL_NO_ERROR) {
         LOGE("error! surface framebuffer not complete! gl error %x framebuffer %d texture %d", error, surface->data_fbo[surface->now_fbo_loc], gbuffer->data_texture);
     }
-
 
     // resource_list = g_resource_list[RESOURCE_TYPE_FRAMEBUFFER];
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_FRAMEBUFFER]);

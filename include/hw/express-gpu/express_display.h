@@ -54,6 +54,7 @@ typedef struct
 
     GLuint programID;
     GLuint drawVAO;
+    GLuint blitFBO;
 
     // const display attributes
     uint64_t unique_id;

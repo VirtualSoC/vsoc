@@ -402,7 +402,10 @@ static void display_context_init(Display_Context *disp)
         display_opengl_prepare(&disp->programID, &disp->drawVAO);
         glBindVertexArray(disp->drawVAO);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glGenFramebuffers(1, &disp->blitFBO);
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
         disp->transform_uniform = glGetUniformLocation(disp->programID, "transform_loc");
 
@@ -412,8 +415,8 @@ static void display_context_init(Display_Context *disp)
 
         // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
         glDisable(GL_BLEND);
-        // glEnable(GL_BLEND);
-        // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        glDisable(GL_MULTISAMPLE);
 
         glfwShowWindow(disp->window);
         sdl2_no_need = 1;
@@ -427,6 +430,11 @@ static void display_context_destroy(Display_Context *disp)
     g_mutex_lock(&g_display_contexts_mutex);
     g_hash_table_remove(g_display_contexts, GUINT_TO_POINTER(disp->unique_id));
     g_mutex_unlock(&g_display_contexts_mutex);
+
+    glDeleteFramebuffers(1, &disp->blitFBO);
+    glDeleteVertexArrays(1, &disp->drawVAO);
+    glDeleteProgram(disp->programID);
+
     if (disp->window != NULL) {
         glfwMakeContextCurrent(NULL);
         glfwHideWindow(disp->window);
@@ -496,6 +504,12 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
     if (!disp->is_open && express_display_switch_open)
     {
+        LOGE("display %s is not open, cannot paint layers", disp->info.name);
+
+        for (int i = 0; i < layers->layer_num; i++)
+        {
+            signal_express_sync(layers->layer[i].read_sync_id, false);
+        }
         return;
     }
 
@@ -560,20 +574,20 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
             LOGD("content xywh %d %d %d %d glviewport %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, view_x, view_y, view_w, view_h, disp->transform_type, layer.transform_type);
 
-            if (layer.blend_type == BLEND_NONE) {
+            if (layer.blend_type == BLEND_NONE || layer.blend_type == BLEND_SRC) {
                 // quick path if no blending takes place
-                if (disp->flip_type == FLIP_V) {
-                    swap(layer.y, layer.height, int);
-                } else if (disp->flip_type == FLIP_H) {
-                    swap(layer.x, layer.width, int);
-                }
-                if (gbuffer->data_fbo == 0) {
-                    gbuffer_make_data_fbo(gbuffer);
-                }
-                glBindFramebuffer(GL_READ_FRAMEBUFFER, gbuffer->data_fbo);
-                glBlitFramebuffer(layer.x, layer.y,
-                                    layer.width, layer.height, disp->content_x, disp->content_y, disp->content_w, disp->content_h,
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, disp->blitFBO);
+                glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);
+                // todo: should we respect layer xywh?
+#ifdef __APPLE__
+                glBlitFramebuffer(
+#else
+                glBlitNamedFramebuffer(disp->blitFBO, 0, 
+#endif
+                                    0, 0, gbuffer->width, gbuffer->height, 
+                                    disp->content_x, disp->content_y, disp->content_w, disp->content_h,
                                     GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
             } else {
                 glViewport(view_x, view_y, view_w, view_h);

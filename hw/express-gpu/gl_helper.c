@@ -1369,10 +1369,6 @@ int display_opengl_prepare(GLuint *program, GLuint *VAO)
     *program = programObject;
     *VAO = quadVAO;
 
-    // 开启透明度混合后，默认不开透明度的线程的绘制结果对应的texture的透明度默认为0，叠加上去后会导致透明，看不到东西
-    //  glEnable(GL_BLEND);
-    //  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
     glUseProgram(programObject);
 
     glClearColor(0, 0, 0, 1);
