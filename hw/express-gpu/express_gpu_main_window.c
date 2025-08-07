@@ -769,6 +769,7 @@ static void *main_window_thread(void *opaque)
     THREAD_CONTROL_BEGIN
 
     glfwDestroyWindow(main_window);
+    glfwTerminate();
 
     THREAD_CONTROL_END
 

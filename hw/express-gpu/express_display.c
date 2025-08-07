@@ -387,7 +387,7 @@ static void display_context_init(Display_Context *disp)
 
         glfwMakeContextCurrent(disp->window);
 
-        glfwSwapInterval(1);
+        glfwSwapInterval(0);
 
         if (express_gpu_gl_debug_enable)
         {
@@ -766,6 +766,7 @@ void save_display_context(QEMUFile *f) {
     LOGI("in save_display_context");
 
     if (g_display_contexts == NULL) {
+        qemu_put_be32(f, 0);
         return;
     }
 
