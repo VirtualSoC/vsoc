@@ -24,6 +24,22 @@
 #include "hw/express-network/express_bridge.h"
 #include "qemu/sockets.h"
 
+#ifndef _WIN32
+#include <poll.h>
+#endif
+#include <errno.h>
+#include <string.h>
+#ifdef __linux__
+#include <netinet/tcp.h>
+#elif defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+
 #define WRITE_CACHE_SIZE (1024 * 1024 + 512)
 
 #define HAS_COMMING_DATA(read_data) \
@@ -116,7 +132,12 @@ static int bridge_socket_listern(int port)
 
         return -1;
     }
-    ret = listen(fd, 0);
+
+    // Low latency for interactive streams like ADB
+    opt = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+    ret = listen(fd, 16);
     if (ret < 0)
     {
         LOGE("can't listen on socket port %d %d", port, errno);
@@ -129,6 +150,83 @@ static int bridge_socket_listern(int port)
     LOGI("bridge listening on localhost:%d, fd=%d", port, fd);
 
     return fd;
+}
+
+// Robust send that handles partial writes and EAGAIN on non-blocking sockets.
+// Returns total bytes sent on success (== len), or -1 on fatal error.
+static ssize_t bridge_send_all(int fd, const void *buf, size_t len)
+{
+    const char *p = (const char *)buf;
+    size_t off = 0;
+
+    while (off < len)
+    {
+        ssize_t n = send(fd, p + off, len - off, MSG_NOSIGNAL);
+        if (n > 0)
+        {
+            off += (size_t)n;
+            continue;
+        }
+
+        if (n == 0)
+        {
+            // Shouldn't happen; treat as fatal
+            errno = EPIPE;
+            return -1;
+        }
+
+        int err = errno;
+        if (err == EINTR)
+        {
+            continue;
+        }
+
+    if (err == EAGAIN || err == EWOULDBLOCK)
+        {
+#ifdef _WIN32
+        // On Windows/MinGW, avoid poll(); back off briefly and retry
+        g_usleep(1000);
+        continue;
+#else
+            struct pollfd pfd;
+            pfd.fd = fd;
+            pfd.events = POLLOUT;
+            pfd.revents = 0;
+
+            // Wait until socket is writable; no hard timeout to preserve data integrity
+            int pr;
+            do
+            {
+                pr = poll(&pfd, 1, 500 /* ms */);
+            } while (pr < 0 && errno == EINTR);
+
+            if (pr > 0 && (pfd.revents & (POLLOUT | POLLERR | POLLHUP)))
+            {
+                if (pfd.revents & (POLLERR | POLLHUP))
+                {
+                    // Peer likely closed
+                    errno = EPIPE;
+                    return -1;
+                }
+                continue; // try send again
+            }
+
+            if (pr == 0)
+            {
+                // Timed out waiting for write-ready; continue to wait
+                continue;
+            }
+
+            // Unexpected poll error
+            return -1;
+#endif
+        }
+
+        // Fatal send error
+        return -1;
+    }
+
+    return (ssize_t)off;
 }
 
 static int bridge_socket_accept(int fd)
@@ -282,6 +380,11 @@ static void *bridge_accept_host_thread(void *opaque)
         {
             LOGD("connection accepted, fd=%d", ret_fd);
             qemu_socket_set_nonblock(ret_fd);
+
+            int opt = 1;
+            setsockopt(ret_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+            setsockopt(ret_fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
+
             g_hash_table_insert(accept_fd_thread_maps, GUINT_TO_POINTER(ret_fd), (gpointer)(uint64_t)guest_thread_id);
             get_accept_fd = ret_fd;
 
@@ -480,7 +583,14 @@ static void bridge_output_call_handle(struct Thread_Context *context, Teleport_E
                 memcpy(temp_buf, scatter_data[i].data, scatter_data[i].len <= 32 ? scatter_data[i].len : 32);
                 strcpy(temp_buf + 32, "...");
                 LOGV("send(sockfd=%d, buf=\"%s\", len=%zu, flag=%d)", bridge_context->connection_context.socket_fd, temp_buf, scatter_data[i].len, 0);
-                send(bridge_context->connection_context.socket_fd, scatter_data[i].data, scatter_data[i].len, 0);
+                ssize_t sent = bridge_send_all(bridge_context->connection_context.socket_fd, scatter_data[i].data, scatter_data[i].len);
+                if (sent < 0)
+                {
+                    int err = errno;
+                    LOGW("send failed on fd %d (len=%zu), errno=%d", bridge_context->connection_context.socket_fd, scatter_data[i].len, err);
+                    // Do not close here; let read thread detect and clean up to avoid races
+                    break;
+                }
             }
         }
     }
