@@ -41,7 +41,9 @@ typedef struct Bound_Buffer
     GHashTable *vao_point_data;
 
     GLuint asyn_unpack_texture_buffer;
+    GLuint asyn_unpack_texture_buffer_size;
     GLuint asyn_pack_texture_buffer;
+    GLuint asyn_pack_texture_buffer_size;
 
     Buffer_Status buffer_status; //这个就是记录具体的bound情况的,特别是DSA的情况
 

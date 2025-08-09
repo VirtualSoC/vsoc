@@ -87,8 +87,6 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
         }
         LOGD("set_vertex_attrib_data vbo index %d offset %d length %d padding %d",point_data->buffer_object[index], index, offset, length, padding);
 
-        //@todo 扩大提前申请的量级
-
         if (max_len > point_data->buffer_len[index])
         {
             //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的BUFFER_MULTIPLY_FACTOR倍，类似于vector的翻倍机制
@@ -100,14 +98,13 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             }
 
             // todo stream_draw需要验证
-            glBufferData(GL_ARRAY_BUFFER, alloc_size, NULL, GL_STREAM_DRAW);
+            glBufferData(GL_ARRAY_BUFFER, alloc_size, NULL, GL_DYNAMIC_DRAW);
             point_data->buffer_len[index] = alloc_size;
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
-                                           GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
+                                           GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
-            glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             point_data->buffer_loc[index] = 0;
             point_data->remain_buffer_len[index] = alloc_size - max_len;
@@ -131,7 +128,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
         {
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER,
                                            point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
-                                           GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+                                           GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
 
             GLuint current_buffer;
             glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_buffer);
@@ -148,8 +145,6 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
 
             LOGD("set_vertex_attrib_data vbo current %d index %d offset %d length %d pointer %d %d length %d", current_buffer, point_data->buffer_object[index], offset, length, (int)map_pointer, padding, point_data->buffer_len[index] - point_data->remain_buffer_len[index]);
-
-            glFlushMappedBufferRange(GL_ARRAY_BUFFER, 0, length);
 
             // sometimes different offsets are used on the same host vbo, causing accesses of negative vbo indices and therefore undefined behaviour 
             // therefore some padding is added to avoid negative buffer_loc
@@ -684,14 +679,12 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                 alloc_size = 1024;
             }
 
-            // todo stream_draw需要验证
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, alloc_size, NULL, GL_STREAM_DRAW);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, alloc_size, NULL, GL_DYNAMIC_DRAW);
             point_data->indices_buffer_len = alloc_size;
             map_pointer = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length,
-                                           GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
+                                           GL_MAP_WRITE_BIT);
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
-            glFlushMappedBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length);
 
             point_data->remain_indices_buffer_len = point_data->indices_buffer_len - length;
             buffer_loc = 0;
@@ -699,12 +692,10 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
         else if (length > point_data->remain_indices_buffer_len)
         {
             map_pointer = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, point_data->indices_buffer_len,
-                                           GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+                                           GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
-
-            glFlushMappedBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length);
 
             point_data->remain_indices_buffer_len = point_data->indices_buffer_len - length;
             buffer_loc = 0;
@@ -713,11 +704,10 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
         {
             map_pointer = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER,
                                            point_data->indices_buffer_len - point_data->remain_indices_buffer_len, length,
-                                           GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+                                           GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
 
             read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
-            glFlushMappedBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length);
 
             buffer_loc = point_data->indices_buffer_len - point_data->remain_indices_buffer_len;
             point_data->remain_indices_buffer_len -= length;

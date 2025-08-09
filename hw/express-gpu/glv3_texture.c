@@ -42,10 +42,13 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         status->host_pixel_unpack_buffer = asyn_texture; //能调到这说明本身也没绑定pbo，所以不担心覆盖
 
         //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc, NULL, GL_STREAM_DRAW);
+        int buffer_len = max(max(bound_buffer->asyn_unpack_texture_buffer_size, end_loc), 1024);
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, buffer_len, NULL, GL_STREAM_DRAW);
+        bound_buffer->asyn_unpack_texture_buffer_size = buffer_len;
 
-        //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
-        GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+        glGetError();
+        //然后把数据复制到内存里，之后交给dma传输
+        GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
 
@@ -712,7 +715,9 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     }
     else
     {
-        glBufferData(GL_PIXEL_PACK_BUFFER, end_loc, NULL, GL_STREAM_READ);
+        int buffer_len = max(max(bound_buffer->asyn_pack_texture_buffer_size, end_loc), 1024);
+        glBufferData(GL_PIXEL_PACK_BUFFER, buffer_len, NULL, GL_STREAM_READ);
+        bound_buffer->asyn_pack_texture_buffer_size = buffer_len;
     }
     glReadPixels(x, y, width, height, format, type, 0);
 
@@ -769,7 +774,9 @@ void d_glReadnPixels_without_bound(void *context, GLint x, GLint y, GLsizei widt
     }
     else
     {
-        glBufferData(GL_PIXEL_PACK_BUFFER, end_loc, NULL, GL_STREAM_READ);
+        int buffer_len = max(max(bound_buffer->asyn_pack_texture_buffer_size, end_loc), 1024);
+        glBufferData(GL_PIXEL_PACK_BUFFER, buffer_len, NULL, GL_STREAM_READ);
+        bound_buffer->asyn_pack_texture_buffer_size = buffer_len;
     }
     glReadnPixels(x, y, width, height, format, type, bufSize, 0);
 

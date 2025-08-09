@@ -48,7 +48,7 @@ static void *begin_dma_to_gbuffer(int map_size) {
     }
 
     // mmap.
-    return glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, map_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+    return glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, map_size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 }
 
 static void end_dma_to_gbuffer(Hardware_Buffer *gbuffer) {
