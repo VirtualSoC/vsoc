@@ -187,7 +187,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     int64_t start_time = g_get_real_time();
     if (static_sync_context.sync_data != NULL)
     {
-        bool has_printed_backtrace = false;
+        // bool has_printed_backtrace = false;
         while (!SYNC_FLAG_SIGNAL(static_sync_context.sync_data, sync_id))
         {
             qatomic_add(&sync_wait_cnt, 1);
@@ -202,10 +202,10 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
                 // helps debugging deadlocks
                 LOGI("still waiting for sync %d (gpu %d) after %d ms...", sync_id, need_gpu_sync, sync_wait_cnt);
 
-                if (!has_printed_backtrace) {
-                    has_printed_backtrace = true;
-                    backtrace();
-                }
+                // if (!has_printed_backtrace) {
+                //     has_printed_backtrace = true;
+                //     backtrace();
+                // }
             }
         }
 
