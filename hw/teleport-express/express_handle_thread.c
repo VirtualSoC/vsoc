@@ -138,7 +138,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
             LOGD("thread context %llx call end thread_id %lld process_id %lld", (uint64_t)context, call->thread_id, call->process_id);
             call->callback(call, 0);
             context->thread_run = 0;
-            continue;
+            break;
         }
 
         //实际对每个call调用的操作

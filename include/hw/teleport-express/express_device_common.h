@@ -258,15 +258,16 @@ typedef struct Express_Device_Info
     //设备的初始化函数，一定为设备第一个被调用的函数
     void (*init)(void);
 
-    //对应到Thread_Context中的两个设备自定义的函数——初始化函数和call处理函数，仅output模式可用
+    //仅会在context对应线程上调用的init, destroy和call处理函数，仅output模式可用
     void (*context_init)(struct Thread_Context *context);
     void (*context_destroy)(struct Thread_Context *context);
     void (*call_handle)(struct Thread_Context *context, Teleport_Express_Call *call);
 
-    //设备定义的用于获取数据分发context的函数，负责处理从guest到host的数据，例如有一个统一的context或者对每一个线程维护一个context
+    //设备定义的用于获取数据分发context的函数，负责处理从guest到host的数据，例如有一个统一的context或者对每一个线程维护一个context。不保证线程安全性。
     Thread_Context *(*get_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
-    // guest端设备文件被关闭时会调用的回调函数，返回值是标示该context是否已经被销毁，即与该context相关的线程是否应该退出
+    // guest端设备文件被关闭时会调用的回调函数，返回值标示该context是否应该被销毁，即与该context相关的线程是否应该退出。若该函数未实现，默认context应该被销毁。不保证线程安全性。
+    // 若未实现或返回值为true，则接下来会在context对应线程上调用context_destroy函数。
     bool (*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
     // guest注册DMA内存的回调

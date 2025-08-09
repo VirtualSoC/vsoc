@@ -39,7 +39,7 @@ static GMutex g_display_contexts_mutex;
 int sdl2_no_need = 0;
 
 static void display_context_init(Display_Context *disp);
-static void display_context_destroy(Display_Context *disp);
+static void display_context_destroy(Thread_Context *context);
 static void window_size_change_callback(GLFWwindow *window, int width, int height);
 static void close_window_callback(GLFWwindow *window);
 static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
@@ -61,12 +61,6 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
 
     switch (call->id)
     {
-    case FUNID_Terminate:
-    {
-        display_context_destroy(disp);
-        LOGI("display uid %" PRId64 " terminate", call->unique_id);
-    }
-    break;
     case FUNID_Get_Display_Count:
     {
         uint64_t display_count = get_display_count();
@@ -425,8 +419,9 @@ static void display_context_init(Display_Context *disp)
     }
 }
 
-static void display_context_destroy(Display_Context *disp)
+static void display_context_destroy(Thread_Context *context)
 {
+    Display_Context *disp = (Display_Context *)context;
     g_mutex_lock(&g_display_contexts_mutex);
     g_hash_table_remove(g_display_contexts, GUINT_TO_POINTER(disp->unique_id));
     g_mutex_unlock(&g_display_contexts_mutex);
@@ -441,6 +436,7 @@ static void display_context_destroy(Display_Context *disp)
         release_native_opengl_context(disp->window, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
         disp->window = NULL;
     }
+    LOGI("display %s terminate", disp->info.name);
 }
 
 static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layers) {
@@ -922,6 +918,7 @@ static Express_Device_Info express_display_info = {
     .init = init_display_options,
     .call_handle = display_decode_invoke,
     .get_context = get_display_context,
+    .context_destroy = display_context_destroy,
     .hmp_handler = display_hmp_handler,
 };
 
