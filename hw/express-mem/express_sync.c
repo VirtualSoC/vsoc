@@ -221,14 +221,14 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
             }
         }
     } else {
-        LOGE("error! wait_for_express_sync sync %d failed!", sync_id);
+        LOGE("error! wait_for_express_sync %d failed!", sync_id);
     }
     LOGD("sync %d ok", sync_id);
 
     int64_t end_time = g_get_real_time();
-    if (end_time - start_time > 50 * 1000)
+    if (end_time - start_time > 100 * 1000)
     {
-        LOGW("warning! wait_for_express_sync sync %d spend too long time (%lldms)", sync_id, (end_time - start_time) / 1000);
+        LOGW("wait_for_express_sync %d spent too long time (%lldms)", sync_id, (end_time - start_time) / 1000);
     }
 }
 

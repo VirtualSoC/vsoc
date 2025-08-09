@@ -574,7 +574,9 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
             LOGD("content xywh %d %d %d %d glviewport %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, view_x, view_y, view_w, view_h, disp->transform_type, layer.transform_type);
 
-            if (layer.blend_type == BLEND_NONE || layer.blend_type == BLEND_SRC) {
+            if (layer.blend_type == BLEND_DST) {
+                // Keeps only the destination (old image), new image is ignored
+            } else if (layer.blend_type == BLEND_NONE || layer.blend_type == BLEND_SRC) {
                 // quick path if no blending takes place
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, disp->blitFBO);
                 glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);

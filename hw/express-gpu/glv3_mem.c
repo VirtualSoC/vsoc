@@ -267,7 +267,7 @@ void d_glMapBufferRange_write(void *context, GLenum target, GLintptr offset, GLs
     Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)));
     if (map_res == NULL)
     {
-        map_res = g_malloc(sizeof(Guest_Host_Map));
+        map_res = g_malloc0(sizeof(Guest_Host_Map));
         memset(map_res, 0, sizeof(Guest_Host_Map));
         g_hash_table_insert(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)), (gpointer)map_res);
     }

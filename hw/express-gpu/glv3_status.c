@@ -1049,30 +1049,23 @@ void d_debug_message_callback(GLenum source, GLenum type, GLuint id, GLenum seve
 #endif
     else
     {
-        if (context != NULL) 
-        {
-            LOGI("debug message (id: %u, context %p): %s", id, context, message);
-        }
-        else
-        {
-            LOGI("main debug message (id: %u): %s", id, message);
-        }
+        const char *source_str = "", *type_str = "", *severity_str = "";
         switch (source)
         {
         case GL_DEBUG_SOURCE_API:
-            LOGI("Source: API ");
+            source_str = "API";
             break;
         case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-            LOGI("Source: Window System ");
+            source_str = "Window System";
             break;
         case GL_DEBUG_SOURCE_SHADER_COMPILER:
-            LOGI("Source: Shader Compiler ");
+            source_str = "Shader Compiler";
             break;
         case GL_DEBUG_SOURCE_THIRD_PARTY:
-            LOGI("Source: Third Party ");
+            source_str = "Third Party";
             break;
         case GL_DEBUG_SOURCE_APPLICATION:
-            LOGI("Source: APPLICATION ");
+            source_str = "APPLICATION";
             break;
         case GL_DEBUG_SOURCE_OTHER:
             break;
@@ -1081,49 +1074,58 @@ void d_debug_message_callback(GLenum source, GLenum type, GLuint id, GLenum seve
         switch (type)
         {
         case GL_DEBUG_TYPE_ERROR:
-            LOGI("Type: Error ");
+            type_str = "Error";
             break;
         case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-            LOGI("Type: Deprecated Behaviour ");
+            type_str = "Deprecated Behaviour";
             break;
         case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-            LOGI("Type: Undefined Behaviour ");
+            type_str = "Undefined Behaviour";
             break;
         case GL_DEBUG_TYPE_PORTABILITY:
-            LOGI("Type: Portability ");
+            type_str = "Portability";
             break;
         case GL_DEBUG_TYPE_PERFORMANCE:
-            LOGI("Type: Performance ");
+            type_str = "Performance";
             break;
         case GL_DEBUG_TYPE_MARKER:
-            LOGI("Type: Marker ");
+            type_str = "Marker";
             break;
         case GL_DEBUG_TYPE_PUSH_GROUP:
-            LOGI("Type: Push Group ");
+            type_str = "Push Group";
             break;
         case GL_DEBUG_TYPE_POP_GROUP:
-            LOGI("Type: Pop Group ");
+            type_str = "Pop Group";
             break;
         case GL_DEBUG_TYPE_OTHER:
-            LOGI("Type: Other ");
+            type_str = "Other";
             break;
         }
 
         switch (severity)
         {
         case GL_DEBUG_SEVERITY_HIGH:
-            LOGI("Severity: high");
+            severity_str = "high";
             break;
         case GL_DEBUG_SEVERITY_MEDIUM:
-            LOGI("Severity: medium");
+            severity_str = "medium";
             break;
         case GL_DEBUG_SEVERITY_LOW:
-            LOGI("Severity: low");
+            severity_str = "low";
             break;
         case GL_DEBUG_SEVERITY_NOTIFICATION:
-            LOGI("Severity: notification");
+            severity_str = "notification";
             break;
         }
+        if (context != NULL) 
+        {
+            LOGI("debug message (id: %u, source: %s, type: %s, severity: %s, context %p):", id, source_str, type_str, severity_str, context);
+        }
+        else
+        {
+            LOGI("main debug message (id: %u, source: %s, type: %s, severity: %s):", id, source_str, type_str, severity_str);
+        }
+        LOGI("%s", message);
         LOGI("");
     }
 

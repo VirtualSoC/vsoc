@@ -74,7 +74,6 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
 
     char thread_name[32];
     snprintf(thread_name, sizeof(thread_name), "%s_handle_thread", info->name);
-    LOGD("ready to create handle thread for device %s", info->name);
 
     qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
 
@@ -88,7 +87,6 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
  */
 void push_to_thread(Teleport_Express_Call *call)
 {
-    LOGD("going to push to device %d thread id %lld", GET_DEVICE_ID(call->id), call->thread_id);
     uint64_t thread_id = call->thread_id;
     uint64_t process_id = call->process_id;
     uint64_t unique_id = call->unique_id;
