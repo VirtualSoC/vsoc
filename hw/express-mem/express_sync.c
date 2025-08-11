@@ -225,11 +225,11 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     }
     LOGD("sync %d ok", sync_id);
 
-    int64_t end_time = g_get_real_time();
-    if (end_time - start_time > 100 * 1000)
-    {
-        LOGW("wait_for_express_sync %d spent too long time (%lldms)", sync_id, (end_time - start_time) / 1000);
-    }
+    // int64_t end_time = g_get_real_time();
+    // if (end_time - start_time > 100 * 1000)
+    // {
+    //     LOGD("wait_for_express_sync %d spent too long time (%lldms)", sync_id, (end_time - start_time) / 1000);
+    // }
 }
 
 static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)

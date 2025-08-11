@@ -109,19 +109,20 @@ void push_to_thread(Teleport_Express_Call *call)
     }
     LOGD("push to %s thread_id %llu %08x device id %llu fun id %llu %08x unique id %08x", device_info->name, call->thread_id, call->thread_id, device_id, fun_id, call->id, call->unique_id);
 
-    Thread_Context *context = (Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, device_info);
+    Thread_Context *context = NULL;
+    if (fun_id == EXPRESS_TERMINATE_FUN_ID && device_info->remove_context) {
+        context = (Thread_Context *)device_info->remove_context(device_id, thread_id, process_id, unique_id, device_info);
+    } else {
+        context = (Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, device_info);
+    }
 
     //找得到相应的设备处理时才把他推送到相应的设备线程
     if (context != NULL)
     {
         if (fun_id == EXPRESS_TERMINATE_FUN_ID)
         {
-            LOGD("get funid express_terminate_fun_id of device %s", device_info->name);
-            if (!device_info->remove_context || device_info->remove_context(device_id, thread_id, process_id, unique_id, device_info))
-            {
-                call->is_end = 1;
-                context->init = 0;
-            }
+            call->is_end = 1;
+            context->init = 0;
         }
         call_push(context, call); //将call推送到对应线程处理
     }

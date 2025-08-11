@@ -266,9 +266,9 @@ typedef struct Express_Device_Info
     //设备定义的用于获取数据分发context的函数，负责处理从guest到host的数据，例如有一个统一的context或者对每一个线程维护一个context。不保证线程安全性。
     Thread_Context *(*get_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
-    // guest端设备文件被关闭时会调用的回调函数，返回值标示该context是否应该被销毁，即与该context相关的线程是否应该退出。若该函数未实现，默认context应该被销毁。不保证线程安全性。
-    // 若未实现或返回值为true，则接下来会在context对应线程上调用context_destroy函数。
-    bool (*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    // guest端设备文件被关闭时会调用的回调函数，返回值标示需要被销毁的context。若返回值不为NULL，则接下来会在context对应线程上调用context_destroy函数（若实现的话）。不保证线程安全性。
+    // 注意：该接口是为了应对guest进程异常退出或资源泄露，导致内核关闭设备文件的情况。此时的thread_id可能和设备文件打开时不一致，但process_id和unique_id一致。
+    Thread_Context *(*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
     // guest注册DMA内存的回调
     void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);

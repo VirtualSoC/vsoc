@@ -691,8 +691,6 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     glGenTextures(1, &(gbuffer->data_texture)); //创建一个fbo，然后它的颜色缓冲用的是texture，深度和模板缓冲用的是fbo
 
-    LOGD("in create gbuffer gen texture of id %d", gbuffer->data_texture);
-
     glGenRenderbuffers(1, &(gbuffer->rbo_depth));
     glGenRenderbuffers(1, &(gbuffer->rbo_stencil));
 
@@ -761,7 +759,6 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     if (depth_internal_format != 0)
     {
         // 这个相当于给与一个深度缓冲区，让这个fbo可以有颜色缓冲区，有深度缓冲区，模板缓冲区
-        LOGD("in create gbuffer gen depth of id %d", gbuffer->rbo_depth);
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_depth);
         if (sampler_num > 1)
         {
@@ -776,7 +773,6 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     // 之所以当深度24模板8时要合并，是因为这样效率更高
     if (stencil_internal_format != 0 && depth_internal_format != GL_DEPTH24_STENCIL8)
     {
-        LOGD("in create gbuffer gen stencil of id %d", gbuffer->rbo_stencil);
         glBindRenderbuffer(GL_RENDERBUFFER, gbuffer->rbo_stencil);
         if (sampler_num > 1)
         {
@@ -818,7 +814,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     gbuffer->stride = width * gbuffer->pixel_size;
     gbuffer->size = width * height * gbuffer->pixel_size;
 
-    // LOGD("create gbuffer id " PRIx64 " texture %d width %d height %d format %d", gbuffer->gbuffer_id, gbuffer->data_texture,gbuffer->width, gbuffer->height, gbuffer->format);
+    LOGD("create gbuffer id %" PRIx64 " texture %d w %d h %d format 0x%x", gbuffer->gbuffer_id, gbuffer->data_texture, gbuffer->width, gbuffer->height, gbuffer->format);
 
     return gbuffer;
 }
@@ -1039,7 +1035,7 @@ GLuint gbuffer_make_data_fbo(Hardware_Buffer *gbuffer) {
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer)
 {
-    LOGI("terminate gbuffer id %" PRIx64 " w %d h %d", gbuffer->gbuffer_id, gbuffer->width, gbuffer->height);
+    LOGD("terminate gbuffer id %" PRIx64 " w %d h %d", gbuffer->gbuffer_id, gbuffer->width, gbuffer->height);
 
     if (gbuffer->data_texture != 0)
     {

@@ -74,8 +74,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         express_printf("eglcontext %llx attrib_list %x %x\n", (uint64_t)opengl_context, attrib_list[i], attrib_list[i + 1]);
     }
 
-    LOGI("(%s) create context guest %llx host %llx", process_context->guest_process_name, (uint64_t)guest_context, (uint64_t)opengl_context);
-    LOGD("#%llx create context share %llx", (uint64_t)opengl_context, (uint64_t)real_share_context);
+    LOGI("(%s) create context guest %p host %p", process_context->guest_process_name, guest_context, opengl_context);
 
     opengl_context->guest_context = guest_context;
 
@@ -90,7 +89,7 @@ EGLBoolean d_eglDestroyContext(void *context, EGLDisplay dpy, EGLContext ctx)
     Process_Context *process_context = thread_context->process_context;
 
     //这个context_map的销毁函数g_context_map_destroy里已经包含对context的处理了
-    express_printf("context remove guest %llx\n", (uint64_t)ctx);
+    // LOGD("context remove guest %p", ctx);
     g_hash_table_remove(process_context->context_map, GUINT_TO_POINTER(ctx));
     return EGL_TRUE;
 }

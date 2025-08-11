@@ -283,9 +283,9 @@ static Thread_Context *get_codec_context(uint64_t device_id, uint64_t thread_id,
     return context;
 }
 
-static bool remove_codec_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *remove_codec_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
-    Codec_Thread_Context *thread_context = g_hash_table_lookup(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id));
+    Codec_Thread_Context *thread_context = (Codec_Thread_Context *)g_hash_table_lookup(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id));
 
     if (thread_context && thread_context->component && thread_context->component->dma_buf) {
         free_copied_guest_mem(thread_context->component->dma_buf);
@@ -297,8 +297,8 @@ static bool remove_codec_context(uint64_t device_id, uint64_t thread_id, uint64_
     }
 
     LOGD("codec uid %" PRId64 " remove context", unique_id);
-    // g_hash_table_remove(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id));
-    return true;
+    g_hash_table_remove(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id));
+    return (Thread_Context *)thread_context;
 }
 
 static Device_Context *get_codec_device_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)

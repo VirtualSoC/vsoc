@@ -698,7 +698,6 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
     if (render_thread_contexts == NULL)
     {
         render_thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
-
         render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
     }
 
@@ -712,7 +711,6 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
     // 没有context就新建线程
-    LOGD("getting new thread context with process id %lld unique id %lld thread id %lld device id %lld", process_id, unique_id, thread_id, device_id);
     if (thread_context == NULL)
     {
         LOGD("create new thread context with thread id %lld device id %lld", thread_id, device_id);
@@ -728,7 +726,6 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
         if (process == NULL)
         {
-            LOGD("create new process context %lld", process_id);
             process = g_malloc0(sizeof(Process_Context));
             process->context_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_context_map_destroy);
             // 注意，从surface_map删除的时候不一定需要删除surface，所以这里为空，但是从native_window中删除却需要
@@ -737,24 +734,44 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
             process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
             process->thread_cnt = 0;
 
+            LOGI("create new process context guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %lld", process_id, process, thread_id, process_id, unique_id);
+
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
+        } else {
+            LOGD("process context already exists for guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %lld, incrementing count to %d", process_id, process, thread_id, process_id, unique_id, process->thread_cnt + 1);
         }
         qatomic_inc(&(process->thread_cnt));
         thread_context->process_context = process;
         g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(thread_id), (gpointer)thread_context);
     }
     LOGD("got render thread context with device id %lld %lld thread id %lld %lld", thread_context->context.device_id, device_id, thread_context->context.thread_id, thread_id);
-    // 这里是只要是新的unique_id就都给加上，所以需要额外排除那种不是专门针对gpu device的调用
-    // 例如更新显存数据时，显示指定了一次gpu device调用，但是其实其本质是display device调用，
-    // 因此那种情况下，需要显示的删除该unique_id
+
     g_hash_table_insert(thread_context->thread_unique_ids, GUINT_TO_POINTER(unique_id), (gpointer)1);
     return (Thread_Context *)thread_context;
 }
 
-static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
+static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
     Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
-    // LOGI("going to remove render thread context with thread id %lld process id %lld unique id %lld", thread_id, process_id, unique_id);
+    if (render_context == NULL) {
+        // the guest process may terminate abruptly, in which case we need to find the real thread_context using unique_id
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, render_thread_contexts);
+        while (g_hash_table_iter_next(&iter, &key, &value))
+        {
+            Render_Thread_Context *context = (Render_Thread_Context *)value;
+            if (context->context.process_id == process_id && context->context.unique_id == unique_id)
+            {
+                render_context = context;
+                break;
+            }
+        }
+    }
+    if (render_context == NULL) {
+        LOGE("failed to find render context for process %" PRId64 " thread_id %" PRId64 " unique_id %" PRId64, process_id, thread_id, unique_id);
+        return NULL;
+    }
     g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
 
     if (g_hash_table_size(render_context->thread_unique_ids) == 0)
@@ -768,11 +785,11 @@ static bool remove_render_thread_context(uint64_t type_id, uint64_t thread_id, u
                 g_hash_table_remove(render_process_contexts, GUINT_TO_POINTER(process_id));
             }
         }
-        return true;
+        return render_context;
     }
     else
     {
-        return false;
+        return NULL;
     }
 }
 
@@ -802,12 +819,12 @@ static void g_context_map_destroy(gpointer data)
     if (real_context->is_current)
     {
         // 假如当前的context正在被使用，则需要等到context没有被使用了才能删除
-        express_printf("context %llx guest %llx is using\n", (uint64_t)real_context, (uint64_t)real_context->guest_context);
+        LOGD("context %p guest %p is using, delay removal", real_context, real_context->guest_context);
         real_context->need_destroy = 1;
     }
     else
     {
-        express_printf("destroy context %llx\n", (uint64_t)real_context);
+        LOGD("destroy context %p", real_context);
         opengl_context_destroy(real_context);
         g_free(real_context);
     }
@@ -857,12 +874,11 @@ static void render_context_destroy(Thread_Context *context)
         d_eglMakeCurrent(thread_context, NULL, NULL, NULL, NULL, 0, 0, 0, 0);
     }
 
-    // process_context->thread_cnt -= 1;
-    express_printf("process %llx destroy cnt %d\n", (uint64_t)process_context, process_context->thread_cnt);
+    LOGD("thread_id %lld process_id %lld process %p destroy cnt %d", context->thread_id, context->process_id, process_context, process_context->thread_cnt);
     if (qatomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
         // 由最后一个退出的线程清空资源
-        express_printf("process %llx destroy everything\n", (uint64_t)process_context);
+        LOGI("(%s) process %p terminated, cleaning up resources", process_context->guest_process_name, process_context);
         g_hash_table_destroy(process_context->context_map);
 
         g_hash_table_destroy(process_context->surface_map);

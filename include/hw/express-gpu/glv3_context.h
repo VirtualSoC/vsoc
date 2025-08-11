@@ -144,7 +144,7 @@ typedef struct Opengl_Context
 
     void *share_context;
     GHashTable *buffer_map;
-    GLuint draw_fbo0; //默认读取/绘制的地方 ztodo:Gluint用32位够不够
+    GLuint draw_fbo0; //默认读取/绘制的地方
     GLuint read_fbo0;
 
     GLuint current_read_fbo;

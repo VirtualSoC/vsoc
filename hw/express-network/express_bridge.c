@@ -650,7 +650,7 @@ static Thread_Context *get_bridge_context(uint64_t device_id, uint64_t thread_id
     return context;
 }
 
-static bool remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     Bridge_Thread_Context *bridge_context = (Bridge_Thread_Context *)g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
 
@@ -667,7 +667,7 @@ static bool remove_bridge_context(uint64_t device_id, uint64_t thread_id, uint64
         LOGI(DEBUG_HEAD "wait read thread exit ok %d", bridge_context->connection_context.socket_fd);
     }
 
-    return true;
+    return (Thread_Context *)bridge_context;
 }
 
 static Device_Context *get_bridge_connection_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
@@ -690,11 +690,6 @@ static Express_Device_Info express_bridge_info = {
 
     .get_device_context = get_bridge_connection_context,
     .buffer_register = bridge_buffer_register,
-    // .irq_register = bridge_irq_register,
-    // .irq_release = bridge_irq_release,
-
-    // .context_init = bridge_context_init,
-    // .context_destroy = bridge_context_destroy,
 
     .call_handle = bridge_output_call_handle,
     .get_context = get_bridge_context,

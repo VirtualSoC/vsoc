@@ -254,7 +254,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     if (real_surface_draw == NULL && real_surface_read == NULL)
     {
-        LOGI("(%s) host create surfaceless context %llx", process_context->guest_process_name, (uint64_t)ctx);
+        LOGD("(%s) makecurrent surfaceless context %p", process_context->guest_process_name, ctx);
         real_opengl_context->read_fbo0 = 0;
         real_opengl_context->draw_fbo0 = 0;
         return EGL_TRUE;
@@ -296,8 +296,6 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, real_opengl_context->draw_fbo0);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, real_opengl_context->read_fbo0);
-
-    // LOGI("context %llx makecurrent fbo %d %d gbuffer %llx", real_opengl_context, real_opengl_context->draw_fbo0, real_opengl_context->read_fbo0, real_surface_draw->gbuffer->gbuffer_id);
 
     return EGL_TRUE;
 }

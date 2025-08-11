@@ -347,7 +347,6 @@ static void *camera_capturing_thread(void *opaque)
     avformat_free_context(format_context);
 
     codec->destroy_component(codec);
-    g_async_queue_unref(context->frame_queue);
 
     return NULL;
 }
@@ -581,17 +580,21 @@ static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t th
     return context;
 }
 
-static bool remove_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context* remove_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     Thread_Context *context = (Thread_Context *)g_hash_table_lookup(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
 
     if (context != NULL) {
         Camera_Thread_Context *c_context = (Camera_Thread_Context *)context;
+        if (c_context->ctx.status == CAMERA_STATUS_STREAMING) {
+            c_context->ctx.status = CAMERA_STATUS_IDLE;
+            qemu_thread_join(&c_context->ctx.stream_thread);
+        }
         g_async_queue_unref(c_context->ctx.frame_queue);
     }
 
-    // g_hash_table_remove(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
-    return true;
+    g_hash_table_remove(g_camera_thread_contexts_map, GUINT_TO_POINTER(unique_id));
+    return context;
 }
 
 static Device_Context *get_camera_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)

@@ -188,7 +188,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
         main_window_run = -1;
         glfwPostEmptyEvent(); // wake up the main window thread
         int wait_cnt = 0;
-        while (main_window_run == -1 && wait_cnt < 200)
+        while (main_window_run == -1 && wait_cnt < 1000)
         {
             g_usleep(5000);
             wait_cnt++;

@@ -467,7 +467,7 @@ void opengl_context_init(Opengl_Context *context)
  */
 void opengl_context_destroy(Opengl_Context *context)
 {
-    LOGI("opengl context destroy %llx guest %llx\n", (uint64_t)context, (uint64_t)context->guest_context);
+    LOGI("opengl context destroy %p guest %p", context, context->guest_context);
     Opengl_Context *opengl_context = (Opengl_Context *)context;
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
