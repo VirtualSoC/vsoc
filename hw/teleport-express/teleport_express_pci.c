@@ -38,10 +38,10 @@ static Property teleport_express_base_properties[] = {
     DEFINE_PROP_INT32("refresh_rate", Teleport_Express_PCI, refresh_rate, 60),
     DEFINE_PROP_UINT64("display_count", Teleport_Express_PCI, display_count, 1),
     DEFINE_PROP_STRING("display_options", Teleport_Express_PCI, display_options),
-
     DEFINE_PROP_INT32("phy_width", Teleport_Express_PCI, phy_width, 1920),
     DEFINE_PROP_INT32("phy_height", Teleport_Express_PCI, phy_height, 1080),
 
+    DEFINE_PROP_BOOL("headless_mode", Teleport_Express_PCI, headless_mode, false),
 
     DEFINE_PROP_INT32("gl_log_level", Teleport_Express_PCI, gpu_debug_level, 1),
     DEFINE_PROP_BOOL("gl_log_to_host", Teleport_Express_PCI, gpu_log_to_host, true),
@@ -54,8 +54,6 @@ static Property teleport_express_base_properties[] = {
     DEFINE_PROP_INT32("scroll_ratio", Teleport_Express_PCI, scroll_ratio, 20),
 
     DEFINE_PROP_BOOL("finger_replay", Teleport_Express_PCI, finger_replay, true),
-
-    DEFINE_PROP_BOOL("display_switch", Teleport_Express_PCI, display_switch_open, false),
 
     DEFINE_PROP_BOOL("shader_binary", Teleport_Express_PCI, open_shader_binary, true),
 
@@ -331,7 +329,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
     express_keyboard_finger_replay = express_pci->finger_replay;
 
-    express_display_switch_open = express_pci->display_switch_open;
+    express_display_headless_mode = express_pci->headless_mode;
 
     express_gpu_open_shader_binary = express_pci->open_shader_binary;
 

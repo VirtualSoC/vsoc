@@ -30,7 +30,7 @@
 
 int express_gpu_window_width;
 int express_gpu_window_height;
-bool express_display_switch_open;
+bool express_display_headless_mode;
 bool express_gpu_keep_window_scale;
 
 static GHashTable *g_display_contexts = NULL;
@@ -101,7 +101,9 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         }
 
         TIMER_START_ON_THREAD(compose_layer);
-        handle_display_rotation(disp, layers);
+        if (!express_display_headless_mode) {
+            handle_display_rotation(disp, layers);
+        }
         opengl_paint_composer_layers(disp, layers);
         g_free(layers);
 
@@ -331,57 +333,65 @@ static void display_context_init(Display_Context *disp)
     if (disp->window == NULL)
     {
         char name[64];
-
-        // 创建一个窗口，这个window也是context
-        disp->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
-        glfwSetWindowUserPointer(disp->window, disp);
-
-        if (!disp->window)
-        {
-            LOGE("error: cannot allocate native window for virtual display %x", glfwGetError(NULL));
-            return;
-        }
-
-        // window title
         sprintf(name, "vSoC:%s", disp->info.name);
-        glfwSetWindowTitle(disp->window, name);
 
-        // 键盘事件
-        glfwSetInputMode(disp->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        glfwSetKeyCallback(disp->window, express_keyboard_handle_callback);
+        if (express_display_headless_mode) {
+            disp->window = get_native_opengl_context(0);
+            egl_makeCurrent(disp->window);
+        } else {
+            // 创建一个窗口，这个window也是context
+            disp->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+            glfwSetWindowUserPointer(disp->window, disp);
 
-        // 鼠标事件
-        glfwSetCursorPosCallback(disp->window, express_touchscreen_mouse_move_handle);
-        glfwSetMouseButtonCallback(disp->window, express_touchscreen_mouse_click_handle);
-        glfwSetScrollCallback(disp->window, express_touchscreen_mouse_scroll_handle);
+            if (!disp->window)
+            {
+                LOGE("error: cannot allocate native window for virtual display %x", glfwGetError(NULL));
+                return;
+            }
+
+            // window title
+            glfwSetWindowTitle(disp->window, name);
+
+            // 键盘事件
+            glfwSetInputMode(disp->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            glfwSetKeyCallback(disp->window, express_keyboard_handle_callback);
+
+            // 鼠标事件
+            glfwSetCursorPosCallback(disp->window, express_touchscreen_mouse_move_handle);
+            glfwSetMouseButtonCallback(disp->window, express_touchscreen_mouse_click_handle);
+            glfwSetScrollCallback(disp->window, express_touchscreen_mouse_scroll_handle);
 
 #ifdef GLFW_TOUCH
-        // 开启触摸屏支持
-        glfwSetInputMode(disp->window, GLFW_TOUCH, GLFW_TRUE);
-        glfwSetTouchCallback(disp->window, express_touchscreen_touch_handle);
+            // 开启触摸屏支持
+            glfwSetInputMode(disp->window, GLFW_TOUCH, GLFW_TRUE);
+            glfwSetTouchCallback(disp->window, express_touchscreen_touch_handle);
 #else
 #warning "Touchscreen not supported! Please use GLFW from https://github.com/torkeldanielsson/glfw/tree/touch."
 #endif
 
-        // 捕获鼠标进出事件，在鼠标移动出窗口时，需要停用输入，即需要传递触摸屏release消息
-        glfwSetCursorEnterCallback(disp->window, express_touchscreen_entered_handle);
+            // 捕获鼠标进出事件，在鼠标移动出窗口时，需要停用输入，即需要传递触摸屏release消息
+            glfwSetCursorEnterCallback(disp->window, express_touchscreen_entered_handle);
 
-        // 设置窗口大小可以自由调整
-        float xscale = 1, yscale = 1;
+            // 设置窗口大小可以自由调整
+            float xscale = 1, yscale = 1;
 #ifdef __APPLE__
-        // macos retina screen handling
-        glfwGetWindowContentScale(disp->window, &xscale, &yscale);
+            // macos retina screen handling
+            glfwGetWindowContentScale(disp->window, &xscale, &yscale);
 #endif
-        glfwSetWindowSize(disp->window, disp->window_width / xscale, disp->window_height / yscale);
-        set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale, disp->transform_type);
-        glfwSetFramebufferSizeCallback(disp->window, window_size_change_callback);
-        glfwSetWindowCloseCallback(disp->window, close_window_callback);
+            glfwSetWindowSize(disp->window, disp->window_width / xscale, disp->window_height / yscale);
+            set_touchscreen_window_size(disp->window, disp->window_width / xscale, disp->window_height / yscale, disp->transform_type);
+            glfwSetFramebufferSizeCallback(disp->window, window_size_change_callback);
+            glfwSetWindowCloseCallback(disp->window, close_window_callback);
 
-        THREAD_CONTROL_END
+            THREAD_CONTROL_END
 
-        glfwMakeContextCurrent(disp->window);
+            glfwMakeContextCurrent(disp->window);
 
-        glfwSwapInterval(0);
+            glfwSwapInterval(0);
+
+            glfwShowWindow(disp->window);
+        }
+        sdl2_no_need = 1;
 
         if (express_gpu_gl_debug_enable)
         {
@@ -412,11 +422,9 @@ static void display_context_init(Display_Context *disp)
 
         glDisable(GL_MULTISAMPLE);
 
-        glfwShowWindow(disp->window);
-        sdl2_no_need = 1;
-
         LOGI("display %s create %dx%d@%dhz", name, disp->info.pixel_width, disp->info.pixel_height, refresh_rate);
     }
+    disp->is_open = true;
 }
 
 static void display_context_destroy(Thread_Context *context)
@@ -431,9 +439,14 @@ static void display_context_destroy(Thread_Context *context)
     glDeleteProgram(disp->programID);
 
     if (disp->window != NULL) {
-        glfwMakeContextCurrent(NULL);
-        glfwHideWindow(disp->window);
-        release_native_opengl_context(disp->window, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+        if (express_display_headless_mode) {
+            egl_makeCurrent(NULL);
+            release_native_opengl_context(disp->window, 0);
+        } else {
+            glfwMakeContextCurrent(NULL);
+            glfwHideWindow(disp->window);
+            release_native_opengl_context(disp->window, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+        }
         disp->window = NULL;
     }
     LOGI("display %s terminate", disp->info.name);
@@ -498,7 +511,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
         return;
     }
 
-    if (!disp->is_open && express_display_switch_open)
+    if (!disp->is_open)
     {
         LOGE("display %s is not open, cannot paint layers", disp->info.name);
 
@@ -621,10 +634,12 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
 static void display_present(Display_Context *disp)
 {
-    glfwSwapBuffers(disp->window);
-
-    sync_express_touchscreen_input(disp->window, (bool)disp->is_open || !express_display_switch_open);
-    sync_express_keyboard_input(disp->window, (bool)disp->is_open || !express_display_switch_open);
+    if (!express_display_headless_mode) {
+        glfwSwapBuffers(disp->window);
+    
+        sync_express_touchscreen_input(disp->window, disp->is_open);
+        sync_express_keyboard_input(disp->window, disp->is_open);
+    }
 
     uint64_t now_time = g_get_real_time();
     char name[64];
@@ -637,7 +652,9 @@ static void display_present(Display_Context *disp)
         disp->last_fps = fps;
         LOGD("display %s: composer draw avg %.2f ms %.2f FPS", disp->info.name, gen_frame_time_avg, fps);
         sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, fps);
-        glfwSetWindowTitle(disp->window, name);
+        if (!express_display_headless_mode) {
+            glfwSetWindowTitle(disp->window, name);
+        }
 
         disp->last_fps_timestamp = now_time;
         disp->fps_counter = 0;
@@ -649,17 +666,15 @@ void display_status_change(Display_Context *disp, Display_Status status)
     LOGI("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u",
            disp->status.refresh_rate, status.refresh_rate, disp->status.power_status, status.power_status,
            disp->status.backlight, status.backlight);
-    if (express_display_switch_open)
+
+    disp->status = status;
+    if (disp->status.power_status == 3)
     {
-        disp->status = status;
-        if (disp->status.power_status == 3)
-        {
-            disp->is_open = 0;
-        }
-        else
-        {
-            disp->is_open = 1;
-        }
+        disp->is_open = false;
+    }
+    else
+    {
+        disp->is_open = true;
     }
 }
 

@@ -60,7 +60,7 @@ typedef struct
     uint64_t unique_id;
     Display_Info info;
     Display_Status status;
-    int is_open;
+    bool is_open;
 
     // QEMU的主窗口的长宽
     int window_width;

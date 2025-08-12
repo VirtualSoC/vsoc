@@ -320,7 +320,7 @@ extern uint64_t express_display_count;
 extern char *express_display_options;
 extern int express_keyboard_count;
 
-extern bool express_display_switch_open;
+extern bool express_display_headless_mode;
 
 extern bool express_gpu_open_shader_binary;
 
