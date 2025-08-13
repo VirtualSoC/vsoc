@@ -83,7 +83,7 @@ void gl3_decode_invoke(Render_Thread_Context *r_context, Teleport_Express_Call *
     {
         if (unlikely(draw_surface->frame_start_time == 0))
         {
-            draw_surface->frame_start_time = g_get_real_time();
+            draw_surface->frame_start_time = g_get_monotonic_time();
         }
         if (unlikely(draw_surface->type == WINDOW_SURFACE && draw_surface->gbuffer != NULL && draw_surface->gbuffer->is_writing == 0))
         {

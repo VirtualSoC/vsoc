@@ -2453,7 +2453,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         int need_free = 0;
         char *_ptr;
         _ptr = call_para_to_ptr(all_para[0], &need_free);
-        int _idx = 0;
 
         name = g_malloc0(all_para[0].data_len);
         memcpy(name, _ptr, all_para[0].data_len);

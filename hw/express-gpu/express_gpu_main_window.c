@@ -178,7 +178,7 @@ static void glfw_error_callback(int error, const char *description)
 
 static void shutdown_notify_callback(Notifier *notifier, void *data)
 {
-    LOGI("notify shutdown! %lld", g_get_real_time());
+    LOGI("notify shutdown! %lld", g_get_monotonic_time());
 
     teleport_express_should_stop = true;
     device_interface_run = 0;
@@ -257,7 +257,7 @@ static void handle_child_window_event(void)
     {
         int64_t start_time = 0;
 
-        start_time = g_get_real_time();
+        start_time = g_get_monotonic_time();
         switch (child_event->event_code)
         {
         case MAIN_CREATE_CHILD_WINDOW:
@@ -362,7 +362,7 @@ static void handle_child_window_event(void)
             LOGW("child window message %d not handled", child_event->event_code);
             break;
         }
-        int64_t end_time = g_get_real_time();
+        int64_t end_time = g_get_monotonic_time();
         if (end_time - start_time > 16666 && child_event != NULL)
         {
             LOGW("slow child event %d, spent %lld ms queue_size %d", child_event->event_code, (end_time - start_time) / 1000, g_async_queue_length(main_window_event_queue));

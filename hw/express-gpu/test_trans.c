@@ -41,13 +41,13 @@ void test_copy(void *data, size_t len)
         buf_len = len;
         copy_large_buf = g_malloc(buf_len);
     }
-    // gint64 start_time = g_get_real_time();
+    // gint64 start_time = g_get_monotonic_time();
 
     // express_printf("copy %lld %lx\n", buf_len, copy_large_buf);
 
     read_from_guest_mem(data, copy_large_buf, 0, len);
 
-    // gint64 spend_time = g_get_real_time() - start_time;
+    // gint64 spend_time = g_get_monotonic_time() - start_time;
     // if (spend_time == 0)
     // {
     //     spend_time = 1;

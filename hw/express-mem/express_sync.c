@@ -187,7 +187,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
         LOGE("invalid sync id %d!", sync_id);
         return;
     }
-    int64_t start_time = g_get_real_time();
+    int64_t start_time = g_get_monotonic_time();
     if (static_sync_context.sync_data != NULL)
     {
         // bool has_printed_backtrace = false;
@@ -227,7 +227,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     }
     LOGD("sync %d ok", sync_id);
 
-    // int64_t end_time = g_get_real_time();
+    // int64_t end_time = g_get_monotonic_time();
     // if (end_time - start_time > 100 * 1000)
     // {
     //     LOGD("wait_for_express_sync %d spent too long time (%lldms)", sync_id, (end_time - start_time) / 1000);

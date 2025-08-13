@@ -78,15 +78,15 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 #define TIMER_START_ON_THREAD(a)                \
     static __thread gint64 timer_spend_##a = 0; \
     static __thread gint64 timer_cnt_##a = 0;   \
-    gint64 temp_timer_##a = g_get_real_time();
+    gint64 temp_timer_##a = g_get_monotonic_time();
 
 #define TIMER_START(a)                 \
     static gint64 timer_spend_##a = 0; \
     static gint64 timer_cnt_##a = 0;   \
-    gint64 temp_timer_##a = g_get_real_time();
+    gint64 temp_timer_##a = g_get_monotonic_time();
 
 #define TIMER_END(a)                                       \
-    timer_spend_##a += g_get_real_time() - temp_timer_##a; \
+    timer_spend_##a += g_get_monotonic_time() - temp_timer_##a; \
     timer_cnt_##a += 1; \
 
 #define TIMER_PRINT(a, freq)                    \

@@ -135,7 +135,7 @@ char *get_now_time(void)
     static GTimeZone *time_zone = NULL;
 
     if (time_zone == NULL) {
-        t_last = g_get_real_time();
+        t_last = g_get_monotonic_time();
         GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_last / 1000000);
         GDateTime *tz = g_date_time_to_local(t);
 
@@ -146,7 +146,7 @@ char *get_now_time(void)
     }
 
     if (!time_zone) return (char *)"";
-    gint64 t_int = g_get_real_time();
+    gint64 t_int = g_get_monotonic_time();
     GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_int / 1000000);
 
     //不要用这个函数，因为它运行一次要420us，相较于log设备最快每10us接收一次数据来说太慢了
@@ -181,7 +181,7 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
 
     if (fun_id == 1)
     {
-        gint64 t_int = g_get_real_time();
+        gint64 t_int = g_get_monotonic_time();
         if (all_para[0].data_len < LOG_FILE_SIZE - 256)
         {
             //写入的数据不能太多
@@ -217,11 +217,11 @@ static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
             copy_test_buf = g_malloc(all_para[0].data_len);
             copy_test_buf_len = all_para[0].data_len;
         }
-        gint64 start_time = g_get_real_time();
+        gint64 start_time = g_get_monotonic_time();
 
         read_from_guest_mem(all_para[0].data, copy_test_buf, 0, all_para[0].data_len);
 
-        gint64 spend_time = g_get_real_time() - start_time;
+        gint64 spend_time = g_get_monotonic_time() - start_time;
         if (spend_time == 0)
         {
             spend_time = 1;

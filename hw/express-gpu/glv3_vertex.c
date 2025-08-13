@@ -463,13 +463,6 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
         glDrawArrays(mode, first, count);
 
-        // float r = (float)rand() / RAND_MAX;
-        // float g = (float)rand() / RAND_MAX;
-        // float b = (float)rand() / RAND_MAX;
-
-        // glClearColor(r, g, b, 1.0f);
-        // glClear(GL_COLOR_BUFFER_BIT);
-
         GLuint rtextureId1 = 0;
         GLuint rfboID = 0;
         GLuint wtextureId1 = 0;

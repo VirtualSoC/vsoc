@@ -822,7 +822,7 @@ void d_glReadBuffer_special(void *context, GLenum src)
     glReadBuffer(src);
 }
 
-void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable* fb_resource_list)
+static void update_framebuffer_texture(GLuint texture_id, GLenum attachment, GHashTable* fb_resource_list)
 {
     GLuint framebuffer;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, (GLint*)&framebuffer);

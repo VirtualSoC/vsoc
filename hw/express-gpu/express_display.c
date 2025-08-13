@@ -641,7 +641,7 @@ static void display_present(Display_Context *disp)
         sync_express_keyboard_input(disp->window, disp->is_open);
     }
 
-    uint64_t now_time = g_get_real_time();
+    uint64_t now_time = g_get_monotonic_time();
     char name[64];
     disp->fps_counter++;
 
@@ -771,7 +771,7 @@ static void close_window_callback(GLFWwindow *window)
 {
     // todo: handle display hotplug event
     static gint64 last_click_time = 0;
-    gint64 now_time = g_get_real_time();
+    gint64 now_time = g_get_monotonic_time();
 
     glfwSetWindowShouldClose(window, GLFW_FALSE);
     if (now_time - last_click_time < 500000)

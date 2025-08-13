@@ -897,7 +897,7 @@ void *interface_window_thread(void *data)
     window_size.x = 640;
     window_size.y = 360;
 
-    gint64 frame_start_time = g_get_real_time();
+    gint64 frame_start_time = g_get_monotonic_time();
     gint64 remain_sleep_time = 0;
 
     while (*(all_interface_data.run) == 1)
@@ -924,7 +924,7 @@ void *interface_window_thread(void *data)
 
     THREAD_CONTROL_END
 
-        gint64 now_time = g_get_real_time();
+        gint64 now_time = g_get_monotonic_time();
 
         gint64 need_sleep_time = 1000000 / 60 - (now_time - frame_start_time) + remain_sleep_time - 1000;
 
@@ -933,7 +933,7 @@ void *interface_window_thread(void *data)
             g_usleep(need_sleep_time);
         }
 
-        now_time = g_get_real_time();
+        now_time = g_get_monotonic_time();
 
         remain_sleep_time = 1000000 / 60 - (now_time - frame_start_time);
         frame_start_time = now_time;

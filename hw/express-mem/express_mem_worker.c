@@ -27,7 +27,6 @@ static void init_worker_gl_context(void) {
 }
 
 static void *begin_dma_to_gbuffer(int map_size) {
-    map_size += 1000;
     if (g_gl_context == NULL) {
         init_worker_gl_context();
     }
@@ -90,7 +89,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
         goto EXIT;
     }
 
-    int64_t start_time = g_get_real_time();
+    int64_t start_time = g_get_monotonic_time();
 
     void *mapped_addr = NULL;
     if (task->dst_dev == EXPRESS_MEM_TYPE_TEXTURE) {
@@ -144,7 +143,7 @@ EXIT:
         task->post_cb(task, ret);
     }
 
-    int64_t end_time = g_get_real_time();
+    int64_t end_time = g_get_monotonic_time();
 
     if (ret >= 0 && end_time - start_time > 0) {
         // make sure that the results are meaningful

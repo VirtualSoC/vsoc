@@ -430,15 +430,9 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
 
     LOGD("(%s) swapbuffer gbuffer %" PRIx64, process_context->guest_process_name, gbuffer_id);
 
-    GLuint glerror = glGetError();
-    if (glerror != GL_NO_ERROR)
-    {
-        LOGE("error! swapbuffer glGetError %x", glerror);
-    }
-
     EGLBoolean ret = d_eglSwapBuffers_sync(context, dpy, surface, gbuffer_id, width, height, hal_format);
 
-    gint64 now_time = g_get_real_time();
+    gint64 now_time = g_get_monotonic_time();
 
     if (real_surface->swap_time_cnt < 5)
     {

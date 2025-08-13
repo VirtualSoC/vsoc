@@ -473,7 +473,7 @@ void d_eglCreatePbufferSurface(void *context, EGLDisplay dpy, EGLConfig config, 
     Window_Buffer *host_surface = render_surface_create(config, width, height, P_SURFACE);
     host_surface->guest_surface = guest_surface;
 
-    LOGD("pbuffer surface create host %llx guest %llx width %d height %d guest width %d height %d", (uint64_t)host_surface, (uint64_t)guest_surface, host_surface->width, host_surface->height, width, height);
+    LOGD("pbuffer surface create host %p guest %p width %d height %d guest width %d height %d", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
 
     g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
@@ -508,7 +508,7 @@ void d_eglCreateWindowSurface(void *context, EGLDisplay dpy, EGLConfig config, E
 
     Window_Buffer *host_surface = render_surface_create(config, width, height, WINDOW_SURFACE);
     host_surface->guest_surface = guest_surface;
-    // LOGI("surface create host %llx guest %llx width %d height %d guest width %d height %d", (uint64_t)host_surface, (uint64_t)guest_surface, host_surface->width, host_surface->height, width, height);
+    LOGD("surface create host %p guest %p width %d height %d guest width %d height %d", host_surface, guest_surface, host_surface->width, host_surface->height, width, height);
     g_hash_table_insert(process_context->surface_map, GUINT_TO_POINTER(guest_surface), (gpointer)host_surface);
 }
 
@@ -518,7 +518,6 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
     Process_Context *process_context = thread_context->process_context;
 
     Window_Buffer *real_surface = (Window_Buffer *)g_hash_table_lookup(process_context->surface_map, GUINT_TO_POINTER(surface));
-    express_printf("destroy surface %llx\n", real_surface);
     if (real_surface == NULL)
     {
         return EGL_FALSE;

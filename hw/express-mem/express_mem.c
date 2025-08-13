@@ -184,7 +184,7 @@ void update_gbuffer_virt_usage(Hardware_Buffer *gbuffer, int virt_dev, int write
         return;
     }
 
-    int last_virt_dev = gbuffer->last_virt_dev, last_write = gbuffer->last_virt_usage, last_virt_time = gbuffer->last_virt_time, virt_time = g_get_real_time();
+    int last_virt_dev = gbuffer->last_virt_dev, last_write = gbuffer->last_virt_usage, last_virt_time = gbuffer->last_virt_time, virt_time = g_get_monotonic_time();
     int slack_interval = virt_time - last_virt_time;
     gbuffer->last_virt_dev = virt_dev;
     gbuffer->last_virt_usage = write;

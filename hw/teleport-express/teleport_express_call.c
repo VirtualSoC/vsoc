@@ -520,7 +520,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
             call->spend_time = 0;
             call->next = NULL;
         }
-        // gint64 start_time=g_get_real_time();
+        // gint64 start_time=g_get_monotonic_time();
 
         //会有para_num个传入参数，这些elem本应该都是out类型
         for (int i = 0; i < para_num; i++)
@@ -543,8 +543,8 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
 
             // while (elem == NULL)
             // {
-            //     // t_int = g_get_real_time();
-            //     // start_time = g_get_real_time();
+            //     // t_int = g_get_monotonic_time();
+            //     // start_time = g_get_monotonic_time();
 
             //     elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
             //     cnt_timeout++;
@@ -607,7 +607,7 @@ int get_para_from_call(Teleport_Express_Call *call, Call_Para *call_para, unsign
     }
 
     Teleport_Express_Queue_Elem *now_elem = header->next;
-    call->spend_time = g_get_real_time();
+    call->spend_time = g_get_monotonic_time();
 
     for (int i = 0; i < call->para_num; i++)
     {
@@ -698,9 +698,9 @@ void guest_null_ptr_init(VirtQueue *vq)
         char *temp2 = g_malloc(1024 * 1024 * 24);
         memset(temp1, 0, 1024 * 1024 * 24);
         // memset(temp2,1,1024*1024*24);
-        gint64 t_start = g_get_real_time();
+        gint64 t_start = g_get_monotonic_time();
         memcpy(temp1, temp2, 1024 * 1024 * 24);
-        uint32_t t_spend = (uint32_t)(g_get_real_time() - t_start);
+        uint32_t t_spend = (uint32_t)(g_get_monotonic_time() - t_start);
         uint32_t mem_speed = 1024 * 1024 * 24 / t_spend;
 
         express_printf("mem cpy speed %u\n", mem_speed);
@@ -721,7 +721,7 @@ void common_call_callback(Teleport_Express_Call *call)
 {
     if (call->spend_time != 0)
     {
-        call->spend_time = g_get_real_time() - call->spend_time;
+        call->spend_time = g_get_monotonic_time() - call->spend_time;
     }
 
     //设置guest端的flag标志，防止中断丢失
