@@ -148,13 +148,16 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
 
     if (need_gpu_sync)
     {
-        if (gpu_sync_id[sync_id] != NULL)
+        GLsync gpu_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        gpu_sync = qatomic_xchg(&gpu_sync_id[sync_id], gpu_sync);
+        if (gpu_sync != NULL)
         {
-            glDeleteSync(gpu_sync_id[sync_id]);
+            glDeleteSync(gpu_sync);
         }
-        gpu_sync_id[sync_id] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
         glFlush();
     }
+
     SET_SYNC_FLAG(static_sync_context.sync_data, sync_id);
 
     if (qatomic_xchg(&sync_wait_cnt, 0) != 0)
@@ -211,13 +214,12 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
 
         if (need_gpu_sync)
         {
-            if (gpu_sync_id[sync_id] != NULL)
+            // a second wait_sync on the same id will skip gpu sync
+            GLsync gpu_sync = qatomic_xchg(&gpu_sync_id[sync_id], NULL);
+            if (gpu_sync != NULL)
             {
-                glWaitSync(gpu_sync_id[sync_id], 0, GL_TIMEOUT_IGNORED);
-
-                // a second wait_sync on the same id will skip gpu sync
-                glDeleteSync(gpu_sync_id[sync_id]);
-                gpu_sync_id[sync_id] = NULL;
+                glWaitSync(gpu_sync, 0, GL_TIMEOUT_IGNORED);
+                glDeleteSync(gpu_sync);
             }
         }
     } else {
