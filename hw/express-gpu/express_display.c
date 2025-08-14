@@ -668,14 +668,14 @@ void display_status_change(Display_Context *disp, Display_Status status)
            disp->status.backlight, status.backlight);
 
     disp->status = status;
-    if (disp->status.power_status == 3)
-    {
-        disp->is_open = false;
-    }
-    else
-    {
-        disp->is_open = true;
-    }
+    // if (disp->status.power_status == 3)
+    // {
+    //     disp->is_open = false;
+    // }
+    // else
+    // {
+    //     disp->is_open = true;
+    // }
 }
 
 /**
