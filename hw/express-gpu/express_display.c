@@ -46,7 +46,7 @@ static void opengl_paint_gbuffer(Hardware_Buffer *gbuffer);
 static void handle_display_rotation(Display_Context *disp, GBuffer_Layers *layers);
 static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *layers);
 static void display_present(Display_Context *disp);
-void display_status_change(Display_Context *disp, Display_Status status);
+static void display_status_change(Display_Context *disp, Display_Status status);
 
 static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
 {
@@ -636,16 +636,13 @@ static void display_present(Display_Context *disp)
 {
     if (!express_display_headless_mode) {
         glfwSwapBuffers(disp->window);
-    
-        sync_express_touchscreen_input(disp->window, disp->is_open);
-        sync_express_keyboard_input(disp->window, disp->is_open);
     }
 
     uint64_t now_time = g_get_monotonic_time();
     char name[64];
     disp->fps_counter++;
 
-    if (now_time - disp->last_fps_timestamp > 1000000)
+    if (now_time - disp->last_fps_timestamp > 1000 * 1000)
     {
         float gen_frame_time_avg = 1.0f * (now_time - disp->last_fps_timestamp) / disp->fps_counter / 1000.0f;
         float fps = disp->fps_counter * 1000000.0f / (now_time - disp->last_fps_timestamp);
@@ -661,7 +658,7 @@ static void display_present(Display_Context *disp)
     }
 }
 
-void display_status_change(Display_Context *disp, Display_Status status)
+static void display_status_change(Display_Context *disp, Display_Status status)
 {
     LOGI("display_status_change refresh_rate %d=>%d power_stats %d=>%d backlight %u=>%u",
            disp->status.refresh_rate, status.refresh_rate, disp->status.power_status, status.power_status,
@@ -921,6 +918,31 @@ static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
     }
     else {
         monitor_printf(mon, "Unknown display command: %s\n", argv[0]);
+    }
+}
+
+void handle_display_event(void) {
+    if (express_display_headless_mode) {
+        return;
+    }
+
+    // throttle input updates to screen refresh
+    static uint64_t last_event_time = 0;
+    uint64_t current_time = g_get_monotonic_time();
+    if (current_time - last_event_time < 1000 * 1000 / express_display_refresh_rate) {
+        return;
+    }
+    last_event_time = current_time;
+
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, g_display_contexts);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Display_Context *disp = (Display_Context *)value;
+        if (disp->is_open) {
+            sync_express_touchscreen_input(disp->window, true);
+            sync_express_keyboard_input(disp->window, true);
+        }
     }
 }
 

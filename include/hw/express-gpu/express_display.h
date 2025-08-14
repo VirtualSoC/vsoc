@@ -117,4 +117,6 @@ void get_display_info(int displayIndex, int *width, int *height,
 void save_display_context(QEMUFile *f);
 void load_display_context(QEMUFile *f);
 
+void handle_display_event(void);
+
 #endif

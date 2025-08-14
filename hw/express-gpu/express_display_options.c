@@ -66,6 +66,10 @@ static void parse_display_sizes(const char *input) {
     // Print the number of displays
     LOGD("Number of displays: %d", displayCount);
     express_display_count = displayCount;
+
+    if (displayCount > 0 && express_display_refresh_rate != info_array[0].refreshRate) {
+        express_display_refresh_rate = info_array[0].refreshRate;
+    }
 }
 
 static void init_info(void) {

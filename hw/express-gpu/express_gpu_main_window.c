@@ -3,31 +3,23 @@
  * @author gaodi (gaodi.sec@qq.com)
  * @author Jiaxing Qiu (jx.qiu@outlook.com)
  * @brief 'main_window' is an offscreen glfw window from which ALL graphics contexts are derived.
- * Resources are shared among the main context and the child graphics contexts. 
-
+ * Resources are shared among the main context and the child graphics contexts.
+ *
  * @copyright Copyright (c) 2020-2024 the authors
  *
  */
 // #define STD_DEBUG_LOG
 // #define TIMER_LOG
 #include "qemu/osdep.h"
-#include "qemu/atomic.h"
 #include "sysemu/runstate.h"
 
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/express_gpu_main_window.h"
-#include "hw/teleport-express/teleport_express.h"
 
-#include "hw/express-gpu/egl_context.h"
-#include "hw/express-gpu/glv3_context.h"
-#include "hw/express-gpu/gl_helper.h"
 #include "hw/express-gpu/glv1.h"
-
-#include "hw/express-mem/express_sync.h"
-
 #include "hw/express-gpu/device_interface_window.h"
-
 #include "hw/express-gpu/express_gpu_snapshot.h"
+#include "hw/express-gpu/express_display.h"
 #include "migration/snapshot.h"
 
 
@@ -755,6 +747,7 @@ static void *main_window_thread(void *opaque)
     while (!glfwWindowShouldClose(main_window) && main_window_run == 2)
     {
         handle_child_window_event();
+        handle_display_event();
 
         THREAD_CONTROL_BEGIN
 
