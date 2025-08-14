@@ -539,9 +539,6 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
                 swap(layer.width, layer.height, int);
             }
 
-            LOGD("draw layer %d xywh %d %d %d %d crop %d %d %d %d gbuffer id %llx texture %d size %d %d blend_type %d transform_type %d",
-                            i, layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height, layer.gbuffer_id, gbuffer->data_texture, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
-
             // layer的大小是显示的像素区域位置大小（与屏幕大小直接相关），
             // crop的大小是原始gbuffer裁剪后的像素位置大小（与屏幕大小无关，而与原始缓冲区大小有关），
             // 两者间可能存在缩放关系
@@ -581,23 +578,33 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
             view_w = round(view_w * xscale);
             view_h = round(view_h * yscale);
 
+            LOGD("draw layer %d xywh %d %d %d %d crop %d %d %d %d gbuffer id %llx texture %d size %d %d blend_type %d transform_type %d",
+                            i, layer.x, layer.y, layer.width, layer.height, layer.crop_x, layer.crop_y, layer.crop_width, layer.crop_height, layer.gbuffer_id, gbuffer->data_texture, gbuffer->width, gbuffer->height, layer.blend_type, layer.transform_type);
+
             LOGD("content xywh %d %d %d %d glviewport %d %d %d %d dispT %d layerT %d", disp->content_x, disp->content_y, disp->content_w, disp->content_h, view_x, view_y, view_w, view_h, disp->transform_type, layer.transform_type);
 
             if (layer.blend_type == BLEND_DST) {
                 // Keeps only the destination (old image), new image is ignored
             } else if (layer.blend_type == BLEND_NONE || layer.blend_type == BLEND_SRC) {
+                float sx = (float)disp->content_w / disp->info.pixel_width;
+                float sy = (float)disp->content_h / disp->info.pixel_height;
+
+                int dstX0 = disp->content_x + (int)lround(layer.x * sx);
+                int invY  = disp->info.pixel_height - (layer.y + layer.height);
+                int dstY0 = disp->content_y + (int)lround(invY * sy);
+                int dstX1 = dstX0 + (int)lround(layer.width * sx);
+                int dstY1 = dstY0 + (int)lround(layer.height * sy);
+
+                int srcX0 = layer.crop_x;
+                int srcX1 = layer.crop_x + layer.crop_width;
+                int srcY0 = gbuffer->height - (layer.crop_y + layer.crop_height);
+                int srcY1 = gbuffer->height - layer.crop_y;
+
                 // quick path if no blending takes place
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, disp->blitFBO);
                 glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gbuffer->data_texture, 0);
-                // todo: should we respect layer xywh?
-#ifdef __APPLE__
-                glBlitFramebuffer(
-#else
-                glBlitNamedFramebuffer(disp->blitFBO, 0, 
-#endif
-                                    0, 0, gbuffer->width, gbuffer->height, 
-                                    disp->content_x, disp->content_y, disp->content_w, disp->content_h,
-                                    GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+                glBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
             } else {
@@ -942,6 +949,11 @@ void handle_display_event(void) {
         if (disp->is_open) {
             sync_express_touchscreen_input(disp->window, true);
             sync_express_keyboard_input(disp->window, true);
+        }
+        if (current_time - disp->last_fps_timestamp > 1000 * 1000) {
+            disp->last_fps = disp->fps_counter;
+            disp->fps_counter = 0;
+            disp->last_fps_timestamp = current_time;
         }
     }
 }

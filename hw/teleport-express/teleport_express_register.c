@@ -291,7 +291,6 @@ void common_device_irq_register(Device_Context *device_context, Teleport_Express
     device_context->irq_enabled = true;
     if(device_context->device_info->irq_register != NULL)
     {
-        // LOGI("register irq!");//ztodo:一些device需要手动操作
         device_context->device_info->irq_register(device_context);
     }
 }
@@ -300,7 +299,7 @@ void common_device_irq_release(Device_Context *device_context)
 {
     device_context->irq_enabled = false;
 
-    LOGI("irq release %s", device_context->device_info->name);
+    LOGD("irq release %s", device_context->device_info->name);
 
     Teleport_Express_Call *origin_call = NULL;
     if ((origin_call = qatomic_xchg(&device_context->irq_call, 1)) != NULL)
