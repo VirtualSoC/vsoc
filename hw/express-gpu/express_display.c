@@ -914,12 +914,14 @@ static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
         monitor_printf(mon, "%d\n", count);
     }
     else if (strcmp(argv[0], "fps") == 0) {
-        GHashTableIter iter;
-        gpointer key, value;
-        g_hash_table_iter_init(&iter, g_display_contexts);
-        while (g_hash_table_iter_next(&iter, &key, &value)) {
-            Display_Context *disp = (Display_Context *)value;
-            monitor_printf(mon, "%.2f ", disp->last_fps);
+        if (g_display_contexts != NULL) {
+            GHashTableIter iter;
+            gpointer key, value;
+            g_hash_table_iter_init(&iter, g_display_contexts);
+            while (g_hash_table_iter_next(&iter, &key, &value)) {
+                Display_Context *disp = (Display_Context *)value;
+                monitor_printf(mon, "%.2f ", disp->last_fps);
+            }
         }
         monitor_printf(mon, "\n");
     }
@@ -929,7 +931,7 @@ static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
 }
 
 void handle_display_event(void) {
-    if (express_display_headless_mode) {
+    if (express_display_headless_mode || !g_display_contexts) {
         return;
     }
 
