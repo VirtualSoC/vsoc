@@ -351,7 +351,7 @@ EGLBoolean d_eglSwapBuffers_sync(void *context, EGLDisplay dpy, EGLSurface surfa
     return EGL_TRUE;
 }
 
-void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer)
+void d_eglQueueBuffer(void *context, uint64_t gbuffer_id)
 {
     GLuint error = glGetError();
     if (error != GL_NO_ERROR)
@@ -424,7 +424,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
 
     if (real_surface == NULL)
     {
-        LOGE("real surface is null! surface %p real %p dpy %p invoke_time %" PRId64, surface, real_surface, dpy, invoke_time);
+        LOGE("real surface is null! surface %p real %p dpy %p", surface, real_surface, dpy);
         return EGL_FALSE;
     }
 

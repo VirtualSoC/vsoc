@@ -2033,7 +2033,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         /* Define variables */
         uint64_t gbuffer_id;
-        int is_composer;
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglQueueBuffer))
@@ -2045,7 +2044,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         unsigned char *temp = NULL;
 
         temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < 12 * 1))
+        if (unlikely(temp_len < 8 * 1))
         {
             break;
         }
@@ -2071,16 +2070,13 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         gbuffer_id = *(uint64_t *)(temp + temp_loc);
         temp_loc += sizeof(uint64_t);
 
-        is_composer = *(int *)(temp + temp_loc);
-        temp_loc += sizeof(int);
-
         /* Check length */
         if (unlikely(temp_len < temp_loc))
         {
             break;
         }
 
-        d_eglQueueBuffer(egl_context, gbuffer_id, is_composer);
+        d_eglQueueBuffer(egl_context, gbuffer_id);
     }
     break;
 

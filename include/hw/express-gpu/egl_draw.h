@@ -20,7 +20,7 @@ EGLBoolean d_eglReleaseTexImage(void *context, EGLDisplay dpy, EGLSurface surfac
 
 EGLBoolean d_eglSwapInterval(void *context, EGLDisplay dpy, EGLint interval);
 
-void d_eglQueueBuffer(void *context, uint64_t gbuffer_id, int is_composer);
+void d_eglQueueBuffer(void *context, uint64_t gbuffer_id);
 
 EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, int64_t invoke_time, uint64_t gbuffer_id, int width, int height, int hal_format, Guest_Mem *ret_invoke_time, Guest_Mem *swap_time);
 
