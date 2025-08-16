@@ -264,7 +264,9 @@ void release_native_opengl_context(void *native_context, int context_flags)
     data->context_flags = context_flags;
     send_message_to_main_window(MAIN_DESTROY_CHILD_WINDOW, data);
 
-    prepare_native_opengl_context_async();
+    if (!teleport_express_should_stop) {
+        prepare_native_opengl_context_async();
+    }
 }
 
 Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context_flags)

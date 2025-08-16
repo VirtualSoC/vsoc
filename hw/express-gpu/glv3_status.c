@@ -77,7 +77,6 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
         // opengl_context->bound_buffer_status.attrib_point->element_array_buffer = buffer;
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            LOGD("in dsa mode bind ebo!");
             if (buffer == 0)
             {
                 Attrib_Point *point_data = opengl_context->bound_buffer_status.attrib_point;
@@ -95,10 +94,7 @@ void d_glBindBuffer_special(void *context, GLenum target, GLuint guest_buffer)
                     glVertexArrayElementBuffer(status->guest_vao, status->guest_vao_ebo);
                 }
             }
-        }
-
-        if (host_opengl_version < 45 || DSA_enable == 0)
-        {
+        } else {
             status->host_element_array_buffer = buffer;
         }
         break;

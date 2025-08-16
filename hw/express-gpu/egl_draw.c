@@ -26,11 +26,11 @@ int make_opengl_current(Opengl_Context *opengl_context, bool current) {
     }
 
     int ret = EGL_TRUE;
-    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT) {
-        // 在独立模式下，使用glfwMakeContextCurrent
+    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT) {
+        // 在窗口模式下，使用glfwMakeContextCurrent
         glfwMakeContextCurrent((GLFWwindow *)window);
     } else {
-        // 在EGL模式下，使用egl_makeCurrent
+        // 在离屏模式下，使用egl_makeCurrent
         ret = egl_makeCurrent(window);
     }
 
@@ -135,7 +135,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
     }
     thread_context->opengl_context = real_opengl_context;
 
-    if (real_opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
+    if (real_opengl_context->context_flags & DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT)
     {
         if (real_surface_draw != NULL && real_surface_draw->type == WINDOW_SURFACE && real_surface_draw->width > 10 && real_surface_draw->height > 10)
         {
@@ -397,7 +397,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id)
 
     gbuffer->is_writing = 0;
 
-    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
+    if (opengl_context->context_flags & DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT)
     {
         if (opengl_context != NULL && opengl_context->enable_scissor == 1)
         {
@@ -467,14 +467,11 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         real_surface->swap_loc = (real_surface->swap_loc + 1) % 5;
     }
 
-    real_surface->frame_start_time = 0;
 
     gint64 now_avg_swap_time = real_surface->swap_time_all / real_surface->swap_time_cnt;
 
     if (ret == EGL_TRUE)
     {
-
-        // GLint now_flag_cnt = 0;
         Guest_Mem *guest_mem_invoke = (Guest_Mem *)ret_invoke_time;
         Guest_Mem *guest_mem_swap = (Guest_Mem *)swap_time;
 
@@ -483,7 +480,6 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         if (thread_context->init != 0)
         {
             write_to_guest_mem(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
-
             write_to_guest_mem(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
         }
     }
@@ -492,10 +488,10 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
     {
         double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);
-        LOGD("(%s) swapbuffer FPS %.2f", process_context->guest_process_name, hz);
         real_surface->now_screen_hz = 0;
-
         real_surface->last_calc_time = now_time;
+
+        LOGD("(%s) swapbuffer FPS %.2f", process_context->guest_process_name, hz);
     }
     else if (real_surface->last_calc_time == 0)
     {
@@ -503,6 +499,7 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         real_surface->now_screen_hz = 0;
     }
 
+    real_surface->frame_start_time = 0;
     real_surface->now_screen_hz += 1;
 
     return ret;

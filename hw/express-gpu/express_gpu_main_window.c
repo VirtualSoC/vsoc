@@ -160,7 +160,7 @@ static const char *SPECIAL_EXTENSIONS[] = {
 static const int SPECIAL_EXTENSIONS_SIZE = 73;
 
 
-static void *sub_window_create(int context_flags);
+static void *create_child_window(int context_flags);
 
 static void glfw_error_callback(int error, const char *description)
 {
@@ -266,7 +266,7 @@ static void handle_child_window_event(void)
 
             THREAD_CONTROL_BEGIN
 
-            *(data->window) = (void *)sub_window_create(context_flags);
+            *(data->window) = (void *)create_child_window(context_flags);
 
             THREAD_CONTROL_END
 
@@ -288,9 +288,8 @@ static void handle_child_window_event(void)
 
             THREAD_CONTROL_BEGIN
 
-            if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
+            if (context_flags & DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT)
             {
-                glfwSetWindowShouldClose(window_ptr, 1);
                 glfwDestroyWindow((GLFWwindow *)window_ptr);
             } else {
                 egl_destroyContext(window_ptr);
@@ -563,14 +562,14 @@ static void static_value_prepare(void)
  *
  * @param context_flags context的模式，例如单独窗口（非OpenGL原生）、debug context、robust context
  */
-static void *sub_window_create(int context_flags)
+static void *create_child_window(int context_flags)
 {
 
     void *child_window = NULL;
     static int windows_cnt = 0;
     int cnt = windows_cnt++;
 
-    if (context_flags & DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT)
+    if (context_flags & DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT)
     {
         char name[32];
         sprintf(name, "child-window%d", cnt);

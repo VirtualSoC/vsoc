@@ -42,9 +42,9 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
 
     for (int i = 0; attrib_list[i] != EGL_NONE; i += 2)
     {
-        if (attrib_list[i] == DGL_CONTEXT_INDEPENDENT_MODE && attrib_list[i + 1] == EGL_TRUE)
+        if (attrib_list[i] == DGL_CONTEXT_WINDOWED_MODE && attrib_list[i + 1] == EGL_TRUE)
         {
-            context_flags |= DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT;
+            context_flags |= DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT;
         }
         if (attrib_list[i] == EGL_CONTEXT_OPENGL_DEBUG && attrib_list[i + 1] == EGL_TRUE)
         {
@@ -63,9 +63,9 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         }
     }
 
-    if (express_gpu_independ_window_enable)
+    if (express_gpu_enable_windowed_mode)
     {
-        context_flags |= DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT;
+        context_flags |= DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT;
     }
 
     Opengl_Context *opengl_context = opengl_context_create(real_share_context, context_flags);

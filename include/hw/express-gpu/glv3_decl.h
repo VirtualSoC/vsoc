@@ -419,8 +419,10 @@ typedef struct Debug_Status {
 } Debug_Status;
 
 // FIXME: potential collision with future GL context flags
-#define DGL_CONTEXT_INDEPENDENT_MODE 0x00ffffff
-#define DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT 0x10000000
+#define DGL_CONTEXT_WINDOWED_MODE 0x00ffffff
+#define DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT 0x10000000
+#define DGL_CONTEXT_INDEPENDENT 0x00fffffe
+#define DGL_CONTEXT_FLAG_INDEPENDENT_BIT 0x20000000
 
 DebugMessageDesc *get_next_debug_message(RingBufferDesc *buffer);
 void process_debug_message(void *context);

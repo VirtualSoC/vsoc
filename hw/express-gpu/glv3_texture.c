@@ -23,8 +23,8 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
     {
         glNamedBufferData(asyn_texture, end_loc, NULL, GL_STREAM_DRAW);
 
-        //然后把数据复制到内存里，之后交给dma传输   到底是invalidata还是unsync？
-        GLubyte *map_pointer = glMapNamedBufferRange(asyn_texture, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+        //然后把数据复制到内存里，之后交给dma传输
+        GLubyte *map_pointer = glMapNamedBufferRange(asyn_texture, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
 
@@ -42,13 +42,10 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         status->host_pixel_unpack_buffer = asyn_texture; //能调到这说明本身也没绑定pbo，所以不担心覆盖
 
         //因为曾经bind过texture，所以这里bind相应的buffer，这里重新bufferdata是为了孤立缓冲区
-        int buffer_len = max(max(bound_buffer->asyn_unpack_texture_buffer_size, end_loc), 1024);
-        glBufferData(GL_PIXEL_UNPACK_BUFFER, buffer_len, NULL, GL_STREAM_DRAW);
-        bound_buffer->asyn_unpack_texture_buffer_size = buffer_len;
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, end_loc, NULL, GL_STREAM_DRAW);
 
-        glGetError();
         //然后把数据复制到内存里，之后交给dma传输
-        GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+        GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
         read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
 
@@ -237,8 +234,6 @@ void d_glTexSubImage2D_with_bound(void *context, GLenum target, GLint level, GLi
     }
 
     buffer_binding_status_sync(context, GL_PIXEL_UNPACK_BUFFER);
-
-    // LOGI("with bound going to upload data for subtexture target %d id %d width %d height %d format %x xoffset %d yoffset %d type %x",target, bind_texture, width, height, format, xoffset, yoffset, type);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
@@ -715,9 +710,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
     }
     else
     {
-        int buffer_len = max(max(bound_buffer->asyn_pack_texture_buffer_size, end_loc), 1024);
-        glBufferData(GL_PIXEL_PACK_BUFFER, buffer_len, NULL, GL_STREAM_READ);
-        bound_buffer->asyn_pack_texture_buffer_size = buffer_len;
+        glBufferData(GL_PIXEL_PACK_BUFFER, end_loc, NULL, GL_STREAM_READ);
     }
     glReadPixels(x, y, width, height, format, type, 0);
 
@@ -774,9 +767,7 @@ void d_glReadnPixels_without_bound(void *context, GLint x, GLint y, GLsizei widt
     }
     else
     {
-        int buffer_len = max(max(bound_buffer->asyn_pack_texture_buffer_size, end_loc), 1024);
-        glBufferData(GL_PIXEL_PACK_BUFFER, buffer_len, NULL, GL_STREAM_READ);
-        bound_buffer->asyn_pack_texture_buffer_size = buffer_len;
+        glBufferData(GL_PIXEL_PACK_BUFFER, end_loc, NULL, GL_STREAM_READ);
     }
     glReadnPixels(x, y, width, height, format, type, bufSize, 0);
 

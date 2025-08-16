@@ -367,7 +367,7 @@ static int open_encoder(DCodecComponent *_context) {
 
     // inform express-gpu to create shared child window
 #ifdef STD_DEBUG_INDEPENDENT_WINDOW
-    context->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+    context->window = get_native_opengl_context(DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT);
 #else
     context->window = get_native_opengl_context(0);
 #endif

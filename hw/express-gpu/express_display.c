@@ -193,7 +193,6 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         }
 
         sync_id = *(uint64_t *)(temp);
-        LOGD("going to wait for sync in display %d", (int)sync_id);
         wait_for_express_sync((int)sync_id, true);
     }
     break;
@@ -340,7 +339,7 @@ static void display_context_init(Display_Context *disp)
             egl_makeCurrent(disp->window);
         } else {
             // 创建一个窗口，这个window也是context
-            disp->window = get_native_opengl_context(DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+            disp->window = get_native_opengl_context(DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT);
             glfwSetWindowUserPointer(disp->window, disp);
 
             if (!disp->window)
@@ -445,7 +444,7 @@ static void display_context_destroy(Thread_Context *context)
         } else {
             glfwMakeContextCurrent(NULL);
             glfwHideWindow(disp->window);
-            release_native_opengl_context(disp->window, DGL_CONTEXT_FLAG_INDEPENDENT_MODE_BIT);
+            release_native_opengl_context(disp->window, DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT);
         }
         disp->window = NULL;
     }

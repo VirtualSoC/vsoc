@@ -12,149 +12,99 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
 
     unsigned char *map_pointer = NULL;
 
-    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
+    GLint padding = -min(point_data->buffer_len[index] - point_data->remain_buffer_len[index] - (GLint)offset, 0);
+
+    if (!DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0)) {
+        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
+    }
+
+    LOGD("set_vertex_attrib_data vbo index %d offset %d length %d padding %d",point_data->buffer_object[index], index, offset, length, padding);
+
+    if (max_len > point_data->buffer_len[index])
     {
-        //@todo 扩大提前申请的量级
+        //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的BUFFER_MULTIPLY_FACTOR倍，类似于vector的翻倍机制
 
-        if (max_len > point_data->buffer_len[index])
+        int alloc_size = max_len * BUFFER_MULTIPLY_FACTOR;
+        if (alloc_size < 1024)
         {
-            //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的10倍，类似于vector的翻倍机制，因为会画很多下，所以用10倍
+            alloc_size = 1024;
+        }
 
-            int alloc_size = max_len * BUFFER_MULTIPLY_FACTOR;
-            if (alloc_size < 1024)
-            {
-                alloc_size = 1024;
-            }
-
-            // todo stream_draw需要验证
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0)) {
             glNamedBufferData(point_data->buffer_object[index], alloc_size, NULL, GL_STREAM_DRAW);
-            point_data->buffer_len[index] = alloc_size;
+        } else {
+            glBufferData(GL_ARRAY_BUFFER, alloc_size, NULL, GL_DYNAMIC_DRAW);
+        }
+        point_data->buffer_len[index] = alloc_size;
+
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0)) {
             map_pointer = glMapNamedBufferRange(point_data->buffer_object[index], offset, length,
-                                                GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
+                GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d",point_data->buffer_object[index], index, offset, length);
-
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
-            glFlushMappedNamedBufferRange(point_data->buffer_object[index], 0, length);
-
-            point_data->buffer_loc[index] = 0;
-            point_data->remain_buffer_len[index] = max_len * 2 - max_len;
+        } else {
+            map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
+                GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
         }
-        else if (length > point_data->remain_buffer_len[index])
-        {
+
+        read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+        LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
+
+        point_data->buffer_loc[index] = 0;
+        point_data->remain_buffer_len[index] = alloc_size - max_len;
+    }
+    else if (padding + length > point_data->remain_buffer_len[index])
+    {
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0)) {
             map_pointer = glMapNamedBufferRange(point_data->buffer_object[index], 0, point_data->buffer_len[index],
-                                                GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+                GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
-            // TODO 测试是否需要从0开始映射
-            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], index, offset, length, map_pointer);
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
+        } else {
+            map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, 0, point_data->buffer_len[index],
+                GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+        }
 
+        // TODO 测试是否需要从0开始映射
+        read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
+
+        LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
+
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0)) {
             glFlushMappedNamedBufferRange(point_data->buffer_object[index], offset, length);
-
-            point_data->buffer_loc[index] = 0;
-            point_data->remain_buffer_len[index] = point_data->buffer_len[index] - max_len;
-        }
-        else
-        {
-            map_pointer = glMapNamedBufferRange(point_data->buffer_object[index],
-                                                point_data->buffer_len[index] - point_data->remain_buffer_len[index], length,
-                                                GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-
-            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], index, offset, length, map_pointer);
-
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
-
-            glFlushMappedNamedBufferRange(point_data->buffer_object[index], 0, length);
-
-            point_data->buffer_loc[index] = point_data->buffer_len[index] - point_data->remain_buffer_len[index] - offset;
-            point_data->remain_buffer_len[index] -= length;
+        } else {
+            glFlushMappedBufferRange(GL_ARRAY_BUFFER, offset, length);
         }
 
-        express_printf("attrib point object %d loc %d %d index %d offset %d len %d\n", point_data->buffer_object[index], point_data->buffer_loc[index], point_data->buffer_loc[index] + length, index, offset, length);
-
-        glUnmapNamedBuffer(point_data->buffer_object[index]);
+        point_data->buffer_loc[index] = 0;
+        point_data->remain_buffer_len[index] = point_data->buffer_len[index] - max_len;
     }
     else
     {
-        GLint padding = -min(point_data->buffer_len[index] - point_data->remain_buffer_len[index] - (GLint)offset, 0);
-
-        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
-
-        GLenum glerror = glGetError();
-        if (glerror != GL_NO_ERROR)
-        {
-            LOGE("error! glBindBuffer GL_ARRAY_BUFFER %x", glerror);
-        }
-        LOGD("set_vertex_attrib_data vbo index %d offset %d length %d padding %d",point_data->buffer_object[index], index, offset, length, padding);
-
-        if (max_len > point_data->buffer_len[index])
-        {
-            //当前的缓冲区大小不足，直接将原来的缓冲区加到当前最大大小的BUFFER_MULTIPLY_FACTOR倍，类似于vector的翻倍机制
-
-            int alloc_size = max_len * BUFFER_MULTIPLY_FACTOR;
-            if (alloc_size < 1024)
-            {
-                alloc_size = 1024;
-            }
-
-            // todo stream_draw需要验证
-            glBufferData(GL_ARRAY_BUFFER, alloc_size, NULL, GL_DYNAMIC_DRAW);
-            point_data->buffer_len[index] = alloc_size;
-            map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, offset, length,
-                                           GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
-            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
-
-            point_data->buffer_loc[index] = 0;
-            point_data->remain_buffer_len[index] = alloc_size - max_len;
-        }
-        else if (padding + length > point_data->remain_buffer_len[index])
-        {
-            map_pointer = glMapBufferRange(GL_ARRAY_BUFFER, 0, point_data->buffer_len[index],
-                                           GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
-
-            // TODO 测试是否需要从0开始映射
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
-
-            LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
-
-            glFlushMappedBufferRange(GL_ARRAY_BUFFER, offset, length);
-
-            point_data->buffer_loc[index] = 0;
-            point_data->remain_buffer_len[index] = point_data->buffer_len[index] - max_len;
-        }
-        else
-        {
+        if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0)) {
+            map_pointer = glMapNamedBufferRange(point_data->buffer_object[index],
+                point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
+                GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
+        } else {
             map_pointer = glMapBufferRange(GL_ARRAY_BUFFER,
-                                           point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
-                                           GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
-
-            GLuint current_buffer;
-            glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &current_buffer);
-            
-            GLenum glerror = glGetError();
-            if (glerror != GL_NO_ERROR)
-            {
-                LOGE("error! glMapBufferRange glerror %x, buffen_len %d remain_len %d length %d padding %d", glerror, point_data->buffer_len[index], point_data->remain_buffer_len[index], length, padding);
-                GLint buffer_size = 0;
-                glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, &buffer_size);
-                LOGE("VAO %u buffer_size %d", current_buffer, buffer_size);
-            }
-
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
-
-            LOGD("set_vertex_attrib_data vbo current %d index %d offset %d length %d pointer %d %d length %d", current_buffer, point_data->buffer_object[index], offset, length, (int)map_pointer, padding, point_data->buffer_len[index] - point_data->remain_buffer_len[index]);
-
-            // sometimes different offsets are used on the same host vbo, causing accesses of negative vbo indices and therefore undefined behaviour 
-            // therefore some padding is added to avoid negative buffer_loc
-            // fixes flickering icons in OpenHarmony 4.0 on Intel graphics cards.
-            point_data->buffer_loc[index] = point_data->buffer_len[index] - point_data->remain_buffer_len[index] + padding - offset;
-            point_data->remain_buffer_len[index] -= length + padding;
+                point_data->buffer_len[index] - point_data->remain_buffer_len[index], length + padding,
+                GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
         }
 
-        express_printf("attrib point loc %d %d index %d offset %d len %d\n", point_data->buffer_loc[index], point_data->buffer_loc[index] + length, index, offset, length);
+        read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
 
+        LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d %d length %d", point_data->buffer_object[index], offset, length, (int)map_pointer, padding, point_data->buffer_len[index] - point_data->remain_buffer_len[index]);
+
+        // sometimes different offsets are used on the same host vbo, causing accesses of negative vbo indices and therefore undefined behaviour 
+        // therefore some padding is added to avoid negative buffer_loc
+        // fixes flickering icons in OpenHarmony 4.0 on Intel graphics cards.
+        point_data->buffer_loc[index] = point_data->buffer_len[index] - point_data->remain_buffer_len[index] + padding - offset;
+        point_data->remain_buffer_len[index] -= length + padding;
+    }
+
+    express_printf("attrib point loc %d %d index %d offset %d len %d\n", point_data->buffer_loc[index], point_data->buffer_loc[index] + length, index, offset, length);
+
+    if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0)) {
+        glUnmapNamedBuffer(point_data->buffer_object[index]);
+    } else {
         glUnmapBuffer(GL_ARRAY_BUFFER);
     }
 
@@ -166,10 +116,10 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(bound_buffer->buffer_status);
+    GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
+
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
-        GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
-
         Attrib_Point *point_data = bound_buffer->attrib_point;
 
         express_printf("d_glVertexAttribPointer_without_bound vao %d %d obj %d index %u size %d type %x normalized %d stride %d offset %u length %d\n", status->guest_vao, status->host_vao,
@@ -181,14 +131,11 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
     {
         GLint vbo = status->host_array_buffer;
 
-        GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
-
         LOGD("d_glVertexAttribPointer_without_bound index %u size %d type %x normalized %d stride %d offset %u length %d origin vbo %d", index, size, type, normalized, stride, offset, length, vbo);
 
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)(uint64_t)loc);
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
-        LOGD("binding buffer vbo of %d", status->host_array_buffer);
     }
 
     return;
@@ -199,10 +146,10 @@ void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint s
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(bound_buffer->buffer_status);
+    GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
+
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
-        GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
-
         express_printf("d_glVertexAttribIPointer_without_bound index %u size %d type %x stride %d offset %u length %d\n", index, size, type, stride, offset, length);
 
         Attrib_Point *point_data = bound_buffer->attrib_point;
@@ -211,8 +158,6 @@ void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint s
     }
     else
     {
-        GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
-
         glVertexAttribIPointer(index, size, type, stride, (const void *)(uint64_t)loc);
 
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);

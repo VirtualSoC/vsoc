@@ -293,7 +293,7 @@ typedef struct Express_Device_Info
 extern Device_Log_Setting_Info express_device_log_setting_info;
 
 extern bool express_gpu_gl_debug_enable;
-extern bool express_gpu_independ_window_enable;
+extern bool express_gpu_enable_windowed_mode;
 extern bool express_device_input_window_enable;
 extern bool teleport_express_save_snapshot;
 
