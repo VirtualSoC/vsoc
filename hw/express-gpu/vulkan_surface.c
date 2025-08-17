@@ -1,7 +1,7 @@
 #include "hw/express-gpu/vulkan_surface.h"
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/express_vk_handle_mapping.h"
-#include "hw/express-gpu/express_gpu_main_window.h"
+#include "hw/express-gpu/express_gpu_render.h"
 
 #include <vulkan/vulkan.h>
 #include <stdlib.h>

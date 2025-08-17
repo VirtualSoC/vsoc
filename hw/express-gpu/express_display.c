@@ -662,12 +662,12 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                 }
 
                 if(gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
-                    glUniform1i(disp->transform_uniform, FLIP_V);
+                    glUniform1i(program_transform_loc, FLIP_V);
                     LOGI("set vulkan transform uniform %d", FLIP_V);
                 }
                 opengl_paint_gbuffer(gbuffer);
                 if(gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
-                    glUniform1i(disp->transform_uniform, disp->transform_type);
+                    glUniform1i(program_transform_loc, layer.transform_type);
                 }
 
 
