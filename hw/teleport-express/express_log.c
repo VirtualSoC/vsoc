@@ -135,7 +135,7 @@ char *get_now_time(void)
     static GTimeZone *time_zone = NULL;
 
     if (time_zone == NULL) {
-        t_last = g_get_monotonic_time();
+        t_last = g_get_real_time();
         GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_last / 1000000);
         GDateTime *tz = g_date_time_to_local(t);
 
@@ -146,7 +146,7 @@ char *get_now_time(void)
     }
 
     if (!time_zone) return (char *)"";
-    gint64 t_int = g_get_monotonic_time();
+    gint64 t_int = g_get_real_time();
     GDateTime *t = g_date_time_new_from_unix_utc((gint64)t_int / 1000000);
 
     //不要用这个函数，因为它运行一次要420us，相较于log设备最快每10us接收一次数据来说太慢了
