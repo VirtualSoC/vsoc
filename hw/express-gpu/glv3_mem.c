@@ -129,7 +129,7 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
         {
             map_pointer = glMapBufferRange(target, 0, size, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
         }
-        host_guest_buffer_exchange(s_data, map_pointer, 0, size, 1);
+        g_ops.read_from_guest_mem(guest_mem, map_pointer, 0, size);
 
         express_printf("glBufferData indirect %d\n", size);
 
@@ -183,14 +183,6 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
     }
     else
     {
-        // char *temp=g_malloc(size);
-        // host_guest_buffer_exchange(s_data, temp, 0, size, 1);
-        // glBufferSubData(target, offset, size, temp);
-
-        // g_free(temp);
-
-        // return;
-
         //注意，此处可能会引起隐式同步
         GLubyte *map_pointer = NULL;
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
@@ -202,7 +194,7 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
             map_pointer = glMapBufferRange(target, offset, size, GL_MAP_WRITE_BIT);
         }
 
-        host_guest_buffer_exchange(s_data, map_pointer, 0, size, 1);
+        g_ops.read_from_guest_mem(guest_mem, map_pointer, 0, size);
 
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
@@ -234,8 +226,7 @@ void d_glMapBufferRange_read(void *context, GLenum target, GLintptr offset, GLsi
     {
         GHashTable *buffer_map = ((Opengl_Context *)context)->buffer_map;
         Guest_Host_Map *map_res = g_hash_table_lookup(buffer_map, (gpointer)((((guint64)target) << 32) + get_guest_buffer_binding_id(context, target)));
-        write_to_guest_mem((Guest_Mem *)mem_buf, (void *)map_res->host_data, 0, length);
-        // host_guest_buffer_exchange(map_res->guest_data, map_res->host_data, 0, length, 0);
+        g_ops.write_to_guest_mem((Guest_Mem *)mem_buf, (void *)map_res->host_data, 0, length);
     }
 }
 
@@ -337,7 +328,7 @@ void d_glFlushMappedBufferRange_special(void *context, GLenum target, GLintptr o
     }
     if (map_res->access & GL_MAP_WRITE_BIT)
     {
-        read_from_guest_mem((Guest_Mem *)data, map_res->host_data + offset, 0, length);
+        g_ops.read_from_guest_mem((Guest_Mem *)data, map_res->host_data + offset, 0, length);
     
         uint32_t crc = 0;
         // for(int i=0;i<length;i++)

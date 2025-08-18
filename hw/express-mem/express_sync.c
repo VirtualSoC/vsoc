@@ -238,7 +238,7 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
 {
     if (static_sync_context.guest_buffer != NULL)
     {
-        free_copied_guest_mem(static_sync_context.guest_buffer);
+        free_duplicated_guest_mem(static_sync_context.guest_buffer);
     }
     
     static_sync_context.guest_buffer = data;

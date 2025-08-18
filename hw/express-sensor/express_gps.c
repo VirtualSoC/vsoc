@@ -303,7 +303,7 @@ static void gps_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t pr
 {
     if (static_gps_context.guest_buffer != NULL)
     {
-        free_copied_guest_mem(static_gps_context.guest_buffer);
+        free_duplicated_guest_mem(static_gps_context.guest_buffer);
     }
     printf("gps register buffer\n");
     static_gps_context.guest_buffer = data;

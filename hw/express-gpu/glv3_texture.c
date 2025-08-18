@@ -26,7 +26,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         //然后把数据复制到内存里，之后交给dma传输
         GLubyte *map_pointer = glMapNamedBufferRange(asyn_texture, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-        read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
+        g_ops.read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
 
         glUnmapNamedBuffer(asyn_texture);
 
@@ -47,7 +47,7 @@ void prepare_unpack_texture(void *context, Guest_Mem *guest_mem, int start_loc, 
         //然后把数据复制到内存里，之后交给dma传输
         GLubyte *map_pointer = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-        read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
+        g_ops.read_from_guest_mem(guest_mem, map_pointer, start_loc, end_loc - start_loc);
 
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
     }
@@ -725,7 +725,7 @@ void d_glReadPixels_without_bound(void *context, GLint x, GLint y, GLsizei width
         map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_READ_BIT);
     }
 
-    write_to_guest_mem(guest_mem, map_pointer, 0, end_loc - start_loc);
+    g_ops.write_to_guest_mem(guest_mem, map_pointer, 0, end_loc - start_loc);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
@@ -782,7 +782,7 @@ void d_glReadnPixels_without_bound(void *context, GLint x, GLint y, GLsizei widt
         map_pointer = glMapBufferRange(GL_PIXEL_PACK_BUFFER, start_loc, end_loc - start_loc, GL_MAP_READ_BIT);
     }
 
-    write_to_guest_mem(guest_mem, map_pointer, 0, end_loc - start_loc);
+    g_ops.write_to_guest_mem(guest_mem, map_pointer, 0, end_loc - start_loc);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {

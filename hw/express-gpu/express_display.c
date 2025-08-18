@@ -48,65 +48,42 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 static void display_present(Display_Context *disp);
 static void display_status_change(Display_Context *disp, Display_Status status);
 
-static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
+static bool display_call_handler(Thread_Context *context, uint64_t id, const Call_Para *para, int para_num)
 {
-    Call_Para all_para[10];
-    size_t temp_len;
-    char *temp;
-    char *no_ptr_buf = NULL;
-    int para_num = get_para_from_call(call, all_para, 10);
-    Display_Context *disp = (Display_Context *)g_hash_table_lookup(g_display_contexts, GUINT_TO_POINTER(call->unique_id));
+    Display_Context *disp = (Display_Context *)context; // context already corresponds to this display
+    bool ok = true;
 
-    LOGD("display decode invoke id %llx", call->id);
+    LOGD("display call id %llx", id);
 
-    switch (call->id)
+    switch (id)
     {
     case FUNID_Get_Display_Count:
     {
-        uint64_t display_count = get_display_count();
-        if (all_para[0].data_len >= 8) {
-            write_to_guest_mem(all_para[0].data, &display_count, 0, sizeof(uint64_t));
-        }
-        else {
+        if (para[0].data_len < sizeof(uint64_t)) {
             LOGE("error! incorrect FUNID_Get_Display_Count arguments");
+            ok = false; break;
         }
-    }
-    break;
+        uint64_t display_count = get_display_count();
+        g_ops.write_to_guest_mem(para[0].data, &display_count, 0, sizeof(uint64_t));
+    } break;
     case FUNID_Commit_Composer_Layer:
     {
-        GBuffer_Layers *layers;
-        size_t layers_size;
+        if (unlikely(para_num < PARA_NUM_Commit_Composer_Layer)) { ok = false; break; }
+        size_t layers_size = para[0].data_len;
+        if (unlikely(layers_size < sizeof(GBuffer_Layers))) { ok = false; break; }
 
-        if (unlikely(para_num < PARA_NUM_Commit_Composer_Layer))
-        {
-            break;
+        GBuffer_Layers *layers = g_malloc0(layers_size);
+        g_ops.read_from_guest_mem(para[0].data, layers, 0, layers_size);
+        if (layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers) != layers_size) {
+            LOGE("error! Gbuffer_Layers size mismatch num %d calc %lld actual %lld", layers->layer_num, (long long)(layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers)), (long long)layers_size);
+            g_free(layers); ok = false; break;
         }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(GBuffer_Layers)))
-        {
-            break;
-        }
-
-        layers = g_malloc0(temp_len);
-        layers_size = temp_len;
-
-        read_from_guest_mem(all_para[0].data, layers, 0, all_para[0].data_len);
-
-        if (layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers) != layers_size)
-        {
-            LOGE("error! Gbuffer_Layers' size is not equal to data size num %d calc size %lld layers_size %lld", layers->layer_num, layers->layer_num * sizeof(GBuffer_Layer) + sizeof(GBuffer_Layers), layers_size);
-            g_free(layers);
-            break;
-        }
-
         TIMER_START_ON_THREAD(compose_layer);
         if (!express_display_headless_mode) {
             handle_display_rotation(disp, layers);
         }
         opengl_paint_composer_layers(disp, layers);
         g_free(layers);
-
         display_present(disp);
         TIMER_END(compose_layer);
         TIMER_PRINT_MOVING(compose_layer, 100);
@@ -116,165 +93,63 @@ static void display_decode_invoke(Thread_Context *context, Teleport_Express_Call
         LOGD("disp %s: Show_Window", disp->info.name);
         disp->flip_type = ROTATE_NONE;
         glUniform1i(disp->transform_uniform, disp->flip_type);
-    }
-    break;
+    } break;
     case FUNID_Show_Window_FLIP_V:
     {
         LOGD("disp %s: Show_Window_FLIP_V", disp->info.name);
         disp->flip_type = FLIP_V;
         glUniform1i(disp->transform_uniform, disp->flip_type);
-    }
-    break;
+    } break;
     case FUNID_Set_Sync_Flag:
     {
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Set_Sync_Flag))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(uint64_t)))
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (unlikely(temp == NULL))
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);
-                no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        sync_id = *(uint64_t *)(temp);
-
+        if (unlikely(para_num < PARA_NUM_Set_Sync_Flag)) { ok = false; break; }
+        if (para[0].data_len < sizeof(uint64_t)) { ok = false; break; }
+        uint64_t sync_id = 0;
+        g_ops.read_from_guest_mem(para[0].data, &sync_id, 0, sizeof(uint64_t));
         signal_express_sync((int)sync_id, false);
-    }
-    break;
+    } break;
     case FUNID_Wait_Sync:
     {
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Wait_Sync))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(uint64_t)))
-        {
-            break;
-        }
-
-        int null_flag = 0;
-        temp = get_direct_ptr(all_para[0].data, &null_flag);
-        if (unlikely(temp == NULL))
-        {
-            if (temp_len != 0 && null_flag == 0)
-            {
-                temp = g_malloc(temp_len);
-                no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        sync_id = *(uint64_t *)(temp);
+        if (unlikely(para_num < PARA_NUM_Wait_Sync)) { ok = false; break; }
+        if (para[0].data_len < sizeof(uint64_t)) { ok = false; break; }
+        uint64_t sync_id = 0;
+        g_ops.read_from_guest_mem(para[0].data, &sync_id, 0, sizeof(uint64_t));
         wait_for_express_sync((int)sync_id, true);
-    }
-    break;
+    } break;
     case FUNID_Get_Display_Mods:
     {
-
-        if (unlikely(para_num < PARA_NUM_Get_Display_Mods))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Display_Info)))
-        {
-            break;
-        }
-
+        if (unlikely(para_num < PARA_NUM_Get_Display_Mods)) { ok = false; break; }
+        if (para[0].data_len < sizeof(Display_Info)) { ok = false; break; }
         display_context_init(disp);
-        write_to_guest_mem(all_para[0].data, &disp->info, 0, sizeof(Display_Info));
-    }
-    break;
+        g_ops.write_to_guest_mem(para[0].data, &disp->info, 0, sizeof(Display_Info));
+    } break;
     case FUNID_Set_Display_Status:
     {
-
+        if (unlikely(para_num < PARA_NUM_Set_Display_Status)) { ok = false; break; }
+        if (para[0].data_len < sizeof(Display_Status)) { ok = false; break; }
         Display_Status status;
-
-        if (unlikely(para_num < PARA_NUM_Set_Display_Status))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Display_Status)))
-        {
-            break;
-        }
-
-        read_from_guest_mem(all_para[0].data, &status, 0, sizeof(Display_Status));
-
+        g_ops.read_from_guest_mem(para[0].data, &status, 0, sizeof(Display_Status));
         display_status_change(disp, status);
-    }
-    break;
+    } break;
     case FUNID_Get_Display_Status:
     {
-
-        if (unlikely(para_num < PARA_NUM_Get_Display_Status))
-        {
-            break;
-        }
-
-        temp_len = all_para[0].data_len;
-        if (unlikely(temp_len < sizeof(Display_Status)))
-        {
-            break;
-        }
-
-        write_to_guest_mem(all_para[0].data, &disp->status, 0, sizeof(Display_Status));
-    }
-    break;
+        if (unlikely(para_num < PARA_NUM_Get_Display_Status)) { ok = false; break; }
+        if (para[0].data_len < sizeof(Display_Status)) { ok = false; break; }
+        g_ops.write_to_guest_mem(para[0].data, &disp->status, 0, sizeof(Display_Status));
+    } break;
     case FUNID_Snapshot_Load:
     {
         display_context_init(disp);
-    }
-    break;
+    } break;
     default:
     {
-        LOGE("error! unknown display invoke id %llx para_num %d", call->id, para_num);
-    }
-    }
-
-    if (no_ptr_buf != NULL)
-    {
-        g_free(no_ptr_buf);
+        LOGE("error! unknown display call id %llx para_num %d", id, para_num);
+        ok = false;
+    } break;
     }
 
-    LOGD("finish one display call of id %llx", call->id);
-
-    if (call->callback) {
-        call->callback(call, 1);
-    }
-
-    return;
+    LOGD("finish one display call id %llx success %d", id, ok);
+    return ok;
 }
 
 static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
@@ -788,10 +663,6 @@ static void close_window_callback(GLFWwindow *window)
     last_click_time = now_time;
 }
 
-static void local_free_callback(Teleport_Express_Call *call, int notify) {
-    g_free(call);
-}
-
 void save_display_context(QEMUFile *f) {
     LOGI("in save_display_context");
 
@@ -834,14 +705,7 @@ void load_display_context(QEMUFile *f) {
     for (int i = 0; i < old_displays->len; i++) {
         Display_Context *disp = g_array_index(old_displays, Display_Context *, i);
 
-        Teleport_Express_Call* call = g_malloc0(sizeof(Teleport_Express_Call));
-        call->id = FUNID_Terminate;
-        call->thread_id = disp->thread_context.thread_id;
-        call->process_id = disp->thread_context.process_id;
-        call->unique_id = disp->unique_id;
-        call->callback = local_free_callback;
-
-        push_to_thread(call);
+        push_local_call_to_thread(&disp->thread_context, FUNID_Terminate);
     }
 
     // wait for all threads to terminate
@@ -877,14 +741,7 @@ void load_display_context(QEMUFile *f) {
         new_disp->fps_counter = 0;
 
         if (old_disp->window != NULL) {
-            Teleport_Express_Call* call = g_malloc0(sizeof(Teleport_Express_Call));
-            call->id = FUNID_Snapshot_Load;
-            call->thread_id = new_disp->thread_context.thread_id;
-            call->process_id = new_disp->thread_context.process_id;
-            call->unique_id = new_disp->unique_id;
-            call->callback = local_free_callback;
-
-            push_to_thread(call);
+            push_local_call_to_thread(&new_disp->thread_context, FUNID_Snapshot_Load);
         }
         g_free(old_disp);
     }
@@ -966,7 +823,7 @@ static Express_Device_Info express_display_info = {
     .device_id = EXPRESS_DISPLAY_DEVICE_ID,
     .device_type = OUTPUT_DEVICE_TYPE,
     .init = init_display_options,
-    .call_handle = display_decode_invoke,
+    .call_handler = display_call_handler,
     .get_context = get_display_context,
     .context_destroy = display_context_destroy,
     .hmp_handler = display_hmp_handler,

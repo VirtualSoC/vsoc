@@ -1,5 +1,5 @@
 #include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-gpu/egl_window.h"
 
 #include <glib.h>
@@ -112,7 +112,7 @@ void egl_init(void *dpy, void *father_context)
     const char *vendor = platform.eglQueryString(main_window_display, EGL_VENDOR);
     const char *extensions = platform.eglQueryString(main_window_display, EGL_EXTENSIONS);
     LOGI("EGL version: %s, vendor: %s", version ? version : "unknown", vendor ? vendor : "unknown");
-    if (express_gpu_gl_debug_enable)
+    if (g_ops.express_gpu_gl_debug_enable)
     {
         LOGI("EGL extensions: %s", extensions ? extensions : "none");
     }
@@ -147,7 +147,7 @@ void *egl_createContext(int context_flags)
     g_mutex_lock(&main_window_mutex);
 
     int enable_debug = EGL_FALSE;
-    if ((context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) || express_gpu_gl_debug_enable) {
+    if ((context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) || g_ops.express_gpu_gl_debug_enable) {
         enable_debug = EGL_TRUE;
     }
 

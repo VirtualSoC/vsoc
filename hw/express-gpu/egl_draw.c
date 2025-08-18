@@ -160,7 +160,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         }
     }
 
-    if (express_gpu_gl_debug_enable || real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+    if (g_ops.express_gpu_gl_debug_enable || real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT)
     {
 #ifndef __APPLE__
         glEnable(GL_DEBUG_OUTPUT);
@@ -266,7 +266,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
         render_surface_init(real_surface_read, real_opengl_context->framebuffer_map);
     }
 
-    if (express_gpu_gl_debug_enable) {
+    if (g_ops.express_gpu_gl_debug_enable) {
         LOGI("(%s) eglMakeCurrent real_surface_draw type %x width %d height %d gbuffer %p gbuffer_id %llu",process_context->guest_process_name, real_surface_draw->type, real_surface_draw->width, real_surface_draw->height, real_surface_draw->gbuffer, real_surface_draw->gbuffer_id);
     }
 
@@ -479,8 +479,8 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
         Thread_Context *thread_context = (Thread_Context *)context;
         if (thread_context->init != 0)
         {
-            write_to_guest_mem(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
-            write_to_guest_mem(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
+            g_ops.write_to_guest_mem(guest_mem_invoke, &invoke_time, 0, sizeof(int64_t));
+            g_ops.write_to_guest_mem(guest_mem_swap, &now_avg_swap_time, 0, sizeof(int64_t));
         }
     }
 

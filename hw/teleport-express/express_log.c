@@ -162,82 +162,53 @@ char *get_now_time(void)
 
 /**
  * @brief 打印debug消息，需要只有一个指针参数
- *
- * @param call
  */
-static void call_printf(Thread_Context *context, Teleport_Express_Call *call)
+static bool call_printf(Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
 {
-
-    Call_Para all_para[1];
-    if (get_para_from_call(call, all_para, 1) != 1)
-    {
-        call->callback(call, 0);
-        return;
+    if (para_num != 1) {
+        return false; // 参数数量不符合预期
     }
 
-    unsigned long fun_id = GET_FUN_ID(call->id);
-    unsigned long process_id = call->process_id;
-    unsigned long thread_id = call->thread_id;
+    unsigned long fun_id = GET_FUN_ID(id);
+    unsigned long process_id = context ? context->process_id : 0;
+    unsigned long thread_id  = context ? context->thread_id  : 0;
 
-    if (fun_id == 1)
-    {
+    const Call_Para *p = &all_para[0];
+
+    if (fun_id == 1) {
+        // 打印一条日志
+        if (!p->data || p->data_len == 0) return true; // 空日志也算成功
         gint64 t_int = g_get_monotonic_time();
-        if (all_para[0].data_len < LOG_FILE_SIZE - 256)
-        {
-            //写入的数据不能太多
-            if (all_para[0].data_len + loc > LOG_FILE_SIZE - 256 || t_int - t_last > 1000000)
-            {
-
+        if (p->data_len < LOG_FILE_SIZE - 256) {
+            if (p->data_len + loc > LOG_FILE_SIZE - 256 || t_int - t_last > 1000000) {
                 call_printf_flush();
-
                 loc = 0;
                 t_last = t_int;
             }
             int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
             loc += num;
-            read_from_guest_mem(all_para[0].data, print_buf + loc, 0, all_para[0].data_len);
-            // printf("#GUEST %s %ld %ld: %s\n", get_now_time(), process_id, thread_id, print_buf + loc);
-            loc += all_para[0].data_len;
-
-            //假如需要保证日志的完整性就要移除下面的注释（例如直接crash了日志在缓存里没保留下来的情况）
-            // call_printf_flush();
-            // loc = 0;
-            // t_last = t_int;
+            read_from_guest_mem(p->data, print_buf + loc, 0, p->data_len);
+            loc += p->data_len;
         }
-    }
-    else if (fun_id == 2)
-    {
-        //测试复制模式
-        if (all_para[0].data_len > copy_test_buf_len)
-        {
-            if (copy_test_buf != NULL)
-            {
-                g_free(copy_test_buf);
-            }
-            copy_test_buf = g_malloc(all_para[0].data_len);
-            copy_test_buf_len = all_para[0].data_len;
+    } else if (fun_id == 2) {
+        // 复制测试模式
+        if (p->data_len > copy_test_buf_len) {
+            if (copy_test_buf) g_free(copy_test_buf);
+            copy_test_buf = g_malloc(p->data_len);
+            copy_test_buf_len = p->data_len;
         }
         gint64 start_time = g_get_monotonic_time();
-
-        read_from_guest_mem(all_para[0].data, copy_test_buf, 0, all_para[0].data_len);
-
+        read_from_guest_mem(p->data, copy_test_buf, 0, p->data_len);
         gint64 spend_time = g_get_monotonic_time() - start_time;
-        if (spend_time == 0)
-        {
-            spend_time = 1;
-        }
-
-        express_printf("get copy test %lld spend time %lld speed %lf M/s\n", all_para[0].data_len, spend_time, all_para[0].data_len * 1.0 * 1000000 / 1024 / 1024 / spend_time);
+        if (spend_time == 0) spend_time = 1;
+        express_printf("get copy test %lld spend time %lld speed %lf M/s\n", p->data_len, spend_time, p->data_len * 1.0 * 1000000 / 1024 / 1024 / spend_time);
+    } else if (fun_id == 3) {
+        // 非复制测试模式
+        express_printf("get no copy test %lld\n", p->data_len);
+    } else {
+        return false;
     }
-    else if (fun_id == 3)
-    {
-        //非复制测试模式
-        express_printf("get no copy test %lld\n", all_para[0].data_len);
-    }
-
-    //注意在处理完成之后要主动调用下callback函数用以回收数据
-    call->callback(call, 1);
-    return;
+    return true;
 }
 
 void call_printf_flush(void)
@@ -334,7 +305,7 @@ static Express_Device_Info express_log_info = {
     .device_id = EXPRESS_LOG_DEVICE_ID,
     .device_type = OUTPUT_DEVICE_TYPE,
     .context_init = log_init,
-    .call_handle = call_printf,
+    .call_handler = call_printf,
     .get_context = get_log_thread_context,
 };
 

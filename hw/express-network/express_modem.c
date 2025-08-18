@@ -12,7 +12,7 @@
 
 // #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-network/express_modem.h"
 #include "hw/express-network/em_core.h"
 #include "hw/express-network/em_config.h"

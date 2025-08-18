@@ -9,7 +9,7 @@
  *
  */
 #include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_device.h"
 
 #include "hw/teleport-express/teleport_express_call.h"
 #include "exec/cpu-common.h"

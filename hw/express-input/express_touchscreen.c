@@ -12,7 +12,7 @@
 // #define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-input/express_touchscreen.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
@@ -668,7 +668,7 @@ static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uin
     Touchscreen_Context *context = (Touchscreen_Context *)g_hash_table_lookup(g_touchscreen_contexts, GUINT_TO_POINTER(unique_id));
 
     if (context->guest_buffer != NULL) {
-        free_copied_guest_mem(context->guest_buffer);
+        free_duplicated_guest_mem(context->guest_buffer);
     }
 
     LOGI("touch dev %" PRIu64 " register buffer", unique_id);

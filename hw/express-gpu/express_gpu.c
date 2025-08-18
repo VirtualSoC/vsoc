@@ -10,7 +10,7 @@
  */
 
 // #define STD_DEBUG_LOG
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 
 #include "hw/teleport-express/express_log.h"
 
@@ -627,70 +627,40 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
  *
  * @param call
  */
-static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
+static bool gpu_call_handler(Thread_Context *context, uint64_t id, const Call_Para *para, int para_num)
 {
-
+    (void)para; // currently unused at this dispatch layer
+    (void)para_num;
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
 
-    uint64_t fun_id = GET_FUN_ID(call->id);
-    LOGD("enter gpu decode invoke id %llu", fun_id);
+    uint64_t fun_id = GET_FUN_ID(id);
+    LOGD("enter gpu call handler id %llu raw %llx", fun_id, (unsigned long long)id);
 
-    if (fun_id == 10001)
-    {
-        recover_snapshot_states_after_load(render_context); //ztodo:释放call的资源
-        // usleep(1000000);
-        return;
-    }
-    else if (fun_id >= 200000)
-    {
-        test_decode_invoke(render_context, call);
-    }
-    // else if (fun_id >= 1000 && fun_id < 2000)
-    // {
-    //     vk_decode_invoke(render_context, call);
-    //     // LOGD("get call vkCreateDevice!");
-    //     // const VkInstanceCreateInfo* pCreateInfo;
-    //     // const VkAllocationCallbacks* pAllocator;
+    bool ok = true;
 
-    //     // Call_Para all_para[MAX_PARA_NUM];      
-    //     // int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-    //     // LOGI("get vk param number %d", para_num);
+    if (fun_id == 10001) {
+        recover_snapshot_states_after_load(render_context);
+    }
+    else if (fun_id >= 200000) {
+        ok = test_decode_invoke(render_context, id, para, para_num);
+    }
+    else if (fun_id > 10000) {
+        ok = egl_decode_invoke(render_context, id, para, para_num);
+    }
+    else {
+        ok = gl3_decode_invoke(render_context, id, para, para_num);
+    }
 
-    //     // int need_free = 0;
-    //     // char *_ptr;
-    //     // _ptr = call_para_to_ptr(all_para[0], &need_free);
-    //     // VkInstanceCreateInfo* local_pCreateInfo = _ptr;
-    //     // LOGI("got vkCreateinfo with %lld %d %s %d %s",(long long)local_pCreateInfo->sType, local_pCreateInfo->enabledLayerCount, local_pCreateInfo->ppEnabledLayerNames, local_pCreateInfo->enabledExtensionCount, local_pCreateInfo->ppEnabledExtensionNames);
-
-    // }
-    else if (fun_id > 10000)
-    {
-        // LOGI("get egl call with id %lld", fun_id);
-        egl_decode_invoke(render_context, call);
-    }
-    else if (fun_id == EXPRESS_CLUSTER_FUN_ID)
-    {
-        cluster_decode_invoke(call, context, (EXPRESS_DECODE_FUN)decode_invoke);
-    }
-    else
-    {
-        gl3_decode_invoke(render_context, call);
-    }
-    if (express_gpu_gl_debug_enable && render_context->opengl_context != NULL && render_context->opengl_context->is_current)
-    {
+    if (express_gpu_gl_debug_enable && render_context->opengl_context != NULL && render_context->opengl_context->is_current) {
         GLenum error_code = glGetError();
-        while (error_code != GL_NO_ERROR)
-        {
+        while (error_code != GL_NO_ERROR) {
             LOGE("#fun_id %llu context %llx gl error %x", fun_id, (uint64_t)render_context->opengl_context, error_code);
             error_code = glGetError();
+            ok = false; // flag error
         }
     }
 
-    // GLuint glerror = glGetError();
-    // if (glerror != GL_NO_ERROR) {
-    //     LOGE("error! decode_invoke glGetError %x", glerror);
-    // }
-    return;
+    return ok;
 }
 
 static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
@@ -899,7 +869,7 @@ static Express_Device_Info express_gpu_info = {
     .device_type = OUTPUT_DEVICE_TYPE,
     .context_init = render_context_init,
     .context_destroy = render_context_destroy,
-    .call_handle = decode_invoke,
+    .call_handler = gpu_call_handler,
     .get_context = get_render_thread_context,
     .remove_context = remove_render_thread_context,
 };

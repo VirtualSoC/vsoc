@@ -1,8 +1,9 @@
-#ifndef EXPRESS_DEVICE_COMMON_H
-#define EXPRESS_DEVICE_COMMON_H
+#ifndef EXPRESS_PLATFORM_H
+#define EXPRESS_PLATFORM_H
 
-#include "hw/teleport-express/teleport_express.h"
-#include "hw/teleport-express/express_log.h"
+#include <stddef.h>
+#include <inttypes.h>
+#include <stdbool.h>
 
 #define EXPRESS_CTRL_DEVICE_ID ((uint64_t)0)
 #define EXPRESS_GPU_DEVICE_ID ((uint64_t)1)
@@ -59,13 +60,6 @@
 #define DEVICE_FUN_ID(device_id, id) (((uint64_t)device_id << 32) | id)
 
 
-
-#define EXPRESS_DEVICE_INIT(device_name, info)                                       \
-    static void __attribute__((constructor)) express_thread_init_##device_name(void) \
-    {                                                                                \
-        express_device_init_common(info);                                            \
-    }
-
 #ifndef max
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -90,12 +84,6 @@ dispatch_sync(dispatch_get_main_queue(), ^{
 #endif
 
 
-
-//scatter与下面这个iovec等价
-//struct iovec {
-//     void *iov_base;
-//     size_t iov_len;
-// };
 typedef struct Scatter_Data
 {
     unsigned char *data;
@@ -116,26 +104,10 @@ typedef struct Call_Para
     size_t data_len;
 } Call_Para;
 
-
-
-
-/**
- * @brief 自定义的Queue_Elem结构体，用来接收guest端传输过来的数据元信息
- *
- */
-typedef struct Teleport_Express_Queue_Elem
-{
-    VirtQueueElement elem;
-
-    //该数据的对外指针
-    void *para;
-
-    //数据的长度
-    size_t len;
-
-    struct Teleport_Express_Queue_Elem *next;
-} Teleport_Express_Queue_Elem;
-
+typedef struct Teleport_Express_Queue_Elem Teleport_Express_Queue_Elem;
+typedef struct VirtQueue VirtQueue;
+typedef struct VirtIODevice VirtIODevice;
+typedef struct Monitor Monitor;
 
 typedef struct Teleport_Express_Call
 {
@@ -149,7 +121,7 @@ typedef struct Teleport_Express_Call
 
     uint64_t unique_id;
 
-    gint64 spend_time;
+    int64_t spend_time;
 
     //参数数目
     uint64_t para_num;
@@ -169,7 +141,7 @@ typedef struct Teleport_Express_Call
 
 } Teleport_Express_Call;
 
-typedef void (*EXPRESS_DECODE_FUN)(void *, Teleport_Express_Call *);
+typedef bool (*EXPRESS_DECODE_FUN)(void *, uint64_t, const Call_Para *, int);
 
 
 typedef struct Thread_Context
@@ -183,8 +155,6 @@ typedef struct Thread_Context
     //环形缓冲区的读写位置
     volatile int read_loc;
     volatile int write_loc;
-
-    // int atomic_event_lock;
 
 //缓冲区用来通知 有数据/缓冲区有空位置 的event
 // QemuEvent data_event;
@@ -208,7 +178,7 @@ typedef struct Thread_Context
     uint64_t process_id;
 
     //标示当前线程
-    QemuThread this_thread;
+    void *this_thread;
 
     //这个线程连接到的teleport_express设备
     VirtIODevice *teleport_express_device;
@@ -219,11 +189,9 @@ typedef struct Thread_Context
     void (*context_destroy)(struct Thread_Context *context);
 
     //在数据到来后，特定设备自定义的处理call数据的函数，需要在这个函数中调用callback
-    void (*call_handle)(struct Thread_Context *context, Teleport_Express_Call *call);
+    bool (*call_handler)(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num);
 
 } Thread_Context;
-
-struct Express_Device_Info;
 
 typedef struct Device_Context{
     bool irq_enabled;
@@ -261,7 +229,7 @@ typedef struct Express_Device_Info
     //仅会在context对应线程上调用的init, destroy和call处理函数，仅output模式可用
     void (*context_init)(struct Thread_Context *context);
     void (*context_destroy)(struct Thread_Context *context);
-    void (*call_handle)(struct Thread_Context *context, Teleport_Express_Call *call);
+    bool (*call_handler)(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num);
 
     //设备定义的用于获取数据分发context的函数，负责处理从guest到host的数据，例如有一个统一的context或者对每一个线程维护一个context。不保证线程安全性。
     Thread_Context *(*get_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
@@ -289,49 +257,61 @@ typedef struct Express_Device_Info
 
 } Express_Device_Info;
 
+#define EXPRESS_DEVICE_INIT(device_name, info)                                         \
+    static void __attribute__((constructor)) express_platform_init_##device_name(void) \
+    {                                                                                  \
+        init_express_device(info);                                                   \
+    }
 
-extern Device_Log_Setting_Info express_device_log_setting_info;
+typedef void (*PlatformReadFromGuestMem)(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
+typedef void (*PlatformWriteToGuestMem)(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
+typedef void (*PlatformFreeCopiedGuestMem)(Guest_Mem *guest);
 
-extern bool express_gpu_gl_debug_enable;
-extern bool express_gpu_enable_windowed_mode;
-extern bool express_device_input_window_enable;
-extern bool teleport_express_save_snapshot;
+typedef struct {
+    bool teleport_express_save_snapshot;
 
-extern bool express_gpu_keep_window_scale;
+    bool express_gpu_gl_debug_enable;
+    bool express_gpu_enable_windowed_mode;
+    bool express_device_input_window_enable;
 
-extern int express_gpu_window_width;
-extern int express_gpu_window_height;
+    bool express_gpu_keep_window_scale;
 
-extern int *express_touchscreen_size;
+    int express_gpu_window_width;
+    int express_gpu_window_height;
 
-extern bool express_touchscreen_scroll_is_zoom;
-extern bool express_touchscreen_right_click_is_two_finger;
-extern int express_touchscreen_scroll_ratio;
+    int *express_touchscreen_size;
+    bool express_touchscreen_scroll_is_zoom;
+    bool express_touchscreen_right_click_is_two_finger;
+    int express_touchscreen_scroll_ratio;
 
-extern bool express_keyboard_finger_replay;
+    bool express_keyboard_finger_replay;
 
-extern char *kernel_load_express_driver_names;
-extern int kernel_load_express_driver_num;
+    int express_display_pixel_width;
+    int express_display_pixel_height;
+    int express_display_refresh_rate;
+    uint64_t express_display_count;
+    char *express_display_options;
+    int express_keyboard_count;
 
-extern int express_display_pixel_width;
-extern int express_display_pixel_height;
-extern int express_display_refresh_rate;
-extern uint64_t express_display_count;
-extern char *express_display_options;
-extern int express_keyboard_count;
+    bool express_display_headless_mode;
+    bool express_gpu_open_shader_binary;
 
-extern bool express_display_headless_mode;
+    PlatformReadFromGuestMem read_from_guest_mem;
+    PlatformWriteToGuestMem write_to_guest_mem;
+} ExpressPlatformOps;
 
-extern bool express_gpu_open_shader_binary;
+extern ExpressPlatformOps g_ops;
 
-extern char *express_ruim_file;
+void init_express_device(Express_Device_Info *info);
+void init_express_platform(ExpressPlatformOps ops);
 
-void express_device_init_common(Express_Device_Info *info);
+void deinit_express_device(void);
+bool platform_device_should_stop(void);
+Guest_Mem *duplicate_guest_mem(Guest_Mem *orig);
+void free_duplicated_guest_mem(Guest_Mem *mem);
 
-Express_Device_Info *get_express_device_info(unsigned int device_id);
-Express_Device_Info *get_express_device_info_by_name(const char *name);
-
-void cluster_decode_invoke(Teleport_Express_Call *call, void *context, EXPRESS_DECODE_FUN decode_fun);
-
-
+// todo: these functions are currently allowed, will be removed when refactor is complete
+Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info);
+void *get_direct_ptr(Guest_Mem *guest_mem, int *flag);
+void push_local_call_to_thread(Thread_Context *context, uint64_t id);
 #endif

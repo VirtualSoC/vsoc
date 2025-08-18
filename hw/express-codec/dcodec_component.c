@@ -162,7 +162,7 @@ void dcodec_free_buffer_desc(void *_desc) {
         return;
     }
     if (desc->data && (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM)) {
-        free_copied_guest_mem(desc->data);
+        free_duplicated_guest_mem(desc->data);
     }
     g_free(_desc);
 }

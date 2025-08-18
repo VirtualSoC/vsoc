@@ -1,7 +1,6 @@
 #ifndef GL_HELPER_H
 #define GL_HELPER_H
 
-#include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/express_log.h"
 #include "glad/glad.h"
 

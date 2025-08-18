@@ -21,24 +21,16 @@
 
 #include "hw/express-mem/express_sync.h"
 
-void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
-
+bool egl_decode_invoke(Render_Thread_Context *egl_context, uint64_t id, const Call_Para *all_para, int para_num)
 {
-    Render_Thread_Context *egl_context = (Render_Thread_Context *)context;
-
-    if (unlikely(egl_context == NULL))
-    {
-        call->callback(call, 0);
-        return;
+    if (unlikely(egl_context == NULL)) {
+        return false;
     }
 
-    Call_Para all_para[MAX_PARA_NUM];
-
     unsigned char ret_local_buf[1024 * 4];
-
     unsigned char *no_ptr_buf = NULL;
 
-    switch (call->id)
+    switch (id)
     {
 
         /******* file '1-1' *******/
@@ -67,7 +59,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         int height;
         int hal_format;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglMakeCurrent))
         {
             break;
@@ -90,7 +81,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -153,7 +144,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         d_eglMakeCurrent(egl_context, dpy, draw, read, ctx, gbuffer_id, width, height, hal_format);
         // *ret_ptr = ret;
 
-        // write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
+        // g_ops.write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         // if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         // {
@@ -180,7 +171,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         int height;
         int hal_format;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglSwapBuffers_sync))
         {
             break;
@@ -203,7 +193,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -261,7 +251,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglSwapBuffers_sync(egl_context, dpy, surface, gbuffer_id, width, height, hal_format);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -282,7 +272,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         /* Define variables */
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglWaitGL))
         {
             break;
@@ -317,7 +306,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglWaitGL(egl_context);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -339,7 +328,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /* Define variables */
         EGLint engine;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglWaitNative))
         {
             break;
@@ -362,7 +350,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -403,7 +391,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglWaitNative(egl_context, engine);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -424,7 +412,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         /* Define variables */
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglWaitClient))
         {
             break;
@@ -459,7 +446,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglWaitClient(egl_context);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -484,7 +471,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint flags;
         EGLTime timeout;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglClientWaitSync))
         {
             break;
@@ -507,7 +493,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -557,7 +543,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint ret = d_eglClientWaitSync(egl_context, dpy, sync, flags, timeout);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -581,7 +567,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLSync sync;
         EGLint attribute;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglGetSyncAttrib))
         {
             break;
@@ -604,7 +589,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -654,7 +639,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLBoolean ret = d_eglGetSyncAttrib(egl_context, dpy, sync, attribute, value);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -675,7 +660,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         /* Define variables */
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglGetEGLConfigParam))
         {
             break;
@@ -713,7 +697,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint ret = d_eglGetEGLConfigParam(egl_context, num_configs);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[0].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -736,7 +720,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint num_attrs;
         EGLint list_len;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglGetEGLConfigs))
         {
             break;
@@ -759,7 +742,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -806,7 +789,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint ret = d_eglGetEGLConfigs(egl_context, num_attrs, list_len, attr_list);
         *ret_ptr = ret;
 
-        write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
+        g_ops.write_to_guest_mem(all_para[1].data, ret_buf, 0, out_buf_len);
 
         if (unlikely(out_buf_len > MAX_OUT_BUF_LEN))
         {
@@ -834,7 +817,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLDisplay dpy;
         EGLint config_size;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglChooseConfig))
         {
             break;
@@ -857,7 +839,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -900,7 +882,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLConfig config;
         EGLSurface surface;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglCreatePbufferSurface))
         {
             break;
@@ -923,7 +904,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -970,7 +951,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLNativeWindowType win;
         EGLSurface surface;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglCreateWindowSurface))
         {
             break;
@@ -993,7 +973,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1043,7 +1023,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLContext share_context;
         EGLContext guest_egl_context;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglCreateContext))
         {
             break;
@@ -1066,7 +1045,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1114,7 +1093,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLDisplay dpy;
         EGLContext ctx;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglDestroyContext))
         {
             break;
@@ -1137,7 +1115,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1176,7 +1154,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLDisplay dpy;
         EGLSurface surface;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglDestroySurface))
         {
             break;
@@ -1199,7 +1176,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1237,7 +1214,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /* Define variables */
         EGLDisplay dpy;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglTerminate))
         {
             break;
@@ -1260,7 +1236,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1295,7 +1271,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /* Define variables */
         EGLSurface surface;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglIamComposer))
         {
             break;
@@ -1318,7 +1293,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1336,7 +1311,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             break;
         }
 
-        unsigned int pid = call->process_id;
+        unsigned int pid = ((Thread_Context *)egl_context)->process_id;
 
         d_eglIamComposer(egl_context, surface, pid);
     }
@@ -1356,7 +1331,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLNativeDisplayType display_id;
         EGLDisplay guest_display;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglGetDisplay))
         {
             break;
@@ -1379,7 +1353,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1419,7 +1393,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLSurface surface;
         EGLint buffer;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglBindTexImage))
         {
             break;
@@ -1442,7 +1415,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1485,7 +1458,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLSurface surface;
         EGLint buffer;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglReleaseTexImage))
         {
             break;
@@ -1508,7 +1480,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1552,7 +1524,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLint attribute;
         EGLint value;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglSurfaceAttrib))
         {
             break;
@@ -1575,7 +1546,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1620,7 +1591,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLDisplay dpy;
         EGLint interval;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglSwapInterval))
         {
             break;
@@ -1643,7 +1613,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1680,7 +1650,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
 
         /* Define variables */
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglReleaseThread))
         {
             break;
@@ -1705,7 +1674,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLenum type;
         EGLSync sync;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglCreateSync))
         {
             break;
@@ -1728,7 +1696,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1774,7 +1742,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLDisplay dpy;
         EGLSync sync;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglDestroySync))
         {
             break;
@@ -1797,7 +1764,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1839,7 +1806,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLClientBuffer buffer;
         EGLImage image;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglCreateImage))
         {
             break;
@@ -1862,7 +1828,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1913,7 +1879,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLDisplay dpy;
         EGLImage image;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglDestroyImage))
         {
             break;
@@ -1936,7 +1901,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -1976,7 +1941,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         EGLSync sync;
         EGLint flags;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglWaitSync))
         {
             break;
@@ -1999,7 +1963,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2034,7 +1998,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /* Define variables */
         uint64_t gbuffer_id;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglQueueBuffer))
         {
             break;
@@ -2057,7 +2020,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2115,7 +2078,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         //         if (temp_len != 0 && null_flag == 0)
         //         {
         //             temp = g_malloc(temp_len);no_ptr_buf=temp;
-        //             read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+        //             g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
         //         }
         //         else
         //         {
@@ -2160,7 +2123,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         int height;
         int hal_format;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglSwapBuffers))
         {
             break;
@@ -2183,7 +2145,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2229,7 +2191,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /******* end of file '3', 7/48 functions*******/
     case FUNID_eglTP:
     {
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
 
         if (para_num != 1)
         {
@@ -2246,7 +2207,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
     {
         uint64_t sync_id;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_Set_Sync_Flag))
         {
             break;
@@ -2269,7 +2229,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2286,7 +2246,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
     {
         uint64_t sync_id;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_Wait_Sync))
         {
             break;
@@ -2309,7 +2268,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2330,7 +2289,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /* Define variables */
         EGLContext guest_gl_context;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglCreateDebugMessageBuffer))
         {
             break;
@@ -2353,7 +2311,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2372,7 +2330,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             break;
         }
 
-        Guest_Mem *mem = copy_guest_mem_from_call(call, 2);
+        Guest_Mem *mem = duplicate_guest_mem(all_para[1].data);
 
         d_eglCreateDebugMessageBuffer(egl_context, guest_gl_context, mem);
     }
@@ -2385,7 +2343,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /* Define variables */
         EGLContext guest_gl_context;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglDestroyDebugMessageBuffer))
         {
             break;
@@ -2408,7 +2365,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             {
                 temp = g_malloc(temp_len);
                 no_ptr_buf = temp;
-                read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
+                g_ops.read_from_guest_mem(all_para[0].data, temp, 0, all_para[0].data_len);
             }
             else
             {
@@ -2427,7 +2384,7 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
             break;
         }
 
-        Guest_Mem *mem = copy_guest_mem_from_call(call, 2);
+        Guest_Mem *mem = duplicate_guest_mem(all_para[1].data);
 
         d_eglDestroyDebugMessageBuffer(egl_context, guest_gl_context, mem);
     }
@@ -2440,7 +2397,6 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         /* Define variables */
         char *name;
 
-        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         if (unlikely(para_num < PARA_NUM_MIN_eglSetProcName))
         {
             break;
@@ -2469,7 +2425,5 @@ void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *ca
         g_free(no_ptr_buf);
     }
 
-    call->callback(call, 1);
-
-    return;
+    return true;
 }

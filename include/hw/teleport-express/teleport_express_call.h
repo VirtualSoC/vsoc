@@ -1,7 +1,7 @@
 #ifndef QEMU_TELEPORT_EXPRESS_CALL_H
 #define QEMU_TELEPORT_EXPRESS_CALL_H
 #include "hw/teleport-express/teleport_express.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_device.h"
 
 
 //用位来表示类型

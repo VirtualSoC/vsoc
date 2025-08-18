@@ -26,8 +26,8 @@
 #include "hw/express-input/express_keyboard.h"
 #include "hw/express-sensor/express_accel.h"
 
-
 #include "hw/virtio/virtio.h"
+#include "sysemu/runstate.h"
 
 // #define express_printf null_printf
 
@@ -145,16 +145,10 @@ static void teleport_express_input_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
     return;
 }
 
-// /**
-//  * @brief aio线程处理数据时的回调函数，在这里调用实际的处理函数
-//  *
-//  * @param opaque 传递的参数，实际就是express-GPU
-//  */
-// static void teleport_express_output_handle_bh(void *opaque)
-// {
-//     Teleport_Express *g = opaque;
-//     teleport_express_output_handle(&g->parent_obj, g->data_queue);
-// }
+static void shutdown_notify_callback(Notifier *notifier, void *data) {
+    teleport_express_should_stop = true;
+    deinit_express_device();
+}
 
 /**
  * @brief guest往queue中添加数据后，kick这边后的回调的函数。
@@ -199,6 +193,10 @@ static void teleport_express_realize(DeviceState *qdev, Error **errp)
     // g->data_bh = qemu_bh_new(teleport_express_output_handle_bh, g);
 
     virtio_add_feature(&vdev->host_features, VIRTIO_RING_F_INDIRECT_DESC);
+    
+    Notifier shutdown_notifier;
+    shutdown_notifier.notify = shutdown_notify_callback;
+    qemu_register_shutdown_notifier(&shutdown_notifier);
 
     LOGD("express gpu realized");
 }

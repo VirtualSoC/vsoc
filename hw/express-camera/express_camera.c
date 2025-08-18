@@ -416,142 +416,99 @@ int list_cameras(void)
     return g_camera_count;
 }
 
-static void camera_output_call_handle(struct Thread_Context *context, Teleport_Express_Call *call)
+static bool camera_call_handler(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
 {
-
     Camera_Context *camera_context = &(((Camera_Thread_Context *)context)->ctx);
-    Call_Para all_para[6];
-    get_para_from_call(call, all_para, MAX_PARA_NUM);
-    int camera_id = camera_context->camera_id;
-
-    if(camera_context == NULL) {
-        LOGE("error! camera context is null!");
-        return;
+    if (!camera_context) {
+        LOGE("camera: null camera_context");
+        return false;
     }
-
     if (camera_context->camera_id != ((Camera_Thread_Context *)context)->camera_id) {
-        LOGE("error! inconsistent camera_id between camera context and thread context!");
+        LOGE("camera: inconsistent camera_id (%d vs %d)", camera_context->camera_id, ((Camera_Thread_Context *)context)->camera_id);
+        return false;
     }
-
-    unsigned int fun_id = GET_FUN_ID(call->id);
-
+    unsigned int fun_id = GET_FUN_ID(id);
+    int camera_id = camera_context->camera_id;
     LOGD("express_camera received call id %u", fun_id);
 
-    switch (fun_id)
-    {
-    case CAMERA_FUN_GET_CAMERA_COUNT:
-    {
+    switch (fun_id) {
+    case CAMERA_FUN_GET_CAMERA_COUNT: {
+        if (para_num < 1 || !all_para[0].data || all_para[0].data_len < (int)sizeof(int)) return false;
         write_to_guest_mem(all_para[0].data, &g_camera_count, 0, sizeof(int));
+        return true;
     }
-    break;
-    case CAMERA_FUN_START_STREAM:
-    {
-        int need_free = 0;
-        char *params = (char *)call_para_to_ptr(all_para[1], &need_free);
+    case CAMERA_FUN_START_STREAM: {
+        if (para_num < 2 || all_para[1].data_len < (int)sizeof(uint32_t)) return false;
+        int need_free = 0; char *params = (char *)call_para_to_ptr(all_para[1], &need_free);
+        if (!params) { if (need_free) g_free(params); return false; }
         camera_context->guest_pix_fmt = pixel_format_v4l2_to_omx(*(uint32_t *)params);
-        if (need_free) {
-            g_free(params);
-        }
+        if (need_free) g_free(params);
         if (camera_context->guest_pix_fmt == 0) {
-            LOGE("error! cannot start stream when camera format is unknown");
+            LOGE("camera: unknown guest pixel format, cannot start stream");
+            return false;
         }
-        else if (camera_context->status == CAMERA_STATUS_IDLE)
-        {
-            LOGI("camera id %d start stream", camera_id);
-            qemu_thread_create(&camera_context->stream_thread, "camera_capturing_thread", camera_capturing_thread, camera_context, QEMU_THREAD_JOINABLE);
-            camera_context->status = CAMERA_STATUS_STREAMING;
+        if (camera_context->status != CAMERA_STATUS_IDLE) {
+            LOGE("camera: start stream requested but status=%d", camera_context->status);
+            return false;
         }
-        else {
-            LOGE("error! cannot start stream when camera is not in idle state (current %d)!", camera_context->status);
-        }
+        LOGI("camera id %d start stream", camera_id);
+        camera_context->status = CAMERA_STATUS_STREAMING; // set before thread to avoid race
+        qemu_thread_create(&camera_context->stream_thread, "camera_capturing_thread", camera_capturing_thread, camera_context, QEMU_THREAD_JOINABLE);
+        return true;
     }
-    break;
-    case CAMERA_FUN_STOP_STREAM:
-    {
-        int need_free = 0;
-        char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
-
-        if (camera_context->status == CAMERA_STATUS_STREAMING)
-        {
-            LOGI("camera id %d stop stream", camera_id);
-            camera_context->status = CAMERA_STATUS_IDLE;
-            qemu_thread_join(&camera_context->stream_thread);
+    case CAMERA_FUN_STOP_STREAM: {
+        if (para_num < 1) return false; // param 0 present (may be unused)
+        if (camera_context->status != CAMERA_STATUS_STREAMING) {
+            LOGE("camera: stop stream requested but not streaming");
+            return false;
         }
-        else {
-            LOGE("error! cannot stop stream when camera is not streaming!");
-        }
-
+        LOGI("camera id %d stop stream", camera_id);
+        camera_context->status = CAMERA_STATUS_IDLE;
+        qemu_thread_join(&camera_context->stream_thread);
         while (g_async_queue_length(camera_context->frame_queue) != 0) {
             g_async_queue_pop(camera_context->frame_queue);
         }
         camera_context->guest_pix_fmt = 0;
-
-        if (need_free) {
-            g_free(params);
-        }
+        return true;
     }
-    break;
-    case CAMERA_FUN_GET_PROP:
-    {
-        int need_free = 0;
-        char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
+    case CAMERA_FUN_GET_PROP: {
+        if (para_num < 2 || !all_para[1].data || all_para[1].data_len < (int)sizeof(CameraProp)) return false;
         CameraProp *prop = &g_array_index(g_camera_list, CameraProp, camera_id);
-
         write_to_guest_mem(all_para[1].data, prop, 0, sizeof(CameraProp));
-
-        if (need_free) {
-            g_free(params);
-        }
+        return true;
     }
-    break;
-    case CAMERA_FUN_QUEUE_BUFFER:
-    {
-        int need_free = 0;
-        char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
-
+    case CAMERA_FUN_QUEUE_BUFFER: {
+        if (para_num < 2 || all_para[0].data_len < (int)sizeof(uint64_t) || !all_para[1].data) return false;
+        int need_free = 0; char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
+        if (!params) { if (need_free) g_free(params); return false; }
         BufferDesc *desc = g_malloc0(sizeof(BufferDesc));
         desc->type = CODEC_BUFFER_TYPE_OUTPUT | CODEC_BUFFER_TYPE_GUEST_MEM;
         desc->id = *(uint64_t *)params;
-        desc->data = copy_guest_mem_from_call(call, 2);
+        if (need_free) g_free(params);
+        desc->data = duplicate_guest_mem(all_para[1].data); // deep copy guest mem
         desc->nAllocLen = all_para[1].data_len;
-
         g_async_queue_push(camera_context->frame_queue, (gpointer)desc);
-
-        if (need_free) {
-            g_free(params);
-        }
+        return true;
     }
-    break;
-    case CAMERA_FUN_QUEUE_BUFFER_HW:
-    {
-        int need_free = 0;
-        char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
+    case CAMERA_FUN_QUEUE_BUFFER_HW: {
+        if (para_num < 1 || all_para[0].data_len < 12) return false; // need id(uint64) + sync(int)
+        int need_free = 0; char *params = (char *)call_para_to_ptr(all_para[0], &need_free);
+        if (!params) { if (need_free) g_free(params); return false; }
         CameraProp *prop = &g_array_index(g_camera_list, CameraProp, camera_id);
-
         BufferDesc *desc = g_malloc0(sizeof(BufferDesc));
         desc->type = CODEC_BUFFER_TYPE_OUTPUT | CODEC_BUFFER_TYPE_GBUFFER;
         desc->id = *(uint64_t *)params;
         desc->sync_id = *(int *)(params + 8);
+        if (need_free) g_free(params);
         desc->nAllocLen = av_image_get_buffer_size(pixel_format_omx_to_av(camera_context->guest_pix_fmt), prop->width, prop->height, 1);
-
-        // guest dequeue buffer, host camera queue buffer into frame_queue. 
         LOGD("guest dequeue buffer, host camera queue buffer into frame_queue with id %" PRIx64, desc->id);
-
         g_async_queue_push(camera_context->frame_queue, (gpointer)desc);
-
-        if (need_free) {
-            g_free(params);
-        }
+        return true;
     }
-    break;
     default:
-    {
-        LOGE("unknown camera function!");
+        LOGE("camera: unknown function id %u", fun_id);
+        return false;
     }
-    break;
-    }
-
-    call->callback(call, 1);
 }
 
 static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
@@ -616,7 +573,7 @@ static Express_Device_Info express_camera_info = {
 
     .get_device_context = get_camera_context,
 
-    .call_handle = camera_output_call_handle,
+    .call_handler = camera_call_handler,
     .get_context = get_camera_thread_context,
     .remove_context = remove_camera_thread_context,
 

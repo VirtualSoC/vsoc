@@ -1,8 +1,7 @@
 #ifndef EXPRESS_DISPLAY_H
 #define EXPRESS_DISPLAY_H
 
-#include "hw/teleport-express/express_device_common.h"
-#include "hw/teleport-express/teleport_express_call.h"
+#include "hw/teleport-express/express_platform.h"
 
 #include "hw/express-gpu/egl_surface.h"
 

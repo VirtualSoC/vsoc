@@ -264,7 +264,7 @@ void release_native_opengl_context(void *native_context, int context_flags)
     data->context_flags = context_flags;
     send_message_to_main_window(MAIN_DESTROY_CHILD_WINDOW, data);
 
-    if (!teleport_express_should_stop) {
+    if (!platform_device_should_stop()) {
         prepare_native_opengl_context_async();
     }
 }
@@ -537,7 +537,7 @@ void opengl_context_destroy(Opengl_Context *context)
 
     if ((opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) && (opengl_context->debug_message_buffer))
     {
-        free_copied_guest_mem((Guest_Mem *)opengl_context->debug_message_buffer);
+        free_duplicated_guest_mem((Guest_Mem *)opengl_context->debug_message_buffer);
         opengl_context->debug_message_buffer = NULL;
     }
 

@@ -428,7 +428,7 @@ void alloc_gbuffer_with_gralloc(Gralloc_Gbuffer_Info info, Guest_Mem *mem_data)
         }
         else {
             LOGW("alloc_gbuffer_with_gralloc gbuffer %" PRIx64 "already has guest mem, discarding previous copy", info.gbuffer_id);
-            free_copied_guest_mem(gbuffer->guest_data);
+            free_duplicated_guest_mem(gbuffer->guest_data);
             gbuffer->guest_data = mem_data;
         }
     }
@@ -739,199 +739,107 @@ static void mem_context_destroy(Thread_Context *context)
     }
 }
 
-static void mem_master_switch(Thread_Context *context, Teleport_Express_Call *call)
+static bool mem_call_handler(Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
 {
-    char *ptr = NULL;
-    size_t ptr_len = 0;
+    bool ok = true;
+    char *ptr = NULL; // temporary pointer returned by call_para_to_ptr
     int need_free = 0;
-    Call_Para all_para[MAX_PARA_NUM];
-    int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+    size_t ptr_len = 0;
 
-    switch (call->id) {
-
-    case FUNID_Terminate_Gbuffer:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Terminate_Gbuffer))
-        {
-            break;
-        }
-
+    switch (id) {
+    case FUNID_Terminate_Gbuffer: {
+        if (unlikely(para_num < PARA_NUM_Terminate_Gbuffer)) return false;
         ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
+        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info))) return false;
         ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
+        Gralloc_Gbuffer_Info info = *(Gralloc_Gbuffer_Info *)ptr;
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
         Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(info.gbuffer_id);
-        if (gbuffer != NULL)
-        {
+        if (gbuffer) {
             remove_gbuffer_from_global_map(info.gbuffer_id);
             send_message_to_main_window(MAIN_DESTROY_GBUFFER, gbuffer);
         }
+        return true; // always report success (legacy behavior)
     }
-    break;
-    case FUNID_Gbuffer_Host_To_Guest:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Host_To_Guest))
-        {
-            break;
-        }
-
+    case FUNID_Gbuffer_Host_To_Guest: {
+        if (unlikely(para_num < PARA_NUM_Gbuffer_Host_To_Guest)) return false;
         ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
+        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info))) return false;
         ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
+        Gralloc_Gbuffer_Info info = *(Gralloc_Gbuffer_Info *)ptr;
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
         gbuffer_data_host_to_guest(info);
+        return true;
     }
-    break;
-    case FUNID_Gbuffer_Guest_To_Host:
-    {
-        Gralloc_Gbuffer_Info info;
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
+    case FUNID_Gbuffer_Guest_To_Host: {
+        if (unlikely(para_num < PARA_NUM_Gbuffer_Guest_To_Host)) return false;
+        // param 0: Gralloc_Gbuffer_Info
+        if (unlikely(all_para[0].data_len < sizeof(Gralloc_Gbuffer_Info))) return false;
         ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
-        if (need_free) {
-            g_free(ptr);
-        }
-
+        Gralloc_Gbuffer_Info info = *(Gralloc_Gbuffer_Info *)ptr;
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
+        // param 1: sync id
+        if (unlikely(all_para[1].data_len < sizeof(uint64_t))) return false;
         ptr = call_para_to_ptr(all_para[1], &need_free);
-        sync_id = *(uint64_t *)(ptr);
-
+        uint64_t sync_id = *(uint64_t *)ptr;
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
         gbuffer_data_guest_to_host(info, (int)(uint32_t)sync_id);
+        return true;
     }
-    break;
-    case FUNID_Alloc_Gbuffer:
-    {
-        Gralloc_Gbuffer_Info info;
-
-        if (unlikely(para_num < PARA_NUM_Alloc_Gbuffer))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(Gralloc_Gbuffer_Info)))
-        {
-            break;
-        }
-
+    case FUNID_Alloc_Gbuffer: {
+        if (unlikely(para_num < PARA_NUM_Alloc_Gbuffer)) return false;
+        if (unlikely(all_para[0].data_len < sizeof(Gralloc_Gbuffer_Info))) return false;
         ptr = call_para_to_ptr(all_para[0], &need_free);
-        info = *(Gralloc_Gbuffer_Info *)(ptr);
-
-        Guest_Mem *gbuffer_data = copy_guest_mem_from_call(call, 2);
-
+        Gralloc_Gbuffer_Info info = *(Gralloc_Gbuffer_Info *)ptr;
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
+        // second parameter is the guest memory to copy
+        Guest_Mem *orig = all_para[1].data;
+        Guest_Mem *gbuffer_data = duplicate_guest_mem(orig);
         alloc_gbuffer_with_gralloc(info, gbuffer_data);
+        return true;
     }
-    break;
-    case FUNID_Mem_Signal_Sync:
-    {
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Mem_Signal_Sync))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(uint64_t)))
-        {
-            break;
-        }
-
+    case FUNID_Mem_Signal_Sync: {
+        if (unlikely(para_num < PARA_NUM_Mem_Signal_Sync)) return false;
+        if (unlikely(all_para[0].data_len < sizeof(uint64_t))) return false;
         ptr = call_para_to_ptr(all_para[0], &need_free);
-        sync_id = *(uint64_t *)(ptr);
-
+        uint64_t sync_id = *(uint64_t *)ptr;
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
         signal_express_sync((int)sync_id, true);
+        return true;
     }
-    break;
-    case FUNID_Mem_Wait_Sync:
-    {
-        uint64_t sync_id;
-
-        if (unlikely(para_num < PARA_NUM_Mem_Wait_Sync))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < sizeof(uint64_t)))
-        {
-            break;
-        }
-
+    case FUNID_Mem_Wait_Sync: {
+        if (unlikely(para_num < PARA_NUM_Mem_Wait_Sync)) return false;
+        if (unlikely(all_para[0].data_len < sizeof(uint64_t))) return false;
         ptr = call_para_to_ptr(all_para[0], &need_free);
-        sync_id = *(uint64_t *)(ptr);
+        uint64_t sync_id = *(uint64_t *)ptr;
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
         LOGD("going to wait for sync in express_mem %d", (int)sync_id);
-
         wait_for_express_sync((int)sync_id, true);
+        return true;
     }
-    break;
-    case FUNID_Update_Gbuffer_Location:
-    {
-        uint64_t gbuffer_id;
-        int virt_dev_id;
-        int write;
-
-        if (unlikely(para_num < PARA_NUM_Update_Gbuffer_Location))
-        {
-            break;
-        }
-
-        ptr_len = all_para[0].data_len;
-        if (unlikely(ptr_len < 3 * sizeof(int64_t)))
-        {
-            break;
-        }
-
+    case FUNID_Update_Gbuffer_Location: {
+        if (unlikely(para_num < PARA_NUM_Update_Gbuffer_Location)) return false;
+        if (unlikely(all_para[0].data_len < 3 * sizeof(int64_t))) return false;
         ptr = call_para_to_ptr(all_para[0], &need_free);
-        gbuffer_id = *(uint64_t *)(ptr);
-        virt_dev_id = *(int *)(ptr + 8);
-        write = *(int *)(ptr + 16);
-
+        uint64_t gbuffer_id = *(uint64_t *)(ptr);
+        int virt_dev_id = *(int *)(ptr + 8);
+        int write = *(int *)(ptr + 16);
+        if (need_free) { g_free(ptr); ptr = NULL; need_free = 0; }
         Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(gbuffer_id);
         if (gbuffer) {
             update_gbuffer_virt_usage(gbuffer, virt_dev_id, write);
         }
+        return true;
     }
-    break;
     default:
-    {
-        LOGE("error! function id %d not recognized!", GET_FUN_ID(call->id));
+        LOGE("express-mem: unknown function id %u", GET_FUN_ID(id));
+        ok = false;
+        break;
     }
-
-    }
-
-    if (need_free) {
+    if (need_free && ptr) {
         g_free(ptr);
     }
-
-    call->callback(call, 1);
-    return;
+    return ok;
 }
 
 static Express_Device_Info express_mem_info = {
@@ -941,7 +849,7 @@ static Express_Device_Info express_mem_info = {
     .driver_name = "express_mem",
     .device_id = EXPRESS_MEM_DEVICE_ID,
     .device_type = OUTPUT_DEVICE_TYPE,
-    .call_handle = mem_master_switch,
+    .call_handler = mem_call_handler,
     .context_init = mem_context_init,
     .context_destroy = mem_context_destroy,
     .get_context = get_mem_thread_context,

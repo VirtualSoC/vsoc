@@ -712,7 +712,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     ATOMIC_UNLOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    if (express_gpu_gl_debug_enable)
+    if (g_ops.express_gpu_gl_debug_enable)
     {
         GLenum error = glGetError();
         if (error != GL_NO_ERROR)
@@ -725,7 +725,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, pixel_type, NULL);
 
-    if (express_gpu_gl_debug_enable)
+    if (g_ops.express_device_input_window_enable)
     {
         GLenum error = glGetError();
         if (error != GL_NO_ERROR)
@@ -783,7 +783,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
         }
     }
 
-    if (express_gpu_gl_debug_enable)
+    if (g_ops.express_gpu_gl_debug_enable)
     {
         GLenum error = glGetError();
         if (error != GL_NO_ERROR)
@@ -1074,7 +1074,7 @@ void destroy_gbuffer(Hardware_Buffer *gbuffer)
 
     if (gbuffer->guest_data != NULL)
     {
-        free_copied_guest_mem(gbuffer->guest_data);
+        free_duplicated_guest_mem(gbuffer->guest_data);
     }
 
     if (gbuffer->host_data != NULL) {

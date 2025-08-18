@@ -1,7 +1,5 @@
 #ifndef GLV3_MEM_H
 #define GLV3_MEM_H
-#include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/express_device_common.h"
 #include "hw/express-gpu/glv3_context.h"
 
 void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const void *data, GLenum usage);

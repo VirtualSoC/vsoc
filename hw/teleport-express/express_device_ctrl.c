@@ -1,5 +1,5 @@
 #include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_device.h"
 #include "hw/teleport-express/express_log.h"
 
 #include "hw/teleport-express/express_device_ctrl.h"
@@ -200,7 +200,10 @@ void cluster_decode_invoke(Teleport_Express_Call *call, void *context, EXPRESS_D
             break;
         }
 
-        real_decode_fun(context, &unpack_call);
+        Call_Para real_para[MAX_PARA_NUM];
+        get_para_from_call(&unpack_call, real_para, MAX_PARA_NUM);
+        bool success = real_decode_fun(context, unpack_call.id, real_para, unpack_call.para_num);
+        unpack_call.callback(&unpack_call, success);
     }
     //所有调用完成后，这个call要回收
     call->callback(call, 1);

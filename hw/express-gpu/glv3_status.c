@@ -1148,7 +1148,7 @@ void d_debug_message_callback(GLenum source, GLenum type, GLuint id, GLenum seve
         {
             desc_local = g_malloc(desc_len);
             no_ptr_buf = desc_local;
-            read_from_guest_mem(guest_mem, desc_local, 0, desc_len);
+            g_ops.read_from_guest_mem(guest_mem, desc_local, 0, desc_len);
         }
     }
     RingBufferDesc *desc = (RingBufferDesc *)desc_local;
@@ -1174,9 +1174,9 @@ void d_debug_message_callback(GLenum source, GLenum type, GLuint id, GLenum seve
     // 写回guest内存。
     // 因为host端开了GL_DEBUG_OUTPUT_SYNCHRONOUS，所以这个函数同一时间只可能被一个线程调用，而且是在gl函数执行完成之前调用的，不会存在并发写入的情况
     LOGI("host write debug message context %p write_idx %d read_idx %d message length %d", context, desc->write_idx, desc->read_idx, length);
-    write_to_guest_mem(guest_mem, data, sizeof(RingBufferDesc) + (desc->write_idx % desc->block_count) * block_size, block_size);
+    g_ops.write_to_guest_mem(guest_mem, data, sizeof(RingBufferDesc) + (desc->write_idx % desc->block_count) * block_size, block_size);
     desc->write_idx += 1;
-    write_to_guest_mem(guest_mem, &(desc->write_idx), (uint64_t)&(desc->write_idx) - (uint64_t)desc, sizeof(desc->write_idx));
+    g_ops.write_to_guest_mem(guest_mem, &(desc->write_idx), (uint64_t)&(desc->write_idx) - (uint64_t)desc, sizeof(desc->write_idx));
 
     g_free(data);
     if (no_ptr_buf != NULL) {

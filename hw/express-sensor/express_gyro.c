@@ -152,7 +152,7 @@ static void gyro_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
 {
     if (static_gyro_context.guest_buffer != NULL)
     {
-        free_copied_guest_mem(static_gyro_context.guest_buffer);
+        free_duplicated_guest_mem(static_gyro_context.guest_buffer);
     }
     printf("gyro register buffer\n");
     static_gyro_context.guest_buffer = data;

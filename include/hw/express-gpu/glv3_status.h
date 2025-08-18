@@ -1,7 +1,6 @@
 #ifndef GLV3_STATUS_H
 #define GLV3_STATUS_H
 
-#include "hw/teleport-express/express_device_common.h"
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-gpu/express_gpu_main_window.h"
 

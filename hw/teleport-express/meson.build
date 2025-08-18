@@ -5,6 +5,7 @@ teleport_express = ss.source_set()
 teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                if_true: files(
                    'express_log.c',
+                   'express_platform.c',
                    'teleport_express.c',
                    'teleport_express_call.c',
                    'teleport_express_distribute.c',

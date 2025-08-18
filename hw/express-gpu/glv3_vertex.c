@@ -1,7 +1,7 @@
 // #define STD_DEBUG_LOG
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-gpu/glv3_vertex.h"
 #include "hw/express-gpu/glv3_status.h"
-
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer)
 {
@@ -46,7 +46,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                 GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
         }
 
-        read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+        g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
         LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
 
         point_data->buffer_loc[index] = 0;
@@ -64,7 +64,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
         }
 
         // TODO 测试是否需要从0开始映射
-        read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
+        g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer + offset, 0, length);
 
         LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d",point_data->buffer_object[index], offset, length, (int)map_pointer);
 
@@ -89,7 +89,7 @@ GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint 
                 GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
         }
 
-        read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
+        g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer + padding, 0, length);
 
         LOGD("set_vertex_attrib_data vbo index %d offset %d length %d pointer %d %d length %d", point_data->buffer_object[index], offset, length, (int)map_pointer, padding, point_data->buffer_len[index] - point_data->remain_buffer_len[index]);
 
@@ -512,7 +512,7 @@ void d_glDrawElements_with_bound(void *context, GLenum mode, GLsizei count, GLen
             glBindTexture(GL_TEXTURE_2D, status->current_texture_external);
             LOGD("use external texture %d", status->current_texture_external);
         }
-        if (express_gpu_gl_debug_enable)
+        if (g_ops.express_gpu_gl_debug_enable)
         {
             GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
             if (status != GL_FRAMEBUFFER_COMPLETE)
@@ -567,7 +567,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
             map_pointer = glMapNamedBufferRange(point_data->indices_buffer_object, 0, length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT);
 
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
             glFlushMappedNamedBufferRange(point_data->indices_buffer_object, 0, length);
 
             point_data->remain_indices_buffer_len = point_data->indices_buffer_len - length;
@@ -579,7 +579,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->indices_buffer_object, 0, length);
 
@@ -592,7 +592,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                                 point_data->indices_buffer_len - point_data->remain_indices_buffer_len, length,
                                                 GL_MAP_WRITE_BIT | GL_MAP_FLUSH_EXPLICIT_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             glFlushMappedNamedBufferRange(point_data->indices_buffer_object, 0, length);
 
@@ -622,7 +622,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
             map_pointer = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, length,
                                            GL_MAP_WRITE_BIT);
 
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             point_data->remain_indices_buffer_len = point_data->indices_buffer_len - length;
             buffer_loc = 0;
@@ -633,7 +633,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
 
             // TODO 测试是否需要从0开始映射
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
             point_data->remain_indices_buffer_len = point_data->indices_buffer_len - length;
             buffer_loc = 0;
@@ -644,7 +644,7 @@ GLint set_indices_data(void *context, void *pointer, GLint length)
                                            point_data->indices_buffer_len - point_data->remain_indices_buffer_len, length,
                                            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
 
-            read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
+            g_ops.read_from_guest_mem((Guest_Mem *)pointer, map_pointer, 0, length);
 
 
             buffer_loc = point_data->indices_buffer_len - point_data->remain_indices_buffer_len;

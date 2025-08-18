@@ -3,9 +3,7 @@
 #ifndef GLV3_TRANS_H
 #define GLV3_TRANS_H
 
-#include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/teleport_express_distribute.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-gpu/express_gpu.h"
 
 #define MAX_OUT_BUF_LEN 4096
@@ -1675,6 +1673,6 @@
 
 #include "glv3_decl.h"
 
-void gl3_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call);
+bool gl3_decode_invoke(Render_Thread_Context *context, uint64_t id, const Call_Para *para, int para_num);
 
 #endif

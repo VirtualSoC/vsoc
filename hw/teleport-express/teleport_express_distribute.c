@@ -10,7 +10,7 @@
  */
 // #define STD_DEBUG_LOG
 
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_device.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/teleport-express/express_handle_thread.h"
 
@@ -65,7 +65,7 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
 
     context->context_init = info->context_init;
     context->context_destroy = info->context_destroy;
-    context->call_handle = info->call_handle;
+    context->call_handler = info->call_handler;
 
     context->teleport_express_device = teleport_express_device;
 
@@ -134,6 +134,20 @@ void push_to_thread(Teleport_Express_Call *call)
     return;
 }
 
+static void local_free_callback(Teleport_Express_Call *call, int notify) {
+    g_free(call);
+}
+
+void push_local_call_to_thread(Thread_Context *context, uint64_t id) {
+    Teleport_Express_Call *call = g_malloc0(sizeof(Teleport_Express_Call));
+    call->id = id;
+    call->thread_id = context->thread_id;
+    call->process_id = context->process_id;
+    call->unique_id = context->unique_id;
+    call->callback = local_free_callback;
+
+    push_to_thread(call);
+}
 /**
  * @brief 初始化分发线程休眠唤醒的事件
  *

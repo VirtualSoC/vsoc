@@ -12,6 +12,7 @@
 #define GLFW_EXPOSE_NATIVE_NSGL
 #endif
 
+#include "qemu/osdep.h"
 #include "qemu/atomic.h"
 
 #include "glad/glad.h"
@@ -69,6 +70,8 @@ extern Static_Context_Values *preload_static_context_value;
 extern int host_opengl_version;
 
 extern int DSA_enable;
+
+void express_gpu_shutdown_notify_callback();
 
 void start_main_window_thread(void);
 

@@ -1,5 +1,6 @@
 #include <vulkan/vulkan.h>
-#include "hw/teleport-express/express_device_common.h"
+
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-gpu/express_gpu.h"
 
 

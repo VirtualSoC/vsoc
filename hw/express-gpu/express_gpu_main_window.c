@@ -168,11 +168,10 @@ static void glfw_error_callback(int error, const char *description)
     return;
 }
 
-static void shutdown_notify_callback(Notifier *notifier, void *data)
+void express_gpu_shutdown_notify_callback()
 {
-    LOGI("notify shutdown! %lld", g_get_monotonic_time());
+    LOGI("gpu notify shutdown! %lld", g_get_monotonic_time());
 
-    teleport_express_should_stop = true;
     device_interface_run = 0;
 
     if (main_window_run == 2)
@@ -191,7 +190,7 @@ static void shutdown_notify_callback(Notifier *notifier, void *data)
         }
     }
 
-    if (teleport_express_save_snapshot) {
+    if (g_ops.teleport_express_save_snapshot) {
         Error *err = NULL;
         save_snapshot("snapshot", true, NULL, false, NULL, &err);        
     }
@@ -370,7 +369,7 @@ static void static_value_prepare(void)
 
     preload_static_context_value = g_malloc0(sizeof(Static_Context_Values) + 512 * 100 + 400);
 
-    preload_static_context_value->composer_HZ = express_display_refresh_rate;
+    preload_static_context_value->composer_HZ = g_ops.express_display_refresh_rate;
     preload_static_context_value->composer_pid = 0;
 
     // initialize static status
@@ -500,7 +499,7 @@ static void static_value_prepare(void)
 
         gl_string = (const char *)glGetStringi(GL_EXTENSIONS, i);
 
-        if (express_gpu_gl_debug_enable)
+        if (g_ops.express_gpu_gl_debug_enable)
         {
             LOGI("host extension %d %s", i, gl_string);
         }
@@ -550,7 +549,7 @@ static void static_value_prepare(void)
     }
 
     preload_static_context_value->extensions_gles2 = (unsigned long long)(extensions_start - string_loc + extensions_len);
-    if (express_gpu_gl_debug_enable)
+    if (g_ops.express_gpu_gl_debug_enable)
     {
         LOGI("extensions len %d num %d: %s|", extensions_len, num_extensions, string_loc + (unsigned long)(preload_static_context_value->extensions_gles2));
     }
@@ -582,7 +581,7 @@ static void *create_child_window(int context_flags)
 #else
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 
-        if (express_gpu_gl_debug_enable)
+        if (g_ops.express_gpu_gl_debug_enable)
         {
             glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
         }
@@ -658,7 +657,7 @@ static void *main_window_thread(void *opaque)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    if (express_gpu_gl_debug_enable)
+    if (g_ops.express_gpu_gl_debug_enable)
     {
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
     }
@@ -712,10 +711,6 @@ static void *main_window_thread(void *opaque)
         return NULL;
     }
 
-    Notifier shutdown_notifier;
-    shutdown_notifier.notify = shutdown_notify_callback;
-    qemu_register_shutdown_notifier(&shutdown_notifier);
-
     gbuffer_global_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
     gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
 
@@ -723,7 +718,7 @@ static void *main_window_thread(void *opaque)
 
     prepare_draw_texi();
 
-    if (express_device_input_window_enable)
+    if (g_ops.express_device_input_window_enable)
     {
         device_interface_run = 1;
         qemu_thread_create(&qemu_device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
@@ -733,7 +728,7 @@ static void *main_window_thread(void *opaque)
 
     main_window_run = 2;
 
-    if (express_gpu_gl_debug_enable)
+    if (g_ops.express_gpu_gl_debug_enable)
     {
 #ifndef __APPLE__
         glEnable(GL_DEBUG_OUTPUT);

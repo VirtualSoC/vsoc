@@ -1,7 +1,7 @@
 #ifndef EXPRESS_MEM_H
 #define EXPRESS_MEM_H
 
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/teleport-express/teleport_express_call.h"
 #include "hw/express-gpu/egl_surface.h"
 

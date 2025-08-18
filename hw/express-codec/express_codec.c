@@ -37,220 +37,165 @@ static const char *DCODEC_ID_MAPPING[] = {
     "SetCallbacks",
 };
 
-static void dcodec_master_switch(struct Thread_Context *_context,
-                          Teleport_Express_Call *call) {
+static bool dcodec_call_handler(struct Thread_Context *_context, uint64_t id, const Call_Para *all_para, int para_num) {
     DCodecComponent *component = ((Codec_Thread_Context *)_context)->component;
-
-    Call_Para all_para[MAX_PARA_NUM];
+    uint64_t fun_id = GET_FUN_ID(id);
     OMX_ERRORTYPE error = OMX_ErrorNone;
+    int64_t unique_id = ((Codec_Thread_Context *)_context)->unique_id;
 
-    int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-
-    if (GET_FUN_ID(call->id) <= DCODEC_MAX_FUNID) {
-        LOGD("unique id %" PRId64 ": function %s called with %d params!", call->unique_id,
-               DCODEC_ID_MAPPING[GET_FUN_ID(call->id)], para_num);
+    if (fun_id > DCODEC_MAX_FUNID) {
+        LOGE("codec uid %" PRId64 ": unknown function id %llu", unique_id, (unsigned long long)fun_id);
+        return false;
     }
-    else {
-        LOGE("unique id %" PRId64 ": error! codec function id %d not recognized!", call->unique_id, GET_FUN_ID(call->id));
-        return;
-    }
+    LOGD("codec uid %" PRId64 ": function %s called with %d params", unique_id, DCODEC_ID_MAPPING[fun_id], para_num);
 
-    if (component == NULL && GET_FUN_ID(call->id) != DCODEC_FUN_InitComponent) {
-        LOGE("unique id %" PRId64 ": error! function %s called on null component!", call->unique_id, DCODEC_ID_MAPPING[GET_FUN_ID(call->id)]);
-        return;
+    if (component == NULL && fun_id != DCODEC_FUN_InitComponent) {
+        LOGE("codec uid %" PRId64 ": function %s on null component", unique_id, DCODEC_ID_MAPPING[fun_id]);
+        return false;
     }
 
-    switch (GET_FUN_ID(call->id)) {
-
+    switch (fun_id) {
     case DCODEC_FUN_InitComponent: {
-        int isVideo = 0;
-        int codingType = 0;
-
-        int need_free = 0;
-        char *_ptr;
-        _ptr = call_para_to_ptr(all_para[0], &need_free);
-        int _idx = 0;
-
-        isVideo = *(int *)(_ptr + _idx);
-        _idx += 4;
-
-        codingType = *(int *)(_ptr + _idx);
-        _idx += 4;
-
-        if (need_free)
-            g_free(_ptr);
-
+        if (para_num < 1 || all_para[0].data_len < 8) return false; // need isVideo + codingType
+        int need_free = 0; 
+        char *_ptr = call_para_to_ptr(all_para[0], &need_free); 
+        if (!_ptr) {
+            if (need_free) g_free(_ptr);
+            return false;
+        }
+        int _idx = 0; 
+        int isVideo = *(int *)(_ptr + _idx); _idx += 4; 
+        int codingType = *(int *)(_ptr + _idx); _idx += 4;
+        if (need_free) g_free(_ptr);
         if (isVideo == 0) {
             ((Codec_Thread_Context *)_context)->component = dcodec_audio_init_component(codingType, dcodec_notify_guest);
-        } 
-        else if (isVideo == 1) {
+        } else if (isVideo == 1) {
             ((Codec_Thread_Context *)_context)->component = dcodec_vdec_init_component(codingType, dcodec_notify_guest);
-        }
-        else if (isVideo == 2) {
+        } else if (isVideo == 2) {
             ((Codec_Thread_Context *)_context)->component = dcodec_venc_init_component(codingType, dcodec_notify_guest);
+        } else {
+            LOGE("codec uid %" PRId64 ": unrecognized codec type %d", unique_id, isVideo);
+            return false;
         }
-        else {
-            LOGE("error! unrecognized codec type %d", isVideo);
-        }
-
-    } break;
-
+        return true;
+    }
     case DCODEC_FUN_ResetComponent: {
-
         error = component->reset_component(component);
-
-    } break;
-
+        return (error == OMX_ErrorNone);
+    }
     case DCODEC_FUN_DestroyComponent: {
-
         component->destroy_component(component);
         ((Codec_Thread_Context *)_context)->component = NULL;
-
-    } break;
-
+        return true;
+    }
     case DCODEC_FUN_SendCommand: {
-        OMX_COMMANDTYPE cmd;
-        OMX_U32 param;
-        OMX_U64 data;
-
-        int need_free = 0;
-        char *_ptr;
-        _ptr = call_para_to_ptr(all_para[0], &need_free);
-        int _idx = 0;
-
-        cmd = *(OMX_COMMANDTYPE *)(_ptr + _idx);
-        _idx += 4;
-
-        param = *(OMX_U32 *)(_ptr + _idx);
-        _idx += 4;
-
-        data = *(OMX_U64 *)(_ptr + _idx);
-        _idx += 8;
-
-        if (need_free)
-            g_free(_ptr);
-
-        error = dcodec_send_command(component, cmd, param, data);
-    } break;
-
-    case DCODEC_FUN_GetParameter: {
-        OMX_INDEXTYPE index = 0;
-
-        int need_free = 0;
-        char *_ptr;
-        _ptr = call_para_to_ptr(all_para[0], &need_free);
-        int _idx = 0;
-
-        index = *(int *)(_ptr + _idx);
-        _idx += 4;
-
-        if (need_free)
-            g_free(_ptr);
-
-        uint32_t param_size = get_omx_param_size(index);
-        CHECK_EQ(param_size, all_para[1].data_len);
-        char params[all_para[1].data_len];
-
-        read_from_guest_mem(all_para[1].data, params, 0, all_para[1].data_len);
-
-        error = component->get_parameter(component, index, params);
-
-        if (error == OMX_ErrorNone) {
-            write_to_guest_mem(all_para[1].data, params, 0, param_size);
+        if (para_num < 1 || all_para[0].data_len < (int)(4 + 4 + 8)) return false;
+        int need_free = 0; 
+        char *_ptr = call_para_to_ptr(all_para[0], &need_free); 
+        if (!_ptr) { 
+            if (need_free) g_free(_ptr);
+            return false; 
         }
-
-    } break;
-
+        int _idx = 0; 
+        OMX_COMMANDTYPE cmd = *(OMX_COMMANDTYPE *)(_ptr + _idx);
+        _idx += 4; 
+        OMX_U32 param = *(OMX_U32 *)(_ptr + _idx);
+        _idx += 4; 
+        OMX_U64 data = *(OMX_U64 *)(_ptr + _idx); 
+        _idx += 8; 
+        if (need_free) g_free(_ptr);
+        error = dcodec_send_command(component, cmd, param, data); 
+        return (error == OMX_ErrorNone);
+    }
+    case DCODEC_FUN_GetParameter: {
+        if (para_num < 2 || all_para[0].data_len < 4 || !all_para[1].data) return false;
+        int need_free = 0; 
+        char *_ptr = call_para_to_ptr(all_para[0], &need_free); 
+        if (!_ptr) { 
+            if (need_free) g_free(_ptr); 
+            return false; 
+        }
+        int index = *(int *)_ptr; 
+        if (need_free) g_free(_ptr);
+        uint32_t param_size = get_omx_param_size(index); 
+        if (param_size != all_para[1].data_len) { 
+            LOGE("codec uid %" PRId64 ": get_parameter size mismatch %u vs %zu", unique_id, param_size, all_para[1].data_len); 
+            return false; 
+        }
+        char *params = g_malloc(param_size);
+        read_from_guest_mem(all_para[1].data, params, 0, param_size);
+        error = component->get_parameter(component, index, params);
+        if (error == OMX_ErrorNone) { 
+            write_to_guest_mem(all_para[1].data, params, 0, param_size); 
+        }
+        g_free(params);
+        return (error == OMX_ErrorNone);
+    }
     case DCODEC_FUN_SetParameter: {
-        OMX_INDEXTYPE index = 0;
-        void *params = NULL;
-
-        int need_free = 0;
-        char *_ptr;
-        _ptr = call_para_to_ptr(all_para[0], &need_free);
-        int _idx = 0;
-
-        index = *(int *)(_ptr + _idx);
-        _idx += 4;
-
-        params = _ptr + _idx;
-        CHECK_EQ(_idx + get_omx_param_size(index), all_para[0].data_len);
-
-        error = component->set_parameter(component, index, params);
-
-        if (need_free)
-            g_free(_ptr);
-
-    } break;
-
+        if (para_num < 1 || all_para[0].data_len < 4) return false;
+        int need_free = 0; 
+        char *_ptr = call_para_to_ptr(all_para[0], &need_free); 
+        if (!_ptr) { 
+            if (need_free) g_free(_ptr); 
+            return false; 
+        }
+        int _idx = 0; 
+        OMX_INDEXTYPE index = *(int *)(_ptr + _idx); 
+        _idx += 4; 
+        size_t expected = _idx + get_omx_param_size(index); 
+        if (expected != all_para[0].data_len) { 
+            LOGE("codec uid %" PRId64 ": set_parameter size mismatch exp %zu got %zu", unique_id, expected, all_para[0].data_len); 
+            if (need_free) g_free(_ptr); 
+            return false; 
+        }
+        void *params = _ptr + _idx; 
+        error = component->set_parameter(component, index, params); 
+        if (need_free) g_free(_ptr); 
+        return (error == OMX_ErrorNone);
+    }
     case DCODEC_FUN_ProcessThisBuffer: {
+        if (para_num < 1 || !all_para[0].data) return false;
         BufferDesc *desc = g_malloc0(sizeof(BufferDesc));
         read_from_guest_mem(all_para[0].data, desc, 0, all_para[0].data_len);
-        if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
-            desc->data = copy_guest_mem_from_call(call, 2);
+        if ((desc->type & CODEC_BUFFER_TYPE_GUEST_MEM)) {
+            if (para_num < 2 || !all_para[1].data) { 
+                g_free(desc); 
+                return false; 
+            }
+            desc->data = duplicate_guest_mem(all_para[1].data);
         }
-
-        error = dcodec_process_this_buffer(component, desc);
-
-    } break;
-
-    case DCODEC_FUN_SetSync:
-    {
-        uint64_t sync_id;
-
-        int need_free = 0;
-        char *_ptr;
-        _ptr = call_para_to_ptr(all_para[0], &need_free);
-        int _idx = 0;
-
-        sync_id = *(uint64_t *)(_ptr + _idx);
-        _idx += 8;
-
-        if (need_free)
-            g_free(_ptr);
-
-        signal_express_sync((int)sync_id, false);
+        error = dcodec_process_this_buffer(component, desc); 
+        return (error == OMX_ErrorNone);
     }
-    break;
-
-    case DCODEC_FUN_WaitSync:
-    {
-        uint64_t sync_id;
-
-        int need_free = 0;
-        char *_ptr;
-        _ptr = call_para_to_ptr(all_para[0], &need_free);
-        int _idx = 0;
-
-        sync_id = *(uint64_t *)(_ptr + _idx);
-        _idx += 8;
-
-        if (need_free)
-            g_free(_ptr);
-
-        wait_for_express_sync((int)sync_id, false);
+    case DCODEC_FUN_SetSync: {
+        if (para_num < 1 || all_para[0].data_len < 8) return false; 
+        int need_free = 0; 
+        char *_ptr = call_para_to_ptr(all_para[0], &need_free); 
+        if(!_ptr){ 
+            if(need_free) g_free(_ptr); 
+            return false; 
+        } 
+        uint64_t sync_id = *(uint64_t *)_ptr; 
+        if (need_free) g_free(_ptr); 
+        signal_express_sync((int)sync_id, false); 
+        return true; 
     }
-    break;
-
-    default: {
-        LOGE("error! codec function id %d not recognized!", GET_FUN_ID(call->id));
-    } break;
-
+    case DCODEC_FUN_WaitSync: {
+        if (para_num < 1 || all_para[0].data_len < 8) return false; 
+        int need_free = 0; 
+        char *_ptr = call_para_to_ptr(all_para[0], &need_free); 
+        if(!_ptr){ 
+            if(need_free) g_free(_ptr); 
+            return false; 
+        } 
+        uint64_t sync_id = *(uint64_t *)_ptr; 
+        if (need_free) g_free(_ptr); 
+        wait_for_express_sync((int)sync_id, false); 
+        return true; 
     }
-    if (error != OMX_ErrorNone) {
-        LOGE("error! host call returned error %x", error);
+    default:
+        LOGE("codec uid %" PRId64 ": unreachable unknown id %llu", unique_id, (unsigned long long)fun_id); return false;
     }
-}
-
-static void codec_output_call_handle(struct Thread_Context *context, Teleport_Express_Call *call)
-{
-
-    Call_Para all_para[1];
-    get_para_from_call(call, all_para, 1);
-
-    dcodec_master_switch(context, call);
-
-    call->callback(call, 1);
 }
 
 static Thread_Context *get_codec_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
@@ -288,7 +233,7 @@ static Thread_Context *remove_codec_context(uint64_t device_id, uint64_t thread_
     Codec_Thread_Context *thread_context = (Codec_Thread_Context *)g_hash_table_lookup(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id));
 
     if (thread_context && thread_context->component && thread_context->component->dma_buf) {
-        free_copied_guest_mem(thread_context->component->dma_buf);
+        free_duplicated_guest_mem(thread_context->component->dma_buf);
     }
 
     if (thread_context && thread_context->component) {
@@ -327,7 +272,7 @@ static void codec_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
     if (thread_context->component->dma_buf != NULL)
     {
         LOGW("codec dmabuf registered twice!");
-        free_copied_guest_mem(thread_context->component->dma_buf);
+        free_duplicated_guest_mem(thread_context->component->dma_buf);
     }
 
     LOGD("codec uid %" PRId64 " dmabuf register complete", unique_id);
@@ -343,7 +288,7 @@ static Express_Device_Info express_codec_info = {
     .device_id = EXPRESS_CODEC_DEVICE_ID,
     .device_type = INPUT_DEVICE_TYPE | OUTPUT_DEVICE_TYPE,
 
-    .call_handle = codec_output_call_handle,
+    .call_handler = dcodec_call_handler,
     .get_context = get_codec_context,
     .get_device_context = get_codec_device_context,
     .remove_context = remove_codec_context,

@@ -94,7 +94,7 @@ static void bridge_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t
 
     if (context->connection_context.guest_data != NULL)
     {
-        free_copied_guest_mem(context->connection_context.guest_data);
+        free_duplicated_guest_mem(context->connection_context.guest_data);
     }
 
     context->connection_context.guest_data = data;
@@ -394,7 +394,7 @@ static void *bridge_accept_host_thread(void *opaque)
     closesocket(bridge_context->connection_context.socket_fd);
     if (bridge_context->connection_context.guest_data != NULL)
     {
-        free_copied_guest_mem(bridge_context->connection_context.guest_data);
+        free_duplicated_guest_mem(bridge_context->connection_context.guest_data);
     }
 
     LOGW("listen thread exit. closefd %d", bridge_context->connection_context.socket_fd);
@@ -468,7 +468,7 @@ static void *bridge_read_host_thread(void *opaque)
 
     if (bridge_context->connection_context.guest_data != NULL)
     {
-        free_copied_guest_mem(bridge_context->connection_context.guest_data);
+        free_duplicated_guest_mem(bridge_context->connection_context.guest_data);
     }
 
     set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
@@ -478,146 +478,99 @@ static void *bridge_read_host_thread(void *opaque)
     return NULL;
 }
 
-static void bridge_output_call_handle(struct Thread_Context *context, Teleport_Express_Call *call)
+static bool bridge_output_call_handler(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
 {
-
-    Call_Para all_para[1];
-    int para_num = get_para_from_call(call, all_para, 1);
-
     Bridge_Thread_Context *bridge_context = (Bridge_Thread_Context *)context;
 
-    uint64_t fun_id = GET_FUN_ID(call->id);
-    LOGV("bridge get call_id=%llu process_id=%lld thread=%lld unique_id=%llx", fun_id, call->process_id, call->thread_id, call->unique_id);
+    uint64_t fun_id = GET_FUN_ID(id);
+    LOGV("bridge get call_id=%llu thread=%llu unique_id=%llx", fun_id, context->thread_id, bridge_context->unique_id);
 
-    switch (fun_id)
-    {
-    case BRIDGE_FUN_BIND:
-    {
-        if (para_num == 1 && all_para[0].data_len == 4 && bridge_context->status_id == NONE_STATUS)
-        {
-            int null_flag = 0;
-            int *port_ptr = get_direct_ptr(all_para[0].data, &null_flag);
-            if (unlikely(port_ptr == NULL))
-            {
-                LOGE("error BRIDGE_FUN_BIND port NULL");
-                break;
-            }
-
-            LOGD("BIND(port=%d)", *port_ptr);
-
-            int ret_fd = bridge_socket_listen(*port_ptr);
-            int try_cnt = 0;
-            while (ret_fd == -1 && try_cnt < 50)
-            {
-                *port_ptr = *port_ptr + 1;
-                try_cnt++;
-                ret_fd = bridge_socket_listen(*port_ptr);
-            }
-
-            if (ret_fd == -1)
-            {
-                *port_ptr = 0;
-                break;
-            }
-
+    switch (fun_id) {
+    case BRIDGE_FUN_BIND: {
+        if (!(para_num == 1 && all_para[0].data_len == 4 && bridge_context->status_id == NONE_STATUS)) {
+            return false;
+        }
+        int null_flag = 0;
+        int *port_ptr = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(port_ptr == NULL)) {
+            LOGE("error BRIDGE_FUN_BIND port NULL");
+            return false;
+        }
+        LOGD("BIND(port=%d)", *port_ptr);
+        int ret_fd = bridge_socket_listen(*port_ptr);
+        int try_cnt = 0;
+        while (ret_fd == -1 && try_cnt < 50) {
+            *port_ptr = *port_ptr + 1;
+            try_cnt++;
+            ret_fd = bridge_socket_listen(*port_ptr);
+        }
+        if (ret_fd == -1) {
+            *port_ptr = 0;
+            return false;
+        }
+        bridge_context->connection_context.read_thread_should_running = true;
+        bridge_context->status_id = BIND_STATUS;
+        bridge_context->connection_context.socket_fd = ret_fd;
+        qemu_thread_create(&bridge_context->connection_context.read_thread, "bridge_accept_host_thread", bridge_accept_host_thread, bridge_context, QEMU_THREAD_JOINABLE);
+        if (*port_ptr == RIL_MODEM_PORT) {
+            express_modem_init();
+        }
+        return true;
+    }
+    case BRIDGE_FUN_CONNECT: {
+        if (!(para_num == 1 && all_para[0].data_len == 4 && bridge_context->status_id == NONE_STATUS)) {
+            return false;
+        }
+        int null_flag = 0;
+        int *port_ptr = get_direct_ptr(all_para[0].data, &null_flag);
+        if (unlikely(port_ptr == NULL)) {
+            LOGE("error BRIDGE_FUN_CONNECT port NULL");
+            return false;
+        }
+        LOGD("CONNECT(host_accept_fd=%d) from guest thread %llu", *port_ptr, context->thread_id);
+        uint64_t thread_id = (uint64_t)g_hash_table_lookup(accept_fd_thread_maps, GUINT_TO_POINTER(*port_ptr));
+        LOGD("the accept fd %d is held by guest thread %llu", *port_ptr, thread_id);
+        if (thread_id == context->thread_id) {
+            LOGD("connect successfully, starting read thread");
+            bridge_context->connection_context.socket_fd = *port_ptr;
             bridge_context->connection_context.read_thread_should_running = true;
-            bridge_context->status_id = BIND_STATUS;
-            bridge_context->connection_context.socket_fd = ret_fd;
-            qemu_thread_create(&bridge_context->connection_context.read_thread, "bridge_accept_host_thread", bridge_accept_host_thread, bridge_context, QEMU_THREAD_JOINABLE);
-            if (*port_ptr == RIL_MODEM_PORT) {
-                express_modem_init();
-            }
+            bridge_context->status_id = CONNECTED_STATUS;
+            qemu_thread_create(&bridge_context->connection_context.read_thread, "bridge_read_host_thread", bridge_read_host_thread, bridge_context, QEMU_THREAD_JOINABLE);
+            return true;
+        } else {
+            LOGE("bridge not connected by the same thread that binds it, return error");
+            *port_ptr = 0;
+            return false;
         }
     }
-    break;
-    case BRIDGE_FUN_CONNECT:
-    {
-        if (para_num == 1 && all_para[0].data_len == 4 && bridge_context->status_id == NONE_STATUS)
-        {
-            int null_flag = 0;
-            int *port_ptr = get_direct_ptr(all_para[0].data, &null_flag);
-            if (unlikely(port_ptr == NULL))
-            {
-                LOGE("error BRIDGE_FUN_CONNECT port NULL");
+    case BRIDGE_FUN_OUTPUT: {
+        if (!(para_num == 1 && bridge_context->status_id == CONNECTED_STATUS && bridge_context->connection_context.socket_fd != 0 && all_para[0].data && all_para[0].data_len != 0)) {
+            return false;
+        }
+        int num = all_para[0].data->num;
+        Scatter_Data *scatter_data = all_para[0].data->scatter_data;
+        LOGD("OUTPUT(scatter, sg_num=%d)", num);
+        bool ok = true;
+        for (int i = 0; i < num; i++) {
+            char temp_buf[36];
+            memset(temp_buf, 0, sizeof(temp_buf));
+            memcpy(temp_buf, scatter_data[i].data, scatter_data[i].len <= 32 ? scatter_data[i].len : 32);
+            strcpy(temp_buf + 32, "...");
+            LOGV("send(sockfd=%d, buf=\"%s\", len=%zu, flag=%d)", bridge_context->connection_context.socket_fd, temp_buf, scatter_data[i].len, 0);
+            ssize_t sent = bridge_send_all(bridge_context->connection_context.socket_fd, scatter_data[i].data, scatter_data[i].len);
+            if (sent < 0) {
+                int err = errno;
+                LOGW("send failed on fd %d (len=%zu), errno=%d", bridge_context->connection_context.socket_fd, scatter_data[i].len, err);
+                ok = false;
                 break;
             }
-            LOGD("CONNECT(host_accept_fd=%d) from guest thread %llu", *port_ptr, context->thread_id);
-
-            uint64_t thread_id = (uint64_t)g_hash_table_lookup(accept_fd_thread_maps, GUINT_TO_POINTER(*port_ptr));
-            LOGD("the accept fd %d is held by guest thread %llu", *port_ptr, thread_id);
-            if (thread_id == context->thread_id)
-            {
-                LOGD("connect successfully, starting read thread");
-                bridge_context->connection_context.socket_fd = *port_ptr;
-
-                bridge_context->connection_context.read_thread_should_running = true;
-                bridge_context->status_id = CONNECTED_STATUS;
-
-                // 注意这里创建的线程一定要是QEMU_THREAD_JOINABLE，不然数据可能被越界写入
-                qemu_thread_create(&bridge_context->connection_context.read_thread, "bridge_read_host_thread", bridge_read_host_thread, bridge_context, QEMU_THREAD_JOINABLE);
-            }
-            else
-            {
-                LOGE("bridge not connected by the same thread that binds it, return error");
-                *port_ptr = 0;
-            }
         }
+        return ok;
     }
-    break;
-    case BRIDGE_FUN_OUTPUT:
-    {
-        if (para_num == 1 && bridge_context->status_id == CONNECTED_STATUS && bridge_context->connection_context.socket_fd != 0 &&
-            all_para[0].data != NULL && all_para[0].data_len != 0)
-        {
-            int num = all_para[0].data->num;
-            Scatter_Data *scatter_data = all_para[0].data->scatter_data;
-            LOGD("OUTPUT(scatter, sg_num=%d)", num);
-
-            for (int i = 0; i < num; i++)
-            {
-                char temp_buf[36];
-                memset(temp_buf, 0, 36);
-                memcpy(temp_buf, scatter_data[i].data, scatter_data[i].len <= 32 ? scatter_data[i].len : 32);
-                strcpy(temp_buf + 32, "...");
-                LOGV("send(sockfd=%d, buf=\"%s\", len=%zu, flag=%d)", bridge_context->connection_context.socket_fd, temp_buf, scatter_data[i].len, 0);
-                ssize_t sent = bridge_send_all(bridge_context->connection_context.socket_fd, scatter_data[i].data, scatter_data[i].len);
-                if (sent < 0)
-                {
-                    int err = errno;
-                    LOGW("send failed on fd %d (len=%zu), errno=%d", bridge_context->connection_context.socket_fd, scatter_data[i].len, err);
-                    // Do not close here; let read thread detect and clean up to avoid races
-                    break;
-                }
-            }
-        }
-    }
-    break;
-    // case BRIDGE_FUN_END:
-    // {
-    //     if (para_num == 0)
-    //     {
-    //         g_hash_table_remove(bridge_thread_contexts, GUINT_TO_POINTER(bridge_context->unique_id));
-    //         bridge_context->thread_context.thread_run = 0;
-
-    //         if (bridge_context->status_id == CONNECTED_STATUS || bridge_context->status_id == BIND_STATUS)
-    //         {
-    //             bridge_context->connection_context.read_thread_should_running = false;
-    //             // closesocket(bridge_context->connection_context.socket_fd);
-    //             // 等待线程退出
-    //             qemu_thread_join(&bridge_context->connection_context.read_thread);
-    //             LOGI(DEBUG_HEAD "wait read thread exit ok %d", bridge_context->connection_context.socket_fd);
-    //         }
-    //     }
-    // }
-    // break;
     default:
-    {
-        LOGE("error bridge fun id %lld", fun_id);
+        LOGE("error bridge fun id %llu", (unsigned long long)fun_id);
+        return false;
     }
-    break;
-    }
-
-    call->callback(call, 1);
 }
 
 static Thread_Context *get_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
@@ -691,7 +644,7 @@ static Express_Device_Info express_bridge_info = {
     .get_device_context = get_bridge_connection_context,
     .buffer_register = bridge_buffer_register,
 
-    .call_handle = bridge_output_call_handle,
+    .call_handler = bridge_output_call_handler,
     .get_context = get_bridge_context,
     .remove_context = remove_bridge_context,
 

@@ -1,7 +1,7 @@
 #ifndef EXPRESS_CODEC_H
 #define EXPRESS_CODEC_H
 
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/teleport-express/teleport_express_register.h"
 #include "hw/teleport-express/teleport_express_distribute.h"
 #include "hw/express-codec/dcodec_component.h"

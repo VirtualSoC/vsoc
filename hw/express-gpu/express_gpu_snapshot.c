@@ -2723,10 +2723,6 @@ int save_single_render_thread_context(QEMUFile *f, Render_Thread_Context *thread
     return 0;
 }
 
-static void local_free_callback(Teleport_Express_Call *call, int notify) {
-    g_free(call);
-}
-
 Render_Thread_Context* load_single_render_thread_context(QEMUFile *f) {
     LOGI("in load single render thread context!");
 
@@ -2803,20 +2799,12 @@ Render_Thread_Context* load_single_render_thread_context(QEMUFile *f) {
         load_egl_display(f, thread_context->egl_display);
     }
 
-    Teleport_Express_Call* call = g_malloc0(sizeof(Teleport_Express_Call));
-    call->id = FUNID_snapshotLoad;
-    call->thread_id = (thread_context->context).thread_id;
-    call->process_id = (thread_context->context).process_id;
-    call->unique_id = (thread_context->context).unique_id;
-    call->callback = local_free_callback;
-
-    if(has_opengl_context) {
-        push_to_thread(call);
+    if (has_opengl_context) {
+        push_local_call_to_thread(&thread_context->context, FUNID_snapshotLoad);
     }
 
     return thread_context;
 }
-
 
 int save_thread_context(QEMUFile *f, Thread_Context *context) {
     qemu_put_be64(f, context->device_id);

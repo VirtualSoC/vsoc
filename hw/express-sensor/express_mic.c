@@ -182,7 +182,7 @@ static void mic_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t pr
 {
     if (static_mic_context.guest_buffer != NULL)
     {
-        free_copied_guest_mem(static_mic_context.guest_buffer);
+        free_duplicated_guest_mem(static_mic_context.guest_buffer);
     }
     LOGI("mic register buffer");
     static_mic_context.guest_buffer = data;

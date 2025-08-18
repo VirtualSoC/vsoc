@@ -3,7 +3,8 @@
 
 #include "egl.h"
 #include "eglext.h"
-#include "qemu/osdep.h"
+
+#include <glib.h>
 
 #define NUM_ATTRS 34
 // 顺序不能变

@@ -237,7 +237,7 @@ static void keyboard_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64
 
     if (context->guest_buffer != NULL)
     {
-        free_copied_guest_mem(context->guest_buffer);
+        free_duplicated_guest_mem(context->guest_buffer);
     }
     LOGI("keyboard %d register buffer", unique_id);
     context->guest_buffer = data;

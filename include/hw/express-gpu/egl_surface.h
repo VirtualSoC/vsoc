@@ -1,7 +1,7 @@
 #ifndef EGL_SURFACE_H
 #define EGL_SURFACE_H
 
-#include "hw/teleport-express/teleport_express_distribute.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-gpu/egl_config.h"
 
 #include "glad/glad.h"

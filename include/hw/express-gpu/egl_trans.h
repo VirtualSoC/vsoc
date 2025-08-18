@@ -3,8 +3,7 @@
 #ifndef EGL_TRANS_H
 #define EGL_TRANS_H
 
-#include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/express_device_common.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-gpu/express_gpu.h"
 
 #define MAX_OUT_BUF_LEN 4096
@@ -145,6 +144,6 @@
 
 #define FUNID_EGL_Wait_Sync (DEVICE_FUN_ID(EXPRESS_GPU_DEVICE_ID, (10051)))
 
-void egl_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call);
+bool egl_decode_invoke(Render_Thread_Context *context, uint64_t id, const Call_Para *para, int para_num);
 
 #endif

@@ -63,7 +63,7 @@ void d_eglCreateContext(void *context, EGLDisplay dpy, EGLConfig config, EGLCont
         }
     }
 
-    if (express_gpu_enable_windowed_mode)
+    if (g_ops.express_gpu_enable_windowed_mode)
     {
         context_flags |= DGL_CONTEXT_FLAG_WINDOWED_MODE_BIT;
     }
@@ -140,7 +140,7 @@ void d_eglDestroyDebugMessageBuffer(void *context, EGLContext guest_gl_context, 
     
     if ((real_opengl_context->context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) && real_opengl_context->debug_message_buffer)
     {
-        free_copied_guest_mem((Guest_Mem *)real_opengl_context->debug_message_buffer);
+        free_duplicated_guest_mem((Guest_Mem *)real_opengl_context->debug_message_buffer);
         real_opengl_context->debug_message_buffer = NULL;
     }
     express_printf("destroy debug message buffer context %p guest context %p context flag %x\n", real_opengl_context, guest_gl_context, real_opengl_context->context_flags);

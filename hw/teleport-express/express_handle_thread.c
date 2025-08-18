@@ -103,7 +103,7 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
 }
 
 /**
- * @brief 处理线程运行函数，分发线程会分发call到这个线程，然后调用call_handle进行处理
+ * @brief 处理线程运行函数，分发线程会分发call到这个线程，然后调用call_handler进行处理
  *
  * @param opaque
  * @return void*
@@ -142,10 +142,16 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
         }
 
         //实际对每个call调用的操作
-        if (context->call_handle != NULL)
+        if (context->call_handler != NULL)
         {
-            LOGD("handle thread call_handle devid %llu callid %llu", context->device_id, call->id);
-            context->call_handle(context, call);
+            if (GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
+                cluster_decode_invoke(call, context, context->call_handler);
+            } else {
+                Call_Para all_para[MAX_PARA_NUM];
+                get_para_from_call(call, all_para, MAX_PARA_NUM);
+                bool success = context->call_handler(context, call->id, all_para, call->para_num);
+                call->callback(call, success);
+            }
         }
     }
 

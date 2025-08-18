@@ -218,7 +218,7 @@ int init_program_data(GLuint program)
         // assert(temp_ptr-program_data <= buf_len);
         g_free(name_buf);
 
-        if(express_gpu_gl_debug_enable)
+        if(g_ops.express_gpu_gl_debug_enable)
         {
             GLenum error = glGetError();
             if (error != GL_NO_ERROR)
@@ -300,7 +300,7 @@ void d_glGetProgramData(void *context, GLuint program, int buf_len, void *progra
     }
 
     LOGD("getProgramData len %d program %d map %llx\n", buf_len, program, (uint64_t)program_data_map);
-    write_to_guest_mem(guest_mem, save_program_data, 0, buf_len);
+    g_ops.write_to_guest_mem(guest_mem, save_program_data, 0, buf_len);
 
     g_mutex_lock(&program_data_map_mutex);
     //读取完成后直接删除就行了
