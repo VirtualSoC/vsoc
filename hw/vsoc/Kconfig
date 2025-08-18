@@ -1,0 +1,18 @@
+config TELEPORT_EXPRESS
+    bool
+    default y
+    depends on PCI && VIRTIO && TELEPORT_EXPRESS_PCI
+
+config TELEPORT_EXPRESS_PCI
+    bool
+    default y
+    depends on PCI && VIRTIO
+
+source express-mem/Kconfig
+source express-codec/Kconfig
+source express-gpu/Kconfig
+source express-input/Kconfig
+source express-sensor/Kconfig
+source express-network/Kconfig
+source express-camera/Kconfig
+

@@ -10,8 +10,7 @@
  */
 
 #include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/teleport_express_distribute.h"
-#include "hw/teleport-express/teleport_express_call.h"
+#include "hw/teleport-express/express_platform.h"
 
 #include <glib/gstdio.h>
 #include <backtrace.h>
@@ -187,7 +186,7 @@ static bool call_printf(Thread_Context *context, uint64_t id, const Call_Para *a
             }
             int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
             loc += num;
-            read_from_guest_mem(p->data, print_buf + loc, 0, p->data_len);
+            g_ops.read_from_guest_mem(p->data, print_buf + loc, 0, p->data_len);
             loc += p->data_len;
         }
     } else if (fun_id == 2) {
@@ -198,7 +197,7 @@ static bool call_printf(Thread_Context *context, uint64_t id, const Call_Para *a
             copy_test_buf_len = p->data_len;
         }
         gint64 start_time = g_get_monotonic_time();
-        read_from_guest_mem(p->data, copy_test_buf, 0, p->data_len);
+        g_ops.read_from_guest_mem(p->data, copy_test_buf, 0, p->data_len);
         gint64 spend_time = g_get_monotonic_time() - start_time;
         if (spend_time == 0) spend_time = 1;
         express_printf("get copy test %lld spend time %lld speed %lf M/s\n", p->data_len, spend_time, p->data_len * 1.0 * 1000000 / 1024 / 1024 / spend_time);

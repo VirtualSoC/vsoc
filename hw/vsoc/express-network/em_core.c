@@ -34,7 +34,7 @@
 /* The interface exposed to QEMU command line arguments */
 char *express_ruim_file = NULL;
 
-#include "em_config.h"
+#include "hw/express-network/em_config.h"
 
 #define EM_RET(str) return em_printf(modem, str) 
 

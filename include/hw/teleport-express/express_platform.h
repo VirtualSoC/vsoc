@@ -193,7 +193,7 @@ typedef struct Thread_Context
 
 } Thread_Context;
 
-typedef struct Device_Context{
+typedef struct Device_Context {
     bool irq_enabled;
     Teleport_Express_Call *irq_call;
     struct Express_Device_Info *device_info;
@@ -314,4 +314,5 @@ void free_duplicated_guest_mem(Guest_Mem *mem);
 Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info);
 void *get_direct_ptr(Guest_Mem *guest_mem, int *flag);
 void push_local_call_to_thread(Thread_Context *context, uint64_t id);
+
 #endif
