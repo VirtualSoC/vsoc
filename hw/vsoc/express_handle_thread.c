@@ -11,10 +11,10 @@
 
 // #define STD_DEBUG_LOG
 
-#include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_handle_thread.h"
-#include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/express_event.h"
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/express_handle_thread.h"
+#include "hw/vsoc/teleport_express_call.h"
+#include "hw/vsoc/express_event.h"
 
 /**
  * @brief 从context的环形缓冲区中pop出一个call，若没有call，则会阻塞直到下一个call到达，这个只在thread运行函数中使用

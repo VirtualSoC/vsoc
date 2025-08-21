@@ -9,22 +9,22 @@
  *
  */
 // #define STD_DEBUG_LOG
-#include "hw/teleport-express/teleport_express.h"
+#include "hw/vsoc/teleport_express.h"
 
-#include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/teleport_express_distribute.h"
-#include "hw/teleport-express/teleport_express_register.h"
+#include "hw/vsoc/teleport_express_call.h"
+#include "hw/vsoc/teleport_express_distribute.h"
+#include "hw/vsoc/teleport_express_register.h"
 
-#include "hw/teleport-express/express_log.h"
-#include "hw/express-gpu/express_gpu.h"
-#include "hw/express-gpu/express_gpu_main_window.h"
-#include "hw/express-gpu/express_display.h"
-#include "hw/express-gpu/glv3_context.h"
-#include "hw/express-gpu/express_gpu_snapshot.h"
-#include "hw/express-mem/express_sync.h"
-#include "hw/express-input/express_touchscreen.h"
-#include "hw/express-input/express_keyboard.h"
-#include "hw/express-sensor/express_accel.h"
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/gpu/express_gpu.h"
+#include "hw/vsoc/gpu/express_gpu_main_window.h"
+#include "hw/vsoc/gpu/express_display.h"
+#include "hw/vsoc/gpu/glv3_context.h"
+#include "hw/vsoc/gpu/express_gpu_snapshot.h"
+#include "hw/vsoc/mem/express_sync.h"
+#include "hw/vsoc/input/express_touchscreen.h"
+#include "hw/vsoc/input/express_keyboard.h"
+#include "hw/vsoc/sensor/express_accel.h"
 
 #include "hw/virtio/virtio.h"
 #include "sysemu/runstate.h"
@@ -150,7 +150,7 @@ static void teleport_express_input_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 
 static void shutdown_notify_callback(Notifier *notifier, void *data) {
     teleport_express_should_stop = true;
-    deinit_express_device();
+    deinit_express_platform();
 }
 
 /**

@@ -9,12 +9,12 @@
  *
  */
 // #define STD_DEBUG_LOG
-//#include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/teleport_express_pci.h"
-#include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/teleport_express_register.h"
-#include "hw/teleport-express/express_device.h"
-#include "hw/teleport-express/express_platform.h"
+//#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/teleport_express_pci.h"
+#include "hw/vsoc/teleport_express_call.h"
+#include "hw/vsoc/teleport_express_register.h"
+#include "hw/vsoc/express_device.h"
+#include "hw/vsoc/express_platform.h"
 
 #include "qapi/error.h"
 #include "sysemu/runstate.h"

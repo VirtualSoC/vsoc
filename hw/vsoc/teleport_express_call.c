@@ -8,10 +8,10 @@
  * @copyright Copyright (c) 2022
  *
  */
-#include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_device.h"
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/express_device.h"
 
-#include "hw/teleport-express/teleport_express_call.h"
+#include "hw/vsoc/teleport_express_call.h"
 #include "exec/cpu-common.h"
 
 

@@ -28,7 +28,6 @@
 #include "sysemu/dma.h"
 #include "sysemu/runstate.h"
 #include "standard-headers/linux/virtio_ids.h"
-#include "hw/teleport-express/express_log.h"
 
 /*
  * The alignment to use between consumer and producer parts of vring.

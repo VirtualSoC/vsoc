@@ -1,7 +1,7 @@
 // #define STD_DEBUG_LOG
 
-#include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_event.h"
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/express_event.h"
 #include <string.h>
 #include <stdlib.h>
 #include <windows.h>

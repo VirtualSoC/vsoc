@@ -1,8 +1,8 @@
-#include "hw/teleport-express/teleport_express_call.h"
-#include "hw/teleport-express/express_device.h"
-#include "hw/teleport-express/express_log.h"
+#include "hw/vsoc/teleport_express_call.h"
+#include "hw/vsoc/express_device.h"
+#include "hw/vsoc/express_log.h"
 
-#include "hw/teleport-express/express_device_ctrl.h"
+#include "hw/vsoc/express_device_ctrl.h"
 
 int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Teleport_Express_Call *pre_call, Teleport_Express_Queue_Elem *pre_elem, Guest_Mem *pre_guest_mem, Scatter_Data *pre_scatter_data);
 void release_call_none(Teleport_Express_Call *call, int notify);

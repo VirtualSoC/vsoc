@@ -14,6 +14,7 @@ teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                    'express_handle_thread.c',
                    'express_device_ctrl.c',
                    'teleport_express_hmp.c',
+                   'express_ipc.c',
                ))
 
 if targetos == 'windows'
@@ -32,16 +33,15 @@ endif
 
 softmmu_ss.add_all(teleport_express)
 
-subdir('express-codec')
-subdir('express-gpu')
-subdir('express-input')
-subdir('express-sensor')
-subdir('express-network')
-subdir('express-camera')
-subdir('express-mem')
+subdir('codec')
+subdir('gpu')
+subdir('input')
+subdir('sensor')
+subdir('network')
+subdir('camera')
+subdir('mem')
 
 vsoc_ss.add(files(
-    'express_platform.c',
     'express_log.c',
-    'express_subprocess.c',
+    'express_ipc.c',
 ))

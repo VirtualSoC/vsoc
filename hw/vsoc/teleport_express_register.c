@@ -1,11 +1,11 @@
-#include "hw/teleport-express/express_device.h"
+#include "hw/vsoc/express_device.h"
 
-#include "hw/teleport-express/teleport_express_register.h"
+#include "hw/vsoc/teleport_express_register.h"
 
 #include "qemu/atomic.h"
 
-#include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_event.h"
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/express_event.h"
 
 static VirtIODevice *in_teleport_express = NULL;
 

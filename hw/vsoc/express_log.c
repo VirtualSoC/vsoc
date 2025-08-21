@@ -9,8 +9,8 @@
  *
  */
 
-#include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_platform.h"
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/express_platform.h"
 
 #include <glib/gstdio.h>
 #include <backtrace.h>

@@ -10,14 +10,14 @@
  */
 // #define STD_DEBUG_LOG
 
-#include "hw/teleport-express/express_device.h"
-#include "hw/teleport-express/teleport_express_distribute.h"
-#include "hw/teleport-express/express_handle_thread.h"
+#include "hw/vsoc/express_device.h"
+#include "hw/vsoc/teleport_express_distribute.h"
+#include "hw/vsoc/express_handle_thread.h"
 
-#include "hw/teleport-express/express_log.h"
-#include "hw/teleport-express/express_device_ctrl.h"
-#include "hw/teleport-express/express_event.h"
-#include "hw/express-gpu/express_gpu_snapshot.h"
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/express_device_ctrl.h"
+#include "hw/vsoc/express_event.h"
+#include "hw/vsoc/gpu/express_gpu_snapshot.h"
 
 
 static VirtIODevice *teleport_express_device;

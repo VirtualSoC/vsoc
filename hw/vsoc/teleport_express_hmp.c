@@ -4,7 +4,7 @@
  * @brief HMP commands for Teleport Express
  */
 
-#include "hw/teleport-express/express_device.h"
+#include "hw/vsoc/express_device.h"
 
 #include "qemu/osdep.h"
 #include "monitor/hmp.h"

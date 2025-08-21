@@ -8,11 +8,11 @@ config TELEPORT_EXPRESS_PCI
     default y
     depends on PCI && VIRTIO
 
-source express-mem/Kconfig
-source express-codec/Kconfig
-source express-gpu/Kconfig
-source express-input/Kconfig
-source express-sensor/Kconfig
-source express-network/Kconfig
-source express-camera/Kconfig
+source mem/Kconfig
+source codec/Kconfig
+source gpu/Kconfig
+source input/Kconfig
+source sensor/Kconfig
+source network/Kconfig
+source camera/Kconfig
 
