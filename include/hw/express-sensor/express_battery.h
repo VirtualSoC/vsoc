@@ -3,10 +3,6 @@
 
 #include "hw/teleport-express/express_log.h"
 
-#include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_register.h"
-
-
 enum power_supply_property {
 	/* Properties of type `int' */
 	POWER_SUPPLY_PROP_STATUS = 0,

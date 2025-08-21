@@ -13,8 +13,6 @@ void *call_distribute_thread(void *opaque);
 
 void virtqueue_data_distribute_and_recycle(VirtQueue *vq, int *pop_flag, int *recycle_flag, int *need_irq);
 
-Thread_Context *thread_context_create(uint64_t thread_id, uint64_t type_id, uint64_t len, Express_Device_Info *info);
-
 void wake_up_distribute(void);
 
 void (*get_push_free_callback_ptr(void))(Teleport_Express_Call *, int);

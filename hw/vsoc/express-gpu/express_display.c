@@ -267,7 +267,7 @@ static void display_context_init(Display_Context *disp)
         }
         sdl2_no_need = 1;
 
-        if (express_gpu_gl_debug_enable)
+        if (g_ops.express_gpu_gl_debug_enable)
         {
 #ifndef __APPLE__
             glEnable(GL_DEBUG_OUTPUT);
@@ -654,14 +654,16 @@ static void close_window_callback(GLFWwindow *window)
     glfwSetWindowShouldClose(window, GLFW_FALSE);
     if (now_time - last_click_time < 500000)
     {
-        qemu_system_shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+        g_ops.notify_shutdown(SHUTDOWN_CAUSE_HOST_UI);
     }
     else
     {
-        qemu_system_powerdown_request();
+        g_ops.force_shutdown();
     }
     last_click_time = now_time;
 }
+
+#ifdef ENABLE_SNAPSHOT
 
 void save_display_context(QEMUFile *f) {
     LOGI("in save_display_context");
@@ -747,6 +749,8 @@ void load_display_context(QEMUFile *f) {
     }
 }
 
+#endif
+
 static void init_display_options(void) {
     int count = get_display_count();
 
@@ -758,16 +762,16 @@ static void init_display_options(void) {
 
 static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
     if (argc < 1) {
-        monitor_printf(mon, "Usage: display <command> [args]\n");
-        monitor_printf(mon, "Available commands:\n");
-        monitor_printf(mon, "  count - Get the number of displays\n");
-        monitor_printf(mon, "  fps - Get the FPS of all displays\n");
+        MONITOR_LOG(mon, "Usage: display <command> [args]\n");
+        MONITOR_LOG(mon, "Available commands:\n");
+        MONITOR_LOG(mon, "  count - Get the number of displays\n");
+        MONITOR_LOG(mon, "  fps - Get the FPS of all displays\n");
         return;
     }
 
     if (strcmp(argv[0], "count") == 0) {
         int count = g_hash_table_size(g_display_contexts);
-        monitor_printf(mon, "%d\n", count);
+        MONITOR_LOG(mon, "%d\n", count);
     }
     else if (strcmp(argv[0], "fps") == 0) {
         if (g_display_contexts != NULL) {
@@ -776,13 +780,13 @@ static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
             g_hash_table_iter_init(&iter, g_display_contexts);
             while (g_hash_table_iter_next(&iter, &key, &value)) {
                 Display_Context *disp = (Display_Context *)value;
-                monitor_printf(mon, "%.2f ", disp->last_fps);
+                MONITOR_LOG(mon, "%.2f ", disp->last_fps);
             }
         }
-        monitor_printf(mon, "\n");
+        MONITOR_LOG(mon, "\n");
     }
     else {
-        monitor_printf(mon, "Unknown display command: %s\n", argv[0]);
+        MONITOR_LOG(mon, "Unknown display command: %s\n", argv[0]);
     }
 }
 
@@ -794,7 +798,7 @@ void handle_display_event(void) {
     // throttle input updates to screen refresh
     static uint64_t last_event_time = 0;
     uint64_t current_time = g_get_monotonic_time();
-    if (current_time - last_event_time < 1000 * 1000 / express_display_refresh_rate) {
+    if (current_time - last_event_time < 1000 * 1000 / g_ops.express_display_refresh_rate) {
         return;
     }
     last_event_time = current_time;

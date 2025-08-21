@@ -16,12 +16,20 @@
 
 #define MAX_ARGS 8 // Max 8 arguments
 
+void monitor_log(Monitor *mon, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    monitor_vprintf(mon, fmt, args);
+    va_end(args);
+}
+
 void hmp_vsoc(Monitor *mon, const QDict *qdict)
 {
     const char *args_str = qdict_get_try_str(qdict, "args");
 
     if (!args_str) {
-        monitor_printf(mon, "vSoC command requires subcommands. Try 'help vsoc'.\n");
+        MONITOR_LOG(mon, "vSoC command requires subcommands. Try 'help vsoc'.\n");
         return;
     }
 
@@ -38,7 +46,7 @@ void hmp_vsoc(Monitor *mon, const QDict *qdict)
     }
 
     if (argc == 0) {
-        monitor_printf(mon, "No vSoC device specified.\n");
+        MONITOR_LOG(mon, "No vSoC device specified.\n");
         g_free(args_copy);
         return;
     }
@@ -47,7 +55,7 @@ void hmp_vsoc(Monitor *mon, const QDict *qdict)
     Express_Device_Info *info = get_express_device_info_by_name(dev_name);
 
     if (!info) {
-        monitor_printf(mon, "vSoC device '%s' not found.\n", dev_name);
+        MONITOR_LOG(mon, "vSoC device '%s' not found.\n", dev_name);
         g_free(args_copy);
         return;
     }
@@ -55,7 +63,7 @@ void hmp_vsoc(Monitor *mon, const QDict *qdict)
     if (info->hmp_handler) {
         info->hmp_handler(mon, argc - 1, argc > 1 ? &argv[1] : NULL);
     } else {
-        monitor_printf(mon, "vSoC device '%s' does not support HMP commands.\n", dev_name);
+        MONITOR_LOG(mon, "vSoC device '%s' does not support HMP commands.\n", dev_name);
     }
 
     g_free(args_copy);

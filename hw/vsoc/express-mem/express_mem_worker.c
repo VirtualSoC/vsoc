@@ -122,7 +122,7 @@ void express_mem_worker(gpointer data, gpointer user_data) {
             ((Hardware_Buffer *)task->dst_data)->pref_phy_dev = EXPRESS_MEM_TYPE_GBUFFER_HOST_MEM;
         } break;
         case EXPRESS_MEM_TYPE_GUEST_MEM: {
-            write_to_guest_mem((Guest_Mem *)task->dst_data, mapped_addr, 0, task->dst_len);
+            g_ops.write_to_guest_mem((Guest_Mem *)task->dst_data, mapped_addr, 0, task->dst_len);
             g_free(mapped_addr);
         }
         case EXPRESS_MEM_TYPE_GUEST_OPAQUE:

@@ -48,12 +48,12 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 
 #define _host_log(level, fmt, ...)                                                      \
     {                                                                                   \
-        qemu_log("%s %" PRId64 " %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
+        printf("%s %" PRId64 " %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
                  _level_chars[level], __FILE__, __LINE__, ##__VA_ARGS__, 10);                               \
     }
 #define _host_log_debug_nolf(fmt, ...)                                                  \
     {                                                                                   \
-        qemu_log("%s %" PRId64 " %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
+        printf("%s %" PRId64 " %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
     }
 
 #define LOGV(fmt, ...) _host_log(HOST_LOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
@@ -72,6 +72,9 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 #undef LOGV
 #define LOGV null_printf
 #endif
+
+#define MONITOR_LOG(mon, fmt, ...) monitor_log(mon, fmt, ##__VA_ARGS__)
+void monitor_log(Monitor *mon, const char *fmt, ...);
 
 #ifdef TIMER_LOG
 
@@ -130,7 +133,6 @@ typedef struct Device_Log_Setting_Info
     int express_gpu_log_with_buffer;
     int express_gpu_open_opengl_trace;
 } __attribute__((packed, aligned(4))) Device_Log_Setting_Info;
-
 
 
 char *get_now_time(void);

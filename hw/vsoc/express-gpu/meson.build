@@ -85,3 +85,4 @@ elif targetos == 'darwin'
 endif
 
 softmmu_ss.add_all(express_gpu)
+vsoc_ss.add_all(express_gpu)

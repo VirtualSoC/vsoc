@@ -1,20 +1,12 @@
 #ifndef EXPRESS_GPU_SNAPSHOT_H
 #define EXPRESS_GPU_SNAPSHOT_H
 
-// #include "migration/qemu-file.h"
-// #include "hw/teleport-express/express_platform.h"
-// #include "hw/teleport-express/teleport_express_call.h"
-
-// #include "hw/express-gpu/glv3_context.h"
-// #include "hw/express-gpu/egl_display.h"
-// #include "hw/express-gpu/egl_surface.h"
+// #define ENABLE_SNAPSHOT
 
 #include "hw/teleport-express/express_log.h"
-
-#include "hw/virtio/virtio.h"
+#include "hw/express-gpu/express_gpu.h"
 
 #include "migration/qemu-file.h"
-#include "hw/express-gpu/express_gpu.h"
 
 
 #define NUM_RESOURCES 13
@@ -186,10 +178,6 @@ extern GHashTable *loaded_hardware_buffers;
 extern GHashTable *loaded_window_buffers;
 extern GHashTable *registered_express_buffers;
 extern GHashTable *registered_express_irqs;
-
-extern VirtIODevice *startup_vdev;
-extern VirtQueue *startup_out_data_queue;
-extern VirtQueue *startup_in_data_queue;
 
 void clear_resource_tables(void);
 void init_saving_snapshot(void);

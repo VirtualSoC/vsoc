@@ -71,6 +71,8 @@ Process_Context* get_process_context_form_id(uint64_t process_id) {
     return g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
 }
 
+#ifdef ENABLE_SNAPSHOT
+
 int save_render_process_contexts(QEMUFile *f)
 {
     GHashTableIter iter;
@@ -621,6 +623,7 @@ void recover_snapshot_states_after_load(Render_Thread_Context* thread_context) {
 
 }
 
+#endif
 
 /**
  * @brief 根据不同类型调用决定调用哪个版本的opengl
@@ -638,10 +641,12 @@ static bool gpu_call_handler(Thread_Context *context, uint64_t id, const Call_Pa
 
     bool ok = true;
 
+#ifdef ENABLE_SNAPSHOT
     if (fun_id == 10001) {
         recover_snapshot_states_after_load(render_context);
-    }
-    else if (fun_id >= 200000) {
+    } else 
+#endif
+    if (fun_id >= 200000) {
         ok = test_decode_invoke(render_context, id, para, para_num);
     }
     else if (fun_id > 10000) {

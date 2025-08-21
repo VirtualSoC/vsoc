@@ -10,7 +10,7 @@
  */
 
 // #define STD_DEBUG_LOG
-
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-sensor/express_battery.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
@@ -57,6 +57,8 @@ static Battery_Context static_battery_context = {
     }};
 
 static bool battery_data_init = false;
+
+#ifdef ENABLE_SNAPSHOT
 
 void save_battery_data(QEMUFile *f, Express_Battery_Data *data)
 {
@@ -120,6 +122,8 @@ void load_battery_context(QEMUFile *f){
         static_battery_context.device_context.irq_call = load_teleport_express_call(f);
     }
 }
+
+#endif
 
 void express_ac_plug_status_changed(bool is_pluged)
 {
@@ -209,14 +213,14 @@ void sync_express_battery_status(void)
         return;
     }
 
-    write_to_guest_mem(static_battery_context.guest_buffer, &(static_battery_context.data), 0, sizeof(Express_Battery_Data));
+    g_ops.write_to_guest_mem(static_battery_context.guest_buffer, &(static_battery_context.data), 0, sizeof(Express_Battery_Data));
 
     static_battery_context.need_sync = false;
     static_battery_context.data.status_changed = 0;
 
     express_printf("battery irq send ok\n");
 
-    set_express_device_irq((Device_Context *)&static_battery_context, 0, sizeof(Express_Battery_Data));
+    g_ops.set_express_device_irq((Device_Context *)&static_battery_context, 0, sizeof(Express_Battery_Data));
 }
 
 static void battery_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)

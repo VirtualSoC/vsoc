@@ -84,6 +84,12 @@ dispatch_sync(dispatch_get_main_queue(), ^{
 #endif
 
 
+#define IRQ_SET_OK 0
+#define IRQ_NOT_ENABLE -1
+#define IRQ_NOT_READY -2
+#define IRQ_RELEASED -3
+
+
 typedef struct Scatter_Data
 {
     unsigned char *data;
@@ -180,9 +186,6 @@ typedef struct Thread_Context
     //标示当前线程
     void *this_thread;
 
-    //这个线程连接到的teleport_express设备
-    VirtIODevice *teleport_express_device;
-
     //特定设备自定义的context初始化函数
     void (*context_init)(struct Thread_Context *context);
 
@@ -266,6 +269,9 @@ typedef struct Express_Device_Info
 typedef void (*PlatformReadFromGuestMem)(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 typedef void (*PlatformWriteToGuestMem)(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 typedef void (*PlatformFreeCopiedGuestMem)(Guest_Mem *guest);
+typedef int (*PlatformSetExpressDeviceIRQ)(Device_Context *device_context, int buf_index, int len);
+typedef void (*PlatformNotifyShutdown)(int reason);
+typedef void (*PlatformForceShutdown)(void);
 
 typedef struct {
     bool teleport_express_save_snapshot;
@@ -298,6 +304,9 @@ typedef struct {
 
     PlatformReadFromGuestMem read_from_guest_mem;
     PlatformWriteToGuestMem write_to_guest_mem;
+    PlatformSetExpressDeviceIRQ set_express_device_irq;
+    PlatformNotifyShutdown notify_shutdown;
+    PlatformForceShutdown force_shutdown;
 } ExpressPlatformOps;
 
 extern ExpressPlatformOps g_ops;
@@ -310,9 +319,12 @@ bool platform_device_should_stop(void);
 Guest_Mem *duplicate_guest_mem(Guest_Mem *orig);
 void free_duplicated_guest_mem(Guest_Mem *mem);
 
-// todo: these functions are currently allowed, will be removed when refactor is complete
 Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info);
-void *get_direct_ptr(Guest_Mem *guest_mem, int *flag);
-void push_local_call_to_thread(Thread_Context *context, uint64_t id);
 
+/**
+ * Get a pointer to the guest memory region para is pointing to.
+ * If need_free is non-zero, the caller is responsible for freeing the memory (using g_free).
+ */
+void *call_para_to_ptr(Call_Para para, int *need_free);
+void *get_direct_ptr(Guest_Mem *guest_mem, int *flag);
 #endif

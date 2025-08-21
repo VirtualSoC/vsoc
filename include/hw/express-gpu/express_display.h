@@ -2,7 +2,6 @@
 #define EXPRESS_DISPLAY_H
 
 #include "hw/teleport-express/express_platform.h"
-
 #include "hw/express-gpu/egl_surface.h"
 
 typedef struct Display_Info

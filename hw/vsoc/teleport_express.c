@@ -33,6 +33,9 @@
 
 bool teleport_express_should_stop = 0;
 
+VirtIODevice *startup_vdev;
+VirtQueue *startup_out_data_queue;
+VirtQueue *startup_in_data_queue;
 
 
 /**
@@ -230,6 +233,9 @@ teleport_express_get_features(VirtIODevice *vdev, uint64_t features,
 
 //     return;
 // }
+
+#ifdef ENABLE_SNAPSHOT
+
 static int teleport_express_save(QEMUFile *f, void *opaque, size_t size,
                            const VMStateField *field, JSONWriter *vmdesc)
 {
@@ -303,8 +309,6 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     return 0;
 }
 
-
-
 static const VMStateDescription vmstate_teleport_express = {
     .name = "virtio-teleport-express",
     .minimum_version_id = 1,
@@ -324,6 +328,8 @@ static const VMStateDescription vmstate_teleport_express = {
     },
 };
 
+#endif
+
 static void teleport_express_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -335,8 +341,9 @@ static void teleport_express_class_init(ObjectClass *klass, void *data)
 
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     dc->hotpluggable = false;
+#ifdef ENABLE_SNAPSHOT
     dc->vmsd = &vmstate_teleport_express;
-
+#endif
     vdc->realize = teleport_express_realize;
     // init_saving_snapshot();
 

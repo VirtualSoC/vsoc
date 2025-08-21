@@ -8,3 +8,4 @@ express_mem.add(when: 'CONFIG_EXPRESS_MEM',
                ))
 
 softmmu_ss.add_all(express_mem)
+vsoc_ss.add_all(express_mem)

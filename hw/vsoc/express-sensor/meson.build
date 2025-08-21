@@ -10,5 +10,4 @@ express_sensor.add(when: 'CONFIG_EXPRESS_SENSOR',
                ))
 
 softmmu_ss.add_all(express_sensor)
-
-
+vsoc_ss.add_all(express_sensor)

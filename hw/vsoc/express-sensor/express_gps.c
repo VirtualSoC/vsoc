@@ -10,7 +10,8 @@
  */
 
 // #define STD_DEBUG_LOG
-
+#include "hw/teleport-express/express_log.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-sensor/express_gps.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
@@ -112,6 +113,8 @@ static GPS_Context static_gps_context = {
              {0, 0, 0, 0}}}}};
 
 static bool gps_data_init = false;
+
+#ifdef ENABLE_SNAPSHOT
 
 void save_gps_data(QEMUFile *f, Express_GPS_Data *data)
 {
@@ -216,6 +219,8 @@ void load_gps_context(QEMUFile *f){
     }
 }
 
+#endif
+
 void express_gps_status_changed(int status_type, int value)
 {
 
@@ -290,13 +295,13 @@ void sync_express_gps_status(void)
         return;
     }
 
-    write_to_guest_mem(static_gps_context.guest_buffer, &(static_gps_context.data), 0, sizeof(Express_GPS_Data));
+    g_ops.write_to_guest_mem(static_gps_context.guest_buffer, &(static_gps_context.data), 0, sizeof(Express_GPS_Data));
 
     static_gps_context.need_sync = false;
 
     express_printf("gps irq send ok\n");
 
-    set_express_device_irq((Device_Context *)&static_gps_context, 0, sizeof(Express_GPS_Data));
+    g_ops.set_express_device_irq((Device_Context *)&static_gps_context, 0, sizeof(Express_GPS_Data));
 }
 
 static void gps_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)

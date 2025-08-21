@@ -1,10 +1,9 @@
-
-#include "hw/express-gpu/device_interface_window.h"
-#include "hw/express-gpu/cimgui/cimgui.h"
-
 #define TIMER_LOG
 //#define STD_DEBUG_LOG
 #include "hw/teleport-express/express_log.h"
+#include "hw/teleport-express/express_platform.h"
+
+#include "hw/express-gpu/device_interface_window.h"
 
 #include "hw/express-sensor/express_battery.h"
 #include "hw/express-sensor/express_accel.h"
@@ -14,6 +13,11 @@
 #include "hw/express-network/express_modem.h"
 #include "hw/express-network/em_core.h"
 
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#define CIMGUI_USE_GLFW
+#define CIMGUI_USE_OPENGL3
+#include "hw/express-gpu/cimgui/cimgui.h"
+#include "hw/express-gpu/cimgui/cimgui_impl.h"
 
 #define IM_COL32_R_SHIFT 0
 #define IM_COL32_G_SHIFT 8

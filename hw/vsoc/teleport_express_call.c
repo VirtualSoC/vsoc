@@ -190,26 +190,6 @@ void release_one_guest_mem(Guest_Mem *mem)
 }
 
 /**
- * @brief 获取直接的guest端指针，flag表示是否获取到了，返回guest端的指针，可能为NULL，因为当初传入的指针可能真的为NULL
- *
- * @param guest_mem
- * @param flag
- * @return void*
- */
-void *get_direct_ptr(Guest_Mem *guest_mem, int *flag)
-{
-    if (likely(guest_mem->num == 1))
-    {
-        Scatter_Data *guest_data = guest_mem->scatter_data;
-        *flag = 1;
-        //这里也可能返回NULL，所以以flag来区分
-        return guest_data->data;
-    }
-    *flag = 0;
-    return NULL;
-}
-
-/**
  * @brief guest向host写入数据
  *
  * @param guest guest端数据，指向一个Guest_Mem结构体
@@ -750,23 +730,4 @@ bool call_is_interrupt(Teleport_Express_Call *call)
     return t_flag == 2;
     // read_from_guest_mem(mem, &t_flag, __builtin_offsetof(Teleport_Express_Flag_Buf, id), 8);
     // printf("write flag id %llu %llu\n", t_flag, call->thread_id);
-}
-
-void *call_para_to_ptr(Call_Para para, int *need_free) {
-    size_t ptr_len = 0;
-    unsigned char *ptr = NULL;
-
-    ptr_len = para.data_len;
-
-    int null_flag = 0;
-    ptr = get_direct_ptr(para.data, &null_flag);
-    if (unlikely(ptr == NULL)) {
-        if (ptr_len != 0 && null_flag == 0) {
-            ptr = g_malloc(ptr_len);
-            *need_free = 1;
-            read_from_guest_mem(para.data, ptr, 0, para.data_len);
-        }
-    }
-
-    return ptr;
 }

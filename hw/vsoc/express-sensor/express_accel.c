@@ -10,7 +10,7 @@
  */
 
 // #define STD_DEBUG_LOG
-
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-sensor/express_accel.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
@@ -45,6 +45,7 @@ static Accel_Context static_accel_context = {
         .voltage = 230000,
         .enable = 1}};
 
+#ifdef ENABLE_SNAPSHOT
 
 void save_accel_data(QEMUFile *f, Express_Accel_Data *data)
 {
@@ -99,6 +100,8 @@ void load_accel_context(QEMUFile *f){
     }
 }
 
+#endif
+
 void express_accel_status_changed(int status_type, int value)
 {
 
@@ -138,11 +141,11 @@ void sync_express_accel_status(void)
         return;
     }
 
-    write_to_guest_mem(static_accel_context.guest_buffer, &(static_accel_context.data), 0, sizeof(Express_Accel_Data));
+    g_ops.write_to_guest_mem(static_accel_context.guest_buffer, &(static_accel_context.data), 0, sizeof(Express_Accel_Data));
 
     static_accel_context.need_sync = false;
 
-    set_express_device_irq((Device_Context *)&static_accel_context, 0, sizeof(Express_Accel_Data));
+    g_ops.set_express_device_irq((Device_Context *)&static_accel_context, 0, sizeof(Express_Accel_Data));
 }
 
 static void accel_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)

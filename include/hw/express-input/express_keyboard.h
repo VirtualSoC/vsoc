@@ -2,10 +2,6 @@
 #define EXPRESS_KEYBOARD_H
 
 #include "hw/teleport-express/express_log.h"
-
-#include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_register.h"
-
 #include "hw/express-input/express_touchscreen.h"
 
 // 这个范围内，所有glfw所转化的按键都能传过去，且linux系统基本的按键都能传过去

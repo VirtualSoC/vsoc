@@ -1,13 +1,7 @@
 #ifndef DEVICE_INTERFACE_H
 #define DEVICE_INTERFACE_H
 #include "hw/express-network/express_modem.h"
-#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#define CIMGUI_USE_GLFW
-#define CIMGUI_USE_OPENGL3
-#include "hw/express-gpu/cimgui/cimgui.h"
-#include "hw/express-gpu/cimgui/cimgui_impl.h"
-#include <stdbool.h>
-#include <GLFW/glfw3.h>
+#include "include/hw/express-network/em_input.h"
 
 typedef struct Accelerometer_Data {
     float scale;
@@ -82,8 +76,6 @@ typedef struct Light_Data {
     float scale;
     int input;
 } Light_Data;
-
-#include "include/hw/express-network/em_input.h"
 
 typedef struct Device_Interface_Data{
     Accelerometer_Data *acc_data;

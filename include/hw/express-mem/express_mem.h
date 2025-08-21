@@ -2,7 +2,6 @@
 #define EXPRESS_MEM_H
 
 #include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_call.h"
 #include "hw/express-gpu/egl_surface.h"
 
 typedef struct Gralloc_Gbuffer_Info

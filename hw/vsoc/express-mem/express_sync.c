@@ -11,10 +11,11 @@
  */
 
 // #define STD_DEBUG_LOG
-
+#include "hw/teleport-express/express_log.h"
+#include "hw/teleport-express/express_platform.h"
+#include "hw/teleport-express/express_event.h"
 #include "hw/express-mem/express_sync.h"
 #include "hw/express-gpu/express_gpu_main_window.h"
-#include "hw/teleport-express/express_event.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
 #define MAX_SYNC_NUM 512
@@ -54,6 +55,7 @@ int sync_wait_cnt = 0;
         qatomic_cmpxchg(&(flag_data->sync_status_id[sync_id / 32]), temp_sync_status, (temp_sync_status | (1L << (sync_id % 32)))); \
     } while (!SYNC_FLAG_SIGNAL(flag_data, sync_id))
 
+#ifdef ENABLE_SNAPSHOT
 
 void save_sync_flag_data(QEMUFile *f, Sync_Flag_Data *data)
 {
@@ -129,6 +131,7 @@ void load_sync_context(QEMUFile *f){
 
 }
 
+#endif
 
 void signal_express_sync(int sync_id, bool need_gpu_sync)
 {
@@ -171,7 +174,7 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
     uint32_t guest_waits = qatomic_xchg(&static_sync_context.sync_data->guest_waits, 0);
 
     if (guest_waits > 0) {
-        ret = set_express_device_irq((Device_Context *)&static_sync_context, 0, sizeof(Sync_Flag_Data));
+        ret = g_ops.set_express_device_irq((Device_Context *)&static_sync_context, 0, sizeof(Sync_Flag_Data));
     }
 
     if (ret != IRQ_SET_OK) {

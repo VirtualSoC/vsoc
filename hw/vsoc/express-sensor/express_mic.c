@@ -10,7 +10,8 @@
  */
 
 // #define STD_DEBUG_LOG
-
+#include "hw/teleport-express/express_log.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-sensor/express_mic.h"
 // https://github.com/mackron/miniaudio a pure header implemented audio library
 #define MINIAUDIO_IMPLEMENTATION
@@ -169,13 +170,13 @@ void sync_express_mic_status(void)
         return;
     }
 
-    write_to_guest_mem(static_mic_context.guest_buffer, &(static_mic_context.data), 0, sizeof(Express_Mic_Data));
+    g_ops.write_to_guest_mem(static_mic_context.guest_buffer, &(static_mic_context.data), 0, sizeof(Express_Mic_Data));
 
     static_mic_context.need_sync = false;
 
     // printf("mic irq send ok\n");
 
-    set_express_device_irq((Device_Context *)&static_mic_context, 0, sizeof(Express_Mic_Data));
+    g_ops.set_express_device_irq((Device_Context *)&static_mic_context, 0, sizeof(Express_Mic_Data));
 }
 
 static void mic_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)

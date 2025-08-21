@@ -14,5 +14,4 @@ express_network.add(when: 'CONFIG_EXPRESS_NETWORK',
                ))
 
 softmmu_ss.add_all(express_network)
-
-
+vsoc_ss.add_all(express_network)

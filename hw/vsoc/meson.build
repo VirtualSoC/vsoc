@@ -1,6 +1,7 @@
 softmmu_ss.add(when: 'CONFIG_TELEPORT_EXPRESS_PCI', if_true: files('teleport_express_pci.c'))
 
 teleport_express = ss.source_set()
+vsoc_ss = ss.source_set()
 
 teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                if_true: files(
@@ -20,11 +21,13 @@ if targetos == 'windows'
                 if_true: files(
                     'express_event_win32.c',
                 ))
+    vsoc_ss.add(files('express_event_win32.c'))
 else
     teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                 if_true: files(
                     'express_event_posix.c',
                 ))
+    vsoc_ss.add(files('express_event_posix.c'))
 endif
 
 softmmu_ss.add_all(teleport_express)
@@ -37,3 +40,8 @@ subdir('express-network')
 subdir('express-camera')
 subdir('express-mem')
 
+vsoc_ss.add(files(
+    'express_platform.c',
+    'express_log.c',
+    'express_subprocess.c',
+))

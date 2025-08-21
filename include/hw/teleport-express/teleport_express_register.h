@@ -6,13 +6,6 @@
 #include "hw/teleport-express/teleport_express_call.h"
 
 
-#define IRQ_SET_OK 0
-#define IRQ_NOT_ENABLE -1
-#define IRQ_NOT_READY -2
-#define IRQ_RELEASED -3
-
-
-
 void register_input_buffer_call(VirtIODevice *vdev, VirtQueue *vq);
 
 // void send_express_device_irq(Teleport_Express_Call *irq_call, int buf_index, int len);

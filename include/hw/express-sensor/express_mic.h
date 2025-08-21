@@ -1,10 +1,6 @@
 #ifndef EXPRESS_MICROPHONE_H
 #define EXPRESS_MICROPHONE_H
 
-#include "hw/teleport-express/express_log.h"
-
-#include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_register.h"
 
 void express_mic_status_changed(const void *buf, int size);
 

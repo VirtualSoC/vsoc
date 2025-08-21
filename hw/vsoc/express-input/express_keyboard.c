@@ -10,7 +10,7 @@
  */
 
 // #define STD_DEBUG_LOG
-
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-input/express_keyboard.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
@@ -45,6 +45,8 @@ static inline Keyboard_Context *get_keyboard_context(GLFWwindow *window)
     }
     return context;
 }
+
+#ifdef ENABLE_SNAPSHOT
 
 void save_keyboard_context(QEMUFile* f){
     // save total keyboard count
@@ -95,6 +97,8 @@ void load_keyboard_context(QEMUFile *f){
     }
 }
 
+#endif
+
 void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods)
 {
     Keyboard_Context *context = get_keyboard_context(window);
@@ -142,7 +146,7 @@ void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int
             {
                 if (glfwGetWindowMonitor(window))
                 {
-                    express_gpu_keep_window_scale = save_scale;
+                    g_ops.express_gpu_keep_window_scale = save_scale;
                     glfwSetWindowMonitor(window, NULL,
                                          windowed_x, windowed_y,
                                          windowed_width, windowed_height, 0);
@@ -156,10 +160,10 @@ void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int
                 if (glfwGetWindowMonitor(window) == NULL)
                 {
                     // 保存这个是否scale，防止全屏时，计算触控区域出现异常
-                    save_scale = express_gpu_keep_window_scale;
+                    save_scale = g_ops.express_gpu_keep_window_scale;
                     glfwGetWindowPos(window, &windowed_x, &windowed_y);
                     glfwGetWindowSize(window, &windowed_width, &windowed_height);
-                    express_gpu_keep_window_scale = false;
+                    g_ops.express_gpu_keep_window_scale = false;
                     ;
                 }
                 glfwSetWindowMonitor(window, monitor,
@@ -221,8 +225,8 @@ void sync_express_keyboard_input(GLFWwindow *window, bool need_send)
 
     if (need_send)
     {
-        write_to_guest_mem(context->guest_buffer, &(context->data), 0, sizeof(Keyboard_Data));
-        set_express_device_irq((Device_Context *)context, 0, sizeof(Keyboard_Data));
+        g_ops.write_to_guest_mem(context->guest_buffer, &(context->data), 0, sizeof(Keyboard_Data));
+        g_ops.set_express_device_irq((Device_Context *)context, 0, sizeof(Keyboard_Data));
     }
 
     context->need_sync = false;

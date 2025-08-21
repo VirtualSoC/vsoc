@@ -558,16 +558,16 @@ static void guest_to_host_dma_task(MemTransferTask *task, void *mapped_addr) {
     {
         for (int i = 0; i < gbuffer->height; i++)
         {
-            // read_from_guest_mem(mem_data, mapped_addr + (gbuffer->height - i - 1) * row_byte_len, i * gbuffer->stride, row_byte_len);
-            read_from_guest_mem(mem_data, mapped_addr + i * row_byte_len, i * gbuffer->stride, row_byte_len);
+            // g_ops.read_from_guest_mem(mem_data, mapped_addr + (gbuffer->height - i - 1) * row_byte_len, i * gbuffer->stride, row_byte_len);
+            g_ops.read_from_guest_mem(mem_data, mapped_addr + i * row_byte_len, i * gbuffer->stride, row_byte_len);
         }
     }
     else
     {
-        read_from_guest_mem(mem_data, mapped_addr, 0, all_pixel_size);
+        g_ops.read_from_guest_mem(mem_data, mapped_addr, 0, all_pixel_size);
         // for (int i = 0; i < gbuffer->height; i++)
         // {
-        //     read_from_guest_mem(mem_data, mapped_addr + (gbuffer->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
+        //     g_ops.read_from_guest_mem(mem_data, mapped_addr + (gbuffer->height - i - 1) * row_byte_len, i * row_byte_len, row_byte_len);
         // }
     }
 }
@@ -679,13 +679,13 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
     {
         for (int i = 0; i < info.height; i++)
         {
-            // read_from_guest_mem(guest_mem, map_pointer + (height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
-            write_to_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
+            // g_ops.read_from_guest_mem(guest_mem, map_pointer + (height - i - 1) * row_byte_len, i * guest_row_byte_len, row_byte_len);
+            g_ops.write_to_guest_mem(mem_data, map_pointer + i * row_byte_len, i * info.stride, row_byte_len);
         }
     }
     else
     {
-        write_to_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
+        g_ops.write_to_guest_mem(mem_data, map_pointer, 0, all_pixel_size);
     }
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);

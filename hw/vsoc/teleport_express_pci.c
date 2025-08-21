@@ -9,13 +9,15 @@
  *
  */
 // #define STD_DEBUG_LOG
-
+//#include "hw/teleport-express/express_log.h"
 #include "hw/teleport-express/teleport_express_pci.h"
 #include "hw/teleport-express/teleport_express_call.h"
-//#include "hw/teleport-express/express_log.h"
+#include "hw/teleport-express/teleport_express_register.h"
 #include "hw/teleport-express/express_device.h"
 #include "hw/teleport-express/express_platform.h"
+
 #include "qapi/error.h"
+#include "sysemu/runstate.h"
 
 char *kernel_load_express_driver_names = NULL;
 int driver_names_len = 0;
@@ -365,6 +367,9 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
     ops.read_from_guest_mem = read_from_guest_mem;
     ops.write_to_guest_mem = write_to_guest_mem;
+    ops.set_express_device_irq = set_express_device_irq;
+    ops.notify_shutdown = qemu_system_shutdown_request;
+    ops.force_shutdown = qemu_system_powerdown_request;
 
     init_express_platform(ops);
 

@@ -10,10 +10,9 @@
  */
 
 // #define STD_DEBUG_LOG
+#include "hw/teleport-express/express_platform.h"
 #include "hw/teleport-express/express_log.h"
 #include "hw/express-input/express_touchscreen.h"
-#include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_register.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
 typedef struct Touchscreen_Data {
@@ -264,7 +263,7 @@ void express_touchscreen_mouse_move_handle(GLFWwindow *window, double xpos, doub
 
     int real_display_width = context->window_width;
     int real_display_height = context->window_height;
-    if (express_gpu_keep_window_scale)
+    if (g_ops.express_gpu_keep_window_scale)
     {
         context->current_finger_xpos = (int)((double)xpos / context->window_width * context->touchscreen_width);
         context->current_finger_ypos = (int)((double)ypos / context->window_height * context->touchscreen_height);
@@ -449,7 +448,7 @@ void express_touchscreen_touch_handle(GLFWwindow *window, int touch_id, int acti
 
     int real_display_width = context->window_width;
     int real_display_height = context->window_height;
-    if (express_gpu_keep_window_scale)
+    if (g_ops.express_gpu_keep_window_scale)
     {
         context->current_finger_xpos = (int)((double)xpos / context->window_width * context->touchscreen_width);
         context->current_finger_ypos = (int)((double)ypos / context->window_height * context->touchscreen_height);
@@ -656,8 +655,8 @@ void sync_express_touchscreen_input(GLFWwindow *window, bool need_send)
     if (need_send)
     {
         LOGD("touchscreen id %d sending touchscreen data to guest", context->id);
-        write_to_guest_mem(context->guest_buffer, &(context->data), 0, sizeof(Touchscreen_Data));
-        set_express_device_irq((Device_Context *)context, 0, sizeof(Touchscreen_Data));
+        g_ops.write_to_guest_mem(context->guest_buffer, &(context->data), 0, sizeof(Touchscreen_Data));
+        g_ops.set_express_device_irq((Device_Context *)context, 0, sizeof(Touchscreen_Data));
     }
 
     context->need_sync = false;
@@ -706,6 +705,8 @@ static Device_Context *get_touchscreen_device_context(uint64_t device_id, uint64
     return (Device_Context *)context;
 }
 
+#ifdef ENABLE_SNAPSHOT
+
 void save_touchscreen_context(QEMUFile* f) {
     // save total touchscreen count
     int context_count = (int)g_hash_table_size(g_touchscreen_contexts);
@@ -753,6 +754,8 @@ void load_touchscreen_context(QEMUFile *f){
         g_hash_table_insert(g_touchscreen_contexts, GUINT_TO_POINTER(context->id), (gpointer)context);
     }
 }
+
+#endif
 
 static Express_Device_Info express_touchscreen_info = {
     .enable_default = true,

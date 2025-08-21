@@ -1,11 +1,7 @@
 #ifndef EXPRESS_SYNC_H
 #define EXPRESS_SYNC_H
 
-#include "hw/teleport-express/express_log.h"
-
-#include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_register.h"
-
+#include "hw/express-gpu/express_gpu_snapshot.h"
 
 void signal_express_sync(int sync_id, bool need_gpu_sync);
 void wait_for_express_sync(int sync_id, bool need_gpu_sync);

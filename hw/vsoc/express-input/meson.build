@@ -10,5 +10,4 @@ express_input.add(when: 'CONFIG_EXPRESS_INPUT',
                ))
 
 softmmu_ss.add_all(express_input)
-
-
+vsoc_ss.add_all(express_input)

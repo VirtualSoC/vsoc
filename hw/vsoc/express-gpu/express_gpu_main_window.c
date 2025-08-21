@@ -189,55 +189,12 @@ void express_gpu_shutdown_notify_callback()
             LOGW("wait for main window thread exit timeout!");
         }
     }
-
+#ifdef ENABLE_SNAPSHOT
     if (g_ops.teleport_express_save_snapshot) {
         Error *err = NULL;
         save_snapshot("snapshot", true, NULL, false, NULL, &err);        
     }
-}
-
-int save_gbuffer_global_map(QEMUFile *f)
-{
-    ATOMIC_LOCK(gbuffer_global_map_lock);
-
-    GHashTableIter iter;
-    gpointer key, value;
-    guint num_entries = g_hash_table_size(gbuffer_global_map);
-    LOGD("in save_gbuffer_global_map with %d", num_entries);
-    qemu_put_be32(f, num_entries);
-    g_hash_table_iter_init(&iter, gbuffer_global_map);
-    while (g_hash_table_iter_next(&iter, &key, &value)) {
-        Hardware_Buffer *global_gbuffer = (Hardware_Buffer *)value;
-        // qemu_put_be64(f, (uint64_t)key);
-        LOGI("gbuffer id is %llx %llx", key, global_gbuffer->gbuffer_id);
-        save_hardware_buffer(f, global_gbuffer);   
-    }
-
-    ATOMIC_UNLOCK(gbuffer_global_map_lock);
-
-    return 0;
-}
-
-int load_gbuffer_global_map(QEMUFile *f) {
-    ATOMIC_LOCK(gbuffer_global_map_lock);
-
-    GHashTable *gbuffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);
-    guint num_entries = qemu_get_be32(f);
-    uint64_t gbuffer_id;
-    Hardware_Buffer *global_gbuffer = g_malloc0(sizeof(Hardware_Buffer));
-    LOGD("num Hardware_Buffer in load is %d", num_entries);
-    for (guint i = 0; i < num_entries; i++) {
-        // gbuffer_id = qemu_get_be64(f);
-        
-        global_gbuffer = load_hardware_buffer(f);
-        LOGD("gbuffer id in load is %lld %lld", gbuffer_id, global_gbuffer->gbuffer_id);
-        g_hash_table_insert(gbuffer_map, GUINT_TO_POINTER(global_gbuffer->gbuffer_id), global_gbuffer);
-    }
-    gbuffer_global_map = gbuffer_map;
-
-    ATOMIC_UNLOCK(gbuffer_global_map_lock);
-
-    return 0;
+#endif
 }
 
 static void handle_child_window_event(void)
@@ -824,3 +781,51 @@ void send_message_to_main_window(int message_code, void *data)
         glfwPostEmptyEvent();
     }
 }
+
+#ifdef ENABLE_SNAPSHOT
+
+int save_gbuffer_global_map(QEMUFile *f)
+{
+    ATOMIC_LOCK(gbuffer_global_map_lock);
+
+    GHashTableIter iter;
+    gpointer key, value;
+    guint num_entries = g_hash_table_size(gbuffer_global_map);
+    LOGD("in save_gbuffer_global_map with %d", num_entries);
+    qemu_put_be32(f, num_entries);
+    g_hash_table_iter_init(&iter, gbuffer_global_map);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Hardware_Buffer *global_gbuffer = (Hardware_Buffer *)value;
+        // qemu_put_be64(f, (uint64_t)key);
+        LOGI("gbuffer id is %llx %llx", key, global_gbuffer->gbuffer_id);
+        save_hardware_buffer(f, global_gbuffer);   
+    }
+
+    ATOMIC_UNLOCK(gbuffer_global_map_lock);
+
+    return 0;
+}
+
+int load_gbuffer_global_map(QEMUFile *f) {
+    ATOMIC_LOCK(gbuffer_global_map_lock);
+
+    GHashTable *gbuffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);
+    guint num_entries = qemu_get_be32(f);
+    uint64_t gbuffer_id;
+    Hardware_Buffer *global_gbuffer = g_malloc0(sizeof(Hardware_Buffer));
+    LOGD("num Hardware_Buffer in load is %d", num_entries);
+    for (guint i = 0; i < num_entries; i++) {
+        // gbuffer_id = qemu_get_be64(f);
+        
+        global_gbuffer = load_hardware_buffer(f);
+        LOGD("gbuffer id in load is %lld %lld", gbuffer_id, global_gbuffer->gbuffer_id);
+        g_hash_table_insert(gbuffer_map, GUINT_TO_POINTER(global_gbuffer->gbuffer_id), global_gbuffer);
+    }
+    gbuffer_global_map = gbuffer_map;
+
+    ATOMIC_UNLOCK(gbuffer_global_map_lock);
+
+    return 0;
+}
+
+#endif

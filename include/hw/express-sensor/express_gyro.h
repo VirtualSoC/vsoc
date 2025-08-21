@@ -1,11 +1,6 @@
 #ifndef EXPRESS_GYRO_H
 #define EXPRESS_GYRO_H
 
-#include "hw/teleport-express/express_log.h"
-
-#include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_register.h"
-
 enum {
     EXPRESS_GYRO_X = 0,
     EXPRESS_GYRO_Y,

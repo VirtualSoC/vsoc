@@ -46,41 +46,6 @@ typedef struct
 RECYCLE_EVENT recycle_event;
 
 /**
- * @brief 创建一个thread_context，并根据这个context新建一个线程
- *
- * @param context 需要初始化的线程context
- */
-Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info)
-{
-
-    Thread_Context *context = g_malloc0(len);
-    context->device_id = device_id;
-    context->thread_id = thread_id;
-
-    context->read_loc = 0;
-    context->write_loc = 0;
-    // context->atomic_event_lock = 0;
-    context->init = 0;
-    context->thread_run = 1;
-
-    context->context_init = info->context_init;
-    context->context_destroy = info->context_destroy;
-    context->call_handler = info->call_handler;
-
-    context->teleport_express_device = teleport_express_device;
-
-//线程缓冲区事件初始化
-    context->data_event = create_event(0, 0);
-
-    char thread_name[32];
-    snprintf(thread_name, sizeof(thread_name), "%s_handle_thread", info->name);
-
-    qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
-
-    return context;
-}
-
-/**
  * @brief 把包装好的call推送到相应的线程
  *
  * @param call

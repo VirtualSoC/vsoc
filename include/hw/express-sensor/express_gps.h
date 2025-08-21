@@ -1,11 +1,6 @@
 #ifndef EXPRESS_GPS_H
 #define EXPRESS_GPS_H
 
-#include "hw/teleport-express/express_log.h"
-
-#include "hw/teleport-express/express_platform.h"
-#include "hw/teleport-express/teleport_express_register.h"
-
 enum {
     EXPRESS_GPS_LATITUDE = 0,
     EXPRESS_GPS_LONGITUDE,

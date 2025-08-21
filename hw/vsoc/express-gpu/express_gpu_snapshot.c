@@ -29,8 +29,6 @@
 #include "exec/cpu-common.h"
 
 
-
-
 //ztodo: 这些资源也得实现保存和加载
 // GList *native_shaders = NULL;
 // int native_shaders_num = 0;
@@ -41,9 +39,11 @@ GHashTable *loaded_window_buffers;
 // int g_resource_count[NUM_RESOURCES] = { 0 };
 int g_resource_locker[NUM_RESOURCES] = { 0 }; 
 
-VirtIODevice *startup_vdev;
-VirtQueue *startup_out_data_queue;
-VirtQueue *startup_in_data_queue;
+#ifdef ENABLE_SNAPSHOT
+
+extern VirtIODevice *startup_vdev;
+extern VirtQueue *startup_out_data_queue;
+extern VirtQueue *startup_in_data_queue;
 
 //hashtable肯定不是效率最高的，先这样吧.直接用数组肯定是最快的
 static GHashTable *g_resource_ids_map[NUM_RESOURCES] = { NULL };
@@ -4388,3 +4388,4 @@ eglConfig* load_egl_config(QEMUFile *f) {
 //     return compare_two_textures(native_texture, current_texture);
 
 // }
+#endif

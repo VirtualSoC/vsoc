@@ -10,7 +10,8 @@
  */
 
 // #define STD_DEBUG_LOG
-
+#include "hw/teleport-express/express_log.h"
+#include "hw/teleport-express/express_platform.h"
 #include "hw/express-sensor/express_gyro.h"
 #include "hw/express-gpu/express_gpu_snapshot.h"
 
@@ -46,6 +47,8 @@ static Gyro_Context static_gyro_context = {
         .enable = 1}};
 
 static bool gyro_data_init = false;
+
+#ifdef ENABLE_SNAPSHOT
 
 void save_gyro_data(QEMUFile *f, Express_Gyro_Data *data)
 {
@@ -100,6 +103,8 @@ void load_gyro_context(QEMUFile *f){
     }
 }
 
+#endif
+
 void express_gyro_status_changed(int status_type, int value)
 {
 
@@ -139,13 +144,13 @@ void sync_express_gyro_status(void)
         return;
     }
 
-    write_to_guest_mem(static_gyro_context.guest_buffer, &(static_gyro_context.data), 0, sizeof(Express_Gyro_Data));
+    g_ops.write_to_guest_mem(static_gyro_context.guest_buffer, &(static_gyro_context.data), 0, sizeof(Express_Gyro_Data));
 
     static_gyro_context.need_sync = false;
 
     express_printf("gyro irq send ok\n");
 
-    set_express_device_irq((Device_Context *)&static_gyro_context, 0, sizeof(Express_Gyro_Data));
+    g_ops.set_express_device_irq((Device_Context *)&static_gyro_context, 0, sizeof(Express_Gyro_Data));
 }
 
 static void gyro_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
