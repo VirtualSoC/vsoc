@@ -3047,7 +3047,6 @@ size_t virtio_feature_get_config_size(const VirtIOFeature *feature_sizes,
 
 int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 {
-    LOGI("in virtio load %s device", vdev->name);
     int i, ret;
     int32_t config_len;
     uint32_t num;
@@ -3070,7 +3069,6 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f, int version_id)
 
     qemu_get_8s(f, &vdev->status);
     qemu_get_8s(f, &vdev->isr);
-    LOGI("in virtio load %s device %d %d", vdev->name, (int)vdev->status, (int)vdev->isr);
     qemu_get_be16s(f, &vdev->queue_sel);
     if (vdev->queue_sel >= VIRTIO_QUEUE_MAX) {
         return -1;
