@@ -216,7 +216,7 @@ void set_input_event_startup(void) {
 void *input_sync_thread(void *opaque)
 {
     input_event = create_event(0, 0);
-    while (!teleport_express_should_stop)
+    while (!platform_should_stop())
     {
         // 有一个中断时，之后的1ms超时内的中断都不再使能中断的打断，以防止中断过于频繁
         int ret = wait_event(input_event, 1);

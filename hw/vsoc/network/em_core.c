@@ -31,9 +31,6 @@
 #define  CALL_DELAY_DIAL   1000
 #define  CALL_DELAY_ALERT  1000
 
-/* The interface exposed to QEMU command line arguments */
-char *express_ruim_file = NULL;
-
 #include "hw/vsoc/network/em_config.h"
 
 #define EM_RET(str) return em_printf(modem, str) 
@@ -318,7 +315,7 @@ em_reset( Express_Modem *modem )
 {
     const char *tmp;
     int i;
-    modem->ruim = ruim_create_from_file(express_ruim_file ? express_ruim_file : "./ruim.txt");
+    modem->ruim = ruim_create_from_file(g_ops.express_ruim_file);
     modem->radio_state = A_RADIO_STATE_OFF;
     modem->send_phys_channel_cfg_unsol = 0;
     modem->wait_sms    = 0;

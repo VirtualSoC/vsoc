@@ -528,7 +528,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
 
             //     elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
             //     cnt_timeout++;
-            //     if(teleport_express_should_stop)
+            //     if(platform_should_stop())
             //     {
             //         return NULL;
             //     }

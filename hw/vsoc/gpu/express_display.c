@@ -28,11 +28,6 @@
 #include "monitor/monitor.h"
 #include <math.h>
 
-int express_gpu_window_width;
-int express_gpu_window_height;
-bool express_display_headless_mode;
-bool express_gpu_keep_window_scale;
-
 static GHashTable *g_display_contexts = NULL;
 static GMutex g_display_contexts_mutex;
 
@@ -79,7 +74,7 @@ static bool display_call_handler(Thread_Context *context, uint64_t id, const Cal
             g_free(layers); ok = false; break;
         }
         TIMER_START_ON_THREAD(compose_layer);
-        if (!express_display_headless_mode) {
+        if (!g_ops.express_display_headless_mode) {
             handle_display_rotation(disp, layers);
         }
         opengl_paint_composer_layers(disp, layers);
@@ -197,11 +192,11 @@ static void display_context_init(Display_Context *disp)
         disp->info.refresh_rate_bits = 0x1ULL << ((refresh_rate - 15) / 15);
     }
 
-    disp->window_width = express_gpu_window_width;
-    disp->window_height = express_gpu_window_height;
+    disp->window_width = g_ops.express_gpu_window_width;
+    disp->window_height = g_ops.express_gpu_window_height;
 
-    disp->content_w = express_gpu_window_width;
-    disp->content_h = express_gpu_window_height;
+    disp->content_w = g_ops.express_gpu_window_width;
+    disp->content_h = g_ops.express_gpu_window_height;
 
     // 新建一个context用于与纹理交互
     if (disp->window == NULL)
@@ -209,7 +204,7 @@ static void display_context_init(Display_Context *disp)
         char name[64];
         sprintf(name, "vSoC:%s", disp->info.name);
 
-        if (express_display_headless_mode) {
+        if (g_ops.express_display_headless_mode) {
             disp->window = get_native_opengl_context(0);
             egl_makeCurrent(disp->window);
         } else {
@@ -313,7 +308,7 @@ static void display_context_destroy(Thread_Context *context)
     glDeleteProgram(disp->programID);
 
     if (disp->window != NULL) {
-        if (express_display_headless_mode) {
+        if (g_ops.express_display_headless_mode) {
             egl_makeCurrent(NULL);
             release_native_opengl_context(disp->window, 0);
         } else {
@@ -515,7 +510,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
 static void display_present(Display_Context *disp)
 {
-    if (!express_display_headless_mode) {
+    if (!g_ops.express_display_headless_mode) {
         glfwSwapBuffers(disp->window);
     }
 
@@ -530,7 +525,7 @@ static void display_present(Display_Context *disp)
         disp->last_fps = fps;
         LOGD("display %s: composer draw avg %.2f ms %.2f FPS", disp->info.name, gen_frame_time_avg, fps);
         sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, fps);
-        if (!express_display_headless_mode) {
+        if (!g_ops.express_display_headless_mode) {
             glfwSetWindowTitle(disp->window, name);
         }
 
@@ -615,7 +610,7 @@ static void window_size_change_callback(GLFWwindow *window, int width, int heigh
         x = (disp->window_width - temp_window_width) / 2;
     }
 
-    if (express_gpu_keep_window_scale)
+    if (g_ops.express_gpu_keep_window_scale)
     {
         //printf("set window size %d %d  %d %d %d %d %d %dkeep scale\n", window_width, window_height,temp_window_width,temp_window_height,disp->info.pixel_width,disp->info.pixel_height,x,y);
         disp->window_width = temp_window_width;
@@ -757,7 +752,7 @@ static void init_display_options(void) {
     touchscreen_prop.count = count;
     get_display_info(0, &touchscreen_prop.width, &touchscreen_prop.height, NULL);
 
-    express_keyboard_count = count;
+    g_ops.express_keyboard_count = count;
 }
 
 static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
@@ -791,7 +786,7 @@ static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
 }
 
 void handle_display_event(void) {
-    if (express_display_headless_mode || !g_display_contexts) {
+    if (g_ops.express_display_headless_mode || !g_display_contexts) {
         return;
     }
 

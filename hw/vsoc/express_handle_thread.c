@@ -13,7 +13,6 @@
 
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/express_handle_thread.h"
-#include "hw/vsoc/teleport_express_call.h"
 #include "hw/vsoc/express_event.h"
 
 /**
@@ -22,7 +21,7 @@
  * @param context
  * @return Teleport_Express_Call*
  */
-Teleport_Express_Call *call_pop(Thread_Context *context)
+void *call_pop(Thread_Context *context)
 {
     while (context->write_loc == context->read_loc) //因为是竞争关系所以要用while循环
     {
@@ -35,12 +34,12 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
             wait_event(context->data_event, 0xffffffff);
         }
 
-        if (teleport_express_should_stop)
+        if (platform_should_stop())
         {
             return NULL;
         }
     }
-    Teleport_Express_Call *ret = context->call_buf[context->read_loc];
+    void *ret = context->call_buf[context->read_loc];
 
     if (ret == NULL) {
         LOGW("call_pop obtained empty call!");
@@ -66,9 +65,8 @@ Teleport_Express_Call *call_pop(Thread_Context *context)
  * @param context
  * @param call
  */
-void call_push(Thread_Context *context, Teleport_Express_Call *call)
+void call_push(Thread_Context *context, void *call)
 {
-    LOGD("doing call push device id %llu thread_id %llu %08x fun id %llu unique id %08x thread run %d %d %d", context->device_id, call->thread_id, call->thread_id, call->id, call->unique_id, context->thread_run, context->write_loc, context->read_loc);
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
 //缓冲区为满
@@ -77,7 +75,7 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
             wait_event(context->data_event, 0xffffffff);
         }
 
-        if (teleport_express_should_stop)
+        if (platform_should_stop())
         {
             return;
         }
@@ -86,12 +84,9 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
     {
         printf("error push find not null\n");
     }
-    //LOGI("pushing call event id %d",call->id);
     context->call_buf[context->write_loc] = call;
 
     context->write_loc = (context->write_loc + 1) % CALL_BUF_SIZE;
-
-    LOGD("finish call push device id %llu thread_id %llu %08x fun id %llu unique id %08x loc %d %d", context->device_id, call->thread_id, call->thread_id, call->id, call->unique_id, context->write_loc, context->read_loc);
 
     //通知已经非空
     if (context->data_event != NULL)
@@ -100,69 +95,4 @@ void call_push(Thread_Context *context, Teleport_Express_Call *call)
     }
 
     return;
-}
-
-/**
- * @brief 处理线程运行函数，分发线程会分发call到这个线程，然后调用call_handler进行处理
- *
- * @param opaque
- * @return void*
- */
-void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
-{
-
-    Thread_Context *context = (Thread_Context *)opaque;
-
-    if (context->context_init != NULL)
-    {
-        context->context_init(context);
-    }
-    context->thread_run = 2;
-    context->init = 1;
-    while (context->thread_run)
-    {
-        Teleport_Express_Call *call = call_pop(context);
-
-        if (teleport_express_should_stop)
-        {
-            break;
-        }
-
-        if (call == NULL)
-        {
-            continue;
-        }
-
-        if (call->is_end)
-        {
-            LOGD("thread context %llx call end thread_id %lld process_id %lld", (uint64_t)context, call->thread_id, call->process_id);
-            call->callback(call, 0);
-            context->thread_run = 0;
-            break;
-        }
-
-        //实际对每个call调用的操作
-        if (context->call_handler != NULL)
-        {
-            if (GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
-                cluster_decode_invoke(call, context, context->call_handler);
-            } else {
-                Call_Para all_para[MAX_PARA_NUM];
-                get_para_from_call(call, all_para, MAX_PARA_NUM);
-                bool success = context->call_handler(context, call->id, all_para, call->para_num);
-                call->callback(call, success);
-            }
-        }
-    }
-
-    delete_event(context->data_event);
-
-    if (context->context_destroy != NULL)
-    {
-        context->context_destroy(context);
-    }
-
-    LOGD("handle thread exit %llu", context->thread_id);
-    g_free(context);
-    return NULL;
 }

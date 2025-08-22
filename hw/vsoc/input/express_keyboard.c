@@ -32,9 +32,7 @@ typedef struct Keyboard_Context
     bool need_sync;
 } Keyboard_Context;
 
-int express_keyboard_count = 1;
-bool express_keyboard_finger_replay = false;
-GHashTable *g_keyboard_contexts = NULL;
+static GHashTable *g_keyboard_contexts = NULL;
 
 static inline Keyboard_Context *get_keyboard_context(GLFWwindow *window)
 {
@@ -123,7 +121,7 @@ void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int
 
     // 56是KEY_LEFTALT，不能用于记录（KEY_RIGHTALT是100）
     // record和replay、input只能三选一
-    if (express_keyboard_finger_replay && (mods & GLFW_MOD_ALT) != 0 && linux_code < MAX_RECORD_SLOT && linux_code != KEY_LEFTALT)
+    if (g_ops.express_keyboard_finger_replay && (mods & GLFW_MOD_ALT) != 0 && linux_code < MAX_RECORD_SLOT && linux_code != KEY_LEFTALT)
     {
         if (action == GLFW_PRESS)
         {
@@ -279,8 +277,8 @@ static Express_Device_Info express_keyboard_info = {
     .get_device_context = get_keyboard_device_context,
     .buffer_register = keyboard_buffer_register,
 
-    .static_prop = &express_keyboard_count,
-    .static_prop_size = sizeof(express_keyboard_count),
+    .static_prop = &g_ops.express_keyboard_count,
+    .static_prop_size = sizeof(g_ops.express_keyboard_count),
 };
 
 EXPRESS_DEVICE_INIT(express_keyboard, &express_keyboard_info)

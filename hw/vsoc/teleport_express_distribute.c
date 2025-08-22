@@ -191,7 +191,7 @@ void *call_distribute_thread(void *opaque)
     while (qatomic_cmpxchg(&atomic_distribute_thread_running, 0, 1) != 0)
         ;
 #endif
-    while (e->distribute_thread_run && !teleport_express_should_stop)
+    while (e->distribute_thread_run && !platform_should_stop())
     {
 
         int has_handle_flag = 0;
@@ -233,7 +233,7 @@ void *call_distribute_thread(void *opaque)
 #endif
             //休眠采用可以被其他线程打断的休眠，主要是被处理线程打断，打断的目的也是为了减小延迟
             distribute_wait();
-            if (teleport_express_should_stop)
+            if (platform_should_stop())
             {
                 return NULL;
             }

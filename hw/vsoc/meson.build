@@ -44,4 +44,5 @@ subdir('mem')
 vsoc_ss.add(files(
     'express_log.c',
     'express_ipc.c',
+    'express_handle_thread.c',
 ))

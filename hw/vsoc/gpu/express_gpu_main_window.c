@@ -22,9 +22,6 @@
 #include "hw/vsoc/gpu/express_display.h"
 #include "migration/snapshot.h"
 
-
-GAsyncQueue *main_window_event_queue = NULL;
-
 Static_Context_Values *preload_static_context_value = NULL;
 
 #ifdef ENABLE_DSA
@@ -33,14 +30,14 @@ int DSA_enable = 1;
 int DSA_enable = 0;
 #endif
 
-bool express_gpu_open_shader_binary = true;
-
-int main_window_run = 0;
-int device_interface_run = 0;
 int host_opengl_version = 0;
+
+static int main_window_run = 0;
+static int device_interface_run = 0;
 
 static GHashTable *gbuffer_global_map = NULL;
 static GHashTable *gbuffer_global_types = NULL;
+static GAsyncQueue *main_window_event_queue = NULL;
 
 static int gbuffer_global_map_lock = 0;
 
@@ -368,7 +365,7 @@ static void static_value_prepare(void)
     }
 
     //@todo 增加换硬件后暂时移除binary的功能
-    if (!express_gpu_open_shader_binary)
+    if (!g_ops.express_gpu_open_shader_binary)
     {
         preload_static_context_value->num_program_binary_formats = 0;
         preload_static_context_value->num_shader_binary_formats = 0;

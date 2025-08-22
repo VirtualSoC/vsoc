@@ -4,9 +4,10 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "hw/vsoc/express_log.h"
+#include "hw/vsoc/express_platform.h"
 #include "hw/vsoc/gpu/egl_define.h"
 #include "hw/vsoc/gpu/egl_window.h"
-#include "hw/vsoc/express_log.h"
 
 #include <windows.h>
 #include "hw/vsoc/gpu/wglext.h"
@@ -63,8 +64,6 @@ static GHashTable *context_dc_map;
 static int static_pixel_format;
 
 static int static_pbuffer_attribs[3];
-
-extern bool express_gpu_gl_debug_enable;
 
 WGLproc load_wgl_fun(const char *name);
 
@@ -163,7 +162,7 @@ void *egl_createContext(int context_flags)
     int *ptr = attrib_list;
 
     int wgl_context_flags = 0;
-    if ((context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) || express_gpu_gl_debug_enable)
+    if ((context_flags & GL_CONTEXT_FLAG_DEBUG_BIT) || g_ops.express_gpu_gl_debug_enable)
     {
         wgl_context_flags |= WGL_CONTEXT_DEBUG_BIT_ARB;
     }

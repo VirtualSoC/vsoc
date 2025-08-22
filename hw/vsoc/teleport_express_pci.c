@@ -307,45 +307,9 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 
     init_express_driver_names(express_pci);
 
-    // read command line options
-    express_gpu_gl_debug_enable = express_pci->enable_opengl_debug;
-    express_gpu_enable_windowed_mode = express_pci->enable_windowed_mode;
-    express_device_input_window_enable = express_pci->show_device_input_window;
-    teleport_express_save_snapshot = express_pci->save_snapshot;
-    express_gpu_keep_window_scale = express_pci->keep_window_scale;
-    express_gpu_window_width = express_pci->window_width;
-    express_gpu_window_height = express_pci->window_height;
-
-    express_display_pixel_width = express_pci->display_width;
-    express_display_pixel_height = express_pci->display_height;
-    express_display_refresh_rate = express_pci->refresh_rate;
-    express_display_count = express_pci->display_count;
-    express_display_options = express_pci->display_options;
-
-    express_device_log_setting_info.express_gpu_debug_level = express_pci->gpu_debug_level;
-    express_device_log_setting_info.express_gpu_log_to_host = (int)express_pci->gpu_log_to_host;
-    express_device_log_setting_info.express_gpu_log_with_buffer = (int)express_pci->gpu_log_with_buffer;
-    express_device_log_setting_info.express_gpu_open_opengl_trace = (int)express_pci->opengl_trace;
-
-    express_touchscreen_scroll_is_zoom = express_pci->scroll_is_zoom;
-    express_touchscreen_right_click_is_two_finger = express_pci->right_click_is_two_finger;
-    express_touchscreen_scroll_ratio = express_pci->scroll_ratio;
-
-    express_keyboard_finger_replay = express_pci->finger_replay;
-
-    express_display_headless_mode = express_pci->headless_mode;
-
-    express_gpu_open_shader_binary = express_pci->open_shader_binary;
-
-    express_ruim_file = express_pci->ruim_file;
-
-    if (local_error)
-    {
-        error_propagate(errp, local_error);
-        return;
-    }
-
     ExpressPlatformOps ops;
+    memset(&ops, 0, sizeof(ops));
+
     ops.teleport_express_save_snapshot = express_pci->save_snapshot;
     ops.express_gpu_gl_debug_enable = express_pci->enable_opengl_debug;
     ops.express_gpu_enable_windowed_mode = express_pci->enable_windowed_mode;
@@ -357,13 +321,26 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     ops.express_display_pixel_height = express_pci->display_height;
     ops.express_display_refresh_rate = express_pci->refresh_rate;
     ops.express_display_count = express_pci->display_count;
-    ops.express_display_options = express_pci->display_options;
+    if (express_pci->display_options) strncpy(ops.express_display_options, express_pci->display_options, sizeof(ops.express_display_options) - 1);
     ops.express_touchscreen_scroll_is_zoom = express_pci->scroll_is_zoom;
     ops.express_touchscreen_right_click_is_two_finger = express_pci->right_click_is_two_finger;
     ops.express_touchscreen_scroll_ratio = express_pci->scroll_ratio;
     ops.express_keyboard_finger_replay = express_pci->finger_replay;
     ops.express_display_headless_mode = express_pci->headless_mode;
     ops.express_gpu_open_shader_binary = express_pci->open_shader_binary;
+
+    if (express_pci->ruim_file) strncpy(ops.express_ruim_file, express_pci->ruim_file, sizeof(ops.express_ruim_file) - 1);
+
+    express_device_log_setting_info.express_gpu_debug_level = express_pci->gpu_debug_level;
+    express_device_log_setting_info.express_gpu_log_to_host = (int)express_pci->gpu_log_to_host;
+    express_device_log_setting_info.express_gpu_log_with_buffer = (int)express_pci->gpu_log_with_buffer;
+    express_device_log_setting_info.express_gpu_open_opengl_trace = (int)express_pci->opengl_trace;
+
+    if (local_error)
+    {
+        error_propagate(errp, local_error);
+        return;
+    }
 
     ops.read_from_guest_mem = read_from_guest_mem;
     ops.write_to_guest_mem = write_to_guest_mem;

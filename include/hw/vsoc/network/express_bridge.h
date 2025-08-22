@@ -2,12 +2,10 @@
 #define EXPRESS_BRIDGE_H
 
 #include "hw/vsoc/express_platform.h"
-#include "hw/vsoc/teleport_express_register.h"
-#include "hw/vsoc/teleport_express_distribute.h"
+#include "qemu/osdep.h"
+#include "qemu/thread.h"
 
-
-
-typedef struct Birdge_Connection_Context{
+typedef struct Bridge_Connection_Context{
     Device_Context device_context;
     Guest_Mem *guest_data;
 
@@ -16,7 +14,7 @@ typedef struct Birdge_Connection_Context{
     bool read_thread_should_running;
     QemuThread read_thread;
 
-} Birdge_Connection_Context;
+} Bridge_Connection_Context;
 
 typedef struct
 {
@@ -28,7 +26,7 @@ typedef struct
 
     uint64_t thread_id;
 
-    Birdge_Connection_Context connection_context;
+    Bridge_Connection_Context connection_context;
 
 } Bridge_Thread_Context;
 

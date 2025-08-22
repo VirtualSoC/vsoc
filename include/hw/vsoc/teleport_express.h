@@ -61,8 +61,4 @@ typedef struct
 
 } Teleport_Express;
 
-
-extern bool teleport_express_should_stop;
-
-
 #endif //QEMU_TELEPORT_EXPRESS_H

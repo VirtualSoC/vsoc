@@ -20,8 +20,11 @@ if targetos == 'linux'
       pic: true,
   )
 
-  vsoc_dep = declare_dependency(link_with: vsoc_static,
-      dependencies: [cimgui, backtrace, glfw, vulkan, libm, glib, migration, io, chardev, blockdev])
+    # Use link_whole so all objects from vsoc_static are included in the final
+    # executable. This ensures constructor-based device registration (EXPRESS_DEVICE_INIT)
+    # objects like express_gpu.c are not dropped by the linker.
+    vsoc_dep = declare_dependency(link_whole: vsoc_static,
+            dependencies: [cimgui, backtrace, glfw, vulkan, libm, glib, migration, io, chardev, blockdev])
 
   # Build a tiny stub executable to validate static library linkage.
   executable('vsoc-worker',

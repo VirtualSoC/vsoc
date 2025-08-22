@@ -37,7 +37,7 @@ static const char *DCODEC_ID_MAPPING[] = {
     "SetCallbacks",
 };
 
-static bool dcodec_call_handler(struct Thread_Context *_context, uint64_t id, const Call_Para *all_para, int para_num) {
+static bool dcodec_call_handler(Thread_Context *_context, uint64_t id, const Call_Para *all_para, int para_num) {
     DCodecComponent *component = ((Codec_Thread_Context *)_context)->component;
     uint64_t fun_id = GET_FUN_ID(id);
     OMX_ERRORTYPE error = OMX_ErrorNone;

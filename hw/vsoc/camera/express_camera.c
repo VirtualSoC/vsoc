@@ -416,7 +416,7 @@ int list_cameras(void)
     return g_camera_count;
 }
 
-static bool camera_call_handler(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
+static bool camera_call_handler(Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
 {
     Camera_Context *camera_context = &(((Camera_Thread_Context *)context)->ctx);
     if (!camera_context) {

@@ -82,7 +82,7 @@ static char *copy_test_buf = NULL;
 static int copy_test_buf_len = 0;
 
 void call_printf_flush(void);
-void log_init(struct Thread_Context *context);
+void log_init(Thread_Context *context);
 /**
  * @brief 用于替换printf的空函数，方便关掉标准输出
  *
@@ -100,7 +100,7 @@ int null_printf(const char *a, ...)
  *
  * @param context
  */
-void log_init(struct Thread_Context *context)
+void log_init(Thread_Context *context)
 {
     if (print_buf == NULL)
     {

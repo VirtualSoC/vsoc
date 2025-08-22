@@ -111,44 +111,8 @@ typedef struct Call_Para
     size_t data_len;
 } Call_Para;
 
-typedef struct Teleport_Express_Queue_Elem Teleport_Express_Queue_Elem;
-typedef struct VirtQueue VirtQueue;
-typedef struct VirtIODevice VirtIODevice;
+typedef struct Teleport_Express_Call Teleport_Express_Call;
 typedef struct Monitor Monitor;
-
-typedef struct Teleport_Express_Call
-{
-
-    //调用id
-    uint64_t id;
-
-    uint64_t thread_id;
-
-    uint64_t process_id; //guest传下来的：flag_buf->thread_id = (u64)current->pid; flag_buf->process_id = (u64)current->tgid;
-
-    uint64_t unique_id;
-
-    int64_t spend_time;
-
-    //参数数目
-    uint64_t para_num;
-
-    Teleport_Express_Queue_Elem *elem_header;
-    Teleport_Express_Queue_Elem *elem_tail;
-
-    VirtQueue *vq;
-    VirtIODevice *vdev;
-
-    //渲染线程处理完之后的回调函数，必须要进行的是内存释放的工作
-    void (*callback)(struct Teleport_Express_Call *call, int notify);
-
-    struct Teleport_Express_Call *next;
-
-    int is_end;
-
-} Teleport_Express_Call;
-
-typedef bool (*EXPRESS_DECODE_FUN)(void *, uint64_t, const Call_Para *, int);
 
 
 typedef struct Thread_Context
@@ -157,7 +121,7 @@ typedef struct Thread_Context
     uint64_t device_id;
 
     //用于缓冲call的环形缓冲区
-    Teleport_Express_Call *call_buf[CALL_BUF_SIZE + 2];
+    void *call_buf[CALL_BUF_SIZE + 2];
 
     //环形缓冲区的读写位置
     volatile int read_loc;
@@ -297,11 +261,13 @@ typedef struct {
     int express_display_pixel_height;
     int express_display_refresh_rate;
     uint64_t express_display_count;
-    char *express_display_options;
+    char express_display_options[128];
     int express_keyboard_count;
 
     bool express_display_headless_mode;
     bool express_gpu_open_shader_binary;
+
+    char express_ruim_file[128];
 
     PlatformReadFromGuestMem read_from_guest_mem;
     PlatformWriteToGuestMem write_to_guest_mem;
@@ -312,8 +278,8 @@ typedef struct {
 
 extern ExpressPlatformOps g_ops;
 
-void init_express_device(Express_Device_Info *info);
-void init_express_platform(ExpressPlatformOps ops);
+void init_express_device(const Express_Device_Info *info);
+void init_express_platform(const ExpressPlatformOps ops);
 
 void deinit_express_platform(void);
 bool platform_should_stop(void);
@@ -321,6 +287,7 @@ Guest_Mem *duplicate_guest_mem(Guest_Mem *orig);
 void free_duplicated_guest_mem(Guest_Mem *mem);
 
 Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info);
+void *handle_thread_run(void *opaque);
 
 /**
  * Get a pointer to the guest memory region para is pointing to.
@@ -328,63 +295,5 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
  */
 void *call_para_to_ptr(Call_Para para, int *need_free);
 void *get_direct_ptr(Guest_Mem *guest_mem, int *flag);
-
-// ---------------------------------------------------------------------------
-// VSOC Shared Memory RPC public API
-// ---------------------------------------------------------------------------
-// Message type namespace (initial minimal set). Additional types should use
-// values >= 100 to avoid colliding with reserved early values.
-enum {
-    VSOC_IPC_TYPE_TEST = 1,
-    VSOC_IPC_TYPE_DEVICE_CALL = 2,
-};
-
-typedef void (*VsocIpcHandler)(uint32_t type, uint32_t id, const uint8_t *data,
-                               uint32_t len, uint32_t flags, bool from_worker);
-
-// Register (or replace) a handler for a message type. Safe to call in both
-// parent and worker after init_express_platform.
-void vsoc_ipc_register_handler(uint32_t type, VsocIpcHandler fn);
-
-// Non-blocking send helpers. Return false if ring full or invalid length.
-bool vsoc_ipc_parent_send(uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags);
-bool vsoc_ipc_worker_send(uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags);
-
-// Poll to drain & dispatch pending messages. Parent should call regularly
-// from main loop or a timer; worker calls inside its run loop.
-void vsoc_ipc_poll_parent(void);
-void vsoc_ipc_poll_worker(void);
-
-// ---------------- Low-level shared IPC data structures (needed by worker & parent) ---------
-#define VSOC_IPC_RING_SIZE    64
-#define VSOC_IPC_MAX_PAYLOAD  40
-
-typedef struct VsocIpcSlot {
-    volatile uint32_t type;
-    volatile uint32_t id;
-    volatile uint32_t len;
-    volatile uint32_t flags;
-    unsigned char payload[VSOC_IPC_MAX_PAYLOAD];
-} VsocIpcSlot;
-
-typedef struct VsocGpuIpcShared {
-    volatile uint32_t parent_ready;
-    volatile uint32_t worker_ready;
-    volatile uint32_t pw_head;
-    volatile uint32_t pw_tail;
-    volatile uint32_t wp_head;
-    volatile uint32_t wp_tail;
-    VsocIpcSlot parent_to_worker[VSOC_IPC_RING_SIZE];
-    VsocIpcSlot worker_to_parent[VSOC_IPC_RING_SIZE];
-} VsocGpuIpcShared;
-
-// Global shared memory pointer (allocated & owned by parent, attached by worker).
-extern VsocGpuIpcShared *vsoc_ipc_shared;
-
-// Runtime role detection (worker sets VSOC_WORKER=1 env before init).
-static inline bool is_worker(void) {
-    const char *w = getenv("VSOC_WORKER");
-    return (w && *w);
-}
 
 #endif

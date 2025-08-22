@@ -82,6 +82,37 @@ typedef struct Teleport_Express_Flag_Buf
 } Teleport_Express_Flag_Buf;
 
 
+typedef struct Teleport_Express_Call
+{
+
+    //调用id
+    uint64_t id;
+
+    uint64_t thread_id;
+
+    uint64_t process_id; //guest传下来的：flag_buf->thread_id = (u64)current->pid; flag_buf->process_id = (u64)current->tgid;
+
+    uint64_t unique_id;
+
+    int64_t spend_time;
+
+    //参数数目
+    uint64_t para_num;
+
+    Teleport_Express_Queue_Elem *elem_header;
+    Teleport_Express_Queue_Elem *elem_tail;
+
+    VirtQueue *vq;
+    VirtIODevice *vdev;
+
+    //渲染线程处理完之后的回调函数，必须要进行的是内存释放的工作
+    void (*callback)(struct Teleport_Express_Call *call, int notify);
+
+    struct Teleport_Express_Call *next;
+
+    int is_end;
+
+} Teleport_Express_Call;
 
 
 Teleport_Express_Call *alloc_one_call(void);

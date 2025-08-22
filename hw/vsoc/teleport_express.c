@@ -31,8 +31,6 @@
 
 // #define express_printf null_printf
 
-bool teleport_express_should_stop = 0;
-
 VirtIODevice *startup_vdev;
 VirtQueue *startup_out_data_queue;
 VirtQueue *startup_in_data_queue;
@@ -149,7 +147,6 @@ static void teleport_express_input_handle_cb(VirtIODevice *vdev, VirtQueue *vq)
 }
 
 static void shutdown_notify_callback(Notifier *notifier, void *data) {
-    teleport_express_should_stop = true;
     deinit_express_platform();
 }
 

@@ -20,7 +20,7 @@
 #endif
 
 #define DEBUG_HEAD "express_bridge "
-
+#include "hw/vsoc/express_log.h"
 #include "hw/vsoc/network/express_bridge.h"
 #include "hw/vsoc/network/express_modem.h"
 #include "qemu/sockets.h"
@@ -285,14 +285,14 @@ static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
         if (head->host_write_loc + read_cnt > head->data_size)
         {
             int first_write_size = head->data_size - head->host_write_loc;
-            write_to_guest_mem(guest_mem, read_cache, head->host_write_loc + sizeof(Bridge_Read_Data), first_write_size);
+            g_ops.write_to_guest_mem(guest_mem, read_cache, head->host_write_loc + sizeof(Bridge_Read_Data), first_write_size);
             head->host_write_loc = 0;
-            write_to_guest_mem(guest_mem, read_cache + first_write_size, head->host_write_loc + sizeof(Bridge_Read_Data), read_cnt - first_write_size);
+            g_ops.write_to_guest_mem(guest_mem, read_cache + first_write_size, head->host_write_loc + sizeof(Bridge_Read_Data), read_cnt - first_write_size);
             head->host_write_loc = read_cnt - first_write_size;
         }
         else
         {
-            write_to_guest_mem(guest_mem, read_cache, head->host_write_loc + sizeof(Bridge_Read_Data), read_cnt);
+            g_ops.write_to_guest_mem(guest_mem, read_cache, head->host_write_loc + sizeof(Bridge_Read_Data), read_cnt);
             head->host_write_loc = (head->host_write_loc + read_cnt) % head->data_size;
         }
 
@@ -314,7 +314,7 @@ static void *bridge_accept_host_thread(void *opaque)
 
     while (bridge_context->connection_context.read_thread_should_running == true)
     {
-        if (need_send_irq == true && set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0) == IRQ_SET_OK)
+        if (need_send_irq == true && g_ops.set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0) == IRQ_SET_OK)
         {
             need_send_irq = false;
         }
@@ -324,17 +324,17 @@ static void *bridge_accept_host_thread(void *opaque)
             if (bridge_context->connection_context.guest_data != NULL)
             {
                 int accept_status = 0;
-                read_from_guest_mem(bridge_context->connection_context.guest_data, &accept_status, __builtin_offsetof(Bridge_Accept_Data, accept_status), sizeof(int));
+                g_ops.read_from_guest_mem(bridge_context->connection_context.guest_data, &accept_status, __builtin_offsetof(Bridge_Accept_Data, accept_status), sizeof(int));
 
                 if (accept_status == NONE_ACCEPT)
                 {
                     LOGI("connection established, fd=%d, notifying kernel...", get_accept_fd);
-                    write_to_guest_mem(bridge_context->connection_context.guest_data, &get_accept_fd, __builtin_offsetof(Bridge_Accept_Data, accept_fd), sizeof(int));
+                    g_ops.write_to_guest_mem(bridge_context->connection_context.guest_data, &get_accept_fd, __builtin_offsetof(Bridge_Accept_Data, accept_fd), sizeof(int));
                     accept_status = GET_ACCEPT;
                     get_accept_fd = 0;
-                    write_to_guest_mem(bridge_context->connection_context.guest_data, &accept_status, __builtin_offsetof(Bridge_Accept_Data, accept_status), sizeof(int));
+                    g_ops.write_to_guest_mem(bridge_context->connection_context.guest_data, &accept_status, __builtin_offsetof(Bridge_Accept_Data, accept_status), sizeof(int));
 
-                    int irq_status = set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0);
+                    int irq_status = g_ops.set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0);
                     if (irq_status == IRQ_SET_OK)
                     {
                         LOGD("irq IRQ_SET_OK");
@@ -398,7 +398,7 @@ static void *bridge_accept_host_thread(void *opaque)
     }
 
     LOGW("listen thread exit. closefd %d", bridge_context->connection_context.socket_fd);
-    set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
+    g_ops.set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
 
     return NULL;
 }
@@ -436,7 +436,7 @@ static void *bridge_read_host_thread(void *opaque)
         {
             // 注入中断
             LOGD("transfer %d bytes from socket %d to guest mem\n", ret, bridge_context->connection_context.socket_fd);
-            int irq_status = set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0);
+            int irq_status = g_ops.set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0);
             if (irq_status == IRQ_SET_OK)
             {
                 need_send_irq = false;
@@ -448,7 +448,7 @@ static void *bridge_read_host_thread(void *opaque)
         }
         else if (ret == 0)
         {
-            if (need_send_irq == true && set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0) == IRQ_SET_OK)
+            if (need_send_irq == true && g_ops.set_express_device_irq((Device_Context *)&bridge_context->connection_context, 0, 0) == IRQ_SET_OK)
             {
                 need_send_irq = false;
             }
@@ -471,14 +471,14 @@ static void *bridge_read_host_thread(void *opaque)
         free_duplicated_guest_mem(bridge_context->connection_context.guest_data);
     }
 
-    set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
+    g_ops.set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
 
     LOGI("bridge thread exit. closefd %d", bridge_context->connection_context.socket_fd);
 
     return NULL;
 }
 
-static bool bridge_output_call_handler(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
+static bool bridge_output_call_handler(Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
 {
     Bridge_Thread_Context *bridge_context = (Bridge_Thread_Context *)context;
 

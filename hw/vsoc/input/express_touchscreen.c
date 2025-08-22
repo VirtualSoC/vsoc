@@ -81,11 +81,7 @@ Touchscreen_Prop touchscreen_prop = {
     .height = 1080,
 };
 
-int express_touchscreen_scroll_ratio = 10;
-bool express_touchscreen_scroll_is_zoom = false;
-bool express_touchscreen_right_click_is_two_finger = false;
-
-GHashTable *g_touchscreen_contexts = NULL;
+static GHashTable *g_touchscreen_contexts = NULL;
 
 static inline int get_next_free_finger(Touchscreen_Context *context);
 static inline void release_finger(Touchscreen_Context *context, int f);
@@ -295,7 +291,7 @@ void express_touchscreen_mouse_move_handle(GLFWwindow *window, double xpos, doub
     if (context->right_mouse_press)
     {
         set_express_touchscreen_input(context, context->current_finger_xpos, context->current_finger_ypos, 1, context->mouse_right_finger1);
-        if (express_touchscreen_right_click_is_two_finger)
+        if (g_ops.express_touchscreen_right_click_is_two_finger)
         {
             set_express_touchscreen_input(context, context->current_finger_xpos + 100, context->current_finger_ypos, 1, context->mouse_right_finger2);
         }
@@ -344,7 +340,7 @@ void express_touchscreen_mouse_click_handle(GLFWwindow *window, int button, int 
         if (action == GLFW_PRESS)
         {
             context->mouse_right_finger1 = get_next_free_finger(context);
-            if (express_touchscreen_right_click_is_two_finger)
+            if (g_ops.express_touchscreen_right_click_is_two_finger)
             {
                 context->mouse_right_finger2 = get_next_free_finger(context);
             }
@@ -352,7 +348,7 @@ void express_touchscreen_mouse_click_handle(GLFWwindow *window, int button, int 
 
         context->right_mouse_press = (action != GLFW_RELEASE);
         set_express_touchscreen_input(context, context->current_finger_xpos, context->current_finger_ypos, context->right_mouse_press, context->mouse_right_finger1);
-        if (express_touchscreen_right_click_is_two_finger)
+        if (g_ops.express_touchscreen_right_click_is_two_finger)
         {
             set_express_touchscreen_input(context, context->current_finger_xpos + 100, context->current_finger_ypos, context->right_mouse_press, context->mouse_right_finger2);
         }
@@ -360,7 +356,7 @@ void express_touchscreen_mouse_click_handle(GLFWwindow *window, int button, int 
         if (action == GLFW_RELEASE)
         {
             release_finger(context, context->mouse_right_finger1);
-            if (express_touchscreen_right_click_is_two_finger)
+            if (g_ops.express_touchscreen_right_click_is_two_finger)
             {
                 release_finger(context, context->mouse_right_finger2);
             }
@@ -375,9 +371,9 @@ void express_touchscreen_mouse_scroll_handle(GLFWwindow *window, double xoffset,
     Touchscreen_Context *context = get_touchscreen_context(window);
 
     LOGD("touchscreen id %d scroll x %lf y %lf", context->id, xoffset, yoffset);
-    if (express_touchscreen_scroll_is_zoom)
+    if (g_ops.express_touchscreen_scroll_is_zoom)
     {
-        int temp_yoffset = ((int)yoffset) * express_touchscreen_scroll_ratio;
+        int temp_yoffset = ((int)yoffset) * g_ops.express_touchscreen_scroll_ratio;
         int temp_finger_offset = min(context->current_finger_ypos, context->touchscreen_height - context->current_finger_ypos) - 100;
 
         // 加上offset不改变正负号才能加上去（同正同负）

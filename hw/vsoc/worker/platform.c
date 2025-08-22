@@ -1,7 +1,9 @@
 #include "hw/vsoc/express_platform.h"
+#include "hw/vsoc/express_ipc.h"
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
 #include "hw/vsoc/express_event.h"
+#include "hw/vsoc/worker/device.h"
 
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
@@ -10,41 +12,21 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <string.h>
 
 // Worker-specific attachment logic separated from parent implementation.
 // Parent provides spawning separately; worker just maps existing shared memory.
 
 ExpressPlatformOps g_ops;
-VsocGpuIpcShared *vsoc_ipc_shared; // ensure we have a definition if not already.
 bool should_stop = false;
+
+// Forward declaration for DEVICE_CALL handler implemented in device.c
+void device_call_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
+                             uint32_t len, uint32_t flags, bool from_worker);
 
 void qemu_system_killed(int signal, pid_t pid);
 void qemu_system_killed(int signal, pid_t pid) {
     LOGI("subprocess qemu killed: signal=%d pid=%d", signal, pid);
-}
-
-static void attach_shared_memory(void) {
-    if (vsoc_ipc_shared) return; // already attached
-    const char *name = getenv("VSOC_GPU_SHM");
-    if (!name) {
-        LOGE("worker: VSOC_GPU_SHM not set (cannot attach shm)");
-        return;
-    }
-    int fd = shm_open(name, O_RDWR, 0600);
-    if (fd < 0) {
-        LOGE("shm_open worker failed: %s", strerror(errno));
-        return;
-    }
-    size_t shm_size = sizeof(VsocGpuIpcShared);
-    void *addr = mmap(NULL, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    close(fd);
-    if (addr == MAP_FAILED) {
-        LOGE("mmap worker failed: %s", strerror(errno));
-        return;
-    }
-    vsoc_ipc_shared = (VsocGpuIpcShared*)addr;
-    vsoc_ipc_shared->worker_ready = 1;
-    LOGI("worker attached shared memory %s", name);
 }
 
 void monitor_log(Monitor *mon, const char *fmt, ...)
@@ -55,22 +37,82 @@ void monitor_log(Monitor *mon, const char *fmt, ...)
     va_end(args);
 }
 
-void init_express_platform(ExpressPlatformOps ops) {
+static void worker_ipc_read_from_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t length) {
+    if (!guest || length == 0) return;
+    uint32_t num = (uint32_t)guest->num;
+    size_t head = sizeof(VsocGuestMemRWReq) + sizeof(VsocGuestMemSeg) * num;
+    uint8_t reqbuf[VSOC_IPC_MAX_PAYLOAD];
+    if (head > sizeof(reqbuf)) { LOGE("GMEM READ: too many segments"); return; }
+    VsocGuestMemRWReq *hdr = (VsocGuestMemRWReq *)reqbuf;
+    hdr->num = num;
+    hdr->all_len = (uint32_t)guest->all_len;
+    VsocGuestMemSeg *segs = (VsocGuestMemSeg *)(reqbuf + sizeof(VsocGuestMemRWReq));
+    for (uint32_t i = 0; i < num; ++i) {
+        segs[i].addr = (uint64_t)(uintptr_t)guest->scatter_data[i].data;
+        segs[i].len = (uint32_t)guest->scatter_data[i].len;
+    }
+    size_t remaining = length;
+    size_t dst_off = 0;
+    while (remaining) {
+        uint32_t chunk = (uint32_t)min(remaining, (size_t)VSOC_IPC_MAX_PAYLOAD);
+        hdr->offset = start_loc;
+        hdr->length = chunk;
+        uint32_t resp_len = chunk;
+        int rc = vsoc_ipc_worker_request(VSOC_IPC_TYPE_GMEM_READ, reqbuf, (uint32_t)head, (uint8_t*)host + dst_off, &resp_len, NULL, 3000);
+        if (rc != 0) { LOGE("GMEM READ IPC rc=%d", rc); break; }
+        dst_off += resp_len;
+        start_loc += resp_len;
+        remaining -= resp_len;
+        if (resp_len == 0) break;
+    }
+}
+
+static void worker_ipc_write_to_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t length) {
+    if (!guest || length == 0) return;
+    uint32_t num = (uint32_t)guest->num;
+    size_t head = sizeof(VsocGuestMemRWReq) + sizeof(VsocGuestMemSeg) * num;
+    uint8_t reqbuf[VSOC_IPC_MAX_PAYLOAD];
+    VsocGuestMemRWReq *hdr = (VsocGuestMemRWReq *)reqbuf;
+    hdr->num = num;
+    hdr->all_len = (uint32_t)guest->all_len;
+    VsocGuestMemSeg *segs = (VsocGuestMemSeg *)(reqbuf + sizeof(VsocGuestMemRWReq));
+    if (head > sizeof(reqbuf)) { LOGE("GMEM WRITE: too many segments"); return; }
+    for (uint32_t i = 0; i < num; ++i) { segs[i].addr = (uint64_t)(uintptr_t)guest->scatter_data[i].data; segs[i].len = (uint32_t)guest->scatter_data[i].len; }
+    size_t remaining = length;
+    size_t src_off = 0;
+    while (remaining) {
+        uint32_t chunk = (uint32_t)min(remaining, (size_t)(VSOC_IPC_MAX_PAYLOAD - head));
+        if (head + chunk > sizeof(reqbuf)) { LOGE("GMEM WRITE: payload overflow"); break; }
+        hdr->offset = start_loc;
+        hdr->length = chunk;
+        memcpy(reqbuf + head, (uint8_t*)host + src_off, chunk);
+        uint32_t resp_len = 0;
+        int rc = vsoc_ipc_worker_request(VSOC_IPC_TYPE_GMEM_WRITE, reqbuf, (uint32_t)(head + chunk), NULL, &resp_len, NULL, 3000);
+        if (rc != 0) { LOGE("GMEM WRITE IPC rc=%d", rc); break; }
+        src_off += chunk;
+        start_loc += chunk;
+        remaining -= chunk;
+    }
+}
+
+void init_express_platform(const ExpressPlatformOps ops) {
     g_ops = ops;
-    attach_shared_memory();
+    // The ops struct arrived over IPC; any function pointers inside are invalid in this process.
+    // Always replace with worker-safe implementations.
+    g_ops.read_from_guest_mem = worker_ipc_read_from_guest_mem;
+    g_ops.write_to_guest_mem = worker_ipc_write_to_guest_mem;
+    g_ops.set_express_device_irq = NULL;
+    g_ops.notify_shutdown = NULL;
+    g_ops.force_shutdown = NULL;
+
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_CONTEXT, get_context_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ipc_handler);
 }
 
 void deinit_express_platform(void) {
     should_stop = true;
     // Consume residual messages
     express_gpu_shutdown_notify_callback();
-
-    // Worker side: unmap only (parent unlinks)
-    if (vsoc_ipc_shared) {
-        size_t shm_size = sizeof(VsocGpuIpcShared);
-        munmap(vsoc_ipc_shared, shm_size);
-        vsoc_ipc_shared = NULL;
-    }
 }
 
 bool platform_should_stop(void) {
@@ -133,8 +175,6 @@ void *call_para_to_ptr(Call_Para para, int *need_free) {
 
     return ptr;
 }
-
-void *handle_thread_run(void *opaque);
 
 /**
  * @brief 创建一个thread_context，并根据这个context新建一个线程

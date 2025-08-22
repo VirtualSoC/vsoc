@@ -38,11 +38,6 @@ static GHashTable *render_thread_contexts = NULL;
 
 static GHashTable *render_process_contexts = NULL;
 
-bool express_gpu_gl_debug_enable;
-bool express_gpu_enable_windowed_mode;
-bool express_device_input_window_enable;
-bool teleport_express_save_snapshot;
-
 static void g_surface_map_destroy(gpointer data);
 
 static void g_context_map_destroy(gpointer data);
@@ -656,7 +651,7 @@ static bool gpu_call_handler(Thread_Context *context, uint64_t id, const Call_Pa
         ok = gl3_decode_invoke(render_context, id, para, para_num);
     }
 
-    if (express_gpu_gl_debug_enable && render_context->opengl_context != NULL && render_context->opengl_context->is_current) {
+    if (g_ops.express_gpu_gl_debug_enable && render_context->opengl_context != NULL && render_context->opengl_context->is_current) {
         GLenum error_code = glGetError();
         while (error_code != GL_NO_ERROR) {
             LOGE("#fun_id %llu context %llx gl error %x", fun_id, (uint64_t)render_context->opengl_context, error_code);
