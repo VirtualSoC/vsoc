@@ -257,5 +257,9 @@
 #define FUNID_vkWaitSemaphores                             1252
 #define FUNID_vkCreateAndroidSurfaceKHR                    1253
 
+#define FUNID_vkCreateSurfaceOHOS                          1254
+#define FUNID_vkGetNativeBufferPropertiesOHOS              1255
+#define FUNID_vkGetMemoryNativeBufferOHOS                  1256
+
 
 void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call);

@@ -226,6 +226,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         decode_from_stream_VkInstanceCreateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, (VkInstanceCreateInfo*)(pCreateInfo), stream_ptr_ptr); 
 
         LOGI("got vkCreateinfo with %lld %d %s %d %s",(long long)pCreateInfo->sType, pCreateInfo->enabledLayerCount, pCreateInfo->ppEnabledLayerNames, pCreateInfo->enabledExtensionCount, pCreateInfo->ppEnabledExtensionNames);
+        LOGI("appcation name is %s", pCreateInfo->pApplicationInfo->pApplicationName);
         LOGI("application create info is %lld %d",(long long)pCreateInfo->pApplicationInfo, pCreateInfo->pApplicationInfo->sType);
 
         VkAllocationCallbacks* guest_allocator = (VkAllocationCallbacks*)(**stream_ptr_ptr);
@@ -277,6 +278,62 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
     case FUNID_vkCreateAndroidSurfaceKHR: {
         LOGI("Host: vkCreateAndroidSurfaceKHR request");
+
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        LOGI("get vk param number %d instance is", para_num);
+
+        char *stream_ptr;
+
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t* ptr = (uint8_t*)stream;
+
+        uint64_t guest_inst = *(uint64_t*)(ptr);
+        ptr += sizeof(uint64_t);
+
+        uint64_t guest_window_ptr = *(uint64_t*)(ptr);
+        ptr += sizeof(uint64_t);
+
+        // uint64_t guest_hostSurf_addr = *(uint64_t*)(ptr);
+        // ptr += sizeof(uint64_t);
+        VkSurfaceKHR guestSurface = VK_NULL_HANDLE;
+        void*   guest_surface_ptr  = all_para[1].data;
+        read_from_guest_mem(guest_surface_ptr, &guestSurface, 0, sizeof(VkSurfaceKHR));
+
+        if (need_free) free(stream);
+
+        VkInstance hostInst = (VkInstance)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_inst);
+        LOGI("Host: mapped guestInst %llu → hostInst %p",
+            (unsigned long long)guest_inst, (void*)hostInst);
+
+        GLFWwindow* win = (GLFWwindow*)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW, guest_window_ptr);
+        if (!win) {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            win = glfwCreateWindow(1, 1, "Guest Window", NULL, NULL);
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW,
+                        guest_window_ptr,
+                        (uint64_t)(uintptr_t)win);
+            LOGI("Host: created GLFW window %p for guest window %llu",
+                win, (unsigned long long)guest_window_ptr);
+        }
+
+        VkSurfaceKHR hostSurface = VK_NULL_HANDLE;
+        VkResult res = glfwCreateWindowSurface(hostInst, win, NULL, &hostSurface);
+        if (res != VK_SUCCESS) {
+            LOGE("Host: vkCreateAndroidSurfaceKHR failed %d", res);
+            return;
+        }
+        
+        LOGI("Host: created hostSurface %lld %d", (long long)hostSurface, res);
+
+        insert_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE, (uint64_t)guestSurface, (uint64_t)(uintptr_t)hostSurface);
+    }
+    break;
+
+    case FUNID_vkCreateSurfaceOHOS: {
+        LOGI("Host: FUNID_vkCreateSurfaceOHOS request");
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         LOGI("get vk param number %d instance is", para_num);
