@@ -11,10 +11,11 @@ enum {
     VSOC_IPC_TYPE_TEST = 1,
     VSOC_IPC_TYPE_DEVICE_CALL = 2,
     VSOC_IPC_TYPE_GET_CONTEXT = 100,
-    // Guest memory proxy operations
-    VSOC_IPC_TYPE_GMEM_READ = 101,
-    VSOC_IPC_TYPE_GMEM_WRITE = 102,
-    VSOC_IPC_TYPE_PLATFORM_INIT = 103,
+    VSOC_IPC_TYPE_PLATFORM_INIT = 101,
+    VSOC_IPC_TYPE_BUFFER_REGISTER = 102,
+    VSOC_IPC_TYPE_SET_IRQ = 103,
+    VSOC_IPC_TYPE_RAM_REGIONS = 104,
+    VSOC_IPC_TYPE_GET_DEVICE_CONTEXT = 105,
 };
 
 // IPC message flags
@@ -82,21 +83,28 @@ typedef struct VsocGpuIpcShared {
 // Global shared memory pointer (allocated & owned by parent, attached by worker).
 extern VsocGpuIpcShared *vsoc_ipc_shared;
 
-// ---------------- Guest memory proxy payloads ----------------
-// Header sent for GMEM_READ/WRITE requests followed by an array of segments.
-// For READ: payload is only the header + segments; response carries 'length' bytes.
-// For WRITE: payload is header + segments + trailing data buffer of 'length' bytes.
-typedef struct VsocGuestMemRWReq {
-    uint32_t num;       // number of segments in the scatter list
-    uint32_t all_len;   // total logical length of the Guest_Mem object
-    uint32_t offset;    // offset into the logical Guest_Mem to start IO
-    uint32_t length;    // number of bytes to read/write
-} VsocGuestMemRWReq;
-
 typedef struct VsocGuestMemSeg {
     uint64_t addr;      // parent-process VA of segment start (token in worker)
     uint32_t len;       // length of this segment
-    uint32_t _pad;      // reserved/pad for 16-byte alignment
+    uint32_t flags;
 } VsocGuestMemSeg;
+
+// When packing/unpacking Guest_Mem, we support read-only inline literal segments for
+// cases where the parent HVA doesn't belong to guest RAM. We mark such segments by
+// setting VsocGuestMemSeg.flags bit0. On unpack, we allocate and copy the bytes and
+// tag the Guest_Mem scatter_data[i].data pointer with the top bit to signal "inline".
+#define VSOC_GM_SEG_FLAG_INLINE   0x1u
+
+// Forward declaration to avoid heavy includes here
+struct Guest_Mem;
+
+// Pack a Guest_Mem into wire format: [num(uint32)][all_len(uint32)] + VsocGuestMemSeg[num]
+// Returns number of bytes written on success; 0 on error (insufficient space or invalid input).
+size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem *gm);
+
+// Unpack from wire format at src: [num(uint32)][all_len(uint32)] + VsocGuestMemSeg[num]
+// Allocates a Guest_Mem and fills it; sets *out_consumed to total bytes consumed.
+// Returns true on success; caller owns the returned Guest_Mem and must free its scatter_data and the struct.
+bool vsoc_ipc_guest_mem_unpack(const uint8_t *src, size_t len, struct Guest_Mem **out_gm, size_t *out_consumed);
 
 #endif // EXPRESS_IPC_H

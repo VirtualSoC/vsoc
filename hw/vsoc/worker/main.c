@@ -1,15 +1,20 @@
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/express_platform.h"
 #include "hw/vsoc/express_ipc.h"
+#include "hw/vsoc/worker/guestmem.h"
 
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/prctl.h>
 
-static void attach_shared_memory(void) {
+static void attach_shared_memory(const char *name) {
     if (vsoc_ipc_shared) return; // already attached
-    const char *name = getenv("VSOC_GPU_SHM");
     if (!name) {
         LOGE("worker: VSOC_GPU_SHM not set (cannot attach shm)");
         return;
@@ -31,6 +36,49 @@ static void attach_shared_memory(void) {
     LOGI("worker attached shared memory %s", name);
 }
 
+// Handler for RAM region metadata from parent. FDs are inherited and referenced by number.
+static void ram_regions_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
+                                   uint32_t len, uint32_t flags, bool from_worker) {
+    (void)type; (void)id; (void)flags; (void)from_worker;
+    if (len < 4) {
+        LOGE("RAM_REGIONS: payload too small (%u)", len);
+        return;
+    }
+    const uint8_t *p = data; const uint8_t *end = data + len;
+    uint32_t count = 0; memcpy(&count, p, sizeof(count)); p += 4;
+    const size_t entry_sz = 4 /*fd*/ + 4 /*pad*/ + 8 /*gpa*/ + 8 /*size*/ + 8 /*offset*/;
+    if ((size_t)(end - p) != count * entry_sz) {
+        LOGE("RAM_REGIONS: size mismatch count=%u payload=%zu expected=%zu", count, (size_t)(end - p), (size_t)count * entry_sz);
+        return;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+        int32_t fd = -1; uint32_t pad = 0; (void)pad;
+        uint64_t gpa = 0, size = 0, off = 0;
+        memcpy(&fd, p, 4); p += 4; memcpy(&pad, p, 4); p += 4;
+        memcpy(&gpa, p, 8); p += 8; memcpy(&size, p, 8); p += 8; memcpy(&off, p, 8); p += 8;
+        if (fd < 0) {
+            LOGW("RAM_REGIONS: skip invalid fd=%d", fd);
+            continue;
+        }
+        // Make sure fd looks valid in the worker
+        if (fcntl(fd, F_GETFD) == -1) {
+            LOGE("RAM_REGIONS: inherited fd %d not valid in worker: %s", fd, strerror(errno));
+            continue;
+        }
+        VsocGuestMemRegionInfo info = { .fd = fd, .gpa_base = gpa, .size = size, .file_offset = off };
+        long page = sysconf(_SC_PAGESIZE);
+        if (page > 0 && (info.file_offset % (uint64_t)page) != 0) {
+            LOGE("guestmem region fd=%d has non-page-aligned file_offset=%#llx (page=%ld)", fd, (unsigned long long)info.file_offset, page);
+        }
+        int rc = guestmem_add_region(&info);
+        if (rc != 0) {
+            LOGE("guestmem_add_region failed rc=%d for fd=%d gpa=%#llx size=%#llx", rc, fd, (unsigned long long)gpa, (unsigned long long)size);
+        } else {
+            LOGI("mapped RAM memfd fd=%d gpa=%#llx size=%#llx", fd, (unsigned long long)gpa, (unsigned long long)size);
+        }
+    }
+}
+
 void platform_init_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
                               uint32_t len, uint32_t flags, bool from_worker) {
     (void)type; (void)id; (void)flags; (void)from_worker;
@@ -39,7 +87,8 @@ void platform_init_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
         return;
     }
     ExpressPlatformOps *ops = (ExpressPlatformOps *)data;
-    // todo: implement the worker-side handlers
+    // The ops struct arrived over IPC; any function pointers inside are invalid in this process.
+    // Always replace with worker-safe implementations.
     ops->read_from_guest_mem = NULL;
     ops->write_to_guest_mem = NULL;
     ops->set_express_device_irq = NULL;
@@ -51,13 +100,14 @@ void platform_init_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
 
 int main(int argc, char **argv)
 {
-    // Ensure logs flush quickly when stdout is a pipe (e.g., via tee)
-    setvbuf(stdout, NULL, _IOLBF, 0);
+    register_signal_handlers();
+    setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
     LOGI("vsoc worker starting argc %d", argc);
-    // Ensure worker terminates when parent dies (Linux)
-    if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0) {
+    // Ensure worker terminates when parent dies (Linux). Use SIGKILL so it cannot be ignored
+    // and so we don't rely on any in-process handlers during catastrophic parent exits.
+    if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0) {
         LOGW("PR_SET_PDEATHSIG failed; worker may outlive parent");
     }
     // Parent may have already died between fork/exec and prctl
@@ -65,14 +115,16 @@ int main(int argc, char **argv)
         LOGW("parent already exited; quitting worker");
         return 0;
     }
-    if (argc > 1) {
-        // argv[1] is shared memory name from parent.
-        setenv("VSOC_GPU_SHM", argv[1], 1);
+    if (argc < 2) {
+        LOGE("usage: %s <shm_name>", argv[0]);
+        return 1;
     }
+
     setenv("VSOC_WORKER", "1", 1);
 
-    attach_shared_memory();
+    attach_shared_memory(argv[1]);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_PLATFORM_INIT, platform_init_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_RAM_REGIONS, ram_regions_ipc_handler);
 
     LOGI("vsoc worker init: entering event loop");
 
@@ -90,5 +142,6 @@ int main(int argc, char **argv)
     LOGI("vsoc worker exiting");
 
     deinit_express_platform();
+    guestmem_clear_all();
     return 0;
 }

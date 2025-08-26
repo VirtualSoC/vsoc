@@ -90,7 +90,8 @@ dispatch_sync(dispatch_get_main_queue(), ^{
 #define IRQ_NOT_READY -2
 #define IRQ_RELEASED -3
 
-
+// fixme: change scatter_data to struct iovec and think of another way to identify gpa, wtf.
+// fixme: it seems that bounce.buffer can be written into as well. Implement worker flush, wtf.
 typedef struct Scatter_Data
 {
     unsigned char *data;
@@ -102,11 +103,15 @@ typedef struct Guest_Mem
     Scatter_Data *scatter_data;
     int num;
     int all_len;
+    // When true, every scatter_data[i].data encodes a guest physical address token
+    // (ram_addr) cast to a pointer, and no inline payload follows in IPC.
+    // When false, scatter_data[i].data is a host pointer to inline-copied bytes
+    // within the current process, suitable for read-only access.
+    uint8_t is_gpa;
 } Guest_Mem;
 
 typedef struct Call_Para
 {
-    // int is_direct;
     Guest_Mem *data;
     size_t data_len;
 } Call_Para;
@@ -207,7 +212,7 @@ typedef struct Express_Device_Info
     Thread_Context *(*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
     // guest注册DMA内存的回调
-    void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id);
+    void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
     
     // 获取设备用于容纳虚拟中断的context，负责host向guest发送通知
     Device_Context *(*get_device_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);

@@ -260,7 +260,7 @@ static Device_Context *get_codec_device_context(uint64_t device_id, uint64_t thr
     return (Device_Context *)thread_context->component;
 }
 
-static void codec_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void codec_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
     Codec_Thread_Context *thread_context = g_hash_table_lookup(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id));
 

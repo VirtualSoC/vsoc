@@ -223,7 +223,7 @@ void sync_express_battery_status(void)
     g_ops.set_express_device_irq((Device_Context *)&static_battery_context, 0, sizeof(Express_Battery_Data));
 }
 
-static void battery_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void battery_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
     if (static_battery_context.guest_buffer != NULL)
     {

@@ -85,7 +85,7 @@ static GHashTable *bridge_thread_contexts = NULL;
 
 static GHashTable *accept_fd_thread_maps = NULL;
 
-static void bridge_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void bridge_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
 
     Bridge_Thread_Context *context = g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
@@ -547,25 +547,17 @@ static bool bridge_output_call_handler(Thread_Context *context, uint64_t id, con
         if (!(para_num == 1 && bridge_context->status_id == CONNECTED_STATUS && bridge_context->connection_context.socket_fd != 0 && all_para[0].data && all_para[0].data_len != 0)) {
             return false;
         }
-        int num = all_para[0].data->num;
-        Scatter_Data *scatter_data = all_para[0].data->scatter_data;
-        LOGD("OUTPUT(scatter, sg_num=%d)", num);
-        bool ok = true;
-        for (int i = 0; i < num; i++) {
-            char temp_buf[36];
-            memset(temp_buf, 0, sizeof(temp_buf));
-            memcpy(temp_buf, scatter_data[i].data, scatter_data[i].len <= 32 ? scatter_data[i].len : 32);
-            strcpy(temp_buf + 32, "...");
-            LOGV("send(sockfd=%d, buf=\"%s\", len=%zu, flag=%d)", bridge_context->connection_context.socket_fd, temp_buf, scatter_data[i].len, 0);
-            ssize_t sent = bridge_send_all(bridge_context->connection_context.socket_fd, scatter_data[i].data, scatter_data[i].len);
-            if (sent < 0) {
-                int err = errno;
-                LOGW("send failed on fd %d (len=%zu), errno=%d", bridge_context->connection_context.socket_fd, scatter_data[i].len, err);
-                ok = false;
-                break;
-            }
+        int need_free = 0;
+        void *ptr = call_para_to_ptr(all_para[0], &need_free);
+        ssize_t sent = bridge_send_all(bridge_context->connection_context.socket_fd, ptr, all_para[0].data_len);
+        if (sent < 0) {
+            int err = errno;
+            LOGW("send failed on fd %d (len=%zu), errno=%d", bridge_context->connection_context.socket_fd, all_para[0].data_len, err);
         }
-        return ok;
+        if (need_free) {
+            g_free(ptr);
+        }
+        return true;
     }
     default:
         LOGE("error bridge fun id %llu", (unsigned long long)fun_id);

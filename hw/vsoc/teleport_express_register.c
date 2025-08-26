@@ -80,9 +80,8 @@ static void push_to_device(Teleport_Express_Call *call)
 
     if (fun_id == EXPRESS_REGISTER_BUFFER_FUN_ID)
     {
-        LOGD("in function of register buffer of device %s", device_info->name);
         Guest_Mem *data = copy_guest_mem_from_call(call, 1);
-        device_info->buffer_register(data, thread_id, process_id, unique_id);
+        device_info->buffer_register(data, thread_id, process_id, unique_id, device_info);
         call->callback(call, 0);
     }
     else if (fun_id == EXPRESS_IRQ_FUN_ID)

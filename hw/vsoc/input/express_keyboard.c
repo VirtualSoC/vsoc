@@ -233,7 +233,7 @@ void sync_express_keyboard_input(GLFWwindow *window, bool need_send)
     return;
 }
 
-static void keyboard_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void keyboard_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
     Keyboard_Context *context = (Keyboard_Context *)g_hash_table_lookup(g_keyboard_contexts, GUINT_TO_POINTER(unique_id));
 
@@ -241,7 +241,7 @@ static void keyboard_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64
     {
         free_duplicated_guest_mem(context->guest_buffer);
     }
-    LOGI("keyboard %d register buffer", unique_id);
+    LOGI("keyboard %d register buffer %p", unique_id, data);
     context->guest_buffer = data;
 }
 

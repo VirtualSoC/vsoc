@@ -148,7 +148,7 @@ void sync_express_accel_status(void)
     g_ops.set_express_device_irq((Device_Context *)&static_accel_context, 0, sizeof(Express_Accel_Data));
 }
 
-static void accel_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void accel_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
     if (static_accel_context.guest_buffer != NULL)
     {

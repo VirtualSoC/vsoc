@@ -153,7 +153,7 @@ void sync_express_gyro_status(void)
     g_ops.set_express_device_irq((Device_Context *)&static_gyro_context, 0, sizeof(Express_Gyro_Data));
 }
 
-static void gyro_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void gyro_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
     if (static_gyro_context.guest_buffer != NULL)
     {

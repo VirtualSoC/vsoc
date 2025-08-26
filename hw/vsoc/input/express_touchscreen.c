@@ -658,7 +658,7 @@ void sync_express_touchscreen_input(GLFWwindow *window, bool need_send)
     context->need_sync = false;
 }
 
-static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
     Touchscreen_Context *context = (Touchscreen_Context *)g_hash_table_lookup(g_touchscreen_contexts, GUINT_TO_POINTER(unique_id));
 
@@ -666,7 +666,7 @@ static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uin
         free_duplicated_guest_mem(context->guest_buffer);
     }
 
-    LOGI("touch dev %" PRIu64 " register buffer", unique_id);
+    LOGI("touch dev %" PRIu64 " register buffer %p", unique_id, data);
     context->guest_buffer = data;
 }
 

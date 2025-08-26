@@ -29,7 +29,7 @@ typedef struct Teleport_Express_Queue_Elem
 } Teleport_Express_Queue_Elem;
 
 
-typedef bool (*EXPRESS_DECODE_FUN)(void *, uint64_t, const Call_Para *, int);
+typedef bool (*EXPRESS_DECODE_FUN)(Thread_Context *, uint64_t, const Call_Para *, int);
 
 extern Device_Log_Setting_Info express_device_log_setting_info;
 

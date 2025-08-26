@@ -237,7 +237,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     // }
 }
 
-static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id)
+static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
 {
     if (static_sync_context.guest_buffer != NULL)
     {
@@ -256,10 +256,10 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
         LOGE("error! guest/host sync buffer size not equal: %d != %zu", data->all_len, sizeof(Sync_Flag_Data));
     }
 
-    if (null_flag != 0 && static_sync_context.sync_data == NULL)
+    if (static_sync_context.sync_data == NULL)
     {
         Scatter_Data *guest_data = data->scatter_data;
-        LOGE("error! sync_buffer_register cannot get direct_ptr mem num %d first mem size %lld", data->num, guest_data->len);
+        LOGE("error! cannot get direct ptr guest_mem num %d first sg size %lld ptr %p", data->num, guest_data->len, guest_data->data);
     }
 }
 

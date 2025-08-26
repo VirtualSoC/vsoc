@@ -8,12 +8,17 @@
 #include "hw/vsoc/teleport_express_call.h"
 
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <glib.h>
+
+#include "exec/cpu-common.h"
+#include "exec/ramblock.h"
 
 // Shared memory structures now declared in header; define global pointer here.
 ExpressPlatformOps g_ops;
@@ -24,10 +29,16 @@ static bool worker_started = false;
 static bool should_stop = false;
 static QemuThread parent_ipc_thread;
 static bool parent_ipc_thread_started = false;
+// Gate to pause background polling while sync requests are in flight to avoid racing responses
+static gint g_ipc_block_bg_poll = 0;
 
 static GHashTable *g_proxy_info = NULL;
 static GHashTable *g_worker_handle_by_ctx = NULL; // key: Thread_Context*, value: (gpointer)worker_handle
 static GHashTable *g_orig_info = NULL;   // key: device_id (GINT_TO_POINTER), value: original Express_Device_Info*
+// Reverse map for device IRQs: key worker_handle(uint64) -> value Device_Context*
+static GHashTable *g_local_dc_by_worker_handle = NULL;
+
+static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem);
 
 static void *map_shared_memory_parent(size_t size) {
     snprintf(g_shm_name, sizeof(g_shm_name), "/vsoc_ipc_%d", (int)getpid());
@@ -50,6 +61,48 @@ static void *map_shared_memory_parent(size_t size) {
     return addr;
 }
 
+// Reader threads to capture worker stdout/stderr and log via QEMU's logger
+typedef struct WorkerLogArg {
+    int fd;
+    bool is_err;
+} WorkerLogArg;
+
+static QemuThread g_worker_out_thread;
+static QemuThread g_worker_err_thread;
+static bool g_worker_out_thread_started = false;
+static bool g_worker_err_thread_started = false;
+static int g_worker_stdout_fd = -1;
+static int g_worker_stderr_fd = -1;
+
+static void *worker_log_reader(void *opaque) {
+    WorkerLogArg *arg = (WorkerLogArg *)opaque;
+    int fd = arg->fd;
+    char buf[4096];
+    char line[8192];
+    size_t linelen = 0;
+    for (;;) {
+        ssize_t n = read(fd, buf, sizeof(buf));
+        if (n <= 0) break; // EOF or error
+        for (ssize_t i = 0; i < n; ++i) {
+            if (linelen < sizeof(line) - 1) {
+                line[linelen++] = buf[i];
+            }
+            if (buf[i] == '\n') {
+                line[linelen] = '\0';
+                printf("[worker] %s", line);
+                linelen = 0;
+            }
+        }
+    }
+    if (linelen) {
+        line[linelen] = '\0';
+        printf("[worker] %s", line);
+    }
+    close(fd);
+    g_free(arg);
+    return NULL;
+}
+
 static void spawn_worker_process(void) {
     if (worker_started) {
         return; // already spawned
@@ -65,63 +118,153 @@ static void spawn_worker_process(void) {
     vsoc_ipc_shared->pw_head = vsoc_ipc_shared->pw_tail = 0;
     vsoc_ipc_shared->wp_head = vsoc_ipc_shared->wp_tail = 0;
 
-    // Build a command to open a terminal window and run the worker inside it.
-    // Try common terminal emulators in order.
+    // Launch vsoc-worker directly and capture stdout/stderr via pipes
     GError *error = NULL;
     gboolean ok = FALSE;
-
-    // Ensure log directory exists for tee output
-    g_mkdir_with_parents("log", 0755);
-
-    // 1) gnome-terminal via bash -lc
-    if (!ok && g_find_program_in_path("gnome-terminal")) {
-        gchar cmdline[256];
-        // If 'tee' exists, pipe output to log/worker.log and terminal; else run normally.
-        snprintf(cmdline, sizeof(cmdline),
-                 "(command -v tee >/dev/null 2>&1 && (vsoc-worker %s |& tee -a log/worker.log)) || vsoc-worker %s; echo 'worker exited'; exec bash",
-                 g_shm_name, g_shm_name);
-        gchar *argv_gterm[] = {
-            (gchar*)"gnome-terminal", (gchar*)"--", (gchar*)"bash", (gchar*)"-lc",
-            cmdline, NULL
-        };
-        ok = g_spawn_async(NULL, argv_gterm, NULL, G_SPAWN_SEARCH_PATH,
-                           NULL, NULL, &g_worker_pid, &error);
-        if (!ok && error) { LOGW("gnome-terminal launch failed: %s", error->message); g_clear_error(&error); }
-    }
-
-    // 2) xterm: widely available and simple
-    if (!ok && g_find_program_in_path("xterm")) {
-        gchar cmdline[256];
-        snprintf(cmdline, sizeof(cmdline),
-                 "(command -v tee >/dev/null 2>&1 && (vsoc-worker %s |& tee -a log/worker.log)) || vsoc-worker %s; echo 'worker exited'; exec bash",
-                 g_shm_name, g_shm_name);
-        gchar *argv_xterm[] = {
-            (gchar*)"xterm", (gchar*)"-T", (gchar*)"VSOC Worker",
-            (gchar*)"-e", (gchar*)"bash", (gchar*)"-lc", cmdline, NULL
-        };
-        ok = g_spawn_async(NULL, argv_xterm, NULL, G_SPAWN_SEARCH_PATH,
-                           NULL, NULL, &g_worker_pid, &error);
-        if (!ok && error) { LOGW("xterm launch failed: %s", error->message); g_clear_error(&error); }
-    }
-
+    const char *worker_path = getenv("VSOC_WORKER_PATH");
+    if (!worker_path || !*worker_path) worker_path = "vsoc-worker";
+    LOGI("launching worker: %s %s", worker_path, g_shm_name);
+    gchar *argv_spawn[] = { (gchar*)worker_path, (gchar*)g_shm_name, NULL };
+    int child_stdin = -1, child_stdout = -1, child_stderr = -1;
+    ok = g_spawn_async_with_pipes(
+        NULL,
+        argv_spawn,
+        NULL,
+        G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN,
+        NULL,
+        NULL,
+        &g_worker_pid,
+        &child_stdin,
+        &child_stdout,
+        &child_stderr,
+        &error);
     if (!ok) {
-        LOGE("failed to launch worker in a terminal; ensure xterm/gnome-terminal is installed");
+        if (error) { LOGE("failed to launch vsoc-worker: %s", error->message); g_clear_error(&error); }
+        else { LOGE("failed to launch vsoc-worker (unknown error)"); }
         return;
     }
+    // Close child's stdin (unused) and start reader threads for stdout/stderr
+    if (child_stdin >= 0) close(child_stdin);
+    g_worker_stdout_fd = child_stdout;
+    g_worker_stderr_fd = child_stderr;
+    WorkerLogArg *out_arg = g_new0(WorkerLogArg, 1); out_arg->fd = g_worker_stdout_fd; out_arg->is_err = false;
+    WorkerLogArg *err_arg = g_new0(WorkerLogArg, 1); err_arg->fd = g_worker_stderr_fd; err_arg->is_err = true;
+    qemu_thread_create(&g_worker_out_thread, "vsoc-worker-out", worker_log_reader, out_arg, QEMU_THREAD_JOINABLE);
+    qemu_thread_create(&g_worker_err_thread, "vsoc-worker-err", worker_log_reader, err_arg, QEMU_THREAD_JOINABLE);
+    g_worker_out_thread_started = g_worker_err_thread_started = true;
 
     worker_started = true;
-    LOGI("spawned vsoc-worker (+terminal) pid %d shm %s", (int)g_worker_pid, g_shm_name);
+    LOGI("spawned vsoc-worker pid %d shm %s", (int)g_worker_pid, g_shm_name);
+}
+
+// Build and send RAM region metadata using inherited FDs
+typedef struct RamRegionMeta {
+    int fd;
+    uint32_t pad; // keep 8-byte alignment
+    uint64_t gpa_base;
+    uint64_t size;
+    uint64_t offset;
+} RamRegionMeta;
+
+typedef struct RamRegionList {
+    GArray *arr; // array of RamRegionMeta
+} RamRegionList;
+
+static void ensure_fd_inherited(int fd) {
+    int flags = fcntl(fd, F_GETFD);
+    if (flags >= 0 && (flags & FD_CLOEXEC)) {
+        (void)fcntl(fd, F_SETFD, flags & ~FD_CLOEXEC);
+    }
+}
+
+static int collect_block_cb(RAMBlock *rb, void *opaque) {
+    RamRegionList *list = (RamRegionList *)opaque;
+    if (!qemu_ram_is_shared(rb) || rb->fd < 0) return 0;
+    RamRegionMeta m = {0};
+    m.fd = rb->fd; m.pad = 0;
+    m.gpa_base = 0; // (uint64_t)qemu_ram_get_offset(rb);
+    m.size = (uint64_t)qemu_ram_get_used_length(rb);
+    m.offset = 0;
+    ensure_fd_inherited(m.fd);
+    g_array_append_val(list->arr, m);
+    LOGI("prepared RAM memfd for %s fd=%d gpa=%#llx size=%#llx off=%#llx rb_off=%#llx", qemu_ram_get_idstr(rb), m.fd, (unsigned long long)m.gpa_base, (unsigned long long)m.size, (unsigned long long)m.offset, (unsigned long long)rb->offset);
+    return 0;
+}
+
+static void send_ram_regions_to_worker(void) {
+    RamRegionList list = { .arr = g_array_new(FALSE, TRUE, sizeof(RamRegionMeta)) };
+    qemu_ram_foreach_block(collect_block_cb, &list);
+    uint32_t count = (uint32_t)list.arr->len;
+    size_t payload_sz = sizeof(count) + count * sizeof(RamRegionMeta);
+    uint8_t *payload = g_malloc(payload_sz);
+    memcpy(payload, &count, sizeof(count));
+    memcpy(payload + sizeof(count), list.arr->data, count * sizeof(RamRegionMeta));
+    bool ok = vsoc_ipc_parent_send(VSOC_IPC_TYPE_RAM_REGIONS, 0, payload, (uint32_t)payload_sz, 0);
+    if (!ok) LOGE("failed to send RAM_REGIONS metadata");
+    g_free(payload);
+    g_array_free(list.arr, TRUE);
+}
+
+// Handle SET_IRQ forwarded from worker: payload is struct Req; respond with int32 status
+static void set_irq_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
+                               uint32_t len, uint32_t flags, bool from_worker) {
+    (void)type; (void)flags; (void)from_worker;
+    struct Req {
+        uint64_t worker_handle; // worker Device_Context* value
+        int32_t buf_index;
+        int32_t len;
+    } req;
+    if (len != sizeof(req)) {
+        LOGE("SET_IRQ: bad len %u expected %zu", len, sizeof(req));
+        int32_t st = IRQ_NOT_READY; (void)vsoc_ipc_parent_send(VSOC_IPC_TYPE_SET_IRQ, id, &st, sizeof(st), VSOC_IPC_FLAG_RESPONSE);
+        return;
+    }
+    memcpy(&req, data, sizeof(req));
+    int32_t status = IRQ_NOT_READY;
+    if (g_ops.set_express_device_irq && g_local_dc_by_worker_handle) {
+        Device_Context *dc = g_hash_table_lookup(g_local_dc_by_worker_handle, (gpointer)(uintptr_t)req.worker_handle);
+        if (!dc) {
+            LOGE("SET_IRQ: unknown worker_handle=%" PRIx64, req.worker_handle);
+        } else {
+            status = g_ops.set_express_device_irq(dc, req.buf_index, req.len);
+        }
+    } else {
+        LOGE("SET_IRQ: no IRQ impl or mapping table missing");
+    }
+    (void)vsoc_ipc_parent_send(VSOC_IPC_TYPE_SET_IRQ, id, &status, sizeof(status), VSOC_IPC_FLAG_RESPONSE);
 }
 
 void init_express_platform(const ExpressPlatformOps ops) {
     g_ops = ops;
+    // Ensure memfd FDs won't be closed on exec
+    {
+        RamRegionList list = { .arr = g_array_new(FALSE, TRUE, sizeof(RamRegionMeta)) };
+        qemu_ram_foreach_block(collect_block_cb, &list);
+        // We don't send here; just ensure CLOEXEC cleared before spawn.
+        g_array_free(list.arr, TRUE);
+    }
     spawn_worker_process();
+    // Wait for worker to attach shared memory (sets worker_ready)
+    if (vsoc_ipc_shared) {
+        int waited_ms = 0;
+        while (!vsoc_ipc_shared->worker_ready && waited_ms < 3000) {
+            g_usleep(1000); // 1ms
+            waited_ms++;
+        }
+        if (!vsoc_ipc_shared->worker_ready) {
+            LOGE("worker did not attach shared memory in time; proceeding anyway");
+        } else {
+            LOGI("worker_ready observed after %d ms", waited_ms);
+        }
+    }
     // Start dedicated IPC polling thread (parent only)
     if (!parent_ipc_thread_started) {
         void *parent_poll_thread(void *opaque) {
             (void)opaque;
             while (!should_stop) {
-                vsoc_ipc_poll_parent();
+                if (g_atomic_int_get(&g_ipc_block_bg_poll) == 0) {
+                    vsoc_ipc_poll_parent();
+                }
                 g_usleep(1000); // 1ms poll interval (tunable)
             }
             // final drain
@@ -132,30 +275,76 @@ void init_express_platform(const ExpressPlatformOps ops) {
         parent_ipc_thread_started = true;
     }
 
+    // Register IRQ forwarding handler
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_SET_IRQ, set_irq_ipc_handler);
     vsoc_ipc_parent_send(VSOC_IPC_TYPE_PLATFORM_INIT, 0, &ops, sizeof(ops), 0);
+    // After platform init, inform worker of RAM regions (FDs are already inherited)
+    send_ram_regions_to_worker();
 }
 
-Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info) {
-    // request structure
+static void proxy_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info) {
+    // 1) Send to worker with device_id for correct routing
+    uint64_t device_id = (uint64_t)info->device_id;
+    uint8_t buf[VSOC_IPC_MAX_PAYLOAD];
+    uint8_t *p = buf; uint8_t *end = buf + sizeof(buf);
+    // Header: [device_id(8)][thread_id(8)][process_id(8)][unique_id(8)] then packed Guest_Mem
+    if (p + sizeof(uint64_t)*4 > end) {
+        LOGE("proxy_buffer_register: header overflow");
+        // still fall through to local call below
+    } else {
+        memcpy(p, &device_id, sizeof(device_id)); p += sizeof(device_id);
+        memcpy(p, &thread_id, sizeof(thread_id)); p += sizeof(thread_id);
+        memcpy(p, &process_id, sizeof(process_id)); p += sizeof(process_id);
+        memcpy(p, &unique_id, sizeof(unique_id)); p += sizeof(unique_id);
+    data = convert_guest_mem_to_gpa(data);
+    size_t wrote = vsoc_ipc_guest_mem_pack(p, (size_t)(end - p), data);
+    free_duplicated_guest_mem(data);
+        if (wrote == 0) {
+            LOGE("proxy_buffer_register: pack overflow");
+        } else {
+            p += wrote;
+            uint32_t payload_len = (uint32_t)(p - buf);
+            bool ok = vsoc_ipc_parent_send(VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len, 0);
+            if (!ok) LOGE("proxy_buffer_register: send failed");
+        }
+    }
+
+    // // 2) Always call original buffer_register locally (sideloaded worker scenario)
+    // Express_Device_Info *orig = g_orig_info ? g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(info->device_id)) : NULL;
+    // if (orig && orig->buffer_register) {
+    //     orig->buffer_register(data, thread_id, process_id, unique_id, orig);
+    // }
+}
+
+static Device_Context *proxy_get_device_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info) {
+    // 1) Ask worker to create its Device_Context and return a handle
     struct Req { uint64_t device_id, thread_id, process_id, unique_id; } req = { device_id, thread_id, process_id, unique_id };
-    uint64_t handle = 0; uint32_t resp_len = sizeof(handle);
-    int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_GET_CONTEXT, &req, sizeof(req), &handle, &resp_len, NULL, 3000);
-    if (rc != 0 || resp_len != sizeof(handle) || handle == 0) {
-        LOGE("proxy_get_context failed rc=%d len=%u handle=%" PRIx64, rc, resp_len, handle);
+    uint64_t worker_handle = 0; uint32_t resp_len = sizeof(worker_handle);
+    g_atomic_int_inc(&g_ipc_block_bg_poll);
+    int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, &req, sizeof(req), &worker_handle, &resp_len, NULL, 3000);
+    g_atomic_int_dec_and_test(&g_ipc_block_bg_poll);
+    if (rc != 0 || resp_len != sizeof(worker_handle) || worker_handle == 0) {
+        LOGE("proxy_get_device_context: worker request failed rc=%d len=%u handle=%" PRIx64, rc, resp_len, worker_handle);
+        // Continue to create local context anyway; we need it to process IRQs
     }
 
-    // Look up the original info (not the proxy) to avoid recursion when calling into local implementation
-    Express_Device_Info *orig = NULL;
-    if (g_orig_info) orig = g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(device_id));
-    Thread_Context *ctx = orig->get_context(device_id, thread_id, process_id, unique_id, orig);
-    if (ctx && handle) {
-        // Remember worker handle for this local context
-        g_hash_table_insert(g_worker_handle_by_ctx, ctx, (gpointer)(uintptr_t)handle);
+    // 2) Create a local Device_Context in QEMU so IRQ routing works locally
+    Express_Device_Info *orig = g_orig_info ? g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(device_id)) : NULL;
+    if (!orig || !orig->get_device_context) {
+        LOGE("proxy_get_device_context: missing original get_device_context for device_id=%" PRIu64, device_id);
+        return NULL;
     }
-    return ctx;
+    Device_Context *dc = orig->get_device_context(device_id, thread_id, process_id, unique_id, orig);
+    if (!dc) return NULL;
+
+    // 3) Map worker handle -> local Device_Context for future IRQ routing
+    if (worker_handle && g_local_dc_by_worker_handle) {
+        g_hash_table_insert(g_local_dc_by_worker_handle, (gpointer)(uintptr_t)worker_handle, dc);
+    }
+
+    return dc;
 }
-
-bool proxy_call_handler(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num) {
+static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num) {
     Express_Device_Info *orig = g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(context->device_id));
     if (!orig || !orig->call_handler) {
         LOGE("proxy_call_handler: no original device info or call_handler for device %" PRIu64, context->device_id);
@@ -169,7 +358,7 @@ bool proxy_call_handler(struct Thread_Context *context, uint64_t id, const Call_
         goto fallback;
     }
 
-    // Build DEVICE_CALL payload: [handle(8)][id(8)][para_num(4)] + per-param [num(4)][all_len(4)] + segments
+    // Build DEVICE_CALL payload: [handle(8)][id(8)][para_num(4)] + per-param packed Guest_Mem
     uint8_t buf[VSOC_IPC_MAX_PAYLOAD];
     uint8_t *p = buf; uint8_t *end = buf + sizeof(buf);
     if (p + sizeof(uint64_t)*2 + sizeof(int32_t) > end) {
@@ -182,58 +371,94 @@ bool proxy_call_handler(struct Thread_Context *context, uint64_t id, const Call_
 
     for (int i = 0; i < para_num; ++i) {
         const Call_Para *cp = &all_para[i];
-        uint32_t num = 0, all_len = 0;
-        if (cp->data) { num = (uint32_t)cp->data->num; all_len = (uint32_t)cp->data->all_len; }
-        if (p + sizeof(uint32_t)*2 > end) { LOGE("proxy_call_handler: param %d header overflow", i); goto fallback; }
-        memcpy(p, &num, sizeof(num)); p += sizeof(num);
-        memcpy(p, &all_len, sizeof(all_len)); p += sizeof(all_len);
-        size_t need = (size_t)num * sizeof(VsocGuestMemSeg);
-        if (p + need > end) { LOGE("proxy_call_handler: param %d segs overflow (num=%u)", i, num); goto fallback; }
-        if (num) {
-            VsocGuestMemSeg *segs = (VsocGuestMemSeg*)p;
-            for (uint32_t s = 0; s < num; ++s) {
-                segs[s].addr = (uint64_t)(uintptr_t)cp->data->scatter_data[s].data;
-                segs[s].len = (uint32_t)cp->data->scatter_data[s].len;
-                segs[s]._pad = 0;
-            }
-            p += need;
-        }
+    Guest_Mem *data = convert_guest_mem_to_gpa(cp->data);
+    size_t wrote = vsoc_ipc_guest_mem_pack(p, (size_t)(end - p), data);
+    free_duplicated_guest_mem(data);
+        if (wrote == 0) { LOGE("proxy_call_handler: param %d pack overflow", i); goto fallback; }
+        p += wrote;
     }
 
     uint32_t payload_len = (uint32_t)(p - buf);
     if (FUN_NEED_SYNC(id)) {
         uint8_t resp = 0; uint32_t resp_len = sizeof(resp);
+        g_atomic_int_inc(&g_ipc_block_bg_poll);
         int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_DEVICE_CALL, buf, payload_len, &resp, &resp_len, NULL, 10000);
+        g_atomic_int_dec_and_test(&g_ipc_block_bg_poll);
         if (rc != 0 || resp_len != sizeof(resp)) {
             LOGE("proxy_call_handler: request rc=%d resp_len=%u", rc, resp_len);
+            goto fallback;
         }
     } else {
         bool ok = vsoc_ipc_parent_send(VSOC_IPC_TYPE_DEVICE_CALL, 0, buf, payload_len, 0);
         if (!ok) {
             LOGE("proxy_call_handler: async send failed");
+            goto fallback;
         }
     }
+    return true;
 
 fallback:
-    return orig->call_handler(context, id, all_para, para_num);
+    // return orig->call_handler(context, id, all_para, para_num);
+    return false;
+}
+
+Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info) {
+    // request structure
+    struct Req { uint64_t device_id, thread_id, process_id, unique_id; } req = { device_id, thread_id, process_id, unique_id };
+    uint64_t handle = 0; uint32_t resp_len = sizeof(handle);
+    g_atomic_int_inc(&g_ipc_block_bg_poll);
+    int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_GET_CONTEXT, &req, sizeof(req), &handle, &resp_len, NULL, 3000);
+    g_atomic_int_dec_and_test(&g_ipc_block_bg_poll);
+    if (rc != 0 || resp_len != sizeof(handle) || handle == 0) {
+        LOGE("proxy_get_context failed rc=%d len=%u handle=%" PRIx64, rc, resp_len, handle);
+    }
+
+    // Look up the original info to avoid recursion when calling into local implementation
+    Express_Device_Info *orig = NULL;
+    Express_Device_Info *proxy = NULL;
+    if (g_orig_info) orig = g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(device_id));
+    if (g_proxy_info) proxy = g_hash_table_lookup(g_proxy_info, GINT_TO_POINTER(device_id));
+
+    Thread_Context *ctx = NULL;
+    if (orig && orig->get_context) {
+        // Prefer passing the proxy info so thread_context_create (or device code) sets call_handler to proxy impl
+        ctx = orig->get_context(device_id, thread_id, process_id, unique_id, proxy ? proxy : orig);
+    }
+    if (ctx) {
+        ctx->context_init = NULL;
+        ctx->context_destroy = NULL;
+        ctx->call_handler = proxy_call_handler;
+    }
+    if (ctx && handle) {
+        // Remember worker handle for this local context
+        g_hash_table_insert(g_worker_handle_by_ctx, ctx, (gpointer)(uintptr_t)handle);
+    }
+    return ctx;
 }
 
 void init_express_device(const Express_Device_Info *info) {
     if (!g_proxy_info) g_proxy_info = g_hash_table_new(g_direct_hash, g_direct_equal);
     if (!g_orig_info) g_orig_info = g_hash_table_new(g_direct_hash, g_direct_equal);
     if (!g_worker_handle_by_ctx) g_worker_handle_by_ctx = g_hash_table_new(g_direct_hash, g_direct_equal);
-
-    // Create proxy wrapper with overridden hooks we want to intercept.
-    Express_Device_Info *proxy = g_malloc(sizeof(Express_Device_Info));
-    memcpy(proxy, info, sizeof(Express_Device_Info));
-    proxy->get_context = proxy_get_context;
-    proxy->call_handler = proxy_call_handler;
+    if (!g_local_dc_by_worker_handle) g_local_dc_by_worker_handle = g_hash_table_new(g_direct_hash, g_direct_equal);
 
     // Map device_id -> original info for later lookup
     g_hash_table_insert(g_orig_info, GINT_TO_POINTER(info->device_id), info);
-    g_hash_table_insert(g_proxy_info, GINT_TO_POINTER(info->device_id), proxy);
 
-    express_device_init_common(proxy);
+    if (info->device_id == EXPRESS_GPU_DEVICE_ID || info->device_id == EXPRESS_SYNC_DEVICE_ID || info->device_id == EXPRESS_DISPLAY_DEVICE_ID || info->device_id == EXPRESS_MEM_DEVICE_ID  || info->device_id == EXPRESS_TOUCHSCREEN_DEVICE_ID || info->device_id == EXPRESS_KEYBOARD_DEVICE_ID) {
+        // Create proxy wrapper with overridden hooks we want to intercept.
+        Express_Device_Info *proxy = g_malloc(sizeof(Express_Device_Info));
+        memcpy(proxy, info, sizeof(Express_Device_Info));
+        proxy->get_context = proxy_get_context;
+        proxy->call_handler = proxy_call_handler;
+        proxy->buffer_register = proxy_buffer_register;
+        proxy->get_device_context = proxy_get_device_context;
+    
+        g_hash_table_insert(g_proxy_info, GINT_TO_POINTER(info->device_id), proxy);
+        info = proxy;
+    }
+
+    express_device_init_common(info);
 }
 
 void deinit_express_platform(void) {
@@ -270,6 +495,11 @@ void deinit_express_platform(void) {
             }
         }
     }
+
+    // No socket resources to close; FDs are owned by QEMU RAM blocks
+    // Join log reader threads after worker exit to drain any pending output
+    if (g_worker_out_thread_started) { qemu_thread_join(&g_worker_out_thread); g_worker_out_thread_started = false; }
+    if (g_worker_err_thread_started) { qemu_thread_join(&g_worker_err_thread); g_worker_err_thread_started = false; }
 }
 
 bool platform_should_stop(void) {
@@ -282,6 +512,7 @@ Guest_Mem *duplicate_guest_mem(Guest_Mem *orig) {
     Guest_Mem *cpy = g_malloc(sizeof(Guest_Mem));
     cpy->num = orig->num;
     cpy->all_len = orig->all_len;
+    cpy->is_gpa = orig->is_gpa;
     cpy->scatter_data = g_malloc(sizeof(Scatter_Data) * cpy->num);
     memcpy(cpy->scatter_data, orig->scatter_data, sizeof(Scatter_Data) * cpy->num);
     return cpy;
@@ -292,6 +523,35 @@ void free_duplicated_guest_mem(Guest_Mem *mem) {
         g_free(mem->scatter_data);
         g_free(mem);
     }
+}
+
+/**
+ * Converts a guest memory structure to use GPA instead of HVA (default) for its scatterlist data.
+ * The converted Guest_Mem structure should not be used to read/write guest memory.
+ * The caller is responsible for freeing the pointer (using free_duplicated_guest_mem()).
+ */
+static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem) {
+    if (!mem) return NULL;
+    mem = duplicate_guest_mem(mem);
+    bool all_translatable = true;
+    for (int i = 0; i < mem->num; ++i) {
+        Scatter_Data *sd = &mem->scatter_data[i];
+        ram_addr_t block_offset;
+        RAMBlock *block = qemu_ram_block_from_host(sd->data, false, &block_offset);
+        if (!block) {
+            all_translatable = false;
+            break;
+        }
+    }
+    if (!all_translatable) { mem->is_gpa = 0; return mem; }
+    for (int i = 0; i < mem->num; ++i) {
+        Scatter_Data *sd = &mem->scatter_data[i];
+        ram_addr_t block_offset;
+        (void)qemu_ram_block_from_host(sd->data, false, &block_offset);
+        sd->data = (unsigned char *)(uintptr_t)block_offset;
+    }
+    mem->is_gpa = 1;
+    return mem;
 }
 
 /**
