@@ -235,9 +235,10 @@ static int bridge_socket_accept(int fd)
 
 static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
 {
-    Bridge_Read_Data *head = (Bridge_Read_Data *)guest_mem->scatter_data->data;
+    int null_flag = 0;
+    Bridge_Read_Data *head = get_direct_ptr(guest_mem, &null_flag);
 
-    if (guest_mem->scatter_data->len < 12)
+    if (!head || guest_mem->scatter_data->iov_len < 12)
     {
         // 不可能发生，这种情况直接关掉连接
         return -1;

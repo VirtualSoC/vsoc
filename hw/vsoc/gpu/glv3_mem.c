@@ -96,16 +96,16 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
         return;
     }
 
-    if (size == s_data[0].len)
+    if (size == s_data[0].iov_len)
     {
         // size等于第一个scatter的len，说明大小较小，可以直接data过去
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            glNamedBufferData(bind_buffer, size, s_data[0].data, usage);
+            glNamedBufferData(bind_buffer, size, s_data[0].iov_base, usage);
         }
         else
         {
-            glBufferData(target, size, s_data[0].data, usage);
+            glBufferData(target, size, s_data[0].iov_base, usage);
         }
     }
     else
@@ -169,16 +169,16 @@ void d_glBufferSubData_custom(void *context, GLenum target, GLintptr offset, GLs
         return;
     }
 
-    if (size == s_data[0].len)
+    if (size == s_data[0].iov_len)
     {
         // size等于第一个scatter的len，说明大小较小，可以直接data过去
         if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
         {
-            glNamedBufferSubData(bind_buffer, offset, size, s_data[0].data);
+            glNamedBufferSubData(bind_buffer, offset, size, s_data[0].iov_base);
         }
         else
         {
-            glBufferSubData(target, offset, size, s_data[0].data);
+            glBufferSubData(target, offset, size, s_data[0].iov_base);
         }
     }
     else

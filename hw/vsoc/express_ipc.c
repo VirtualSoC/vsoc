@@ -176,9 +176,10 @@ static void vsoc_ipc_dispatch_one(bool from_worker_ring) {
 
     IPC_LOG("IPC: dispatched %s slot %u len %u", vsoc_ipc_type_name(type), id, len);
 
-    // If this is a response, complete a pending request (applies to both parent and worker).
+    // If this is a response, first try to complete a pending request (applies to both parent and worker).
     if (flags & VSOC_IPC_FLAG_RESPONSE) {
-        for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) {
+        bool matched_pending = false;
+        for (int i = 0; i < VSOC_IPC_MAX_PENDING; i++) {
             PendingReq *pr = &g_pending[i];
             if (pr->id == id && pr->type == type) {
                 qemu_mutex_lock(&pr->lock);
@@ -191,10 +192,17 @@ static void vsoc_ipc_dispatch_one(bool from_worker_ring) {
                     qemu_cond_signal(&pr->cond);
                 }
                 qemu_mutex_unlock(&pr->lock);
+                matched_pending = true;
                 break;
             }
         }
-        // Responses are for completing pending requests only; do not dispatch to handlers.
+        // If no pending waiter, fall-through to dispatch to a registered handler for responses.
+        if (!matched_pending) {
+            VsocIpcHandler h = vsoc_ipc_find_handler(type);
+            if (h) {
+                h(type, id, tmp, len, flags, from_worker_ring);
+            }
+        }
         return;
     }
     VsocIpcHandler h = vsoc_ipc_find_handler(type);
@@ -319,8 +327,8 @@ size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem 
     uint32_t num = 0, all_len = 0;
     if (gm) {
         const Guest_Mem *m = (const Guest_Mem *)(const void *)gm;
-        if (m->num < 0) return 0;
-        num = (uint32_t)m->num; all_len = (uint32_t)m->all_len;
+    if (m->num < 0) return 0;
+    num = (uint32_t)m->num; all_len = (uint32_t)m->all_len;
         size_t need = 8 + (size_t)num * sizeof(VsocGuestMemSeg);
         if ((size_t)(end - p) < need) return 0;
         memcpy(p, &num, 4); p += 4;
@@ -331,21 +339,21 @@ size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem 
         if (m->is_gpa) {
             for (uint32_t s = 0; s < num; ++s) {
                 const Scatter_Data *sd = &m->scatter_data[s];
-                segs[s].len = (uint32_t)sd->len;
-                segs[s].addr = (uint64_t)(uintptr_t)sd->data; // GPA token
+                segs[s].len = (uint32_t)sd->iov_len;
+                segs[s].addr = (uint64_t)(uintptr_t)sd->iov_base; // GPA token
                 segs[s].flags = 0;
             }
             // no inline payload when is_gpa==1
         } else {
             for (uint32_t s = 0; s < num; ++s) {
                 const Scatter_Data *sd = &m->scatter_data[s];
-                segs[s].len = (uint32_t)sd->len;
+                segs[s].len = (uint32_t)sd->iov_len;
                 segs[s].addr = 0; // ignored by worker
                 segs[s].flags = VSOC_GM_SEG_FLAG_INLINE;
             }
             // Append inline bytes
             for (uint32_t s = 0; s < num; ++s) {
-                const void *base = m->scatter_data[s].data;
+                const void *base = m->scatter_data[s].iov_base;
                 uint32_t slen = segs[s].len;
                 if ((size_t)(end - p) < slen) return 0;
                 memcpy(p, base, slen);
@@ -377,15 +385,15 @@ bool vsoc_ipc_guest_mem_unpack(const uint8_t *src, size_t len, struct Guest_Mem 
     for (uint32_t s = 0; s < num; ++s) if (segs[s].flags & VSOC_GM_SEG_FLAG_INLINE) { payload_is_gpa = false; break; }
     gm->is_gpa = payload_is_gpa ? 1 : 0;
     for (uint32_t s = 0; s < num; ++s) {
-        gm->scatter_data[s].len = segs[s].len;
+        gm->scatter_data[s].iov_len = segs[s].len;
         if (!payload_is_gpa) {
             if (p + segs[s].len > end) { g_free(gm->scatter_data); g_free(gm); return false; }
             void *buf = g_malloc(segs[s].len);
             memcpy(buf, p, segs[s].len);
             p += segs[s].len;
-            gm->scatter_data[s].data = (unsigned char *)buf;
+            gm->scatter_data[s].iov_base = buf;
         } else {
-            gm->scatter_data[s].data = (unsigned char *)(uintptr_t)segs[s].addr; // GPA token
+            gm->scatter_data[s].iov_base = (void *)(uintptr_t)segs[s].addr; // GPA token
         }
     }
     *out_gm = (struct Guest_Mem *)(void *)gm;

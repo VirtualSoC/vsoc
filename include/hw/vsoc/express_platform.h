@@ -90,22 +90,17 @@ dispatch_sync(dispatch_get_main_queue(), ^{
 #define IRQ_NOT_READY -2
 #define IRQ_RELEASED -3
 
-// fixme: change scatter_data to struct iovec and think of another way to identify gpa, wtf.
 // fixme: it seems that bounce.buffer can be written into as well. Implement worker flush, wtf.
-typedef struct Scatter_Data
-{
-    unsigned char *data;
-    size_t len;
-} Scatter_Data;
+typedef struct iovec Scatter_Data;
 
 typedef struct Guest_Mem
 {
     Scatter_Data *scatter_data;
     int num;
     int all_len;
-    // When true, every scatter_data[i].data encodes a guest physical address token
+    // When true, every scatter_data[i].iov_base encodes a guest physical address token
     // (ram_addr) cast to a pointer, and no inline payload follows in IPC.
-    // When false, scatter_data[i].data is a host pointer to inline-copied bytes
+    // When false, scatter_data[i].iov_base is a host pointer to inline-copied bytes
     // within the current process, suitable for read-only access.
     uint8_t is_gpa;
 } Guest_Mem;
@@ -122,8 +117,25 @@ typedef struct Monitor Monitor;
 
 typedef struct Thread_Context
 {
-        //设备的类型id
+    bool proxy;
+
+    //设备的类型id
     uint64_t device_id;
+
+    //对应到guest端调用起这个设备的线程的线程id
+    uint64_t thread_id;
+
+    uint64_t unique_id;
+
+    uint64_t process_id;
+
+    //特定设备自定义的context初始化函数
+    void (*context_init)(struct Thread_Context *context);
+
+    void (*context_destroy)(struct Thread_Context *context);
+
+    //在数据到来后，特定设备自定义的处理call数据的函数，需要在这个函数中调用callback
+    bool (*call_handler)(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num);
 
     //用于缓冲call的环形缓冲区
     void *call_buf[CALL_BUF_SIZE + 2];
@@ -146,23 +158,8 @@ typedef struct Thread_Context
     //当前线程是否已经运行起来了
     int thread_run;
 
-    //对应到guest端调用起这个设备的线程的线程id
-    uint64_t thread_id;
-
-    uint64_t unique_id;
-
-    uint64_t process_id;
-
     //标示当前线程
     void *this_thread;
-
-    //特定设备自定义的context初始化函数
-    void (*context_init)(struct Thread_Context *context);
-
-    void (*context_destroy)(struct Thread_Context *context);
-
-    //在数据到来后，特定设备自定义的处理call数据的函数，需要在这个函数中调用callback
-    bool (*call_handler)(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num);
 
 } Thread_Context;
 
@@ -292,6 +289,7 @@ Guest_Mem *duplicate_guest_mem(Guest_Mem *orig);
 void free_duplicated_guest_mem(Guest_Mem *mem);
 
 Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info);
+bool invoke_call_handler(Thread_Context *context, void *call);
 void *handle_thread_run(void *opaque);
 
 /**

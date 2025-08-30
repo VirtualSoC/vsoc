@@ -259,7 +259,7 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
     if (static_sync_context.sync_data == NULL)
     {
         Scatter_Data *guest_data = data->scatter_data;
-        LOGE("error! cannot get direct ptr guest_mem num %d first sg size %lld ptr %p", data->num, guest_data->len, guest_data->data);
+        LOGE("error! cannot get direct ptr guest_mem num %d first sg size %lld ptr %p", data->num, guest_data->iov_len, guest_data->iov_base);
     }
 }
 

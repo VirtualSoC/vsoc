@@ -247,18 +247,18 @@ int create_call_from_cluster(uint64_t *send_buf, unsigned char *save_buf, Telepo
 
         if (send_buf[i * 2 + 2 + 1] != 0)
         {
-            pre_scatter_data[i].len = send_buf[i * 2 + 2];
-            pre_scatter_data[i].data = save_buf + send_buf[i * 2 + 2 + 1];
+            pre_scatter_data[i].iov_len = send_buf[i * 2 + 2];
+            pre_scatter_data[i].iov_base = save_buf + send_buf[i * 2 + 2 + 1];
         }
         else
         {
-            pre_scatter_data[i].len = 0;
-            pre_scatter_data[i].data = NULL;
+            pre_scatter_data[i].iov_len = 0;
+            pre_scatter_data[i].iov_base = NULL;
         }
 
         pre_guest_mem[i].scatter_data = &(pre_scatter_data[i]);
         pre_guest_mem[i].num = 1;
-        pre_guest_mem[i].all_len = pre_scatter_data[i].len;
+        pre_guest_mem[i].all_len = pre_scatter_data[i].iov_len;
 
         pre_elem[i + 1].para = &(pre_guest_mem[i]);
         pre_elem[i + 1].len = send_buf[i * 2 + 2];

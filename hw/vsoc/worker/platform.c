@@ -2,6 +2,7 @@
 #include "hw/vsoc/express_ipc.h"
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
+#include "hw/vsoc/express_handle_thread.h"
 #include "hw/vsoc/express_event.h"
 #include "hw/vsoc/worker/device.h"
 #include "hw/vsoc/worker/guestmem.h"
@@ -42,9 +43,9 @@ static void worker_read_from_guest_mem(Guest_Mem *guest, void *host, size_t star
     size_t off = start_loc;
     bool is_inline = !guest->is_gpa;
     for (uint32_t i = 0; i < guest->num && remaining; ++i) {
-        uint64_t seg_len = (uint64_t)guest->scatter_data[i].len;
+    uint64_t seg_len = (uint64_t)guest->scatter_data[i].iov_len;
         if (off >= seg_len) { off -= seg_len; continue; }
-        unsigned char *seg_ptr = guest->scatter_data[i].data;
+    void *seg_ptr = guest->scatter_data[i].iov_base;
         uint64_t gpa = is_inline ? 0 : (uint64_t)(uintptr_t)seg_ptr;
         size_t seg_avail = (size_t)(seg_len - off);
         size_t chunk = seg_avail < remaining ? seg_avail : remaining;
@@ -74,9 +75,9 @@ static void worker_write_to_guest_mem(Guest_Mem *guest, void *host, size_t start
         return;
     }
     for (uint32_t i = 0; i < guest->num && remaining; ++i) {
-        uint64_t seg_len = (uint64_t)guest->scatter_data[i].len;
+    uint64_t seg_len = (uint64_t)guest->scatter_data[i].iov_len;
         if (off >= seg_len) { off -= seg_len; continue; }
-        unsigned char *seg_ptr = guest->scatter_data[i].data;
+    void *seg_ptr = guest->scatter_data[i].iov_base;
         uint64_t gpa = (uint64_t)(uintptr_t)seg_ptr;
         size_t seg_avail = (size_t)(seg_len - off);
         size_t chunk = seg_avail < remaining ? seg_avail : remaining;
@@ -147,7 +148,9 @@ Guest_Mem *duplicate_guest_mem(Guest_Mem *orig) {
 
 void free_duplicated_guest_mem(Guest_Mem *mem) {
     if (mem) {
-        g_free(mem->scatter_data);
+        if (mem->scatter_data) {
+            g_free(mem->scatter_data);
+        }
         g_free(mem);
     }
 }
@@ -166,9 +169,9 @@ void *get_direct_ptr(Guest_Mem *guest_mem, int *flag)
         return NULL;
     }
     if (likely(guest_mem->num == 1) && guest_mem->is_gpa) {
-        Scatter_Data *guest_data = guest_mem->scatter_data;
-        uint64_t gpa = (uint64_t)(uintptr_t)guest_data->data;
-        size_t len = guest_data->len;
+    Scatter_Data *guest_data = guest_mem->scatter_data;
+    uint64_t gpa = (uint64_t)(uintptr_t)guest_data->iov_base;
+    size_t len = guest_data->iov_len;
         // If guest provided a real NULL pointer, keep the old semantics: flag=1, return NULL
         if (gpa == 0) { if (flag) *flag = 1; return NULL; }
         size_t contig = 0;

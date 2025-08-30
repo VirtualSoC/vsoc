@@ -33,7 +33,7 @@ static void attach_shared_memory(const char *name) {
     }
     vsoc_ipc_shared = (VsocGpuIpcShared*)addr;
     vsoc_ipc_shared->worker_ready = 1;
-    LOGI("worker attached shared memory %s", name);
+    LOGD("worker attached shared memory %s", name);
 }
 
 // Handler for RAM region metadata from parent. FDs are inherited and referenced by number.
@@ -51,6 +51,10 @@ static void ram_regions_ipc_handler(uint32_t type, uint32_t id, const uint8_t *d
         LOGE("RAM_REGIONS: size mismatch count=%u payload=%zu expected=%zu", count, (size_t)(end - p), (size_t)count * entry_sz);
         return;
     }
+    // Build a temporary array and atomically replace the mapping table.
+    VsocGuestMemRegionInfo *infos = NULL;
+    if (count) infos = (VsocGuestMemRegionInfo*)calloc(count, sizeof(*infos));
+    uint32_t kept = 0;
     for (uint32_t i = 0; i < count; ++i) {
         int32_t fd = -1; uint32_t pad = 0; (void)pad;
         uint64_t gpa = 0, size = 0, off = 0;
@@ -60,23 +64,23 @@ static void ram_regions_ipc_handler(uint32_t type, uint32_t id, const uint8_t *d
             LOGW("RAM_REGIONS: skip invalid fd=%d", fd);
             continue;
         }
-        // Make sure fd looks valid in the worker
         if (fcntl(fd, F_GETFD) == -1) {
             LOGE("RAM_REGIONS: inherited fd %d not valid in worker: %s", fd, strerror(errno));
             continue;
         }
-        VsocGuestMemRegionInfo info = { .fd = fd, .gpa_base = gpa, .size = size, .file_offset = off };
         long page = sysconf(_SC_PAGESIZE);
-        if (page > 0 && (info.file_offset % (uint64_t)page) != 0) {
-            LOGE("guestmem region fd=%d has non-page-aligned file_offset=%#llx (page=%ld)", fd, (unsigned long long)info.file_offset, page);
+        if (page > 0 && (off % (uint64_t)page) != 0) {
+            LOGE("guestmem region fd=%d has non-page-aligned file_offset=%#llx (page=%ld)", fd, (unsigned long long)off, page);
         }
-        int rc = guestmem_add_region(&info);
-        if (rc != 0) {
-            LOGE("guestmem_add_region failed rc=%d for fd=%d gpa=%#llx size=%#llx", rc, fd, (unsigned long long)gpa, (unsigned long long)size);
-        } else {
-            LOGI("mapped RAM memfd fd=%d gpa=%#llx size=%#llx", fd, (unsigned long long)gpa, (unsigned long long)size);
-        }
+        infos[kept++] = (VsocGuestMemRegionInfo){ .fd = fd, .gpa_base = gpa, .size = size, .file_offset = off };
     }
+    int rc = guestmem_replace_all(infos, kept);
+    if (rc != 0) {
+        LOGE("guestmem_replace_all failed rc=%d (kept=%u)", rc, kept);
+    } else {
+        LOGD("RAM_REGIONS: mapped %u regions", kept);
+    }
+    free(infos);
 }
 
 void platform_init_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
@@ -104,7 +108,7 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-    LOGI("vsoc worker starting argc %d", argc);
+    LOGD("vsoc worker starting argc %d", argc);
     // Ensure worker terminates when parent dies (Linux). Use SIGKILL so it cannot be ignored
     // and so we don't rely on any in-process handlers during catastrophic parent exits.
     if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0) {
@@ -122,6 +126,9 @@ int main(int argc, char **argv)
 
     setenv("VSOC_WORKER", "1", 1);
 
+    // Initialize guest memory subsystem (mutex, etc.).
+    guestmem_init();
+
     attach_shared_memory(argv[1]);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_PLATFORM_INIT, platform_init_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_RAM_REGIONS, ram_regions_ipc_handler);
@@ -136,7 +143,7 @@ int main(int argc, char **argv)
             break;
         }
         vsoc_ipc_poll_worker();
-        g_usleep(1 * 1000); // 1ms poll interval
+        // g_usleep(1 * 1000); // 1ms poll interval
     }
 
     LOGI("vsoc worker exiting");

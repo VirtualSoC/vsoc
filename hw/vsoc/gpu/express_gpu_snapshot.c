@@ -3100,17 +3100,17 @@ void save_scatter_data(QEMUFile *f, Scatter_Data *scatter_data, int count) {
     // qemu_put_buffer(f, (const uint8_t *)scatter_data, size);
 
     for (int i = 0; i < count; i++) {
-        qemu_put_be32(f, scatter_data[i].len);
-        // qemu_put_buffer(f, scatter_data[i].data, scatter_data[i].len);
+        qemu_put_be32(f, scatter_data[i].iov_len);
+        // qemu_put_buffer(f, scatter_data[i].iov_base, scatter_data[i].iov_len);
         uint64_t address = 0;
-        address = ((uint64_t)scatter_data[i].data);// & 0xFFFFFFFFF;
+        address = ((uint64_t)scatter_data[i].iov_base);// & 0xFFFFFFFFF;
         void* real_guest_mem = (void *)qemu_ram_addr_from_host((void*)address);
 
         qemu_put_be64(f, (uint64_t)real_guest_mem);
-        // LOGI("scatter data size is %d data %llx %llx", sizeof(scatter_data[i].data), address, (uint64_t)real_guest_mem);
+        // LOGI("scatter data size is %d data %llx %llx", sizeof(scatter_data[i].iov_base), address, (uint64_t)real_guest_mem);
 
-        // LOGI("saving scatter data %d %lld", (int)scatter_data[i].data, (uint64_t)scatter_data[i].data);
-        // qemu_put_buffer(f, scatter_data[i].data, scatter_data[i].len);
+        // LOGI("saving scatter data %d %lld", (int)scatter_data[i].iov_base, (uint64_t)scatter_data[i].iov_base);
+        // qemu_put_buffer(f, scatter_data[i].iov_base, scatter_data[i].iov_len);
     }
 }
 
@@ -3135,8 +3135,8 @@ Scatter_Data* load_scatter_data(QEMUFile *f, int *count) {
     memset(scatter_data, 0, size);
     // qemu_get_buffer(f, (const uint8_t *)scatter_data, size);
     for (int i = 0; i < *count; i++) {
-        scatter_data[i].len = qemu_get_be32(f);
-        hwaddr len = scatter_data[i].len;
+        scatter_data[i].iov_len = qemu_get_be32(f);
+        hwaddr len = scatter_data[i].iov_len;
         // LOGI("loading scatter data len %d", len);
 
         uint64_t address = qemu_get_be64(f); //存的是gpa
@@ -3161,17 +3161,17 @@ Scatter_Data* load_scatter_data(QEMUFile *f, int *count) {
         } 
 
         // qemu_get_buffer(f, (void*)&address, sizeof(address));
-        scatter_data[i].data = (unsigned char *)hva;
+        scatter_data[i].iov_base = (unsigned char *)hva;
     
-        // LOGI("loading scatter data %d %lld", (int)scatter_data[i].data, (uint64_t)scatter_data[i].data);
+        // LOGI("loading scatter data %d %lld", (int)scatter_data[i].iov_base, (uint64_t)scatter_data[i].iov_base);
 
-        // if(scatter_data[i].len == 0) {
-        //     scatter_data[i].data = NULL;
+        // if(scatter_data[i].iov_len == 0) {
+        //     scatter_data[i].iov_base = NULL;
         //     continue;
         // }
-        // void* tmpptr = g_malloc0(scatter_data[i].len);
-        // qemu_get_buffer(f, tmpptr, scatter_data[i].len);
-        // memcpy(scatter_data[i].data, tmpptr, scatter_data[i].len);
+        // void* tmpptr = g_malloc0(scatter_data[i].iov_len);
+        // qemu_get_buffer(f, tmpptr, scatter_data[i].iov_len);
+        // memcpy(scatter_data[i].iov_base, tmpptr, scatter_data[i].iov_len);
         LOGI("loading scatter data len %d %d %llu %llu", len, *count, (unsigned long long)hva, (unsigned long long)address);
     }
     

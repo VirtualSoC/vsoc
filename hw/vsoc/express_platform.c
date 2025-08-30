@@ -37,6 +37,14 @@ static GHashTable *g_worker_handle_by_ctx = NULL; // key: Thread_Context*, value
 static GHashTable *g_orig_info = NULL;   // key: device_id (GINT_TO_POINTER), value: original Express_Device_Info*
 // Reverse map for device IRQs: key worker_handle(uint64) -> value Device_Context*
 static GHashTable *g_local_dc_by_worker_handle = NULL;
+// Parent fast-path: in-flight async DEVICE_CALL completions keyed by IPC id
+static GHashTable *g_inflight_async_calls = NULL; // key: (gpointer)(uintptr_t)ipc_id, value: Teleport_Express_Call*
+static GHashTable *g_early_async_acks = NULL;     // key: (gpointer)(uintptr_t)ipc_id, value: (gpointer)(uintptr_t)(resp_byte)
+// Thread-local storage to pass the generated async IPC id from proxy_call_handler to handle_thread_run
+static GPrivate g_tls_async_ipc_id = G_PRIVATE_INIT(NULL);
+static QemuMutex g_async_seq_lock;
+static QemuMutex g_inflight_lock;
+static uint32_t g_async_seq = 0x80000000u; // reserve high range for async fast-path ids
 
 static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem);
 
@@ -123,7 +131,7 @@ static void spawn_worker_process(void) {
     gboolean ok = FALSE;
     const char *worker_path = getenv("VSOC_WORKER_PATH");
     if (!worker_path || !*worker_path) worker_path = "vsoc-worker";
-    LOGI("launching worker: %s %s", worker_path, g_shm_name);
+    LOGD("launching worker: %s %s", worker_path, g_shm_name);
     gchar *argv_spawn[] = { (gchar*)worker_path, (gchar*)g_shm_name, NULL };
     int child_stdin = -1, child_stdout = -1, child_stderr = -1;
     ok = g_spawn_async_with_pipes(
@@ -182,12 +190,12 @@ static int collect_block_cb(RAMBlock *rb, void *opaque) {
     if (!qemu_ram_is_shared(rb) || rb->fd < 0) return 0;
     RamRegionMeta m = {0};
     m.fd = rb->fd; m.pad = 0;
-    m.gpa_base = 0; // (uint64_t)qemu_ram_get_offset(rb);
+    m.gpa_base = (uint64_t)qemu_ram_get_offset(rb);
     m.size = (uint64_t)qemu_ram_get_used_length(rb);
-    m.offset = 0;
+    m.offset = 0; // memfd is per-RAMBlock; file offset is 0
     ensure_fd_inherited(m.fd);
     g_array_append_val(list->arr, m);
-    LOGI("prepared RAM memfd for %s fd=%d gpa=%#llx size=%#llx off=%#llx rb_off=%#llx", qemu_ram_get_idstr(rb), m.fd, (unsigned long long)m.gpa_base, (unsigned long long)m.size, (unsigned long long)m.offset, (unsigned long long)rb->offset);
+    LOGI("prepared RAM memfd for %s rb=%p fd=%d gpa_base=%#llx size=%#llx file_off=%#llx (per-block memfd)", qemu_ram_get_idstr(rb), (void *)rb, m.fd, (unsigned long long)m.gpa_base, (unsigned long long)m.size, (unsigned long long)m.offset);
     return 0;
 }
 
@@ -234,6 +242,24 @@ static void set_irq_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
     (void)vsoc_ipc_parent_send(VSOC_IPC_TYPE_SET_IRQ, id, &status, sizeof(status), VSOC_IPC_FLAG_RESPONSE);
 }
 
+// Handle async DEVICE_CALL responses (no pending waiter)
+static void device_call_ack_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
+                                        uint32_t len, uint32_t flags, bool from_worker) {
+    (void)type; (void)flags; (void)from_worker;
+    uint8_t resp = 0; if (len >= 1) resp = data[0];
+    qemu_mutex_lock(&g_inflight_lock);
+    Teleport_Express_Call *call = g_hash_table_lookup(g_inflight_async_calls, (gpointer)(uintptr_t)id);
+    if (call) {
+        g_hash_table_remove(g_inflight_async_calls, (gpointer)(uintptr_t)id);
+        qemu_mutex_unlock(&g_inflight_lock);
+        call->callback(call, resp ? true : false);
+    } else {
+        // Store early ACK to be matched when the call is enqueued by the device thread
+        g_hash_table_insert(g_early_async_acks, (gpointer)(uintptr_t)id, (gpointer)(uintptr_t)(resp));
+        qemu_mutex_unlock(&g_inflight_lock);
+    }
+}
+
 void init_express_platform(const ExpressPlatformOps ops) {
     g_ops = ops;
     // Ensure memfd FDs won't be closed on exec
@@ -254,7 +280,7 @@ void init_express_platform(const ExpressPlatformOps ops) {
         if (!vsoc_ipc_shared->worker_ready) {
             LOGE("worker did not attach shared memory in time; proceeding anyway");
         } else {
-            LOGI("worker_ready observed after %d ms", waited_ms);
+            LOGD("worker_ready observed after %d ms", waited_ms);
         }
     }
     // Start dedicated IPC polling thread (parent only)
@@ -277,6 +303,12 @@ void init_express_platform(const ExpressPlatformOps ops) {
 
     // Register IRQ forwarding handler
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_SET_IRQ, set_irq_ipc_handler);
+    // Ensure inflight map exists and register a handler for DEVICE_CALL ACKs
+    if (!g_inflight_async_calls) g_inflight_async_calls = g_hash_table_new(g_direct_hash, g_direct_equal);
+    if (!g_early_async_acks) g_early_async_acks = g_hash_table_new(g_direct_hash, g_direct_equal);
+    qemu_mutex_init(&g_async_seq_lock);
+    qemu_mutex_init(&g_inflight_lock);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ack_ipc_handler);
     vsoc_ipc_parent_send(VSOC_IPC_TYPE_PLATFORM_INIT, 0, &ops, sizeof(ops), 0);
     // After platform init, inform worker of RAM regions (FDs are already inherited)
     send_ram_regions_to_worker();
@@ -358,6 +390,8 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
         goto fallback;
     }
 
+    LOGD("proxy_call_handler: worker_handle=%" PRIx64 " id=%" PRIu64 " para_num=%d sync=%s", worker_handle, GET_FUN_ID(id), para_num, FUN_NEED_SYNC(id) ? "true" : "false");
+
     // Build DEVICE_CALL payload: [handle(8)][id(8)][para_num(4)] + per-param packed Guest_Mem
     uint8_t buf[VSOC_IPC_MAX_PAYLOAD];
     uint8_t *p = buf; uint8_t *end = buf + sizeof(buf);
@@ -371,10 +405,13 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
 
     for (int i = 0; i < para_num; ++i) {
         const Call_Para *cp = &all_para[i];
-    Guest_Mem *data = convert_guest_mem_to_gpa(cp->data);
-    size_t wrote = vsoc_ipc_guest_mem_pack(p, (size_t)(end - p), data);
-    free_duplicated_guest_mem(data);
-        if (wrote == 0) { LOGE("proxy_call_handler: param %d pack overflow", i); goto fallback; }
+        Guest_Mem *data = convert_guest_mem_to_gpa(cp->data);
+        size_t wrote = vsoc_ipc_guest_mem_pack(p, (size_t)(end - p), data);
+        free_duplicated_guest_mem(data);
+        if (wrote == 0) { 
+            LOGE("proxy_call_handler: dev %d fun %d param %d pack overflow, max %zu current %d", GET_DEVICE_ID(id), GET_FUN_ID(id), i, (size_t)(end - p), data->all_len); 
+            goto fallback; 
+        }
         p += wrote;
     }
 
@@ -382,15 +419,24 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
     if (FUN_NEED_SYNC(id)) {
         uint8_t resp = 0; uint32_t resp_len = sizeof(resp);
         g_atomic_int_inc(&g_ipc_block_bg_poll);
-        int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_DEVICE_CALL, buf, payload_len, &resp, &resp_len, NULL, 10000);
+        int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_DEVICE_CALL, buf, payload_len, &resp, &resp_len, NULL, 30000);
         g_atomic_int_dec_and_test(&g_ipc_block_bg_poll);
         if (rc != 0 || resp_len != sizeof(resp)) {
             LOGE("proxy_call_handler: request rc=%d resp_len=%u", rc, resp_len);
             goto fallback;
         }
     } else {
-        bool ok = vsoc_ipc_parent_send(VSOC_IPC_TYPE_DEVICE_CALL, 0, buf, payload_len, 0);
+        // Async fast-path: allocate a unique IPC id, stash it in TLS, and send non-blocking.
+        uint32_t ipc_id;
+        qemu_mutex_lock(&g_async_seq_lock);
+        ipc_id = g_async_seq++;
+        if (g_async_seq == 0) g_async_seq = 0x80000000u; // wrap within reserved range
+        qemu_mutex_unlock(&g_async_seq_lock);
+        // Store the id in TLS for handle_thread_run to bind the call object.
+        g_private_set(&g_tls_async_ipc_id, (gpointer)(uintptr_t)ipc_id);
+        bool ok = vsoc_ipc_parent_send(VSOC_IPC_TYPE_DEVICE_CALL, ipc_id, buf, payload_len, 0);
         if (!ok) {
+            g_private_set(&g_tls_async_ipc_id, NULL);
             LOGE("proxy_call_handler: async send failed");
             goto fallback;
         }
@@ -491,7 +537,7 @@ void deinit_express_platform(void) {
             if (shm_unlink(g_shm_name) != 0) {
                 LOGE("shm_unlink %s failed: %s", g_shm_name, strerror(errno));
             } else {
-                LOGI("shm %s unlinked", g_shm_name);
+                LOGD("shm %s unlinked", g_shm_name);
             }
         }
     }
@@ -537,7 +583,7 @@ static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem) {
     for (int i = 0; i < mem->num; ++i) {
         Scatter_Data *sd = &mem->scatter_data[i];
         ram_addr_t block_offset;
-        RAMBlock *block = qemu_ram_block_from_host(sd->data, false, &block_offset);
+        RAMBlock *block = qemu_ram_block_from_host(sd->iov_base, false, &block_offset);
         if (!block) {
             all_translatable = false;
             break;
@@ -546,9 +592,11 @@ static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem) {
     if (!all_translatable) { mem->is_gpa = 0; return mem; }
     for (int i = 0; i < mem->num; ++i) {
         Scatter_Data *sd = &mem->scatter_data[i];
-        ram_addr_t block_offset;
-        (void)qemu_ram_block_from_host(sd->data, false, &block_offset);
-        sd->data = (unsigned char *)(uintptr_t)block_offset;
+        ram_addr_t block_off;
+        RAMBlock *rb = qemu_ram_block_from_host(sd->iov_base, false, &block_off);
+        // rb must be non-NULL here because all_translatable was true
+        uint64_t gpa = (uint64_t)qemu_ram_get_offset(rb) + (uint64_t)block_off;
+        sd->iov_base = (void *)(uintptr_t)gpa; // store GPA token
     }
     mem->is_gpa = 1;
     return mem;
@@ -563,15 +611,19 @@ static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem) {
  */
 void *get_direct_ptr(Guest_Mem *guest_mem, int *flag)
 {
-    if (likely(guest_mem->num == 1))
-    {
-        Scatter_Data *guest_data = guest_mem->scatter_data;
-        *flag = 1;
-        //这里也可能返回NULL，所以以flag来区分
-        return guest_data->data;
+    if (!guest_mem || guest_mem->num != 1) {
+        if (flag) *flag = 0;
+        return NULL;
     }
-    *flag = 0;
-    return NULL;
+    // Only return a direct pointer when the data is an HVA, not a GPA token.
+    if (guest_mem->is_gpa) {
+        if (flag) *flag = 0;
+        return NULL;
+    }
+    Scatter_Data *guest_data = guest_mem->scatter_data;
+    if (flag) *flag = 1;
+    // 这里也可能返回NULL，所以以flag来区分
+    return guest_data->iov_base;
 }
 
 void *call_para_to_ptr(Call_Para para, int *need_free) {
@@ -604,25 +656,74 @@ Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, ui
     context->device_id = device_id;
     context->thread_id = thread_id;
 
-    context->read_loc = 0;
-    context->write_loc = 0;
-    // context->atomic_event_lock = 0;
-    context->init = 0;
-    context->thread_run = 1;
-
     context->context_init = info->context_init;
     context->context_destroy = info->context_destroy;
     context->call_handler = info->call_handler;
 
-//线程缓冲区事件初始化
-    context->data_event = create_event(0, 0);
+    if (info->call_handler == proxy_call_handler) {
+        context->proxy = true;
+    }
 
-    char thread_name[32];
-    snprintf(thread_name, sizeof(thread_name), "%s_handle_thread", info->name);
-
-    qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
+    if (!context->proxy) {
+        //线程缓冲区事件初始化
+        context->data_event = create_event(0, 0);
+    
+        char thread_name[32];
+        snprintf(thread_name, sizeof(thread_name), "%s_handle_thread", info->name);
+    
+        context->thread_run = 1;
+    
+        qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
+    }
 
     return context;
+}
+
+bool invoke_call_handler(Thread_Context *context, void *_call) {
+    Teleport_Express_Call *call = (Teleport_Express_Call *)_call;
+    bool success = false;
+
+    if (call == NULL) {
+        return success;
+    }
+
+    if (context->call_handler != NULL) {
+        if (GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
+            cluster_decode_invoke(call, context, context->call_handler);
+        } else {
+            Call_Para all_para[MAX_PARA_NUM];
+            get_para_from_call(call, all_para, MAX_PARA_NUM);
+            success = context->call_handler(context, call->id, all_para, call->para_num);
+            // If proxied async, bind call to inflight table and defer callback to IPC poll handler
+            if (context->proxy && !FUN_NEED_SYNC(call->id)) {
+                uintptr_t ipc_id = (uintptr_t)g_private_get(&g_tls_async_ipc_id);
+                if (ipc_id == 0) {
+                    LOGE("async fast-path: missing IPC id for deferred call");
+                    // Fallback to immediate completion to avoid leak
+                    call->callback(call, success);
+                } else {
+                    // Protect binding and race with early ACK
+                    qemu_mutex_lock(&g_inflight_lock);
+                    gpointer early = g_hash_table_lookup(g_early_async_acks, (gpointer)ipc_id);
+                    if (early) {
+                        // ACK arrived before binding; consume and complete now
+                        g_hash_table_remove(g_early_async_acks, (gpointer)ipc_id);
+                        qemu_mutex_unlock(&g_inflight_lock);
+                        g_private_set(&g_tls_async_ipc_id, NULL);
+                        call->callback(call, ((uintptr_t)early) ? true : false);
+                    } else {
+                        g_hash_table_insert(g_inflight_async_calls, (gpointer)ipc_id, call);
+                        qemu_mutex_unlock(&g_inflight_lock);
+                        g_private_set(&g_tls_async_ipc_id, NULL);
+                        // Defer completion to ACK handler
+                    }
+                }
+            } else {
+                call->callback(call, success);
+            }
+        }
+    }
+    return success;
 }
 
 /**
@@ -664,18 +765,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
             break;
         }
 
-        //实际对每个call调用的操作
-        if (context->call_handler != NULL)
-        {
-            if (GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
-                cluster_decode_invoke(call, context, context->call_handler);
-            } else {
-                Call_Para all_para[MAX_PARA_NUM];
-                get_para_from_call(call, all_para, MAX_PARA_NUM);
-                bool success = context->call_handler(context, call->id, all_para, call->para_num);
-                call->callback(call, success);
-            }
-        }
+        invoke_call_handler(context, call);
     }
 
     delete_event(context->data_event);

@@ -58,8 +58,8 @@ void vsoc_ipc_poll_parent(void);
 void vsoc_ipc_poll_worker(void);
 
 // ---------------- Low-level shared IPC data structures (needed by worker & parent) ---------
-#define VSOC_IPC_RING_SIZE    64
-#define VSOC_IPC_MAX_PAYLOAD  1024
+#define VSOC_IPC_RING_SIZE    128
+#define VSOC_IPC_MAX_PAYLOAD  16384
 
 typedef struct VsocIpcSlot {
     volatile uint32_t type;
@@ -92,7 +92,7 @@ typedef struct VsocGuestMemSeg {
 // When packing/unpacking Guest_Mem, we support read-only inline literal segments for
 // cases where the parent HVA doesn't belong to guest RAM. We mark such segments by
 // setting VsocGuestMemSeg.flags bit0. On unpack, we allocate and copy the bytes and
-// tag the Guest_Mem scatter_data[i].data pointer with the top bit to signal "inline".
+// tag the Guest_Mem scatter_data[i].iov_base pointer with the top bit to signal "inline".
 #define VSOC_GM_SEG_FLAG_INLINE   0x1u
 
 // Forward declaration to avoid heavy includes here

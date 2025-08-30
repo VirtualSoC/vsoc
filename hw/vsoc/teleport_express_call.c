@@ -267,24 +267,24 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
     unsigned char *last_data = NULL;
     while (remain_len > 0 && remain_len < 100000000000)
     {
-        if (unlikely(guest_data[guest_index].len == 0 || guest_data[guest_index].data == NULL))
+        if (unlikely(guest_data[guest_index].iov_len == 0 || guest_data[guest_index].iov_base == NULL))
         {
             break;
         }
-        if (guest_data[guest_index].len > guest_loc)
+        if (guest_data[guest_index].iov_len > guest_loc)
         {
             //一直找到start_loc所在的那个区块
-            if (remain_len < guest_data[guest_index].len - guest_loc)
+            if (remain_len < guest_data[guest_index].iov_len - guest_loc)
             {
                 if (is_guest_to_host)
                 {
-                    memcpy(host_data + host_loc, guest_data[guest_index].data + guest_loc, remain_len);
+                    memcpy(host_data + host_loc, guest_data[guest_index].iov_base + guest_loc, remain_len);
                 }
                 else
                 {
 
-                    express_printf("memcpy data %lx index %d loc %d host %lx loc %d remain %llu\n", guest_data[guest_index].data, guest_index, guest_loc, host_data, host_loc, remain_len);
-                    memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, remain_len);
+                    express_printf("memcpy data %lx index %d loc %d host %lx loc %d remain %llu\n", guest_data[guest_index].iov_base, guest_index, guest_loc, host_data, host_loc, remain_len);
+                    memcpy(guest_data[guest_index].iov_base + guest_loc, host_data + host_loc, remain_len);
                 }
                 break;
             }
@@ -292,33 +292,33 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
             {
                 if (is_guest_to_host)
                 {
-                    memcpy(host_data + host_loc, guest_data[guest_index].data + guest_loc, guest_data[guest_index].len - guest_loc);
+                    memcpy(host_data + host_loc, guest_data[guest_index].iov_base + guest_loc, guest_data[guest_index].iov_len - guest_loc);
                 }
                 else
                 {
 
-                    express_printf("memcpy data %lx index %d loc %d len %llu, host %lx loc %d remain %llu\n", guest_data[guest_index].data, guest_index, guest_loc, guest_data[guest_index].len, host_data, host_loc, remain_len);
+                    express_printf("memcpy data %lx index %d loc %d len %llu, host %lx loc %d remain %llu\n", guest_data[guest_index].iov_base, guest_index, guest_loc, guest_data[guest_index].iov_len, host_data, host_loc, remain_len);
 
-                    if (last_data != guest_data[guest_index].data)
+                    if (last_data != guest_data[guest_index].iov_base)
                     {
-                        last_data = guest_data[guest_index].data;
+                        last_data = guest_data[guest_index].iov_base;
                     }
                     else
                     {
                         LOGE("error map data! same scatter data pointer");
                     }
 
-                    memcpy(guest_data[guest_index].data + guest_loc, host_data + host_loc, guest_data[guest_index].len - guest_loc);
+                    memcpy(guest_data[guest_index].iov_base + guest_loc, host_data + host_loc, guest_data[guest_index].iov_len - guest_loc);
                 }
-                host_loc += guest_data[guest_index].len - guest_loc;
-                remain_len -= guest_data[guest_index].len - guest_loc;
+                host_loc += guest_data[guest_index].iov_len - guest_loc;
+                remain_len -= guest_data[guest_index].iov_len - guest_loc;
             }
             //只要复制了一次之后guest_loc都为0，因为这个时候后面的都是从下一段内存的刚开始的位置开始（因为内存连续）
             guest_loc = 0;
         }
         else
         {
-            guest_loc -= guest_data[guest_index].len;
+            guest_loc -= guest_data[guest_index].iov_len;
         }
         guest_index++;
     }
@@ -370,15 +370,15 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
     int buf_len = 0;
     for (int i = 0; i < guest_mem->num; i++)
     {
-        if (guest_mem->scatter_data[i].len == 4 && guest_mem->scatter_data[i].data == guest_null_ptr && v_elem->out_num == 1 && v_elem->in_num == 0)
+        if (guest_mem->scatter_data[i].iov_len == 4 && guest_mem->scatter_data[i].iov_base == guest_null_ptr && v_elem->out_num == 1 && v_elem->in_num == 0)
         {
             LOGI("find null ptr!!!");
-            guest_mem->scatter_data[i].data = NULL;
-            guest_mem->scatter_data[i].len = 0;
+            guest_mem->scatter_data[i].iov_base = NULL;
+            guest_mem->scatter_data[i].iov_len = 0;
         }
-        buf_len += guest_mem->scatter_data[i].len;
+        buf_len += guest_mem->scatter_data[i].iov_len;
 
-        // express_printf("guest_mem %d i %d len %d now %d\n",num,i, guest_mem->scatter_data[i].len, buf_len);
+        // express_printf("guest_mem %d i %d len %d now %d\n",num,i, guest_mem->scatter_data[i].iov_len, buf_len);
     }
 
     guest_mem->all_len = buf_len;

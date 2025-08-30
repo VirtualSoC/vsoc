@@ -23,6 +23,11 @@
  */
 void *call_pop(Thread_Context *context)
 {
+    if (context->proxy) {
+        LOGE("attempt to call_pop on a proxied context!");
+        return NULL;
+    }
+
     while (context->write_loc == context->read_loc) //因为是竞争关系所以要用while循环
     {
 //缓冲区为空
@@ -67,6 +72,13 @@ void *call_pop(Thread_Context *context)
  */
 void call_push(Thread_Context *context, void *call)
 {
+    if (context->proxy) {
+        // proxy context, just directly call the handler
+        // assuming that proxy calls are quick
+        invoke_call_handler(context, call);
+        return;
+    }
+
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
 //缓冲区为满

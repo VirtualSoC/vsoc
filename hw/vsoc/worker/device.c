@@ -78,23 +78,14 @@ void buffer_register_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data
     // No response is required for fire-and-forget; parent uses send, not request
 }
 
-// Worker handler for DEVICE_CALL: payload layout
-// [handle(uint64_t)][id(uint64_t)][para_num(int32_t)]
-// For each param i: [num(uint32_t)][all_len(uint32_t)][VsocGuestMemSeg segments[num]]
-typedef struct WorkerIpcCallCtx {
-    GMutex m;
-    GCond c;
-    bool is_sync;
-    bool done;
-    bool result;
-} WorkerIpcCallCtx;
-
 typedef struct WorkerCall {
     uint64_t id;          // function id
     int para_num;         // number of parameters
     Call_Para *paras;     // owned array of parameters
     bool is_end;          // sentinel to end thread
-    WorkerIpcCallCtx *w;  // optional sync context
+    // IPC reply coordination (reply will be sent from device thread, not IPC handler)
+    uint32_t ipc_slot_id; // IPC slot id to reply to
+    bool need_reply;      // whether to reply to parent upon completion
 } WorkerCall;
 
 void device_call_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
@@ -124,38 +115,19 @@ void device_call_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
     Thread_Context *ctx = (Thread_Context *)(uintptr_t)handle;
     if (!ctx) { LOGE("DEVICE_CALL: null ctx handle"); goto out; }
 
-    WorkerIpcCallCtx *w = g_malloc0(sizeof(WorkerIpcCallCtx));
-    g_mutex_init(&w->m); g_cond_init(&w->c);
-    w->is_sync = FUN_NEED_SYNC(call_id);
-    w->done = false; w->result = false;
-
     WorkerCall *wc = g_malloc0(sizeof(WorkerCall));
     wc->id = call_id;
     wc->para_num = para_num;
     wc->paras = paras; // ownership transferred to worker thread
     wc->is_end = false;
-    wc->w = w;
+    wc->ipc_slot_id = id; // remember the slot id to reply later
+    wc->need_reply = true; // always reply from worker thread when done
 
     // Queue to the device thread
     call_push(ctx, wc);
 
-    // For sync calls, wait for completion and respond
-    if (w->is_sync) {
-        g_mutex_lock(&w->m);
-        while (!w->done) {
-            g_cond_wait(&w->c, &w->m);
-        }
-        g_mutex_unlock(&w->m);
-        uint8_t resp = w->result ? 1 : 0;
-        (void)vsoc_ipc_worker_respond(VSOC_IPC_TYPE_DEVICE_CALL, id, &resp, sizeof(resp));
-        g_cond_clear(&w->c);
-        g_mutex_clear(&w->m);
-        g_free(w);
-        return;
-    } else {
-        // Async: return without responding; worker thread will free context
-        return;
-    }
+    // Return immediately; device thread will send response (for both sync and async)
+    return;
 
 out:
     if (paras) {
@@ -190,6 +162,34 @@ void init_express_device(const Express_Device_Info *info)
         vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, get_device_context_ipc_handler);
         get_dev_ctx_handler_registered = true;
     }
+}
+
+bool invoke_call_handler(Thread_Context *context, void *_call) {
+    WorkerCall *call = (WorkerCall *)_call;
+    bool success = false;
+    if (context->call_handler != NULL)
+    {
+        LOGD("proxy_call_handler: worker_handle=%" PRIx64 " id=%" PRIu64 " para_num=%d sync=%s", context, GET_FUN_ID(call->id), call->para_num, FUN_NEED_SYNC(call->id) ? "true" : "false");
+
+        success = context->call_handler(context, call->id, call->paras, call->para_num);
+    }
+    // Free parameter memory ownership here
+    if (call->paras) {
+        for (int i = 0; i < call->para_num; ++i) {
+            if (call->paras[i].data) {
+                free_duplicated_guest_mem(call->paras[i].data);
+            }
+        }
+        g_free(call->paras);
+        call->paras = NULL;
+    }
+    // Send IPC reply to parent now that processing is complete
+    if (call->need_reply) {
+        uint8_t resp = success ? 1 : 0;
+        (void)vsoc_ipc_worker_respond(VSOC_IPC_TYPE_DEVICE_CALL, call->ipc_slot_id, &resp, sizeof(resp));
+    }
+    g_free(call);
+    return success;
 }
 
 /**
@@ -236,47 +236,11 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
                 }
                 g_free(call->paras);
             }
-            if (call->w && !call->w->is_sync) {
-                // async sentinel should not happen, but free if present
-                g_cond_clear(&call->w->c);
-                g_mutex_clear(&call->w->m);
-                g_free(call->w);
-            }
             g_free(call);
             context->thread_run = 0;
             break;
         }
-
-        //实际对每个call调用的操作
-        if (context->call_handler != NULL)
-        {
-            bool success = context->call_handler(context, call->id, call->paras, call->para_num);
-            // Free parameter memory ownership here
-            if (call->paras) {
-                for (int i = 0; i < call->para_num; ++i) {
-                    if (call->paras[i].data) {
-                        if (call->paras[i].data->scatter_data) g_free(call->paras[i].data->scatter_data);
-                        g_free(call->paras[i].data);
-                    }
-                }
-                g_free(call->paras);
-                call->paras = NULL;
-            }
-            // Notify sync waiter if any
-            if (call->w && call->w->is_sync) {
-                g_mutex_lock(&call->w->m);
-                call->w->result = success ? true : false;
-                call->w->done = true;
-                g_cond_signal(&call->w->c);
-                g_mutex_unlock(&call->w->m);
-            } else if (call->w) {
-                // Async: free the wait context here
-                g_cond_clear(&call->w->c);
-                g_mutex_clear(&call->w->m);
-                g_free(call->w);
-            }
-            g_free(call);
-        }
+        invoke_call_handler(context, call);
     }
 
     delete_event(context->data_event);
