@@ -63,7 +63,7 @@ void d_glBufferData_custom(void *context, GLenum target, GLsizeiptr size, const 
     Scatter_Data *s_data = guest_mem->scatter_data;
     GLuint bind_buffer = get_guest_binding_buffer(context, target);
 
-    LOGI("target %x bind_buffer %d size %lld usage %x real size %d", target, bind_buffer, size, usage, guest_mem->all_len);
+    LOGD("target %x bind_buffer %d size %lld usage %x real size %d", target, bind_buffer, size, usage, guest_mem->all_len);
 
     if (size == 0)
     {
