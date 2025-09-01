@@ -8,6 +8,7 @@
 // Message type namespace (initial minimal set). Additional types should use
 // values >= 100 to avoid colliding with reserved early values.
 enum {
+    VSOC_IPC_TYPE_PAD = 0,           // internal padding message; not dispatched
     VSOC_IPC_TYPE_TEST = 1,
     VSOC_IPC_TYPE_DEVICE_CALL = 2,
     VSOC_IPC_TYPE_GET_CONTEXT = 100,
@@ -16,11 +17,18 @@ enum {
     VSOC_IPC_TYPE_SET_IRQ = 103,
     VSOC_IPC_TYPE_RAM_REGIONS = 104,
     VSOC_IPC_TYPE_GET_DEVICE_CONTEXT = 105,
+    VSOC_IPC_TYPE_IRQ_REGISTER = 106,
+    VSOC_IPC_TYPE_IRQ_RELEASE = 107,
+    VSOC_IPC_TYPE_NOTIFY_SHUTDOWN = 108,
+    VSOC_IPC_TYPE_FORCE_SHUTDOWN = 109,
 };
 
 // IPC message flags
 #define VSOC_IPC_FLAG_RESPONSE 0x1
 
+// Handler receives a direct pointer into the ring for the payload. The memory
+// is only valid during the handler call; do not retain the pointer beyond the
+// call. If the handler needs to keep the data, it must copy it.
 typedef void (*VsocIpcHandler)(uint32_t type, uint32_t id, const uint8_t *data,
                                uint32_t len, uint32_t flags, bool from_worker);
 
@@ -54,30 +62,38 @@ int vsoc_ipc_worker_request(uint32_t type,
 
 // Poll to drain & dispatch pending messages. Parent should call regularly
 // from main loop or a timer; worker calls inside its run loop.
+// Drain incoming messages (foreground, always active)
 void vsoc_ipc_poll_parent(void);
 void vsoc_ipc_poll_worker(void);
 
-// ---------------- Low-level shared IPC data structures (needed by worker & parent) ---------
-#define VSOC_IPC_RING_SIZE    128
-#define VSOC_IPC_MAX_PAYLOAD  16384
+// Background pollers respect internal gating to avoid racing with blocking requests
+void vsoc_ipc_poll_parent_bg(void);
+void vsoc_ipc_poll_worker_bg(void);
 
-typedef struct VsocIpcSlot {
-    volatile uint32_t type;
-    volatile uint32_t id;
-    volatile uint32_t len;
-    volatile uint32_t flags;
-    unsigned char payload[VSOC_IPC_MAX_PAYLOAD];
-} VsocIpcSlot;
+// ---------------- Low-level shared IPC data structures (needed by worker & parent) ---------
+// Variable-size ring buffers per direction. Each message is:
+//   struct { uint32_t type, id, len, flags; uint8_t payload[len]; }
+// Head/tail are monotonically increasing byte counters; effective offset is modulo buffer size.
+// Single producer and single consumer per ring.
+#define VSOC_IPC_BUF_SIZE     (16u * 1024 * 1024)   // per direction
+#define VSOC_IPC_MAX_PAYLOAD  (128u * 1024)        // Upper bound for a single message payload
+
+typedef struct VsocIpcMsgHdr {
+    uint32_t type;
+    uint32_t id;
+    uint32_t len;
+    uint32_t flags;
+} VsocIpcMsgHdr;
 
 typedef struct VsocGpuIpcShared {
     volatile uint32_t parent_ready;
     volatile uint32_t worker_ready;
-    volatile uint32_t pw_head;
-    volatile uint32_t pw_tail;
-    volatile uint32_t wp_head;
-    volatile uint32_t wp_tail;
-    VsocIpcSlot parent_to_worker[VSOC_IPC_RING_SIZE];
-    VsocIpcSlot worker_to_parent[VSOC_IPC_RING_SIZE];
+    volatile uint64_t pw_head; // parent->worker head (bytes, monotonic)
+    volatile uint64_t pw_tail; // parent->worker tail (bytes, monotonic)
+    volatile uint64_t wp_head; // worker->parent head (bytes, monotonic)
+    volatile uint64_t wp_tail; // worker->parent tail (bytes, monotonic)
+    uint8_t parent_to_worker[VSOC_IPC_BUF_SIZE];
+    uint8_t worker_to_parent[VSOC_IPC_BUF_SIZE];
 } VsocGpuIpcShared;
 
 // Global shared memory pointer (allocated & owned by parent, attached by worker).

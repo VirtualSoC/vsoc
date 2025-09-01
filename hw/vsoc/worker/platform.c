@@ -35,6 +35,17 @@ void monitor_log(Monitor *mon, const char *fmt, ...)
     va_end(args);
 }
 
+// Forward display shutdown events to parent via IPC. Parent will invoke its own g_ops.* hooks.
+static void worker_notify_shutdown_impl(int reason) {
+    int32_t r = (int32_t)reason;
+    (void)vsoc_ipc_worker_send(VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, 0, &r, sizeof(r), 0);
+}
+
+static void worker_force_shutdown_impl(void) {
+    (void)vsoc_ipc_worker_send(VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, NULL, 0, 0);
+    should_stop = true;
+}
+
 static void worker_read_from_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t length) {
     if (!guest || !host || length == 0) return;
     if (start_loc >= guest->all_len) return;
@@ -75,9 +86,9 @@ static void worker_write_to_guest_mem(Guest_Mem *guest, void *host, size_t start
         return;
     }
     for (uint32_t i = 0; i < guest->num && remaining; ++i) {
-    uint64_t seg_len = (uint64_t)guest->scatter_data[i].iov_len;
+        uint64_t seg_len = (uint64_t)guest->scatter_data[i].iov_len;
         if (off >= seg_len) { off -= seg_len; continue; }
-    void *seg_ptr = guest->scatter_data[i].iov_base;
+        void *seg_ptr = guest->scatter_data[i].iov_base;
         uint64_t gpa = (uint64_t)(uintptr_t)seg_ptr;
         size_t seg_avail = (size_t)(seg_len - off);
         size_t chunk = seg_avail < remaining ? seg_avail : remaining;
@@ -118,15 +129,14 @@ void init_express_platform(const ExpressPlatformOps ops) {
     g_ops.write_to_guest_mem = worker_write_to_guest_mem;
     // Forward IRQ requests back to QEMU via IPC
     g_ops.set_express_device_irq = worker_set_express_device_irq;
-    g_ops.notify_shutdown = NULL;
-    g_ops.force_shutdown = NULL;
+    g_ops.notify_shutdown = worker_notify_shutdown_impl;
+    g_ops.force_shutdown = worker_force_shutdown_impl;
 
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_CONTEXT, get_context_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ipc_handler);
 }
 
 void deinit_express_platform(void) {
-    should_stop = true;
     // Consume residual messages
     express_gpu_shutdown_notify_callback();
 }

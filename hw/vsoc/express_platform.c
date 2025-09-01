@@ -29,12 +29,11 @@ static bool worker_started = false;
 static bool should_stop = false;
 static QemuThread parent_ipc_thread;
 static bool parent_ipc_thread_started = false;
-// Gate to pause background polling while sync requests are in flight to avoid racing responses
-static gint g_ipc_block_bg_poll = 0;
 
-static GHashTable *g_proxy_info = NULL;
-static GHashTable *g_worker_handle_by_ctx = NULL; // key: Thread_Context*, value: (gpointer)worker_handle
 static GHashTable *g_orig_info = NULL;   // key: device_id (GINT_TO_POINTER), value: original Express_Device_Info*
+static GHashTable *g_proxy_info = NULL;
+// Unified forward map: key local pointer (Thread_Context* or Device_Context*) -> value worker_handle(uint64)
+static GHashTable *g_worker_handle_by_local_ptr = NULL;
 // Reverse map for device IRQs: key worker_handle(uint64) -> value Device_Context*
 static GHashTable *g_local_dc_by_worker_handle = NULL;
 // Parent fast-path: in-flight async DEVICE_CALL completions keyed by IPC id
@@ -260,8 +259,27 @@ static void device_call_ack_ipc_handler(uint32_t type, uint32_t id, const uint8_
     }
 }
 
+// Worker forwarded shutdown notifications: invoke parent hooks
+static void notify_shutdown_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
+                                        uint32_t len, uint32_t flags, bool from_worker) {
+    (void)type; (void)id; (void)flags; (void)from_worker;
+    int reason = 0;
+    if (len == sizeof(int32_t)) {
+        int32_t r; memcpy(&r, data, sizeof(r)); reason = (int)r;
+    }
+    if (g_ops.notify_shutdown) g_ops.notify_shutdown(reason);
+}
+
+static void force_shutdown_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
+                                       uint32_t len, uint32_t flags, bool from_worker) {
+    (void)type; (void)id; (void)data; (void)len; (void)flags; (void)from_worker;
+    if (g_ops.force_shutdown) g_ops.force_shutdown();
+}
+
 void init_express_platform(const ExpressPlatformOps ops) {
     g_ops = ops;
+    if (!ops.express_device_multi_process) return;
+
     // Ensure memfd FDs won't be closed on exec
     {
         RamRegionList list = { .arr = g_array_new(FALSE, TRUE, sizeof(RamRegionMeta)) };
@@ -288,13 +306,28 @@ void init_express_platform(const ExpressPlatformOps ops) {
         void *parent_poll_thread(void *opaque) {
             (void)opaque;
             while (!should_stop) {
-                if (g_atomic_int_get(&g_ipc_block_bg_poll) == 0) {
-                    vsoc_ipc_poll_parent();
+                vsoc_ipc_poll_parent_bg();
+                // Detect worker exit (normal or crash) and trigger shutdown
+                if (worker_started && g_worker_pid > 0) {
+                    int status = 0;
+                    pid_t r = waitpid(g_worker_pid, &status, WNOHANG);
+                    if (r == g_worker_pid) {
+                        if (WIFEXITED(status)) {
+                            LOGE("worker %d exited with status %d", (int)g_worker_pid, WEXITSTATUS(status));
+                        } else if (WIFSIGNALED(status)) {
+                            LOGE("worker %d terminated by signal %d", (int)g_worker_pid, WTERMSIG(status));
+                        } else {
+                            LOGE("worker %d exited (unknown status=%d)", (int)g_worker_pid, status);
+                        }
+                        worker_started = 0;
+                        g_worker_pid = 0;
+                        should_stop = true; // stop polling thread
+                        g_ops.force_shutdown();
+                        break;
+                    }
                 }
                 g_usleep(1000); // 1ms poll interval (tunable)
             }
-            // final drain
-            vsoc_ipc_poll_parent();
             return NULL;
         }
         qemu_thread_create(&parent_ipc_thread, "vsoc-ipc-poll", parent_poll_thread, NULL, QEMU_THREAD_JOINABLE);
@@ -309,6 +342,8 @@ void init_express_platform(const ExpressPlatformOps ops) {
     qemu_mutex_init(&g_async_seq_lock);
     qemu_mutex_init(&g_inflight_lock);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ack_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, notify_shutdown_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_FORCE_SHUTDOWN, force_shutdown_ipc_handler);
     vsoc_ipc_parent_send(VSOC_IPC_TYPE_PLATFORM_INIT, 0, &ops, sizeof(ops), 0);
     // After platform init, inform worker of RAM regions (FDs are already inherited)
     send_ram_regions_to_worker();
@@ -352,9 +387,7 @@ static Device_Context *proxy_get_device_context(uint64_t device_id, uint64_t thr
     // 1) Ask worker to create its Device_Context and return a handle
     struct Req { uint64_t device_id, thread_id, process_id, unique_id; } req = { device_id, thread_id, process_id, unique_id };
     uint64_t worker_handle = 0; uint32_t resp_len = sizeof(worker_handle);
-    g_atomic_int_inc(&g_ipc_block_bg_poll);
     int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, &req, sizeof(req), &worker_handle, &resp_len, NULL, 3000);
-    g_atomic_int_dec_and_test(&g_ipc_block_bg_poll);
     if (rc != 0 || resp_len != sizeof(worker_handle) || worker_handle == 0) {
         LOGE("proxy_get_device_context: worker request failed rc=%d len=%u handle=%" PRIx64, rc, resp_len, worker_handle);
         // Continue to create local context anyway; we need it to process IRQs
@@ -368,14 +401,57 @@ static Device_Context *proxy_get_device_context(uint64_t device_id, uint64_t thr
     }
     Device_Context *dc = orig->get_device_context(device_id, thread_id, process_id, unique_id, orig);
     if (!dc) return NULL;
+    // Point DC to proxy info so future irq_register/release calls route through our proxy wrappers
+    Express_Device_Info *proxy = g_proxy_info ? g_hash_table_lookup(g_proxy_info, GINT_TO_POINTER(device_id)) : NULL;
+    if (proxy) dc->device_info = proxy;
 
     // 3) Map worker handle -> local Device_Context for future IRQ routing
-    if (worker_handle && g_local_dc_by_worker_handle) {
-        g_hash_table_insert(g_local_dc_by_worker_handle, (gpointer)(uintptr_t)worker_handle, dc);
+    if (worker_handle) {
+        if (g_local_dc_by_worker_handle) {
+            g_hash_table_insert(g_local_dc_by_worker_handle, (gpointer)(uintptr_t)worker_handle, dc);
+        }
+        if (g_worker_handle_by_local_ptr) {
+            g_hash_table_insert(g_worker_handle_by_local_ptr, dc, (gpointer)(uintptr_t)worker_handle);
+        }
     }
 
     return dc;
 }
+
+static void proxy_irq_register(Device_Context *context) {
+    if (!context) return;
+    uint64_t worker_handle = (uint64_t)(uintptr_t)g_hash_table_lookup(g_worker_handle_by_local_ptr, context);
+    if (worker_handle == 0) {
+        LOGE("proxy_irq_register: missing worker_handle for ctx %p", context);
+        // Still run parent-side original to keep local state sane
+    }
+    // Fire-and-forget: include device_id so worker can resolve info before dc fields are set
+    struct { uint64_t device_id; uint64_t worker_handle; } payload;
+    int device_id = context->device_info ? context->device_info->device_id : 0;
+    payload.device_id = (uint64_t)device_id;
+    payload.worker_handle = worker_handle;
+    (void)vsoc_ipc_parent_send(VSOC_IPC_TYPE_IRQ_REGISTER, 0, &payload, sizeof(payload), 0);
+    // Also run original parent-side irq_register to mirror state locally
+    Express_Device_Info *orig = g_orig_info ? g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(device_id)) : NULL;
+    if (orig && orig->irq_register) orig->irq_register(context);
+}
+
+static void proxy_irq_release(Device_Context *context) {
+    if (!context) return;
+    uint64_t worker_handle = (uint64_t)(uintptr_t)g_hash_table_lookup(g_worker_handle_by_local_ptr, context);
+    if (worker_handle == 0) {
+        LOGE("proxy_irq_release: missing worker_handle for ctx %p", context);
+        // Still run parent-side original to keep local state sane
+    }
+    struct { uint64_t device_id; uint64_t worker_handle; } payload;
+    int device_id = context->device_info ? context->device_info->device_id : 0;
+    payload.device_id = (uint64_t)device_id;
+    payload.worker_handle = worker_handle;
+    (void)vsoc_ipc_parent_send(VSOC_IPC_TYPE_IRQ_RELEASE, 0, &payload, sizeof(payload), 0);
+    Express_Device_Info *orig = g_orig_info ? g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(device_id)) : NULL;
+    if (orig && orig->irq_release) orig->irq_release(context);
+}
+
 static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num) {
     Express_Device_Info *orig = g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(context->device_id));
     if (!orig || !orig->call_handler) {
@@ -384,7 +460,7 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
     }
 
     // If we don't have a worker handle for this context, fallback to local
-    uint64_t worker_handle = (uint64_t)(uintptr_t)g_hash_table_lookup(g_worker_handle_by_ctx, context);
+    uint64_t worker_handle = (uint64_t)(uintptr_t)g_hash_table_lookup(g_worker_handle_by_local_ptr, context);
     if (worker_handle == 0) {
         LOGE("no worker handle for context %p", context);
         goto fallback;
@@ -407,20 +483,18 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
         const Call_Para *cp = &all_para[i];
         Guest_Mem *data = convert_guest_mem_to_gpa(cp->data);
         size_t wrote = vsoc_ipc_guest_mem_pack(p, (size_t)(end - p), data);
-        free_duplicated_guest_mem(data);
-        if (wrote == 0) { 
-            LOGE("proxy_call_handler: dev %d fun %d param %d pack overflow, max %zu current %d", GET_DEVICE_ID(id), GET_FUN_ID(id), i, (size_t)(end - p), data->all_len); 
-            goto fallback; 
+        if (wrote == 0) {
+            LOGE("proxy_call_handler: dev %d fun %d param (%d/%d) pack overflow, max %zu guestmem len %d gpa %d sg_count %d", GET_DEVICE_ID(id), GET_FUN_ID(id), i + 1, para_num, (size_t)(end - p), data->all_len, data->is_gpa ? 1 : 0, data->num);
+            goto fallback;
         }
+        free_duplicated_guest_mem(data);
         p += wrote;
     }
 
     uint32_t payload_len = (uint32_t)(p - buf);
     if (FUN_NEED_SYNC(id)) {
         uint8_t resp = 0; uint32_t resp_len = sizeof(resp);
-        g_atomic_int_inc(&g_ipc_block_bg_poll);
-        int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_DEVICE_CALL, buf, payload_len, &resp, &resp_len, NULL, 30000);
-        g_atomic_int_dec_and_test(&g_ipc_block_bg_poll);
+    int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_DEVICE_CALL, buf, payload_len, &resp, &resp_len, NULL, 30000);
         if (rc != 0 || resp_len != sizeof(resp)) {
             LOGE("proxy_call_handler: request rc=%d resp_len=%u", rc, resp_len);
             goto fallback;
@@ -452,9 +526,7 @@ Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64
     // request structure
     struct Req { uint64_t device_id, thread_id, process_id, unique_id; } req = { device_id, thread_id, process_id, unique_id };
     uint64_t handle = 0; uint32_t resp_len = sizeof(handle);
-    g_atomic_int_inc(&g_ipc_block_bg_poll);
     int rc = vsoc_ipc_parent_request(VSOC_IPC_TYPE_GET_CONTEXT, &req, sizeof(req), &handle, &resp_len, NULL, 3000);
-    g_atomic_int_dec_and_test(&g_ipc_block_bg_poll);
     if (rc != 0 || resp_len != sizeof(handle) || handle == 0) {
         LOGE("proxy_get_context failed rc=%d len=%u handle=%" PRIx64, rc, resp_len, handle);
     }
@@ -476,8 +548,8 @@ Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64
         ctx->call_handler = proxy_call_handler;
     }
     if (ctx && handle) {
-        // Remember worker handle for this local context
-        g_hash_table_insert(g_worker_handle_by_ctx, ctx, (gpointer)(uintptr_t)handle);
+        // Remember worker handle for this local thread context
+        g_hash_table_insert(g_worker_handle_by_local_ptr, ctx, (gpointer)(uintptr_t)handle);
     }
     return ctx;
 }
@@ -485,13 +557,19 @@ Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64
 void init_express_device(const Express_Device_Info *info) {
     if (!g_proxy_info) g_proxy_info = g_hash_table_new(g_direct_hash, g_direct_equal);
     if (!g_orig_info) g_orig_info = g_hash_table_new(g_direct_hash, g_direct_equal);
-    if (!g_worker_handle_by_ctx) g_worker_handle_by_ctx = g_hash_table_new(g_direct_hash, g_direct_equal);
+    if (!g_worker_handle_by_local_ptr) g_worker_handle_by_local_ptr = g_hash_table_new(g_direct_hash, g_direct_equal);
     if (!g_local_dc_by_worker_handle) g_local_dc_by_worker_handle = g_hash_table_new(g_direct_hash, g_direct_equal);
 
     // Map device_id -> original info for later lookup
     g_hash_table_insert(g_orig_info, GINT_TO_POINTER(info->device_id), info);
 
-    if (info->device_id == EXPRESS_GPU_DEVICE_ID || info->device_id == EXPRESS_SYNC_DEVICE_ID || info->device_id == EXPRESS_DISPLAY_DEVICE_ID || info->device_id == EXPRESS_MEM_DEVICE_ID  || info->device_id == EXPRESS_TOUCHSCREEN_DEVICE_ID || info->device_id == EXPRESS_KEYBOARD_DEVICE_ID) {
+    if (true /* g_ops.express_device_multi_process */ && (
+        info->device_id == EXPRESS_GPU_DEVICE_ID || 
+        info->device_id == EXPRESS_SYNC_DEVICE_ID || 
+        info->device_id == EXPRESS_DISPLAY_DEVICE_ID ||
+        info->device_id == EXPRESS_MEM_DEVICE_ID  ||
+        info->device_id == EXPRESS_TOUCHSCREEN_DEVICE_ID || 
+        info->device_id == EXPRESS_KEYBOARD_DEVICE_ID)) {
         // Create proxy wrapper with overridden hooks we want to intercept.
         Express_Device_Info *proxy = g_malloc(sizeof(Express_Device_Info));
         memcpy(proxy, info, sizeof(Express_Device_Info));
@@ -499,7 +577,9 @@ void init_express_device(const Express_Device_Info *info) {
         proxy->call_handler = proxy_call_handler;
         proxy->buffer_register = proxy_buffer_register;
         proxy->get_device_context = proxy_get_device_context;
-    
+        proxy->irq_register = proxy_irq_register;
+        proxy->irq_release = proxy_irq_release;
+
         g_hash_table_insert(g_proxy_info, GINT_TO_POINTER(info->device_id), proxy);
         info = proxy;
     }
@@ -589,7 +669,10 @@ static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem) {
             break;
         }
     }
-    if (!all_translatable) { mem->is_gpa = 0; return mem; }
+    if (!all_translatable) { 
+        mem->is_gpa = 0; 
+        return mem; 
+    }
     for (int i = 0; i < mem->num; ++i) {
         Scatter_Data *sd = &mem->scatter_data[i];
         ram_addr_t block_off;

@@ -49,11 +49,11 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 #define _host_log(level, fmt, ...)                                                      \
     {                                                                                   \
         printf("%s %" PRId64 " %c [%s:%d]: " fmt "%c", get_now_time(), (int64_t)CURRENT_TID(),                   \
-                 _level_chars[level], __FILE__, __LINE__, ##__VA_ARGS__, 10);                               \
+                 _level_chars[level], __FILE_NAME__, __LINE__, ##__VA_ARGS__, 10);                               \
     }
 #define _host_log_debug_nolf(fmt, ...)                                                  \
     {                                                                                   \
-        printf("%s %" PRId64 " %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE__, __LINE__, ##__VA_ARGS__);   \
+        printf("%s %" PRId64 " %c [%s:%d]: " fmt, get_now_time(), (int64_t)CURRENT_TID(), 'D', __FILE_NAME__, __LINE__, ##__VA_ARGS__);   \
     }
 
 #define LOGV(fmt, ...) _host_log(HOST_LOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)

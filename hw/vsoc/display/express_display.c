@@ -13,11 +13,11 @@
 // #define TIMER_LOG
 #include "hw/vsoc/express_log.h"
 
-#include "hw/vsoc/gpu/express_display.h"
+#include "hw/vsoc/display/express_display.h"
 #include "hw/vsoc/gpu/egl_surface.h"
 #include "hw/vsoc/gpu/express_gpu.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
-#include "hw/vsoc/gpu/sdl_control.h"
+#include "hw/vsoc/display/sdl_control.h"
 
 #include "hw/vsoc/input/express_keyboard.h"
 #include "hw/vsoc/input/express_touchscreen.h"
@@ -192,11 +192,11 @@ static void display_context_init(Display_Context *disp)
         disp->info.refresh_rate_bits = 0x1ULL << ((refresh_rate - 15) / 15);
     }
 
-    disp->window_width = g_ops.express_gpu_window_width;
-    disp->window_height = g_ops.express_gpu_window_height;
+    disp->window_width = g_ops.express_display_window_width;
+    disp->window_height = g_ops.express_display_window_height;
 
-    disp->content_w = g_ops.express_gpu_window_width;
-    disp->content_h = g_ops.express_gpu_window_height;
+    disp->content_w = g_ops.express_display_window_width;
+    disp->content_h = g_ops.express_display_window_height;
 
     // 新建一个context用于与纹理交互
     if (disp->window == NULL)

@@ -18,7 +18,7 @@
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/gpu/express_gpu.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
-#include "hw/vsoc/gpu/express_display.h"
+#include "hw/vsoc/display/express_display.h"
 #include "hw/vsoc/gpu/glv3_context.h"
 #include "hw/vsoc/gpu/express_gpu_snapshot.h"
 #include "hw/vsoc/mem/express_sync.h"

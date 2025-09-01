@@ -662,11 +662,12 @@ static void touchscreen_buffer_register(Guest_Mem *data, uint64_t thread_id, uin
 {
     Touchscreen_Context *context = (Touchscreen_Context *)g_hash_table_lookup(g_touchscreen_contexts, GUINT_TO_POINTER(unique_id));
 
+    LOGI("touch dev %" PRIu64 " register buffer %p", unique_id, data);
+
     if (context->guest_buffer != NULL) {
         free_duplicated_guest_mem(context->guest_buffer);
     }
 
-    LOGI("touch dev %" PRIu64 " register buffer %p", unique_id, data);
     context->guest_buffer = data;
 }
 

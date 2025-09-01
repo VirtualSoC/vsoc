@@ -1,6 +1,6 @@
 // #define STD_DEBUG_LOG
 #include "hw/vsoc/express_log.h"
-#include "hw/vsoc/gpu/express_display.h"
+#include "hw/vsoc/display/express_display.h"
 
 typedef struct DisplayInfo {
     int width;

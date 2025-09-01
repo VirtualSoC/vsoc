@@ -24,8 +24,6 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                     'gl_helper.c',
                     'test_trans.c',
                     'device_interface_window.c',
-                    'express_display.c',
-                    'express_display_options.c',
                     'express_gpu_snapshot.c'
                ))
 

@@ -1,6 +1,3 @@
-
-
-
 express_input = ss.source_set()
 
 express_input.add(when: 'CONFIG_EXPRESS_INPUT',

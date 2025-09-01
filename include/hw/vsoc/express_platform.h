@@ -242,15 +242,13 @@ typedef void (*PlatformForceShutdown)(void);
 
 typedef struct {
     bool teleport_express_save_snapshot;
+    bool express_device_multi_process;
 
     bool express_gpu_gl_debug_enable;
     bool express_gpu_enable_windowed_mode;
     bool express_device_input_window_enable;
 
     bool express_gpu_keep_window_scale;
-
-    int express_gpu_window_width;
-    int express_gpu_window_height;
 
     int *express_touchscreen_size;
     bool express_touchscreen_scroll_is_zoom;
@@ -259,14 +257,17 @@ typedef struct {
 
     bool express_keyboard_finger_replay;
 
+    int express_display_window_width;
+    int express_display_window_height;
     int express_display_pixel_width;
     int express_display_pixel_height;
     int express_display_refresh_rate;
     uint64_t express_display_count;
     char express_display_options[128];
+    bool express_display_headless_mode;
+
     int express_keyboard_count;
 
-    bool express_display_headless_mode;
     bool express_gpu_open_shader_binary;
 
     char express_ruim_file[128];

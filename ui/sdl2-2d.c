@@ -27,7 +27,7 @@
 #include "ui/console.h"
 #include "ui/input.h"
 #include "ui/sdl2.h"
-#include "hw/vsoc/gpu/sdl_control.h"
+#include "hw/vsoc/display/sdl_control.h"
 
 void sdl2_2d_update(DisplayChangeListener *dcl,
                     int x, int y, int w, int h)

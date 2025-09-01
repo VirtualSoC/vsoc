@@ -24,6 +24,7 @@ typedef struct Teleport_Express_PCI{ //就类似于VirtIONetPCI那样 定义了
     bool enable_windowed_mode;
     bool show_device_input_window;
     bool keep_window_scale;
+    bool multi_process;
     int window_width;
     int window_height;
 

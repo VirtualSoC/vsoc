@@ -33,13 +33,14 @@ endif
 
 softmmu_ss.add_all(teleport_express)
 
+subdir('camera')
 subdir('codec')
+subdir('display')
 subdir('gpu')
 subdir('input')
-subdir('sensor')
-subdir('network')
-subdir('camera')
 subdir('mem')
+subdir('network')
+subdir('sensor')
 
 vsoc_ss.add(files(
     'express_log.c',

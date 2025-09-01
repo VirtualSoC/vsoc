@@ -24,7 +24,7 @@
 #include "hw/vsoc/gpu/test_trans.h"
 #include "hw/vsoc/gpu/device_interface_window.h"
 
-#include "hw/vsoc/gpu/express_display.h"
+#include "hw/vsoc/display/express_display.h"
 #include "hw/vsoc/gpu/express_gpu_snapshot.h"
 #include "hw/vsoc/gpu/glv3_resource.h"
 

@@ -142,7 +142,7 @@ int main(int argc, char **argv)
             LOGW("detected parent death via PPID; stopping worker");
             break;
         }
-        vsoc_ipc_poll_worker();
+        vsoc_ipc_poll_worker_bg();
         // g_usleep(1 * 1000); // 1ms poll interval
     }
 

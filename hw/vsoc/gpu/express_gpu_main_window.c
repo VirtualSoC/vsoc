@@ -19,7 +19,7 @@
 #include "hw/vsoc/gpu/glv1.h"
 #include "hw/vsoc/gpu/device_interface_window.h"
 #include "hw/vsoc/gpu/express_gpu_snapshot.h"
-#include "hw/vsoc/gpu/express_display.h"
+#include "hw/vsoc/display/express_display.h"
 #include "migration/snapshot.h"
 
 Static_Context_Values *preload_static_context_value = NULL;

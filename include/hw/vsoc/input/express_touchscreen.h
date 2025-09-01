@@ -1,7 +1,7 @@
 #ifndef EXPRESS_TOUCHSCREEN_H
 #define EXPRESS_TOUCHSCREEN_H
 
-#include "hw/vsoc/gpu/express_display.h"
+#include "hw/vsoc/display/express_display.h"
 
 #define MAX_TOUCH_POINT 10
 
