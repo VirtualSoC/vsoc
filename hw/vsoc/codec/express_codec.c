@@ -198,7 +198,7 @@ static bool dcodec_call_handler(Thread_Context *_context, uint64_t id, const Cal
     }
 }
 
-static Thread_Context *get_codec_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_codec_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
     if (g_codec_thread_contexts == NULL) // init
     {
@@ -217,7 +217,7 @@ static Thread_Context *get_codec_context(uint64_t device_id, uint64_t thread_id,
     // 没有context就新建线程
     if (context == NULL)
     {
-        context = thread_context_create(thread_id, device_id, sizeof(Codec_Thread_Context), info);
+        context = thread_context_create(device_id, thread_id, process_id, user_id, sizeof(Codec_Thread_Context), info);
 
         Codec_Thread_Context *b_context = (Codec_Thread_Context *)context;
         b_context->unique_id = unique_id;
@@ -260,7 +260,7 @@ static Device_Context *get_codec_device_context(uint64_t device_id, uint64_t thr
     return (Device_Context *)thread_context->component;
 }
 
-static void codec_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
+static void codec_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, Express_Device_Info *info)
 {
     Codec_Thread_Context *thread_context = g_hash_table_lookup(g_codec_thread_contexts, GUINT_TO_POINTER(unique_id));
 

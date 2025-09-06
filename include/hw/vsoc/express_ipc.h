@@ -26,50 +26,6 @@ enum {
 // IPC message flags
 #define VSOC_IPC_FLAG_RESPONSE 0x1
 
-// Handler receives a direct pointer into the ring for the payload. The memory
-// is only valid during the handler call; do not retain the pointer beyond the
-// call. If the handler needs to keep the data, it must copy it.
-typedef void (*VsocIpcHandler)(uint32_t type, uint32_t id, const uint8_t *data,
-                               uint32_t len, uint32_t flags, bool from_worker);
-
-// Register (or replace) a handler for a message type. Safe to call in both
-// parent and worker after init_express_platform.
-void vsoc_ipc_register_handler(uint32_t type, VsocIpcHandler fn);
-
-// Non-blocking send helpers. Return false if ring full or invalid length.
-bool vsoc_ipc_parent_send(uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags);
-bool vsoc_ipc_worker_send(uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags);
-
-// Worker convenience for replying (adds RESPONSE flag automatically).
-bool vsoc_ipc_worker_respond(uint32_t type, uint32_t id, const void *data, uint32_t len);
-
-// Blocking parent-side request helper. Generates a sequence id internally if *inout_id is 0.
-// On success returns 0 and fills resp buffer/len. Timeout in ms; <=0 means infinite (discouraged).
-// Returns -ETIMEDOUT, -ENOSPC (no pending slots), -EINVAL (size), or -EIO (send failure / not initialized).
-int vsoc_ipc_parent_request(uint32_t type,
-                            const void *req, uint32_t req_len,
-                            void *resp_buf, uint32_t *inout_resp_len,
-                            uint32_t *inout_id,
-                            int timeout_ms);
-
-// Blocking worker-side request helper (mirror of parent_request). Used by
-// worker to ask parent to perform privileged operations like guest memory IO.
-int vsoc_ipc_worker_request(uint32_t type,
-                            const void *req, uint32_t req_len,
-                            void *resp_buf, uint32_t *inout_resp_len,
-                            uint32_t *inout_id,
-                            int timeout_ms);
-
-// Poll to drain & dispatch pending messages. Parent should call regularly
-// from main loop or a timer; worker calls inside its run loop.
-// Drain incoming messages (foreground, always active)
-void vsoc_ipc_poll_parent(void);
-void vsoc_ipc_poll_worker(void);
-
-// Background pollers respect internal gating to avoid racing with blocking requests
-void vsoc_ipc_poll_parent_bg(void);
-void vsoc_ipc_poll_worker_bg(void);
-
 // ---------------- Low-level shared IPC data structures (needed by worker & parent) ---------
 // Variable-size ring buffers per direction. Each message is:
 //   struct { uint32_t type, id, len, flags; uint8_t payload[len]; }
@@ -98,6 +54,60 @@ typedef struct VsocGpuIpcShared {
 
 // Global shared memory pointer (allocated & owned by parent, attached by worker).
 extern VsocGpuIpcShared *vsoc_ipc_shared;
+
+// Forward declare opaque context for use in handler signature
+struct VsocIpcContext;
+
+// Handler receives a direct pointer into the ring for the payload. The memory
+// is only valid during the handler call; do not retain the pointer beyond the
+// call. If the handler needs to keep the data, it must copy it.
+// The first argument is the IPC context this message belongs to.
+typedef void (*VsocIpcHandler)(struct VsocIpcContext *ctx,
+                               uint32_t type, uint32_t id, const uint8_t *data,
+                               uint32_t len, uint32_t flags);
+
+// Opaque IPC context for one IPC region (one worker link)
+typedef struct VsocIpcContext VsocIpcContext;
+
+// Create/destroy/set shared memory backing and default context helpers
+VsocIpcContext *vsoc_ipc_context_create(struct VsocGpuIpcShared *shared);
+void vsoc_ipc_context_destroy(VsocIpcContext *ctx);
+
+// Register (or replace) a handler for a message type. Safe to call in both
+// parent and worker after init_express_platform.
+void vsoc_ipc_register_handler(uint32_t type, VsocIpcHandler fn);
+
+// Non-blocking send helpers. Return false if ring full or invalid length.
+bool vsoc_ipc_parent_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags);
+bool vsoc_ipc_worker_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags);
+
+// Worker convenience for replying (adds RESPONSE flag automatically).
+bool vsoc_ipc_worker_respond(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len);
+
+// Blocking parent-side request helper. Generates a sequence id internally if *inout_id is 0.
+// On success returns 0 and fills resp buffer/len. Timeout in ms; <=0 means infinite (discouraged).
+// Returns -ETIMEDOUT, -ENOSPC (no pending slots), -EINVAL (size), or -EIO (send failure / not initialized).
+int vsoc_ipc_parent_request(VsocIpcContext *ctx,
+                            uint32_t type,
+                            const void *req, uint32_t req_len,
+                            void *resp_buf, uint32_t *inout_resp_len,
+                            uint32_t *inout_id,
+                            int timeout_ms);
+
+// Blocking worker-side request helper (mirror of parent_request). Used by
+// worker to ask parent to perform privileged operations like guest memory IO.
+int vsoc_ipc_worker_request(VsocIpcContext *ctx,
+                            uint32_t type,
+                            const void *req, uint32_t req_len,
+                            void *resp_buf, uint32_t *inout_resp_len,
+                            uint32_t *inout_id,
+                            int timeout_ms);
+
+// Poll to drain & dispatch pending messages. Parent should call regularly
+// from main loop or a timer; worker calls inside its run loop.
+// Drain incoming messages (foreground, always active)
+void vsoc_ipc_poll_parent(VsocIpcContext *ctx);
+void vsoc_ipc_poll_worker(VsocIpcContext *ctx);
 
 typedef struct VsocGuestMemSeg {
     uint64_t addr;      // parent-process VA of segment start (token in worker)

@@ -7,48 +7,49 @@
 #include <glib.h>
 
 GHashTable *g_devices = NULL;
+extern VsocIpcContext *g_ipc_ctx; // defined in worker/platform.c
 
 // Worker context lookup handler for GET_CONTEXT
-void get_context_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                                    uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)flags; (void)from_worker;
-    if (len != sizeof(uint64_t)*4) {
+void get_context_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                    uint32_t len, uint32_t flags) {
+    (void)type; (void)flags; (void)ctx;
+    struct Req { uint64_t device_id, thread_id, process_id, unique_id, user_id; };
+    if (len != sizeof(struct Req)) {
         LOGE("GET_CONTEXT wrong len %u", len); return;
     }
-    struct Req { uint64_t device_id, thread_id, process_id, unique_id; };
     const struct Req *req = (const struct Req*)data;
     Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(req->device_id));
     if (!info || !info->get_context) {
         LOGE("GET_CONTEXT: no device info or get_context not implemented for device_id=%" PRIu64, req->device_id);
         uint64_t zero = 0; 
-        vsoc_ipc_worker_respond(VSOC_IPC_TYPE_GET_CONTEXT, id, &zero, sizeof(zero));
+        vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_CONTEXT, id, &zero, sizeof(zero));
         return;
     }
-    Thread_Context *ctx = info->get_context(req->device_id, req->thread_id, req->process_id, req->unique_id, info);
-    uint64_t handle = (uint64_t)(uintptr_t)ctx;
-    vsoc_ipc_worker_respond(VSOC_IPC_TYPE_GET_CONTEXT, id, &handle, sizeof(handle));
+    Thread_Context *thr_ctx = info->get_context(req->device_id, req->thread_id, req->process_id, req->unique_id, req->user_id, info);
+    uint64_t handle = (uint64_t)(uintptr_t)thr_ctx;
+    vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_CONTEXT, id, &handle, sizeof(handle));
 }
 
 // Worker: device-level context (for IRQs) creation via IPC
-static void get_device_context_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                                    uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)flags; (void)from_worker;
+static void get_device_context_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                    uint32_t len, uint32_t flags) {
+    (void)type; (void)flags; (void)ctx;
     struct Req { uint64_t device_id, thread_id, process_id, unique_id; };
-    if (len != sizeof(struct Req)) { LOGE("GET_DEVICE_CONTEXT: wrong len %u", len); uint64_t zero = 0; vsoc_ipc_worker_respond(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &zero, sizeof(zero)); return; }
+    if (len != sizeof(struct Req)) { LOGE("GET_DEVICE_CONTEXT: wrong len %u", len); uint64_t zero = 0; vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &zero, sizeof(zero)); return; }
     const struct Req *req = (const struct Req *)data;
     Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(req->device_id));
     if (!info || !info->get_device_context) {
         LOGE("GET_DEVICE_CONTEXT: no device info or get_device_context not implemented for device_id=%" PRIu64, req->device_id);
-        uint64_t zero = 0; vsoc_ipc_worker_respond(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &zero, sizeof(zero)); return;
+        uint64_t zero = 0; vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &zero, sizeof(zero)); return;
     }
     Device_Context *dc = info->get_device_context(req->device_id, req->thread_id, req->process_id, req->unique_id, info);
     uint64_t handle = (uint64_t)(uintptr_t)dc;
-    vsoc_ipc_worker_respond(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &handle, sizeof(handle));
+    vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &handle, sizeof(handle));
 }
 
-static void irq_register_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                                     uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)id; (void)flags; (void)from_worker;
+static void irq_register_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                     uint32_t len, uint32_t flags) {
+    (void)type; (void)id; (void)flags; (void)ctx;
     struct __attribute__((packed)) Payload { uint64_t device_id; uint64_t handle; } pld;
     if (len != sizeof(pld)) { LOGE("IRQ_REGISTER: bad len %u", len); return; }
     memcpy(&pld, data, sizeof(pld));
@@ -61,9 +62,9 @@ static void irq_register_ipc_handler(uint32_t type, uint32_t id, const uint8_t *
     info->irq_register(dc);
 }
 
-static void irq_release_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                                    uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)id; (void)flags; (void)from_worker;
+static void irq_release_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                    uint32_t len, uint32_t flags) {
+    (void)type; (void)id; (void)flags; (void)ctx;
     struct __attribute__((packed)) Payload { uint64_t device_id; uint64_t handle; } pld;
     if (len != sizeof(pld)) { LOGE("IRQ_RELEASE: bad len %u", len); return; }
     memcpy(&pld, data, sizeof(pld));
@@ -76,17 +77,18 @@ static void irq_release_ipc_handler(uint32_t type, uint32_t id, const uint8_t *d
     info->irq_release(dc);
 }
 
-// BUFFER_REGISTER handler: payload [device_id(8)][thread_id(8)][process_id(8)][unique_id(8)][num(4)][all_len(4)] + segs
-void buffer_register_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                                 uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)flags; (void)from_worker;
-    if (len < (int)(sizeof(uint64_t)*4 + sizeof(uint32_t)*2)) { LOGE("BUFFER_REGISTER: short header len=%u", len); return; }
+// BUFFER_REGISTER handler: payload [device_id(8)][thread_id(8)][process_id(8)][unique_id(8)][user_id(8)][num(4)][all_len(4)] + segs
+void buffer_register_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                 uint32_t len, uint32_t flags) {
+    (void)type; (void)flags; (void)ctx;
+    if (len < (int)(sizeof(uint64_t)*5 + sizeof(uint32_t)*2)) { LOGE("BUFFER_REGISTER: short header len=%u", len); return; }
     const uint8_t *p = data; const uint8_t *end = data + len;
-    uint64_t device_id, thread_id, process_id, unique_id;
+    uint64_t device_id, thread_id, process_id, unique_id, user_id;
     memcpy(&device_id, p, 8); p += 8;
     memcpy(&thread_id, p, 8); p += 8;
     memcpy(&process_id, p, 8); p += 8;
     memcpy(&unique_id, p, 8); p += 8;
+    memcpy(&user_id, p, 8); p += 8;
     size_t consumed = 0; Guest_Mem *gm = NULL;
     if (!vsoc_ipc_guest_mem_unpack(p, (size_t)(end - p), &gm, &consumed)) { LOGE("BUFFER_REGISTER: unpack failed"); return; }
     p += consumed;
@@ -98,7 +100,7 @@ void buffer_register_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data
         free_duplicated_guest_mem(gm);
         return;
     }
-    info->buffer_register(gm, thread_id, process_id, unique_id, info);
+    info->buffer_register(gm, thread_id, process_id, unique_id, user_id, info);
 }
 
 typedef struct WorkerCall {
@@ -111,9 +113,9 @@ typedef struct WorkerCall {
     bool need_reply;      // whether to reply to parent upon completion
 } WorkerCall;
 
-void device_call_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                             uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)flags; (void)from_worker;
+void device_call_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                             uint32_t len, uint32_t flags) {
+    (void)type; (void)flags; (void)ctx;
     const uint8_t *p = data; const uint8_t *end = data + len;
     if (p + sizeof(uint64_t)*2 + sizeof(int32_t) > end) { LOGE("DEVICE_CALL: bad header len=%u", len); return; }
     uint64_t handle; memcpy(&handle, p, sizeof(handle)); p += sizeof(handle);
@@ -135,8 +137,8 @@ void device_call_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
     }
 
     // Prepare a WorkerCall and push to the device thread
-    Thread_Context *ctx = (Thread_Context *)(uintptr_t)handle;
-    if (!ctx) { LOGE("DEVICE_CALL: null ctx handle"); goto out; }
+    Thread_Context *thr_ctx = (Thread_Context *)(uintptr_t)handle;
+    if (!thr_ctx) { LOGE("DEVICE_CALL: null ctx handle"); goto out; }
 
     WorkerCall *wc = g_malloc0(sizeof(WorkerCall));
     wc->id = call_id;
@@ -147,7 +149,7 @@ void device_call_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
     wc->need_reply = true; // always reply from worker thread when done
 
     // Queue to the device thread
-    call_push(ctx, wc);
+    call_push(thr_ctx, wc);
 
     // Return immediately; device thread will send response (for both sync and async)
     return;
@@ -172,27 +174,10 @@ void init_express_device(const Express_Device_Info *info)
     g_hash_table_insert(g_devices, GINT_TO_POINTER(info->device_id), info);
     LOGD("express device init %s (id=%" PRIu64 ")", info->name, info->device_id);
 
-    // Ensure handler is registered once
-    static bool buffer_reg_handler_registered = false;
-    if (!buffer_reg_handler_registered) {
-        vsoc_ipc_register_handler(VSOC_IPC_TYPE_BUFFER_REGISTER, buffer_register_ipc_handler);
-        buffer_reg_handler_registered = true;
-    }
-
-    // Ensure GET_DEVICE_CONTEXT handler registered once
-    static bool get_dev_ctx_handler_registered = false;
-    if (!get_dev_ctx_handler_registered) {
-        vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, get_device_context_ipc_handler);
-        get_dev_ctx_handler_registered = true;
-    }
-
-    // Register IRQ register/release handlers once
-    static bool irq_handlers_registered = false;
-    if (!irq_handlers_registered) {
-        vsoc_ipc_register_handler(VSOC_IPC_TYPE_IRQ_REGISTER, irq_register_ipc_handler);
-        vsoc_ipc_register_handler(VSOC_IPC_TYPE_IRQ_RELEASE, irq_release_ipc_handler);
-        irq_handlers_registered = true;
-    }
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_BUFFER_REGISTER, buffer_register_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, get_device_context_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_IRQ_REGISTER, irq_register_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_IRQ_RELEASE, irq_release_ipc_handler);
 }
 
 bool invoke_call_handler(Thread_Context *context, void *_call) {
@@ -217,7 +202,7 @@ bool invoke_call_handler(Thread_Context *context, void *_call) {
     // Send IPC reply to parent now that processing is complete
     if (call->need_reply) {
         uint8_t resp = success ? 1 : 0;
-        (void)vsoc_ipc_worker_respond(VSOC_IPC_TYPE_DEVICE_CALL, call->ipc_slot_id, &resp, sizeof(resp));
+    (void)vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_DEVICE_CALL, call->ipc_slot_id, &resp, sizeof(resp));
     }
     g_free(call);
     return success;

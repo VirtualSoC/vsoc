@@ -511,7 +511,7 @@ static bool camera_call_handler(Thread_Context *context, uint64_t id, const Call
     }
 }
 
-static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
     if (g_camera_thread_contexts_map == NULL)
     {
@@ -524,7 +524,7 @@ static Thread_Context *get_camera_thread_context(uint64_t device_id, uint64_t th
     // 没有context就新建线程
     if (context == NULL)
     {
-        context = thread_context_create(thread_id, device_id, sizeof(Camera_Thread_Context), info);
+        context = thread_context_create(device_id, thread_id, process_id, user_id, sizeof(Camera_Thread_Context), info);
         Camera_Thread_Context *c_context = (Camera_Thread_Context *)context;
         c_context->camera_id = (int)unique_id;
 

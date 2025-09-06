@@ -2815,6 +2815,7 @@ int save_thread_context(QEMUFile *f, Thread_Context *context) {
     qemu_put_be64(f, context->thread_id);
     qemu_put_be64(f, context->unique_id);
     qemu_put_be64(f, context->process_id);
+    qemu_put_be64(f, context->user_id);
 
     LOGI("in save thread context with device id %lld thread id %lld process_id %lld unique_id %lld", context->device_id, context->thread_id, context->process_id, context->unique_id);
 
@@ -2836,10 +2837,11 @@ Render_Thread_Context* load_thread_context(QEMUFile *f) {
     uint64_t thread_id = qemu_get_be64(f);
     uint64_t unique_id = qemu_get_be64(f);
     uint64_t process_id = qemu_get_be64(f);
+    uint64_t user_id = qemu_get_be64(f);
 
     Express_Device_Info *device_info = get_express_device_info(EXPRESS_GPU_DEVICE_ID);
 
-    Render_Thread_Context *context = (Render_Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, device_info);
+    Render_Thread_Context *context = (Render_Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, user_id, device_info);
 
     LOGI("in load_thread_context with device id %lld thread id %lld process %lld unique %lld", device_id, thread_id, process_id, unique_id);
 

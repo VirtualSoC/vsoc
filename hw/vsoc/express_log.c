@@ -117,12 +117,12 @@ void log_init(Thread_Context *context)
  * @param info
  * @return Thread_Context*
  */
-static Thread_Context *get_log_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_log_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
 
     if (log_thread_context == NULL)
     {
-        log_thread_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
+        log_thread_context = thread_context_create(device_id, thread_id, process_id, user_id, sizeof(Thread_Context), info);
     }
     return log_thread_context;
 }

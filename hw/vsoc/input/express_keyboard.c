@@ -16,22 +16,6 @@
 
 #include "ui/input.h"
 
-// 全键无冲设计
-typedef struct Keyboard_Data
-{
-    bool key[MAX_KEY_CODE];
-    bool key_is_refresh[MAX_KEY_CODE];
-} __attribute__((packed, aligned(4))) Keyboard_Data;
-
-typedef struct Keyboard_Context
-{
-    Device_Context device_context;
-    int id;
-    Keyboard_Data data;
-    Guest_Mem *guest_buffer;
-    bool need_sync;
-} Keyboard_Context;
-
 static GHashTable *g_keyboard_contexts = NULL;
 
 static inline Keyboard_Context *get_keyboard_context(GLFWwindow *window)
@@ -233,7 +217,7 @@ void sync_express_keyboard_input(GLFWwindow *window, bool need_send)
     return;
 }
 
-static void keyboard_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
+static void keyboard_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, Express_Device_Info *info)
 {
     Keyboard_Context *context = (Keyboard_Context *)g_hash_table_lookup(g_keyboard_contexts, GUINT_TO_POINTER(unique_id));
 

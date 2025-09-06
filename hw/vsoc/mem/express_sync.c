@@ -237,7 +237,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
     // }
 }
 
-static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
+static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, Express_Device_Info *info)
 {
     if (static_sync_context.guest_buffer != NULL)
     {

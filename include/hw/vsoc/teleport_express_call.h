@@ -72,10 +72,7 @@ typedef struct Teleport_Express_Flag_Buf
 
     uint64_t unique_id;
 
-    // uint64_t  num_free;
-
-    // //调用的普通返回值
-    // volatile uint64_t ret;
+    uint64_t user_id;
 
     //注意：这里没有剩下的几个参数是因为这几个参数qemu不需要，是给驱动在之后用的
 
@@ -93,6 +90,9 @@ typedef struct Teleport_Express_Call
     uint64_t process_id; //guest传下来的：flag_buf->thread_id = (u64)current->pid; flag_buf->process_id = (u64)current->tgid;
 
     uint64_t unique_id;
+
+    // 当前guest进程的uid，由guest传入
+    uint64_t user_id;
 
     int64_t spend_time;
 
@@ -125,7 +125,13 @@ void write_to_guest_mem(Guest_Mem *guest, void *host, size_t start_loc, size_t l
 void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_data, size_t start_loc, size_t length, int is_guest_to_host);
 
 
-int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned long long *id, unsigned long long *thread_id, unsigned long long *process_id, unsigned long long *unique_id, unsigned long long *num);
+int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem,
+                                     unsigned long long *id,
+                                     unsigned long long *thread_id,
+                                     unsigned long long *process_id,
+                                     unsigned long long *unique_id,
+                                     unsigned long long *user_id,
+                                     unsigned long long *num);
 Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index);
 
 

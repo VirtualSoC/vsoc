@@ -85,7 +85,7 @@ static GHashTable *bridge_thread_contexts = NULL;
 
 static GHashTable *accept_fd_thread_maps = NULL;
 
-static void bridge_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, Express_Device_Info *info)
+static void bridge_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, Express_Device_Info *info)
 {
 
     Bridge_Thread_Context *context = g_hash_table_lookup(bridge_thread_contexts, GUINT_TO_POINTER(unique_id));
@@ -566,7 +566,7 @@ static bool bridge_output_call_handler(Thread_Context *context, uint64_t id, con
     }
 }
 
-static Thread_Context *get_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_bridge_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
     if (bridge_thread_contexts == NULL)
     {
@@ -585,7 +585,7 @@ static Thread_Context *get_bridge_context(uint64_t device_id, uint64_t thread_id
     {
         // express_printf("create new thread\n");
         express_printf("create new thread context\n");
-        context = thread_context_create(thread_id, device_id, sizeof(Bridge_Thread_Context), info);
+        context = thread_context_create(device_id, thread_id, process_id, user_id, sizeof(Bridge_Thread_Context), info);
 
         Bridge_Thread_Context *b_context = (Bridge_Thread_Context *)context;
         b_context->unique_id = unique_id;

@@ -55,6 +55,7 @@ void push_to_thread(Teleport_Express_Call *call)
     uint64_t thread_id = call->thread_id;
     uint64_t process_id = call->process_id;
     uint64_t unique_id = call->unique_id;
+    uint64_t user_id = call->user_id;
 
     uint64_t device_id = GET_DEVICE_ID(call->id);
     uint64_t fun_id = GET_FUN_ID(call->id);
@@ -78,7 +79,7 @@ void push_to_thread(Teleport_Express_Call *call)
     if (fun_id == EXPRESS_TERMINATE_FUN_ID && device_info->remove_context) {
         context = (Thread_Context *)device_info->remove_context(device_id, thread_id, process_id, unique_id, device_info);
     } else {
-        context = (Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, device_info);
+        context = (Thread_Context *)device_info->get_context(device_id, thread_id, process_id, unique_id, user_id, device_info);
     }
 
     //找得到相应的设备处理时才把他推送到相应的设备线程

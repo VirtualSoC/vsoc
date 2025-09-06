@@ -256,11 +256,11 @@ void d_glUseProgram_special(void *context, GLuint program)
 
     glUseProgram(program);
 
-    GLuint error = glGetError();
-    if (error != GL_NO_ERROR)
-    {
-        LOGE("error! use program glGetError %x %d", error, program);
-    }
+    // GLuint error = glGetError();
+    // if (error != GL_NO_ERROR)
+    // {
+    //     LOGE("error! use program glGetError %x %d", error, program);
+    // }
 }
 
 void d_glProgramBinary_special(void *context, GLuint program, GLenum binaryFormat, const void *binary, GLsizei length, int *program_data_len)

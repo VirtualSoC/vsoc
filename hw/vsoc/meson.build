@@ -15,6 +15,7 @@ teleport_express.add(when: 'CONFIG_TELEPORT_EXPRESS',
                    'express_device_ctrl.c',
                    'teleport_express_hmp.c',
                    'express_ipc.c',
+                   'container_utils.c',
                ))
 
 if targetos == 'windows'
@@ -46,4 +47,5 @@ vsoc_ss.add(files(
     'express_log.c',
     'express_ipc.c',
     'express_handle_thread.c',
+    'container_utils.c',
 ))

@@ -1,7 +1,9 @@
 #ifndef EXPRESS_GPU_SNAPSHOT_H
 #define EXPRESS_GPU_SNAPSHOT_H
 
-// #define ENABLE_SNAPSHOT
+#ifndef __linux__
+#define ENABLE_SNAPSHOT
+#endif
 
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/gpu/express_gpu.h"

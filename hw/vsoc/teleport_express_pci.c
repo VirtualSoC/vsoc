@@ -117,6 +117,11 @@ Express_Device_Info *get_express_device_info_by_name(const char *name)
     return NULL;
 }
 
+GHashTable *get_all_express_device_info(void)
+{
+    return all_register_device_info;
+}
+
 /**
  * @brief 根据Express_Device_Info里的内容产生给qemu命令行用的Property
  *

@@ -37,9 +37,9 @@ static void attach_shared_memory(const char *name) {
 }
 
 // Handler for RAM region metadata from parent. FDs are inherited and referenced by number.
-static void ram_regions_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                                   uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)id; (void)flags; (void)from_worker;
+static void ram_regions_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                   uint32_t len, uint32_t flags) {
+    (void)type; (void)id; (void)flags; (void)ctx;
     if (len < 4) {
         LOGE("RAM_REGIONS: payload too small (%u)", len);
         return;
@@ -83,9 +83,9 @@ static void ram_regions_ipc_handler(uint32_t type, uint32_t id, const uint8_t *d
     free(infos);
 }
 
-void platform_init_ipc_handler(uint32_t type, uint32_t id, const uint8_t *data,
-                              uint32_t len, uint32_t flags, bool from_worker) {
-    (void)type; (void)id; (void)flags; (void)from_worker;
+void platform_init_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                              uint32_t len, uint32_t flags) {
+    (void)type; (void)id; (void)flags; (void)ctx;
     if (len != sizeof(ExpressPlatformOps)) {
         LOGE("PLATFORM_INIT wrong len %u expected %zu", len, sizeof(ExpressPlatformOps));
         return;
@@ -130,6 +130,9 @@ int main(int argc, char **argv)
     guestmem_init();
 
     attach_shared_memory(argv[1]);
+    // Create IPC context bound to shared memory
+    extern VsocIpcContext *g_ipc_ctx; // declared in platform.c
+    g_ipc_ctx = vsoc_ipc_context_create(vsoc_ipc_shared);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_PLATFORM_INIT, platform_init_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_RAM_REGIONS, ram_regions_ipc_handler);
 
@@ -142,7 +145,7 @@ int main(int argc, char **argv)
             LOGW("detected parent death via PPID; stopping worker");
             break;
         }
-        vsoc_ipc_poll_worker_bg();
+        vsoc_ipc_poll_worker(g_ipc_ctx);
         // g_usleep(1 * 1000); // 1ms poll interval
     }
 
@@ -150,5 +153,6 @@ int main(int argc, char **argv)
 
     deinit_express_platform();
     guestmem_clear_all();
+    if (g_ipc_ctx) { vsoc_ipc_context_destroy(g_ipc_ctx); g_ipc_ctx = NULL; }
     return 0;
 }

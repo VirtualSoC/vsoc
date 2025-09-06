@@ -40,5 +40,6 @@ void express_device_init_common(Express_Device_Info *info);
 
 Express_Device_Info *get_express_device_info(unsigned int device_id);
 Express_Device_Info *get_express_device_info_by_name(const char *name);
+GHashTable *get_all_express_device_info(void);
 
 void cluster_decode_invoke(Teleport_Express_Call *call, void *context, EXPRESS_DECODE_FUN decode_fun);

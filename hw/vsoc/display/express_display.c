@@ -147,7 +147,7 @@ static bool display_call_handler(Thread_Context *context, uint64_t id, const Cal
     return ok;
 }
 
-static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
     if (g_display_contexts == NULL) // init
     {
@@ -159,7 +159,7 @@ static Thread_Context *get_display_context(uint64_t device_id, uint64_t thread_i
     // 没有context就新建线程
     if (context == NULL)
     {
-        context = thread_context_create(thread_id, device_id, sizeof(Display_Context), info);
+        context = thread_context_create(device_id, thread_id, process_id, user_id, sizeof(Display_Context), info);
 
         Display_Context *disp = (Display_Context *)context;
         disp->unique_id = unique_id;
@@ -724,7 +724,7 @@ void load_display_context(QEMUFile *f) {
         qemu_get_buffer(f, (uint8_t *)old_disp, sizeof(Display_Context));
         LOGI("recovering display id %d name vSoC:%s (%dx%d) window %p", old_disp->unique_id, old_disp->info.name, old_disp->info.pixel_width, old_disp->info.pixel_height, old_disp->window);
 
-        Display_Context *new_disp = (Display_Context *)display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, old_disp->thread_context.thread_id, old_disp->thread_context.process_id, old_disp->unique_id, display_device_info);
+        Display_Context *new_disp = (Display_Context *)display_device_info->get_context(EXPRESS_DISPLAY_DEVICE_ID, old_disp->thread_context.thread_id, old_disp->thread_context.process_id, old_disp->unique_id, old_disp->thread_context.user_id, display_device_info);
 
         // copy all the members of the Display_Context struct except the thread_context
         int offset = sizeof(Thread_Context);

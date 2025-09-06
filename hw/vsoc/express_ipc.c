@@ -11,6 +11,64 @@
 
 #define VSOC_IPC_MAX_PENDING 64
 
+typedef struct PendingReq {
+    uint32_t id;
+    uint32_t type;
+    bool     done;
+    uint32_t resp_len;
+    uint8_t *resp_buf;
+    uint32_t resp_buf_cap;
+    QemuCond cond;
+    QemuMutex lock;
+} PendingReq;
+
+typedef struct VsocIpcContext {
+    VsocGpuIpcShared *shared;
+    PendingReq pending[VSOC_IPC_MAX_PENDING];
+    QemuMutex pending_table_lock;
+    uint32_t seq;
+    bool pending_inited;
+    QemuMutex parent_send_lock;
+    QemuMutex worker_send_lock;
+    gint parent_consume_owner;
+    gint worker_consume_owner;
+} VsocIpcContext;
+
+// Helper to initialize a context (call once per region)
+void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocGpuIpcShared *shared) {
+    ctx->shared = shared;
+    ctx->seq = 1;
+    ctx->pending_inited = false;
+    ctx->parent_consume_owner = 0;
+    ctx->worker_consume_owner = 0;
+    qemu_mutex_init(&ctx->pending_table_lock);
+    qemu_mutex_init(&ctx->parent_send_lock);
+    qemu_mutex_init(&ctx->worker_send_lock);
+    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) {
+        ctx->pending[i].id = 0;
+        ctx->pending[i].done = false;
+        qemu_cond_init(&ctx->pending[i].cond);
+        qemu_mutex_init(&ctx->pending[i].lock);
+    }
+}
+
+VsocIpcContext *vsoc_ipc_context_create(VsocGpuIpcShared *shared) {
+    VsocIpcContext *ctx = (VsocIpcContext *)g_malloc0(sizeof(VsocIpcContext));
+    vsoc_ipc_context_init(ctx, shared);
+    return ctx;
+}
+
+void vsoc_ipc_context_destroy(VsocIpcContext *ctx) {
+    if (!ctx) return;
+    // No dynamic allocations inside PendingReq; just destroy mutexes/conds
+    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) {
+        // qemu_cond_destroy and qemu_mutex_destroy are no-ops/safe if not provided
+    }
+    g_free(ctx);
+}
+
+// No default-context helpers; callers must pass explicit context.
+
 // Human-readable IPC type names for logging
 static const char *vsoc_ipc_type_name(uint32_t type) {
     switch (type) {
@@ -31,71 +89,41 @@ static const char *vsoc_ipc_type_name(uint32_t type) {
     }
 }
 
-typedef struct PendingReq {
-    uint32_t id;
-    uint32_t type;
-    bool     done;
-    uint32_t resp_len;
-    uint8_t *resp_buf;
-    uint32_t resp_buf_cap;
-    QemuCond cond;
-    QemuMutex lock;
-} PendingReq;
+VsocGpuIpcShared *vsoc_ipc_shared = NULL; // retained for external mapping code only
 
-VsocGpuIpcShared *vsoc_ipc_shared = NULL;
-static PendingReq g_pending[VSOC_IPC_MAX_PENDING];
-static QemuMutex g_pending_table_lock; // protects allocation of slots & sequence
-static uint32_t g_seq = 1; // sequence generator (skip 0)
-static bool g_pending_inited = false;
-// Serialize concurrent writers to each ring to avoid head races
-static QemuMutex g_parent_send_lock;
-static QemuMutex g_worker_send_lock;
-// Ensure single-consumer semantics per ring; allow reentrant polling from same thread
-static gint g_parent_consume_owner = 0;
-static gint g_worker_consume_owner = 0;
-static __thread int tls_parent_poll_depth = 0;
-static __thread int tls_worker_poll_depth = 0;
 
-static void vsoc_ipc_pending_init_once(void) {
-    if (g_pending_inited) return;
-    qemu_mutex_init(&g_pending_table_lock);
-    qemu_mutex_init(&g_parent_send_lock);
-    qemu_mutex_init(&g_worker_send_lock);
-    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) {
-        g_pending[i].id = 0;
-        g_pending[i].done = false;
-        qemu_cond_init(&g_pending[i].cond);
-        qemu_mutex_init(&g_pending[i].lock);
+// ---------------- Global handler registration & dispatch ---------------------
+typedef void (*VsocIpcHandler)(VsocIpcContext *ctx,
+                               uint32_t type, uint32_t id, const uint8_t *data,
+                               uint32_t len, uint32_t flags);
+
+// Use a hash table so register() can update handlers in-place and lookups are O(1).
+static GHashTable *g_handler_table = NULL; // key: GUINT_TO_POINTER(type), value: (gpointer)VsocIpcHandler
+static QemuMutex g_handler_lock;
+static bool g_handler_lock_inited = false;
+static inline void ensure_handler_lock_inited(void) {
+    if (!g_handler_lock_inited) {
+        qemu_mutex_init(&g_handler_lock);
+        // g_direct_hash/equal treat keys as direct pointers; we store uint32 via GUINT_TO_POINTER
+        g_handler_table = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_handler_lock_inited = true;
     }
-    g_pending_inited = true;
 }
 
-
-// ---------------- Handler registration & dispatch ----------------------------
-typedef void (*VsocIpcHandler)(uint32_t type, uint32_t id, const uint8_t *data,
-                               uint32_t len, uint32_t flags, bool from_worker);
-
-typedef struct HandlerEntry { uint32_t type; VsocIpcHandler fn; } HandlerEntry;
-static HandlerEntry g_handlers[16];
-static int g_handler_count = 0;
-
 void vsoc_ipc_register_handler(uint32_t type, VsocIpcHandler fn) {
-    for (int i = 0; i < g_handler_count; ++i) {
-        if (g_handlers[i].type == type) { g_handlers[i].fn = fn; return; }
-    }
-    if (g_handler_count < (int)(sizeof(g_handlers)/sizeof(g_handlers[0]))) {
-        g_handlers[g_handler_count].type = type;
-        g_handlers[g_handler_count].fn = fn;
-        g_handler_count++;
-    } else {
-    LOGE("IPC handler table full (%s)", vsoc_ipc_type_name(type));
-    }
+    ensure_handler_lock_inited();
+    qemu_mutex_lock(&g_handler_lock);
+    // Insert will replace any existing entry for 'type'
+    g_hash_table_insert(g_handler_table, GUINT_TO_POINTER(type), (gpointer)fn);
+    qemu_mutex_unlock(&g_handler_lock);
 }
 
 static VsocIpcHandler vsoc_ipc_find_handler(uint32_t type) {
-    for (int i = 0; i < g_handler_count; ++i)
-        if (g_handlers[i].type == type) return g_handlers[i].fn;
-    return NULL;
+    ensure_handler_lock_inited();
+    qemu_mutex_lock(&g_handler_lock);
+    gpointer val = g_hash_table_lookup(g_handler_table, GUINT_TO_POINTER(type));
+    qemu_mutex_unlock(&g_handler_lock);
+    return (VsocIpcHandler)val;
 }
 
 // Variable-size ring helpers (contiguous write/read via PAD messages)
@@ -108,7 +136,7 @@ static inline uint64_t ring_data_bytes(uint64_t head, uint64_t tail) {
 
 static bool vsoc_ipc_send_slot(uint8_t *ring, uint32_t cap, volatile uint64_t *headp, volatile uint64_t *tailp,
                                uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
-    if (!vsoc_ipc_shared) return false;
+    if (!ring || !headp || !tailp) return false;
     if (len > VSOC_IPC_MAX_PAYLOAD) {
         LOGE("IPC len %u > max %u", len, (unsigned)VSOC_IPC_MAX_PAYLOAD);
         return false;
@@ -214,31 +242,29 @@ static void vsoc_ipc_consume(uint32_t cap, volatile uint64_t *tailp, uint32_t ne
     *tailp += need;
 }
 
-bool vsoc_ipc_parent_send(uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
-    vsoc_ipc_pending_init_once();
+bool vsoc_ipc_parent_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
     bool ok;
-    qemu_mutex_lock(&g_parent_send_lock);
-    ok = vsoc_ipc_send_slot(vsoc_ipc_shared->parent_to_worker, VSOC_IPC_BUF_SIZE, &vsoc_ipc_shared->pw_head, &vsoc_ipc_shared->pw_tail,
+    qemu_mutex_lock(&ctx->parent_send_lock);
+    ok = vsoc_ipc_send_slot(ctx->shared->parent_to_worker, VSOC_IPC_BUF_SIZE, &ctx->shared->pw_head, &ctx->shared->pw_tail,
                               type, id, data, len, flags);
-    qemu_mutex_unlock(&g_parent_send_lock);
+    qemu_mutex_unlock(&ctx->parent_send_lock);
     return ok;
 }
 
-bool vsoc_ipc_worker_send(uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
-    vsoc_ipc_pending_init_once();
+bool vsoc_ipc_worker_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
     bool ok;
-    qemu_mutex_lock(&g_worker_send_lock);
-    ok = vsoc_ipc_send_slot(vsoc_ipc_shared->worker_to_parent, VSOC_IPC_BUF_SIZE, &vsoc_ipc_shared->wp_head, &vsoc_ipc_shared->wp_tail,
+    qemu_mutex_lock(&ctx->worker_send_lock);
+    ok = vsoc_ipc_send_slot(ctx->shared->worker_to_parent, VSOC_IPC_BUF_SIZE, &ctx->shared->wp_head, &ctx->shared->wp_tail,
                               type, id, data, len, flags);
-    qemu_mutex_unlock(&g_worker_send_lock);
+    qemu_mutex_unlock(&ctx->worker_send_lock);
     return ok;
 }
 
-static bool vsoc_ipc_dispatch_one(bool from_worker_ring) {
+static bool vsoc_ipc_dispatch_one(VsocIpcContext *ctx, bool from_worker_ring) {
     uint32_t type, id, flags, len, need; const uint8_t *ptr = NULL; bool ok;
-    volatile uint64_t *headp = from_worker_ring ? &vsoc_ipc_shared->wp_head : &vsoc_ipc_shared->pw_head;
-    volatile uint64_t *tailp = from_worker_ring ? &vsoc_ipc_shared->wp_tail : &vsoc_ipc_shared->pw_tail;
-    uint8_t *ring = from_worker_ring ? vsoc_ipc_shared->worker_to_parent : vsoc_ipc_shared->parent_to_worker;
+    volatile uint64_t *headp = from_worker_ring ? &ctx->shared->wp_head : &ctx->shared->pw_head;
+    volatile uint64_t *tailp = from_worker_ring ? &ctx->shared->wp_tail : &ctx->shared->pw_tail;
+    uint8_t *ring = from_worker_ring ? ctx->shared->worker_to_parent : ctx->shared->parent_to_worker;
     ok = vsoc_ipc_peek_slot(ring, VSOC_IPC_BUF_SIZE, headp, tailp, &type, &id, &ptr, &len, &flags, &need);
     if (!ok) return false;
 
@@ -248,7 +274,7 @@ static bool vsoc_ipc_dispatch_one(bool from_worker_ring) {
     if (flags & VSOC_IPC_FLAG_RESPONSE) {
         bool matched_pending = false;
         for (int i = 0; i < VSOC_IPC_MAX_PENDING; i++) {
-            PendingReq *pr = &g_pending[i];
+            PendingReq *pr = &ctx->pending[i];
             uint32_t pid = qatomic_load_acquire(&pr->id);
             if (pid == id && pr->type == type) {
                 qemu_mutex_lock(&pr->lock);
@@ -269,7 +295,7 @@ static bool vsoc_ipc_dispatch_one(bool from_worker_ring) {
         if (!matched_pending) {
             VsocIpcHandler h = vsoc_ipc_find_handler(type);
             if (h) {
-                h(type, id, ptr, len, flags, from_worker_ring);
+                h(ctx, type, id, ptr, len, flags);
             } else {
                 LOGE("IPC: response %s id %u had no pending waiter and no handler; dropping", vsoc_ipc_type_name(type), id);
             }
@@ -280,7 +306,7 @@ static bool vsoc_ipc_dispatch_one(bool from_worker_ring) {
     }
     VsocIpcHandler h = vsoc_ipc_find_handler(type);
     if (h) {
-        h(type, id, ptr, len, flags, from_worker_ring);
+        h(ctx, type, id, ptr, len, flags);
     } else {
         LOGE("IPC: no handler for %s", vsoc_ipc_type_name(type));
     }
@@ -288,94 +314,59 @@ static bool vsoc_ipc_dispatch_one(bool from_worker_ring) {
     return true;
 }
 
-void vsoc_ipc_poll_parent(void) {
-    vsoc_ipc_pending_init_once();
-    if (!vsoc_ipc_shared) return;
-    bool acquired = false;
-    tls_parent_poll_depth++;
-    if (tls_parent_poll_depth == 1) {
-        // First entry on this thread: try to become the sole consumer
-        if (g_atomic_int_compare_and_exchange(&g_parent_consume_owner, 0, 1)) acquired = true;
-        else { tls_parent_poll_depth--; return; }
-    } else {
-        // Re-entrant call from same thread: proceed without acquiring
-        acquired = true;
-    }
-    while (vsoc_ipc_dispatch_one(true)) { /* keep draining until empty or partial */ }
-    if (--tls_parent_poll_depth == 0 && acquired) {
-        g_atomic_int_set(&g_parent_consume_owner, 0);
-    }
+void vsoc_ipc_poll_parent(VsocIpcContext *ctx) {
+    if (!ctx || !ctx->shared) return;
+    if (!g_atomic_int_compare_and_exchange(&ctx->parent_consume_owner, 0, 1)) return;
+    while (vsoc_ipc_dispatch_one(ctx, true)) { /* drain */ }
+    g_atomic_int_set(&ctx->parent_consume_owner, 0);
 }
 
-void vsoc_ipc_poll_worker(void) {
-    vsoc_ipc_pending_init_once();
-    if (!vsoc_ipc_shared) return;
-    bool acquired = false;
-    tls_worker_poll_depth++;
-    if (tls_worker_poll_depth == 1) {
-        if (g_atomic_int_compare_and_exchange(&g_worker_consume_owner, 0, 1)) acquired = true;
-        else { tls_worker_poll_depth--; return; }
-    } else {
-        acquired = true;
-    }
-    while (vsoc_ipc_dispatch_one(false)) { /* keep draining until empty or partial */ }
-    if (--tls_worker_poll_depth == 0 && acquired) {
-        g_atomic_int_set(&g_worker_consume_owner, 0);
-    }
+void vsoc_ipc_poll_worker(VsocIpcContext *ctx) {
+    if (!ctx || !ctx->shared) return;
+    if (!g_atomic_int_compare_and_exchange(&ctx->worker_consume_owner, 0, 1)) return;
+    while (vsoc_ipc_dispatch_one(ctx, false)) { /* drain */ }
+    g_atomic_int_set(&ctx->worker_consume_owner, 0);
 }
 
-void vsoc_ipc_poll_parent_bg(void) {
-    vsoc_ipc_pending_init_once();
-    if (!vsoc_ipc_shared) return;
-    vsoc_ipc_poll_parent();
+bool vsoc_ipc_worker_respond(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len) {
+    return vsoc_ipc_worker_send(ctx, type, id, data, len, VSOC_IPC_FLAG_RESPONSE);
 }
 
-void vsoc_ipc_poll_worker_bg(void) {
-    vsoc_ipc_pending_init_once();
-    if (!vsoc_ipc_shared) return;
-    vsoc_ipc_poll_worker();
-}
-
-bool vsoc_ipc_worker_respond(uint32_t type, uint32_t id, const void *data, uint32_t len) {
-    return vsoc_ipc_worker_send(type, id, data, len, VSOC_IPC_FLAG_RESPONSE);
-}
-
-int vsoc_ipc_parent_request(uint32_t type,
+int vsoc_ipc_parent_request(VsocIpcContext *ctx, uint32_t type,
                             const void *req, uint32_t req_len,
                             void *resp_buf, uint32_t *inout_resp_len,
                             uint32_t *inout_id,
                             int timeout_ms) {
-    vsoc_ipc_pending_init_once();
-    if (!vsoc_ipc_shared) return -EIO;
+    if (!ctx || !ctx->shared) return -EIO;
     if (req_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
     if (inout_resp_len && *inout_resp_len > 0 && *inout_resp_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
     uint32_t id;
-    qemu_mutex_lock(&g_pending_table_lock);
+    qemu_mutex_lock(&ctx->pending_table_lock);
     if (inout_id && *inout_id) id = *inout_id; else {
-        id = g_seq++;
-        if (id == 0) id = g_seq++; // skip zero
+        id = ctx->seq++;
+        if (id == 0) id = ctx->seq++; // skip zero
         if (inout_id) *inout_id = id;
     }
     // find slot
     PendingReq *slot = NULL;
-    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) if (g_pending[i].id == 0) { slot = &g_pending[i]; break; }
-    if (!slot) { qemu_mutex_unlock(&g_pending_table_lock); return -ENOSPC; }
+    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) if (ctx->pending[i].id == 0) { slot = &ctx->pending[i]; break; }
+    if (!slot) { qemu_mutex_unlock(&ctx->pending_table_lock); return -ENOSPC; }
     slot->type = type; slot->done = false; slot->resp_buf = resp_buf; slot->resp_buf_cap = inout_resp_len ? *inout_resp_len : 0; slot->resp_len = 0;
-    qemu_mutex_unlock(&g_pending_table_lock);
+    qemu_mutex_unlock(&ctx->pending_table_lock);
     qatomic_store_release(&slot->id, id);
 
-    if (!vsoc_ipc_parent_send(type, id, req, req_len, 0)) {
-    qemu_mutex_lock(&g_pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&g_pending_table_lock); return -EIO; }
+    if (!vsoc_ipc_parent_send(ctx, type, id, req, req_len, 0)) {
+        qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock); return -EIO; }
 
     int elapsed = 0; const int step = 1; // ms
     for (;;) {
         // pump incoming responses
-        vsoc_ipc_poll_parent();
+        vsoc_ipc_poll_parent(ctx);
         qemu_mutex_lock(&slot->lock);
         if (slot->done) { qemu_mutex_unlock(&slot->lock); break; }
         qemu_mutex_unlock(&slot->lock);
         if (timeout_ms > 0 && elapsed >= timeout_ms) {
-            qemu_mutex_lock(&g_pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&g_pending_table_lock);
+            qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
             return -ETIMEDOUT;
         }
         // sleep small slice
@@ -384,52 +375,51 @@ int vsoc_ipc_parent_request(uint32_t type,
     }
     // copy out result length
     if (inout_resp_len) *inout_resp_len = slot->resp_len;
-    qemu_mutex_lock(&g_pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&g_pending_table_lock);
+    qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
     return 0;
 }
 
-int vsoc_ipc_worker_request(uint32_t type,
+int vsoc_ipc_worker_request(VsocIpcContext *ctx, uint32_t type,
                             const void *req, uint32_t req_len,
                             void *resp_buf, uint32_t *inout_resp_len,
                             uint32_t *inout_id,
                             int timeout_ms) {
-    vsoc_ipc_pending_init_once();
-    if (!vsoc_ipc_shared) return -EIO;
+    if (!ctx || !ctx->shared) return -EIO;
     if (req_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
     if (inout_resp_len && *inout_resp_len > 0 && *inout_resp_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
     uint32_t id;
-    qemu_mutex_lock(&g_pending_table_lock);
+    qemu_mutex_lock(&ctx->pending_table_lock);
     if (inout_id && *inout_id) id = *inout_id; else {
-        id = g_seq++;
-        if (id == 0) id = g_seq++;
+        id = ctx->seq++;
+        if (id == 0) id = ctx->seq++;
         if (inout_id) *inout_id = id;
     }
     PendingReq *slot = NULL;
-    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) if (g_pending[i].id == 0) { slot = &g_pending[i]; break; }
-    if (!slot) { qemu_mutex_unlock(&g_pending_table_lock); return -ENOSPC; }
+    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) if (ctx->pending[i].id == 0) { slot = &ctx->pending[i]; break; }
+    if (!slot) { qemu_mutex_unlock(&ctx->pending_table_lock); return -ENOSPC; }
     slot->type = type; slot->done = false; slot->resp_buf = resp_buf; slot->resp_buf_cap = inout_resp_len ? *inout_resp_len : 0; slot->resp_len = 0;
-    qemu_mutex_unlock(&g_pending_table_lock);
+    qemu_mutex_unlock(&ctx->pending_table_lock);
     qatomic_store_release(&slot->id, id);
 
-    if (!vsoc_ipc_worker_send(type, id, req, req_len, 0)) {
-    qemu_mutex_lock(&g_pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&g_pending_table_lock); return -EIO; }
+    if (!vsoc_ipc_worker_send(ctx, type, id, req, req_len, 0)) {
+        qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock); return -EIO; }
 
     int elapsed = 0; const int step = 1; // ms
     for (;;) {
         // pump incoming responses (from parent)
-        vsoc_ipc_poll_worker();
+        vsoc_ipc_poll_worker(ctx);
         qemu_mutex_lock(&slot->lock);
         if (slot->done) { qemu_mutex_unlock(&slot->lock); break; }
         qemu_mutex_unlock(&slot->lock);
         if (timeout_ms > 0 && elapsed >= timeout_ms) {
-            qemu_mutex_lock(&g_pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&g_pending_table_lock);
+            qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
             return -ETIMEDOUT;
         }
         g_usleep(1000 * step);
         elapsed += step;
     }
     if (inout_resp_len) *inout_resp_len = slot->resp_len;
-    qemu_mutex_lock(&g_pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&g_pending_table_lock);
+    qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
     return 0;
 }
 
@@ -496,7 +486,7 @@ bool vsoc_ipc_guest_mem_unpack(const uint8_t *src, size_t len, struct Guest_Mem 
     // Determine whether this payload is GPA-based or inline based on first segment flag
     bool payload_is_gpa = true;
     for (uint32_t s = 0; s < num; ++s) if (segs[s].flags & VSOC_GM_SEG_FLAG_INLINE) { payload_is_gpa = false; break; }
-    gm->is_gpa = payload_is_gpa ? 1 : 0;
+    gm->is_gpa = payload_is_gpa ? true : false;
     for (uint32_t s = 0; s < num; ++s) {
         gm->scatter_data[s].iov_len = segs[s].len;
         if (!payload_is_gpa) {

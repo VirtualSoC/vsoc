@@ -27,6 +27,22 @@
 #define KEY_BACK		158	/* AC Back */
 #define KEY_HOMEPAGE		172	/* AC Home */
 
+// 全键无冲设计
+typedef struct Keyboard_Data
+{
+    bool key[MAX_KEY_CODE];
+    bool key_is_refresh[MAX_KEY_CODE];
+} __attribute__((packed, aligned(4))) Keyboard_Data;
+
+typedef struct Keyboard_Context
+{
+    Device_Context device_context;
+    int id;
+    Keyboard_Data data;
+    Guest_Mem *guest_buffer;
+    bool need_sync;
+} Keyboard_Context;
+
 void express_keyboard_handle_callback(GLFWwindow *window, int key, int code, int action, int mods);
 void load_keyboard_context(QEMUFile *f);
 void save_keyboard_context(QEMUFile *f);

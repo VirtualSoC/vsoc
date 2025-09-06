@@ -663,7 +663,7 @@ static bool gpu_call_handler(Thread_Context *context, uint64_t id, const Call_Pa
     return ok;
 }
 
-static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
     if (render_thread_contexts == NULL)
     {
@@ -684,7 +684,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
     if (thread_context == NULL)
     {
         LOGD("create new thread context with thread id %lld device id %lld", thread_id, device_id);
-        thread_context = (Render_Thread_Context *)thread_context_create(thread_id, device_id, sizeof(Render_Thread_Context), info);
+        thread_context = (Render_Thread_Context *)thread_context_create(device_id, thread_id, process_id, user_id, sizeof(Render_Thread_Context), info);
 
         (thread_context->context).unique_id = unique_id;
         (thread_context->context).process_id = process_id;

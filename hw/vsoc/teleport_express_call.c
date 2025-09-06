@@ -336,7 +336,13 @@ void host_guest_buffer_exchange(Scatter_Data *guest_data, unsigned char *host_da
  * @param num 需要回传的参数数目（假如有的话），不需要则设为NULL（只有第一个elem需要）
  * @return int 返回填充是否完成，1表示完成，0表示失败
  */
-int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned long long *id, unsigned long long *thread_id, unsigned long long *process_id, unsigned long long *unique_id, unsigned long long *num)
+int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem,
+                                     unsigned long long *id,
+                                     unsigned long long *thread_id,
+                                     unsigned long long *process_id,
+                                     unsigned long long *unique_id,
+                                     unsigned long long *user_id,
+                                     unsigned long long *num)
 {
     VirtQueueElement *v_elem = &elem->elem;
     // printf("fill elem num %u %u\n",v_elem->out_num,v_elem->in_num);
@@ -386,7 +392,7 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
 
     elem->para = guest_mem;
 
-    if (id != NULL && num != NULL && thread_id != NULL && process_id != NULL && unique_id != NULL)
+    if (id != NULL && num != NULL && thread_id != NULL && process_id != NULL && unique_id != NULL && user_id != NULL)
     {
         //在设置了id和num指针的情况下才传出数据
         //这种情况还要先检查是不是in_buf
@@ -411,6 +417,7 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
             *thread_id = flag_buf->thread_id;
             *num = flag_buf->para_num;
             *unique_id = flag_buf->unique_id;
+            *user_id = flag_buf->user_id;
         }
         else
         {
@@ -420,7 +427,8 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem, unsigned
             *process_id = flag_buf_temp.process_id;
             *thread_id = flag_buf_temp.thread_id;
             *num = flag_buf_temp.para_num;
-            *unique_id = flag_buf->unique_id;
+            *unique_id = flag_buf_temp.unique_id;
+            *user_id = flag_buf_temp.user_id;
         }
     }
     return 1;
@@ -445,6 +453,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
     unsigned long long thread_id;
     unsigned long long process_id;
     unsigned long long unique_id;
+    unsigned long long user_id;
 
     elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
     while (elem)
@@ -458,7 +467,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
             remain_elem_num[index] = 0;
             // printf("continue null elem reamin %d\n", para_num + 1);
 
-            if (unlikely(elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_teleport_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
+            if (unlikely(elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_teleport_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL, NULL) == 0))
             {
                 //要么是数据复制有问题，要么是这个elem是个in的类型，破坏了调用结构
                 //因此将已经保存的数据抛弃，将这个elem作为第一个elem重新尝试fill，所以是break后continue
@@ -474,7 +483,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
         }
         else //新调用
         {
-            if (unlikely(fill_teleport_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &para_num) == 0)) //解析一些call的性质
+            if (unlikely(fill_teleport_express_queue_elem(elem, &fun_id, &thread_id, &process_id, &unique_id, &user_id, &para_num) == 0)) //解析一些call的性质
             {
                 //第一个elem检查出错，说明不是一个调用，因此将这个elem释放掉，然后继续获取下一个
                 VIRTIO_ELEM_PUSH_ALL(vq, Teleport_Express_Queue_Elem, elem, 1, next);
@@ -497,6 +506,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
             call->thread_id = thread_id;
             call->process_id = process_id;
             call->unique_id = unique_id;
+            call->user_id = user_id;
             call->spend_time = 0;
             call->next = NULL;
         }
@@ -534,7 +544,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
             //     }
             // }
 
-            if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_teleport_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL) == 0))
+            if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_teleport_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL, NULL) == 0))
             {
                 //要么是数据复制有问题，要么是这个elem是个in的类型，破坏了调用结构
                 //因此将已经保存的数据抛弃，将这个elem作为第一个elem重新尝试fill，所以是break后continue

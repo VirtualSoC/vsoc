@@ -21,6 +21,7 @@
 
 ExpressPlatformOps g_ops;
 bool should_stop = false;
+VsocIpcContext *g_ipc_ctx = NULL;
 
 void qemu_system_killed(int signal, pid_t pid);
 void qemu_system_killed(int signal, pid_t pid) {
@@ -38,11 +39,11 @@ void monitor_log(Monitor *mon, const char *fmt, ...)
 // Forward display shutdown events to parent via IPC. Parent will invoke its own g_ops.* hooks.
 static void worker_notify_shutdown_impl(int reason) {
     int32_t r = (int32_t)reason;
-    (void)vsoc_ipc_worker_send(VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, 0, &r, sizeof(r), 0);
+    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, 0, &r, sizeof(r), 0);
 }
 
 static void worker_force_shutdown_impl(void) {
-    (void)vsoc_ipc_worker_send(VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, NULL, 0, 0);
+    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, NULL, 0, 0);
     should_stop = true;
 }
 
@@ -115,7 +116,7 @@ static int worker_set_express_device_irq(Device_Context *device_context, int buf
     req.len = len;
 
     int32_t resp = IRQ_SET_OK; uint32_t resp_len = sizeof(resp);
-    int rc = vsoc_ipc_worker_request(VSOC_IPC_TYPE_SET_IRQ, &req, sizeof(req), &resp, &resp_len, NULL, 3000);
+    int rc = vsoc_ipc_worker_request(g_ipc_ctx, VSOC_IPC_TYPE_SET_IRQ, &req, sizeof(req), &resp, &resp_len, NULL, 3000);
     if (rc != 0 || resp_len != sizeof(resp)) {
         LOGE("worker_set_express_device_irq: request failed rc=%d resp_len=%u", rc, resp_len);
         return IRQ_NOT_READY;
@@ -210,36 +211,4 @@ void *call_para_to_ptr(Call_Para para, int *need_free) {
     }
 
     return ptr;
-}
-
-/**
- * @brief 创建一个thread_context，并根据这个context新建一个线程
- *
- * @param context 需要初始化的线程context
- */
-Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info)
-{
-    Thread_Context *context = g_malloc0(len);
-    context->device_id = device_id;
-    context->thread_id = thread_id;
-
-    context->read_loc = 0;
-    context->write_loc = 0;
-    // context->atomic_event_lock = 0;
-    context->init = 0;
-    context->thread_run = 1;
-
-    context->context_init = info->context_init;
-    context->context_destroy = info->context_destroy;
-    context->call_handler = info->call_handler;
-
-//线程缓冲区事件初始化
-    context->data_event = create_event(0, 0);
-
-    char thread_name[32];
-    snprintf(thread_name, sizeof(thread_name), "%s_handle_thread", info->name);
-
-    qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
-
-    return context;
 }

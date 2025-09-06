@@ -691,11 +691,11 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 }
 
-static Thread_Context *get_mem_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
+static Thread_Context *get_mem_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
     if (g_context == NULL)
     {
-        g_context = thread_context_create(thread_id, device_id, sizeof(Thread_Context), info);
+        g_context = thread_context_create(device_id, thread_id, process_id, user_id, sizeof(Thread_Context), info);
         g_pool = g_thread_pool_new(
             express_mem_worker,      /* worker function */
             NULL,                    /* pool-specific user data */

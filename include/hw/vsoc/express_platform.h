@@ -102,7 +102,7 @@ typedef struct Guest_Mem
     // (ram_addr) cast to a pointer, and no inline payload follows in IPC.
     // When false, scatter_data[i].iov_base is a host pointer to inline-copied bytes
     // within the current process, suitable for read-only access.
-    uint8_t is_gpa;
+    bool is_gpa;
 } Guest_Mem;
 
 typedef struct Call_Para
@@ -128,6 +128,8 @@ typedef struct Thread_Context
     uint64_t unique_id;
 
     uint64_t process_id;
+
+    uint64_t user_id;
 
     //特定设备自定义的context初始化函数
     void (*context_init)(struct Thread_Context *context);
@@ -173,6 +175,7 @@ typedef struct Express_Device_Info
 {
     //留作内部使用
     int device_index;
+    bool proxy;
     bool enable;
 
     //该设备是否默认启用
@@ -202,14 +205,14 @@ typedef struct Express_Device_Info
     bool (*call_handler)(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num);
 
     //设备定义的用于获取数据分发context的函数，负责处理从guest到host的数据，例如有一个统一的context或者对每一个线程维护一个context。不保证线程安全性。
-    Thread_Context *(*get_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    Thread_Context *(*get_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info);
 
     // guest端设备文件被关闭时会调用的回调函数，返回值标示需要被销毁的context。若返回值不为NULL，则接下来会在context对应线程上调用context_destroy函数（若实现的话）。不保证线程安全性。
     // 注意：该接口是为了应对guest进程异常退出或资源泄露，导致内核关闭设备文件的情况。此时的thread_id可能和设备文件打开时不一致，但process_id和unique_id一致。
     Thread_Context *(*remove_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
 
     // guest注册DMA内存的回调
-    void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
+    void (*buffer_register)(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info);
     
     // 获取设备用于容纳虚拟中断的context，负责host向guest发送通知
     Device_Context *(*get_device_context)(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info);
@@ -289,7 +292,7 @@ bool platform_should_stop(void);
 Guest_Mem *duplicate_guest_mem(Guest_Mem *orig);
 void free_duplicated_guest_mem(Guest_Mem *mem);
 
-Thread_Context *thread_context_create(uint64_t thread_id, uint64_t device_id, uint64_t len, Express_Device_Info *info);
+Thread_Context *thread_context_create(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t user_id, uint64_t len, Express_Device_Info *info);
 bool invoke_call_handler(Thread_Context *context, void *call);
 void *handle_thread_run(void *opaque);
 

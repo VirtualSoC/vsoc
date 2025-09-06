@@ -108,3 +108,38 @@ void call_push(Thread_Context *context, void *call)
 
     return;
 }
+
+/**
+ * @brief 创建一个thread_context，并根据这个context新建一个线程
+ *
+ * @param context 需要初始化的线程context
+ */
+Thread_Context *thread_context_create(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t user_id, uint64_t len, Express_Device_Info *info)
+{
+    Thread_Context *context = g_malloc0(len);
+    context->device_id = device_id;
+    context->thread_id = thread_id;
+    context->process_id = process_id;
+
+    context->context_init = info->context_init;
+    context->context_destroy = info->context_destroy;
+    context->call_handler = info->call_handler;
+
+    if (info->proxy) {
+        context->proxy = true;
+    }
+
+    if (!context->proxy) {
+        //线程缓冲区事件初始化
+        context->data_event = create_event(0, 0);
+    
+        char thread_name[32];
+        snprintf(thread_name, sizeof(thread_name), "%s_handle_thread", info->name);
+    
+        context->thread_run = 1;
+    
+        qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
+    }
+
+    return context;
+}
