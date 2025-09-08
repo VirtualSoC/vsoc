@@ -604,7 +604,7 @@ Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64
     return ctx;
 }
 
-void init_express_device(const Express_Device_Info *info) {
+void register_express_device(const Express_Device_Info *info) {
     express_device_init_common(info);
 }
 

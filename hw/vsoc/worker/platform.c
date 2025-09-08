@@ -135,6 +135,8 @@ void init_express_platform(const ExpressPlatformOps ops) {
 
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_CONTEXT, get_context_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ipc_handler);
+
+    call_device_init();
 }
 
 void deinit_express_platform(void) {

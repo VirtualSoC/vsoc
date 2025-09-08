@@ -120,6 +120,7 @@ Thread_Context *thread_context_create(uint64_t device_id, uint64_t thread_id, ui
     context->device_id = device_id;
     context->thread_id = thread_id;
     context->process_id = process_id;
+    context->user_id = user_id;
 
     context->context_init = info->context_init;
     context->context_destroy = info->context_destroy;

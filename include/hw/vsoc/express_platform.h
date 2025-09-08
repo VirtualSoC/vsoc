@@ -233,7 +233,7 @@ typedef struct Express_Device_Info
 #define EXPRESS_DEVICE_INIT(device_name, info)                                         \
     static void __attribute__((constructor)) express_platform_init_##device_name(void) \
     {                                                                                  \
-        init_express_device(info);                                                   \
+        register_express_device(info);                                                   \
     }
 
 typedef void (*PlatformReadFromGuestMem)(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
@@ -284,7 +284,7 @@ typedef struct {
 
 extern ExpressPlatformOps g_ops;
 
-void init_express_device(const Express_Device_Info *info);
+void register_express_device(const Express_Device_Info *info);
 void init_express_platform(const ExpressPlatformOps ops);
 
 void deinit_express_platform(void);

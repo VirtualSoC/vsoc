@@ -166,7 +166,20 @@ out:
     }
 }
 
-void init_express_device(const Express_Device_Info *info)
+void call_device_init(void) {
+    GHashTableIter iter;
+    gpointer key, value;
+    if (!g_devices) return;
+    g_hash_table_iter_init(&iter, g_devices);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        const Express_Device_Info *info = (const Express_Device_Info *)value;
+        if (info && info->init) {
+            info->init();
+        }
+    }
+}
+
+void register_express_device(const Express_Device_Info *info)
 {
     if (!g_devices) {
         g_devices = g_hash_table_new(g_direct_hash, g_direct_equal);
