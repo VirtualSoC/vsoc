@@ -252,9 +252,15 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
             continue;
         }
 
-        if (call->is_end)
+        if (GET_FUN_ID(call->id) == EXPRESS_TERMINATE_FUN_ID)
         {
-            LOGD("thread context %llx call end", (uint64_t)context);
+            LOGD("thread context %llx terminate call received", (uint64_t)context);
+            // lookup info and call remove_context if any
+            Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(context->device_id));
+            if (info && info->remove_context) {
+                info->remove_context(info->device_id, context->thread_id, context->process_id, context->unique_id, info);
+            }
+
             // free the call and stop
             if (call->paras) {
                 for (int i = 0; i < call->para_num; ++i) {
@@ -269,6 +275,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
             context->thread_run = 0;
             break;
         }
+
         invoke_call_handler(context, call);
     }
 

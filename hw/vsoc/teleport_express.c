@@ -35,6 +35,12 @@ VirtIODevice *startup_vdev;
 VirtQueue *startup_out_data_queue;
 VirtQueue *startup_in_data_queue;
 
+static void shutdown_notify_callback(Notifier *notifier, void *data);
+
+static Notifier shutdown_notifier = {
+    .notify = shutdown_notify_callback,
+};
+
 
 /**
  * @brief 当vring有数据来的之后的回调函数，在aio线程中运行
@@ -194,8 +200,6 @@ static void teleport_express_realize(DeviceState *qdev, Error **errp)
 
     virtio_add_feature(&vdev->host_features, VIRTIO_RING_F_INDIRECT_DESC);
     
-    Notifier shutdown_notifier;
-    shutdown_notifier.notify = shutdown_notify_callback;
     qemu_register_shutdown_notifier(&shutdown_notifier);
 
     LOGD("express gpu realized");

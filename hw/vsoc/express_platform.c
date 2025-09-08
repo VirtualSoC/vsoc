@@ -70,6 +70,21 @@ static bool g_worker_log_thread_started = false;
 
 static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem);
 
+// GLib child-watch callback to observe worker exits
+static void worker_child_watch_cb(GPid pid, gint status, gpointer user_data)
+{
+    int wid = GPOINTER_TO_INT(user_data);
+    if (WIFEXITED(status)) {
+        LOGE("worker[%d] %d exited status %d", wid, (int)pid, WEXITSTATUS(status));
+    } else if (WIFSIGNALED(status)) {
+        LOGE("worker[%d] %d signaled %d", wid, (int)pid, WTERMSIG(status));
+    } else {
+        LOGE("worker[%d] %d exited (status=%d)", wid, (int)pid, status);
+    }
+    // Close the GPid handle as required when using DO_NOT_REAP_CHILD
+    g_spawn_close_pid(pid);
+}
+
 static void *map_shared_memory_parent_named(const char *name, size_t size) {
     int fd = shm_open(name, O_CREAT | O_RDWR, 0600);
     if (fd < 0) {
@@ -225,14 +240,16 @@ static void spawn_worker_processes(int count) {
         // Launch worker; capture logs only for the first worker
         GError *error = NULL;
         gboolean ok = FALSE;
-        gchar *argv_spawn[] = { (gchar*)worker_path, w->shm_name, NULL };
+        gchar parent_pid_str[32];
+        g_snprintf(parent_pid_str, sizeof(parent_pid_str), "%d", (int)getpid());
+        gchar *argv_spawn[] = { (gchar*)worker_path, w->shm_name, parent_pid_str, NULL };
         int child_stdin = -1, child_stdout = -1, child_stderr = -1;
         GPid child_pid = -1;
         ok = g_spawn_async_with_pipes(
             NULL,
             argv_spawn,
             NULL,
-            G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN,
+            G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_DO_NOT_REAP_CHILD,
             NULL,
             NULL,
             &child_pid,
@@ -247,6 +264,8 @@ static void spawn_worker_processes(int count) {
             continue;
         }
         w->pid = spawned_pid;
+        // Watch for child exit using GLib to avoid manual waitpid in threads
+        g_child_watch_add(child_pid, worker_child_watch_cb, GINT_TO_POINTER(i));
         if (child_stdin >= 0) close(child_stdin);
         w->stdout_fd = child_stdout;
         w->stderr_fd = child_stderr;
@@ -369,19 +388,19 @@ static void device_call_ack_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint
 // Worker forwarded shutdown notifications: invoke parent hooks
 static void notify_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
                                         uint32_t len, uint32_t flags) {
-    (void)type; (void)id; (void)flags;
+    (void)type; (void)id; (void)data; (void)len; (void)flags; (void)ctx;
     (void)ctx;
-    int reason = 0;
-    if (len == sizeof(int32_t)) {
-        int32_t r; memcpy(&r, data, sizeof(r)); reason = (int)r;
-    }
-    if (g_ops.notify_shutdown) g_ops.notify_shutdown(reason);
+    if (g_ops.notify_shutdown) g_ops.notify_shutdown();
 }
 
 static void force_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
                                        uint32_t len, uint32_t flags) {
-    (void)type; (void)id; (void)data; (void)len; (void)flags; (void)ctx;
-    if (g_ops.force_shutdown) g_ops.force_shutdown();
+    (void)type; (void)id; (void)flags;
+    int reason = 0;
+    if (len == sizeof(int32_t)) {
+        int32_t r; memcpy(&r, data, sizeof(r)); reason = (int)r;
+    }
+    if (g_ops.force_shutdown) g_ops.force_shutdown(reason);
 }
 
 static void proxy_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, Express_Device_Info *info) {
@@ -415,10 +434,11 @@ static void proxy_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
                         if (!ok) LOGE("proxy_buffer_register: send failed to worker[%u]", i);
                     }
                 }
+            } else {
+                VsocWorker *w = get_worker(wid_from_ids(info->device_id, unique_id, user_id));
+                bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len, 0);
+                if (!ok) LOGE("proxy_buffer_register: send failed");
             }
-            VsocWorker *w = get_worker(wid_from_ids(info->device_id, unique_id, user_id));
-            bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len, 0);
-            if (!ok) LOGE("proxy_buffer_register: send failed");
         }
     }
 }
@@ -684,26 +704,7 @@ void init_express_platform(const ExpressPlatformOps ops) {
                         if (w->ctx) vsoc_ipc_poll_parent(w->ctx);
                     }
                 }
-                // Detect worker exits (any)
-                if (worker_started && g_workers && g_workers->len > 0) {
-                    for (guint i = 0; i < g_workers->len; ++i) {
-                        VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-                        pid_t pid = w->pid;
-                        if (pid <= 0) continue;
-                        int status = 0;
-                        pid_t r = waitpid(pid, &status, WNOHANG);
-                        if (r == pid) {
-                            if (WIFEXITED(status)) {
-                                LOGE("worker[%u] %d exited with status %d", i, (int)pid, WEXITSTATUS(status));
-                            } else if (WIFSIGNALED(status)) {
-                                LOGE("worker[%u] %d terminated by signal %d", i, (int)pid, WTERMSIG(status));
-                            } else {
-                                LOGE("worker[%u] %d exited (unknown status=%d)", i, (int)pid, status);
-                            }
-                        }
-                    }
-                }
-                g_usleep(1000); // 1ms poll interval (tunable)
+                g_usleep(1000); // 1ms poll interval
             }
             return NULL;
         }

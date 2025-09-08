@@ -240,8 +240,8 @@ typedef void (*PlatformReadFromGuestMem)(Guest_Mem *guest, void *host, size_t st
 typedef void (*PlatformWriteToGuestMem)(Guest_Mem *guest, void *host, size_t start_loc, size_t length);
 typedef void (*PlatformFreeCopiedGuestMem)(Guest_Mem *guest);
 typedef int (*PlatformSetExpressDeviceIRQ)(Device_Context *device_context, int buf_index, int len);
-typedef void (*PlatformNotifyShutdown)(int reason);
-typedef void (*PlatformForceShutdown)(void);
+typedef void (*PlatformNotifyShutdown)(void);
+typedef void (*PlatformForceShutdown)(int reason);
 
 typedef struct {
     bool teleport_express_save_snapshot;

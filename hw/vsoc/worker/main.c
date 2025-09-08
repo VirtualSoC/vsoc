@@ -102,6 +102,15 @@ void platform_init_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, 
     init_express_platform(*ops);
 }
 
+static inline int pid_is_alive(pid_t pid)
+{
+    if (pid <= 1) return 0;
+    int r = kill(pid, 0);
+    if (r == 0) return 1;
+    // EPERM means the process exists but we don't have permission
+    return (errno == EPERM) ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
     register_signal_handlers();
@@ -119,8 +128,8 @@ int main(int argc, char **argv)
         LOGW("parent already exited; quitting worker");
         return 0;
     }
-    if (argc < 2) {
-        LOGE("usage: %s <shm_name>", argv[0]);
+    if (argc < 3) {
+        LOGE("usage: %s <shm_name> <parent_pid>", argv[0]);
         return 1;
     }
 
@@ -128,6 +137,9 @@ int main(int argc, char **argv)
 
     // Initialize guest memory subsystem (mutex, etc.).
     guestmem_init();
+
+    // Parse parent pid (may not be our actual PPID due to reparenting)
+    pid_t parent_pid = (pid_t)atoi(argv[2]);
 
     attach_shared_memory(argv[1]);
     // Create IPC context bound to shared memory
@@ -140,13 +152,13 @@ int main(int argc, char **argv)
 
     // For now idle spin waiting for stop flag; replace with event-driven loop later.
     while (!platform_should_stop()) {
-        // Fallback: if parent unexpectedly exits, PPID becomes 1
-        if (getppid() == 1) {
-            LOGW("detected parent death via PPID; stopping worker");
+        // Monitor explicit parent pid; exit if it no longer exists
+        if (!pid_is_alive(parent_pid)) {
+            LOGW("detected parent pid %d no longer alive; stopping worker", (int)parent_pid);
             break;
         }
         vsoc_ipc_poll_worker(g_ipc_ctx);
-        // g_usleep(1 * 1000); // 1ms poll interval
+        g_usleep(1000); // 1ms poll interval
     }
 
     LOGI("vsoc worker exiting");

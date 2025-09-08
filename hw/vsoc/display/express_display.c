@@ -649,11 +649,11 @@ static void close_window_callback(GLFWwindow *window)
     glfwSetWindowShouldClose(window, GLFW_FALSE);
     if (now_time - last_click_time < 500000)
     {
-        g_ops.notify_shutdown(SHUTDOWN_CAUSE_HOST_UI);
+        g_ops.force_shutdown(SHUTDOWN_CAUSE_HOST_UI);
     }
     else
     {
-        g_ops.force_shutdown();
+        g_ops.notify_shutdown();
     }
     last_click_time = now_time;
 }

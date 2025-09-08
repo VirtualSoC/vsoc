@@ -352,8 +352,8 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     ops.read_from_guest_mem = read_from_guest_mem;
     ops.write_to_guest_mem = write_to_guest_mem;
     ops.set_express_device_irq = set_express_device_irq;
-    ops.notify_shutdown = qemu_system_shutdown_request;
-    ops.force_shutdown = qemu_system_powerdown_request;
+    ops.notify_shutdown = qemu_system_powerdown_request;
+    ops.force_shutdown = qemu_system_shutdown_request;
 
     init_express_platform(ops);
 

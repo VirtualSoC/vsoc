@@ -25,7 +25,7 @@ VsocIpcContext *g_ipc_ctx = NULL;
 
 void qemu_system_killed(int signal, pid_t pid);
 void qemu_system_killed(int signal, pid_t pid) {
-    LOGI("subprocess qemu killed: signal=%d pid=%d", signal, pid);
+    LOGI("qemu_system_killed not implemented: signal=%d pid=%d", signal, pid);
 }
 
 void monitor_log(Monitor *mon, const char *fmt, ...)
@@ -37,13 +37,14 @@ void monitor_log(Monitor *mon, const char *fmt, ...)
 }
 
 // Forward display shutdown events to parent via IPC. Parent will invoke its own g_ops.* hooks.
-static void worker_notify_shutdown_impl(int reason) {
-    int32_t r = (int32_t)reason;
-    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, 0, &r, sizeof(r), 0);
+static void worker_notify_shutdown_impl(void) {
+    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, 0, NULL, 0, 0);
 }
 
-static void worker_force_shutdown_impl(void) {
-    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, NULL, 0, 0);
+static void worker_force_shutdown_impl(int reason) {
+    int32_t r = (int32_t)reason;
+
+    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, &r, sizeof(r), 0);
     should_stop = true;
 }
 
