@@ -485,13 +485,13 @@ EGLBoolean d_eglSwapBuffers(void *context, EGLDisplay dpy, EGLSurface surface, i
     }
 
     // 计算帧率
-    if (now_time - real_surface->last_calc_time > 1000000 && real_surface->last_calc_time != 0)
+    if (now_time - real_surface->last_calc_time > 10000000 && real_surface->last_calc_time != 0)
     {
-        double hz = real_surface->now_screen_hz * 1000000.0 / (now_time - real_surface->last_calc_time);
+        double hz = real_surface->now_screen_hz * 10000000.0 / (now_time - real_surface->last_calc_time);
         real_surface->now_screen_hz = 0;
         real_surface->last_calc_time = now_time;
 
-        LOGD("(%s) swapbuffer FPS %.2f", process_context->guest_process_name, hz);
+        LOGD("(%s) swapbuffer FPS %.2f avg frame time %.2fms", process_context->guest_process_name, hz / 10.0, now_avg_swap_time / 1000.0);
     }
     else if (real_surface->last_calc_time == 0)
     {

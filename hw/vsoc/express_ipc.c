@@ -2,6 +2,8 @@
 #include "hw/vsoc/express_platform.h"
 #include "hw/vsoc/express_ipc.h"
 #include <errno.h>
+#include <sys/syscall.h>
+#include <linux/futex.h>
 
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
@@ -34,8 +36,28 @@ typedef struct VsocIpcContext {
     gint worker_consume_owner;
 } VsocIpcContext;
 
+// Linux futex helpers for INTER-PROCESS synchronization.
+// NOTE: *_PRIVATE variants may not wake across processes because the kernel
+// hashes them using the caller's mm. Since these futex words live in a shared
+// memory segment mapped into different processes, we must use FUTEX_WAIT/WAKE
+// (no _PRIVATE flag) so the hash key is the file+offset, not (mm,vaddr).
+static inline int futex_wake32(volatile uint32_t *addr, int n) {
+    return syscall(SYS_futex, addr, FUTEX_WAKE, n, NULL, NULL, 0);
+}
+
+static inline int futex_wait32(volatile uint32_t *addr, uint32_t val, int timeout_ms) {
+    // If timeout_ms <= 0 we block indefinitely (until woken or spuriously returned).
+    if (timeout_ms <= 0) {
+        return syscall(SYS_futex, addr, FUTEX_WAIT, val, NULL, NULL, 0);
+    }
+    struct timespec ts;
+    ts.tv_sec = timeout_ms / 1000;
+    ts.tv_nsec = (timeout_ms % 1000) * 1000000L;
+    return syscall(SYS_futex, addr, FUTEX_WAIT, val, &ts, NULL, 0);
+}
+
 // Helper to initialize a context (call once per region)
-void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocGpuIpcShared *shared) {
+static void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocGpuIpcShared *shared) {
     ctx->shared = shared;
     ctx->seq = 1;
     ctx->pending_inited = false;
@@ -52,7 +74,31 @@ void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocGpuIpcShared *shared) {
     }
 }
 
-VsocIpcContext *vsoc_ipc_context_create(VsocGpuIpcShared *shared) {
+// Platform-independent shared memory mapping and context creation
+VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool parent) {
+    if (!name || !*name || size < sizeof(VsocGpuIpcShared)) return NULL;
+    int fd = -1;
+    if (parent) {
+        fd = shm_open(name, O_CREAT | O_RDWR, 0600);
+        if (fd < 0) { LOGE("shm_open(parent) %s failed: %s", name, strerror(errno)); return NULL; }
+        if (ftruncate(fd, (off_t)size) != 0) {
+            LOGE("ftruncate(%s) failed: %s", name, strerror(errno)); close(fd); shm_unlink(name); return NULL;
+        }
+    } else {
+        fd = shm_open(name, O_RDWR, 0600);
+        if (fd < 0) { LOGE("shm_open(attach) %s failed: %s", name, strerror(errno)); return NULL; }
+    }
+    void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+    if (addr == MAP_FAILED) { LOGE("mmap %s failed: %s", name, strerror(errno)); if (parent) shm_unlink(name); return NULL; }
+
+    VsocGpuIpcShared *shared = (VsocGpuIpcShared*)addr;
+    if (parent) {
+        memset(shared, 0, sizeof(*shared));
+        shared->parent_ready = 1;
+    } else {
+        shared->worker_ready = 1;
+    }
     VsocIpcContext *ctx = (VsocIpcContext *)g_malloc0(sizeof(VsocIpcContext));
     vsoc_ipc_context_init(ctx, shared);
     return ctx;
@@ -65,6 +111,10 @@ void vsoc_ipc_context_destroy(VsocIpcContext *ctx) {
         // qemu_cond_destroy and qemu_mutex_destroy are no-ops/safe if not provided
     }
     g_free(ctx);
+}
+
+struct VsocGpuIpcShared *vsoc_ipc_context_get_shared(VsocIpcContext *ctx) {
+    return ctx ? ctx->shared : NULL;
 }
 
 // No default-context helpers; callers must pass explicit context.
@@ -248,6 +298,11 @@ bool vsoc_ipc_parent_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const
     ok = vsoc_ipc_send_slot(ctx->shared->parent_to_worker, VSOC_IPC_BUF_SIZE, &ctx->shared->pw_head, &ctx->shared->pw_tail,
                               type, id, data, len, flags);
     qemu_mutex_unlock(&ctx->parent_send_lock);
+    if (ok) {
+        // Notify worker: increment doorbell and wake
+        (void)qatomic_fetch_add(&ctx->shared->pw_doorbell, 1);
+        (void)futex_wake32(&ctx->shared->pw_doorbell, 1);
+    }
     return ok;
 }
 
@@ -257,6 +312,11 @@ bool vsoc_ipc_worker_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const
     ok = vsoc_ipc_send_slot(ctx->shared->worker_to_parent, VSOC_IPC_BUF_SIZE, &ctx->shared->wp_head, &ctx->shared->wp_tail,
                               type, id, data, len, flags);
     qemu_mutex_unlock(&ctx->worker_send_lock);
+    if (ok) {
+        // Notify parent: increment doorbell and wake
+        (void)qatomic_fetch_add(&ctx->shared->wp_doorbell, 1);
+        (void)futex_wake32(&ctx->shared->wp_doorbell, 1);
+    }
     return ok;
 }
 
@@ -369,8 +429,10 @@ int vsoc_ipc_parent_request(VsocIpcContext *ctx, uint32_t type,
             qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
             return -ETIMEDOUT;
         }
-        // sleep small slice
-        g_usleep(1000 * step);
+        // Wait on doorbell to reduce latency for sync calls
+        uint32_t v = qatomic_read(&ctx->shared->wp_doorbell);
+        (void)futex_wait32(&ctx->shared->wp_doorbell, v, timeout_ms > 0 ? (timeout_ms - elapsed) : 0);
+        // Use step granularity for accounting
         elapsed += step;
     }
     // copy out result length
@@ -415,7 +477,9 @@ int vsoc_ipc_worker_request(VsocIpcContext *ctx, uint32_t type,
             qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
             return -ETIMEDOUT;
         }
-        g_usleep(1000 * step);
+        // Wait on doorbell to reduce latency for sync calls
+        uint32_t v = qatomic_read(&ctx->shared->pw_doorbell);
+        (void)futex_wait32(&ctx->shared->pw_doorbell, v, timeout_ms > 0 ? (timeout_ms - elapsed) : 0);
         elapsed += step;
     }
     if (inout_resp_len) *inout_resp_len = slot->resp_len;

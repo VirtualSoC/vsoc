@@ -48,6 +48,9 @@ typedef struct VsocGpuIpcShared {
     volatile uint64_t pw_tail; // parent->worker tail (bytes, monotonic)
     volatile uint64_t wp_head; // worker->parent head (bytes, monotonic)
     volatile uint64_t wp_tail; // worker->parent tail (bytes, monotonic)
+    // Doorbells for low-latency notifications (Linux futex wait/wake)
+    volatile uint32_t pw_doorbell; // incremented by parent when sending to worker
+    volatile uint32_t wp_doorbell; // incremented by worker when sending to parent
     uint8_t parent_to_worker[VSOC_IPC_BUF_SIZE];
     uint8_t worker_to_parent[VSOC_IPC_BUF_SIZE];
 } VsocGpuIpcShared;
@@ -69,9 +72,14 @@ typedef void (*VsocIpcHandler)(struct VsocIpcContext *ctx,
 // Opaque IPC context for one IPC region (one worker link)
 typedef struct VsocIpcContext VsocIpcContext;
 
-// Create/destroy/set shared memory backing and default context helpers
-VsocIpcContext *vsoc_ipc_context_create(struct VsocGpuIpcShared *shared);
+// Create/destroy IPC context and map shared memory by name.
+// When create=true (parent), creates/truncates the shm object to 'size' and initializes flags.
+// When parent=false (worker), opens existing shm and marks worker_ready.
+VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool parent);
 void vsoc_ipc_context_destroy(VsocIpcContext *ctx);
+
+// Accessor for the shared memory backing of a context (useful on parent to check flags)
+struct VsocGpuIpcShared *vsoc_ipc_context_get_shared(VsocIpcContext *ctx);
 
 // Register (or replace) a handler for a message type. Safe to call in both
 // parent and worker after init_express_platform.

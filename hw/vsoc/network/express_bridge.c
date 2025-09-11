@@ -43,14 +43,6 @@
 
 #define WRITE_CACHE_SIZE (1024 * 1024 + 512)
 
-#define HAS_COMMING_DATA(read_data) \
-    ((read_data)->guest_read_loc == (read_data)->host_write_loc)
-
-#define GET_READ_DATA_LEN(read_data)                              \
-    (((read_data)->host_write_loc - (read_data)->guest_read_loc + \
-      (read_data)->data_size) %                                   \
-     (read_data)->data_size)
-
 #define BRIDGE_FUN_BIND 1
 #define BRIDGE_FUN_ACCEPT 2
 #define BRIDGE_FUN_CONNECT 3
@@ -236,7 +228,7 @@ static int bridge_socket_accept(int fd)
 static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
 {
     int null_flag = 0;
-    Bridge_Read_Data *head = get_direct_ptr(guest_mem, &null_flag);
+    Bridge_Read_Data *head = guest_mem->scatter_data->iov_base;
 
     if (!head || guest_mem->scatter_data->iov_len < 12)
     {

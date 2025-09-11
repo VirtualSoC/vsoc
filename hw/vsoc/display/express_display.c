@@ -501,7 +501,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
             }
         }
         else {
-            LOGW("display %s: cannot find layer gbuffer %llx", disp->info.name, layer.gbuffer_id);
+            LOGD("display %s: cannot find layer gbuffer %llx", disp->info.name, layer.gbuffer_id);
         }
         LOGD("composer set sync %d", layer.read_sync_id);
         signal_express_sync(layer.read_sync_id, true);

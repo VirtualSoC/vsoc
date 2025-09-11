@@ -403,7 +403,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
         GLuint glerror = glGetError();
         if (glerror != GL_NO_ERROR) {
-            LOGE("error! before glDrawArrays glGetError %x", glerror);
+            LOGD("error! before glDrawArrays glGetError %x", glerror);
         }
 
         glDrawArrays(mode, first, count);
@@ -425,7 +425,7 @@ void d_glDrawArrays_origin(void *context, GLenum mode, GLint first, GLsizei coun
 
         glerror = glGetError();
         if (glerror != GL_NO_ERROR) {
-            LOGE("error! after glDrawArrays glGetError %x fbo %d %d", glerror, rfboID, wfboID);
+            LOGD("error! after glDrawArrays glGetError %x fbo %d %d", glerror, rfboID, wfboID);
         }
         
         if (opengl_context->is_using_external_program == 1)

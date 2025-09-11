@@ -21,6 +21,7 @@
 
 #include "exec/cpu-common.h"
 #include "exec/ramblock.h"
+#include "sysemu/runstate.h"
 
 // Shared memory structures now declared in header; define global pointer here.
 ExpressPlatformOps g_ops;
@@ -53,9 +54,6 @@ static bool parent_ipc_thread_started = false;
 static GHashTable *g_orig_info = NULL;   // key: device_id (GINT_TO_POINTER), value: original Express_Device_Info*
 static GHashTable *g_proxy_info = NULL;
 // Unified forward map: key local pointer (Thread_Context* or Device_Context*) -> value worker_handle(uint64)
-static GHashTable *g_worker_handle_by_local_ptr = NULL;
-// Reverse map for device IRQs: key worker_handle(uint64) -> value Device_Context*
-static GHashTable *g_local_dc_by_worker_handle = NULL;
 // Parent fast-path: in-flight async DEVICE_CALL completions keyed by IPC id
 static GHashTable *g_inflight_async_calls = NULL; // key: (gpointer)(uintptr_t)ipc_id, value: Teleport_Express_Call*
 static GHashTable *g_early_async_acks = NULL;     // key: (gpointer)(uintptr_t)ipc_id, value: (gpointer)(uintptr_t)(resp_byte)
@@ -83,26 +81,7 @@ static void worker_child_watch_cb(GPid pid, gint status, gpointer user_data)
     }
     // Close the GPid handle as required when using DO_NOT_REAP_CHILD
     g_spawn_close_pid(pid);
-}
-
-static void *map_shared_memory_parent_named(const char *name, size_t size) {
-    int fd = shm_open(name, O_CREAT | O_RDWR, 0600);
-    if (fd < 0) {
-        LOGE("shm_open parent failed: %s", strerror(errno));
-        return NULL;
-    }
-    if (ftruncate(fd, (off_t)size) != 0) {
-        LOGE("ftruncate failed: %s", strerror(errno));
-        close(fd);
-        return NULL;
-    }
-    void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    close(fd);
-    if (addr == MAP_FAILED) {
-        LOGE("mmap parent failed: %s", strerror(errno));
-        return NULL;
-    }
-    return addr;
+    if (!should_stop && g_ops.force_shutdown) g_ops.force_shutdown(SHUTDOWN_CAUSE_HOST_ERROR);
 }
 
 // Reader threads to capture worker stdout/stderr and log via QEMU's logger
@@ -217,24 +196,21 @@ static void spawn_worker_processes(int count) {
     const char *worker_path = getenv("VSOC_WORKER_PATH");
     if (!worker_path || !*worker_path) worker_path = "vsoc-worker";
     for (int i = 0; i < count; ++i) {
-    VsocWorker *w = g_new0(VsocWorker, 1);
-    w->stdout_fd = -1;
-    w->stderr_fd = -1;
+        VsocWorker *w = g_new0(VsocWorker, 1);
+        w->stdout_fd = -1;
+        w->stderr_fd = -1;
         w->shm_name = g_strdup_printf("/vsoc_ipc_%d_%d", (int)getpid(), i);
         size_t shm_size = sizeof(VsocGpuIpcShared);
-        VsocGpuIpcShared *shared = (VsocGpuIpcShared*)map_shared_memory_parent_named(w->shm_name, shm_size);
-        if (!shared) {
+        VsocIpcContext *ctx = vsoc_ipc_context_create(w->shm_name, shm_size, true);
+        VsocGpuIpcShared *shared = vsoc_ipc_context_get_shared(ctx);
+        if (!ctx || !shared) {
             LOGE("failed to create shared memory for worker %d; skipping", i);
             g_free(w->shm_name);
             g_free(w);
             continue;
         }
-        shared->parent_ready = 1;
-        shared->worker_ready = 0;
-        shared->pw_head = shared->pw_tail = 0;
-        shared->wp_head = shared->wp_tail = 0;
         w->shared = shared;
-        w->ctx = vsoc_ipc_context_create(shared);
+        w->ctx = ctx;
         g_ptr_array_add(g_workers, w);
 
         // Launch worker; capture logs only for the first worker
@@ -342,7 +318,7 @@ static void set_irq_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id,
     (void)type; (void)flags;
     (void)ctx;
     struct Req {
-        uint64_t worker_handle; // worker Device_Context* value
+        uint64_t parent_handle; // parent Device_Context* value
         int32_t buf_index;
         int32_t len;
     } req;
@@ -353,15 +329,11 @@ static void set_irq_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id,
     }
     memcpy(&req, data, sizeof(req));
     int32_t status = IRQ_NOT_READY;
-    if (g_ops.set_express_device_irq && g_local_dc_by_worker_handle) {
-        Device_Context *dc = g_hash_table_lookup(g_local_dc_by_worker_handle, (gpointer)(uintptr_t)req.worker_handle);
-        if (!dc) {
-            LOGE("SET_IRQ: unknown worker_handle=%" PRIx64, req.worker_handle);
-        } else {
-            status = g_ops.set_express_device_irq(dc, req.buf_index, req.len);
-        }
+    Device_Context *dc = (Device_Context *)(uintptr_t)req.parent_handle;
+    if (dc && g_ops.set_express_device_irq) {
+        status = g_ops.set_express_device_irq(dc, req.buf_index, req.len);
     } else {
-        LOGE("SET_IRQ: no IRQ impl or mapping table missing");
+        LOGD("SET_IRQ: dc %p no IRQ impl", dc);
     }
     (void)vsoc_ipc_parent_send(ctx, VSOC_IPC_TYPE_SET_IRQ, id, &status, sizeof(status), VSOC_IPC_FLAG_RESPONSE);
 }
@@ -437,7 +409,7 @@ static void proxy_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
             } else {
                 VsocWorker *w = get_worker(wid_from_ids(info->device_id, unique_id, user_id));
                 bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len, 0);
-                if (!ok) LOGE("proxy_buffer_register: send failed");
+                if (!ok) LOGE("proxy_buffer_register: send failed to worker[%d]", wid_from_ids(info->device_id, unique_id, user_id));
             }
         }
     }
@@ -456,23 +428,15 @@ static Device_Context *proxy_get_device_context(uint64_t device_id, uint64_t thr
     Express_Device_Info *proxy = g_proxy_info ? g_hash_table_lookup(g_proxy_info, GINT_TO_POINTER(device_id)) : NULL;
     if (proxy) dc->device_info = proxy;
 
-    // Ask worker to create its Device_Context and return a handle
-    struct Req { uint64_t device_id, thread_id, process_id, unique_id; } req = { device_id, thread_id, process_id, unique_id };
-    uint64_t worker_handle = 0; uint32_t resp_len = sizeof(worker_handle);
-    VsocWorker *w = get_worker(wid_from_device_context(dc));
-    int rc = w ? vsoc_ipc_parent_request(w->ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, &req, sizeof(req), &worker_handle, &resp_len, NULL, 3000) : -1;
-    if (rc != 0 || resp_len != sizeof(worker_handle) || worker_handle == 0) {
-        LOGE("proxy_get_device_context: worker request failed rc=%d len=%u handle=%" PRIx64, rc, resp_len, worker_handle);
-        // Continue to create local context anyway; we need it to process IRQs
-    }
-
-    // Map worker handle -> local Device_Context for future IRQ routing
-    if (worker_handle) {
-        if (g_local_dc_by_worker_handle) {
-            g_hash_table_insert(g_local_dc_by_worker_handle, (gpointer)(uintptr_t)worker_handle, dc);
-        }
-        if (g_worker_handle_by_local_ptr) {
-            g_hash_table_insert(g_worker_handle_by_local_ptr, dc, (gpointer)(uintptr_t)worker_handle);
+    // Notify worker to create/associate its Device_Context with this parent Device_Context pointer.
+    struct Req { uint64_t parent_handle; uint64_t device_id, thread_id, process_id, unique_id; } req;
+    req.parent_handle = (uint64_t)(uintptr_t)dc;
+    req.device_id = device_id; req.thread_id = thread_id; req.process_id = process_id; req.unique_id = unique_id;
+    {
+        VsocWorker *w = get_worker(wid_from_device_context(dc));
+        if (w) {
+            bool ok = vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, 0, &req, sizeof(req), 0);
+            if (!ok) LOGE("proxy_get_device_context: send GET_DEVICE_CONTEXT to worker failed (wid=%d)", wid_from_device_context(dc));
         }
     }
 
@@ -481,16 +445,11 @@ static Device_Context *proxy_get_device_context(uint64_t device_id, uint64_t thr
 
 static void proxy_irq_register(Device_Context *context) {
     if (!context) return;
-    uint64_t worker_handle = (uint64_t)(uintptr_t)g_hash_table_lookup(g_worker_handle_by_local_ptr, context);
-    if (worker_handle == 0) {
-        LOGE("proxy_irq_register: missing worker_handle for ctx %p", context);
-        // Still run parent-side original to keep local state sane
-    }
-    // Fire-and-forget: include device_id so worker can resolve info before dc fields are set
-    struct { uint64_t device_id; uint64_t worker_handle; } payload;
+    // Fire-and-forget: include device_id and parent_handle so worker resolves to its own dc
+    struct { uint64_t device_id; uint64_t parent_handle; } payload;
     int device_id = context->device_info ? context->device_info->device_id : 0;
     payload.device_id = (uint64_t)device_id;
-    payload.worker_handle = worker_handle;
+    payload.parent_handle = (uint64_t)(uintptr_t)context;
     {
         VsocWorker *w = get_worker(wid_from_device_context(context));
         (void)(w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_IRQ_REGISTER, 0, &payload, sizeof(payload), 0));
@@ -502,15 +461,10 @@ static void proxy_irq_register(Device_Context *context) {
 
 static void proxy_irq_release(Device_Context *context) {
     if (!context) return;
-    uint64_t worker_handle = (uint64_t)(uintptr_t)g_hash_table_lookup(g_worker_handle_by_local_ptr, context);
-    if (worker_handle == 0) {
-        LOGE("proxy_irq_release: missing worker_handle for ctx %p", context);
-        // Still run parent-side original to keep local state sane
-    }
-    struct { uint64_t device_id; uint64_t worker_handle; } payload;
+    struct { uint64_t device_id; uint64_t parent_handle; } payload;
     int device_id = context->device_info ? context->device_info->device_id : 0;
     payload.device_id = (uint64_t)device_id;
-    payload.worker_handle = worker_handle;
+    payload.parent_handle = (uint64_t)(uintptr_t)context;
     {
         VsocWorker *w = get_worker(wid_from_device_context(context));
         (void)(w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_IRQ_RELEASE, 0, &payload, sizeof(payload), 0));
@@ -526,23 +480,18 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
         goto fallback;
     }
 
-    // If we don't have a worker handle for this context, fallback to local
-    uint64_t worker_handle = (uint64_t)(uintptr_t)g_hash_table_lookup(g_worker_handle_by_local_ptr, context);
-    if (worker_handle == 0) {
-        LOGE("no worker handle for context %p", context);
-        goto fallback;
-    }
+    // Pass parent Thread_Context pointer; worker will resolve to its own context
+    uint64_t parent_handle = (uint64_t)(uintptr_t)context;
+    LOGD("proxy_call_handler: parent_handle=%" PRIx64 " id=%" PRIu64 " para_num=%d sync=%s", parent_handle, GET_FUN_ID(id), para_num, FUN_NEED_SYNC(id) ? "true" : "false");
 
-    LOGD("proxy_call_handler: worker_handle=%" PRIx64 " id=%" PRIu64 " para_num=%d sync=%s", worker_handle, GET_FUN_ID(id), para_num, FUN_NEED_SYNC(id) ? "true" : "false");
-
-    // Build DEVICE_CALL payload: [handle(8)][id(8)][para_num(4)] + per-param packed Guest_Mem
+    // Build DEVICE_CALL payload: [parent_handle(8)][id(8)][para_num(4)] + per-param packed Guest_Mem
     uint8_t buf[VSOC_IPC_MAX_PAYLOAD];
     uint8_t *p = buf; uint8_t *end = buf + sizeof(buf);
     if (p + sizeof(uint64_t)*2 + sizeof(int32_t) > end) {
         LOGE("proxy_call_handler: header overflow");
         goto fallback;
     }
-    memcpy(p, &worker_handle, sizeof(worker_handle)); p += sizeof(worker_handle);
+    memcpy(p, &parent_handle, sizeof(parent_handle)); p += sizeof(parent_handle);
     memcpy(p, &id, sizeof(id)); p += sizeof(id);
     int32_t pn = para_num; memcpy(p, &pn, sizeof(pn)); p += sizeof(pn);
 
@@ -558,31 +507,21 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
         p += wrote;
     }
 
+    // Async fast-path: allocate a unique IPC id, stash it in TLS, and send non-blocking.
     uint32_t payload_len = (uint32_t)(p - buf);
-    if (FUN_NEED_SYNC(id)) {
-        uint8_t resp = 0; uint32_t resp_len = sizeof(resp);
-        VsocWorker *w = get_worker(wid_from_thread_context(context));
-        int rc = w ? vsoc_ipc_parent_request(w->ctx, VSOC_IPC_TYPE_DEVICE_CALL, buf, payload_len, &resp, &resp_len, NULL, 30000) : -1;
-        if (rc != 0 || resp_len != sizeof(resp)) {
-            LOGE("proxy_call_handler: request rc=%d resp_len=%u", rc, resp_len);
-            goto fallback;
-        }
-    } else {
-        // Async fast-path: allocate a unique IPC id, stash it in TLS, and send non-blocking.
-        uint32_t ipc_id;
-        qemu_mutex_lock(&g_async_seq_lock);
-        ipc_id = g_async_seq++;
-        if (g_async_seq == 0) g_async_seq = 0x80000000u; // wrap within reserved range
-        qemu_mutex_unlock(&g_async_seq_lock);
-        // Store the id in TLS for handle_thread_run to bind the call object.
-        g_private_set(&g_tls_async_ipc_id, (gpointer)(uintptr_t)ipc_id);
-        VsocWorker *w = get_worker(wid_from_thread_context(context));
-        bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_DEVICE_CALL, ipc_id, buf, payload_len, 0);
-        if (!ok) {
-            g_private_set(&g_tls_async_ipc_id, NULL);
-            LOGE("proxy_call_handler: async send failed");
-            goto fallback;
-        }
+    uint32_t ipc_id;
+    qemu_mutex_lock(&g_async_seq_lock);
+    ipc_id = g_async_seq++;
+    if (g_async_seq == 0) g_async_seq = 0x80000000u; // wrap within reserved range
+    qemu_mutex_unlock(&g_async_seq_lock);
+    // Store the id in TLS for handle_thread_run to bind the call object.
+    g_private_set(&g_tls_async_ipc_id, (gpointer)(uintptr_t)ipc_id);
+    VsocWorker *w = get_worker(wid_from_thread_context(context));
+    bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_DEVICE_CALL, ipc_id, buf, payload_len, 0);
+    if (!ok) {
+        g_private_set(&g_tls_async_ipc_id, NULL);
+        LOGE("proxy_call_handler: async send to worker[%d] failed", wid_from_thread_context(context));
+        goto fallback;
     }
     return true;
 
@@ -607,18 +546,18 @@ Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64
         ctx->context_destroy = NULL;
     }
 
-    // request structure
-    struct Req { uint64_t device_id, thread_id, process_id, unique_id, user_id; } req = { device_id, thread_id, process_id, unique_id, user_id };
-    uint64_t handle = 0; uint32_t resp_len = sizeof(handle);
-    VsocWorker *w = get_worker(wid_from_thread_context(ctx));
-    int rc = w ? vsoc_ipc_parent_request(w->ctx, VSOC_IPC_TYPE_GET_CONTEXT, &req, sizeof(req), &handle, &resp_len, NULL, 3000) : -1;
-    if (rc != 0 || resp_len != sizeof(handle) || handle == 0) {
-        LOGE("proxy_get_context failed rc=%d len=%u handle=%" PRIx64, rc, resp_len, handle);
-    }
-
-    if (ctx && handle) {
-        // Remember worker handle for this local thread context
-        g_hash_table_insert(g_worker_handle_by_local_ptr, ctx, (gpointer)(uintptr_t)handle);
+    // Notify worker to create/associate its context with this parent Thread_Context pointer.
+    if (ctx) {
+        struct Req { uint64_t parent_handle; uint64_t device_id, thread_id, process_id, unique_id, user_id; } req;
+        req.parent_handle = (uint64_t)(uintptr_t)ctx;
+        req.device_id = device_id; req.thread_id = thread_id; req.process_id = process_id; req.unique_id = unique_id; req.user_id = user_id;
+        VsocWorker *w = get_worker(wid_from_thread_context(ctx));
+        if (w) {
+            bool ok = vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_GET_CONTEXT, 0, &req, sizeof(req), 0);
+            if (!ok) {
+                LOGE("proxy_get_context: send GET_CONTEXT to worker failed (wid=%d)", wid_from_thread_context(ctx));
+            }
+        }
     }
 
     return ctx;
@@ -634,8 +573,6 @@ void init_express_platform(const ExpressPlatformOps ops) {
 
     if (!g_proxy_info) g_proxy_info = g_hash_table_new(g_direct_hash, g_direct_equal);
     if (!g_orig_info) g_orig_info = g_hash_table_new(g_direct_hash, g_direct_equal);
-    if (!g_worker_handle_by_local_ptr) g_worker_handle_by_local_ptr = g_hash_table_new(g_direct_hash, g_direct_equal);
-    if (!g_local_dc_by_worker_handle) g_local_dc_by_worker_handle = g_hash_table_new(g_direct_hash, g_direct_equal);
 
     GHashTableIter iter;
     gpointer key, value;
@@ -894,7 +831,7 @@ bool invoke_call_handler(Thread_Context *context, void *_call) {
             get_para_from_call(call, all_para, MAX_PARA_NUM);
             success = context->call_handler(context, call->id, all_para, call->para_num);
             // If proxied async, bind call to inflight table and defer callback to IPC poll handler
-            if (context->proxy && !FUN_NEED_SYNC(call->id)) {
+            if (context->proxy) {
                 uintptr_t ipc_id = (uintptr_t)g_private_get(&g_tls_async_ipc_id);
                 if (ipc_id == 0) {
                     LOGE("async fast-path: missing IPC id for deferred call");
@@ -935,7 +872,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
 {
     Thread_Context *context = (Thread_Context *)opaque;
 
-    if (context->context_init != NULL)
+    if (!context->proxy && context->context_init != NULL)
     {
         context->context_init(context);
     }

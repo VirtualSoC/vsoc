@@ -10,6 +10,7 @@
  */
 
 // #define STD_DEBUG_LOG
+// #define THREADED_PROXY_CONTEXT
 
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/express_handle_thread.h"
@@ -23,10 +24,12 @@
  */
 void *call_pop(Thread_Context *context)
 {
+#ifndef THREADED_PROXY_CONTEXT
     if (context->proxy) {
         LOGE("attempt to call_pop on a proxied context!");
         return NULL;
     }
+#endif
 
     while (context->write_loc == context->read_loc) //因为是竞争关系所以要用while循环
     {
@@ -72,12 +75,14 @@ void *call_pop(Thread_Context *context)
  */
 void call_push(Thread_Context *context, void *call)
 {
+#ifndef THREADED_PROXY_CONTEXT
     if (context->proxy) {
         // proxy context, just directly call the handler
         // assuming that proxy calls are quick
         invoke_call_handler(context, call);
         return;
     }
+#endif
 
     while ((context->write_loc + 1) % CALL_BUF_SIZE == context->read_loc)
     {
@@ -130,7 +135,9 @@ Thread_Context *thread_context_create(uint64_t device_id, uint64_t thread_id, ui
         context->proxy = true;
     }
 
+#ifndef THREADED_PROXY_CONTEXT
     if (!context->proxy) {
+#endif
         //线程缓冲区事件初始化
         context->data_event = create_event(0, 0);
     
@@ -140,7 +147,10 @@ Thread_Context *thread_context_create(uint64_t device_id, uint64_t thread_id, ui
         context->thread_run = 1;
     
         qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
+
+#ifndef THREADED_PROXY_CONTEXT
     }
+#endif
 
     return context;
 }

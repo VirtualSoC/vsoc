@@ -7,53 +7,59 @@
 #include <glib.h>
 
 GHashTable *g_devices = NULL;
+// Unified map: key is parent-side handle (Thread_Context* or Device_Context* cast to uint64),
+// value is the corresponding worker-side pointer (Thread_Context* or Device_Context*),
+// resolved by the caller's expected type.
+static GHashTable *g_parent_to_worker = NULL;
 extern VsocIpcContext *g_ipc_ctx; // defined in worker/platform.c
 
 // Worker context lookup handler for GET_CONTEXT
 void get_context_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
                                     uint32_t len, uint32_t flags) {
-    (void)type; (void)flags; (void)ctx;
-    struct Req { uint64_t device_id, thread_id, process_id, unique_id, user_id; };
+    (void)type; (void)flags; (void)ctx; (void)id;
+    struct Req { uint64_t parent_handle; uint64_t device_id, thread_id, process_id, unique_id, user_id; };
     if (len != sizeof(struct Req)) {
-        LOGE("GET_CONTEXT wrong len %u", len); return;
+        LOGE("GET_CONTEXT wrong len %u (expected %zu)", len, sizeof(struct Req)); return;
     }
     const struct Req *req = (const struct Req*)data;
+    if (!g_parent_to_worker) {
+        g_parent_to_worker = g_hash_table_new(g_direct_hash, g_direct_equal);
+    }
     Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(req->device_id));
     if (!info || !info->get_context) {
         LOGE("GET_CONTEXT: no device info or get_context not implemented for device_id=%" PRIu64, req->device_id);
-        uint64_t zero = 0; 
-        vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_CONTEXT, id, &zero, sizeof(zero));
         return;
     }
     Thread_Context *thr_ctx = info->get_context(req->device_id, req->thread_id, req->process_id, req->unique_id, req->user_id, info);
-    uint64_t handle = (uint64_t)(uintptr_t)thr_ctx;
-    vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_CONTEXT, id, &handle, sizeof(handle));
+    // Store mapping: parent Thread_Context* -> worker Thread_Context*
+    g_hash_table_insert(g_parent_to_worker, (gpointer)(uintptr_t)req->parent_handle, thr_ctx);
 }
 
 // Worker: device-level context (for IRQs) creation via IPC
 static void get_device_context_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
                                     uint32_t len, uint32_t flags) {
-    (void)type; (void)flags; (void)ctx;
-    struct Req { uint64_t device_id, thread_id, process_id, unique_id; };
-    if (len != sizeof(struct Req)) { LOGE("GET_DEVICE_CONTEXT: wrong len %u", len); uint64_t zero = 0; vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &zero, sizeof(zero)); return; }
+    (void)type; (void)flags; (void)ctx; (void)id;
+    struct Req { uint64_t parent_handle; uint64_t device_id, thread_id, process_id, unique_id; };
+    if (len != sizeof(struct Req)) { LOGE("GET_DEVICE_CONTEXT: wrong len %u", len); return; }
     const struct Req *req = (const struct Req *)data;
     Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(req->device_id));
     if (!info || !info->get_device_context) {
         LOGE("GET_DEVICE_CONTEXT: no device info or get_device_context not implemented for device_id=%" PRIu64, req->device_id);
-        uint64_t zero = 0; vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &zero, sizeof(zero)); return;
+        return;
     }
     Device_Context *dc = info->get_device_context(req->device_id, req->thread_id, req->process_id, req->unique_id, info);
-    uint64_t handle = (uint64_t)(uintptr_t)dc;
-    vsoc_ipc_worker_respond(g_ipc_ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, id, &handle, sizeof(handle));
+    if (!g_parent_to_worker) g_parent_to_worker = g_hash_table_new(g_direct_hash, g_direct_equal);
+    g_hash_table_insert(g_parent_to_worker, (gpointer)(uintptr_t)req->parent_handle, dc);
 }
 
 static void irq_register_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
                                      uint32_t len, uint32_t flags) {
     (void)type; (void)id; (void)flags; (void)ctx;
-    struct __attribute__((packed)) Payload { uint64_t device_id; uint64_t handle; } pld;
+    struct __attribute__((packed)) Payload { uint64_t device_id; uint64_t parent_handle; } pld;
     if (len != sizeof(pld)) { LOGE("IRQ_REGISTER: bad len %u", len); return; }
     memcpy(&pld, data, sizeof(pld));
-    Device_Context *dc = (Device_Context *)(uintptr_t)pld.handle;
+    if (!g_parent_to_worker) g_parent_to_worker = g_hash_table_new(g_direct_hash, g_direct_equal);
+    Device_Context *dc = (Device_Context *)g_hash_table_lookup(g_parent_to_worker, (gpointer)(uintptr_t)pld.parent_handle);
     if (!dc) { LOGE("IRQ_REGISTER: null handle for device_id=%" PRIu64, pld.device_id); return; }
     dc->irq_enabled = true;
 
@@ -65,16 +71,27 @@ static void irq_register_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_
 static void irq_release_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
                                     uint32_t len, uint32_t flags) {
     (void)type; (void)id; (void)flags; (void)ctx;
-    struct __attribute__((packed)) Payload { uint64_t device_id; uint64_t handle; } pld;
+    struct __attribute__((packed)) Payload { uint64_t device_id; uint64_t parent_handle; } pld;
     if (len != sizeof(pld)) { LOGE("IRQ_RELEASE: bad len %u", len); return; }
     memcpy(&pld, data, sizeof(pld));
-    Device_Context *dc = (Device_Context *)(uintptr_t)pld.handle;
+    if (!g_parent_to_worker) g_parent_to_worker = g_hash_table_new(g_direct_hash, g_direct_equal);
+    Device_Context *dc = (Device_Context *)g_hash_table_lookup(g_parent_to_worker, (gpointer)(uintptr_t)pld.parent_handle);
     if (!dc) { LOGE("IRQ_RELEASE: null handle for device_id=%" PRIu64, pld.device_id); return; }
     dc->irq_enabled = false;
 
     Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(pld.device_id));
     if (!info || !info->irq_release) return;
     info->irq_release(dc);
+}
+
+uint64_t worker_get_parent_handle_for_dc(Device_Context *dc) {
+    if (!g_parent_to_worker || !dc) return 0;
+    GHashTableIter it; gpointer key, val;
+    g_hash_table_iter_init(&it, g_parent_to_worker);
+    while (g_hash_table_iter_next(&it, &key, &val)) {
+        if (val == dc) return (uint64_t)(uintptr_t)key;
+    }
+    return 0;
 }
 
 // BUFFER_REGISTER handler: payload [device_id(8)][thread_id(8)][process_id(8)][unique_id(8)][user_id(8)][num(4)][all_len(4)] + segs
@@ -118,7 +135,7 @@ void device_call_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, co
     (void)type; (void)flags; (void)ctx;
     const uint8_t *p = data; const uint8_t *end = data + len;
     if (p + sizeof(uint64_t)*2 + sizeof(int32_t) > end) { LOGE("DEVICE_CALL: bad header len=%u", len); return; }
-    uint64_t handle; memcpy(&handle, p, sizeof(handle)); p += sizeof(handle);
+    uint64_t parent_handle; memcpy(&parent_handle, p, sizeof(parent_handle)); p += sizeof(parent_handle);
     uint64_t call_id; memcpy(&call_id, p, sizeof(call_id)); p += sizeof(call_id);
     int32_t para_num; memcpy(&para_num, p, sizeof(para_num)); p += sizeof(para_num);
     if (para_num < 0 || para_num > 1024) { LOGE("DEVICE_CALL: invalid para_num=%d", para_num); return; }
@@ -137,8 +154,12 @@ void device_call_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, co
     }
 
     // Prepare a WorkerCall and push to the device thread
-    Thread_Context *thr_ctx = (Thread_Context *)(uintptr_t)handle;
-    if (!thr_ctx) { LOGE("DEVICE_CALL: null ctx handle"); goto out; }
+    if (!g_parent_to_worker) {
+        LOGE("DEVICE_CALL: no context map");
+        goto out;
+    }
+    Thread_Context *thr_ctx = (Thread_Context *)g_hash_table_lookup(g_parent_to_worker, (gpointer)(uintptr_t)parent_handle);
+    if (!thr_ctx) { LOGE("DEVICE_CALL: unknown parent_handle=%" PRIx64, parent_handle); goto out; }
 
     WorkerCall *wc = g_malloc0(sizeof(WorkerCall));
     wc->id = call_id;

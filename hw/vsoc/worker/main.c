@@ -13,28 +13,6 @@
 #include <sys/stat.h>
 #include <sys/prctl.h>
 
-static void attach_shared_memory(const char *name) {
-    if (vsoc_ipc_shared) return; // already attached
-    if (!name) {
-        LOGE("worker: VSOC_GPU_SHM not set (cannot attach shm)");
-        return;
-    }
-    int fd = shm_open(name, O_RDWR, 0600);
-    if (fd < 0) {
-        LOGE("shm_open worker failed: %s", strerror(errno));
-        return;
-    }
-    size_t shm_size = sizeof(VsocGpuIpcShared);
-    void *addr = mmap(NULL, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    close(fd);
-    if (addr == MAP_FAILED) {
-        LOGE("mmap worker failed: %s", strerror(errno));
-        return;
-    }
-    vsoc_ipc_shared = (VsocGpuIpcShared*)addr;
-    vsoc_ipc_shared->worker_ready = 1;
-    LOGD("worker attached shared memory %s", name);
-}
 
 // Handler for RAM region metadata from parent. FDs are inherited and referenced by number.
 static void ram_regions_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
@@ -141,10 +119,14 @@ int main(int argc, char **argv)
     // Parse parent pid (may not be our actual PPID due to reparenting)
     pid_t parent_pid = (pid_t)atoi(argv[2]);
 
-    attach_shared_memory(argv[1]);
-    // Create IPC context bound to shared memory
+    // Attach to shared memory and create IPC context
     extern VsocIpcContext *g_ipc_ctx; // declared in platform.c
-    g_ipc_ctx = vsoc_ipc_context_create(vsoc_ipc_shared);
+    g_ipc_ctx = vsoc_ipc_context_create(argv[1], sizeof(VsocGpuIpcShared), false);
+    vsoc_ipc_shared = vsoc_ipc_context_get_shared(g_ipc_ctx);
+    if (!g_ipc_ctx || !vsoc_ipc_shared) {
+        LOGE("worker: failed to attach shared memory %s", argv[1]);
+        return 1;
+    }
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_PLATFORM_INIT, platform_init_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_RAM_REGIONS, ram_regions_ipc_handler);
 

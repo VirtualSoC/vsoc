@@ -266,12 +266,14 @@ static void sync_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t p
 static Device_Context *get_sync_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     LOGD("going to get sync context");
-    if (sync_event == NULL)
-    {
-        sync_event = create_event(0, 0);
-    }
 
     return (Device_Context *)&static_sync_context;
+}
+
+static void sync_device_init(void) {
+    if (sync_event == NULL) {
+        sync_event = create_event(0, 0);
+    }
 }
 
 static Express_Device_Info express_sync_info = {
@@ -282,6 +284,7 @@ static Express_Device_Info express_sync_info = {
     .device_id = EXPRESS_SYNC_DEVICE_ID,
     .device_type = INPUT_DEVICE_TYPE,
 
+    .init = sync_device_init,
     .get_device_context = get_sync_context,
     .buffer_register = sync_buffer_register,
 

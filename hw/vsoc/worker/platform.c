@@ -108,11 +108,12 @@ static void worker_write_to_guest_mem(Guest_Mem *guest, void *host, size_t start
 static int worker_set_express_device_irq(Device_Context *device_context, int buf_index, int len) {
     if (!device_context) return IRQ_NOT_READY;
     struct __attribute__((packed)) Req {
-        uint64_t worker_handle; // worker-side Device_Context* value
+        uint64_t parent_handle; // parent-side Device_Context* value
         int32_t buf_index;
         int32_t len;
     } req;
-    req.worker_handle = (uint64_t)(uintptr_t)device_context;
+    uint64_t ph = worker_get_parent_handle_for_dc(device_context);
+    req.parent_handle = ph;
     req.buf_index = buf_index;
     req.len = len;
 
