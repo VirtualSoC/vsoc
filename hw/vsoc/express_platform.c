@@ -28,7 +28,7 @@ ExpressPlatformOps g_ops;
 
 // Multi-worker state
 typedef struct VsocWorker {
-    VsocGpuIpcShared *shared;
+    VsocIpcShared *shared;
     VsocIpcContext *ctx;
     pid_t pid;
     char *shm_name;
@@ -200,9 +200,9 @@ static void spawn_worker_processes(int count) {
         w->stdout_fd = -1;
         w->stderr_fd = -1;
         w->shm_name = g_strdup_printf("/vsoc_ipc_%d_%d", (int)getpid(), i);
-        size_t shm_size = sizeof(VsocGpuIpcShared);
+        size_t shm_size = sizeof(VsocIpcShared);
         VsocIpcContext *ctx = vsoc_ipc_context_create(w->shm_name, shm_size, true);
-        VsocGpuIpcShared *shared = vsoc_ipc_context_get_shared(ctx);
+        VsocIpcShared *shared = vsoc_ipc_context_get_shared(ctx);
         if (!ctx || !shared) {
             LOGE("failed to create shared memory for worker %d; skipping", i);
             g_free(w->shm_name);
@@ -302,7 +302,7 @@ static void send_ram_regions_to_worker(void) {
     if (g_workers && g_workers->len > 0) {
         for (guint i = 0; i < g_workers->len; ++i) {
             VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-            bool ok = vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_RAM_REGIONS, 0, payload, (uint32_t)payload_sz, 0);
+            bool ok = vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_RAM_REGIONS, 0, payload, (uint32_t)payload_sz);
             if (!ok) LOGE("failed to send RAM_REGIONS to worker[%u]", i);
         }
     } else {
@@ -314,8 +314,8 @@ static void send_ram_regions_to_worker(void) {
 
 // Handle SET_IRQ forwarded from worker: payload is struct Req; respond with int32 status
 static void set_irq_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
-                               uint32_t len, uint32_t flags) {
-    (void)type; (void)flags;
+                               uint32_t len) {
+    (void)type;
     (void)ctx;
     struct Req {
         uint64_t parent_handle; // parent Device_Context* value
@@ -324,7 +324,7 @@ static void set_irq_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id,
     } req;
     if (len != sizeof(req)) {
         LOGE("SET_IRQ: bad len %u expected %zu", len, sizeof(req));
-        int32_t st = IRQ_NOT_READY; (void)vsoc_ipc_parent_send(ctx, VSOC_IPC_TYPE_SET_IRQ, id, &st, sizeof(st), VSOC_IPC_FLAG_RESPONSE);
+        int32_t st = IRQ_NOT_READY; (void)vsoc_ipc_send_response(ctx, VSOC_IPC_TYPE_SET_IRQ, id, &st, sizeof(st));
         return;
     }
     memcpy(&req, data, sizeof(req));
@@ -335,13 +335,13 @@ static void set_irq_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id,
     } else {
         LOGD("SET_IRQ: dc %p no IRQ impl", dc);
     }
-    (void)vsoc_ipc_parent_send(ctx, VSOC_IPC_TYPE_SET_IRQ, id, &status, sizeof(status), VSOC_IPC_FLAG_RESPONSE);
+    (void)vsoc_ipc_send_response(ctx, VSOC_IPC_TYPE_SET_IRQ, id, &status, sizeof(status));
 }
 
 // Handle async DEVICE_CALL responses (no pending waiter)
 static void device_call_ack_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
-                                        uint32_t len, uint32_t flags) {
-    (void)type; (void)flags;
+                                        uint32_t len) {
+    (void)type;
     (void)ctx;
     uint8_t resp = 0; if (len >= 1) resp = data[0];
     qemu_mutex_lock(&g_inflight_lock);
@@ -359,15 +359,15 @@ static void device_call_ack_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint
 
 // Worker forwarded shutdown notifications: invoke parent hooks
 static void notify_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
-                                        uint32_t len, uint32_t flags) {
-    (void)type; (void)id; (void)data; (void)len; (void)flags; (void)ctx;
+                                        uint32_t len) {
+    (void)type; (void)id; (void)data; (void)len; (void)ctx;
     (void)ctx;
     if (g_ops.notify_shutdown) g_ops.notify_shutdown();
 }
 
 static void force_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
-                                       uint32_t len, uint32_t flags) {
-    (void)type; (void)id; (void)flags;
+                                       uint32_t len) {
+    (void)type; (void)id;
     int reason = 0;
     if (len == sizeof(int32_t)) {
         int32_t r; memcpy(&r, data, sizeof(r)); reason = (int)r;
@@ -402,13 +402,13 @@ static void proxy_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
                 if (g_workers && g_workers->len > 0) {
                     for (guint i = 0; i < g_workers->len; ++i) {
                         VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-                        bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len, 0);
+                        bool ok = w && vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len);
                         if (!ok) LOGE("proxy_buffer_register: send failed to worker[%u]", i);
                     }
                 }
             } else {
                 VsocWorker *w = get_worker(wid_from_ids(info->device_id, unique_id, user_id));
-                bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len, 0);
+                bool ok = w && vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len);
                 if (!ok) LOGE("proxy_buffer_register: send failed to worker[%d]", wid_from_ids(info->device_id, unique_id, user_id));
             }
         }
@@ -435,7 +435,7 @@ static Device_Context *proxy_get_device_context(uint64_t device_id, uint64_t thr
     {
         VsocWorker *w = get_worker(wid_from_device_context(dc));
         if (w) {
-            bool ok = vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, 0, &req, sizeof(req), 0);
+            bool ok = vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_GET_DEVICE_CONTEXT, 0, &req, sizeof(req));
             if (!ok) LOGE("proxy_get_device_context: send GET_DEVICE_CONTEXT to worker failed (wid=%d)", wid_from_device_context(dc));
         }
     }
@@ -452,7 +452,7 @@ static void proxy_irq_register(Device_Context *context) {
     payload.parent_handle = (uint64_t)(uintptr_t)context;
     {
         VsocWorker *w = get_worker(wid_from_device_context(context));
-        (void)(w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_IRQ_REGISTER, 0, &payload, sizeof(payload), 0));
+    (void)(w && vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_IRQ_REGISTER, 0, &payload, sizeof(payload)));
     }
     // Also run original parent-side irq_register to mirror state locally
     Express_Device_Info *orig = g_orig_info ? g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(device_id)) : NULL;
@@ -467,7 +467,7 @@ static void proxy_irq_release(Device_Context *context) {
     payload.parent_handle = (uint64_t)(uintptr_t)context;
     {
         VsocWorker *w = get_worker(wid_from_device_context(context));
-        (void)(w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_IRQ_RELEASE, 0, &payload, sizeof(payload), 0));
+    (void)(w && vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_IRQ_RELEASE, 0, &payload, sizeof(payload)));
     }
     Express_Device_Info *orig = g_orig_info ? g_hash_table_lookup(g_orig_info, GINT_TO_POINTER(device_id)) : NULL;
     if (orig && orig->irq_release) orig->irq_release(context);
@@ -517,7 +517,7 @@ static bool proxy_call_handler(struct Thread_Context *context, uint64_t id, cons
     // Store the id in TLS for handle_thread_run to bind the call object.
     g_private_set(&g_tls_async_ipc_id, (gpointer)(uintptr_t)ipc_id);
     VsocWorker *w = get_worker(wid_from_thread_context(context));
-    bool ok = w && vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_DEVICE_CALL, ipc_id, buf, payload_len, 0);
+    bool ok = w && vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_DEVICE_CALL, ipc_id, buf, payload_len);
     if (!ok) {
         g_private_set(&g_tls_async_ipc_id, NULL);
         LOGE("proxy_call_handler: async send to worker[%d] failed", wid_from_thread_context(context));
@@ -553,7 +553,7 @@ Thread_Context *proxy_get_context(uint64_t device_id, uint64_t thread_id, uint64
         req.device_id = device_id; req.thread_id = thread_id; req.process_id = process_id; req.unique_id = unique_id; req.user_id = user_id;
         VsocWorker *w = get_worker(wid_from_thread_context(ctx));
         if (w) {
-            bool ok = vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_GET_CONTEXT, 0, &req, sizeof(req), 0);
+            bool ok = vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_GET_CONTEXT, 0, &req, sizeof(req));
             if (!ok) {
                 LOGE("proxy_get_context: send GET_CONTEXT to worker failed (wid=%d)", wid_from_thread_context(ctx));
             }
@@ -638,7 +638,7 @@ void init_express_platform(const ExpressPlatformOps ops) {
                 if (g_workers && g_workers->len > 0) {
                     for (guint i = 0; i < g_workers->len; ++i) {
                         VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-                        if (w->ctx) vsoc_ipc_poll_parent(w->ctx);
+                        if (w->ctx) vsoc_ipc_poll(w->ctx);
                     }
                 }
                 g_usleep(1000); // 1ms poll interval
@@ -666,7 +666,7 @@ void init_express_platform(const ExpressPlatformOps ops) {
     if (g_workers && g_workers->len > 0) {
         for (guint i = 0; i < g_workers->len; ++i) {
             VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-                vsoc_ipc_parent_send(w->ctx, VSOC_IPC_TYPE_PLATFORM_INIT, 0, &ops, sizeof(ops), 0);
+                vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_PLATFORM_INIT, 0, &ops, sizeof(ops));
         }
     }
     // After platform init, inform worker of RAM regions (FDs are already inherited)
@@ -703,7 +703,7 @@ void deinit_express_platform(void) {
     if (g_workers && g_workers->len > 0) {
         for (guint i = 0; i < g_workers->len; ++i) {
             VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-            if (w->shared) munmap(w->shared, sizeof(VsocGpuIpcShared));
+            if (w->shared) munmap(w->shared, sizeof(VsocIpcShared));
             if (w->ctx) vsoc_ipc_context_destroy(w->ctx);
             if (w->shm_name && *w->shm_name) {
                 if (shm_unlink(w->shm_name) != 0) { LOGE("shm_unlink %s failed: %s", w->shm_name, strerror(errno)); }
@@ -824,39 +824,39 @@ bool invoke_call_handler(Thread_Context *context, void *_call) {
     }
 
     if (context->call_handler != NULL) {
-        if (GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
-            cluster_decode_invoke(call, context, context->call_handler);
+        Call_Para all_para[MAX_PARA_NUM];
+        get_para_from_call(call, all_para, MAX_PARA_NUM);
+        if (!context->proxy && GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
+            success = cluster_decode_invoke(context, all_para, call->para_num);
         } else {
-            Call_Para all_para[MAX_PARA_NUM];
-            get_para_from_call(call, all_para, MAX_PARA_NUM);
             success = context->call_handler(context, call->id, all_para, call->para_num);
-            // If proxied async, bind call to inflight table and defer callback to IPC poll handler
-            if (context->proxy) {
-                uintptr_t ipc_id = (uintptr_t)g_private_get(&g_tls_async_ipc_id);
-                if (ipc_id == 0) {
-                    LOGE("async fast-path: missing IPC id for deferred call");
-                    // Fallback to immediate completion to avoid leak
-                    call->callback(call, success);
-                } else {
-                    // Protect binding and race with early ACK
-                    qemu_mutex_lock(&g_inflight_lock);
-                    gpointer early = g_hash_table_lookup(g_early_async_acks, (gpointer)ipc_id);
-                    if (early) {
-                        // ACK arrived before binding; consume and complete now
-                        g_hash_table_remove(g_early_async_acks, (gpointer)ipc_id);
-                        qemu_mutex_unlock(&g_inflight_lock);
-                        g_private_set(&g_tls_async_ipc_id, NULL);
-                        call->callback(call, ((uintptr_t)early) ? true : false);
-                    } else {
-                        g_hash_table_insert(g_inflight_async_calls, (gpointer)ipc_id, call);
-                        qemu_mutex_unlock(&g_inflight_lock);
-                        g_private_set(&g_tls_async_ipc_id, NULL);
-                        // Defer completion to ACK handler
-                    }
-                }
-            } else {
+        }
+        // If proxied async, bind call to inflight table and defer callback to IPC poll handler
+        if (context->proxy) {
+            uintptr_t ipc_id = (uintptr_t)g_private_get(&g_tls_async_ipc_id);
+            if (ipc_id == 0) {
+                LOGE("async fast-path: missing IPC id for deferred call");
+                // Fallback to immediate completion to avoid leak
                 call->callback(call, success);
+            } else {
+                // Protect binding and race with early ACK
+                qemu_mutex_lock(&g_inflight_lock);
+                gpointer early = g_hash_table_lookup(g_early_async_acks, (gpointer)ipc_id);
+                if (early) {
+                    // ACK arrived before binding; consume and complete now
+                    g_hash_table_remove(g_early_async_acks, (gpointer)ipc_id);
+                    qemu_mutex_unlock(&g_inflight_lock);
+                    g_private_set(&g_tls_async_ipc_id, NULL);
+                    call->callback(call, ((uintptr_t)early) ? true : false);
+                } else {
+                    g_hash_table_insert(g_inflight_async_calls, (gpointer)ipc_id, call);
+                    qemu_mutex_unlock(&g_inflight_lock);
+                    g_private_set(&g_tls_async_ipc_id, NULL);
+                    // Defer completion to ACK handler
+                }
             }
+        } else {
+            call->callback(call, success);
         }
     }
     return success;

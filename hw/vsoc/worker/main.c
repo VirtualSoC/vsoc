@@ -16,8 +16,8 @@
 
 // Handler for RAM region metadata from parent. FDs are inherited and referenced by number.
 static void ram_regions_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
-                                   uint32_t len, uint32_t flags) {
-    (void)type; (void)id; (void)flags; (void)ctx;
+                                   uint32_t len) {
+    (void)type; (void)id; (void)ctx;
     if (len < 4) {
         LOGE("RAM_REGIONS: payload too small (%u)", len);
         return;
@@ -62,8 +62,8 @@ static void ram_regions_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t
 }
 
 void platform_init_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
-                              uint32_t len, uint32_t flags) {
-    (void)type; (void)id; (void)flags; (void)ctx;
+                              uint32_t len) {
+    (void)type; (void)id; (void)ctx;
     if (len != sizeof(ExpressPlatformOps)) {
         LOGE("PLATFORM_INIT wrong len %u expected %zu", len, sizeof(ExpressPlatformOps));
         return;
@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 
     // Attach to shared memory and create IPC context
     extern VsocIpcContext *g_ipc_ctx; // declared in platform.c
-    g_ipc_ctx = vsoc_ipc_context_create(argv[1], sizeof(VsocGpuIpcShared), false);
+    g_ipc_ctx = vsoc_ipc_context_create(argv[1], sizeof(VsocIpcShared), false);
     vsoc_ipc_shared = vsoc_ipc_context_get_shared(g_ipc_ctx);
     if (!g_ipc_ctx || !vsoc_ipc_shared) {
         LOGE("worker: failed to attach shared memory %s", argv[1]);
@@ -132,14 +132,13 @@ int main(int argc, char **argv)
 
     LOGI("vsoc worker init: entering event loop");
 
-    // For now idle spin waiting for stop flag; replace with event-driven loop later.
     while (!platform_should_stop()) {
         // Monitor explicit parent pid; exit if it no longer exists
         if (!pid_is_alive(parent_pid)) {
             LOGW("detected parent pid %d no longer alive; stopping worker", (int)parent_pid);
             break;
         }
-        vsoc_ipc_poll_worker(g_ipc_ctx);
+        vsoc_ipc_poll(g_ipc_ctx);
         g_usleep(1000); // 1ms poll interval
     }
 

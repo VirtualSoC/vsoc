@@ -516,9 +516,7 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
         for (int i = 0; i < para_num; i++)
         {
             //由于有时候取数据取的过快，安卓那边还没把剩下的一个大数据放进去vring内，这个时候pop会pop一个空的
-            //所以要在这里搞个循环，循环的取。但是循环时间又不能过长，以免影响其他数据的传输
-            //因此这里使用了一个循环计数机制，50000000基本相当于50ms左右，这个时间不够的话还要继续加
-            //--更新：现在不循环取了，而是记下来，等下一次的时候取
+            //记下来，等下一次的时候取
             int cnt_timeout = 0;
 
             elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
@@ -530,19 +528,6 @@ Teleport_Express_Call *pack_call_from_queue(VirtQueue *vq, int index)
                 // printf("find null elem\n");
                 return NULL;
             }
-
-            // while (elem == NULL)
-            // {
-            //     // t_int = g_get_monotonic_time();
-            //     // start_time = g_get_monotonic_time();
-
-            //     elem = virtqueue_pop(vq, sizeof(Teleport_Express_Queue_Elem));
-            //     cnt_timeout++;
-            //     if(platform_should_stop())
-            //     {
-            //         return NULL;
-            //     }
-            // }
 
             if (unlikely(elem == NULL || elem->elem.in_num != 0 || elem->elem.out_num == 0 || fill_teleport_express_queue_elem(elem, NULL, NULL, NULL, NULL, NULL, NULL) == 0))
             {

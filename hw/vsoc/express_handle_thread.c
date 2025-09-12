@@ -15,6 +15,7 @@
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/express_handle_thread.h"
 #include "hw/vsoc/express_event.h"
+#include "hw/vsoc/teleport_express_call.h"
 
 /**
  * @brief 从context的环形缓冲区中pop出一个call，若没有call，则会阻塞直到下一个call到达，这个只在thread运行函数中使用
@@ -153,4 +154,159 @@ Thread_Context *thread_context_create(uint64_t device_id, uint64_t thread_id, ui
 #endif
 
     return context;
+}
+
+
+/**
+ * @brief 解码聚合调用：从父调用的参数 all_para 重建子调用参数并依次分发
+ *
+ * 输入参数约定：
+ *  - all_para[0] 指向 uint64_t 数组，布局为 [id, num] + 每个参数 [len, off]
+ *  - all_para[1] 指向保存的参数数据 blob，off/len 均基于该 blob
+ * 返回值：
+ *  - true 表示解码流程正常执行（不代表每个子调用都成功），false 表示输入不合法
+ */
+bool cluster_decode_invoke(Thread_Context *context, const Call_Para *all_para, int para_num)
+{
+    if (!context || !all_para || para_num != 2) return false;
+    if (!context->call_handler) return false;
+
+    unsigned char *send_async_buf;
+    int send_async_buf_len;
+
+    unsigned char *save_buf;
+    int save_buf_len;
+
+    // 从 all_para[0] 和 all_para[1] 取出两个缓冲区
+
+    size_t temp_len = 0;
+    unsigned char *temp = NULL;
+
+    temp_len = all_para[0].data_len;
+    send_async_buf_len = temp_len;
+
+    if (temp_len % 8 != 0)
+    {
+        return false;
+    }
+
+    send_async_buf = g_malloc(temp_len);
+
+    int null_flag = 0;
+    temp = get_direct_ptr(all_para[0].data, &null_flag);
+
+    if (temp == NULL)
+    {
+        if (temp_len != 0 && null_flag == 0)
+        {
+            // temp = temp_buf;
+            g_ops.read_from_guest_mem(all_para[0].data, send_async_buf, 0, all_para[0].data_len);
+        }
+        else
+        {
+            g_free(send_async_buf);
+            return false;
+        }
+    }
+    else
+    {
+        memcpy(send_async_buf, temp, temp_len);
+    }
+
+    temp_len = all_para[1].data_len;
+    save_buf_len = (int)temp_len;
+
+    save_buf = g_malloc(temp_len);
+
+    null_flag = 0;
+    temp = get_direct_ptr(all_para[1].data, &null_flag);
+    if (temp == NULL)
+    {
+        if (temp_len != 0 && null_flag == 0)
+        {
+            g_ops.read_from_guest_mem(all_para[1].data, save_buf, 0, all_para[1].data_len);
+        }
+        else
+        {
+            g_free(send_async_buf);
+            g_free(save_buf);
+            return false;
+        }
+    }
+    else
+    {
+        memcpy(save_buf, temp, temp_len);
+    }
+
+    // 直接根据聚合的描述信息构造每个子调用的参数数组，并调用真实的 decode 函数
+    int buf_loc = 0;
+    while (buf_loc + (int)(2 * sizeof(uint64_t)) <= send_async_buf_len)
+    {
+        uint64_t *hdr = (uint64_t *)(send_async_buf + buf_loc);
+        uint64_t sub_id = hdr[0];
+        uint64_t sub_para_num = hdr[1];
+
+        // 用9999作为聚合调用的id，遇到则停止
+        if (GET_FUN_ID(sub_id) == EXPRESS_CLUSTER_FUN_ID)
+        {
+            break;
+        }
+
+        if (sub_para_num > MAX_PARA_NUM)
+        {
+            // 非法的参数个数，停止解码
+            break;
+        }
+
+        size_t desc_qwords = 2 + sub_para_num * 2; // [id, num] + N * [len, off]
+        size_t need_bytes = desc_qwords * sizeof(uint64_t);
+        if (buf_loc + (int)need_bytes > send_async_buf_len)
+        {
+            // 残缺的描述信息，停止解码
+            break;
+        }
+
+        // 为本次子调用构造参数
+        Scatter_Data sgs[MAX_PARA_NUM];
+        Guest_Mem gms[MAX_PARA_NUM];
+        Call_Para paras[MAX_PARA_NUM];
+
+        for (uint64_t i = 0; i < sub_para_num; ++i)
+        {
+            uint64_t len = hdr[2 + i * 2];
+            uint64_t off = hdr[2 + i * 2 + 1];
+
+            if (off != 0 && len != 0 && (off + len) <= (uint64_t)save_buf_len)
+            {
+                sgs[i].iov_base = save_buf + off;
+                sgs[i].iov_len = (size_t)len;
+                gms[i].scatter_data = &sgs[i];
+                gms[i].num = 1;
+                gms[i].all_len = (int)len;
+                gms[i].is_gpa = false;
+                paras[i].data = &gms[i];
+                paras[i].data_len = (size_t)len;
+            }
+            else
+            {
+                // 空指针或越界，视为无效参数
+                sgs[i].iov_base = NULL;
+                sgs[i].iov_len = 0;
+                gms[i].scatter_data = &sgs[i];
+                gms[i].num = 1;
+                gms[i].all_len = 0;
+                gms[i].is_gpa = false;
+                paras[i].data = &gms[i];
+                paras[i].data_len = 0;
+            }
+        }
+
+        // 调用实际的设备解码函数
+        context->call_handler((Thread_Context *)context, sub_id, paras, (int)sub_para_num);
+
+        buf_loc += (int)need_bytes;
+    }
+    g_free(send_async_buf);
+    g_free(save_buf);
+    return true;
 }

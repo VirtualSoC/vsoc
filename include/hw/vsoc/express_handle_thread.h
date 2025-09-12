@@ -9,4 +9,6 @@ void call_push(Thread_Context *context, void *call);
 
 void *call_pop(Thread_Context *context);
 
+bool cluster_decode_invoke(Thread_Context *context, const Call_Para *all_para, int para_num);
+
 #endif

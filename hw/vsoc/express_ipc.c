@@ -25,15 +25,16 @@ typedef struct PendingReq {
 } PendingReq;
 
 typedef struct VsocIpcContext {
-    VsocGpuIpcShared *shared;
+    VsocIpcShared *shared;
+    bool is_parent; // remember creator role to infer direction
     PendingReq pending[VSOC_IPC_MAX_PENDING];
     QemuMutex pending_table_lock;
     uint32_t seq;
-    bool pending_inited;
-    QemuMutex parent_send_lock;
-    QemuMutex worker_send_lock;
-    gint parent_consume_owner;
-    gint worker_consume_owner;
+    QemuMutex send_lock;             // bulk send lock (this side -> other side)
+    QemuMutex resp_send_lock;        // response send lock (this side -> other side)
+    // Ownership flags so response draining can proceed concurrently with bulk draining.
+    gint bulk_consume_owner;
+    gint resp_consume_owner;
 } VsocIpcContext;
 
 // Linux futex helpers for INTER-PROCESS synchronization.
@@ -57,15 +58,14 @@ static inline int futex_wait32(volatile uint32_t *addr, uint32_t val, int timeou
 }
 
 // Helper to initialize a context (call once per region)
-static void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocGpuIpcShared *shared) {
+static void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocIpcShared *shared) {
     ctx->shared = shared;
     ctx->seq = 1;
-    ctx->pending_inited = false;
-    ctx->parent_consume_owner = 0;
-    ctx->worker_consume_owner = 0;
+    ctx->bulk_consume_owner = 0;
+    ctx->resp_consume_owner = 0;
     qemu_mutex_init(&ctx->pending_table_lock);
-    qemu_mutex_init(&ctx->parent_send_lock);
-    qemu_mutex_init(&ctx->worker_send_lock);
+    qemu_mutex_init(&ctx->send_lock);
+    qemu_mutex_init(&ctx->resp_send_lock);
     for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) {
         ctx->pending[i].id = 0;
         ctx->pending[i].done = false;
@@ -76,7 +76,7 @@ static void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocGpuIpcShared *shared)
 
 // Platform-independent shared memory mapping and context creation
 VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool parent) {
-    if (!name || !*name || size < sizeof(VsocGpuIpcShared)) return NULL;
+    if (!name || !*name || size < sizeof(VsocIpcShared)) return NULL;
     int fd = -1;
     if (parent) {
         fd = shm_open(name, O_CREAT | O_RDWR, 0600);
@@ -92,7 +92,7 @@ VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool pare
     close(fd);
     if (addr == MAP_FAILED) { LOGE("mmap %s failed: %s", name, strerror(errno)); if (parent) shm_unlink(name); return NULL; }
 
-    VsocGpuIpcShared *shared = (VsocGpuIpcShared*)addr;
+    VsocIpcShared *shared = (VsocIpcShared*)addr;
     if (parent) {
         memset(shared, 0, sizeof(*shared));
         shared->parent_ready = 1;
@@ -101,19 +101,16 @@ VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool pare
     }
     VsocIpcContext *ctx = (VsocIpcContext *)g_malloc0(sizeof(VsocIpcContext));
     vsoc_ipc_context_init(ctx, shared);
+    ctx->is_parent = parent ? true : false;
     return ctx;
 }
 
 void vsoc_ipc_context_destroy(VsocIpcContext *ctx) {
     if (!ctx) return;
-    // No dynamic allocations inside PendingReq; just destroy mutexes/conds
-    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) {
-        // qemu_cond_destroy and qemu_mutex_destroy are no-ops/safe if not provided
-    }
     g_free(ctx);
 }
 
-struct VsocGpuIpcShared *vsoc_ipc_context_get_shared(VsocIpcContext *ctx) {
+struct VsocIpcShared *vsoc_ipc_context_get_shared(VsocIpcContext *ctx) {
     return ctx ? ctx->shared : NULL;
 }
 
@@ -139,13 +136,13 @@ static const char *vsoc_ipc_type_name(uint32_t type) {
     }
 }
 
-VsocGpuIpcShared *vsoc_ipc_shared = NULL; // retained for external mapping code only
+VsocIpcShared *vsoc_ipc_shared = NULL; // retained for external mapping code only
 
 
 // ---------------- Global handler registration & dispatch ---------------------
 typedef void (*VsocIpcHandler)(VsocIpcContext *ctx,
                                uint32_t type, uint32_t id, const uint8_t *data,
-                               uint32_t len, uint32_t flags);
+                               uint32_t len);
 
 // Use a hash table so register() can update handlers in-place and lookups are O(1).
 static GHashTable *g_handler_table = NULL; // key: GUINT_TO_POINTER(type), value: (gpointer)VsocIpcHandler
@@ -184,54 +181,44 @@ static inline uint64_t ring_data_bytes(uint64_t head, uint64_t tail) {
     return head - tail;
 }
 
-static bool vsoc_ipc_send_slot(uint8_t *ring, uint32_t cap, volatile uint64_t *headp, volatile uint64_t *tailp,
-                               uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
-    if (!ring || !headp || !tailp) return false;
-    if (len > VSOC_IPC_MAX_PAYLOAD) {
-        LOGE("IPC len %u > max %u", len, (unsigned)VSOC_IPC_MAX_PAYLOAD);
-        return false;
-    }
-    VsocIpcMsgHdr hdr = { .type = type, .id = id, .len = len, .flags = flags };
+static bool vsoc_ipc_send_slot(VsocIpcRing *ring, uint32_t cap, uint32_t type, uint32_t id, const void *data, uint32_t len) {
+    if (!ring) return false;
+    volatile uint64_t *headp = &ring->head;
+    volatile uint64_t *tailp = &ring->tail;
+    if (len > VSOC_IPC_MAX_PAYLOAD) { LOGE("IPC len %u > max %u", len, (unsigned)VSOC_IPC_MAX_PAYLOAD); return false; }
+    VsocIpcMsgHdr hdr = { .type = type, .id = id, .len = len };
     uint32_t need = sizeof(hdr) + len;
     uint64_t head = qatomic_load_acquire(headp);
-    uint64_t tail = qatomic_load_acquire(tailp); // snapshot
+    uint64_t tail = qatomic_load_acquire(tailp);
     if (need > cap) { LOGE("IPC message too large need=%u cap=%u", need, cap); return false; }
-    // Ensure space for padding if wrap would split the message. We never write a PAD header;
-    // instead we just advance head to the start, and the receiver skips to start when needed.
     uint32_t off = (uint32_t)(head % cap);
     uint32_t room_to_end = cap - off;
     uint32_t pad = (room_to_end < need) ? room_to_end : 0;
-    if (ring_free_bytes(head, tail, cap) < need + pad) { LOGE("IPC ring full (%s)", vsoc_ipc_type_name(type)); return false; }
-
+    if (ring_free_bytes(head, tail, cap) < need + pad) { 
+        LOGE("IPC ring full (%s)", vsoc_ipc_type_name(type)); 
+        return false; 
+    }
     if (pad) {
         if (room_to_end >= sizeof(VsocIpcMsgHdr)) {
-            // Explicit PAD header so receiver can skip even when header fits but whole message wouldn't
-            VsocIpcMsgHdr ph = { .type = VSOC_IPC_TYPE_PAD, .id = 0, .len = room_to_end - (uint32_t)sizeof(VsocIpcMsgHdr), .flags = 0 };
-            memcpy(ring + off, &ph, sizeof(ph));
-            // Optionally clear the remaining pad payload for debugging
-            // if (ph.len) memset(ring + off + sizeof(ph), 0, ph.len);
-            head += room_to_end;
-            off = 0;
-        } else {
-            // Implicit pad (can't even fit a header), just advance to start
-            head += room_to_end;
-            off = 0;
-        }
+            VsocIpcMsgHdr ph = { .type = VSOC_IPC_TYPE_PAD, .id = 0, .len = room_to_end - (uint32_t)sizeof(VsocIpcMsgHdr) };
+            memcpy(ring->buf + off, &ph, sizeof(ph));
+            head += room_to_end; off = 0;
+        } else { head += room_to_end; off = 0; }
     }
-
-    IPC_LOG("IPC: send %s id %u len %u flags %u head %llu->%llu tail %llu", vsoc_ipc_type_name(type), id, len, flags, (unsigned long long)head, (unsigned long long)(head + need), (unsigned long long)tail);
-
-    // Now we have contiguous room for the full message at [off..off+need)
-    memcpy(ring + off, &hdr, sizeof(hdr));
-    if (len && data) memcpy(ring + off + sizeof(hdr), data, len);
+    IPC_LOG("IPC: send %s id %u len %u head %llu->%llu tail %llu", vsoc_ipc_type_name(type), id, len,
+            (unsigned long long)head, (unsigned long long)(head + need), (unsigned long long)tail);
+    memcpy(ring->buf + off, &hdr, sizeof(hdr));
+    if (len && data) memcpy(ring->buf + off + sizeof(hdr), data, len);
     head += need;
     qatomic_store_release(headp, head);
     return true;
 }
 
-static bool vsoc_ipc_peek_slot(uint8_t *ring, uint32_t cap, volatile uint64_t *headp, volatile uint64_t *tailp,
-                               uint32_t *out_type, uint32_t *out_id, const uint8_t **out_ptr, uint32_t *out_len, uint32_t *out_flags,
-                               uint32_t *out_need) {
+static bool vsoc_ipc_peek_slot(VsocIpcRing *ring, uint32_t cap,
+                               uint32_t *out_type, uint32_t *out_id, const uint8_t **out_ptr,
+                               uint32_t *out_len, uint32_t *out_need) {
+    volatile uint64_t *headp = &ring->head;
+    volatile uint64_t *tailp = &ring->tail;
     uint64_t head = qatomic_load_acquire(headp);
     uint64_t tail = qatomic_load_acquire(tailp);
     if (head < tail) {
@@ -244,44 +231,30 @@ static bool vsoc_ipc_peek_slot(uint8_t *ring, uint32_t cap, volatile uint64_t *h
         uint32_t off = (uint32_t)(tail % cap);
         uint32_t room = cap - off;
         if (room < sizeof(VsocIpcMsgHdr)) {
-            // Implicit pad: only skip if producer has actually advanced head by 'room'
-            if (ring_data_bytes(head, tail) < room) return false; // not enough produced bytes yet
+            if (ring_data_bytes(head, tail) < room) return false;
             __sync_synchronize();
-            tail += room;
-            *tailp = tail;
-            if (head == tail) return false; // nothing more yet
+            tail += room; *tailp = tail; 
+            if (head == tail) return false; 
             continue;
         }
-        if (ring_data_bytes(head, tail) < sizeof(VsocIpcMsgHdr)) return false; // header not complete yet
-        VsocIpcMsgHdr hdr;
-        memcpy(&hdr, ring + off, sizeof(hdr));
+        if (ring_data_bytes(head, tail) < sizeof(VsocIpcMsgHdr)) return false;
+        VsocIpcMsgHdr hdr; memcpy(&hdr, ring->buf + off, sizeof(hdr));
         uint32_t need = (uint32_t)sizeof(VsocIpcMsgHdr) + hdr.len;
         if (hdr.type == VSOC_IPC_TYPE_PAD) {
-            if (room < need) return false; // corrupt or not produced fully yet
-            if (ring_data_bytes(head, tail) < need) return false; // not complete yet
-            // Explicit pad: advance tail past the PAD header+payload and look for the next real message
-            __sync_synchronize();
-            tail += need;
-            *tailp = tail;
-            if (head == tail) return false; // nothing more yet
+            if (room < need) return false; 
+            if (ring_data_bytes(head, tail) < need) return false;
+            __sync_synchronize(); tail += need; *tailp = tail; 
+            if (head == tail) return false; 
             continue;
         }
         if (room < need) {
-            // Writer should have inserted PAD; if not yet fully produced, wait.
             if (ring_data_bytes(head, tail) < room) return false;
             LOGE("IPC: corrupt message (type=%u, len=%u); dropping fragment to resync", hdr.type, hdr.len);
-            __sync_synchronize();
-            tail += room; // move to start safely (producer has advanced past end)
-            *tailp = tail;
-            return false;
+            __sync_synchronize(); tail += room; *tailp = tail; return false;
         }
-        if (ring_data_bytes(head, tail) < need) return false; // not complete yet
-        *out_type = hdr.type;
-        *out_id = hdr.id;
-        *out_len = hdr.len;
-        *out_flags = hdr.flags;
-        *out_ptr = ring + off + sizeof(VsocIpcMsgHdr);
-        if (out_need) *out_need = need;
+        if (ring_data_bytes(head, tail) < need) return false;
+        *out_type = hdr.type; *out_id = hdr.id; *out_len = hdr.len; *out_ptr = ring->buf + off + sizeof(VsocIpcMsgHdr); 
+        if (out_need) *out_need = need; 
         return true;
     }
 }
@@ -292,46 +265,61 @@ static void vsoc_ipc_consume(uint32_t cap, volatile uint64_t *tailp, uint32_t ne
     *tailp += need;
 }
 
-bool vsoc_ipc_parent_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
+// Generic internal send helper selecting ring based on ctx->is_parent and response flag.
+static bool vsoc_ipc_send_dir(VsocIpcContext *ctx, bool response_ring,
+                              uint32_t type, uint32_t id, const void *data, uint32_t len) {
+    // Select ring struct pointer and associated lock/capacity
+    VsocIpcRing *ring;
+    QemuMutex *lock;
+    uint32_t cap;
+    if (response_ring) {
+        if (ctx->is_parent) { ring = (VsocIpcRing *)&ctx->shared->pw_resp; } else { ring = (VsocIpcRing *)&ctx->shared->wp_resp; }
+        lock = &ctx->resp_send_lock; cap = VSOC_IPC_RESP_BUF_SIZE;
+    } else {
+        if (ctx->is_parent) { ring = (VsocIpcRing *)&ctx->shared->pw; } else { ring = (VsocIpcRing *)&ctx->shared->wp; }
+        lock = &ctx->send_lock; cap = VSOC_IPC_BUF_SIZE;
+    }
+    // Treat ring struct uniformly (layout: head, tail, doorbell, buf[])
     bool ok;
-    qemu_mutex_lock(&ctx->parent_send_lock);
-    ok = vsoc_ipc_send_slot(ctx->shared->parent_to_worker, VSOC_IPC_BUF_SIZE, &ctx->shared->pw_head, &ctx->shared->pw_tail,
-                              type, id, data, len, flags);
-    qemu_mutex_unlock(&ctx->parent_send_lock);
+    qemu_mutex_lock(lock);
+    ok = vsoc_ipc_send_slot(ring, cap, type, id, data, len);
+    qemu_mutex_unlock(lock);
     if (ok) {
-        // Notify worker: increment doorbell and wake
-        (void)qatomic_fetch_add(&ctx->shared->pw_doorbell, 1);
-        (void)futex_wake32(&ctx->shared->pw_doorbell, 1);
+        volatile uint32_t *doorbell = &ring->doorbell;
+        (void)qatomic_fetch_add(doorbell, 1);
+        (void)futex_wake32(doorbell, 1);
     }
     return ok;
 }
 
-bool vsoc_ipc_worker_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len, uint32_t flags) {
-    bool ok;
-    qemu_mutex_lock(&ctx->worker_send_lock);
-    ok = vsoc_ipc_send_slot(ctx->shared->worker_to_parent, VSOC_IPC_BUF_SIZE, &ctx->shared->wp_head, &ctx->shared->wp_tail,
-                              type, id, data, len, flags);
-    qemu_mutex_unlock(&ctx->worker_send_lock);
-    if (ok) {
-        // Notify parent: increment doorbell and wake
-        (void)qatomic_fetch_add(&ctx->shared->wp_doorbell, 1);
-        (void)futex_wake32(&ctx->shared->wp_doorbell, 1);
-    }
-    return ok;
+bool vsoc_ipc_send(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len) {
+    return vsoc_ipc_send_dir(ctx, false, type, id, data, len);
 }
 
-static bool vsoc_ipc_dispatch_one(VsocIpcContext *ctx, bool from_worker_ring) {
-    uint32_t type, id, flags, len, need; const uint8_t *ptr = NULL; bool ok;
-    volatile uint64_t *headp = from_worker_ring ? &ctx->shared->wp_head : &ctx->shared->pw_head;
-    volatile uint64_t *tailp = from_worker_ring ? &ctx->shared->wp_tail : &ctx->shared->pw_tail;
-    uint8_t *ring = from_worker_ring ? ctx->shared->worker_to_parent : ctx->shared->parent_to_worker;
-    ok = vsoc_ipc_peek_slot(ring, VSOC_IPC_BUF_SIZE, headp, tailp, &type, &id, &ptr, &len, &flags, &need);
+bool vsoc_ipc_send_response(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len) {
+    return vsoc_ipc_send_dir(ctx, true, type, id, data, len);
+}
+
+// Dispatch a single message from the incoming ring (response or bulk) for this side.
+static bool vsoc_ipc_dispatch_one(VsocIpcContext *ctx, bool response_ring) {
+    uint32_t type, id, len, need; const uint8_t *ptr = NULL; bool ok;
+    VsocIpcRing *ring;
+    uint32_t cap = response_ring ? VSOC_IPC_RESP_BUF_SIZE : VSOC_IPC_BUF_SIZE;
+    if (response_ring) {
+        ring = ctx->is_parent ? (VsocIpcRing *)&ctx->shared->wp_resp : (VsocIpcRing *)&ctx->shared->pw_resp;
+    } else {
+        ring = ctx->is_parent ? (VsocIpcRing *)&ctx->shared->wp : (VsocIpcRing *)&ctx->shared->pw;
+    }
+    ok = vsoc_ipc_peek_slot(ring, cap, &type, &id, &ptr, &len, &need);
+    volatile uint64_t *headp = &ring->head;
+    volatile uint64_t *tailp = &ring->tail;
     if (!ok) return false;
 
-    IPC_LOG("IPC: dispatched to %s type %s id %u len %u flags %u head %llu tail %llu->%llu", from_worker_ring ? "parent" : "worker", vsoc_ipc_type_name(type), id, len, flags, (unsigned long long)*headp, (unsigned long long)*tailp, (unsigned long long)(*tailp + need));
-
-    // If this is a response, first try to complete a pending request (applies to both parent and worker).
-    if (flags & VSOC_IPC_FLAG_RESPONSE) {
+    IPC_LOG("IPC: dispatched(%s) to %s type %s id %u len %u head %llu tail %llu->%llu",
+        response_ring ? "resp," : "bulk,",
+        ctx->is_parent ? "parent" : "worker", vsoc_ipc_type_name(type), id, len,
+            (unsigned long long)*headp, (unsigned long long)*tailp, (unsigned long long)(*tailp + need));
+    if (response_ring) {
         bool matched_pending = false;
         for (int i = 0; i < VSOC_IPC_MAX_PENDING; i++) {
             PendingReq *pr = &ctx->pending[i];
@@ -351,53 +339,47 @@ static bool vsoc_ipc_dispatch_one(VsocIpcContext *ctx, bool from_worker_ring) {
                 break;
             }
         }
-        // If no pending waiter, fall-through to dispatch to a registered handler for responses.
-        if (!matched_pending) {
-            VsocIpcHandler h = vsoc_ipc_find_handler(type);
-            if (h) {
-                h(ctx, type, id, ptr, len, flags);
-            } else {
-                LOGE("IPC: response %s id %u had no pending waiter and no handler; dropping", vsoc_ipc_type_name(type), id);
-            }
-        }
-        // Now it is safe to release the bytes
-        vsoc_ipc_consume(VSOC_IPC_BUF_SIZE, tailp, need);
+        if (!matched_pending) { VsocIpcHandler h = vsoc_ipc_find_handler(type); if (h) h(ctx, type, id, ptr, len); }
+        vsoc_ipc_consume(cap, tailp, need);
         return true;
     }
     VsocIpcHandler h = vsoc_ipc_find_handler(type);
-    if (h) {
-        h(ctx, type, id, ptr, len, flags);
-    } else {
-        LOGE("IPC: no handler for %s", vsoc_ipc_type_name(type));
-    }
-    vsoc_ipc_consume(VSOC_IPC_BUF_SIZE, tailp, need);
+    if (h) h(ctx, type, id, ptr, len); else LOGE("IPC: no handler for %s", vsoc_ipc_type_name(type));
+    vsoc_ipc_consume(cap, tailp, need);
     return true;
 }
 
-void vsoc_ipc_poll_parent(VsocIpcContext *ctx) {
+// Poll only the response ring (used by request threads to avoid reentrancy on bulk handlers)
+static void vsoc_ipc_poll_responses(VsocIpcContext *ctx) {
     if (!ctx || !ctx->shared) return;
-    if (!g_atomic_int_compare_and_exchange(&ctx->parent_consume_owner, 0, 1)) return;
-    while (vsoc_ipc_dispatch_one(ctx, true)) { /* drain */ }
-    g_atomic_int_set(&ctx->parent_consume_owner, 0);
+
+    gint *owner = &ctx->resp_consume_owner;
+    if (!g_atomic_int_compare_and_exchange(owner, 0, 1)) return;
+    while (vsoc_ipc_dispatch_one(ctx, true)) {}
+    g_atomic_int_set(owner, 0);
 }
 
-void vsoc_ipc_poll_worker(VsocIpcContext *ctx) {
+void vsoc_ipc_poll(VsocIpcContext *ctx) {
     if (!ctx || !ctx->shared) return;
-    if (!g_atomic_int_compare_and_exchange(&ctx->worker_consume_owner, 0, 1)) return;
-    while (vsoc_ipc_dispatch_one(ctx, false)) { /* drain */ }
-    g_atomic_int_set(&ctx->worker_consume_owner, 0);
+
+    // Drain responses first
+    vsoc_ipc_poll_responses(ctx);
+
+    gint *bulk_owner = &ctx->bulk_consume_owner;
+    if (!g_atomic_int_compare_and_exchange(bulk_owner, 0, 1)) return;
+    int budget = CALL_BUF_SIZE / 8; if (budget < 1) budget = 1;
+    while (budget-- > 0 && vsoc_ipc_dispatch_one(ctx, false)) {}
+    g_atomic_int_set(bulk_owner, 0);
 }
 
-bool vsoc_ipc_worker_respond(VsocIpcContext *ctx, uint32_t type, uint32_t id, const void *data, uint32_t len) {
-    return vsoc_ipc_worker_send(ctx, type, id, data, len, VSOC_IPC_FLAG_RESPONSE);
-}
-
-int vsoc_ipc_parent_request(VsocIpcContext *ctx, uint32_t type,
-                            const void *req, uint32_t req_len,
-                            void *resp_buf, uint32_t *inout_resp_len,
-                            uint32_t *inout_id,
-                            int timeout_ms) {
+// Unified request implementation; direction is derived from ctx->is_parent.
+int vsoc_ipc_request(VsocIpcContext *ctx,
+                     uint32_t type,
+                     const void *req, uint32_t req_len,
+                     void *resp_buf, uint32_t *inout_resp_len,
+                     uint32_t *inout_id, int timeout_ms) {
     if (!ctx || !ctx->shared) return -EIO;
+    bool initiator_is_parent = ctx->is_parent;
     if (req_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
     if (inout_resp_len && *inout_resp_len > 0 && *inout_resp_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
     uint32_t id;
@@ -407,7 +389,6 @@ int vsoc_ipc_parent_request(VsocIpcContext *ctx, uint32_t type,
         if (id == 0) id = ctx->seq++; // skip zero
         if (inout_id) *inout_id = id;
     }
-    // find slot
     PendingReq *slot = NULL;
     for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) if (ctx->pending[i].id == 0) { slot = &ctx->pending[i]; break; }
     if (!slot) { qemu_mutex_unlock(&ctx->pending_table_lock); return -ENOSPC; }
@@ -415,13 +396,13 @@ int vsoc_ipc_parent_request(VsocIpcContext *ctx, uint32_t type,
     qemu_mutex_unlock(&ctx->pending_table_lock);
     qatomic_store_release(&slot->id, id);
 
-    if (!vsoc_ipc_parent_send(ctx, type, id, req, req_len, 0)) {
-        qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock); return -EIO; }
+    bool send_ok = vsoc_ipc_send_dir(ctx, false, type, id, req, req_len);
+    if (!send_ok) { qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock); return -EIO; }
 
-    int elapsed = 0; const int step = 1; // ms
+    volatile uint32_t *resp_doorbell = initiator_is_parent ? &ctx->shared->wp_resp.doorbell : &ctx->shared->pw_resp.doorbell;
+    int elapsed = 0; const int step = 1;
     for (;;) {
-        // pump incoming responses
-        vsoc_ipc_poll_parent(ctx);
+        vsoc_ipc_poll_responses(ctx);
         qemu_mutex_lock(&slot->lock);
         if (slot->done) { qemu_mutex_unlock(&slot->lock); break; }
         qemu_mutex_unlock(&slot->lock);
@@ -429,57 +410,8 @@ int vsoc_ipc_parent_request(VsocIpcContext *ctx, uint32_t type,
             qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
             return -ETIMEDOUT;
         }
-        // Wait on doorbell to reduce latency for sync calls
-        uint32_t v = qatomic_read(&ctx->shared->wp_doorbell);
-        (void)futex_wait32(&ctx->shared->wp_doorbell, v, timeout_ms > 0 ? (timeout_ms - elapsed) : 0);
-        // Use step granularity for accounting
-        elapsed += step;
-    }
-    // copy out result length
-    if (inout_resp_len) *inout_resp_len = slot->resp_len;
-    qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
-    return 0;
-}
-
-int vsoc_ipc_worker_request(VsocIpcContext *ctx, uint32_t type,
-                            const void *req, uint32_t req_len,
-                            void *resp_buf, uint32_t *inout_resp_len,
-                            uint32_t *inout_id,
-                            int timeout_ms) {
-    if (!ctx || !ctx->shared) return -EIO;
-    if (req_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
-    if (inout_resp_len && *inout_resp_len > 0 && *inout_resp_len > VSOC_IPC_MAX_PAYLOAD) return -EINVAL;
-    uint32_t id;
-    qemu_mutex_lock(&ctx->pending_table_lock);
-    if (inout_id && *inout_id) id = *inout_id; else {
-        id = ctx->seq++;
-        if (id == 0) id = ctx->seq++;
-        if (inout_id) *inout_id = id;
-    }
-    PendingReq *slot = NULL;
-    for (int i=0;i<VSOC_IPC_MAX_PENDING;i++) if (ctx->pending[i].id == 0) { slot = &ctx->pending[i]; break; }
-    if (!slot) { qemu_mutex_unlock(&ctx->pending_table_lock); return -ENOSPC; }
-    slot->type = type; slot->done = false; slot->resp_buf = resp_buf; slot->resp_buf_cap = inout_resp_len ? *inout_resp_len : 0; slot->resp_len = 0;
-    qemu_mutex_unlock(&ctx->pending_table_lock);
-    qatomic_store_release(&slot->id, id);
-
-    if (!vsoc_ipc_worker_send(ctx, type, id, req, req_len, 0)) {
-        qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock); return -EIO; }
-
-    int elapsed = 0; const int step = 1; // ms
-    for (;;) {
-        // pump incoming responses (from parent)
-        vsoc_ipc_poll_worker(ctx);
-        qemu_mutex_lock(&slot->lock);
-        if (slot->done) { qemu_mutex_unlock(&slot->lock); break; }
-        qemu_mutex_unlock(&slot->lock);
-        if (timeout_ms > 0 && elapsed >= timeout_ms) {
-            qemu_mutex_lock(&ctx->pending_table_lock); qatomic_store_release(&slot->id, 0); qemu_mutex_unlock(&ctx->pending_table_lock);
-            return -ETIMEDOUT;
-        }
-        // Wait on doorbell to reduce latency for sync calls
-        uint32_t v = qatomic_read(&ctx->shared->pw_doorbell);
-        (void)futex_wait32(&ctx->shared->pw_doorbell, v, timeout_ms > 0 ? (timeout_ms - elapsed) : 0);
+        uint32_t v = qatomic_read(resp_doorbell);
+        (void)futex_wait32(resp_doorbell, v, timeout_ms > 0 ? (timeout_ms - elapsed) : 0);
         elapsed += step;
     }
     if (inout_resp_len) *inout_resp_len = slot->resp_len;

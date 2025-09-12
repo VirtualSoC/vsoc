@@ -38,13 +38,13 @@ void monitor_log(Monitor *mon, const char *fmt, ...)
 
 // Forward display shutdown events to parent via IPC. Parent will invoke its own g_ops.* hooks.
 static void worker_notify_shutdown_impl(void) {
-    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, 0, NULL, 0, 0);
+    (void)vsoc_ipc_send(g_ipc_ctx, VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, 0, NULL, 0);
 }
 
 static void worker_force_shutdown_impl(int reason) {
     int32_t r = (int32_t)reason;
 
-    (void)vsoc_ipc_worker_send(g_ipc_ctx, VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, &r, sizeof(r), 0);
+    (void)vsoc_ipc_send(g_ipc_ctx, VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, &r, sizeof(r));
     should_stop = true;
 }
 
@@ -84,7 +84,7 @@ static void worker_write_to_guest_mem(Guest_Mem *guest, void *host, size_t start
     size_t off = start_loc;
     bool is_inline = !guest->is_gpa;
     if (is_inline) {
-        LOGE("attempt to write into read-only inline buffer; dropping write len=%zu", length);
+        LOGW("attempt to write into read-only inline buffer; dropping write len=%zu", length);
         return;
     }
     for (uint32_t i = 0; i < guest->num && remaining; ++i) {
@@ -118,7 +118,7 @@ static int worker_set_express_device_irq(Device_Context *device_context, int buf
     req.len = len;
 
     int32_t resp = IRQ_SET_OK; uint32_t resp_len = sizeof(resp);
-    int rc = vsoc_ipc_worker_request(g_ipc_ctx, VSOC_IPC_TYPE_SET_IRQ, &req, sizeof(req), &resp, &resp_len, NULL, 3000);
+    int rc = vsoc_ipc_request(g_ipc_ctx, VSOC_IPC_TYPE_SET_IRQ, &req, sizeof(req), &resp, &resp_len, NULL, 3000);
     if (rc != 0 || resp_len != sizeof(resp)) {
         LOGE("worker_set_express_device_irq: request failed rc=%d resp_len=%u", rc, resp_len);
         return IRQ_NOT_READY;
