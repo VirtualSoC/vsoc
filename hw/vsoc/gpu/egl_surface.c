@@ -1141,7 +1141,7 @@ EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum t
 
         if (gbuffer == NULL) //大概出现十余次(普通应用)
         {
-            LOGI("(%s) create image with gbuffer id %" PRIx64 " width %d height %d format %d process_context %" PRIx64, process_context->guest_process_name, gbuffer_id, width, height, hal_format, (uint64_t)process_context);
+            LOGD("(%s) create image with gbuffer id %" PRIx64 " width %d height %d format %d process_context %" PRIx64, process_context->guest_process_name, gbuffer_id, width, height, hal_format, (uint64_t)process_context);
             gbuffer = create_gbuffer_with_context(width, height, hal_format, thread_context, ctx, gbuffer_id);
 
             if (gbuffer != NULL) {

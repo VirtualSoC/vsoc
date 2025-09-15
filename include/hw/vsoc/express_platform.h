@@ -90,7 +90,6 @@ dispatch_sync(dispatch_get_main_queue(), ^{
 #define IRQ_NOT_READY -2
 #define IRQ_RELEASED -3
 
-// fixme: it seems that bounce.buffer can be written into as well. Implement worker flush, wtf.
 typedef struct iovec Scatter_Data;
 
 typedef struct Guest_Mem

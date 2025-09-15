@@ -116,12 +116,11 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(bound_buffer->buffer_status);
+    Attrib_Point *point_data = bound_buffer->attrib_point;
     GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
-        Attrib_Point *point_data = bound_buffer->attrib_point;
-
         express_printf("d_glVertexAttribPointer_without_bound vao %d %d obj %d index %u size %d type %x normalized %d stride %d offset %u length %d\n", status->guest_vao, status->host_vao,
                        point_data->buffer_object[index], index, size, type, normalized, stride, offset, length);
 
@@ -133,8 +132,8 @@ void d_glVertexAttribPointer_without_bound(void *context, GLuint index, GLint si
 
         LOGD("d_glVertexAttribPointer_without_bound index %u size %d type %x normalized %d stride %d offset %u length %d origin vbo %d", index, size, type, normalized, stride, offset, length, vbo);
 
+        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
         glVertexAttribPointer(index, size, type, normalized, stride, (void *)(uint64_t)loc);
-
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
     }
 
@@ -146,20 +145,19 @@ void d_glVertexAttribIPointer_without_bound(void *context, GLuint index, GLint s
     Opengl_Context *opengl_context = (Opengl_Context *)context;
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
     Buffer_Status *status = &(bound_buffer->buffer_status);
+    Attrib_Point *point_data = bound_buffer->attrib_point;
     GLint loc = set_vertex_attrib_data(context, index, offset, length, pointer);
 
     if (DSA_LIKELY(host_opengl_version >= 45 && DSA_enable != 0))
     {
         express_printf("d_glVertexAttribIPointer_without_bound index %u size %d type %x stride %d offset %u length %d\n", index, size, type, stride, offset, length);
 
-        Attrib_Point *point_data = bound_buffer->attrib_point;
-
         glVertexArrayVertexAttribIOffsetEXT(status->guest_vao, point_data->buffer_object[index], index, size, type, stride, (GLintptr)loc);
     }
     else
     {
+        glBindBuffer(GL_ARRAY_BUFFER, point_data->buffer_object[index]);
         glVertexAttribIPointer(index, size, type, stride, (const void *)(uint64_t)loc);
-
         glBindBuffer(GL_ARRAY_BUFFER, status->host_array_buffer);
     }
 

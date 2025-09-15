@@ -700,7 +700,7 @@ static void *main_window_thread(void *opaque)
         THREAD_CONTROL_BEGIN
 
         //处理各种输入事件、opengl事件
-        glfwWaitEventsTimeout(0.001);
+        glfwWaitEventsTimeout(0.1);
 
         THREAD_CONTROL_END
     }

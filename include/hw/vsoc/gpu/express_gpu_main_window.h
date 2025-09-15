@@ -57,7 +57,9 @@ typedef struct Destroy_Child_Window_Event_Data
 
 //是否启用DSA模式
 // DSA模式尚未测试确定可用，而且性能提升并不明显，暂时不支持
-// #define ENABLE_DSA
+#ifdef __linux__
+#define ENABLE_DSA
+#endif
 
 #ifdef ENABLE_DSA
 #define DSA_LIKELY(t) likely(t)

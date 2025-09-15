@@ -120,7 +120,7 @@ EGLBoolean d_eglMakeCurrent(void *context, EGLDisplay dpy, EGLSurface draw, EGLS
             make_opengl_current(thread_context->opengl_context, false);
         }
 
-        LOGI("thread %llx context %llx makecurrent null", thread_context, thread_context->opengl_context);
+        LOGD("thread %llx context %llx makecurrent null", thread_context, thread_context->opengl_context);
         thread_context->opengl_context = NULL;
         thread_context->render_double_buffer_draw = NULL;
         thread_context->render_double_buffer_read = NULL;
@@ -356,7 +356,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id)
     GLuint error = glGetError();
     if (error != GL_NO_ERROR)
     {
-        LOGE("error! queuebuffer glGetError %x", error);
+        LOGD("error! queuebuffer glGetError %x", error);
     }
 
     Render_Thread_Context *thread_context = (Render_Thread_Context *)context;

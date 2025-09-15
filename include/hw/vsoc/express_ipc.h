@@ -29,7 +29,7 @@ enum {
 //   struct { uint32_t type, id, len; uint8_t payload[len]; }
 // Head/tail are monotonically increasing byte counters; effective offset is modulo buffer size.
 // Single producer and single consumer per ring.
-#define VSOC_IPC_BUF_SIZE       (16u * 1024 * 1024)  // bulk request/notification ring per direction
+#define VSOC_IPC_BUF_SIZE       (1024u * 1024)  // bulk request/notification ring per direction
 #define VSOC_IPC_RESP_BUF_SIZE  (64u * 1024)          // dedicated small response ring per direction
 #define VSOC_IPC_MAX_PAYLOAD    (64u * 1024)          // Upper bound for a single message payload
 
@@ -123,23 +123,21 @@ void vsoc_ipc_poll(VsocIpcContext *ctx);
 typedef struct VsocGuestMemSeg {
     uint64_t addr;      // parent-process VA of segment start (token in worker)
     uint32_t len;       // length of this segment
-    uint32_t flags;
 } VsocGuestMemSeg;
 
-// When packing/unpacking Guest_Mem, we support read-only inline literal segments for
-// cases where the parent HVA doesn't belong to guest RAM. We mark such segments by
-// setting VsocGuestMemSeg.flags bit0. On unpack, we allocate and copy the bytes and
-// tag the Guest_Mem scatter_data[i].iov_base pointer with the top bit to signal "inline".
-#define VSOC_GM_SEG_FLAG_INLINE   0x1u
+// Guest_Mem-level flags serialized in the wire header. Bit0 indicates that all
+// segments are GPA-backed (is_gpa=1). If unset, payload bytes for all segments
+// follow the segment table (inline data case).
+#define VSOC_GM_FLAG_IS_GPA   0x1u
 
 // Forward declaration to avoid heavy includes here
 struct Guest_Mem;
 
-// Pack a Guest_Mem into wire format: [num(uint32)][all_len(uint32)] + VsocGuestMemSeg[num]
+// Pack a Guest_Mem into wire format: [num(uint32)][all_len(uint32)][gm_flags(uint32)] + VsocGuestMemSeg[num] + [inline bytes]
 // Returns number of bytes written on success; 0 on error (insufficient space or invalid input).
 size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem *gm);
 
-// Unpack from wire format at src: [num(uint32)][all_len(uint32)] + VsocGuestMemSeg[num]
+// Unpack from wire format at src: [num(uint32)][all_len(uint32)][gm_flags(uint32)] + VsocGuestMemSeg[num] + [inline bytes]
 // Allocates a Guest_Mem and fills it; sets *out_consumed to total bytes consumed.
 // Returns true on success; caller owns the returned Guest_Mem and must free its scatter_data and the struct.
 bool vsoc_ipc_guest_mem_unpack(const uint8_t *src, size_t len, struct Guest_Mem **out_gm, size_t *out_consumed);

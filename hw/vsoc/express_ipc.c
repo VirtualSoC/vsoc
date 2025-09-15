@@ -424,14 +424,17 @@ size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem 
     if (!dst || cap < 8) return 0;
     uint8_t *p = dst; uint8_t *end = dst + cap;
     uint32_t num = 0, all_len = 0;
+    uint32_t gm_flags = 0;
     if (gm) {
         const Guest_Mem *m = (const Guest_Mem *)(const void *)gm;
-    if (m->num < 0) return 0;
-    num = (uint32_t)m->num; all_len = (uint32_t)m->all_len;
-        size_t need = 8 + (size_t)num * sizeof(VsocGuestMemSeg);
+        if (m->num < 0) return 0;
+        num = (uint32_t)m->num; all_len = (uint32_t)m->all_len;
+        gm_flags = m->is_gpa ? VSOC_GM_FLAG_IS_GPA : 0;
+        size_t need = 12 + (size_t)num * sizeof(VsocGuestMemSeg);
         if ((size_t)(end - p) < need) return 0;
         memcpy(p, &num, 4); p += 4;
         memcpy(p, &all_len, 4); p += 4;
+        memcpy(p, &gm_flags, 4); p += 4;
         VsocGuestMemSeg *segs = (VsocGuestMemSeg *)(void *)p;
         p += (size_t)num * sizeof(VsocGuestMemSeg);
         // First fill table, then append inline bytes when needed
@@ -440,7 +443,6 @@ size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem 
                 const Scatter_Data *sd = &m->scatter_data[s];
                 segs[s].len = (uint32_t)sd->iov_len;
                 segs[s].addr = (uint64_t)(uintptr_t)sd->iov_base; // GPA token
-                segs[s].flags = 0;
             }
             // no inline payload when is_gpa==1
         } else {
@@ -448,7 +450,6 @@ size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem 
                 const Scatter_Data *sd = &m->scatter_data[s];
                 segs[s].len = (uint32_t)sd->iov_len;
                 segs[s].addr = 0; // ignored by worker
-                segs[s].flags = VSOC_GM_SEG_FLAG_INLINE;
             }
             // Append inline bytes
             for (uint32_t s = 0; s < num; ++s) {
@@ -464,14 +465,15 @@ size_t vsoc_ipc_guest_mem_pack(uint8_t *dst, size_t cap, const struct Guest_Mem 
     // Null gm packs as num=0, all_len=0
     memcpy(p, &num, 4); p += 4;
     memcpy(p, &all_len, 4); p += 4;
+    memcpy(p, &gm_flags, 4); p += 4;
     return (size_t)(p - dst);
 }
 
 bool vsoc_ipc_guest_mem_unpack(const uint8_t *src, size_t len, struct Guest_Mem **out_gm, size_t *out_consumed) {
-    if (!src || len < 8 || !out_gm) return false;
+    if (!src || len < 12 || !out_gm) return false;
     const uint8_t *p = src; const uint8_t *end = src + len;
-    uint32_t num = 0, all_len = 0;
-    memcpy(&num, p, 4); p += 4; memcpy(&all_len, p, 4); p += 4;
+    uint32_t num = 0, all_len = 0, gm_flags = 0;
+    memcpy(&num, p, 4); p += 4; memcpy(&all_len, p, 4); p += 4; memcpy(&gm_flags, p, 4); p += 4;
     size_t seg_bytes = (size_t)num * sizeof(VsocGuestMemSeg);
     if (p + seg_bytes > end) return false;
     Guest_Mem *gm = (Guest_Mem *)g_malloc0(sizeof(Guest_Mem));
@@ -479,9 +481,8 @@ bool vsoc_ipc_guest_mem_unpack(const uint8_t *src, size_t len, struct Guest_Mem 
     if (num) gm->scatter_data = (Scatter_Data *)g_malloc0(sizeof(Scatter_Data) * (size_t)num);
     const VsocGuestMemSeg *segs = (const VsocGuestMemSeg *)(const void *)p;
     p += seg_bytes;
-    // Determine whether this payload is GPA-based or inline based on first segment flag
-    bool payload_is_gpa = true;
-    for (uint32_t s = 0; s < num; ++s) if (segs[s].flags & VSOC_GM_SEG_FLAG_INLINE) { payload_is_gpa = false; break; }
+    // Determine whether this payload is GPA-based (applies to all segments)
+    bool payload_is_gpa = (gm_flags & VSOC_GM_FLAG_IS_GPA) != 0;
     gm->is_gpa = payload_is_gpa ? true : false;
     for (uint32_t s = 0; s < num; ++s) {
         gm->scatter_data[s].iov_len = segs[s].len;

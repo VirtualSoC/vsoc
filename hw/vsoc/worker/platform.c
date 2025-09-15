@@ -150,24 +150,54 @@ bool platform_should_stop(void) {
     return should_stop;
 }
 
-// Duplicate a Guest_Mem (deep copy scatter list) for persistence beyond handler scope
+// Duplicate a Guest_Mem for persistence beyond handler scope.
+// When is_gpa==true, we copy the scatter list metadata; iov_base holds GPA tokens.
+// When is_gpa==false (inline), we deep copy each segment's bytes so the duplicate
+// owns its own buffers and can outlive the original safely.
 Guest_Mem *duplicate_guest_mem(Guest_Mem *orig) {
     if (!orig) return NULL;
-    Guest_Mem *cpy = g_malloc(sizeof(Guest_Mem));
+    Guest_Mem *cpy = (Guest_Mem *)g_malloc0(sizeof(Guest_Mem));
     cpy->num = orig->num;
     cpy->all_len = orig->all_len;
-    cpy->scatter_data = g_malloc(sizeof(Scatter_Data) * cpy->num);
-    memcpy(cpy->scatter_data, orig->scatter_data, sizeof(Scatter_Data) * cpy->num);
+    cpy->is_gpa = orig->is_gpa;
+    if (cpy->num > 0) {
+        cpy->scatter_data = (Scatter_Data *)g_malloc0(sizeof(Scatter_Data) * (size_t)cpy->num);
+        if (orig->is_gpa) {
+            // Shallow copy is fine: iov_base holds GPA tokens (no ownership of host memory)
+            memcpy(cpy->scatter_data, orig->scatter_data, sizeof(Scatter_Data) * (size_t)cpy->num);
+        } else {
+            // Deep copy inline payloads
+            for (int i = 0; i < cpy->num; ++i) {
+                cpy->scatter_data[i].iov_len = orig->scatter_data[i].iov_len;
+                size_t len = (size_t)cpy->scatter_data[i].iov_len;
+                if (len > 0) {
+                    void *buf = g_malloc(len);
+                    memcpy(buf, orig->scatter_data[i].iov_base, len);
+                    cpy->scatter_data[i].iov_base = buf;
+                } else {
+                    cpy->scatter_data[i].iov_base = NULL;
+                }
+            }
+        }
+    }
     return cpy;
 }
 
 void free_duplicated_guest_mem(Guest_Mem *mem) {
-    if (mem) {
-        if (mem->scatter_data) {
-            g_free(mem->scatter_data);
+    if (!mem) return;
+    if (mem->scatter_data) {
+        if (!mem->is_gpa) {
+            // Free inline segment buffers we allocated in duplicate_guest_mem
+            for (int i = 0; i < mem->num; ++i) {
+                if (mem->scatter_data[i].iov_base) {
+                    g_free(mem->scatter_data[i].iov_base);
+                    mem->scatter_data[i].iov_base = NULL;
+                }
+            }
         }
-        g_free(mem);
+        g_free(mem->scatter_data);
     }
+    g_free(mem);
 }
 
 /**

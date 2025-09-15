@@ -218,6 +218,7 @@ static void spawn_worker_processes(int count) {
         gboolean ok = FALSE;
         gchar parent_pid_str[32];
         g_snprintf(parent_pid_str, sizeof(parent_pid_str), "%d", (int)getpid());
+        // gchar *argv_spawn[] = { "gprofng", "collect", "app", (gchar*)worker_path, w->shm_name, parent_pid_str, NULL };
         gchar *argv_spawn[] = { (gchar*)worker_path, w->shm_name, parent_pid_str, NULL };
         int child_stdin = -1, child_stdout = -1, child_stderr = -1;
         GPid child_pid = -1;
