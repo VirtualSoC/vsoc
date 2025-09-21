@@ -40,7 +40,7 @@ static GPtrArray *g_workers = NULL; // array of VsocWorker*
 // Helper to fetch the appropriate worker
 static inline VsocWorker *get_worker(int wid) {
     if (!g_workers || g_workers->len <= wid) {
-        LOGE("get_worker: invalid wid %d (max wid %u)", wid, g_workers ? g_workers->len - 1 : -1);
+        LOGE("get_worker: invalid wid %d (max wid %d)", wid, g_workers ? (int)g_workers->len - 1 : -1);
         return NULL;
     }
     return (VsocWorker *)g_ptr_array_index(g_workers, wid);
@@ -150,7 +150,7 @@ static void *worker_log_reader_mux(void *opaque) {
                         if (fb->lb.len < sizeof(fb->lb.buf) - 1) fb->lb.buf[fb->lb.len++] = buf[k];
                         if (buf[k] == '\n') {
                             fb->lb.buf[fb->lb.len] = '\0';
-                            printf("[worker%d] %s", fb->wid, fb->lb.buf);
+                            printf("[w%d] %s", fb->wid, fb->lb.buf);
                             fb->lb.len = 0;
                         }
                     }
@@ -164,7 +164,7 @@ static void *worker_log_reader_mux(void *opaque) {
                 }
             }
             if (closed) {
-                if (fb->lb.len) { fb->lb.buf[fb->lb.len] = '\0'; printf("[worker%d] %s", fb->wid, fb->lb.buf); fb->lb.len = 0; }
+                if (fb->lb.len) { fb->lb.buf[fb->lb.len] = '\0'; printf("[w%d] %s", fb->wid, fb->lb.buf); fb->lb.len = 0; }
                 (void)epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
                 close(fd);
                 g_hash_table_remove(linebufs, (gpointer)(intptr_t)fd);
@@ -178,7 +178,7 @@ static void *worker_log_reader_mux(void *opaque) {
     g_hash_table_iter_init(&it, linebufs);
     while (g_hash_table_iter_next(&it, &key, &val)) {
         int fd = (int)(intptr_t)key; VsocFdBuf *fb = (VsocFdBuf *)val;
-        if (fb && fb->lb.len) { fb->lb.buf[fb->lb.len] = '\0'; printf("[worker%d] %s", fb->wid, fb->lb.buf); }
+        if (fb && fb->lb.len) { fb->lb.buf[fb->lb.len] = '\0'; printf("[w%d] %s", fb->wid, fb->lb.buf); }
         (void)epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
         close(fd);
     }
@@ -692,8 +692,9 @@ void deinit_express_platform(void) {
             for (guint i = 0; i < g_workers->len; ++i) {
                 VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
                 if (w->pid > 0) {
-                    LOGI("sending SIGTERM to worker[%u] pid %d", i, (int)w->pid);
-                    kill(w->pid, SIGTERM);
+                    // send force_shutdown to worker
+                    int32_t reason = 0;
+                    vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, &reason, sizeof(reason));
                     int status = 0; (void)waitpid(w->pid, &status, 0);
                 }
             }

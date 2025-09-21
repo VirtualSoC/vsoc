@@ -126,6 +126,11 @@ static int worker_set_express_device_irq(Device_Context *device_context, int buf
     return resp;
 }
 
+void force_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data, uint32_t len) {
+    (void)ctx; (void)type; (void)id; (void)data; (void)len;
+    should_stop = true;
+}
+
 void init_express_platform(const ExpressPlatformOps ops) {
     g_ops = ops;
     g_ops.read_from_guest_mem = worker_read_from_guest_mem;
@@ -137,6 +142,7 @@ void init_express_platform(const ExpressPlatformOps ops) {
 
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_CONTEXT, get_context_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_FORCE_SHUTDOWN, force_shutdown_ipc_handler);
 
     call_device_init();
 }

@@ -395,8 +395,8 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem,
     if (id != NULL && num != NULL && thread_id != NULL && process_id != NULL && unique_id != NULL && user_id != NULL)
     {
         //在设置了id和num指针的情况下才传出数据
-        //这种情况还要先检查是不是in_buf
-        if (unlikely(v_elem->in_num != 1 || v_elem->out_num != 0))
+        //这种情况还要先检查是不是in_buf；允许header跨多个in sg
+        if (unlikely(v_elem->in_num == 0 || v_elem->out_num != 0))
         {
             return 0;
         }
@@ -405,13 +405,9 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem,
 
         int null_flag = 0;
         Teleport_Express_Flag_Buf *flag_buf = get_direct_ptr(guest_mem, &null_flag);
-        if (null_flag != 0)
+        if (null_flag != 0 && likely(flag_buf != NULL))
         {
-            if (unlikely(flag_buf == NULL))
-            {
-                LOGE("error! null flag_buf");
-                return 0;
-            }
+            /* Fast path: contiguous mapping available. */
             *id = flag_buf->id;
             *process_id = flag_buf->process_id;
             *thread_id = flag_buf->thread_id;
@@ -421,14 +417,13 @@ int fill_teleport_express_queue_elem(Teleport_Express_Queue_Elem *elem,
         }
         else
         {
-            Teleport_Express_Flag_Buf flag_buf_temp;
-            read_from_guest_mem(guest_mem, &flag_buf_temp, 0, sizeof(Teleport_Express_Flag_Buf));
-            *id = flag_buf_temp.id;
-            *process_id = flag_buf_temp.process_id;
-            *thread_id = flag_buf_temp.thread_id;
-            *num = flag_buf_temp.para_num;
-            *unique_id = flag_buf_temp.unique_id;
-            *user_id = flag_buf_temp.user_id;
+            /* Scatter-aware reads: only pull needed fields. */
+            read_from_guest_mem(guest_mem, id, __builtin_offsetof(Teleport_Express_Flag_Buf, id), sizeof(*id));
+            read_from_guest_mem(guest_mem, process_id, __builtin_offsetof(Teleport_Express_Flag_Buf, process_id), sizeof(*process_id));
+            read_from_guest_mem(guest_mem, thread_id, __builtin_offsetof(Teleport_Express_Flag_Buf, thread_id), sizeof(*thread_id));
+            read_from_guest_mem(guest_mem, num, __builtin_offsetof(Teleport_Express_Flag_Buf, para_num), sizeof(*num));
+            read_from_guest_mem(guest_mem, unique_id, __builtin_offsetof(Teleport_Express_Flag_Buf, unique_id), sizeof(*unique_id));
+            read_from_guest_mem(guest_mem, user_id, __builtin_offsetof(Teleport_Express_Flag_Buf, user_id), sizeof(*user_id));
         }
     }
     return 1;

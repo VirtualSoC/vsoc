@@ -56,16 +56,14 @@ void resource_context_init(Resource_Context *resources, Share_Resources *share_r
     }
     else
     {
-        resources->share_resources = g_malloc(sizeof(Share_Resources));
-        memset(resources->share_resources, 0, sizeof(Share_Resources));
+        resources->share_resources = g_malloc0(sizeof(Share_Resources));
         resources->share_resources->texture_resource.resource_id_map = g_malloc0(sizeof(long long));
         resources->share_resources->texture_resource.resource_is_init = g_malloc0(sizeof(char));
         resources->share_resources->texture_resource.map_size = 1;
         resources->share_resources->counter = 1;
     }
 
-    resources->exclusive_resources = g_malloc(sizeof(Exclusive_Resources));
-    memset(resources->exclusive_resources, 0, sizeof(Exclusive_Resources));
+    resources->exclusive_resources = g_malloc0(sizeof(Exclusive_Resources));
 
     resources->texture_resource = &(resources->share_resources->texture_resource);
     resources->buffer_resource = &(resources->share_resources->buffer_resource);
@@ -272,15 +270,10 @@ void release_native_opengl_context(void *native_context, int context_flags)
 Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context_flags)
 {
     Opengl_Context *opengl_context = g_malloc0(sizeof(Opengl_Context));
-    opengl_context->is_current = 0;
-    opengl_context->need_destroy = 0;
-    opengl_context->window = NULL;
-    opengl_context->is_using_external_program = 0;
     opengl_context->share_context = share_context;
     opengl_context->context_flags = context_flags;
 
     Texture_Binding_Status *texture_status = &(opengl_context->texture_binding_status);
-    memset(texture_status, 0, sizeof(Texture_Binding_Status));
 
     texture_status->guest_current_texture_2D = g_malloc0(sizeof(GLuint) * preload_static_context_value->max_combined_texture_image_units);
 
@@ -316,11 +309,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
 
     texture_status->texture_unit_num = preload_static_context_value->max_combined_texture_image_units;
 
-    opengl_context->view_x = 0;
-    opengl_context->view_y = 0;
-    opengl_context->view_w = 0;
-    opengl_context->view_h = 0;
-
     //要在opengl_context里创建window，因为opengl环境保存在window里
     opengl_context->window = get_native_opengl_context(context_flags);
 
@@ -338,7 +326,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
     }
 
     Bound_Buffer *bound_buffer = &(opengl_context->bound_buffer_status);
-    memset(bound_buffer, 0, sizeof(Bound_Buffer));
 
     opengl_context->buffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_buffer_map_destroy);
 
@@ -353,20 +340,6 @@ Opengl_Context *opengl_context_create(Opengl_Context *share_context, int context
     bound_buffer->attrib_point = temp_point;
 
     resource_context_init(&(opengl_context->resource_status), share_resources);
-
-    bound_buffer->asyn_unpack_texture_buffer = 0;
-    bound_buffer->asyn_pack_texture_buffer = 0;
-
-    bound_buffer->has_init = 0;
-
-    opengl_context->draw_fbo0 = 0;
-    opengl_context->read_fbo0 = 0;
-
-    opengl_context->draw_texi_vbo = 0;
-    opengl_context->draw_texi_vao = 0;
-    opengl_context->draw_texi_ebo = 0;
-
-    opengl_context->debug_message_buffer = NULL;
 
     opengl_context->depth_mask = GL_TRUE;
     opengl_context->depth_test = GL_FALSE;

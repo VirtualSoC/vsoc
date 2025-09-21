@@ -12,6 +12,18 @@
 #define GLFW_EXPOSE_NATIVE_NSGL
 #endif
 
+//是否启用DSA模式
+// DSA模式尚未测试确定可用，而且性能提升并不明显，暂时不支持
+#ifdef __linux__
+#define ENABLE_DSA
+#endif
+
+#ifdef ENABLE_DSA
+#define DSA_LIKELY(t) likely(t)
+#else
+#define DSA_LIKELY(t) unlikely(t)
+#endif
+
 #include "qemu/osdep.h"
 #include "qemu/atomic.h"
 
@@ -54,18 +66,6 @@ typedef struct Destroy_Child_Window_Event_Data
      while (qatomic_cmpxchg(&(s), 0, 1) == 1 && atomic_cnt < 10000) \
           if(atomic_cnt % 10 == 0) LOGD("lock on %s %d fun:%s ", #s, atomic_cnt++, __FUNCTION__);
 #define ATOMIC_UNLOCK(s) qatomic_cmpxchg(&(s), 1, 0)
-
-//是否启用DSA模式
-// DSA模式尚未测试确定可用，而且性能提升并不明显，暂时不支持
-#ifdef __linux__
-#define ENABLE_DSA
-#endif
-
-#ifdef ENABLE_DSA
-#define DSA_LIKELY(t) likely(t)
-#else
-#define DSA_LIKELY(t) unlikely(t)
-#endif
 
 extern Static_Context_Values *preload_static_context_value;
 
