@@ -2365,7 +2365,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         VkImage hostImage;
         VkResult result = vkCreateImage(device, &createInfo, NULL, &hostImage);
-        LOGI("vkCreateImage → %d, hostImage=0x%llx", result, (uint64_t)(uintptr_t)hostImage);
+        LOGI("vkCreateImage %d, hostImage=0x%llx", result, (uint64_t)(uintptr_t)hostImage);
 
         if (result == VK_SUCCESS) {
             insert_mapping(EXPRESS_VK_OBJECT_TYPE_IMAGE,

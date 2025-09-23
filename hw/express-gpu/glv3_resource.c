@@ -920,7 +920,7 @@ void d_glDeleteTextures(void *context, GLsizei n, const GLuint *textures)
     glDeleteTextures(n, host_buffers);
     for (int i = 0; i < n; i++)
     {
-        LOGI("delete texture of id %d", host_buffers[i]);
+        LOGD("delete texture of id %d", host_buffers[i]);
         ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
         GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];
         if(g_hash_table_lookup(resource_list, GUINT_TO_POINTER(host_buffers[i])) != NULL) {
