@@ -3071,39 +3071,33 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_device);
         
         VkFormatProperties properties;
-        vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
-        LOGI("Host: vkGetPhysicalDeviceFormatProperties format=%d result %d", format, properties.linearTilingFeatures);
 
-        const VkFormatFeatureFlags allowed =
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-            VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT |
-            VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT |
-            VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT |
-            VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT |
-            VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT |
-            VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT |
-            VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-            VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT |
-            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
-            VK_FORMAT_FEATURE_BLIT_SRC_BIT |
-            VK_FORMAT_FEATURE_BLIT_DST_BIT |
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
-            VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
-            VK_FORMAT_FEATURE_TRANSFER_DST_BIT |
-            VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT |
-            VK_FORMAT_FEATURE_COSITED_CHROMA_SAMPLES_BIT |
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT |
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_SEPARATE_RECONSTRUCTION_FILTER_BIT |
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_CHROMA_RECONSTRUCTION_EXPLICIT_BIT |
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_CHROMA_RECONSTRUCTION_EXPLICIT_FORCEABLE_BIT |
-            VK_FORMAT_FEATURE_DISJOINT_BIT;
+        // ztodo:不确定对VK_FORMAT_D32_SFLOAT_S8_UINT支持的bug是我本人电脑的问题还是pc都有的问题
+        // 我的1660ti查询的时候会返回支持VK_FORMAT_D32_SFLOAT_S8_UINT，但实际会导致卡死和驱动丢失
+        if (format == VK_FORMAT_D32_SFLOAT) {
+            vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+            
+            const VkFormatFeatureFlags allowed =
+                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
+                VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
 
-        properties.linearTilingFeatures  &= allowed;
-        properties.optimalTilingFeatures &= allowed;
-        properties.bufferFeatures        &= allowed;
-        
+            properties.linearTilingFeatures  &= allowed;
+            properties.optimalTilingFeatures &= allowed;
+            properties.bufferFeatures        &= allowed;
+
+            LOGI("Host: VK_FORMAT_D32_SFLOAT is supported");
+        } else {
+            properties.linearTilingFeatures  = 0;
+            properties.optimalTilingFeatures = 0;
+            properties.bufferFeatures        = 0;
+
+            LOGI("Host: format %d is not supported", format);
+        }
+
+        // 写入返回值到 guest 内存
         write_to_guest_mem(all_para[1].data, &properties, 0, sizeof(VkFormatProperties));
-        
     }
     break;
 
