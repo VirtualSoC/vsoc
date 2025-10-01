@@ -752,23 +752,15 @@ static void init_display_options(void) {
     touchscreen_prop.count = count;
     get_display_info(0, &touchscreen_prop.width, &touchscreen_prop.height, NULL);
 
-    g_ops.express_keyboard_count = count;
+    express_keyboard_count = count;
 }
 
 static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
-    if (argc < 1) {
-        MONITOR_LOG(mon, "Usage: display <command> [args]\n");
-        MONITOR_LOG(mon, "Available commands:\n");
-        MONITOR_LOG(mon, "  count - Get the number of displays\n");
-        MONITOR_LOG(mon, "  fps - Get the FPS of all displays\n");
-        return;
-    }
-
-    if (strcmp(argv[0], "count") == 0) {
+    if (argc == 1 && strcmp(argv[0], "count") == 0) {
         int count = g_hash_table_size(g_display_contexts);
         MONITOR_LOG(mon, "%d\n", count);
     }
-    else if (strcmp(argv[0], "fps") == 0) {
+    else if (argc == 1 && strcmp(argv[0], "fps") == 0) {
         if (g_display_contexts != NULL) {
             GHashTableIter iter;
             gpointer key, value;
@@ -781,7 +773,11 @@ static void display_hmp_handler(Monitor *mon, int argc, const char **argv) {
         MONITOR_LOG(mon, "\n");
     }
     else {
-        MONITOR_LOG(mon, "Unknown display command: %s\n", argv[0]);
+        MONITOR_LOG(mon, "Usage: display <command> [args]\n");
+        MONITOR_LOG(mon, "Available commands:\n");
+        MONITOR_LOG(mon, "  count - Get the number of displays\n");
+        MONITOR_LOG(mon, "  fps - Get the FPS of all displays\n");
+        return;
     }
 }
 

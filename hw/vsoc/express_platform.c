@@ -22,6 +22,7 @@
 #include "exec/cpu-common.h"
 #include "exec/ramblock.h"
 #include "sysemu/runstate.h"
+#include "monitor/monitor.h"
 
 // Shared memory structures now declared in header; define global pointer here.
 ExpressPlatformOps g_ops;
@@ -37,14 +38,18 @@ typedef struct VsocWorker {
 } VsocWorker;
 static GPtrArray *g_workers = NULL; // array of VsocWorker*
 
-// Helper to fetch the appropriate worker
-static inline VsocWorker *get_worker(int wid) {
-    if (!g_workers || g_workers->len <= wid) {
-        LOGE("get_worker: invalid wid %d (max wid %d)", wid, g_workers ? (int)g_workers->len - 1 : -1);
-        return NULL;
-    }
-    return (VsocWorker *)g_ptr_array_index(g_workers, wid);
-}
+// Build and send RAM region metadata using inherited FDs
+typedef struct RamRegionMeta {
+    int fd;
+    uint32_t pad; // keep 8-byte alignment
+    uint64_t gpa_base;
+    uint64_t size;
+    uint64_t offset;
+} RamRegionMeta;
+
+typedef struct RamRegionList {
+    GArray *arr; // array of RamRegionMeta
+} RamRegionList;
 
 static bool worker_started = false;
 static bool should_stop = false;
@@ -67,6 +72,15 @@ static QemuThread g_worker_log_thread;
 static bool g_worker_log_thread_started = false;
 
 static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem);
+
+// Helper to fetch the appropriate worker
+static inline VsocWorker *get_worker(int wid) {
+    if (!g_workers || g_workers->len <= wid) {
+        LOGE("get_worker: invalid wid %d (max wid %d)", wid, g_workers ? (int)g_workers->len - 1 : -1);
+        return NULL;
+    }
+    return (VsocWorker *)g_ptr_array_index(g_workers, wid);
+}
 
 // GLib child-watch callback to observe worker exits
 static void worker_child_watch_cb(GPid pid, gint status, gpointer user_data)
@@ -106,6 +120,20 @@ static void register_worker_log_fd(int epfd, GHashTable *linebufs, int fd, int w
     }
 }
 
+static void register_missing_worker_log_fds(int epfd, GHashTable *linebufs) {
+    if (!g_workers) return;
+    for (guint i = 0; i < g_workers->len; ++i) {
+        VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
+        if (!w) continue;
+        if (w->stdout_fd >= 0 && !g_hash_table_lookup(linebufs, (gpointer)(intptr_t)w->stdout_fd)) {
+            register_worker_log_fd(epfd, linebufs, w->stdout_fd, (int)i, false);
+        }
+        if (w->stderr_fd >= 0 && !g_hash_table_lookup(linebufs, (gpointer)(intptr_t)w->stderr_fd)) {
+            register_worker_log_fd(epfd, linebufs, w->stderr_fd, (int)i, true);
+        }
+    }
+}
+
 static void *worker_log_reader_mux(void *opaque) {
     (void)opaque;
     int epfd = epoll_create1(EPOLL_CLOEXEC);
@@ -118,18 +146,19 @@ static void *worker_log_reader_mux(void *opaque) {
     GHashTable *linebufs = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
 
     // Register all current worker fds
-    if (g_workers) {
-        for (guint i = 0; i < g_workers->len; ++i) {
-            VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-            register_worker_log_fd(epfd, linebufs, w->stdout_fd, (int)i, false);
-            register_worker_log_fd(epfd, linebufs, w->stderr_fd, (int)i, true);
-        }
-    }
+    register_missing_worker_log_fds(epfd, linebufs);
 
     struct epoll_event evs[32];
     char buf[4096];
-    int active_fds = linebufs ? g_hash_table_size(linebufs) : 0;
-    while (!should_stop && active_fds > 0) {
+    while (!should_stop) {
+        register_missing_worker_log_fds(epfd, linebufs);
+
+        int tracked_fds = linebufs ? g_hash_table_size(linebufs) : 0;
+        if (tracked_fds == 0) {
+            g_usleep(50000);
+            continue;
+        }
+
         int n = epoll_wait(epfd, evs, (int)(sizeof(evs)/sizeof(evs[0])), 500);
         if (n < 0) {
             if (errno == EINTR) continue;
@@ -168,7 +197,6 @@ static void *worker_log_reader_mux(void *opaque) {
                 (void)epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
                 close(fd);
                 g_hash_table_remove(linebufs, (gpointer)(intptr_t)fd);
-                active_fds = g_hash_table_size(linebufs);
             }
         }
     }
@@ -186,89 +214,6 @@ static void *worker_log_reader_mux(void *opaque) {
     close(epfd);
     return NULL;
 }
-
-static void spawn_worker_processes(int count) {
-    if (worker_started) return;
-    if (count <= 0) count = 1;
-    // Init container
-    if (!g_workers) g_workers = g_ptr_array_new();
-
-    const char *worker_path = getenv("VSOC_WORKER_PATH");
-    if (!worker_path || !*worker_path) worker_path = "vsoc-worker";
-    for (int i = 0; i < count; ++i) {
-        VsocWorker *w = g_new0(VsocWorker, 1);
-        w->stdout_fd = -1;
-        w->stderr_fd = -1;
-        w->shm_name = g_strdup_printf("/vsoc_ipc_%d_%d", (int)getpid(), i);
-        size_t shm_size = sizeof(VsocIpcShared);
-        VsocIpcContext *ctx = vsoc_ipc_context_create(w->shm_name, shm_size, true);
-        VsocIpcShared *shared = vsoc_ipc_context_get_shared(ctx);
-        if (!ctx || !shared) {
-            LOGE("failed to create shared memory for worker %d; skipping", i);
-            g_free(w->shm_name);
-            g_free(w);
-            continue;
-        }
-        w->shared = shared;
-        w->ctx = ctx;
-        g_ptr_array_add(g_workers, w);
-
-        // Launch worker; capture logs only for the first worker
-        GError *error = NULL;
-        gboolean ok = FALSE;
-        gchar parent_pid_str[32];
-        g_snprintf(parent_pid_str, sizeof(parent_pid_str), "%d", (int)getpid());
-        // gchar *argv_spawn[] = { "gprofng", "collect", "app", (gchar*)worker_path, w->shm_name, parent_pid_str, NULL };
-        gchar *argv_spawn[] = { (gchar*)worker_path, w->shm_name, parent_pid_str, NULL };
-        int child_stdin = -1, child_stdout = -1, child_stderr = -1;
-        GPid child_pid = -1;
-        ok = g_spawn_async_with_pipes(
-            NULL,
-            argv_spawn,
-            NULL,
-            G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_DO_NOT_REAP_CHILD,
-            NULL,
-            NULL,
-            &child_pid,
-            &child_stdin,
-            &child_stdout,
-            &child_stderr,
-            &error);
-        pid_t spawned_pid = (pid_t)child_pid;
-        if (!ok) {
-            if (error) { LOGE("failed to launch vsoc-worker[%d]: %s", i, error->message); g_clear_error(&error); }
-            else { LOGE("failed to launch vsoc-worker[%d] (unknown error)", i); }
-            continue;
-        }
-        w->pid = spawned_pid;
-        // Watch for child exit using GLib to avoid manual waitpid in threads
-        g_child_watch_add(child_pid, worker_child_watch_cb, GINT_TO_POINTER(i));
-        if (child_stdin >= 0) close(child_stdin);
-        w->stdout_fd = child_stdout;
-        w->stderr_fd = child_stderr;
-        LOGI("spawned vsoc-worker[%d] pid %d shm %s", i, (int)spawned_pid, w->shm_name);
-    }
-    worker_started = g_workers && g_workers->len > 0;
-
-    // Start single log reader thread for all workers
-    if (worker_started && !g_worker_log_thread_started) {
-        qemu_thread_create(&g_worker_log_thread, "vsoc-worker-logs", worker_log_reader_mux, NULL, QEMU_THREAD_JOINABLE);
-        g_worker_log_thread_started = true;
-    }
-}
-
-// Build and send RAM region metadata using inherited FDs
-typedef struct RamRegionMeta {
-    int fd;
-    uint32_t pad; // keep 8-byte alignment
-    uint64_t gpa_base;
-    uint64_t size;
-    uint64_t offset;
-} RamRegionMeta;
-
-typedef struct RamRegionList {
-    GArray *arr; // array of RamRegionMeta
-} RamRegionList;
 
 static void ensure_fd_inherited(int fd) {
     int flags = fcntl(fd, F_GETFD);
@@ -291,7 +236,14 @@ static int collect_block_cb(RAMBlock *rb, void *opaque) {
     return 0;
 }
 
-static void send_ram_regions_to_worker(void) {
+// Helper: ensure all RAMBlock memfd FDs are inheritable (no CLOEXEC) before spawning workers.
+static void ensure_ramblock_fds_inheritable(void) {
+    RamRegionList list = { .arr = g_array_new(FALSE, TRUE, sizeof(RamRegionMeta)) };
+    qemu_ram_foreach_block(collect_block_cb, &list);
+    g_array_free(list.arr, TRUE);
+}
+
+static void send_ram_regions_to_workers(void) {
     RamRegionList list = { .arr = g_array_new(FALSE, TRUE, sizeof(RamRegionMeta)) };
     qemu_ram_foreach_block(collect_block_cb, &list);
     uint32_t count = (uint32_t)list.arr->len;
@@ -311,6 +263,88 @@ static void send_ram_regions_to_worker(void) {
     }
     g_free(payload);
     g_array_free(list.arr, TRUE);
+}
+
+// Spawn a single worker at a given index and wait (up to a fixed timeout) for worker_ready.
+// Returns 0 on success, negative on failure.
+static int spawn_worker(int index) {
+    const char *worker_path = getenv("VSOC_WORKER_PATH");
+    if (!worker_path || !*worker_path) worker_path = "vsoc-worker";
+    VsocWorker *w = g_new0(VsocWorker, 1);
+    w->stdout_fd = -1;
+    w->stderr_fd = -1;
+    w->shm_name = g_strdup_printf("/vsoc_ipc_%d_%d", (int)getpid(), index);
+    size_t shm_size = sizeof(VsocIpcShared);
+    VsocIpcContext *ctx = vsoc_ipc_context_create(w->shm_name, shm_size, true);
+    VsocIpcShared *shared = ctx ? vsoc_ipc_context_get_shared(ctx) : NULL;
+    if (!ctx || !shared) {
+        LOGE("spawn_worker: failed to create shared memory for worker %d", index);
+        if (ctx) vsoc_ipc_context_destroy(ctx);
+        g_free(w->shm_name); g_free(w); return -1;
+    }
+    w->shared = shared; w->ctx = ctx;
+    g_ptr_array_add(g_workers, w);
+
+    GError *error = NULL; GPid child_pid = -1; 
+    int child_stdin=-1, child_stdout=-1, child_stderr=-1; 
+    gboolean ok;
+    gchar parent_pid_str[32]; 
+    g_snprintf(parent_pid_str, sizeof(parent_pid_str), "%d", (int)getpid());
+    gchar *argv_spawn[] = { (gchar*)worker_path, w->shm_name, parent_pid_str, NULL };
+    ok = g_spawn_async_with_pipes(
+        NULL, argv_spawn, NULL,
+        G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_DO_NOT_REAP_CHILD,
+        NULL, NULL,
+        &child_pid,
+        &child_stdin, &child_stdout, &child_stderr,
+        &error);
+    if (!ok) {
+        if (error) { 
+            LOGE("spawn_worker: launch failed worker[%d]: %s", index, error->message); 
+            g_clear_error(&error); 
+        }
+        else { 
+            LOGE("spawn_worker: launch failed worker[%d] (unknown error)", index); 
+        }
+        // Remove from array; last element should be this pointer.
+        g_ptr_array_remove_index(g_workers, g_workers->len - 1);
+        g_free(w->shm_name); g_free(w);
+        return -2;
+    }
+    w->pid = (pid_t)child_pid;
+    if (child_stdin >= 0) close(child_stdin);
+    w->stdout_fd = child_stdout; w->stderr_fd = child_stderr;
+    g_child_watch_add(child_pid, worker_child_watch_cb, GINT_TO_POINTER(index));
+    LOGI("spawn_worker: spawned vsoc-worker[%d] pid %d shm %s", index, (int)w->pid, w->shm_name);
+
+    // Compulsory wait for worker_ready (up to WAIT_MS_MAX ms)
+    const int WAIT_MS_MAX = 10000; // fixed compulsory wait budget
+    int waited = 0;
+    while (waited < WAIT_MS_MAX) {
+        if (w->shared && w->shared->worker_ready) break;
+        g_usleep(1000); waited++;
+    }
+    if (!w->shared || !w->shared->worker_ready) {
+        LOGE("spawn_worker: worker %d did not signal ready within %d ms", index, WAIT_MS_MAX);
+    }
+
+    // Initialize worker with platform ops and RAM regions.
+    vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_PLATFORM_INIT, 0, &g_ops, sizeof(g_ops));
+
+    return 0;
+}
+
+static void spawn_worker_processes(int count) {
+    if (worker_started) return;
+    if (count <= 0) count = 1;
+    if (!g_workers) g_workers = g_ptr_array_new();
+    for (int i = 0; i < count; ++i) {
+        spawn_worker(i);
+    }
+
+    // After worker init, inform worker of RAM regions (FDs are already inherited)
+    send_ram_regions_to_workers();
+    worker_started = true;
 }
 
 // Handle SET_IRQ forwarded from worker: payload is struct Req; respond with int32 status
@@ -376,6 +410,25 @@ static void force_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint3
     if (g_ops.force_shutdown) g_ops.force_shutdown(reason);
 }
 
+/**
+ * sync device is shared, need to broadcast to all workers
+ */
+static void send_sync_buffer_to_wid(int wid, uint8_t *data, size_t len) {
+    static uint8_t buf[VSOC_IPC_MAX_PAYLOAD];
+
+    if (data != NULL && len > 0) {
+        memset(buf, 0, sizeof(buf));
+        size_t to_copy = len < sizeof(buf) ? len : sizeof(buf);
+        memcpy(buf, data, to_copy);
+    }
+
+    VsocWorker *w = get_worker(wid);
+    if (w) {
+        bool ok = vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, (uint32_t)sizeof(buf));
+        if (!ok) LOGE("send_sync_buffer_to_wid: send failed to worker[%d]", wid);
+    }
+}
+
 static void proxy_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, Express_Device_Info *info) {
     uint64_t device_id = (uint64_t)info->device_id;
     uint8_t buf[VSOC_IPC_MAX_PAYLOAD];
@@ -399,13 +452,8 @@ static void proxy_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t 
             p += wrote;
             uint32_t payload_len = (uint32_t)(p - buf);
             if (info->device_id == EXPRESS_SYNC_DEVICE_ID) {
-                // sync device is shared, need to broadcast to all workers
-                if (g_workers && g_workers->len > 0) {
-                    for (guint i = 0; i < g_workers->len; ++i) {
-                        VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-                        bool ok = w && vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_BUFFER_REGISTER, 0, buf, payload_len);
-                        if (!ok) LOGE("proxy_buffer_register: send failed to worker[%u]", i);
-                    }
+                for (guint i = 0; i < g_workers->len; ++i) {
+                    send_sync_buffer_to_wid((int)i, buf, payload_len);
                 }
             } else {
                 VsocWorker *w = get_worker(wid_from_ids(info->device_id, unique_id, user_id));
@@ -599,37 +647,29 @@ void init_express_platform(const ExpressPlatformOps ops) {
         }
     }
 
-    // Ensure memfd FDs won't be closed on exec
-    {
-        RamRegionList list = { .arr = g_array_new(FALSE, TRUE, sizeof(RamRegionMeta)) };
-        qemu_ram_foreach_block(collect_block_cb, &list);
-        // We don't send here; just ensure CLOEXEC cleared before spawn.
-        g_array_free(list.arr, TRUE);
-    }
+    // Ensure inflight map exists and register a handler for DEVICE_CALL ACKs
+    if (!g_inflight_async_calls) g_inflight_async_calls = g_hash_table_new(g_direct_hash, g_direct_equal);
+    if (!g_early_async_acks) g_early_async_acks = g_hash_table_new(g_direct_hash, g_direct_equal);
+    qemu_mutex_init(&g_async_seq_lock);
+    qemu_mutex_init(&g_inflight_lock);
+
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_SET_IRQ, set_irq_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ack_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, notify_shutdown_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_FORCE_SHUTDOWN, force_shutdown_ipc_handler);
+
+    ensure_ramblock_fds_inheritable();
+
     // Spawn as many workers as requested; default to 1
     int worker_count = (g_ops.express_display_count > 0) ? g_ops.express_display_count : 1;
     spawn_worker_processes(worker_count);
-    // Wait for workers to attach shared memory (observe worker_ready)
-    if (g_workers && g_workers->len > 0) {
-        int waited_ms = 0;
-        bool all_ready = false;
-        while (waited_ms < 3000) {
-            all_ready = true;
-            for (guint i = 0; i < g_workers->len; ++i) {
-                VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-                if (!w->shared || !w->shared->worker_ready) { all_ready = false; break; }
-            }
-            if (all_ready) break;
-            g_usleep(1000); waited_ms++;
-        }
-        if (!all_ready) {
-            LOGE("one or more workers did not attach shared memory in time; proceeding anyway");
-        } else {
-            LOGD("all workers attached shared memory after %d ms", waited_ms);
-        }
-    } else {
-        LOGE("no workers spawned; cannot wait for worker_ready");
+
+    // Start single log reader thread for all workers
+    if (worker_started && !g_worker_log_thread_started) {
+        qemu_thread_create(&g_worker_log_thread, "vsoc-worker-logs", worker_log_reader_mux, NULL, QEMU_THREAD_JOINABLE);
+        g_worker_log_thread_started = true;
     }
+
     // Start dedicated IPC polling thread (parent only)
     if (!parent_ipc_thread_started) {
         void *parent_poll_thread(void *opaque) {
@@ -649,29 +689,6 @@ void init_express_platform(const ExpressPlatformOps ops) {
         qemu_thread_create(&parent_ipc_thread, "vsoc-ipc-poll", parent_poll_thread, NULL, QEMU_THREAD_JOINABLE);
         parent_ipc_thread_started = true;
     }
-
-    // Register IRQ forwarding handler
-    vsoc_ipc_register_handler(VSOC_IPC_TYPE_SET_IRQ, set_irq_ipc_handler);
-
-    // Ensure inflight map exists and register a handler for DEVICE_CALL ACKs
-    if (!g_inflight_async_calls) g_inflight_async_calls = g_hash_table_new(g_direct_hash, g_direct_equal);
-    if (!g_early_async_acks) g_early_async_acks = g_hash_table_new(g_direct_hash, g_direct_equal);
-    qemu_mutex_init(&g_async_seq_lock);
-    qemu_mutex_init(&g_inflight_lock);
-
-    vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ack_ipc_handler);
-    vsoc_ipc_register_handler(VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, notify_shutdown_ipc_handler);
-    vsoc_ipc_register_handler(VSOC_IPC_TYPE_FORCE_SHUTDOWN, force_shutdown_ipc_handler);
-
-    // Send PLATFORM_INIT to all workers
-    if (g_workers && g_workers->len > 0) {
-        for (guint i = 0; i < g_workers->len; ++i) {
-            VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
-                vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_PLATFORM_INIT, 0, &ops, sizeof(ops));
-        }
-    }
-    // After platform init, inform worker of RAM regions (FDs are already inherited)
-    send_ram_regions_to_worker();
 }
 
 void deinit_express_platform(void) {
@@ -916,3 +933,49 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
     g_free(context);
     return NULL;
 }
+
+static void container_hmp_handler(Monitor *mon, int argc, const char **argv) {
+    if (argc == 1 && strcmp(argv[0], "new") == 0) {
+        // Dynamically add a new container: spawn worker and adjust display count.
+        if (!g_ops.express_device_multi_process) {
+            monitor_printf(mon, "error: multi-process not enabled\n");
+            return;
+        }
+
+        int wid = (int)g_workers->len;
+        assert(g_ops.express_display_count == wid);
+
+        // increment display count so future workers know about it.
+        g_ops.express_display_count += 1;
+        
+        if (spawn_worker(wid) != 0) {
+            monitor_printf(mon, "error: failed to spawn new container\n");
+            return;
+        }
+
+        send_ram_regions_to_workers();
+        send_sync_buffer_to_wid(wid, NULL, 0);
+
+        // notify guest side about new container
+        Express_Device_Info *info = get_express_device_info(EXPRESS_TOUCHSCREEN_DEVICE_ID);
+        Device_Context *ctx = info->get_device_context(info->device_id, 0, 0, 0, info);
+        g_ops.set_express_device_irq((Device_Context *)ctx, wid, 0);
+
+        monitor_printf(mon, "%d\n", wid);
+    } else {
+        monitor_printf(mon, "Usage: express container new\n");
+    }
+
+}
+
+// stub info struct to register HMP handler for container
+static Express_Device_Info express_container_info = {
+    .enable_default = false,
+    .name = "express-container",
+    .option_name = "container",
+    .device_id = EXPRESS_CONTAINER_DEVICE_ID,
+    .device_type = 0,
+    .hmp_handler = container_hmp_handler,
+};
+
+EXPRESS_DEVICE_INIT(express_container, &express_container_info)

@@ -32,6 +32,8 @@
 
 #define EXPRESS_MEM_DEVICE_ID ((uint64_t)60)
 
+#define EXPRESS_CONTAINER_DEVICE_ID ((uint64_t)70)
+
 //保留的fun_id，其他设备不可使用
 #define EXPRESS_TERMINATE_FUN_ID (0)
 #define EXPRESS_CLUSTER_FUN_ID (9999)
@@ -267,8 +269,6 @@ typedef struct {
     uint64_t express_display_count;
     char express_display_options[128];
     bool express_display_headless_mode;
-
-    int express_keyboard_count;
 
     bool express_gpu_open_shader_binary;
 

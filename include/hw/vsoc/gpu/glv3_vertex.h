@@ -5,7 +5,7 @@
 #include "hw/vsoc/gpu/gl_helper.h"
 
 
-#define BUFFER_MULTIPLY_FACTOR 4
+#define BUFFER_MULTIPLY_FACTOR 2
 
 GLint set_vertex_attrib_data(void *context, GLuint index, GLuint offset, GLuint length, const void *pointer);
 

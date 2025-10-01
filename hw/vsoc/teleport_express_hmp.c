@@ -47,8 +47,7 @@ void hmp_vsoc(Monitor *mon, const QDict *qdict)
 
     if (argc == 0) {
         MONITOR_LOG(mon, "No vSoC device specified.\n");
-        g_free(args_copy);
-        return;
+        goto free;
     }
 
     const char *dev_name = argv[0];
@@ -56,8 +55,7 @@ void hmp_vsoc(Monitor *mon, const QDict *qdict)
 
     if (!info) {
         MONITOR_LOG(mon, "vSoC device '%s' not found.\n", dev_name);
-        g_free(args_copy);
-        return;
+        goto free;
     }
 
     if (info->hmp_handler) {
@@ -66,5 +64,6 @@ void hmp_vsoc(Monitor *mon, const QDict *qdict)
         MONITOR_LOG(mon, "vSoC device '%s' does not support HMP commands.\n", dev_name);
     }
 
+free:
     g_free(args_copy);
 }

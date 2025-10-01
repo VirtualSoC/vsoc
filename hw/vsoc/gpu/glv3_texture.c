@@ -190,6 +190,21 @@ void d_glTexSubImage2D_without_bound(void *context, GLenum target, GLint level, 
             texture_binding_status_sync(context, target);
             glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, 0);
         }
+        else if (target == GL_TEXTURE_EXTERNAL_OES)
+        {
+            // EXTERNAL_OES is not valid for Tex(Sub)Image; mirror non-DSA behavior
+            if (texture_status->host_current_active_texture != 0)
+            {
+                glActiveTexture(GL_TEXTURE0);
+            }
+            glBindTexture(GL_TEXTURE_2D, texture_status->current_texture_external);
+            glTexSubImage2D(GL_TEXTURE_2D, level, xoffset, yoffset, width, height, format, type, 0);
+            glBindTexture(GL_TEXTURE_2D, texture_status->host_current_texture_2D[0]);
+            if (texture_status->host_current_active_texture != 0)
+            {
+                glActiveTexture(texture_status->host_current_active_texture + GL_TEXTURE0);
+            }
+        }
         else
         {
             glTextureSubImage2D(bind_texture, level, xoffset, yoffset, width, height, format, type, 0);
@@ -963,7 +978,7 @@ void d_glCopyImageSubData(void *context, GLuint srcName, GLenum srcTarget, GLint
     }
     else {
         dstName = get_host_texture_id(context, dstName, 5);
-        gbuffer_dst = get_texture_gbuffer_ptr(context, srcName);
+        gbuffer_dst = get_texture_gbuffer_ptr(context, dstName);
     }
 
     if (srcTarget == GL_TEXTURE_EXTERNAL_OES) {

@@ -108,7 +108,7 @@ Express_Device_Info *get_express_device_info_by_name(const char *name)
     while (g_hash_table_iter_next(&iter, &key, &value))
     {
         Express_Device_Info *info = (Express_Device_Info *)value;
-        if (strcmp(info->option_name, name) == 0)
+        if (info->option_name != NULL && strcmp(info->option_name, name) == 0)
         {
             return info;
         }

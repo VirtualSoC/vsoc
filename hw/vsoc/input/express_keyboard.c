@@ -16,6 +16,8 @@
 
 #include "ui/input.h"
 
+int express_keyboard_count = 1;
+
 static GHashTable *g_keyboard_contexts = NULL;
 
 static inline Keyboard_Context *get_keyboard_context(GLFWwindow *window)
@@ -208,7 +210,7 @@ void sync_express_keyboard_input(GLFWwindow *window, bool need_send)
     if (need_send)
     {
         g_ops.write_to_guest_mem(context->guest_buffer, &(context->data), 0, sizeof(Keyboard_Data));
-        g_ops.set_express_device_irq((Device_Context *)context, 0, sizeof(Keyboard_Data));
+        g_ops.set_express_device_irq((Device_Context *)context, context->id, sizeof(Keyboard_Data));
     }
 
     context->need_sync = false;
@@ -261,8 +263,8 @@ static Express_Device_Info express_keyboard_info = {
     .get_device_context = get_keyboard_device_context,
     .buffer_register = keyboard_buffer_register,
 
-    .static_prop = &g_ops.express_keyboard_count,
-    .static_prop_size = sizeof(g_ops.express_keyboard_count),
+    .static_prop = &express_keyboard_count,
+    .static_prop_size = sizeof(express_keyboard_count),
 };
 
 EXPRESS_DEVICE_INIT(express_keyboard, &express_keyboard_info)

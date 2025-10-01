@@ -593,7 +593,7 @@ void sync_express_touchscreen_input(GLFWwindow *window, bool need_send)
     {
         LOGD("touchscreen id %d sending touchscreen data to guest", context->id);
         g_ops.write_to_guest_mem(context->guest_buffer, &(context->data), 0, sizeof(Touchscreen_Data));
-        g_ops.set_express_device_irq((Device_Context *)context, 0, sizeof(Touchscreen_Data));
+        g_ops.set_express_device_irq((Device_Context *)context, context->id, sizeof(Touchscreen_Data));
     }
 
     context->need_sync = false;
