@@ -159,6 +159,12 @@ void signal_express_sync(int sync_id, bool need_gpu_sync)
         }
 
         glFlush();
+    } else {
+        GLsync gpu_sync = qatomic_xchg(&gpu_sync_id[sync_id], NULL);
+        if (gpu_sync != NULL)
+        {
+            glDeleteSync(gpu_sync);
+        }
     }
 
     SET_SYNC_FLAG(static_sync_context.sync_data, sync_id);
@@ -208,6 +214,8 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
                 // helps debugging deadlocks
                 LOGI("still waiting for sync %d (gpu %d) after %d ms...", sync_id, need_gpu_sync, sync_wait_cnt);
 
+                SET_SYNC_FLAG(static_sync_context.sync_data, sync_id);
+                return;
                 // if (!has_printed_backtrace) {
                 //     has_printed_backtrace = true;
                 //     backtrace();

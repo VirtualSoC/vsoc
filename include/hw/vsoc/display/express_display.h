@@ -11,6 +11,7 @@ typedef struct Display_Info
     int pixel_width;
     int pixel_height;
     uint64_t refresh_rate_bits;
+    int headless;
 } __attribute__((packed, aligned(4))) Display_Info;
 
 typedef struct Display_Status

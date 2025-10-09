@@ -174,7 +174,9 @@ void express_gpu_shutdown_notify_callback()
     if (main_window_run == 2)
     {
         main_window_run = -1;
-        glfwPostEmptyEvent(); // wake up the main window thread
+        if (!g_ops.express_display_headless_mode) {
+            glfwPostEmptyEvent(); // wake up the main window thread
+        }
         int wait_cnt = 0;
         while (main_window_run == -1 && wait_cnt < 1000)
         {
@@ -517,7 +519,6 @@ static void static_value_prepare(void)
  */
 static void *create_child_window(int context_flags)
 {
-
     void *child_window = NULL;
     static int windows_cnt = 0;
     int cnt = windows_cnt++;
@@ -566,14 +567,57 @@ static void *create_child_window(int context_flags)
     return child_window;
 }
 
+static void main_window_init_common(void) {
+    main_window_event_queue = g_async_queue_new();
+    gbuffer_global_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+    gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+
+    static_value_prepare();
+    prepare_draw_texi();
+
+    if (g_ops.express_device_input_window_enable)
+    {
+        device_interface_run = 1;
+        qemu_thread_create(&qemu_device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
+    }
+
+    if (g_ops.express_gpu_gl_debug_enable)
+    {
+#ifndef __APPLE__
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(d_debug_message_callback, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+#endif
+    }
+
+    main_window_run = 2;
+    LOGI("main window successfully initialized");
+}
+
+static void *main_window_thread_headless(void *opaque) {
+    egl_init(NULL, NULL);
+    main_window_init_common();
+
+    while (main_window_run == 2)
+    {
+        handle_child_window_event();
+        g_usleep(10000);
+    }
+
+    LOGI("main window closed");
+
+    main_window_run = 0;
+
+    return NULL;
+}
+
 /**
  * Main window thread entry point 
  * Unique per emulator instance
  */
 static void *main_window_thread(void *opaque)
 {
-    main_window_event_queue = g_async_queue_new();
-
     glfwSetErrorCallback(glfw_error_callback);
 
 #if defined(__linux__) && defined(GLFW_PLATFORM_X11)
@@ -641,7 +685,6 @@ static void *main_window_thread(void *opaque)
     THREAD_CONTROL_END
 
     glfwMakeContextCurrent(main_window);
-
     glfwSwapInterval(0);
 
 #ifdef __APPLE__
@@ -665,32 +708,7 @@ static void *main_window_thread(void *opaque)
         return NULL;
     }
 
-    gbuffer_global_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-    gbuffer_global_types = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
-
-    static_value_prepare();
-
-    prepare_draw_texi();
-
-    if (g_ops.express_device_input_window_enable)
-    {
-        device_interface_run = 1;
-        qemu_thread_create(&qemu_device_interface_thread, "interface_thread", interface_window_thread, (void *)&device_interface_run, QEMU_THREAD_DETACHED);
-    }
-
-    LOGI("main window successfully initialized");
-
-    main_window_run = 2;
-
-    if (g_ops.express_gpu_gl_debug_enable)
-    {
-#ifndef __APPLE__
-        glEnable(GL_DEBUG_OUTPUT);
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallback(d_debug_message_callback, NULL);
-        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-#endif
-    }
+    main_window_init_common();
 
     while (!glfwWindowShouldClose(main_window) && main_window_run == 2)
     {
@@ -729,7 +747,11 @@ void start_main_window_thread(void) {
     if (qatomic_cmpxchg(&main_window_run, 0, 1) == 0)
     {
         // main_window线程只能创建一次，且其他线程必须等待该线程运行成功
-        qemu_thread_create(&qemu_main_window_thread, "main_window_thread", main_window_thread, NULL, QEMU_THREAD_DETACHED);
+        if (g_ops.express_display_headless_mode) {
+            qemu_thread_create(&qemu_main_window_thread, "main_window_thread", main_window_thread_headless, NULL, QEMU_THREAD_DETACHED);
+        } else {
+            qemu_thread_create(&qemu_main_window_thread, "main_window_thread", main_window_thread, NULL, QEMU_THREAD_DETACHED);
+        }
         init_display(&default_egl_display);
     }
 
@@ -773,7 +795,7 @@ void send_message_to_main_window(int message_code, void *data)
 
     g_async_queue_push(main_window_event_queue, (gpointer)event);
 
-    if (message_code == MAIN_CREATE_CHILD_WINDOW)
+    if (message_code == MAIN_CREATE_CHILD_WINDOW && !g_ops.express_display_headless_mode)
     {
         glfwPostEmptyEvent();
     }

@@ -74,7 +74,7 @@ static bool display_call_handler(Thread_Context *context, uint64_t id, const Cal
             g_free(layers); ok = false; break;
         }
         TIMER_START_ON_THREAD(compose_layer);
-        if (!g_ops.express_display_headless_mode) {
+        if (!disp->info.headless) {
             handle_display_rotation(disp, layers);
         }
         opengl_paint_composer_layers(disp, layers);
@@ -192,6 +192,8 @@ static void display_context_init(Display_Context *disp)
         disp->info.refresh_rate_bits = 0x1ULL << ((refresh_rate - 15) / 15);
     }
 
+    disp->info.headless = g_ops.express_display_headless_mode ? 1 : 0;
+
     disp->window_width = g_ops.express_display_window_width;
     disp->window_height = g_ops.express_display_window_height;
 
@@ -204,7 +206,7 @@ static void display_context_init(Display_Context *disp)
         char name[64];
         sprintf(name, "vSoC:%s", disp->info.name);
 
-        if (g_ops.express_display_headless_mode) {
+        if (disp->info.headless) {
             disp->window = get_native_opengl_context(0);
             egl_makeCurrent(disp->window);
         } else {
@@ -308,7 +310,7 @@ static void display_context_destroy(Thread_Context *context)
     glDeleteProgram(disp->programID);
 
     if (disp->window != NULL) {
-        if (g_ops.express_display_headless_mode) {
+        if (disp->info.headless) {
             egl_makeCurrent(NULL);
             release_native_opengl_context(disp->window, 0);
         } else {
@@ -380,9 +382,11 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
         return;
     }
 
-    if (!disp->is_open)
+    if (!disp->is_open || disp->info.headless)
     {
-        LOGE("display %s is not open, cannot paint layers", disp->info.name);
+        if (!disp->is_open) {
+            LOGE("display %s is not open, cannot paint layers", disp->info.name);
+        }
 
         for (int i = 0; i < layers->layer_num; i++)
         {
@@ -510,7 +514,7 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
 
 static void display_present(Display_Context *disp)
 {
-    if (!g_ops.express_display_headless_mode) {
+    if (!disp->info.headless) {
         glfwSwapBuffers(disp->window);
     }
 
@@ -525,7 +529,7 @@ static void display_present(Display_Context *disp)
         disp->last_fps = fps;
         LOGD("display %s: composer draw avg %.2f ms %.2f FPS", disp->info.name, gen_frame_time_avg, fps);
         sprintf(name, "vSoC:%s FPS %.1f", disp->info.name, fps);
-        if (!g_ops.express_display_headless_mode) {
+        if (!disp->info.headless) {
             glfwSetWindowTitle(disp->window, name);
         }
 

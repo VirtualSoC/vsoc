@@ -17,6 +17,7 @@ typedef EGLBoolean (*PFN_eglInitialize)(EGLDisplay, EGLint *, EGLint *);
 typedef EGLBoolean (*PFN_eglTerminate)(EGLDisplay);
 typedef EGLBoolean (*PFN_eglBindAPI)(EGLenum);
 typedef char const * (*PFN_eglQueryString)(EGLDisplay display, EGLint name);
+typedef EGLDisplay (*PFN_eglGetDisplay)(EGLNativeDisplayType);
 typedef EGLContext (*PFN_eglCreateContext)(EGLDisplay, EGLConfig, EGLContext, const EGLint *);
 typedef EGLBoolean (*PFN_eglChooseConfig)(EGLDisplay, const EGLint *, EGLConfig *, EGLint, EGLint *);
 typedef EGLSurface (*PFN_eglCreatePbufferSurface)(EGLDisplay, EGLConfig, const EGLint *);
@@ -27,7 +28,10 @@ typedef EGLBoolean (*PFN_eglMakeCurrent)(EGLDisplay, EGLSurface, EGLSurface, EGL
 typedef struct EglFunctions {
     PFN_eglGetProcAddress eglGetProcAddress;
     PFN_eglInitialize eglInitialize;
+    PFN_eglTerminate eglTerminate;
+    PFN_eglBindAPI eglBindAPI;
     PFN_eglQueryString eglQueryString;
+    PFN_eglGetDisplay eglGetDisplay;
     PFN_eglMakeCurrent eglMakeCurrent;
     PFN_eglCreateContext eglCreateContext;
     PFN_eglCreatePbufferSurface eglCreatePbufferSurface;
@@ -89,7 +93,10 @@ void egl_init(void *dpy, void *father_context)
     }
 
     LOAD_EGL_FUN(eglInitialize);
+    LOAD_EGL_FUN(eglTerminate);
+    LOAD_EGL_FUN(eglBindAPI);
     LOAD_EGL_FUN(eglQueryString);
+    LOAD_EGL_FUN(eglGetDisplay);
     LOAD_EGL_FUN(eglMakeCurrent);
     LOAD_EGL_FUN(eglCreateContext);
     LOAD_EGL_FUN(eglCreatePbufferSurface);
@@ -102,6 +109,16 @@ void egl_init(void *dpy, void *father_context)
 
     main_window_display = (EGLDisplay)dpy;
     main_window_context = (EGLContext)father_context;
+
+    bool offscreen_init = (main_window_display == NULL && main_window_context == NULL);
+    if (offscreen_init) {
+        main_window_display = platform.eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        if (main_window_display == EGL_NO_DISPLAY)
+        {
+            LOGE("eglGetDisplay error %x display %p context %p", platform.eglGetError(), main_window_display, main_window_context);
+            return;
+        }
+    }
 
     if (!platform.eglInitialize(main_window_display, NULL, NULL))
     {
@@ -122,7 +139,7 @@ void egl_init(void *dpy, void *father_context)
         supports_surfaceless_context = true;
         LOGD("EGL_KHR_surfaceless_context is supported, will create surfaceless contexts");
     }
-    
+
     EGLint attrib_list[] = {
         EGL_RED_SIZE, 8,
         EGL_GREEN_SIZE, 8,
@@ -140,6 +157,30 @@ void egl_init(void *dpy, void *father_context)
     }
 
     g_mutex_init(&main_window_mutex);
+
+    if (offscreen_init) {
+        platform.eglBindAPI(EGL_OPENGL_API);
+
+        int context_attribs[] = {
+            EGL_CONTEXT_MAJOR_VERSION, 4,
+#ifdef __APPLE__
+            EGL_CONTEXT_MINOR_VERSION, 1,
+#else
+            EGL_CONTEXT_MINOR_VERSION, 6,
+#endif
+            EGL_NONE
+        };
+
+        main_window_context = egl_createContext(0);
+        if (main_window_context == EGL_NO_CONTEXT)
+        {
+            LOGE("error! eglCreateContext failed with error 0x%x display %p context %p", platform.eglGetError(), main_window_display, main_window_context);
+            return;
+        }
+        egl_makeCurrent(main_window_context);
+
+        gladLoadGLLoader((GLADloadproc)platform.eglGetProcAddress);
+    }
 }
 
 void *egl_createContext(int context_flags)

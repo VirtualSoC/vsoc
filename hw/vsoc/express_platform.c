@@ -290,9 +290,19 @@ static int spawn_worker(int index) {
     gboolean ok;
     gchar parent_pid_str[32]; 
     g_snprintf(parent_pid_str, sizeof(parent_pid_str), "%d", (int)getpid());
-    gchar *argv_spawn[] = { (gchar*)worker_path, w->shm_name, parent_pid_str, NULL };
+    gchar *argv_spawn[16];
+    int argv_idx = 0;
+    if (0) {
+        argv_spawn[argv_idx++] = (gchar *)"gprofng";
+        argv_spawn[argv_idx++] = (gchar *)"collect";
+        argv_spawn[argv_idx++] = (gchar *)"app";
+    }
+    argv_spawn[argv_idx++] = (gchar *)worker_path;
+    argv_spawn[argv_idx++] = w->shm_name;
+    argv_spawn[argv_idx++] = parent_pid_str;
+    argv_spawn[argv_idx] = NULL;
     ok = g_spawn_async_with_pipes(
-        NULL, argv_spawn, NULL,
+        NULL, (gchar * const *)argv_spawn, NULL,
         G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_DO_NOT_REAP_CHILD,
         NULL, NULL,
         &child_pid,
