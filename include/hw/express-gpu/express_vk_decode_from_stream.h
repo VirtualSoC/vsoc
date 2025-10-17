@@ -36,6 +36,50 @@
 #include "express_vk_android_native_buffer_gfxstream.h"
 
 #ifdef VK_VERSION_1_0
+void decode_from_stream_VkPhysicalDeviceSurfaceInfo2KHR(VkStructureType rootType,
+                                                        VkPhysicalDeviceSurfaceInfo2KHR* forUnmarshaling,
+                                                        uint8_t** ptr);
+void decode_from_stream_VkDisplayPropertiesKHR(VkStructureType rootType,
+                                               VkDisplayPropertiesKHR* forUnmarshaling,
+                                               uint8_t** ptr);
+
+void decode_from_stream_VkDisplayPlanePropertiesKHR(VkStructureType rootType,
+                                                    VkDisplayPlanePropertiesKHR* forUnmarshaling,
+                                                    uint8_t** ptr);
+
+void decode_from_stream_VkDisplayPlaneProperties2KHR(VkStructureType rootType,
+                                                     VkDisplayPlaneProperties2KHR* forUnmarshaling,
+                                                     uint8_t** ptr);
+
+void decode_from_stream_VkDisplayProperties2KHR(VkStructureType rootType,
+                                                VkDisplayProperties2KHR* forUnmarshaling,
+                                                uint8_t** ptr);
+
+void decode_from_stream_VkDisplayPlaneCapabilities2KHR(VkStructureType rootType,
+                                                       VkDisplayPlaneCapabilities2KHR* forUnmarshaling,
+                                                       uint8_t** ptr);
+
+void decode_from_stream_VkDisplaySurfaceCreateInfoKHR(VkStructureType rootType,
+                                                      VkDisplaySurfaceCreateInfoKHR* forUnmarshaling,
+                                                      uint8_t** ptr);
+
+void decode_from_stream_VkDisplayModeCreateInfoKHR(VkStructureType rootType,
+                                                   VkDisplayModeCreateInfoKHR* forUnmarshaling,
+                                                   uint8_t** ptr);
+
+void decode_from_stream_VkDisplayPlaneCapabilitiesKHR(VkStructureType rootType,
+                                                      VkDisplayPlaneCapabilitiesKHR* forUnmarshaling,
+                                                      uint8_t** ptr);
+
+void decode_from_stream_VkDisplayModeParametersKHR(VkStructureType rootType,
+                                                   VkDisplayModeParametersKHR* forUnmarshaling,
+                                                   uint8_t** ptr);
+
+
+void decode_from_stream_VkDisplayPlaneInfo2KHR(VkStructureType rootType,
+                                               VkDisplayPlaneInfo2KHR* forUnmarshaling,
+                                               uint8_t** ptr);
+
 void decode_from_stream_VkExtent2D(VkStructureType rootType,
                                   VkExtent2D* forUnmarshaling, uint8_t** ptr);
 

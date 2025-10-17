@@ -300,7 +300,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         void*   guest_surface_ptr  = all_para[1].data;
         read_from_guest_mem(guest_surface_ptr, &guestSurface, 0, sizeof(VkSurfaceKHR));
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
 
         VkInstance hostInst = (VkInstance)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_inst);
@@ -356,7 +356,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         void*   guest_surface_ptr  = all_para[1].data;
         read_from_guest_mem(guest_surface_ptr, &guestSurface, 0, sizeof(VkSurfaceKHR));
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
 
         VkInstance hostInst = (VkInstance)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_inst);
@@ -414,7 +414,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             (unsigned long long)guest_surface,
             minImageCount, imageFormat, width, height, presentMode);
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         VkDevice hostDevice  = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
         VkSurfaceKHR hostSurface = (VkSurfaceKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE, guest_surface);
         
@@ -503,7 +503,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         }
 
         // vulkan_surface_register_swapchain_images(realDev, realSwapchain, guestImages, count);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(guestImages);
         free(guestBuffers);
         free(buffer_width);
@@ -674,7 +674,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             0,
             sizeof(VkResult));
 
-        if (need_free) free(stream);
+        // //if (need_free) free(stream);
         free(pCreateInfo);
         free(newExts);
     }
@@ -726,7 +726,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             (unsigned long long)guest_queue_handle,
             (void*)realQueue);
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -785,7 +785,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkCreateRenderPass failed: %d", result);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -848,7 +848,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkCreateImageView failed: %d", result);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -949,13 +949,12 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkCreateBuffer failed: %d", result);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
 
     case FUNID_vkGetBufferMemoryRequirements: {
-        LOGI("Host: vkGetBufferMemoryRequirements");
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
 
         int need_free = 0;
@@ -970,6 +969,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_dev);
         VkBuffer realBuf = (VkBuffer)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER, guest_buf);
+        LOGI("Host: vkGetBufferMemoryRequirements realDev %p realBuf %p", (void*)realDev, (void*)realBuf);
 
         vkGetBufferMemoryRequirements(realDev, realBuf, &req);
         LOGI("Host: vkGetBufferMemoryRequirements size %d alignment %d type %d",
@@ -983,7 +983,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             0,
             sizeof(VkMemoryRequirements));
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1053,7 +1053,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkAllocateMemory failed: %d", result);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1094,7 +1094,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 mappedPtr);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1129,7 +1129,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         vkUnmapMemory(realDev, realMem);
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1166,7 +1166,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 (unsigned long long)guest_memory);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1220,7 +1220,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         } else {
             LOGE("vkCreateShaderModule failed: %d", result);
         }
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1276,7 +1276,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkCreatePipelineLayout failed: %d", result);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1332,7 +1332,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkCreatePipelineCache failed: %d", result);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1377,7 +1377,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             pAllocator = &allocStruct;
         }
 
-        if (need_free) free(stream);
+        // //if (need_free) free(stream);
 
         // 4) Map guest handles to host
         VkDevice       realDev    = (VkDevice)(uintptr_t)
@@ -1453,7 +1453,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkCreateCommandPool failed: %d", result);
         }
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1491,7 +1491,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         }
         
         free(realCmdBufs);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1519,7 +1519,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("vkBeginCommandBuffer failed: %d", result);
         }
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1587,7 +1587,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         if (memBarriers) free(memBarriers);
         if (bufBarriers) free(bufBarriers);
         if (imgBarriers) free(imgBarriers);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1610,7 +1610,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         LOGI("CmdBeginRenderPass guest %llu -> host %p", (unsigned long long)guest_cmd_buf, (void*)realCmdBuf);
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1637,7 +1637,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         LOGI("CmdBindPipeline guest %llu -> host %p pipeline %p", (unsigned long long)guest_cmd_buf, (void*)realCmdBuf, (void*)realPipeline);
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1676,7 +1676,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         free(realBuffers);
         free(offsets);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1698,7 +1698,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         LOGI("CmdDraw executed cmd=%p vertices=%d", (void*)realCmd, vertexCount);
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         
     }
     break;
@@ -1717,7 +1717,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         LOGI("CmdEndRenderPass executed cmd=%p", (void*)realCmd);
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -1735,7 +1735,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         LOGI("EndCommandBuffer executed cmd=%p result=%d", (void*)realCmd, result);
         
-        if (need_free) free(stream); 
+        //if (need_free) free(stream); 
     }
     break;
 
@@ -1773,7 +1773,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("vkCreateFence failed: %d", result);
         }
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
     }
     break;
@@ -1812,7 +1812,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("vkCreateSemaphore failed: %d", result);
         }
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         free(pInfo);
         break;
     }
@@ -2017,7 +2017,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             (uint64_t)(uintptr_t)queue, presentInfo.swapchainCount, buffer_ids[0]);
         // 新逻辑：present前后做buffer管理和上屏
         vulkan_surface_present_images(queue, &presentInfo, buffer_ids);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
         break;
     }
 
@@ -2094,6 +2094,10 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         write_to_guest_mem(guest_props_ptr, &props, 0, sizeof(props));
         LOGI("Host: vkGetPhysicalDeviceMemoryProperties done with memoryTypeCount %d",
              props.memoryTypeCount);
+        for(int i=0; i<props.memoryTypeCount; i++) {
+            LOGI("  memoryType[%d] propertyFlags 0x%x heapIndex %d",
+                 i, props.memoryTypes[i].propertyFlags, props.memoryTypes[i].heapIndex);
+        }
         break;
     }
     
@@ -2118,7 +2122,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         write_to_guest_mem(all_para[1].data, &props, 0, sizeof(VkPhysicalDeviceMemoryProperties2));
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2144,10 +2148,13 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkPhysicalDeviceProperties pProps;
 
         vkGetPhysicalDeviceProperties(real_physicalDevice, &pProps);
+        LOGI("physical_device = %p, properties = %d %d %d",
+            guest_physicalDevice,
+            pProps.apiVersion, pProps.driverVersion, pProps.vendorID);
 
         write_to_guest_mem(all_para[1].data, &pProps, 0, sizeof(VkPhysicalDeviceProperties));
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2176,7 +2183,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             guest_physicalDevice,
             pProps.properties.apiVersion);
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2665,7 +2672,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         }
         
         if (pMemoryRanges) free(pMemoryRanges);
-        if (need_free) free(stream);    
+        //if (need_free) free(stream);    
     }
     break;
 
@@ -2727,7 +2734,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkCommandBuffer cmd_buf = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd_buf);
         VkResult result = vkResetCommandBuffer(cmd_buf, flags);
         LOGI("Host: vkResetCommandBuffer result=%d", result);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2745,7 +2752,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkCommandPool pool = (VkCommandPool)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_POOL, guest_pool);
         VkResult result = vkResetCommandPool(device, pool, flags);
         LOGI("Host: vkResetCommandPool result=%d", result);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2763,7 +2770,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkDescriptorPool pool = (VkDescriptorPool)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_POOL, guest_pool);
         VkResult result = vkResetDescriptorPool(device, pool, flags);
         LOGI("Host: vkResetDescriptorPool result=%d", result);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2780,7 +2787,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkEvent event = (VkEvent)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_EVENT, guest_event);
         VkResult result = vkResetEvent(device, event);
         LOGI("Host: vkResetEvent result=%d", result);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2799,7 +2806,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkQueryPool pool = (VkQueryPool)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUERY_POOL, guest_pool);
         vkResetQueryPool(device, pool, firstQuery, queryCount);
         LOGI("Host: vkResetQueryPool device=%p pool=%p firstQuery=%u queryCount=%u", (void*)device, (void*)pool, firstQuery, queryCount);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2851,7 +2858,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         // free(host_layouts);
         free(host_descriptor_sets);
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -2935,7 +2942,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         if (pDescriptorWrites) free(pDescriptorWrites);
         if (pDescriptorCopies) free(pDescriptorCopies);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -3074,27 +3081,37 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         // ztodo:不确定对VK_FORMAT_D32_SFLOAT_S8_UINT支持的bug是我本人电脑的问题还是pc都有的问题
         // 我的1660ti查询的时候会返回支持VK_FORMAT_D32_SFLOAT_S8_UINT，但实际会导致卡死和驱动丢失
-        if (format == VK_FORMAT_D32_SFLOAT) {
+        if (format == VK_FORMAT_D32_SFLOAT || 
+            format == VK_FORMAT_R8G8B8A8_UNORM ||
+            format == VK_FORMAT_B8G8R8A8_UNORM || 
+            format == VK_FORMAT_R8G8B8A8_SRGB ||
+            format == VK_FORMAT_B8G8R8A8_SRGB) {
+            
             vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
             
-            const VkFormatFeatureFlags allowed =
-                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
-                VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+            // 对于颜色格式，不需要过滤特性
+            if (format == VK_FORMAT_D32_SFLOAT) {
+                const VkFormatFeatureFlags allowed =
+                    VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                    VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                    VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
+                    VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
 
-            properties.linearTilingFeatures  &= allowed;
-            properties.optimalTilingFeatures &= allowed;
-            properties.bufferFeatures        &= allowed;
+                properties.linearTilingFeatures  &= allowed;
+                properties.optimalTilingFeatures &= allowed;
+                properties.bufferFeatures        &= allowed;
+            }
+        // 颜色格式保留所有特性
+        
+        LOGI("Host: format %d is supported with features: 0x%08X", format, properties.optimalTilingFeatures);
+    } else {
+        // 其他格式仍然返回0（如果需要）
+        properties.linearTilingFeatures  = 0;
+        properties.optimalTilingFeatures = 0;
+        properties.bufferFeatures        = 0;
 
-            LOGI("Host: VK_FORMAT_D32_SFLOAT is supported");
-        } else {
-            properties.linearTilingFeatures  = 0;
-            properties.optimalTilingFeatures = 0;
-            properties.bufferFeatures        = 0;
-
-            LOGI("Host: format %d is not supported", format);
-        }
+        LOGI("Host: format %d is not supported", format);
+    }
 
         // 写入返回值到 guest 内存
         write_to_guest_mem(all_para[1].data, &properties, 0, sizeof(VkFormatProperties));
@@ -3156,7 +3173,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
               "linearTilingFeatures = %x, optimalTilingFeatures = %x, bufferFeatures = %x",
               p->linearTilingFeatures, p->optimalTilingFeatures, p->bufferFeatures);
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;    
 
@@ -3190,7 +3207,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGW("Failed to get image format properties: %d", result);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
 
     }
     break;    
@@ -3229,7 +3246,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                 LOGW("Failed to get image format properties: %d", result);
             }
 
-            if (need_free) free(stream);
+            //if (need_free) free(stream);
             free(formatInfo);
         }
         
@@ -4146,7 +4163,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         }
         
         if (pBindInfo) free(pBindInfo);
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -4172,7 +4189,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkQueueWaitIdle success, queue=%p", (void*)queue);
         }
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -4197,7 +4214,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         
         vkTrimCommandPool(device, commandPool, flags);
         
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -4478,7 +4495,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyBuffer completed for guest buffer %llu", (unsigned long long)guest_buf);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -4524,7 +4541,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyBufferView completed for guest buffer view %llu", (unsigned long long)guest_buf_view);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
      }
      break;
     
@@ -4570,7 +4587,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyCommandPool completed for guest command pool %llu", (unsigned long long)guest_cmd_pool);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
      }
     break;
 
@@ -4616,7 +4633,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyDescriptorPool completed for guest descriptor pool %llu", (unsigned long long)guest_desc_pool);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -4662,7 +4679,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyDescriptorSetLayout completed for guest descriptor set layout %llu", (unsigned long long)guest_desc_set_layout);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -4708,7 +4725,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyDescriptorUpdateTemplate completed for guest descriptor update template %llu", (unsigned long long)guest_desc_update_template);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -4752,7 +4769,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyDevice completed for guest device %llu", (unsigned long long)guest_dev);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -4798,7 +4815,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyEvent completed for guest event %llu", (unsigned long long)guest_event);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -4844,7 +4861,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyFence completed for guest fence %llu", (unsigned long long)guest_fence);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -4890,7 +4907,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyFramebuffer completed for guest framebuffer %llu", (unsigned long long)guest_framebuffer);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -4936,7 +4953,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyImage completed for guest image %llu", (unsigned long long)guest_image);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -4982,7 +4999,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyImageView completed for guest image view %llu", (unsigned long long)guest_image_view);
         }
 
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -5026,7 +5043,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyInstance completed for guest instance %llu", (unsigned long long)guest_instance);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -5072,7 +5089,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyPipeline completed for guest pipeline %llu", (unsigned long long)guest_pipeline);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5118,7 +5135,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyPipelineCache completed for guest pipeline cache %llu", (unsigned long long)guest_pipeline_cache);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5164,7 +5181,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyPipelineLayout completed for guest pipeline layout %llu", (unsigned long long)guest_pipeline_layout);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -5210,7 +5227,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyPrivateDataSlot completed for guest private data slot %llu", (unsigned long long)guest_private_data_slot);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5256,7 +5273,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyQueryPool completed for guest query pool %llu", (unsigned long long)guest_query_pool);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5302,7 +5319,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyRenderPass completed for guest render pass %llu", (unsigned long long)guest_render_pass);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -5348,7 +5365,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroySampler completed for guest sampler %llu", (unsigned long long)guest_sampler);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5394,7 +5411,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroySamplerYcbcrConversion completed for guest sampler YCbCr conversion %llu", (unsigned long long)guest_ycbcr_conversion);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5440,7 +5457,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroySemaphore completed for guest semaphore %llu", (unsigned long long)guest_semaphore);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -5486,7 +5503,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroyShaderModule completed for guest shader module %llu", (unsigned long long)guest_shader_module);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5534,7 +5551,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroySurfaceKHR completed for guest surface %llu", (unsigned long long)guest_surface);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
     
@@ -5580,7 +5597,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGI("Host: vkDestroySwapchainKHR completed for guest swapchain %llu", (unsigned long long)guest_swapchain);
         }
     
-        if (need_free) free(stream);
+        //if (need_free) free(stream);
     }
     break;
 
@@ -7972,6 +7989,777 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             LOGE("SetPrivateData failed with error: %d", result);
         }
         LOGI("SetPrivateData result: %d", result);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSurfaceCapabilitiesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        uint64_t guest_surface;
+        memcpy(&guest_surface, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        VkSurfaceKHR surface = (VkSurfaceKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface);
+        
+        VkSurfaceCapabilitiesKHR capabilities;
+        VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &capabilities);
+        
+        write_to_guest_mem(all_para[1].data, &capabilities, 0, sizeof(VkSurfaceCapabilitiesKHR));
+        LOGI("GetPhysicalDeviceSurfaceCapabilitiesKHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSurfaceCapabilities2KHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo;
+        decode_from_stream_VkPhysicalDeviceSurfaceInfo2KHR(VK_STRUCTURE_TYPE_MAX_ENUM, &surfaceInfo, ptr);
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        
+        VkSurfaceCapabilities2KHR capabilities = {VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR};
+        VkResult result = vkGetPhysicalDeviceSurfaceCapabilities2KHR(physicalDevice, &surfaceInfo, &capabilities);
+        
+        write_to_guest_mem(all_para[1].data, &capabilities, 0, sizeof(VkSurfaceCapabilities2KHR));
+        LOGI("GetPhysicalDeviceSurfaceCapabilities2KHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSurfaceFormatsKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        uint64_t guest_surface;
+        memcpy(&guest_surface, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        VkSurfaceKHR surface = (VkSurfaceKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkSurfaceFormatKHR* formats = (VkSurfaceFormatKHR*)malloc(count * sizeof(VkSurfaceFormatKHR));
+            result = vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &count, formats);
+            write_to_guest_mem(all_para[2].data, formats, 0, count * sizeof(VkSurfaceFormatKHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            free(formats);
+        }
+        
+        LOGI("GetPhysicalDeviceSurfaceFormatsKHR count %d result %d", count, result);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSurfaceFormats2KHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDeviceSurfaceInfo2KHR surfaceInfo;
+        decode_from_stream_VkPhysicalDeviceSurfaceInfo2KHR(VK_STRUCTURE_TYPE_MAX_ENUM, &surfaceInfo, ptr);
+        
+        uint32_t count;
+        memcpy(&count, *ptr, 4); *ptr += 4;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceSurfaceFormats2KHR(physicalDevice, &surfaceInfo, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkSurfaceFormat2KHR* formats = (VkSurfaceFormat2KHR*)malloc(count * sizeof(VkSurfaceFormat2KHR));
+            for (uint32_t i = 0; i < count; i++) {
+                formats[i].sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR;
+                formats[i].pNext = NULL;
+            }
+            result = vkGetPhysicalDeviceSurfaceFormats2KHR(physicalDevice, &surfaceInfo, &count, formats);
+            write_to_guest_mem(all_para[2].data, formats, 0, count * sizeof(VkSurfaceFormat2KHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            free(formats);
+        }
+        
+        write_to_guest_mem(all_para[para_num - 1].data, &result, 0, sizeof(VkResult));
+        LOGI("GetPhysicalDeviceSurfaceFormats2KHR count %d result %d", count, result);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSurfacePresentModesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        uint64_t guest_surface;
+        memcpy(&guest_surface, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        VkSurfaceKHR surface = (VkSurfaceKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkPresentModeKHR* modes = (VkPresentModeKHR*)malloc(count * sizeof(VkPresentModeKHR));
+            result = vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &count, modes);
+            write_to_guest_mem(all_para[2].data, modes, 0, count * sizeof(VkPresentModeKHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            free(modes);
+        }
+        
+        LOGI("GetPhysicalDeviceSurfacePresentModesKHR count %d result %d", count, result);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceSurfaceSupportKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        uint32_t queueFamilyIndex;
+        memcpy(&queueFamilyIndex, *ptr, 4); *ptr += 4;
+        uint64_t guest_surface;
+        memcpy(&guest_surface, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        VkSurfaceKHR surface = (VkSurfaceKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface);
+        
+        VkBool32 supported;
+        VkResult result = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndex, surface, &supported);
+        
+        write_to_guest_mem(all_para[1].data, &supported, 0, sizeof(VkBool32));
+        LOGI("GetPhysicalDeviceSurfaceSupportKHR queue %d supported %d result %d", queueFamilyIndex, supported, result);
+    }
+    break;
+
+
+    case FUNID_vkGetPhysicalDeviceDisplayPropertiesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceDisplayPropertiesKHR(physicalDevice, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            uint64_t* guest_displays = (uint64_t*)malloc(count * sizeof(uint64_t));
+            read_from_guest_mem(all_para[2].data, guest_displays, 0, count * sizeof(uint64_t));
+            
+            VkDisplayPropertiesKHR* props = (VkDisplayPropertiesKHR*)malloc(count * sizeof(VkDisplayPropertiesKHR));
+            result = vkGetPhysicalDeviceDisplayPropertiesKHR(physicalDevice, &count, props);
+            
+            for (uint32_t i = 0; i < count; ++i) {
+                uint64_t host_display = (uint64_t)(uintptr_t)props[i].display;
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_displays[i], host_display);
+            }
+            
+            write_to_guest_mem(all_para[3].data, props, 0, count * sizeof(VkDisplayPropertiesKHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            
+            free(props);
+            free(guest_displays);
+        }
+        
+        LOGI("GetPhysicalDeviceDisplayPropertiesKHR count %d", count);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceDisplayProperties2KHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceDisplayProperties2KHR(physicalDevice, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            uint64_t* guest_displays = (uint64_t*)malloc(count * sizeof(uint64_t));
+            read_from_guest_mem(all_para[2].data, guest_displays, 0, count * sizeof(uint64_t));
+            
+            VkDisplayProperties2KHR* props = (VkDisplayProperties2KHR*)malloc(count * sizeof(VkDisplayProperties2KHR));
+            for (uint32_t i = 0; i < count; ++i) {
+                props[i].sType = VK_STRUCTURE_TYPE_DISPLAY_PROPERTIES_2_KHR;
+                props[i].pNext = NULL;
+            }
+            result = vkGetPhysicalDeviceDisplayProperties2KHR(physicalDevice, &count, props);
+            
+            for (uint32_t i = 0; i < count; ++i) {
+                uint64_t host_display = (uint64_t)(uintptr_t)props[i].displayProperties.display;
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_displays[i], host_display);
+            }
+            
+            write_to_guest_mem(all_para[3].data, props, 0, count * sizeof(VkDisplayProperties2KHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            
+            free(props);
+            free(guest_displays);
+        }
+        
+        LOGI("GetPhysicalDeviceDisplayProperties2KHR count %d", count);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceDisplayPlanePropertiesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceDisplayPlanePropertiesKHR(physicalDevice, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            uint64_t* guest_displays = (uint64_t*)malloc(count * sizeof(uint64_t));
+            read_from_guest_mem(all_para[2].data, guest_displays, 0, count * sizeof(uint64_t));
+            
+            VkDisplayPlanePropertiesKHR* props = (VkDisplayPlanePropertiesKHR*)malloc(count * sizeof(VkDisplayPlanePropertiesKHR));
+            result = vkGetPhysicalDeviceDisplayPlanePropertiesKHR(physicalDevice, &count, props);
+            
+            for (uint32_t i = 0; i < count; ++i) {
+                if (props[i].currentDisplay != VK_NULL_HANDLE) {
+                    uint64_t host_display = (uint64_t)(uintptr_t)props[i].currentDisplay;
+                    insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_displays[i], host_display);
+                }
+            }
+            
+            write_to_guest_mem(all_para[3].data, props, 0, count * sizeof(VkDisplayPlanePropertiesKHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            
+            free(props);
+            free(guest_displays);
+        }
+        
+        LOGI("GetPhysicalDeviceDisplayPlanePropertiesKHR count %d", count);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDeviceDisplayPlaneProperties2KHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetPhysicalDeviceDisplayPlaneProperties2KHR(physicalDevice, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            uint64_t* guest_displays = (uint64_t*)malloc(count * sizeof(uint64_t));
+            read_from_guest_mem(all_para[2].data, guest_displays, 0, count * sizeof(uint64_t));
+            
+            VkDisplayPlaneProperties2KHR* props = (VkDisplayPlaneProperties2KHR*)malloc(count * sizeof(VkDisplayPlaneProperties2KHR));
+            for (uint32_t i = 0; i < count; ++i) {
+                props[i].sType = VK_STRUCTURE_TYPE_DISPLAY_PLANE_PROPERTIES_2_KHR;
+                props[i].pNext = NULL;
+            }
+            result = vkGetPhysicalDeviceDisplayPlaneProperties2KHR(physicalDevice, &count, props);
+            
+            for (uint32_t i = 0; i < count; ++i) {
+                if (props[i].displayPlaneProperties.currentDisplay != VK_NULL_HANDLE) {
+                    uint64_t host_display = (uint64_t)(uintptr_t)props[i].displayPlaneProperties.currentDisplay;
+                    insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_displays[i], host_display);
+                }
+            }
+            
+            write_to_guest_mem(all_para[3].data, props, 0, count * sizeof(VkDisplayPlaneProperties2KHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            
+            free(props);
+            free(guest_displays);
+        }
+        
+        LOGI("GetPhysicalDeviceDisplayPlaneProperties2KHR count %d", count);
+    }
+    break;
+
+    case FUNID_vkGetDisplayModePropertiesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        uint64_t guest_display;
+        memcpy(&guest_display, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        VkDisplayKHR display = (VkDisplayKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_display);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetDisplayModePropertiesKHR(physicalDevice, display, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            uint64_t* guest_modes = (uint64_t*)malloc(count * sizeof(uint64_t));
+            read_from_guest_mem(all_para[2].data, guest_modes, 0, count * sizeof(uint64_t));
+            
+            VkDisplayModePropertiesKHR* props = (VkDisplayModePropertiesKHR*)malloc(count * sizeof(VkDisplayModePropertiesKHR));
+            result = vkGetDisplayModePropertiesKHR(physicalDevice, display, &count, props);
+            
+            for (uint32_t i = 0; i < count; ++i) {
+                uint64_t host_mode = (uint64_t)(uintptr_t)props[i].displayMode;
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_MODE_KHR, guest_modes[i], host_mode);
+            }
+            
+            write_to_guest_mem(all_para[3].data, props, 0, count * sizeof(VkDisplayModePropertiesKHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            
+            free(props);
+            free(guest_modes);
+        }
+        
+        LOGI("GetDisplayModePropertiesKHR count %d", count);
+    }
+    break;
+
+    case FUNID_vkGetDisplayModeProperties2KHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        uint64_t guest_display;
+        memcpy(&guest_display, *ptr, 8); *ptr += 8;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+        lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        VkDisplayKHR display = (VkDisplayKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_display);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetDisplayModeProperties2KHR(physicalDevice, display, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            uint64_t* guest_modes = (uint64_t*)malloc(count * sizeof(uint64_t));
+            read_from_guest_mem(all_para[2].data, guest_modes, 0, count * sizeof(uint64_t));
+            
+            VkDisplayModeProperties2KHR* props = (VkDisplayModeProperties2KHR*)malloc(count * sizeof(VkDisplayModeProperties2KHR));
+            for (uint32_t i = 0; i < count; ++i) {
+                props[i].sType = VK_STRUCTURE_TYPE_DISPLAY_MODE_PROPERTIES_2_KHR;
+                props[i].pNext = NULL;
+            }
+            result = vkGetDisplayModeProperties2KHR(physicalDevice, display, &count, props);
+            
+            for (uint32_t i = 0; i < count; ++i) {
+                uint64_t host_mode = (uint64_t)(uintptr_t)props[i].displayModeProperties.displayMode;
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_MODE_KHR, guest_modes[i], host_mode);
+            }
+            
+            write_to_guest_mem(all_para[3].data, props, 0, count * sizeof(VkDisplayModeProperties2KHR));
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            
+            free(props);
+            free(guest_modes);
+        }
+        
+        write_to_guest_mem(all_para[para_num - 1].data, &result, 0, sizeof(VkResult));
+        LOGI("GetDisplayModeProperties2KHR count %d", count);
+    }
+    break;
+
+    case FUNID_vkGetPhysicalDevicePresentRectanglesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_phys_dev;
+        memcpy(&guest_phys_dev, *ptr, 8); *ptr += 8;
+        uint64_t guest_surface;
+        memcpy(&guest_surface, *ptr, 8); *ptr += 8;
+        uint32_t rect_count;
+        memcpy(&rect_count, *ptr, 4); *ptr += 4;
+        
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_phys_dev);
+        VkSurfaceKHR surface = (VkSurfaceKHR)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface);
+        
+        VkResult result;
+        uint32_t count = rect_count;
+        
+        if (count == 0) {
+            result = vkGetPhysicalDevicePresentRectanglesKHR(physicalDevice, surface, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkRect2D* rects = (VkRect2D*)malloc(count * sizeof(VkRect2D));
+            result = vkGetPhysicalDevicePresentRectanglesKHR(physicalDevice, surface, &count, rects);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+            if (result == VK_SUCCESS) {
+                write_to_guest_mem(all_para[2].data, rects, 0, count * sizeof(VkRect2D));
+            }
+            free(rects);
+        }
+        
+        LOGI("GetPhysicalDevicePresentRectanglesKHR result=%d count=%d", result, count);
+    }
+    break;
+
+    case FUNID_vkCmdResetQueryPool:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_cmd_buf;
+        memcpy(&guest_cmd_buf, *ptr, 8); *ptr += 8;
+        uint64_t guest_query_pool;
+        memcpy(&guest_query_pool, *ptr, 8); *ptr += 8;
+        uint32_t firstQuery;
+        memcpy(&firstQuery, *ptr, 4); *ptr += 4;
+        uint32_t queryCount;
+        memcpy(&queryCount, *ptr, 4); *ptr += 4;
+        
+        VkCommandBuffer commandBuffer = (VkCommandBuffer)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd_buf);
+        VkQueryPool queryPool = (VkQueryPool)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_QUERY_POOL, guest_query_pool);
+        
+        vkCmdResetQueryPool(commandBuffer, queryPool, firstQuery, queryCount);
+        
+        LOGI("CmdResetQueryPool firstQuery=%d queryCount=%d", firstQuery, queryCount);
+    }
+    break;
+
+    case FUNID_vkCreateDisplayModeKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_physicalDevice;
+        memcpy(&guest_physicalDevice, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_physicalDevice);
+        
+        uint64_t guest_display;
+        memcpy(&guest_display, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkDisplayKHR display = (VkDisplayKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_display);
+        
+        VkDisplayModeCreateInfoKHR createInfo;
+        decode_from_stream_VkDisplayModeCreateInfoKHR(VK_STRUCTURE_TYPE_MAX_ENUM, &createInfo, ptr);
+        
+        uint64_t guest_allocator_ptr;
+        memcpy(&guest_allocator_ptr, *ptr, 8);
+        *ptr += 8;
+        
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_allocator_ptr) {
+            VkAllocationCallbacks allocator;
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocator, ptr);
+            pAllocator = &allocator;
+        }
+        
+        uint64_t guest_mode;
+        memcpy(&guest_mode, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        
+        VkDisplayModeKHR mode;
+        VkResult result = vkCreateDisplayModeKHR(physicalDevice, display, &createInfo, pAllocator, &mode);
+        
+        if (result == VK_SUCCESS) {
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_MODE_KHR, guest_mode, (uint64_t)(uintptr_t)mode);
+        }
+        
+        write_to_guest_mem(all_para[1].data, &result, 0, sizeof(VkResult));
+        LOGI("CreateDisplayModeKHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkCreateDisplayPlaneSurfaceKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_instance;
+        memcpy(&guest_instance, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkInstance instance = (VkInstance)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_INSTANCE, guest_instance);
+        
+        VkDisplaySurfaceCreateInfoKHR createInfo;
+        decode_from_stream_VkDisplaySurfaceCreateInfoKHR(VK_STRUCTURE_TYPE_MAX_ENUM, &createInfo, ptr);
+        
+        uint64_t guest_allocator_ptr;
+        memcpy(&guest_allocator_ptr, *ptr, 8);
+        *ptr += 8;
+        
+        const VkAllocationCallbacks* pAllocator = NULL;
+        if (guest_allocator_ptr) {
+            VkAllocationCallbacks allocator;
+            decode_from_stream_VkAllocationCallbacks(VK_STRUCTURE_TYPE_MAX_ENUM, &allocator, ptr);
+            pAllocator = &allocator;
+        }
+        
+        uint64_t guest_surface;
+        memcpy(&guest_surface, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        
+        VkSurfaceKHR surface;
+        VkResult result = vkCreateDisplayPlaneSurfaceKHR(instance, &createInfo, pAllocator, &surface);
+        
+        if (result == VK_SUCCESS) {
+            insert_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface, (uint64_t)(uintptr_t)surface);
+        }
+        
+        write_to_guest_mem(all_para[1].data, &result, 0, sizeof(VkResult));
+        LOGI("CreateDisplayPlaneSurfaceKHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetDeviceGroupPresentCapabilitiesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device;
+        memcpy(&guest_device, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        VkDeviceGroupPresentCapabilitiesKHR capabilities;
+        VkResult result = vkGetDeviceGroupPresentCapabilitiesKHR(device, &capabilities);
+        
+        write_to_guest_mem(all_para[1].data, &capabilities, 0, sizeof(VkDeviceGroupPresentCapabilitiesKHR));
+        write_to_guest_mem(all_para[2].data, &result, 0, sizeof(VkResult));
+        LOGI("GetDeviceGroupPresentCapabilitiesKHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetDeviceGroupSurfacePresentModesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_device;
+        memcpy(&guest_device, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        
+        uint64_t guest_surface;
+        memcpy(&guest_surface, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkSurfaceKHR surface = (VkSurfaceKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface);
+        
+        VkDeviceGroupPresentModeFlagsKHR modes;
+        VkResult result = vkGetDeviceGroupSurfacePresentModesKHR(device, surface, &modes);
+        
+        write_to_guest_mem(all_para[1].data, &modes, 0, sizeof(VkDeviceGroupPresentModeFlagsKHR));
+        write_to_guest_mem(all_para[2].data, &result, 0, sizeof(VkResult));
+        LOGI("GetDeviceGroupSurfacePresentModesKHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetDisplayPlaneCapabilities2KHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_physicalDevice;
+        memcpy(&guest_physicalDevice, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_physicalDevice);
+        
+        VkDisplayPlaneInfo2KHR planeInfo;
+        decode_from_stream_VkDisplayPlaneInfo2KHR(VK_STRUCTURE_TYPE_MAX_ENUM, &planeInfo, ptr);
+        
+        VkDisplayPlaneCapabilities2KHR capabilities;
+        VkResult result = vkGetDisplayPlaneCapabilities2KHR(physicalDevice, &planeInfo, &capabilities);
+        
+        write_to_guest_mem(all_para[1].data, &capabilities, 0, sizeof(VkDisplayPlaneCapabilities2KHR));
+        write_to_guest_mem(all_para[2].data, &result, 0, sizeof(VkResult));
+        LOGI("GetDisplayPlaneCapabilities2KHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetDisplayPlaneCapabilitiesKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_physicalDevice;
+        memcpy(&guest_physicalDevice, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_physicalDevice);
+        
+        uint64_t guest_mode;
+        memcpy(&guest_mode, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkDisplayModeKHR mode = (VkDisplayModeKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_MODE_KHR, guest_mode);
+        
+        uint32_t planeIndex;
+        memcpy(&planeIndex, *ptr, sizeof(uint32_t));
+        *ptr += sizeof(uint32_t);
+        
+        VkDisplayPlaneCapabilitiesKHR capabilities;
+        VkResult result = vkGetDisplayPlaneCapabilitiesKHR(physicalDevice, mode, planeIndex, &capabilities);
+        
+        write_to_guest_mem(all_para[1].data, &capabilities, 0, sizeof(VkDisplayPlaneCapabilitiesKHR));
+        write_to_guest_mem(all_para[2].data, &result, 0, sizeof(VkResult));
+        LOGI("GetDisplayPlaneCapabilitiesKHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetDisplayPlaneSupportedDisplaysKHR:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_physicalDevice;
+        memcpy(&guest_physicalDevice, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        VkPhysicalDevice physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_physicalDevice);
+        
+        uint32_t planeIndex;
+        memcpy(&planeIndex, *ptr, sizeof(uint32_t));
+        *ptr += sizeof(uint32_t);
+        
+        uint32_t count = 0;
+        read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        
+        VkResult result;
+        if (count == 0) {
+            result = vkGetDisplayPlaneSupportedDisplaysKHR(physicalDevice, planeIndex, &count, NULL);
+            write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+        } else {
+            VkDisplayKHR* displays = (VkDisplayKHR*)malloc(count * sizeof(VkDisplayKHR));
+            uint64_t* guest_displays = malloc(count * sizeof(uint64_t));
+            read_from_guest_mem(all_para[2].data, guest_displays, 0, count * sizeof(uint64_t));
+            
+            result = vkGetDisplayPlaneSupportedDisplaysKHR(physicalDevice, planeIndex, &count, displays);
+            
+            for (uint32_t i = 0; i < count; ++i) {
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_displays[i], (uint64_t)(uintptr_t)displays[i]);
+            }
+            
+            free(displays);
+            free(guest_displays);
+        }
+        
+        write_to_guest_mem(all_para[para_num - 1].data, &result, 0, sizeof(VkResult));
+        LOGI("GetDisplayPlaneSupportedDisplaysKHR result %d", result);
     }
     break;
 

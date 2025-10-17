@@ -79,8 +79,292 @@ void loadStringArrayInPlaceWithStreamPtr(char*** forOutput, uint8_t** streamPtr)
     }
 }
                                         
-#define VK_VERSION_1_0 1 //ztodo:记得删！！
+#define VK_VERSION_1_0 1 //ztodo:记得删！
 #ifdef VK_VERSION_1_0
+void decode_from_stream_VkPhysicalDeviceSurfaceInfo2KHR(VkStructureType rootType,
+                                                        VkPhysicalDeviceSurfaceInfo2KHR* forUnmarshaling,
+                                                        uint8_t** ptr) {
+    memcpy((VkStructureType*)&forUnmarshaling->sType, *ptr, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forUnmarshaling->sType;
+    }
+    uint32_t pNext_size;
+    memcpy((uint32_t*)&pNext_size, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    forUnmarshaling->pNext = NULL;
+    if (pNext_size) {
+        void* pNext_type = malloc(sizeof(VkStructureType));
+        memcpy(pNext_type, *ptr, sizeof(VkStructureType));
+        *ptr += sizeof(VkStructureType);
+        VkStructureType extType = *(VkStructureType*)(pNext_type);
+        forUnmarshaling->pNext = malloc(
+            express_vk_extension_struct_size_with_stream_features(0, rootType, pNext_type));
+        *(VkStructureType*)forUnmarshaling->pNext = extType;
+        decode_from_stream_extension_struct(rootType, (void*)(forUnmarshaling->pNext), ptr);
+    }
+    uint64_t guest_surface;
+    memcpy(&guest_surface, *ptr, sizeof(VkSurfaceKHR));
+    *ptr += sizeof(VkSurfaceKHR);
+    forUnmarshaling->surface = (VkSurfaceKHR)(uintptr_t)
+        lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SURFACE_KHR, guest_surface);
+}
+
+void decode_from_stream_VkDisplayPropertiesKHR(VkStructureType rootType,
+                                               VkDisplayPropertiesKHR* forUnmarshaling,
+                                               uint8_t** ptr) {
+    (void)rootType;
+    uint64_t guest_display;
+    memcpy(&guest_display, *ptr, 8);
+    *ptr += 8;
+    forUnmarshaling->display = (VkDisplayKHR)(uintptr_t)
+        lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_display);
+    
+    uint32_t str_len;
+    memcpy(&str_len, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    if (str_len) {
+        forUnmarshaling->displayName = (char*)malloc(str_len + 1);
+        memcpy((char*)forUnmarshaling->displayName, *ptr, str_len);
+        ((char*)forUnmarshaling->displayName)[str_len] = '\0';
+        *ptr += str_len;
+    } else {
+        forUnmarshaling->displayName = NULL;
+    }
+    
+    decode_from_stream_VkExtent2D(rootType,
+                                  (VkExtent2D*)(&forUnmarshaling->physicalDimensions), ptr);
+    decode_from_stream_VkExtent2D(rootType,
+                                  (VkExtent2D*)(&forUnmarshaling->physicalResolution), ptr);
+    memcpy((VkSurfaceTransformFlagsKHR*)&forUnmarshaling->supportedTransforms, *ptr,
+           sizeof(VkSurfaceTransformFlagsKHR));
+    *ptr += sizeof(VkSurfaceTransformFlagsKHR);
+    memcpy((VkBool32*)&forUnmarshaling->planeReorderPossible, *ptr, sizeof(VkBool32));
+    *ptr += sizeof(VkBool32);
+    memcpy((VkBool32*)&forUnmarshaling->persistentContent, *ptr, sizeof(VkBool32));
+    *ptr += sizeof(VkBool32);
+}
+
+void decode_from_stream_VkDisplayPlanePropertiesKHR(VkStructureType rootType,
+                                                    VkDisplayPlanePropertiesKHR* forUnmarshaling,
+                                                    uint8_t** ptr) {
+    (void)rootType;
+    uint64_t guest_display;
+    memcpy(&guest_display, *ptr, 8);
+    *ptr += 8;
+    forUnmarshaling->currentDisplay = (VkDisplayKHR)(uintptr_t)
+        lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_KHR, guest_display);
+    memcpy((uint32_t*)&forUnmarshaling->currentStackIndex, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+}
+
+void decode_from_stream_VkDisplayPlaneProperties2KHR(VkStructureType rootType,
+                                                     VkDisplayPlaneProperties2KHR* forUnmarshaling,
+                                                     uint8_t** ptr) {
+    memcpy((VkStructureType*)&forUnmarshaling->sType, *ptr, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forUnmarshaling->sType;
+    }
+    uint32_t pNext_size;
+    memcpy((uint32_t*)&pNext_size, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    forUnmarshaling->pNext = NULL;
+    if (pNext_size) {
+        void* pNext_type = malloc(sizeof(VkStructureType));
+        memcpy(pNext_type, *ptr, sizeof(VkStructureType));
+        *ptr += sizeof(VkStructureType);
+        VkStructureType extType = *(VkStructureType*)(pNext_type);
+        forUnmarshaling->pNext = malloc(
+            express_vk_extension_struct_size_with_stream_features(0, rootType, pNext_type));
+        *(VkStructureType*)forUnmarshaling->pNext = extType;
+        decode_from_stream_extension_struct(rootType, (void*)(forUnmarshaling->pNext), ptr);
+    }
+    decode_from_stream_VkDisplayPlanePropertiesKHR(rootType,
+                                                   (VkDisplayPlanePropertiesKHR*)(&forUnmarshaling->displayPlaneProperties), ptr);
+}
+
+void decode_from_stream_VkDisplayProperties2KHR(VkStructureType rootType,
+                                                VkDisplayProperties2KHR* forUnmarshaling,
+                                                uint8_t** ptr) {
+    memcpy((VkStructureType*)&forUnmarshaling->sType, *ptr, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forUnmarshaling->sType;
+    }
+    uint32_t pNext_size;
+    memcpy((uint32_t*)&pNext_size, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    forUnmarshaling->pNext = NULL;
+    if (pNext_size) {
+        void* pNext_type = malloc(sizeof(VkStructureType));
+        memcpy(pNext_type, *ptr, sizeof(VkStructureType));
+        *ptr += sizeof(VkStructureType);
+        VkStructureType extType = *(VkStructureType*)(pNext_type);
+        forUnmarshaling->pNext = malloc(
+            express_vk_extension_struct_size_with_stream_features(0, rootType, pNext_type));
+        *(VkStructureType*)forUnmarshaling->pNext = extType;
+        decode_from_stream_extension_struct(rootType, (void*)(forUnmarshaling->pNext), ptr);
+    }
+    decode_from_stream_VkDisplayPropertiesKHR(rootType, 
+                                              (VkDisplayPropertiesKHR*)(&forUnmarshaling->displayProperties), ptr);
+}
+
+void decode_from_stream_VkDisplayPlaneCapabilities2KHR(VkStructureType rootType,
+                                                       VkDisplayPlaneCapabilities2KHR* forUnmarshaling,
+                                                       uint8_t** ptr) {
+    memcpy((VkStructureType*)&forUnmarshaling->sType, *ptr, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forUnmarshaling->sType;
+    }
+    uint32_t pNext_size;
+    memcpy((uint32_t*)&pNext_size, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    forUnmarshaling->pNext = NULL;
+    if (pNext_size) {
+        void* pNext_type = malloc(sizeof(VkStructureType));
+        memcpy(pNext_type, *ptr, sizeof(VkStructureType));
+        *ptr += sizeof(VkStructureType);
+        VkStructureType extType = *(VkStructureType*)(pNext_type);
+        forUnmarshaling->pNext = malloc(
+            express_vk_extension_struct_size_with_stream_features(0, rootType, pNext_type));
+        *(VkStructureType*)forUnmarshaling->pNext = extType;
+        decode_from_stream_extension_struct(rootType, (void*)(forUnmarshaling->pNext), ptr);
+    }
+    decode_from_stream_VkDisplayPlaneCapabilitiesKHR(rootType,
+                                                     (VkDisplayPlaneCapabilitiesKHR*)(&forUnmarshaling->capabilities), ptr);
+}
+
+void decode_from_stream_VkDisplaySurfaceCreateInfoKHR(VkStructureType rootType,
+                                                      VkDisplaySurfaceCreateInfoKHR* forUnmarshaling,
+                                                      uint8_t** ptr) {
+    memcpy((VkStructureType*)&forUnmarshaling->sType, *ptr, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forUnmarshaling->sType;
+    }
+    uint32_t pNext_size;
+    memcpy((uint32_t*)&pNext_size, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    forUnmarshaling->pNext = NULL;
+    if (pNext_size) {
+        void* pNext_type = malloc(sizeof(VkStructureType));
+        memcpy(pNext_type, *ptr, sizeof(VkStructureType));
+        *ptr += sizeof(VkStructureType);
+        VkStructureType extType = *(VkStructureType*)(pNext_type);
+        forUnmarshaling->pNext = malloc(
+            express_vk_extension_struct_size_with_stream_features(0, rootType, pNext_type));
+        *(VkStructureType*)forUnmarshaling->pNext = extType;
+        decode_from_stream_extension_struct(rootType, (void*)(forUnmarshaling->pNext), ptr);
+    }
+    memcpy((VkDisplaySurfaceCreateFlagsKHR*)&forUnmarshaling->flags, *ptr, sizeof(VkDisplaySurfaceCreateFlagsKHR));
+    *ptr += sizeof(VkDisplaySurfaceCreateFlagsKHR);
+    
+    uint64_t guest_display_mode;
+    memcpy(&guest_display_mode, *ptr, 8);
+    *ptr += 8;
+    forUnmarshaling->displayMode = (VkDisplayModeKHR)(uintptr_t)
+        lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_MODE_KHR, guest_display_mode);
+    
+    memcpy((uint32_t*)&forUnmarshaling->planeIndex, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    memcpy((uint32_t*)&forUnmarshaling->planeStackIndex, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    memcpy((VkSurfaceTransformFlagBitsKHR*)&forUnmarshaling->transform, *ptr, sizeof(VkSurfaceTransformFlagBitsKHR));
+    *ptr += sizeof(VkSurfaceTransformFlagBitsKHR);
+    memcpy((float*)&forUnmarshaling->globalAlpha, *ptr, sizeof(float));
+    *ptr += sizeof(float);
+    memcpy((VkDisplayPlaneAlphaFlagBitsKHR*)&forUnmarshaling->alphaMode, *ptr, sizeof(VkDisplayPlaneAlphaFlagBitsKHR));
+    *ptr += sizeof(VkDisplayPlaneAlphaFlagBitsKHR);
+    decode_from_stream_VkExtent2D(rootType, (VkExtent2D*)(&forUnmarshaling->imageExtent), ptr);
+}
+
+void decode_from_stream_VkDisplayModeCreateInfoKHR(VkStructureType rootType,
+                                                   VkDisplayModeCreateInfoKHR* forUnmarshaling,
+                                                   uint8_t** ptr) {
+    memcpy((VkStructureType*)&forUnmarshaling->sType, *ptr, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forUnmarshaling->sType;
+    }
+    uint32_t pNext_size;
+    memcpy((uint32_t*)&pNext_size, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    forUnmarshaling->pNext = NULL;
+    if (pNext_size) {
+        void* pNext_type = malloc(sizeof(VkStructureType));
+        memcpy(pNext_type, *ptr, sizeof(VkStructureType));
+        *ptr += sizeof(VkStructureType);
+        VkStructureType extType = *(VkStructureType*)(pNext_type);
+        forUnmarshaling->pNext = malloc(
+            express_vk_extension_struct_size_with_stream_features(0, rootType, pNext_type));
+        *(VkStructureType*)forUnmarshaling->pNext = extType;
+        decode_from_stream_extension_struct(rootType, (void*)(forUnmarshaling->pNext), ptr);
+    }
+    memcpy((VkDisplayModeCreateFlagsKHR*)&forUnmarshaling->flags, *ptr, sizeof(VkDisplayModeCreateFlagsKHR));
+    *ptr += sizeof(VkDisplayModeCreateFlagsKHR);
+    decode_from_stream_VkDisplayModeParametersKHR(rootType,
+                                                  (VkDisplayModeParametersKHR*)(&forUnmarshaling->parameters), ptr);
+}
+
+void decode_from_stream_VkDisplayPlaneCapabilitiesKHR(VkStructureType rootType,
+                                                      VkDisplayPlaneCapabilitiesKHR* forUnmarshaling,
+                                                      uint8_t** ptr) {
+    (void)rootType;
+    memcpy((VkDisplayPlaneAlphaFlagsKHR*)&forUnmarshaling->supportedAlpha, *ptr,
+           sizeof(VkDisplayPlaneAlphaFlagsKHR));
+    *ptr += sizeof(VkDisplayPlaneAlphaFlagsKHR);
+    decode_from_stream_VkOffset2D(rootType, (VkOffset2D*)(&forUnmarshaling->minSrcPosition), ptr);
+    decode_from_stream_VkOffset2D(rootType, (VkOffset2D*)(&forUnmarshaling->maxSrcPosition), ptr);
+    decode_from_stream_VkExtent2D(rootType, (VkExtent2D*)(&forUnmarshaling->minSrcExtent), ptr);
+    decode_from_stream_VkExtent2D(rootType, (VkExtent2D*)(&forUnmarshaling->maxSrcExtent), ptr);
+    decode_from_stream_VkOffset2D(rootType, (VkOffset2D*)(&forUnmarshaling->minDstPosition), ptr);
+    decode_from_stream_VkOffset2D(rootType, (VkOffset2D*)(&forUnmarshaling->maxDstPosition), ptr);
+    decode_from_stream_VkExtent2D(rootType, (VkExtent2D*)(&forUnmarshaling->minDstExtent), ptr);
+    decode_from_stream_VkExtent2D(rootType, (VkExtent2D*)(&forUnmarshaling->maxDstExtent), ptr);
+}
+
+void decode_from_stream_VkDisplayModeParametersKHR(VkStructureType rootType,
+                                                   VkDisplayModeParametersKHR* forUnmarshaling,
+                                                   uint8_t** ptr) {
+    (void)rootType;
+    decode_from_stream_VkExtent2D(rootType, (VkExtent2D*)(&forUnmarshaling->visibleRegion), ptr);
+    memcpy((uint32_t*)&forUnmarshaling->refreshRate, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+}
+
+void decode_from_stream_VkDisplayPlaneInfo2KHR(VkStructureType rootType,
+                                               VkDisplayPlaneInfo2KHR* forUnmarshaling,
+                                               uint8_t** ptr) {
+    memcpy((VkStructureType*)&forUnmarshaling->sType, *ptr, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forUnmarshaling->sType;
+    }
+    uint32_t pNext_size;
+    memcpy((uint32_t*)&pNext_size, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+    forUnmarshaling->pNext = NULL;
+    if (pNext_size) {
+        void* pNext_type = malloc(sizeof(VkStructureType));
+        memcpy(pNext_type, *ptr, sizeof(VkStructureType));
+        *ptr += sizeof(VkStructureType);
+        VkStructureType extType = *(VkStructureType*)(pNext_type);
+        forUnmarshaling->pNext = malloc(
+            express_vk_extension_struct_size_with_stream_features(0, rootType, pNext_type));
+        *(VkStructureType*)forUnmarshaling->pNext = extType;
+        decode_from_stream_extension_struct(rootType, (void*)(forUnmarshaling->pNext), ptr);
+    }
+    uint64_t guest_mode;
+    memcpy(&guest_mode, *ptr, 8);
+    *ptr += 8;
+    forUnmarshaling->mode = (VkDisplayModeKHR)(uintptr_t)
+        lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DISPLAY_MODE_KHR, guest_mode);
+    memcpy((uint32_t*)&forUnmarshaling->planeIndex, *ptr, sizeof(uint32_t));
+    *ptr += sizeof(uint32_t);
+}
+
 void decode_from_stream_VkExtent2D(VkStructureType rootType,
                                   VkExtent2D* forUnmarshaling, uint8_t** ptr) {
     memcpy((uint32_t*)&forUnmarshaling->width, *ptr, sizeof(uint32_t));
