@@ -69,7 +69,7 @@ void push_to_thread(Teleport_Express_Call *call)
     Express_Device_Info *device_info = get_express_device_info(device_id);
     if (device_info == NULL || (device_info->device_type & OUTPUT_DEVICE_TYPE) == 0)
     {
-        express_printf("something bad happened %llu %llu\n", device_id, fun_id);
+        LOGW("no device info for output device id %llu", device_id);
         call->callback(call, 0);
         return;
     }

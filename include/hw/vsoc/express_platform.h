@@ -132,12 +132,8 @@ typedef struct Thread_Context
 
     uint64_t user_id;
 
-    //特定设备自定义的context初始化函数
     void (*context_init)(struct Thread_Context *context);
-
     void (*context_destroy)(struct Thread_Context *context);
-
-    //在数据到来后，特定设备自定义的处理call数据的函数，需要在这个函数中调用callback
     bool (*call_handler)(struct Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num);
 
     //用于缓冲call的环形缓冲区

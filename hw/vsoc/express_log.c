@@ -15,10 +15,11 @@
 #include <glib/gstdio.h>
 #include <backtrace.h>
 #include <signal.h>
+#include <string.h>
 
 #define LOG_DIR "log/"
 
-#define LOG_FILE_SIZE (8 * 1024 * 1024)
+#define LOG_BUFFER_SIZE (8 * 1024 * 1024)
 
 Device_Log_Setting_Info express_device_log_setting_info= {
     .express_gpu_debug_level = 1,
@@ -74,14 +75,12 @@ static const uint32_t crc_32_tab[] = {/* CRC polynomial 0xedb88320 */
 
 static Thread_Context *log_thread_context = NULL;
 
-static char *print_buf = NULL;
-static int loc = 0;
 static gint64 t_last = 0;
 
 static char *copy_test_buf = NULL;
 static int copy_test_buf_len = 0;
 
-void call_printf_flush(void);
+void call_printf_flush(const char *buffer, gsize length);
 void log_init(Thread_Context *context);
 /**
  * @brief 用于替换printf的空函数，方便关掉标准输出
@@ -102,11 +101,7 @@ int null_printf(const char *a, ...)
  */
 void log_init(Thread_Context *context)
 {
-    if (print_buf == NULL)
-    {
-        print_buf = g_malloc(LOG_FILE_SIZE);
-        memset(print_buf, 0, LOG_FILE_SIZE);
-    }
+    (void)context;
 }
 
 /**
@@ -165,30 +160,44 @@ char *get_now_time(void)
 static bool call_printf(Thread_Context *context, uint64_t id, const Call_Para *all_para, int para_num)
 {
     if (para_num != 1) {
+        LOGW("parameter number mismatch");
         return false; // 参数数量不符合预期
     }
 
     unsigned long fun_id = GET_FUN_ID(id);
-    unsigned long process_id = context ? context->process_id : 0;
-    unsigned long thread_id  = context ? context->thread_id  : 0;
 
-    const Call_Para *p = &all_para[0];
+    const Call_Para *p = all_para;
 
     if (fun_id == 1) {
         // 打印一条日志
         if (!p->data || p->data_len == 0) return true; // 空日志也算成功
-        gint64 t_int = g_get_monotonic_time();
-        if (p->data_len < LOG_FILE_SIZE - 256) {
-            if (p->data_len + loc > LOG_FILE_SIZE - 256 || t_int - t_last > 1000000) {
-                call_printf_flush();
-                loc = 0;
-                t_last = t_int;
+
+        static char *chunk_buffer = NULL;
+        static gsize chunk_capacity = 0;
+
+        const gsize chunk_limit = LOG_BUFFER_SIZE;
+        gsize remaining = (gsize)p->data_len;
+        gsize offset = 0;
+
+        while (remaining > 0) {
+            gsize chunk = remaining < chunk_limit ? remaining : chunk_limit;
+            if (chunk > chunk_capacity) {
+                char *new_buf = chunk_buffer ? g_realloc(chunk_buffer, chunk) : g_malloc(chunk);
+                if (!new_buf) {
+                    return false;
+                }
+                chunk_buffer = new_buf;
+                chunk_capacity = chunk;
             }
-            int num = snprintf(print_buf + loc, LOG_FILE_SIZE - loc, "\n#GUEST %s %ld %ld :", get_now_time(), process_id, thread_id);
-            loc += num;
-            g_ops.read_from_guest_mem(p->data, print_buf + loc, 0, p->data_len);
-            loc += p->data_len;
+
+            g_ops.read_from_guest_mem(p->data, chunk_buffer, offset, chunk);
+            call_printf_flush(chunk_buffer, chunk);
+            offset += chunk;
+            remaining -= chunk;
         }
+
+        const char newline[] = "\n";
+        call_printf_flush(newline, sizeof(newline) - 1);
     } else if (fun_id == 2) {
         // 复制测试模式
         if (p->data_len > copy_test_buf_len) {
@@ -210,11 +219,15 @@ static bool call_printf(Thread_Context *context, uint64_t id, const Call_Para *a
     return true;
 }
 
-void call_printf_flush(void)
+void call_printf_flush(const char *buffer, gsize length)
 {
     char file_name[100];
     static char now_file_name[100];
     static FILE *fd = NULL;
+    if (buffer == NULL || length == 0) {
+        return;
+    }
+
     sprintf(file_name, "%s/call_%.16s.log", LOG_DIR, get_now_time());
 
     for (int i = 0; file_name[i] != 0; i++)
@@ -237,11 +250,13 @@ void call_printf_flush(void)
         return;
     }
 
-    print_buf[loc] = '\n';
-    print_buf[loc + 1] = '\n';
-    fwrite(print_buf, sizeof(char), loc + 2, fd);
-    fflush(fd);
-    loc = 0;
+    fwrite(buffer, sizeof(char), length, fd);
+}
+
+Thread_Context *remove_log_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
+{
+    // prevent removing the global log thread context
+    return NULL;
 }
 
 #define UPDC32(octet, crc) (crc_32_tab[((crc) ^ (octet)) & 0xff] ^ ((crc) >> 8))
@@ -306,6 +321,7 @@ static Express_Device_Info express_log_info = {
     .context_init = log_init,
     .call_handler = call_printf,
     .get_context = get_log_thread_context,
+    .remove_context = remove_log_thread_context,
 };
 
 EXPRESS_DEVICE_INIT(express_log, &express_log_info)

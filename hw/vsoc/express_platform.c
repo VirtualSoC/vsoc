@@ -116,7 +116,7 @@ static void register_worker_log_fd(int epfd, GHashTable *linebufs, int fd, int w
     fb->is_err = is_err;
     g_hash_table_insert(linebufs, (gpointer)(intptr_t)fd, fb);
     } else {
-        LOGE("epoll_ctl ADD failed for fd %d: %s", fd, strerror(errno));
+        LOGD("epoll_ctl ADD failed for fd %d: %s", fd, strerror(errno));
     }
 }
 
