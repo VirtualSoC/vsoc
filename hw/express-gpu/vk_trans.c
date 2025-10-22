@@ -182,6 +182,52 @@ void transitionImageLayoutForSampling(VkDevice device, VkImage image, VkImageLay
     LOGI("Host: Image layout transition completed");
 }
 
+static VkExtensionProperties* g_cached_instance_extensions = NULL;
+static uint32_t g_cached_instance_extension_count = 0;
+static int g_instance_extensions_cached = 0;
+
+// 辅助函数：检查扩展是否被主机支持
+static int is_extension_supported(const char* ext_name) {
+    for (uint32_t i = 0; i < g_cached_instance_extension_count; i++) {
+        if (strcmp(g_cached_instance_extensions[i].extensionName, ext_name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// 辅助函数：确保扩展缓存已加载
+static VkResult ensure_instance_extensions_cached() {
+    if (g_instance_extensions_cached) {
+        return VK_SUCCESS;
+    }
+    
+    VkResult result = vkEnumerateInstanceExtensionProperties(NULL, &g_cached_instance_extension_count, NULL);
+    if (result != VK_SUCCESS) {
+        LOGE("Failed to query instance extension count: %d", result);
+        return result;
+    }
+    
+    g_cached_instance_extensions = (VkExtensionProperties*)malloc(g_cached_instance_extension_count * sizeof(VkExtensionProperties));
+    if (!g_cached_instance_extensions) {
+        LOGE("Failed to allocate memory for extension cache");
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    
+    result = vkEnumerateInstanceExtensionProperties(NULL, &g_cached_instance_extension_count, g_cached_instance_extensions);
+    if (result != VK_SUCCESS) {
+        LOGE("Failed to enumerate instance extensions: %d", result);
+        free(g_cached_instance_extensions);
+        g_cached_instance_extensions = NULL;
+        g_cached_instance_extension_count = 0;
+        return result;
+    }
+    
+    g_instance_extensions_cached = 1;
+    LOGI("Cached %u instance extensions", g_cached_instance_extension_count);
+    return VK_SUCCESS;
+}
+
 void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *call)
 
 {
@@ -205,13 +251,12 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     switch (fun_id)
     {
 
-    case FUNID_vkCreateInstance: //ztodo：理论上传过来的所有性质都要filter一遍才行吧
-
+    case FUNID_vkCreateInstance:
     {
         LOGI("get call FUNID_vkCreateInstance!");
 
         const VkInstanceCreateInfo* pCreateInfo = malloc(sizeof(VkInstanceCreateInfo));
-        const VkAllocationCallbacks* pAllocator = NULL; //ztodo:暂时全部用null
+        const VkAllocationCallbacks* pAllocator = NULL;
         VkInstance pInstance;
     
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
@@ -222,7 +267,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         stream_ptr = call_para_to_ptr(all_para[0], &need_free);
         uint8_t ** stream_ptr_ptr = (uint8_t **)&stream_ptr;
 
-        // VkInstanceCreateInfo* pCreateInfo = (VkInstanceCreateInfo*)_ptr;
         decode_from_stream_VkInstanceCreateInfo(VK_STRUCTURE_TYPE_MAX_ENUM, (VkInstanceCreateInfo*)(pCreateInfo), stream_ptr_ptr); 
 
         LOGI("got vkCreateinfo with %lld %d %s %d %s",(long long)pCreateInfo->sType, pCreateInfo->enabledLayerCount, pCreateInfo->ppEnabledLayerNames, pCreateInfo->enabledExtensionCount, pCreateInfo->ppEnabledExtensionNames);
@@ -239,18 +283,48 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         uint64_t guest_instance = *(uint64_t*)(*stream_ptr_ptr);
         *stream_ptr_ptr += sizeof(uint64_t);
 
-        uint32_t glfwExtCount = 0;
-        const char** glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+        // 确保扩展缓存已加载
+        VkResult cache_result = ensure_instance_extensions_cached();
+        if (cache_result != VK_SUCCESS) {
+            LOGE("Failed to cache instance extensions, proceeding without filtering");
+        }
+
+        // Filter guest extensions - 只保留主机支持的扩展
         uint32_t origExtCount = pCreateInfo->enabledExtensionCount;
         const char* const* origExts = pCreateInfo->ppEnabledExtensionNames;
+        
+        const char** filteredExts = NULL;
+        uint32_t filteredExtCount = 0;
+        
+        if (g_instance_extensions_cached && origExtCount > 0) {
+            filteredExts = (const char**)malloc(sizeof(char*) * origExtCount);
+            for (uint32_t i = 0; i < origExtCount; i++) {
+                if (is_extension_supported(origExts[i])) {
+                    filteredExts[filteredExtCount++] = origExts[i];
+                    LOGI("Extension accepted: %s", origExts[i]);
+                } else {
+                    LOGI("Extension filtered out (not supported by host): %s", origExts[i]);
+                }
+            }
+        } else {
+            // 如果缓存失败，保留所有扩展
+            filteredExtCount = origExtCount;
+            filteredExts = (const char**)origExts;
+        }
 
-        uint32_t totalExtCount = origExtCount + glfwExtCount;
+        // 获取GLFW需要的扩展
+        uint32_t glfwExtCount = 0;
+        const char** glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+
+        // 合并过滤后的guest扩展和GLFW扩展
+        uint32_t totalExtCount = filteredExtCount + glfwExtCount;
         const char** mergedExts = malloc(sizeof(char*) * totalExtCount);
-        for (uint32_t i = 0; i < origExtCount; i++) {
-            mergedExts[i] = origExts[i];
+        
+        for (uint32_t i = 0; i < filteredExtCount; i++) {
+            mergedExts[i] = filteredExts[i];
         }
         for (uint32_t i = 0; i < glfwExtCount; i++) {
-            mergedExts[origExtCount + i] = glfwExts[i];
+            mergedExts[filteredExtCount + i] = glfwExts[i];
             LOGI("glfw ext %d %s", i, glfwExts[i]);
         }
 
@@ -259,9 +333,11 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
 
         VkResult result = vkCreateInstance(pCreateInfo, pAllocator, &pInstance);
 
+        // 清理
         free(mergedExts);
-
-        // VkResult result = vkCreateInstance(pCreateInfo, pAllocator, &pInstance);
+        if (g_instance_extensions_cached && filteredExts != origExts) {
+            free(filteredExts);
+        }
 
         if (result == VK_SUCCESS) {
             LOGI("got result %d instance %lld %lld size %d guest %lld", result, pInstance, &pInstance, sizeof(VkInstance), guest_instance);
@@ -3961,31 +4037,55 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         read_from_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
         
         VkResult result;
-        if (count == 0) {
-            result = vkEnumerateInstanceExtensionProperties(layer_name, &count, NULL);
-            if(result != VK_SUCCESS) {
-                LOGE("vkEnumerateInstanceExtensionProperties failed with error %d", result);
+        
+        // 如果查询的是默认层（NULL），使用缓存
+        if (!layer_name) {
+            result = ensure_instance_extensions_cached();
+            if (result != VK_SUCCESS) {
+                break;
+            }
+            
+            if (count == 0) {
+                write_to_guest_mem(all_para[1].data, &g_cached_instance_extension_count, 0, sizeof(uint32_t));
+                LOGI("Host: Returning cached extension count=%u", g_cached_instance_extension_count);
             } else {
-                LOGI("vkEnumerateInstanceExtensionProperties count=%u", count);
-                write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+                uint32_t copy_count = (count < g_cached_instance_extension_count) ? count : g_cached_instance_extension_count;
+                // write_to_guest_mem(all_para[1].data, &copy_count, 0, sizeof(uint32_t));
+                write_to_guest_mem(all_para[2].data, g_cached_instance_extensions, 0, copy_count * sizeof(VkExtensionProperties));
+                result = (copy_count < g_cached_instance_extension_count) ? VK_INCOMPLETE : VK_SUCCESS;
+                LOGI("Host: Returning %u cached extensions", copy_count);
             }
         } else {
-            VkExtensionProperties* properties = (VkExtensionProperties*)malloc(count * sizeof(VkExtensionProperties));
-            if (!properties) {
-                result = VK_ERROR_OUT_OF_HOST_MEMORY;
-            } else {
-                result = vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
-                if (result == VK_SUCCESS) {
-                    write_to_guest_mem(all_para[2].data, properties, 0, count * sizeof(VkExtensionProperties));
-                } else {
+            // 对于特定层的查询，不使用缓存，直接调用原始API
+            if (count == 0) {
+                result = vkEnumerateInstanceExtensionProperties(layer_name, &count, NULL);
+                if(result != VK_SUCCESS) {
                     LOGE("vkEnumerateInstanceExtensionProperties failed with error %d", result);
+                } else {
+                    LOGI("vkEnumerateInstanceExtensionProperties count=%u", count);
+                    write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
                 }
-                free(properties);
+            } else {
+                VkExtensionProperties* properties = (VkExtensionProperties*)malloc(count * sizeof(VkExtensionProperties));
+                if (!properties) {
+                    result = VK_ERROR_OUT_OF_HOST_MEMORY;
+                } else {
+                    result = vkEnumerateInstanceExtensionProperties(layer_name, &count, properties);
+                    if (result == VK_SUCCESS || result == VK_INCOMPLETE) {
+                        write_to_guest_mem(all_para[1].data, &count, 0, sizeof(uint32_t));
+                        write_to_guest_mem(all_para[2].data, properties, 0, count * sizeof(VkExtensionProperties));
+                    } else {
+                        LOGE("vkEnumerateInstanceExtensionProperties failed with error %d", result);
+                    }
+                    free(properties);
+                }
             }
         }
-        LOGI("Host: vkEnumerateInstanceExtensionProperties result=%d count=%u", result, count);
+        
+        LOGI("Host: vkEnumerateInstanceExtensionProperties result=%d", result);
     }
     break;
+
 
     case FUNID_vkEnumerateDeviceExtensionProperties:
     {
