@@ -16,11 +16,11 @@
 
 #define MAX_ARGS 8 // Max 8 arguments
 
-void monitor_log(Monitor *mon, const char *fmt, ...)
+void monitor_log(void *mon, const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    monitor_vprintf(mon, fmt, args);
+    monitor_vprintf((Monitor *)mon, fmt, args);
     va_end(args);
 }
 

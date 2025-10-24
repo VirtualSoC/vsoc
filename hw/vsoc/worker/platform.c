@@ -9,6 +9,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
+#include <glib.h>
 
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -28,11 +29,18 @@ void qemu_system_killed(int signal, pid_t pid) {
     LOGI("qemu_system_killed not implemented: signal=%d pid=%d", signal, pid);
 }
 
-void monitor_log(Monitor *mon, const char *fmt, ...)
+void monitor_log(void *mon, const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    LOGW("warning! monitoring not implemented for device: %s", fmt);
+    char *msg = g_strdup_vprintf(fmt, args);
+    if (mon) {
+        GString *buf = (GString *)mon;
+        if (buf && msg) g_string_append(buf, msg);
+    } else if (msg) {
+        LOGI("%s", msg);
+    }
+    g_free(msg);
     va_end(args);
 }
 
@@ -143,6 +151,7 @@ void init_express_platform(const ExpressPlatformOps ops) {
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_GET_CONTEXT, get_context_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_FORCE_SHUTDOWN, force_shutdown_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_HMP_COMMAND, hmp_command_ipc_handler);
 
     call_device_init();
 }

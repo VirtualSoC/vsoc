@@ -5,6 +5,9 @@
 #include "hw/vsoc/express_handle_thread.h"
 #include "hw/vsoc/express_event.h"
 #include <glib.h>
+#include <string.h>
+
+typedef struct Monitor Monitor;
 
 GHashTable *g_devices = NULL;
 // Unified map: key is parent-side handle (Thread_Context* or Device_Context* cast to uint64),
@@ -12,6 +15,19 @@ GHashTable *g_devices = NULL;
 // resolved by the caller's expected type.
 static GHashTable *g_parent_to_worker = NULL;
 extern VsocIpcContext *g_ipc_ctx; // defined in worker/platform.c
+
+static Express_Device_Info *worker_get_device_by_name(const char *name) {
+    if (!g_devices || !name || !*name) return NULL;
+    GHashTableIter iter; gpointer key, value;
+    g_hash_table_iter_init(&iter, g_devices);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Express_Device_Info *info = (Express_Device_Info *)value;
+        if (!info) continue;
+        if (info->option_name && strcmp(info->option_name, name) == 0) return info;
+        if (info->name && strcmp(info->name, name) == 0) return info;
+    }
+    return NULL;
+}
 
 // Worker context lookup handler for GET_CONTEXT
 void get_context_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
@@ -50,6 +66,67 @@ static void get_device_context_ipc_handler(VsocIpcContext *ctx, uint32_t type, u
     Device_Context *dc = info->get_device_context(req->device_id, req->thread_id, req->process_id, req->unique_id, info);
     if (!g_parent_to_worker) g_parent_to_worker = g_hash_table_new(g_direct_hash, g_direct_equal);
     g_hash_table_insert(g_parent_to_worker, (gpointer)(uintptr_t)req->parent_handle, dc);
+}
+
+void hmp_command_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                    uint32_t len) {
+    (void)type;
+    const char *raw = (const char *)data;
+    GString *out = g_string_sized_new(256);
+    if (!raw || len == 0) {
+        g_string_append(out, "error: empty HMP command\n");
+        goto respond;
+    }
+    char *cmd = g_strndup(raw, len);
+    if (!cmd) {
+        g_string_append(out, "error: out of memory\n");
+        goto respond;
+    }
+    g_strstrip(cmd);
+    if (cmd[0] == '\0') {
+        g_string_append(out, "error: empty HMP command\n");
+        g_free(cmd);
+        goto respond;
+    }
+
+    const int max_args = 16;
+    const char *argv_local[16];
+    int argc_local = 0;
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(cmd, " ", &saveptr);
+         tok && argc_local < max_args;
+         tok = strtok_r(NULL, " ", &saveptr)) {
+        argv_local[argc_local++] = tok;
+    }
+    if (argc_local == 0) {
+        g_string_append(out, "error: no device specified\n");
+        g_free(cmd);
+        goto respond;
+    }
+
+    const char *dev_name = argv_local[0];
+    Express_Device_Info *info = worker_get_device_by_name(dev_name);
+    if (!info) {
+        g_string_append_printf(out, "error: vSoC device '%s' not found\n", dev_name);
+        g_free(cmd);
+        goto respond;
+    }
+    if (!info->hmp_handler) {
+        g_string_append_printf(out, "error: vSoC device '%s' has no HMP handler\n", dev_name);
+        g_free(cmd);
+        goto respond;
+    }
+
+    const char **sub_argv = argc_local > 1 ? &argv_local[1] : NULL;
+    info->hmp_handler((Monitor *)out, argc_local - 1, sub_argv);
+    g_free(cmd);
+
+respond:
+    g_string_append_c(out, '\0');
+    uint32_t resp_sz = (uint32_t)out->len;
+    char *resp_data = g_string_free(out, FALSE);
+    (void)vsoc_ipc_send_response(ctx, VSOC_IPC_TYPE_HMP_COMMAND, id, resp_data, resp_sz);
+    g_free(resp_data);
 }
 
 static void irq_register_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,

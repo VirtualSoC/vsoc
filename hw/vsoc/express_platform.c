@@ -972,8 +972,77 @@ static void container_hmp_handler(Monitor *mon, int argc, const char **argv) {
         g_ops.set_express_device_irq((Device_Context *)ctx, wid, 0);
 
         monitor_printf(mon, "%d\n", wid);
+    } else if (argc >= 1 && strcmp(argv[0], "worker") == 0) {
+        if (!g_ops.express_device_multi_process) {
+            monitor_printf(mon, "error: multi-process not enabled\n");
+            return;
+        }
+        if (!g_workers || g_workers->len == 0) {
+            monitor_printf(mon, "error: no workers available\n");
+            return;
+        }
+        if (argc < 3) {
+            monitor_printf(mon, "Usage: express container worker <id> <device> [args]\n");
+            return;
+        }
+        char *endptr = NULL;
+        long wid_long = g_ascii_strtoll(argv[1], &endptr, 10);
+        if (!endptr || *endptr != '\0') {
+            monitor_printf(mon, "error: invalid worker id %s\n", argv[1]);
+            return;
+        }
+        if (wid_long < 0 || wid_long >= (long)g_workers->len) {
+            monitor_printf(mon, "error: invalid worker id %s\n", argv[1]);
+            return;
+        }
+        int wid = (int)wid_long;
+        GString *cmd = g_string_new(NULL);
+        for (int i = 2; i < argc; ++i) {
+            if (i > 2) g_string_append_c(cmd, ' ');
+            g_string_append(cmd, argv[i]);
+        }
+        if (cmd->len == 0) {
+            monitor_printf(mon, "error: empty command\n");
+            g_string_free(cmd, TRUE);
+            return;
+        }
+        if (cmd->len + 1 > VSOC_IPC_MAX_PAYLOAD) {
+            monitor_printf(mon, "error: command too long (%u bytes)\n", (unsigned)(cmd->len));
+            g_string_free(cmd, TRUE);
+            return;
+        }
+        VsocWorker *worker = get_worker(wid);
+        if (!worker || !worker->ctx) {
+            monitor_printf(mon, "error: worker %d unavailable\n", wid);
+            g_string_free(cmd, TRUE);
+            return;
+        }
+        char *payload = g_malloc(cmd->len + 1);
+        memcpy(payload, cmd->str, cmd->len);
+        payload[cmd->len] = '\0';
+        char *resp = g_malloc0(VSOC_IPC_MAX_PAYLOAD);
+        uint32_t resp_len = VSOC_IPC_MAX_PAYLOAD;
+        int rc = vsoc_ipc_request(worker->ctx, VSOC_IPC_TYPE_HMP_COMMAND,
+                                  payload, (uint32_t)(cmd->len + 1),
+                                  resp, &resp_len, NULL, 5000);
+        if (rc != 0) {
+            monitor_printf(mon, "error: worker request failed rc=%d\n", rc);
+        } else if (resp_len > VSOC_IPC_MAX_PAYLOAD) {
+            monitor_printf(mon, "warning: response truncated (%u bytes)\n", resp_len);
+        } else {
+            if (resp_len == 0 || resp[resp_len - 1] != '\0') {
+                size_t cap = VSOC_IPC_MAX_PAYLOAD;
+                resp[(resp_len < cap ? resp_len : cap - 1)] = '\0';
+            }
+            if (resp[0] != '\0') {
+                monitor_printf(mon, "%s", resp);
+            }
+        }
+        g_free(resp);
+        g_free(payload);
+        g_string_free(cmd, TRUE);
     } else {
-        monitor_printf(mon, "Usage: express container new\n");
+        monitor_printf(mon, "Usage: express container [new,worker]\n");
     }
 
 }

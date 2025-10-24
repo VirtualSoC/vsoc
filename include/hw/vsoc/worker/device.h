@@ -12,5 +12,8 @@ void get_context_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, co
 void device_call_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
                              uint32_t len);
 
+void hmp_command_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                             uint32_t len);
+
 // Lookup helper for worker -> parent Device_Context handle mapping
 uint64_t worker_get_parent_handle_for_dc(Device_Context *dc);

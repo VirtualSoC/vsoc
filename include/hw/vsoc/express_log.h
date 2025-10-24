@@ -82,7 +82,7 @@ static const char _level_chars[] = {'F', 'E', 'W', 'I', 'D', 'V'};
 #endif
 
 #define MONITOR_LOG(mon, fmt, ...) monitor_log(mon, fmt, ##__VA_ARGS__)
-void monitor_log(Monitor *mon, const char *fmt, ...);
+void monitor_log(void *mon, const char *fmt, ...);
 
 #ifdef TIMER_LOG
 
