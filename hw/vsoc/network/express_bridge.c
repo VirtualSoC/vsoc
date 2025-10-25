@@ -446,7 +446,7 @@ static void *bridge_read_host_thread(void *opaque)
                 need_send_irq = false;
             }
             // LOGI("sleep 1000");
-            g_usleep(1000);
+            g_usleep(10000);
         }
         else
         {
