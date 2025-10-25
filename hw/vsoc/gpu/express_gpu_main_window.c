@@ -780,6 +780,30 @@ Hardware_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id)
     return gbuffer;
 }
 
+void gbuffer_global_foreach(void (*cb)(uint64_t gbuffer_id, Hardware_Buffer *buffer, void *opaque),
+                             void *opaque)
+{
+    if (cb == NULL) {
+        return;
+    }
+
+    ATOMIC_LOCK(gbuffer_global_map_lock);
+    if (gbuffer_global_map == NULL) {
+        ATOMIC_UNLOCK(gbuffer_global_map_lock);
+        return;
+    }
+
+    GHashTableIter iter;
+    gpointer key;
+    gpointer value;
+    g_hash_table_iter_init(&iter, gbuffer_global_map);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        cb((uint64_t)(uintptr_t)key, (Hardware_Buffer *)value, opaque);
+    }
+
+    ATOMIC_UNLOCK(gbuffer_global_map_lock);
+}
+
 void remove_gbuffer_from_global_map(uint64_t gbuffer_id)
 {
     ATOMIC_LOCK(gbuffer_global_map_lock);

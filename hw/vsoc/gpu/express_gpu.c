@@ -10,6 +10,8 @@
  */
 
 // #define STD_DEBUG_LOG
+#include <string.h>
+
 #include "hw/vsoc/express_platform.h"
 
 #include "hw/vsoc/express_log.h"
@@ -43,6 +45,8 @@ static void g_surface_map_destroy(gpointer data);
 static void g_context_map_destroy(gpointer data);
 
 static void gbuffer_map_destroy(gpointer data);
+
+static void express_gpu_hmp_handler(Monitor *mon, int argc, const char **argv);
 
 void init_render_thread_contexts_resources() {
     if (render_thread_contexts == NULL)
@@ -860,6 +864,99 @@ static void render_context_destroy(Thread_Context *context)
     }
 }
 
+static void express_gpu_hmp_dump_process(Monitor *mon) {
+    if (!render_process_contexts || g_hash_table_size(render_process_contexts) == 0) {
+        MONITOR_LOG(mon, "no active GPU process contexts\n");
+        return;
+    }
+
+    GHashTableIter iter;
+    gpointer key, value;
+    g_hash_table_iter_init(&iter, render_process_contexts);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        uint64_t process_id = (uint64_t)(uintptr_t)key;
+        Process_Context *process = (Process_Context *)value;
+        const char *name = (process && process->guest_process_name[0]) ?
+                            process->guest_process_name : "<unnamed>";
+        gsize surface_cnt = (process && process->surface_map) ?
+                            g_hash_table_size(process->surface_map) : 0;
+        gsize context_cnt = (process && process->context_map) ?
+                            g_hash_table_size(process->context_map) : 0;
+        gsize buffer_cnt = (process && process->gbuffer_map) ?
+                            g_hash_table_size(process->gbuffer_map) : 0;
+        int threads = process ? process->thread_cnt : 0;
+
+        MONITOR_LOG(mon,
+            "  process=%llu name=%s threads=%d surfaces=%u contexts=%u gbuffers=%u\n",
+            (unsigned long long)process_id, name, threads,
+            (unsigned)surface_cnt,
+            (unsigned)context_cnt,
+            (unsigned)buffer_cnt);
+    }
+    
+    MONITOR_LOG(mon, "GPU process contexts (%u entries)\n",
+            (unsigned)g_hash_table_size(render_process_contexts));
+
+}
+
+typedef struct ExpressGpuDumpBuffersCtx {
+    Monitor *mon;
+    unsigned int count;
+} ExpressGpuDumpBuffersCtx;
+
+static void express_gpu_dump_global_buffer(uint64_t gbuffer_id, Hardware_Buffer *buf, void *opaque)
+{
+    ExpressGpuDumpBuffersCtx *ctx = (ExpressGpuDumpBuffersCtx *)opaque;
+    if (buf == NULL || ctx == NULL) {
+        return;
+    }
+
+    ctx->count++;
+    MONITOR_LOG(ctx->mon,
+                "  id=%llx size=%d dim=%dx%d stride=%d format=%x hal=%d sampler=%d usage=%d type=%d\n",
+                (unsigned long long)gbuffer_id,
+                buf->size,
+                buf->width,
+                buf->height,
+                buf->stride,
+                buf->internal_format,
+                buf->hal_format,
+                buf->sampler_num,
+                buf->usage,
+                buf->usage_type);
+}
+
+static void express_gpu_hmp_dump_buffers(Monitor *mon) {
+    ExpressGpuDumpBuffersCtx ctx = {
+        .mon = mon,
+        .count = 0,
+    };
+
+    gbuffer_global_foreach(express_gpu_dump_global_buffer, &ctx);
+
+    if (ctx.count == 0) {
+        MONITOR_LOG(mon, "no GPU hardware buffers registered in global map\n");
+    } else {
+        MONITOR_LOG(mon, "total: %u hardware buffers registered\n",
+                        ctx.count);
+    }
+}
+
+static void express_gpu_hmp_handler(Monitor *mon, int argc, const char **argv) {
+    if (argc < 1) {
+        MONITOR_LOG(mon, "Usage: gl <dump-process|dump-buffer>\n");
+        return;
+    }
+
+    if (strcmp(argv[0], "dump-process") == 0) {
+        express_gpu_hmp_dump_process(mon);
+    } else if (strcmp(argv[0], "dump-buffer") == 0) {
+        express_gpu_hmp_dump_buffers(mon);
+    } else {
+        MONITOR_LOG(mon, "Unknown command '%s'. Supported: dump-process, dump-buffer\n", argv[0]);
+    }
+}
+
 static Express_Device_Info express_gpu_info = {
     .enable_default = true,
     .name = "express-gpu",
@@ -872,6 +969,7 @@ static Express_Device_Info express_gpu_info = {
     .call_handler = gpu_call_handler,
     .get_context = get_render_thread_context,
     .remove_context = remove_render_thread_context,
+    .hmp_handler = express_gpu_hmp_handler,
 };
 
 EXPRESS_DEVICE_INIT(express_gpu, &express_gpu_info)

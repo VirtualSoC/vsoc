@@ -3210,7 +3210,6 @@ Guest_Mem* load_guest_mem(QEMUFile *f, int strategy) {
 
 void save_hardware_buffer(QEMUFile *f, Hardware_Buffer *buffer) {
     qemu_put_be32(f, buffer->is_writing);
-    qemu_put_be32(f, buffer->is_lock);
     qemu_put_be32(f, buffer->sampler_num);
     qemu_put_be32(f, buffer->data_texture);
     qemu_put_be32(f, buffer->reverse_rbo);
@@ -3264,7 +3263,6 @@ Hardware_Buffer* load_hardware_buffer(QEMUFile *f) {
     Hardware_Buffer *buffer = g_malloc0(sizeof(Hardware_Buffer));
 
     buffer->is_writing = qemu_get_be32(f);
-    buffer->is_lock = qemu_get_be32(f);
     buffer->sampler_num = qemu_get_be32(f);
     buffer->data_texture = qemu_get_be32(f);
     GLuint new_texture = get_host_id_map(RESOURCE_TYPE_TEXTURE, buffer->data_texture);  

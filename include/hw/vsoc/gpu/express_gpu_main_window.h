@@ -86,6 +86,9 @@ void add_gbuffer_to_global(Hardware_Buffer *global_gbuffer);
 
 Hardware_Buffer *get_gbuffer_from_global_map(uint64_t gbuffer_id);
 
+void gbuffer_global_foreach(void (*cb)(uint64_t gbuffer_id, Hardware_Buffer *buffer, void *opaque),
+                             void *opaque);
+
 void send_message_to_main_window(int message_code, void *data);
 
 #endif

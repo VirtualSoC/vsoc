@@ -77,7 +77,6 @@ typedef struct Hardware_Buffer{
 
      int is_writing;
 
-     int is_lock;
      int sampler_num;
 
      GLuint data_texture;
