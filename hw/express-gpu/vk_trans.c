@@ -17,6 +17,25 @@
 #include "hw/express-gpu/express_vk_handle_mapping.h"
 #include "hw/express-gpu/vk_helper.h"
 #include "hw/express-gpu/vulkan_surface.h"
+#include <vulkan/vulkan_win32.h>
+
+PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR = NULL;
+
+void init_interop_once(VkDevice device) {
+    static bool initialized = false;
+    if (initialized) return;
+    
+    pfn_vkGetMemoryWin32HandleKHR = (PFN_vkGetMemoryWin32HandleKHR)
+        vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR");
+    
+    if (pfn_vkGetMemoryWin32HandleKHR) {
+        LOGI("[Interop] vkGetMemoryWin32HandleKHR loaded successfully");
+    } else {
+        LOGW("[Interop] vkGetMemoryWin32HandleKHR not available, fallback to CPU copy");
+    }
+    
+    initialized = true;
+}
 
 static __thread void *g_gl_context = NULL;
 
@@ -708,8 +727,38 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             }
         }
 
+        const char* required_interop_exts[] = {
+            "VK_KHR_external_memory",
+            "VK_KHR_external_memory_win32"
+        };
+        
+        for (int i = 0; i < 2; i++) {
+            const char* ext = required_interop_exts[i];
+            if (has_device_extension(availProps, availCount, ext)) {
+                // 检查是否已添加
+                bool already_added = false;
+                for (uint32_t j = 0; j < newCount; j++) {
+                    if (strcmp(newExts[j], ext) == 0) {
+                        already_added = true;
+                        break;
+                    }
+                }
+                if (!already_added) {
+                    newExts[newCount++] = ext;
+                    LOGI("Host: Added interop extension: %s", ext);
+                }
+            } else {
+                LOGW("Host: Interop extension not available: %s", ext);
+            }
+        }
+
         pCreateInfo->enabledExtensionCount   = newCount;
         pCreateInfo->ppEnabledExtensionNames = newExts;
+
+        LOGI("Enabled extensions count: %d", newCount);
+for (uint32_t i = 0; i < newCount; i++) {
+    LOGI("  Extension[%d]: %s", i, newExts[i]);
+}
 
         free(availProps);
 
@@ -751,6 +800,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             sizeof(VkResult));
 
         // //if (need_free) free(stream);
+        init_interop_once(realDevice);
         free(pCreateInfo);
         free(newExts);
     }
