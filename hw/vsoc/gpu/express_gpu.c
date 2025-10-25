@@ -708,11 +708,11 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
             process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
             process->thread_cnt = 0;
 
-            LOGI("create new process context guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %lld", process_id, process, thread_id, process_id, unique_id);
+            LOGI("create new process context guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %llu", process_id, process, thread_id, process_id, unique_id);
 
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
         } else {
-            LOGD("process context already exists for guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %lld, incrementing count to %d", process_id, process, thread_id, process_id, unique_id, process->thread_cnt + 1);
+            LOGD("process context already exists for guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %llu, incrementing count to %d", process_id, process, thread_id, process_id, unique_id, process->thread_cnt + 1);
         }
         qatomic_inc(&(process->thread_cnt));
         thread_context->process_context = process;
@@ -735,7 +735,7 @@ static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t t
         while (g_hash_table_iter_next(&iter, &key, &value))
         {
             Render_Thread_Context *context = (Render_Thread_Context *)value;
-            if (context->context.process_id == process_id && context->context.unique_id == unique_id)
+            if (context->context.process_id == process_id && g_hash_table_lookup(context->thread_unique_ids, GUINT_TO_POINTER(unique_id)) != NULL)
             {
                 render_context = context;
                 break;
@@ -743,7 +743,7 @@ static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t t
         }
     }
     if (render_context == NULL) {
-        LOGE("failed to find render context for process %" PRId64 " thread_id %" PRId64 " unique_id %" PRId64, process_id, thread_id, unique_id);
+        LOGE("failed to find render context for process %" PRId64 " thread_id %" PRId64 " unique_id %" PRIu64, process_id, thread_id, unique_id);
         return NULL;
     }
     g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
@@ -884,16 +884,40 @@ static void express_gpu_hmp_dump_process(Monitor *mon) {
                             g_hash_table_size(process->context_map) : 0;
         gsize buffer_cnt = (process && process->gbuffer_map) ?
                             g_hash_table_size(process->gbuffer_map) : 0;
-        int threads = process ? process->thread_cnt : 0;
 
-        MONITOR_LOG(mon,
-            "  process=%llu name=%s threads=%d surfaces=%u contexts=%u gbuffers=%u\n",
-            (unsigned long long)process_id, name, threads,
+        GString *line = g_string_new(NULL);
+        g_string_append_printf(line,
+            "  process=%llu name=%s surfaces=%u contexts=%u gbuffers=%u",
+            (unsigned long long)process_id, name,
             (unsigned)surface_cnt,
             (unsigned)context_cnt,
             (unsigned)buffer_cnt);
+
+        if (render_thread_contexts && g_hash_table_size(render_thread_contexts) > 0) {
+            GHashTableIter tit;
+            gpointer tkey;
+            gpointer tval;
+            bool first = true;
+            g_hash_table_iter_init(&tit, render_thread_contexts);
+            while (g_hash_table_iter_next(&tit, &tkey, &tval)) {
+                Render_Thread_Context *thread = (Render_Thread_Context *)tval;
+                if (!thread) {
+                    continue;
+                }
+                if (thread->context.process_id == process_id) {
+                    uint64_t tid = (uint64_t)(uintptr_t)tkey;
+                    g_string_append_printf(line, first ? " threads=%llu" : ",%llu",
+                                            (unsigned long long)tid);
+                    first = false;
+                }
+            }
+        }
+
+        g_string_append(line, "\n");
+        MONITOR_LOG(mon, "%s", line->str);
+        g_string_free(line, TRUE);
     }
-    
+
     MONITOR_LOG(mon, "GPU process contexts (%u entries)\n",
             (unsigned)g_hash_table_size(render_process_contexts));
 
@@ -942,9 +966,68 @@ static void express_gpu_hmp_dump_buffers(Monitor *mon) {
     }
 }
 
+static void express_gpu_hmp_dump_threads(Monitor *mon)
+{
+    if (!render_thread_contexts || g_hash_table_size(render_thread_contexts) == 0) {
+        MONITOR_LOG(mon, "no active GPU render threads\n");
+        return;
+    }
+
+    unsigned int total = 0;
+    GHashTableIter iter;
+    gpointer key;
+    gpointer value;
+    g_hash_table_iter_init(&iter, render_thread_contexts);
+    while (g_hash_table_iter_next(&iter, &key, &value)) {
+        Render_Thread_Context *thread = (Render_Thread_Context *)value;
+        if (!thread) {
+            continue;
+        }
+
+        total++;
+        Thread_Context *base = &thread->context;
+        uint64_t thread_id = (uint64_t)(uintptr_t)key;
+        uint64_t process_id = base ? base->process_id : 0;
+        const char *gl_present = (thread->opengl_context != NULL) ? "yes" : "no";
+        const char *gl_current = (thread->opengl_context && thread->opengl_context->is_current) ? "yes" : "no";
+
+        GString *line = g_string_new(NULL);
+        g_string_append_printf(line,
+                    "  thread=%llu process=%llu gl=%s current=%s",
+                    (unsigned long long)thread_id,
+                    (unsigned long long)process_id,
+                    gl_present,
+                    gl_current);
+
+        gsize unique_cnt = thread->thread_unique_ids ? g_hash_table_size(thread->thread_unique_ids) : 0;
+        if (unique_cnt > 0) {
+            g_string_append(line, " unique_ids=");
+            GHashTableIter uit;
+            gpointer ukey;
+            gpointer uval;
+            bool first = true;
+            g_hash_table_iter_init(&uit, thread->thread_unique_ids);
+            while (g_hash_table_iter_next(&uit, &ukey, &uval)) {
+                uint64_t uid = (uint64_t)(uintptr_t)ukey;
+                if (!first) {
+                    g_string_append_c(line, ',');
+                }
+                g_string_append_printf(line, "%llu", (unsigned long long)uid);
+                first = false;
+            }
+        }
+
+        g_string_append(line, "\n");
+        MONITOR_LOG(mon, "%s", line->str);
+        g_string_free(line, TRUE);
+    }
+
+    MONITOR_LOG(mon, "GPU render threads (%u entries)\n", total);
+}
+
 static void express_gpu_hmp_handler(Monitor *mon, int argc, const char **argv) {
     if (argc < 1) {
-        MONITOR_LOG(mon, "Usage: gl <dump-process|dump-buffer>\n");
+        MONITOR_LOG(mon, "Usage: gl <dump-process|dump-buffer|dump-thread>\n");
         return;
     }
 
@@ -952,8 +1035,10 @@ static void express_gpu_hmp_handler(Monitor *mon, int argc, const char **argv) {
         express_gpu_hmp_dump_process(mon);
     } else if (strcmp(argv[0], "dump-buffer") == 0) {
         express_gpu_hmp_dump_buffers(mon);
+    } else if (strcmp(argv[0], "dump-thread") == 0) {
+        express_gpu_hmp_dump_threads(mon);
     } else {
-        MONITOR_LOG(mon, "Unknown command '%s'. Supported: dump-process, dump-buffer\n", argv[0]);
+        MONITOR_LOG(mon, "Unknown command '%s'. Supported: dump-process, dump-buffer, dump-thread\n", argv[0]);
     }
 }
 
