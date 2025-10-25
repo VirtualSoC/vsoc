@@ -123,10 +123,10 @@ static bool dcodec_call_handler(Thread_Context *_context, uint64_t id, const Cal
             return false; 
         }
         char *params = g_malloc(param_size);
-        read_from_guest_mem(all_para[1].data, params, 0, param_size);
+        g_ops.read_from_guest_mem(all_para[1].data, params, 0, param_size);
         error = component->get_parameter(component, index, params);
         if (error == OMX_ErrorNone) { 
-            write_to_guest_mem(all_para[1].data, params, 0, param_size); 
+            g_ops.write_to_guest_mem(all_para[1].data, params, 0, param_size); 
         }
         g_free(params);
         return (error == OMX_ErrorNone);
@@ -156,7 +156,7 @@ static bool dcodec_call_handler(Thread_Context *_context, uint64_t id, const Cal
     case DCODEC_FUN_ProcessThisBuffer: {
         if (para_num < 1 || !all_para[0].data) return false;
         BufferDesc *desc = g_malloc0(sizeof(BufferDesc));
-        read_from_guest_mem(all_para[0].data, desc, 0, all_para[0].data_len);
+        g_ops.read_from_guest_mem(all_para[0].data, desc, 0, all_para[0].data_len);
         if ((desc->type & CODEC_BUFFER_TYPE_GUEST_MEM)) {
             if (para_num < 2 || !all_para[1].data) { 
                 g_free(desc); 
@@ -204,11 +204,13 @@ static Thread_Context *get_codec_context(uint64_t device_id, uint64_t thread_id,
     {
         g_codec_thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
 
-        // list all hwaccel devices
-        enum AVHWDeviceType type = AV_HWDEVICE_TYPE_NONE;
-        LOGI("Supported hw codec devices:")
-        while((type = av_hwdevice_iterate_types(type)) != AV_HWDEVICE_TYPE_NONE) {
-            LOGI("  %s", av_hwdevice_get_type_name(type));
+        if (g_ops.express_gpu_gl_debug_enable) {
+            // list all hwaccel devices
+            enum AVHWDeviceType type = AV_HWDEVICE_TYPE_NONE;
+            LOGI("Supported hw codec devices:");
+            while((type = av_hwdevice_iterate_types(type)) != AV_HWDEVICE_TYPE_NONE) {
+                LOGI("  %s", av_hwdevice_get_type_name(type));
+            }
         }
     }
 

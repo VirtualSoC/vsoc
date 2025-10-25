@@ -473,7 +473,7 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
         while (desc->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
             CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
             extra_buf = av_realloc(extra_buf, extra_bufsize + desc->nFilledLen);
-            read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
+            g_ops.read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
             extra_bufsize = extra_bufsize + desc->nFilledLen;
             dcodec_return_buffer(_context, g_queue_pop_head(_context->input_buffers));
             desc = g_queue_peek_head(_context->input_buffers);
@@ -482,7 +482,7 @@ static int empty_one_input_buffer(DCodecComponent *_context) {
         BufferDesc *new_desc = g_malloc(sizeof(BufferDesc));
         if (extra_bufsize != 0) {
             extra_buf = av_realloc(extra_buf, extra_bufsize + desc->nFilledLen);
-            read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
+            g_ops.read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
             extra_bufsize = extra_bufsize + desc->nFilledLen;
             av_packet_from_data(new_packet, extra_buf, extra_bufsize);
             // send input packet to codec
@@ -559,7 +559,7 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
         if (!mPkt) {
             mPkt = av_packet_alloc();
             uint8_t *buf = av_malloc(min(desc->nFilledLen * 2, desc->nAllocLen));
-            read_from_guest_mem(desc->data, buf, desc->nOffset, desc->nFilledLen);
+            g_ops.read_from_guest_mem(desc->data, buf, desc->nOffset, desc->nFilledLen);
             av_packet_from_data(mPkt, buf, desc->nFilledLen);
             g_hash_table_insert(context->mInputMap, (gpointer)desc->id, (gpointer)mPkt);
         }
@@ -571,7 +571,7 @@ static int decode_video(DCodecVideo *context, BufferDesc *desc) {
                     av_buffer_realloc(&mPkt->buf, newSize);
                     mPkt->data = mPkt->buf->data;
                 }
-                read_from_guest_mem(desc->data, mPkt->buf->data, desc->nOffset, desc->nFilledLen);
+                g_ops.read_from_guest_mem(desc->data, mPkt->buf->data, desc->nOffset, desc->nFilledLen);
                 mPkt->size = desc->nFilledLen;
             }
             else {
@@ -651,7 +651,7 @@ static void swscale_task_cb(MemTransferTask *task, void *mapped_addr) {
 
     if (task->dst_dev == EXPRESS_MEM_TYPE_GUEST_OPAQUE) {
         BufferDesc *desc = (BufferDesc *)task->dst_data;
-        write_to_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
+        g_ops.write_to_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
         _context->notify(_context, (CodecCallbackData){ .event = OMX_EventFillBufferDone, .data1 = desc->nFilledLen, .data2 = desc->nTimeStamp, .data = desc->id, .flags = desc->nFlags });
     }
 

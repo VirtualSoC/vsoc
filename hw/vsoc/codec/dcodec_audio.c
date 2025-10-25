@@ -1003,7 +1003,7 @@ static int decode_audio(DCodecAudio *context, BufferDesc *desc) {
     else {
         CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
         CHECK_LE(desc->nFilledLen, sizeof(context->mAudioBuffer));
-        read_from_guest_mem(desc->data, context->mAudioBuffer, desc->nOffset, desc->nFilledLen); // avoid memcpys caused by EAGAIN
+        g_ops.read_from_guest_mem(desc->data, context->mAudioBuffer, desc->nOffset, desc->nFilledLen); // avoid memcpys caused by EAGAIN
         mPkt->data = context->mAudioBuffer;
         mPkt->size = desc->nFilledLen;
         mPkt->pts = desc->nTimeStamp;
@@ -1177,7 +1177,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     desc->nOffset = 0;
     desc->nFilledLen = copy;
     desc->nTimeStamp = context->mAudioClock;
-    write_to_guest_mem(desc->data, context->mResampledData, 0, copy);
+    g_ops.write_to_guest_mem(desc->data, context->mResampledData, 0, copy);
 
 #ifdef STD_DEBUG_LOG
     if (context->raw_fd > 0) {

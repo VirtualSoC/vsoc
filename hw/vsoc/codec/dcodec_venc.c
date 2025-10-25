@@ -581,7 +581,7 @@ static int encode_video(DCodecVideo *context, BufferDesc *desc) {
             mFrame->format, SWS_FAST_BILINEAR, NULL, NULL, NULL);
 
         g_videobuf = av_realloc(g_videobuf, desc->nFilledLen);
-        read_from_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
+        g_ops.read_from_guest_mem((Guest_Mem *)desc->data, g_videobuf, 0, desc->nFilledLen);
         data[0] = g_videobuf;
 
         if (pixel_format_to_swscale_param(context->mImageFormat, context->mWidth, context->mHeight, data, linesize) < 0) {
@@ -644,7 +644,7 @@ static int parse_pps_sps(DCodecComponent *_context, uint8_t *data, int size) {
             CHECK(desc->type & CODEC_BUFFER_TYPE_GUEST_MEM);
             CHECK_LE(write_idx + end_idx - seek_idx, desc->nAllocLen);
             LOGD("parsed sps/pps type %d size %d", utype, end_idx - seek_idx);
-            write_to_guest_mem((Guest_Mem *)desc->data, data + seek_idx, write_idx, end_idx - seek_idx);
+            g_ops.write_to_guest_mem((Guest_Mem *)desc->data, data + seek_idx, write_idx, end_idx - seek_idx);
             write_idx += end_idx - seek_idx;
             seek_idx = end_idx;
         } else {
@@ -715,7 +715,7 @@ static int fill_one_output_buffer(DCodecComponent *_context) {
     LOGD("mPkt pts: %lld flags 0x%x", mPkt->pts, mPkt->flags);
 
     if (desc->type & CODEC_BUFFER_TYPE_GUEST_MEM) {
-        write_to_guest_mem((Guest_Mem *)desc->data, mPkt->data, 0, desc->nFilledLen);
+        g_ops.write_to_guest_mem((Guest_Mem *)desc->data, mPkt->data, 0, desc->nFilledLen);
     }
     else {
         LOGE("output buffer type %x not supported yet!", desc->type);

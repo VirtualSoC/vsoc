@@ -33,7 +33,6 @@
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
 
-#include "hw/vsoc/teleport_express_call.h"
 #include "dcodec_shared.h"
 
 #include "hw/vsoc/gpu/express_gpu_main_window.h"

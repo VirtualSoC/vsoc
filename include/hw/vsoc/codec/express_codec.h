@@ -2,8 +2,6 @@
 #define EXPRESS_CODEC_H
 
 #include "hw/vsoc/express_platform.h"
-#include "hw/vsoc/teleport_express_register.h"
-#include "hw/vsoc/teleport_express_distribute.h"
 #include "hw/vsoc/codec/dcodec_component.h"
 
 typedef struct

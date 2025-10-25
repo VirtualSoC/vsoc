@@ -13,7 +13,8 @@ bool device_needs_proxy(int device_id) {
         device_id == EXPRESS_DISPLAY_DEVICE_ID ||
         device_id == EXPRESS_MEM_DEVICE_ID  ||
         device_id == EXPRESS_TOUCHSCREEN_DEVICE_ID || 
-        device_id == EXPRESS_KEYBOARD_DEVICE_ID;
+        device_id == EXPRESS_KEYBOARD_DEVICE_ID ||
+        device_id == EXPRESS_CODEC_DEVICE_ID;
 }
 
 // Map Android UID to worker ID

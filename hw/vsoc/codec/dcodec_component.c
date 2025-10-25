@@ -240,7 +240,7 @@ void dcodec_notify_guest(DCodecComponent *context, CodecCallbackData ccd) {
     g_mutex_lock(&context->dma_buf_mutex);
 
     while (true) {
-        read_from_guest_mem(context->dma_buf, header, 0, 3 * sizeof(int));
+        g_ops.read_from_guest_mem(context->dma_buf, header, 0, 3 * sizeof(int));
         if (header[0] != sizeof(CodecDMABuffer)) {
             LOGE("error! dma buffer size does not match! host %llu guest %d", sizeof(CodecDMABuffer), header[0]);
             g_mutex_unlock(&context->dma_buf_mutex);
@@ -257,15 +257,15 @@ void dcodec_notify_guest(DCodecComponent *context, CodecCallbackData ccd) {
 
     LOGD("codec notify (guest idx %d host %d+1) event %x data1 %d data2 %d ptr %" PRIx64 " flags %x extra %u", header[2], header[1], ccd.event, ccd.data1, ccd.data2, ccd.data, ccd.flags, ccd.extra);
 
-    write_to_guest_mem(context->dma_buf, &ccd, __builtin_offsetof(CodecDMABuffer, callbacks) + (header[1] % CODEC_CALLBACK_BUFFER_LEN) * sizeof(CodecCallbackData), sizeof(CodecCallbackData));
+    g_ops.write_to_guest_mem(context->dma_buf, &ccd, __builtin_offsetof(CodecDMABuffer, callbacks) + (header[1] % CODEC_CALLBACK_BUFFER_LEN) * sizeof(CodecCallbackData), sizeof(CodecCallbackData));
     header[1] += 1;
-    write_to_guest_mem(context->dma_buf, header + 1, __builtin_offsetof(CodecDMABuffer, host_idx), sizeof(int));
+    g_ops.write_to_guest_mem(context->dma_buf, header + 1, __builtin_offsetof(CodecDMABuffer, host_idx), sizeof(int));
     g_mutex_unlock(&context->dma_buf_mutex);
 
     // guest-side already has polling, but polling can be laggy
     // use interrupts on important events to reduce delay
     if (ccd.event == OMX_EventCmdComplete) {
-        set_express_device_irq((Device_Context *)context, header[1], sizeof(CodecCallbackData));
+        g_ops.set_express_device_irq((Device_Context *)context, header[1], sizeof(CodecCallbackData));
     }
 }
 
@@ -445,7 +445,7 @@ int dcodec_handle_extradata(DCodecComponent *context) {
                 return ERR_OOM;
             }
 
-            read_from_guest_mem(desc->data, header, desc->nOffset, desc->nFilledLen);
+            g_ops.read_from_guest_mem(desc->data, header, desc->nOffset, desc->nFilledLen);
 
             // vorbis header handling
             // c.f. https://xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-610004.2
@@ -469,7 +469,7 @@ int dcodec_handle_extradata(DCodecComponent *context) {
         }
         else {
             extra_buf = av_realloc(extra_buf, extra_bufsize + desc->nFilledLen);
-            read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
+            g_ops.read_from_guest_mem(desc->data, extra_buf + extra_bufsize, 0, desc->nFilledLen);
             extra_bufsize = extra_bufsize + desc->nFilledLen;
             mCtx->extradata_size = extra_bufsize;
             mCtx->extradata = extra_buf;

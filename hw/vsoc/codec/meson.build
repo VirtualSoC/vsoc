@@ -28,3 +28,4 @@ express_codec.add(swresample)
 express_codec.add(swscale)
 
 softmmu_ss.add_all(express_codec)
+vsoc_ss.add_all(express_codec)

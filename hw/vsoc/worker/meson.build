@@ -25,9 +25,9 @@ if targetos == 'linux'
   # executable. This ensures constructor-based device registration (EXPRESS_DEVICE_INIT)
   # objects like express_gpu.c are not dropped by the linker.
   vsoc_dep = declare_dependency(link_whole: vsoc_static,
-          dependencies: [cimgui, backtrace, glfw, vulkan, libm, glib, migration, io, chardev, blockdev])
+          dependencies: [libm, glib, migration, io, chardev, blockdev, cimgui, backtrace, glfw, vulkan, avcodec, avdevice, avfilter, avutil, swresample, swscale])
 
-  # Build a tiny stub executable to validate static library linkage.
+  # worker executable
   executable('vsoc-worker',
       sources: worker_ss.all_sources(),
       dependencies: [vsoc_dep],
