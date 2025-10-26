@@ -9,6 +9,76 @@
 #include "hw/express-gpu/uthash.h"
 
 typedef struct {
+    uint64_t gbuffer_id;      // key: gbuffer_id
+    uint64_t device_memory;   // value: host VkDeviceMemory handle
+    UT_hash_handle hh;
+} GBufferMemoryEntry;
+
+static GBufferMemoryEntry* g_gbuffer_memory_map = NULL;
+
+void insert_gbuffer_memory_mapping(uint64_t gbuffer_id, uint64_t device_memory) {
+    GBufferMemoryEntry* e;
+    HASH_FIND(hh, g_gbuffer_memory_map, &gbuffer_id, sizeof(gbuffer_id), e);
+    if (e) {
+        e->device_memory = device_memory;
+        LOGI("Updated gbuffer_memory mapping: gbuffer_id=%llx -> memory=%llx",
+             (unsigned long long)gbuffer_id, (unsigned long long)device_memory);
+    } else {
+        e = malloc(sizeof(*e));
+        if (!e) {
+            LOGE("Failed to allocate gbuffer_memory mapping entry");
+            return;
+        }
+        e->gbuffer_id = gbuffer_id;
+        e->device_memory = device_memory;
+        HASH_ADD(hh, g_gbuffer_memory_map, gbuffer_id, sizeof(gbuffer_id), e);
+        LOGI("Inserted gbuffer_memory mapping: gbuffer_id=%llx -> memory=%llx",
+             (unsigned long long)gbuffer_id, (unsigned long long)device_memory);
+    }
+}
+
+uint64_t lookup_gbuffer_memory_mapping(uint64_t gbuffer_id) {
+    GBufferMemoryEntry* e;
+    HASH_FIND(hh, g_gbuffer_memory_map, &gbuffer_id, sizeof(gbuffer_id), e);
+    if (e) {
+        return e->device_memory;
+    }
+    return 0;
+}
+
+uint64_t lookup_memory_gbuffer_mapping(uint64_t device_memory) {
+    GBufferMemoryEntry* current;
+    for (current = g_gbuffer_memory_map; current != NULL; current = current->hh.next) {
+        if (current->device_memory == device_memory) {
+            return current->gbuffer_id;
+        }
+    }
+    return 0;
+}
+
+void remove_gbuffer_memory_mapping(uint64_t gbuffer_id) {
+    GBufferMemoryEntry* e;
+    HASH_FIND(hh, g_gbuffer_memory_map, &gbuffer_id, sizeof(gbuffer_id), e);
+    if (e) {
+        HASH_DEL(g_gbuffer_memory_map, e);
+        free(e);
+        LOGI("Removed gbuffer_memory mapping: gbuffer_id=%llx", 
+             (unsigned long long)gbuffer_id);
+    }
+}
+
+void clear_gbuffer_memory_mappings(void) {
+    GBufferMemoryEntry* current;
+    GBufferMemoryEntry* tmp;
+    HASH_ITER(hh, g_gbuffer_memory_map, current, tmp) {
+        HASH_DEL(g_gbuffer_memory_map, current);
+        free(current);
+    }
+    g_gbuffer_memory_map = NULL;
+}
+
+
+typedef struct {
     ExpressVkObjectType type; // Vulkan 对象类型
     uint64_t         guest_id; // 来自 Guest 的虚拟句柄（64 位稀疏）
     uint64_t         host_id;  // 真正的 Host 句柄

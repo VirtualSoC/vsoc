@@ -149,6 +149,7 @@ typedef struct Hardware_Buffer{
      void *vk_shared_image;      // 可共享的VkImage
      void *vk_shared_memory;     // 可导出的VkDeviceMemory
      bool needs_copy;            // 标记是否需要CPU拷贝
+     uint64_t vk_buffer_handle; // 用于导出共享句柄
 
 } Hardware_Buffer;
 

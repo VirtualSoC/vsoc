@@ -588,7 +588,8 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
                         images[i], //这里用guest还得host的再议
                         NULL,
                         realDev,
-                        NULL
+                        NULL,
+                        0
                     );
                     if (gbuffer != NULL) {
                         add_gbuffer_to_global(gbuffer);
@@ -1133,6 +1134,11 @@ for (uint32_t i = 0; i < newCount; i++) {
             pAllocator = &allocStruct;
         }
 
+        uint64_t gbuffer_id = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+        uint32_t buffer_width = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint32_t buffer_height = *(uint32_t*)(*ptr); *ptr += sizeof(uint32_t);
+        uint64_t buffer_handle = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
+
         uint64_t guest_dev  = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
         uint64_t guest_mem  = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
 
@@ -1168,15 +1174,51 @@ for (uint32_t i = 0; i < newCount; i++) {
         }
 
         VkDeviceMemory realMem;
-        VkResult result = vkAllocateMemory(realDev, pInfo, pAllocator, &realMem);
 
-        if (result == VK_SUCCESS) {
-            insert_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_mem, (uint64_t)(uintptr_t)realMem);
-            LOGI("Mapped DeviceMemory guest %llu -> host %p",
-                (unsigned long long)guest_mem,
-                (void*)realMem);
+        if (gbuffer_id != 0) {
+            Hardware_Buffer* gbuffer = get_gbuffer_from_global_map(gbuffer_id);
+            if (gbuffer == NULL) {
+                gbuffer = create_gbuffer_from_vulkan(
+                    buffer_width,
+                    buffer_height,
+                    gbuffer_id,
+                    NULL,
+                    NULL,
+                    realDev,
+                    NULL,
+                    buffer_handle
+                );
+                if (gbuffer != NULL) {
+                    add_gbuffer_to_global(gbuffer);
+                }
+            }
+            
+            VkExportMemoryAllocateInfo exportInfo = {};
+            exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+            exportInfo.pNext = pInfo->pNext;
+            exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+            
+            pInfo->pNext = &exportInfo;
+            
+            VkResult result = vkAllocateMemory(realDev, pInfo, pAllocator, &realMem);
+            
+            if (result == VK_SUCCESS) {
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_mem, (uint64_t)(uintptr_t)realMem);
+                insert_gbuffer_memory_mapping(gbuffer_id, (uint64_t)(uintptr_t)realMem);
+                LOGI("Mapped shared DeviceMemory guest %llu -> host %p, gbuffer_id=%llx",
+                    (unsigned long long)guest_mem, (void*)realMem, (unsigned long long)gbuffer_id);
+            } else {
+                LOGE("vkAllocateMemory failed: %d", result);
+            }
         } else {
-            LOGE("vkAllocateMemory failed: %d", result);
+            VkResult result = vkAllocateMemory(realDev, pInfo, pAllocator, &realMem);
+            
+            if (result == VK_SUCCESS) {
+                insert_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_mem, (uint64_t)(uintptr_t)realMem);
+                LOGI("Mapped DeviceMemory guest %llu -> host %p", (unsigned long long)guest_mem, (void*)realMem);
+            } else {
+                LOGE("vkAllocateMemory failed: %d", result);
+            }
         }
 
         //if (need_free) free(stream);
@@ -2484,33 +2526,6 @@ for (uint32_t i = 0; i < newCount; i++) {
         VkDevice device = (VkDevice)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
 
-        // if (createInfo.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-        // // 候选深度格式列表（按优先级）
-        //     VkFormat candidates[] = {
-        //         VK_FORMAT_D32_SFLOAT,
-        //         VK_FORMAT_D24_UNORM_S8_UINT,
-        //         VK_FORMAT_D16_UNORM
-        //     };
-        //     VkFormatProperties props;
-        //     bool found = false;
-        //     for (int i = 0; i < sizeof(candidates) / sizeof(VkFormat); ++i) {
-        //         VkFormat fmt = candidates[i];
-        //         vkGetPhysicalDeviceFormatProperties(device, fmt, &props);
-        //         if (props.optimalTilingFeatures &
-        //             VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-        //             if (fmt != createInfo.format) {
-        //                 LOGI("Host: change depth format from %d -> %d", createInfo.format, fmt);
-        //                 createInfo.format = fmt;
-        //             }
-        //             found = true;
-        //             break;
-        //         }
-        //     }
-        //     if (!found) {
-        //         LOGE("Host: 未找到支持的深度格式，保留原始 %d", createInfo.format);
-        //     }
-        // }
-
         VkImage hostImage;
         VkResult result = vkCreateImage(device, &createInfo, NULL, &hostImage);
         LOGI("vkCreateImage %d, hostImage=0x%llx", result, (uint64_t)(uintptr_t)hostImage);
@@ -3197,6 +3212,10 @@ for (uint32_t i = 0; i < newCount; i++) {
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_memory);
         
         vkFreeMemory(device, memory, NULL);
+        uint64_t gbuffer_id = lookup_memory_gbuffer_mapping((uint64_t)(uintptr_t)memory);
+        if (gbuffer_id != 0) {
+            remove_gbuffer_memory_mapping(gbuffer_id);
+        }
         
         remove_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_memory);
         
@@ -8854,6 +8873,41 @@ for (uint32_t i = 0; i < newCount; i++) {
         
         write_to_guest_mem(all_para[para_num - 1].data, &result, 0, sizeof(VkResult));
         LOGI("GetDisplayPlaneSupportedDisplaysKHR result %d", result);
+    }
+    break;
+
+    case FUNID_vkGetMemoryNativeBufferOHOS:
+    {
+        int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        int need_free = 0;
+        char* stream = call_para_to_ptr(all_para[0], &need_free);
+        uint8_t** ptr = (uint8_t**)&stream;
+        
+        uint64_t guest_memory;
+        uint64_t ret_handle;
+        memcpy(&guest_memory, *ptr, sizeof(uint64_t));
+
+        uint64_t memory = (uint64_t)(uintptr_t)
+            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE_MEMORY, guest_memory);
+        
+        uint64_t gbuffer_id = lookup_memory_gbuffer_mapping(memory);
+
+        if (gbuffer_id == 0) {
+            LOGE("GetMemoryNativeBufferOHOS: cannot find native buffer for memory %llx", memory);
+            ret_handle = 0;
+            write_to_guest_mem(all_para[1].data, &ret_handle, 0, sizeof(uint64_t));
+        } else {
+            Hardware_Buffer* nativeBuffer = get_gbuffer_from_global_map(gbuffer_id);
+            if (nativeBuffer == NULL) {           
+                LOGE("GetMemoryNativeBufferOHOS: get null native buffer for gbuffer id %llx", gbuffer_id);
+                ret_handle = 0;
+                write_to_guest_mem(all_para[1].data, &ret_handle, 0, sizeof(uint64_t));
+                break;
+            }
+            ret_handle = nativeBuffer->vk_buffer_handle;
+            write_to_guest_mem(all_para[1].data, &ret_handle, 0, sizeof(uint64_t));
+            LOGI("GetMemoryNativeBufferOHOS ptr %llx handle %llx", memory, ret_handle);            
+        }
     }
     break;
 

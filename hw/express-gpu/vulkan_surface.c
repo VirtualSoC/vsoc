@@ -558,7 +558,7 @@ bool vulkan_image_write_pixels(Hardware_Buffer *gbuffer, void *src, size_t size)
 
 Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuffer_id, 
                                           void *vk_image, void *vk_device_memory, 
-                                          void *vk_device, void *vk_format) {
+                                          void *vk_device, void *vk_format, uint64_t vk_buffer_handle) {
     Hardware_Buffer *gbuffer = g_malloc0(sizeof(Hardware_Buffer));
     
     // Set basic properties
@@ -573,12 +573,18 @@ Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuf
     gbuffer->vk_device_memory = vk_device_memory;
     gbuffer->vk_device = vk_device;
     gbuffer->vk_format = vk_format;
+    gbuffer->vk_buffer_handle = vk_buffer_handle;
 
     // 尝试创建共享image和GL texture
     VkPhysicalDevice pd = get_device_pd((uint64_t)(uintptr_t)vk_device);
     VkImage shared_image = VK_NULL_HANDLE;
     VkDeviceMemory shared_memory = VK_NULL_HANDLE;
     GLuint shared_texture = 0;
+
+    if(vk_image == NULL) {
+        LOGI("not swapchain image, skip interop");
+        return gbuffer;
+    }
     
     init_interop_once((VkDevice)vk_device);
     

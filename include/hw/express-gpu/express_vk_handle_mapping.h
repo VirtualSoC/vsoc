@@ -51,6 +51,16 @@ typedef enum ExpressVkObjectType {
     EXPRESS_VK_OBJECT_TYPE_MAX_ENUM
 } ExpressVkObjectType;
 
+void insert_gbuffer_memory_mapping(uint64_t gbuffer_id, uint64_t device_memory);
+
+uint64_t lookup_gbuffer_memory_mapping(uint64_t gbuffer_id);
+
+uint64_t lookup_memory_gbuffer_mapping(uint64_t device_memory);
+
+void remove_gbuffer_memory_mapping(uint64_t gbuffer_id);
+
+void clear_gbuffer_memory_mappings(void);
+
 int insert_mapping(ExpressVkObjectType type, uint64_t guest_id, uint64_t host_id);
 uint64_t lookup_mapping(ExpressVkObjectType type, uint64_t guest_id);
 void set_memory_map(uint64_t host_mem, void* mappedPtr);

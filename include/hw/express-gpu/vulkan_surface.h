@@ -15,7 +15,7 @@ bool vulkan_image_write_pixels(Hardware_Buffer *gbuffer, void *src, size_t size)
 
 Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuffer_id, 
                                           void *vk_image, void *vk_device_memory, 
-                                          void *vk_device, void *vk_format);
+                                          void *vk_device, void *vk_format, uint64_t vk_buffer_handle);
 
 extern PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR;
 
