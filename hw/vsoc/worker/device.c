@@ -291,19 +291,7 @@ void register_express_device(const Express_Device_Info *info)
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_IRQ_RELEASE, irq_release_ipc_handler);
 }
 
-bool invoke_call_handler(Thread_Context *context, void *_call) {
-    WorkerCall *call = (WorkerCall *)_call;
-    bool success = false;
-    if (context->call_handler != NULL)
-    {
-        LOGD("proxy_call_handler: worker_handle=%" PRIx64 " id=%" PRIu64 " para_num=%d sync=%s", context, GET_FUN_ID(call->id), call->para_num, FUN_NEED_SYNC(call->id) ? "true" : "false");
-
-        if (GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
-            success = cluster_decode_invoke(context, call->paras, call->para_num);
-        } else {
-            success = context->call_handler(context, call->id, call->paras, call->para_num);
-        }
-    }
+static void callback_and_free_call(WorkerCall *call, bool success) {
     // Free parameter memory ownership here
     if (call->paras) {
         for (int i = 0; i < call->para_num; ++i) {
@@ -317,9 +305,24 @@ bool invoke_call_handler(Thread_Context *context, void *_call) {
     // Send IPC reply to parent now that processing is complete
     if (call->need_reply) {
         uint8_t resp = success ? 1 : 0;
-    (void)vsoc_ipc_send_response(g_ipc_ctx, VSOC_IPC_TYPE_DEVICE_CALL, call->ipc_slot_id, &resp, sizeof(resp));
+        (void)vsoc_ipc_send_response(g_ipc_ctx, VSOC_IPC_TYPE_DEVICE_CALL, call->ipc_slot_id, &resp, sizeof(resp));
     }
     g_free(call);
+}
+
+bool invoke_call_handler(Thread_Context *context, void *_call) {
+    WorkerCall *call = (WorkerCall *)_call;
+    bool success = false;
+    if (context->call_handler != NULL)
+    {
+        LOGD("proxy_call_handler: worker_handle=%" PRIx64 " id=%" PRIu64 " para_num=%d sync=%s", context, GET_FUN_ID(call->id), call->para_num, FUN_NEED_SYNC(call->id) ? "true" : "false");
+
+        if (GET_FUN_ID(call->id) == EXPRESS_CLUSTER_FUN_ID) {
+            success = cluster_decode_invoke(context, call->paras, call->para_num);
+        } else {
+            success = context->call_handler(context, call->id, call->paras, call->para_num);
+        }
+    }
     return success;
 }
 
@@ -356,7 +359,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
 
         if (GET_FUN_ID(call->id) == EXPRESS_TERMINATE_FUN_ID)
         {
-            LOGD("thread context %llx terminate call received", (uint64_t)context);
+            LOGI("thread context dev %" PRIu64 " thread %" PRIu64 " process %" PRIu64 " terminate call received", (uint64_t)context->device_id, (uint64_t)context->thread_id, (uint64_t)context->process_id);
             // lookup info and call remove_context if any
             Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(context->device_id));
             if (info && info->remove_context) {
@@ -364,21 +367,13 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
             }
 
             // free the call and stop
-            if (call->paras) {
-                for (int i = 0; i < call->para_num; ++i) {
-                    if (call->paras[i].data) {
-                        if (call->paras[i].data->scatter_data) g_free(call->paras[i].data->scatter_data);
-                        g_free(call->paras[i].data);
-                    }
-                }
-                g_free(call->paras);
-            }
-            g_free(call);
+            callback_and_free_call(call, true);
             context->thread_run = 0;
             break;
         }
 
-        invoke_call_handler(context, call);
+        bool success = invoke_call_handler(context, call);
+        callback_and_free_call(call, success);
     }
 
     delete_event(context->data_event);
