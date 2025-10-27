@@ -359,7 +359,7 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
 
         if (GET_FUN_ID(call->id) == EXPRESS_TERMINATE_FUN_ID)
         {
-            LOGI("thread context dev %" PRIu64 " thread %" PRIu64 " process %" PRIu64 " terminate call received", (uint64_t)context->device_id, (uint64_t)context->thread_id, (uint64_t)context->process_id);
+            LOGD("thread context dev %" PRIu64 " thread %" PRIu64 " process %" PRIu64 " terminate call received", (uint64_t)context->device_id, (uint64_t)context->thread_id, (uint64_t)context->process_id);
             // lookup info and call remove_context if any
             Express_Device_Info *info = g_hash_table_lookup(g_devices, GINT_TO_POINTER(context->device_id));
             if (info && info->remove_context) {

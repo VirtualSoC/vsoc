@@ -969,7 +969,7 @@ void d_glBindVertexArray_special(void *context, GLuint array)
     Attrib_Point *now_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(now_vao));
     Attrib_Point *pre_point = g_hash_table_lookup(bound_buffer->vao_point_data, GUINT_TO_POINTER(pre_vao));
 
-    LOGI("context %llx bind vao host %d guest %d pre %d", (uint64_t)context, now_vao, array, pre_vao);
+    // LOGI("context %llx bind vao host %d guest %d pre %d", (uint64_t)context, now_vao, array, pre_vao);
 
     if (now_point == NULL)
     {
