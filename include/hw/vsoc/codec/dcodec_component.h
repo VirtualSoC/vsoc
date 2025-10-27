@@ -75,7 +75,7 @@ typedef struct DCodecComponent DCodecComponent;
 typedef void (*NotifyCallbackFunc)(DCodecComponent *context, CodecCallbackData ccd);
 
 struct DCodecComponent {
-    Device_Context device_context;
+    Device_Context *device_context;
 
     // buffer queues contain buffers that are not processed yet
     GQueue *input_buffers;

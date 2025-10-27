@@ -264,8 +264,8 @@ void dcodec_notify_guest(DCodecComponent *context, CodecCallbackData ccd) {
 
     // guest-side already has polling, but polling can be laggy
     // use interrupts on important events to reduce delay
-    if (ccd.event == OMX_EventCmdComplete) {
-        g_ops.set_express_device_irq((Device_Context *)context, header[1], sizeof(CodecCallbackData));
+    if (ccd.event == OMX_EventCmdComplete && context->device_context) {
+        g_ops.set_express_device_irq(context->device_context, header[1], sizeof(CodecCallbackData));
     }
 }
 

@@ -77,6 +77,7 @@ static bool dcodec_call_handler(Thread_Context *_context, uint64_t id, const Cal
             LOGE("codec uid %" PRId64 ": unrecognized codec type %d", unique_id, isVideo);
             return false;
         }
+        ((Codec_Thread_Context *)_context)->component->device_context = &((Codec_Thread_Context *)_context)->device_context;
         return true;
     }
     case DCODEC_FUN_ResetComponent: {
@@ -256,10 +257,7 @@ static Device_Context *get_codec_device_context(uint64_t device_id, uint64_t thr
         LOGW("codec uid %" PRId64 " -> null device context", unique_id);
         return NULL;
     }
-    if ((Device_Context *)thread_context->component == NULL) {
-        LOGW("codec uid %" PRId64 " null component!", unique_id);
-    }
-    return (Device_Context *)thread_context->component;
+    return (Device_Context *)&thread_context->device_context;
 }
 
 static void codec_buffer_register(Guest_Mem *data, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, Express_Device_Info *info)

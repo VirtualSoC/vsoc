@@ -8,6 +8,8 @@ typedef struct
 {
     Thread_Context thread_context;
 
+    Device_Context device_context;
+
     uint64_t unique_id;
 
     DCodecComponent *component;
