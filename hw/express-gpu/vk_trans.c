@@ -7983,32 +7983,49 @@ for (uint32_t i = 0; i < newCount; i++) {
     }
     break;
 
-    case FUNID_vkUpdateDescriptorSetWithTemplate: //ztodo:fix this!!
+    case FUNID_vkUpdateDescriptorSetWithTemplate:
     {
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
+        
         int need_free = 0;
         char* stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t** ptr = (uint8_t**)&stream;
         
-        uint64_t guest_device = *(uint64_t*)(*ptr);
-        *ptr += sizeof(uint64_t);
-        uint64_t guest_descriptor_set = *(uint64_t*)(*ptr);
-        *ptr += sizeof(uint64_t);
-        uint64_t guest_descriptor_update_template = *(uint64_t*)(*ptr);
-        *ptr += sizeof(uint64_t);
-        uint64_t guest_data = *(uint64_t*)(*ptr);
+        uint64_t guest_device;
+        memcpy(&guest_device, *ptr, sizeof(uint64_t));
         *ptr += sizeof(uint64_t);
         
-        VkDevice device = (VkDevice)(uintptr_t)
-            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
-        VkDescriptorSet descriptorSet = (VkDescriptorSet)(uintptr_t)
-            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, guest_descriptor_set);
-        VkDescriptorUpdateTemplate descriptorUpdateTemplate = (VkDescriptorUpdateTemplate)(uintptr_t)
-            lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE, guest_descriptor_update_template);
+        uint64_t guest_descriptor_set;
+        memcpy(&guest_descriptor_set, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
         
-        // zTODO: Need to properly handle pData mapping from guest memory
-        vkUpdateDescriptorSetWithTemplate(device, descriptorSet, descriptorUpdateTemplate, NULL);
-        LOGI("UpdateDescriptorSetWithTemplate complete");
+        uint64_t guest_template;
+        memcpy(&guest_template, *ptr, sizeof(uint64_t));
+        *ptr += sizeof(uint64_t);
+        
+        size_t data_size;
+        memcpy(&data_size, *ptr, sizeof(size_t));
+        *ptr += sizeof(size_t);
+        
+        VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(
+            EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
+        VkDescriptorSet descriptorSet = (VkDescriptorSet)(uintptr_t)lookup_mapping(
+            EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_SET, guest_descriptor_set);
+        VkDescriptorUpdateTemplate descriptorUpdateTemplate = 
+            (VkDescriptorUpdateTemplate)(uintptr_t)lookup_mapping(
+                EXPRESS_VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE, guest_template);
+        
+        void* pData_copy = malloc(data_size);
+        memcpy(pData_copy, *ptr, data_size);
+        LOGI("UpdateDescriptorSetWithTemplate calling vkUpdateDescriptorSetWithTemplate: "
+             "device=%p, descriptorSet=%p, descriptorUpdateTemplate=%p, data_size=%zu",
+             device, descriptorSet, descriptorUpdateTemplate, data_size);
+        
+        vkUpdateDescriptorSetWithTemplate(device, descriptorSet, 
+                                        descriptorUpdateTemplate, pData_copy);
+        
+        free(pData_copy);
+        LOGI("UpdateDescriptorSetWithTemplate completed");
     }
     break;
 
@@ -8056,6 +8073,9 @@ for (uint32_t i = 0; i < newCount; i++) {
         *ptr += sizeof(uint64_t);
         uint64_t guest_private_data_slot = *(uint64_t*)(*ptr);
         *ptr += sizeof(uint64_t);
+
+        uint64_t real_handle = lookup_mapping(objectType, objectHandle);
+        LOGI("going to call vkGetPrivateData");
         
         VkDevice device = (VkDevice)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
@@ -8063,7 +8083,7 @@ for (uint32_t i = 0; i < newCount; i++) {
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PRIVATE_DATA_SLOT, guest_private_data_slot);
         
         uint64_t data;
-        vkGetPrivateData(device, (VkObjectType)objectType, objectHandle, privateDataSlot, &data);
+        vkGetPrivateData(device, (VkObjectType)objectType, real_handle, privateDataSlot, &data);
         
         write_to_guest_mem(all_para[1].data, &data, 0, sizeof(uint64_t));
         LOGI("GetPrivateData complete");
@@ -8092,8 +8112,12 @@ for (uint32_t i = 0; i < newCount; i++) {
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
         VkPrivateDataSlot privateDataSlot = (VkPrivateDataSlot)(uintptr_t)
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PRIVATE_DATA_SLOT, guest_private_data_slot);
-        
-        VkResult result = vkSetPrivateData(device, (VkObjectType)objectType, objectHandle, privateDataSlot, data);
+        uint64_t real_handle = lookup_mapping(objectType, objectHandle);
+        LOGI("going to call vkSetPrivateData");
+        LOGI("info verbose: device=%p, objectType=%u, objectHandle=%lu, privateDataSlot=%p, data=%lu",
+             device, objectType, real_handle, privateDataSlot, data);
+
+        VkResult result = vkSetPrivateData(device, (VkObjectType)objectType, real_handle, privateDataSlot, data);
         if(result == VK_SUCCESS) {
             LOGI("SetPrivateData completed successfully");
         } else {
