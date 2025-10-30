@@ -194,15 +194,19 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
                                 0, NULL, 0, NULL, 1, &barrier2);
             
             // Blit
+            // Blit（上下翻转源图像）
             VkImageBlit blit = {
                 .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                .srcOffsets = {{0, 0, 0}, {gbuffer->width, gbuffer->height, 1}},
+                .srcOffsets = {
+                    {0, gbuffer->height, 0},  // 左上角 -> 改成左下角
+                    {gbuffer->width, 0, 1}     // 右下角 -> 改成右上角
+                },
                 .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                 .dstOffsets = {{0, 0, 0}, {gbuffer->width, gbuffer->height, 1}}
             };
             vkCmdBlitImage(cmd, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                          dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                          1, &blit, VK_FILTER_NEAREST);
+                        dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        1, &blit, VK_FILTER_NEAREST);
             
             // Transition dst to GENERAL for GL access
             VkImageMemoryBarrier barrier3 = {

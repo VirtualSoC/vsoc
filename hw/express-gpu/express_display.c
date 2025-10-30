@@ -661,16 +661,8 @@ static void opengl_paint_composer_layers(GBuffer_Layers *layers)
                     glUniform1i(program_transform_loc, now_transform_type);
                 }
 
-                if(gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
-                    glUniform1i(program_transform_loc, FLIP_V);
-                    LOGI("set vulkan transform uniform %d", FLIP_V);
-                }
                 opengl_paint_gbuffer(gbuffer);
-                if(gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
-                    glUniform1i(program_transform_loc, layer.transform_type);
-                }
-
-
+                
                 LOGD("composer set sync %d", layer.read_sync_id);
 
                 signal_express_sync(layer.read_sync_id, true);

@@ -653,7 +653,7 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     }
     else if (fun_id >= 1000 && fun_id < 2000)
     {
-        LOGI("get vk call with id %lld", fun_id);
+        LOGD("get vk call with id %lld", fun_id);
         vk_decode_invoke(render_context, call);
         // LOGD("get call vkCreateDevice!");
         // const VkInstanceCreateInfo* pCreateInfo;
