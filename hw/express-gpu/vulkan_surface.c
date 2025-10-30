@@ -377,6 +377,120 @@ uint32_t find_memory_type(VkPhysicalDevice pd, uint32_t type_filter,
     LOGE("[Interop] Failed to find suitable memory type");
     return 0;
 }
+
+#ifdef __APPLE__
+#include <IOSurface/IOSurface.h>
+#include <Metal/Metal.h>
+
+static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice pd,
+                                              uint32_t width, uint32_t height,
+                                              VkImage *out_image,
+                                              VkDeviceMemory *out_memory,
+                                              GLuint *out_texture) {
+    // 1. 创建 IOSurface
+    CFMutableDictionaryRef properties = CFDictionaryCreateMutable(
+        kCFAllocatorDefault, 0,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks);
+    
+    int w = (int)width, h = (int)height;
+    CFNumberRef w_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &w);
+    CFNumberRef h_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &h);
+    int bytes_per_element = 4;
+    CFNumberRef bpe_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &bytes_per_element);
+    
+    CFDictionarySetValue(properties, kIOSurfaceWidth, w_num);
+    CFDictionarySetValue(properties, kIOSurfaceHeight, h_num);
+    CFDictionarySetValue(properties, kIOSurfaceBytesPerElement, bpe_num);
+    CFDictionarySetValue(properties, kIOSurfacePixelFormat, 
+                        (CFNumberRef)CFSTR("BGRA"));  // 对应 VK_FORMAT_B8G8R8A8_UNORM
+    
+    IOSurfaceRef io_surface = IOSurfaceCreate(properties);
+    CFRelease(properties);
+    CFRelease(w_num);
+    CFRelease(h_num);
+    CFRelease(bpe_num);
+    
+    if (!io_surface) return false;
+    
+    // 2. 创建可导出的 Vulkan image
+    VkExternalMemoryImageCreateInfo external_info = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_MTLTEXTURE_BIT_KHR
+    };
+    
+    VkImageCreateInfo img_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = &external_info,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = VK_FORMAT_B8G8R8A8_UNORM,  // macOS 通常用 BGRA
+        .extent = {width, height, 1},
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+    };
+    
+    VkResult res = vkCreateImage(device, &img_info, NULL, out_image);
+    if (res != VK_SUCCESS) {
+        CFRelease(io_surface);
+        return false;
+    }
+    
+    // 3. 导入 IOSurface 到 Vulkan memory
+    VkMemoryRequirements mem_reqs;
+    vkGetImageMemoryRequirements(device, *out_image, &mem_reqs);
+    
+    VkImportMemoryIOSurfaceInfoKHR import_info = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_IOSURFACE_INFO_KHR,
+        .ioSurface = io_surface
+    };
+    
+    VkMemoryAllocateInfo alloc_info = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &import_info,
+        .allocationSize = mem_reqs.size,
+        .memoryTypeIndex = find_memory_type(pd, mem_reqs.memoryTypeBits,
+                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+    };
+    
+    res = vkAllocateMemory(device, &alloc_info, NULL, out_memory);
+    if (res != VK_SUCCESS) {
+        vkDestroyImage(device, *out_image, NULL);
+        CFRelease(io_surface);
+        return false;
+    }
+    
+    vkBindImageMemory(device, *out_image, *out_memory, 0);
+    
+    // 4. 创建 OpenGL texture from IOSurface
+    glGenTextures(1, out_texture);
+    glBindTexture(GL_TEXTURE_RECTANGLE, *out_texture);  // macOS 用 RECTANGLE
+    
+    CGLContextObj cgl_ctx = CGLGetCurrentContext();
+    CGLTexImageIOSurface2D(cgl_ctx, GL_TEXTURE_RECTANGLE,
+                          GL_RGBA8, width, height,
+                          GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+                          io_surface, 0);
+    
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    
+    glBindTexture(GL_TEXTURE_RECTANGLE, 0);
+    
+    // 注意：IOSurface 由 Vulkan memory 持有，不要立即 CFRelease
+    
+    LOGI("[Interop] Created shared IOSurface and GL texture %u (%dx%d)", 
+         *out_texture, width, height);
+    return true;
+}
+
+#else
 // 创建可导出的共享image
 static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice pd,
                                               uint32_t width, uint32_t height,
@@ -466,6 +580,7 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
          *out_texture, width, height);
     return true;
 }
+#endif
 
 // 写入host内存到Vulkan image
 bool vulkan_image_write_pixels(Hardware_Buffer *gbuffer, void *src, size_t size) {
@@ -591,12 +706,29 @@ Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuf
     }
     
     init_interop_once((VkDevice)vk_device);
+
+        bool interop_success = false;
     
-    if (pfn_vkGetMemoryWin32HandleKHR &&
-        create_shared_image_and_gl_texture((VkDevice)vk_device, pd,
-                                          width, height,
-                                          &shared_image, &shared_memory,
-                                          &shared_texture)) {
+    #ifdef __APPLE__
+        // macOS: IOSurface 不需要检查函数指针
+        interop_success = create_shared_image_and_gl_texture(
+            (VkDevice)vk_device, pd,
+            width, height,
+            &shared_image, &shared_memory,
+            &shared_texture);
+    #else
+        // Windows: 需要检查扩展函数
+        if (pfn_vkGetMemoryWin32HandleKHR) {
+            interop_success = create_shared_image_and_gl_texture(
+                (VkDevice)vk_device, pd,
+                width, height,
+                &shared_image, &shared_memory,
+                &shared_texture);
+        }
+    #endif
+
+    
+    if (interop_success) {
         // 成功：使用零拷贝模式
         gbuffer->vk_shared_image = shared_image;
         gbuffer->vk_shared_memory = shared_memory;
@@ -608,7 +740,12 @@ Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuf
     } else {
         // 失败：fallback到传统模式
         glGenTextures(1, &(gbuffer->data_texture));
+#ifdef __APPLE__
+        // macOS 可能需要 TEXTURE_RECTANGLE，但先尝试 TEXTURE_2D ztodo不确定
         glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+#else
+        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+#endif
         
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

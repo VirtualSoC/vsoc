@@ -17,6 +17,9 @@
 #include "hw/express-gpu/express_vk_handle_mapping.h"
 #include "hw/express-gpu/vk_helper.h"
 #include "hw/express-gpu/vulkan_surface.h"
+
+#ifdef __WIN32__
+
 #include <vulkan/vulkan_win32.h>
 
 PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR = NULL;
@@ -36,6 +39,7 @@ void init_interop_once(VkDevice device) {
     
     initialized = true;
 }
+#endif
 
 static __thread void *g_gl_context = NULL;
 
@@ -462,6 +466,12 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             lookup_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW, guest_window_ptr);
         if (!win) {
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+            #ifdef __APPLE__
+                // macOS 特殊处理：启用 Retina 支持
+                glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+            #endif
+
             win = glfwCreateWindow(1, 1, "Guest Window", NULL, NULL);
             insert_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW,
                         guest_window_ptr,
@@ -473,7 +483,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         VkSurfaceKHR hostSurface = VK_NULL_HANDLE;
         VkResult res = glfwCreateWindowSurface(hostInst, win, NULL, &hostSurface);
         if (res != VK_SUCCESS) {
-            LOGE("Host: vkCreateAndroidSurfaceKHR failed %d", res);
+            LOGE("Host: vkCreateSurfaceOHOS failed %d", res);
             return;
         }
         
@@ -728,10 +738,17 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             }
         }
 
-        const char* required_interop_exts[] = {
-            "VK_KHR_external_memory",
-            "VK_KHR_external_memory_win32"
-        };
+        #ifdef __APPLE__
+            const char* required_interop_exts[] = {
+                "VK_KHR_external_memory",
+                "VK_EXT_external_memory_metal"  // macOS 使用 Metal 互操作
+            };
+        #else
+            const char* required_interop_exts[] = {
+                "VK_KHR_external_memory",
+                "VK_KHR_external_memory_win32"
+            };
+        #endif
         
         for (int i = 0; i < 2; i++) {
             const char* ext = required_interop_exts[i];
@@ -1196,7 +1213,12 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             VkExportMemoryAllocateInfo exportInfo = {};
             exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
             exportInfo.pNext = pInfo->pNext;
-            exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+
+            #ifdef __APPLE__
+                    exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_MTLTEXTURE_BIT_KHR;
+            #else
+                    exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+            #endif
             
             pInfo->pNext = &exportInfo;
             
