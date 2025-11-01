@@ -1215,7 +1215,7 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             exportInfo.pNext = pInfo->pNext;
 
             #ifdef __APPLE__
-                    exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_MTLTEXTURE_BIT_KHR;
+                    exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_MTLTEXTURE_BIT_EXT;
             #else
                     exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
             #endif
@@ -1832,19 +1832,11 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     break;
 
     case FUNID_vkCmdBindVertexBuffers: {
-        LARGE_INTEGER freq, t0, t1, t2, t3, t4, t5, t6, t7;
-        QueryPerformanceFrequency(&freq);
-        QueryPerformanceCounter(&t0);
-
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
-
-        QueryPerformanceCounter(&t1);
 
         int need_free = 0;
         char* stream = call_para_to_ptr(all_para[0], &need_free);
         uint8_t** ptr = (uint8_t**)&stream;
-
-        QueryPerformanceCounter(&t2);
 
         uint64_t guest_cmd_buf = *(uint64_t*)(*ptr);
         *ptr += sizeof(uint64_t);
@@ -1854,8 +1846,6 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
         uint32_t bindingCount = *(uint32_t*)(*ptr);
         *ptr += sizeof(uint32_t);
 
-        QueryPerformanceCounter(&t3);
-
         VkBuffer* realBuffers = malloc(bindingCount * sizeof(VkBuffer));
         for (uint32_t i = 0; i < bindingCount; ++i) {
             uint64_t guest_buf = *(uint64_t*)(*ptr);
@@ -1863,45 +1853,23 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
             realBuffers[i] = (VkBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_BUFFER, guest_buf);
         }
 
-        QueryPerformanceCounter(&t4);
-
         VkDeviceSize* offsets = malloc(bindingCount * sizeof(VkDeviceSize));
         for (uint32_t i = 0; i < bindingCount; ++i) {
             offsets[i] = *(VkDeviceSize*)(*ptr);
             *ptr += sizeof(VkDeviceSize);
         }
 
-        QueryPerformanceCounter(&t5);
-
         VkCommandBuffer realCmdBuf =
             (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd_buf);
 
         vkCmdBindVertexBuffers(realCmdBuf, firstBinding, bindingCount, realBuffers, offsets);
 
-        QueryPerformanceCounter(&t6);
-
-        // LOGD("CmdBindVertexBuffers guest %llu -> host %p count %d",
-        //     (unsigned long long)guest_cmd_buf, (void*)realCmdBuf, bindingCount);
+        LOGD("CmdBindVertexBuffers guest %llu -> host %p count %d",
+            (unsigned long long)guest_cmd_buf, (void*)realCmdBuf, bindingCount);
 
         free(realBuffers);
         free(offsets);
         // if (need_free) free(stream);
-
-        QueryPerformanceCounter(&t7);
-
-        double dt01 = (double)(t1.QuadPart - t0.QuadPart) * 1e6 / freq.QuadPart;
-        double dt12 = (double)(t2.QuadPart - t1.QuadPart) * 1e6 / freq.QuadPart;
-        double dt23 = (double)(t3.QuadPart - t2.QuadPart) * 1e6 / freq.QuadPart;
-        double dt34 = (double)(t4.QuadPart - t3.QuadPart) * 1e6 / freq.QuadPart;
-        double dt45 = (double)(t5.QuadPart - t4.QuadPart) * 1e6 / freq.QuadPart;
-        double dt56 = (double)(t6.QuadPart - t5.QuadPart) * 1e6 / freq.QuadPart;
-        double dt67 = (double)(t7.QuadPart - t6.QuadPart) * 1e6 / freq.QuadPart;
-        double total = (double)(t7.QuadPart - t0.QuadPart) * 1e6 / freq.QuadPart;
-
-        LOGD("[Timing] vkCmdBindVertexBuffers: "
-            "para_get=%.2fus, stream_ptr=%.2fus, read_headers=%.2fus, lookup_bufs=%.2fus, "
-            "read_offsets=%.2fus, cmd_bind=%.2fus, cleanup=%.2fus, total=%.2fus",
-            dt01, dt12, dt23, dt34, dt45, dt56, dt67, total);
     }
     break;
 
