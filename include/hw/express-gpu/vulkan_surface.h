@@ -22,9 +22,9 @@ Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuf
 
 #ifndef __APPLE__                                          
 extern PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR;
-#endif
 
 // 初始化函数声明
 void init_interop_once(VkDevice device);
+#endif
 
 #endif // VULKAN_SURFACE_H 

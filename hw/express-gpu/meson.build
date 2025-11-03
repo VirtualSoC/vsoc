@@ -85,7 +85,7 @@ express_gpu.add(when: 'CONFIG_EXPRESS_GPU',
                     'express_vk_extension_structs.c',
                     'express_vk_handle_mapping.c',
                     'vk_helper.c',
-                    'vulkan_surface.c'
+                    'vulkan_surface.m'
                ))
 
 glfw = cc.find_library('glfw')
@@ -107,6 +107,27 @@ express_gpu.add(Cocoa)
 express_gpu.add(IOKit)
 express_gpu.add(CoreFoundation)
 express_gpu.add(AppKit)
+IOSurface = dependency('appleframeworks', modules: 'IOSurface')
+express_gpu.add(IOSurface)
+
+    vulkan = cc.find_library('vulkan', dirs : [
+        '/usr/local/lib',
+        '/usr/lib',
+        '/Users/' + meson.get_compiler('c').cmd_array()[0] + '/VulkanSDK/lib',
+        '/Users/' + meson.get_compiler('c').cmd_array()[0] + '/VulkanSDK/1.3.290.0/lib',
+    ], required : false)
+
+    if not vulkan.found()
+        # 也可能叫 MoltenVK
+        vulkan = cc.find_library('MoltenVK', dirs : [
+            '/usr/local/lib',
+            '/usr/lib',
+            '/Users/' + meson.get_compiler('c').cmd_array()[0] + '/VulkanSDK/lib',
+            '/Users/' + meson.get_compiler('c').cmd_array()[0] + '/VulkanSDK/1.3.290.0/lib',
+        ], required : true)
+    endif
+
+    express_gpu.add(vulkan)
 
 softmmu_ss.add_all(express_gpu)
 

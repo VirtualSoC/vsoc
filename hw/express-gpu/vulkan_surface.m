@@ -246,6 +246,7 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
             void* pixels = malloc(gbuffer->width * gbuffer->height * 4);
             if (vulkan_image_read_pixels(gbuffer, pixels, 
                                         gbuffer->width * gbuffer->height * 4)) {
+                LOGI("[vulkan_surface] Read pixels from Vulkan image %d", imageIndex);
                 glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 
                                gbuffer->width, gbuffer->height, 
@@ -265,6 +266,7 @@ bool vulkan_image_read_pixels(Hardware_Buffer *gbuffer, void *dst, size_t size) 
     if (!gbuffer || gbuffer->backend_type != HARDWARE_BUFFER_BACKEND_VULKAN) return false;
     VkDevice device = (VkDevice)gbuffer->vk_device;
     VkImage image = (VkImage)gbuffer->vk_image;
+    
     // 1. Create host visible staging buffer
     VkBufferCreateInfo buf_info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -273,14 +275,17 @@ bool vulkan_image_read_pixels(Hardware_Buffer *gbuffer, void *dst, size_t size) 
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
     VkBuffer staging_buf;
+
     VkResult res = vkCreateBuffer(device, &buf_info, NULL, &staging_buf);
     if (res != VK_SUCCESS) return false;
+
+    
     VkMemoryRequirements mem_req;
     vkGetBufferMemoryRequirements(device, staging_buf, &mem_req);
     VkMemoryAllocateInfo alloc_info = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         .allocationSize = mem_req.size,
-        .memoryTypeIndex = 0 // Need to find host visible type
+        .memoryTypeIndex = 0
     };
     VkPhysicalDevice pd = get_device_pd((uint64_t)(uintptr_t)device);
     VkPhysicalDeviceMemoryProperties mem_props;
@@ -298,11 +303,11 @@ bool vulkan_image_read_pixels(Hardware_Buffer *gbuffer, void *dst, size_t size) 
         return false;
     }
     vkBindBufferMemory(device, staging_buf, staging_mem, 0);
+    
     // 2. Create command buffer and copy image to buffer
-    // Only doing single-threaded synchronization here, production should have more complex sync
     VkCommandPoolCreateInfo pool_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = 0 // Need to find queue that supports graphics/transfer
+        .queueFamilyIndex = 0
     };
     VkCommandPool cmd_pool;
     vkCreateCommandPool(device, &pool_info, NULL, &cmd_pool);
@@ -317,7 +322,34 @@ bool vulkan_image_read_pixels(Hardware_Buffer *gbuffer, void *dst, size_t size) 
     VkCommandBufferBeginInfo begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
     };
+
     vkBeginCommandBuffer(cmd_buf, &begin_info);
+
+    
+    // **关键修改1：添加图像布局转换到 TRANSFER_SRC_OPTIMAL**
+    VkImageMemoryBarrier barrier1 = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,  // 或者使用 gbuffer 中存储的当前布局
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+
+    vkCmdPipelineBarrier(cmd_buf, 
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 0, NULL, 0, NULL, 1, &barrier1);
+    
     VkBufferImageCopy region = {
         .bufferOffset = 0,
         .bufferRowLength = 0,
@@ -331,8 +363,38 @@ bool vulkan_image_read_pixels(Hardware_Buffer *gbuffer, void *dst, size_t size) 
         .imageOffset = {0, 0, 0},
         .imageExtent = {gbuffer->width, gbuffer->height, 1}
     };
-    vkCmdCopyImageToBuffer(cmd_buf, image, VK_IMAGE_LAYOUT_GENERAL, staging_buf, 1, &region);
+
+    // **关键修改2：使用 TRANSFER_SRC_OPTIMAL 布局**
+    vkCmdCopyImageToBuffer(cmd_buf, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging_buf, 1, &region);
+
+    
+    // **关键修改3：转换回原始布局**
+    VkImageMemoryBarrier barrier2 = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+
+    vkCmdPipelineBarrier(cmd_buf, 
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+        0, 0, NULL, 0, NULL, 1, &barrier2);
+    
     vkEndCommandBuffer(cmd_buf);
+
+    
     VkQueue queue;
     vkGetDeviceQueue(device, 0, 0, &queue);
     VkSubmitInfo submit = {
@@ -340,19 +402,27 @@ bool vulkan_image_read_pixels(Hardware_Buffer *gbuffer, void *dst, size_t size) 
         .commandBufferCount = 1,
         .pCommandBuffers = &cmd_buf
     };
+
     vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE);
+
     vkQueueWaitIdle(queue);
+    
     // 3. Map buffer and read data
     void *mapped;
     vkMapMemory(device, staging_mem, 0, size, 0, &mapped);
     memcpy(dst, mapped, size);
     vkUnmapMemory(device, staging_mem);
-    // 4. Cleanup
+
+    // vkDeviceWaitIdle(device);
+    
+    // // 4. Cleanup
+    vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buf);  // 显式释放命令缓冲区
+    vkDestroyCommandPool(device, cmd_pool, NULL);
     vkFreeMemory(device, staging_mem, NULL);
     vkDestroyBuffer(device, staging_buf, NULL);
-    vkDestroyCommandPool(device, cmd_pool, NULL);
     return true;
 }
+
 
 uint32_t find_memory_type(VkPhysicalDevice pd, uint32_t type_filter, 
                                  VkMemoryPropertyFlags properties) {
@@ -378,23 +448,61 @@ uint32_t find_memory_type(VkPhysicalDevice pd, uint32_t type_filter,
     return 0;
 }
 
-// 创建可导出的共享image
+#include <IOSurface/IOSurface.h>
+#include <OpenGL/CGLIOSurface.h>
+#include <CoreFoundation/CoreFoundation.h>
+
 static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice pd,
                                               uint32_t width, uint32_t height,
                                               VkImage *out_image,
                                               VkDeviceMemory *out_memory,
                                               GLuint *out_texture) {
-    // 1. 创建可导出的image
+    return false;
+    // 1. 创建 IOSurface (纯 C API)
+    CFMutableDictionaryRef properties = CFDictionaryCreateMutable(
+        kCFAllocatorDefault, 0,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks);
+    
+    int w = (int)width, h = (int)height;
+    CFNumberRef w_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &w);
+    CFNumberRef h_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &h);
+    int bytes_per_element = 4;
+    CFNumberRef bpe_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &bytes_per_element);
+    
+    // 正确设置 PixelFormat (BGRA = 'BGRA' = 0x42475241)
+    uint32_t pixel_format = 'BGRA';  // FourCC code
+    CFNumberRef fmt_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pixel_format);
+    
+    CFDictionarySetValue(properties, kIOSurfaceWidth, w_num);
+    CFDictionarySetValue(properties, kIOSurfaceHeight, h_num);
+    CFDictionarySetValue(properties, kIOSurfaceBytesPerElement, bpe_num);
+    CFDictionarySetValue(properties, kIOSurfacePixelFormat, fmt_num);
+    
+    IOSurfaceRef io_surface = IOSurfaceCreate(properties);
+    
+    CFRelease(properties);
+    CFRelease(w_num);
+    CFRelease(h_num);
+    CFRelease(bpe_num);
+    CFRelease(fmt_num);
+    
+    if (!io_surface) {
+        LOGE("[Interop] Failed to create IOSurface");
+        return false;
+    }
+    
+    // 2. 创建可导出的 Vulkan image
     VkExternalMemoryImageCreateInfo external_info = {
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
-        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_MTLTEXTURE_BIT_EXT  // 用 _EXT
     };
     
     VkImageCreateInfo img_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .pNext = &external_info,
         .imageType = VK_IMAGE_TYPE_2D,
-        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .format = VK_FORMAT_B8G8R8A8_UNORM,
         .extent = {width, height, 1},
         .mipLevels = 1,
         .arrayLayers = 1,
@@ -406,20 +514,34 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
     };
     
     VkResult res = vkCreateImage(device, &img_info, NULL, out_image);
-    if (res != VK_SUCCESS) return false;
+    if (res != VK_SUCCESS) {
+        LOGE("[Interop] vkCreateImage failed: %d", res);
+        CFRelease(io_surface);
+        return false;
+    }
     
-    // 2. 分配可导出的memory
+    // 3. 导入 IOSurface 到 Vulkan memory
     VkMemoryRequirements mem_reqs;
     vkGetImageMemoryRequirements(device, *out_image, &mem_reqs);
     
-    VkExportMemoryAllocateInfo export_info = {
-        .sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
-        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT
+    // 注意：VkImportMemoryIOSurfaceInfoKHR 可能不存在，需要手动定义
+    typedef struct VkImportMemoryIOSurfaceInfoKHR {
+        VkStructureType sType;
+        const void* pNext;
+        IOSurfaceRef ioSurface;
+    } VkImportMemoryIOSurfaceInfoKHR;
+    
+    #define VK_STRUCTURE_TYPE_IMPORT_MEMORY_IOSURFACE_INFO_KHR ((VkStructureType)1000122000)
+    
+    VkImportMemoryIOSurfaceInfoKHR import_info = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_IOSURFACE_INFO_KHR,
+        .pNext = NULL,
+        .ioSurface = io_surface
     };
     
     VkMemoryAllocateInfo alloc_info = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = &export_info,
+        .pNext = &import_info,
         .allocationSize = mem_reqs.size,
         .memoryTypeIndex = find_memory_type(pd, mem_reqs.memoryTypeBits,
                                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
@@ -427,139 +549,55 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
     
     res = vkAllocateMemory(device, &alloc_info, NULL, out_memory);
     if (res != VK_SUCCESS) {
+        LOGE("[Interop] vkAllocateMemory failed: %d", res);
         vkDestroyImage(device, *out_image, NULL);
+        CFRelease(io_surface);
         return false;
     }
     
     vkBindImageMemory(device, *out_image, *out_memory, 0);
     
-    // 3. 获取Win32 handle
-    if (!pfn_vkGetMemoryWin32HandleKHR) return false;
+    // 4. 创建 OpenGL texture from IOSurface
+    glGenTextures(1, out_texture);
+    glBindTexture(GL_TEXTURE_2D, *out_texture);
     
-    VkMemoryGetWin32HandleInfoKHR handle_info = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR,
-        .memory = *out_memory,
-        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT
-    };
+    CGLContextObj cgl_ctx = CGLGetCurrentContext();
+    CGLError cgl_err = CGLTexImageIOSurface2D(
+        cgl_ctx, 
+        GL_TEXTURE_2D,
+        GL_RGBA8, 
+        width, 
+        height,
+        GL_BGRA, 
+        GL_UNSIGNED_INT_8_8_8_8_REV,
+        io_surface, 
+        0
+    );
     
-    HANDLE win32_handle;
-    res = pfn_vkGetMemoryWin32HandleKHR(device, &handle_info, &win32_handle);
-    if (res != VK_SUCCESS) return false;
+    if (cgl_err != kCGLNoError) {
+        LOGE("[Interop] CGLTexImageIOSurface2D failed: %d", cgl_err);
+        glDeleteTextures(1, out_texture);
+        vkFreeMemory(device, *out_memory, NULL);
+        vkDestroyImage(device, *out_image, NULL);
+        CFRelease(io_surface);
+        return false;
+    }
     
-    // 4. 创建GL memory object
-    GLuint memory_object;
-    glCreateMemoryObjectsEXT(1, &memory_object);
-    glImportMemoryWin32HandleEXT(memory_object, mem_reqs.size,
-                                GL_HANDLE_TYPE_OPAQUE_WIN32_EXT,
-                                win32_handle);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     
-    // 5. 创建GL texture
-    glCreateTextures(GL_TEXTURE_2D, 1, out_texture);
-    glTextureParameteri(*out_texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(*out_texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTextureParameteri(*out_texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(*out_texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
     
-    glTextureStorageMem2DEXT(*out_texture, 1, GL_RGBA8,
-                            width, height, memory_object, 0);
+    // IOSurface 由 Vulkan memory 持有，这里不 CFRelease
+    // 会在销毁 VkDeviceMemory 时自动释放
     
-    LOGI("[Interop] Created shared image and GL texture %u (%dx%d)", 
+    LOGI("[Interop] Created shared IOSurface and GL texture %u (%dx%d)", 
          *out_texture, width, height);
     return true;
 }
-
 // 写入host内存到Vulkan image
-bool vulkan_image_write_pixels(Hardware_Buffer *gbuffer, void *src, size_t size) {
-    if (!gbuffer || gbuffer->backend_type != HARDWARE_BUFFER_BACKEND_VULKAN) return false;
-    VkDevice device = (VkDevice)gbuffer->vk_device;
-    VkImage image = (VkImage)gbuffer->vk_image;
-    // 1. 创建host visible的staging buffer
-    VkBufferCreateInfo buf_info = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-    VkBuffer staging_buf;
-    VkResult res = vkCreateBuffer(device, &buf_info, NULL, &staging_buf);
-    if (res != VK_SUCCESS) return false;
-    VkMemoryRequirements mem_req;
-    vkGetBufferMemoryRequirements(device, staging_buf, &mem_req);
-    VkMemoryAllocateInfo alloc_info = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = mem_req.size,
-        .memoryTypeIndex = 0 // 需查找host visible类型
-    };
-    VkPhysicalDevice pd = get_device_pd((uint64_t)(uintptr_t)device);
-    VkPhysicalDeviceMemoryProperties mem_props;
-    vkGetPhysicalDeviceMemoryProperties(pd, &mem_props);
-    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
-        if (mem_props.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
-            alloc_info.memoryTypeIndex = i;
-            break;
-        }
-    }
-    VkDeviceMemory staging_mem;
-    res = vkAllocateMemory(device, &alloc_info, NULL, &staging_mem);
-    if (res != VK_SUCCESS) {
-        vkDestroyBuffer(device, staging_buf, NULL);
-        return false;
-    }
-    vkBindBufferMemory(device, staging_buf, staging_mem, 0);
-    // 2. 映射buffer写入数据
-    void *mapped;
-    vkMapMemory(device, staging_mem, 0, size, 0, &mapped);
-    memcpy(mapped, src, size);
-    vkUnmapMemory(device, staging_mem);
-    // 3. 创建command buffer并拷贝buffer到image
-    VkCommandPoolCreateInfo pool_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = 0 // 需查找支持graphics/transfer的队列
-    };
-    VkCommandPool cmd_pool;
-    vkCreateCommandPool(device, &pool_info, NULL, &cmd_pool);
-    VkCommandBufferAllocateInfo alloc_cmd = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = cmd_pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1
-    };
-    VkCommandBuffer cmd_buf;
-    vkAllocateCommandBuffers(device, &alloc_cmd, &cmd_buf);
-    VkCommandBufferBeginInfo begin_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-    };
-    vkBeginCommandBuffer(cmd_buf, &begin_info);
-    VkBufferImageCopy region = {
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .mipLevel = 0,
-            .baseArrayLayer = 0,
-            .layerCount = 1
-        },
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {gbuffer->width, gbuffer->height, 1}
-    };
-    vkCmdCopyBufferToImage(cmd_buf, staging_buf, image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
-    vkEndCommandBuffer(cmd_buf);
-    VkQueue queue;
-    vkGetDeviceQueue(device, 0, 0, &queue);
-    VkSubmitInfo submit = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd_buf
-    };
-    vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE);
-    vkQueueWaitIdle(queue);
-    // 4. 清理
-    vkFreeMemory(device, staging_mem, NULL);
-    vkDestroyBuffer(device, staging_buf, NULL);
-    vkDestroyCommandPool(device, cmd_pool, NULL);
-    return true;
-}
 
 Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuffer_id, 
                                           void *vk_image, void *vk_device_memory, 
@@ -590,30 +628,16 @@ Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuf
         LOGI("not swapchain image, skip interop");
         return gbuffer;
     }
-    
-    init_interop_once((VkDevice)vk_device);
 
-        bool interop_success = false;
+    bool interop_success = false;
     
-    #ifdef __APPLE__
         // macOS: IOSurface 不需要检查函数指针
-        interop_success = create_shared_image_and_gl_texture(
-            (VkDevice)vk_device, pd,
-            width, height,
-            &shared_image, &shared_memory,
-            &shared_texture);
-    #else
-        // Windows: 需要检查扩展函数
-        if (pfn_vkGetMemoryWin32HandleKHR) {
-            interop_success = create_shared_image_and_gl_texture(
-                (VkDevice)vk_device, pd,
-                width, height,
-                &shared_image, &shared_memory,
-                &shared_texture);
-        }
-    #endif
+    interop_success = create_shared_image_and_gl_texture(
+        (VkDevice)vk_device, pd,
+        width, height,
+        &shared_image, &shared_memory,
+        &shared_texture);
 
-    
     if (interop_success) {
         // 成功：使用零拷贝模式
         gbuffer->vk_shared_image = shared_image;

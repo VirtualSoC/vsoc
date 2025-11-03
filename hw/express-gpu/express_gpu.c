@@ -638,7 +638,7 @@ static void decode_invoke(Thread_Context *context, Teleport_Express_Call *call)
     Render_Thread_Context *render_context = (Render_Thread_Context *)context;
 
     uint64_t fun_id = GET_FUN_ID(call->id);
-    // LOGI("enter gpu decode invoke id %llu", fun_id);
+    LOGD("enter gpu decode invoke id %llu", fun_id);
 
 
     if (fun_id == 10001)
