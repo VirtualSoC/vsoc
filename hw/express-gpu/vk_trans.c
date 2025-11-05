@@ -732,7 +732,7 @@ THREAD_CONTROL_END
         VkExtensionProperties* availProps = malloc(sizeof(VkExtensionProperties) * availCount);
         vkEnumerateDeviceExtensionProperties(physicalDevice, NULL, &availCount, availProps);
         for(int i = 0; i < availCount; i++) {
-            LOGI("Host: Available device extension %d: %s", i, availProps[i].extensionName);
+            LOGD("Host: Available device extension %d: %s", i, availProps[i].extensionName);
         }
 
         uint32_t origCount = pCreateInfo->enabledExtensionCount;

@@ -168,41 +168,14 @@ static void copy_texture_rectangle_to_2d(GLuint src_rect_texture, GLuint dst_tex
                                          int width, int height) {
     init_copy_shader_once();
     
-    LOGI("[DEBUG] Starting copy: src=%u (RECTANGLE) -> dst=%u (2D), size=%dx%d", 
-         src_rect_texture, dst_texture_2d, width, height);
-    
-    // ===== 步骤1：读取源纹理验证 =====
-    GLuint temp_fbo;
-    glGenFramebuffers(1, &temp_fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, temp_fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                          GL_TEXTURE_RECTANGLE, src_rect_texture, 0);
-    
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
-        unsigned char center_pixel[4];
-        glReadPixels(width/2, height/2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, center_pixel);
-        LOGI("[DEBUG] Source RECTANGLE center pixel: R=%d G=%d B=%d A=%d", 
-             center_pixel[0], center_pixel[1], center_pixel[2], center_pixel[3]);
-    } else {
-        LOGE("[DEBUG] Cannot read from RECTANGLE texture, FBO status: 0x%x", 
-             glCheckFramebufferStatus(GL_FRAMEBUFFER));
-    }
-    
-    // ===== 步骤2：创建目标 FBO（绑定 dst_texture_2d）=====
+    // ===== 创建并绑定目标 FBO =====
+    GLuint fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                           GL_TEXTURE_2D, dst_texture_2d, 0);
     
-    GLenum fbo_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (fbo_status != GL_FRAMEBUFFER_COMPLETE) {
-        LOGE("[DEBUG] Target FBO incomplete: 0x%x", fbo_status);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glDeleteFramebuffers(1, &temp_fbo);
-        return;
-    }
-    
-    LOGI("[DEBUG] Target FBO complete, ready to render");
-    
-    // ===== 步骤3：设置渲染状态 =====
+    // ===== 设置渲染状态 =====
     glViewport(0, 0, width, height);
     
     GLboolean depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
@@ -213,16 +186,14 @@ static void copy_texture_rectangle_to_2d(GLuint src_rect_texture, GLuint dst_tex
     glDisable(GL_BLEND);
     glDisable(GL_CULL_FACE);
     
-    // ===== 步骤4：使用 shader 复制 =====
+    // ===== 使用 shader 复制 =====
     glUseProgram(g_copy_rectangle_shader);
     
-    GLint tex_loc = glGetUniformLocation(g_copy_rectangle_shader, "texRect");
-    GLint size_loc = glGetUniformLocation(g_copy_rectangle_shader, "texSize");
+    glUniform1i(glGetUniformLocation(g_copy_rectangle_shader, "texRect"), 0);
+    glUniform2f(glGetUniformLocation(g_copy_rectangle_shader, "texSize"), 
+                (float)width, (float)height);
     
-    glUniform1i(tex_loc, 0);
-    glUniform2f(size_loc, (float)width, (float)height);
-    
-    // 绑定源纹理到 texture unit 0
+    // 绑定源纹理
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_RECTANGLE, src_rect_texture);
     
@@ -241,32 +212,18 @@ static void copy_texture_rectangle_to_2d(GLuint src_rect_texture, GLuint dst_tex
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
     
-    GLint pos_loc = glGetAttribLocation(g_copy_rectangle_shader, "position");
-    glEnableVertexAttribArray(pos_loc);
-    glVertexAttribPointer(pos_loc, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(0);  // position 固定在 location 0
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
     
     // 绘制
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        LOGE("[DEBUG] OpenGL error after draw: 0x%x", err);
-    }
-    
-    glFinish();
-    
-    // ===== 步骤5：验证结果 =====
-    unsigned char result_pixel[4];
-    glReadPixels(width/2, height/2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, result_pixel);
-    LOGI("[DEBUG] Destination TEXTURE_2D center pixel after copy: R=%d G=%d B=%d A=%d", 
-         result_pixel[0], result_pixel[1], result_pixel[2], result_pixel[3]);
-    
-    // ===== 步骤6：清理 =====
+    // ===== 清理 =====
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
     glBindTexture(GL_TEXTURE_RECTANGLE, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDeleteFramebuffers(1, &temp_fbo);
+    glDeleteFramebuffers(1, &fbo);
     
     if (depth_test_enabled) glEnable(GL_DEPTH_TEST);
     if (blend_enabled) glEnable(GL_BLEND);
