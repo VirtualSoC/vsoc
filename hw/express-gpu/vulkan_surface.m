@@ -119,6 +119,160 @@ void vulkan_surface_register_swapchain_images(VkDevice device, VkSwapchainKHR sw
     free(images);
 }
 
+static GLuint g_copy_rectangle_shader = 0;
+
+static void init_copy_shader_once(void) {
+    if (g_copy_rectangle_shader != 0) return;
+    
+    const char* vertex_shader_src = 
+        "#version 150\n"
+        "in vec2 position;\n"
+        "out vec2 fragCoord;\n"
+        "void main() {\n"
+        "    gl_Position = vec4(position, 0.0, 1.0);\n"
+        "    fragCoord = (position + 1.0) * 0.5;\n"  // [-1,1] -> [0,1]
+        "}\n";
+    
+    const char* fragment_shader_src = 
+        "#version 150\n"
+        "#extension GL_ARB_texture_rectangle : enable\n"
+        "uniform sampler2DRect texRect;\n"
+        "uniform vec2 texSize;\n"
+        "in vec2 fragCoord;\n"
+        "out vec4 outColor;\n"
+        "void main() {\n"
+        "    vec2 pixelCoord = fragCoord * texSize;\n"  // [0,1] -> [0,width/height]
+        "    outColor = texture(texRect, pixelCoord);\n"
+        "}\n";
+    
+    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &vertex_shader_src, NULL);
+    glCompileShader(vs);
+    
+    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fs, 1, &fragment_shader_src, NULL);
+    glCompileShader(fs);
+    
+    g_copy_rectangle_shader = glCreateProgram();
+    glAttachShader(g_copy_rectangle_shader, vs);
+    glAttachShader(g_copy_rectangle_shader, fs);
+    glLinkProgram(g_copy_rectangle_shader);
+    
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    
+    LOGI("[vulkan_surface] Copy shader initialized: program=%u", g_copy_rectangle_shader);
+}
+
+static void copy_texture_rectangle_to_2d(GLuint src_rect_texture, GLuint dst_texture_2d,
+                                         int width, int height) {
+    init_copy_shader_once();
+    
+    LOGI("[DEBUG] Starting copy: src=%u (RECTANGLE) -> dst=%u (2D), size=%dx%d", 
+         src_rect_texture, dst_texture_2d, width, height);
+    
+    // ===== 步骤1：读取源纹理验证 =====
+    GLuint temp_fbo;
+    glGenFramebuffers(1, &temp_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, temp_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                          GL_TEXTURE_RECTANGLE, src_rect_texture, 0);
+    
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+        unsigned char center_pixel[4];
+        glReadPixels(width/2, height/2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, center_pixel);
+        LOGI("[DEBUG] Source RECTANGLE center pixel: R=%d G=%d B=%d A=%d", 
+             center_pixel[0], center_pixel[1], center_pixel[2], center_pixel[3]);
+    } else {
+        LOGE("[DEBUG] Cannot read from RECTANGLE texture, FBO status: 0x%x", 
+             glCheckFramebufferStatus(GL_FRAMEBUFFER));
+    }
+    
+    // ===== 步骤2：创建目标 FBO（绑定 dst_texture_2d）=====
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                          GL_TEXTURE_2D, dst_texture_2d, 0);
+    
+    GLenum fbo_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (fbo_status != GL_FRAMEBUFFER_COMPLETE) {
+        LOGE("[DEBUG] Target FBO incomplete: 0x%x", fbo_status);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDeleteFramebuffers(1, &temp_fbo);
+        return;
+    }
+    
+    LOGI("[DEBUG] Target FBO complete, ready to render");
+    
+    // ===== 步骤3：设置渲染状态 =====
+    glViewport(0, 0, width, height);
+    
+    GLboolean depth_test_enabled = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean blend_enabled = glIsEnabled(GL_BLEND);
+    GLboolean cull_face_enabled = glIsEnabled(GL_CULL_FACE);
+    
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_CULL_FACE);
+    
+    // ===== 步骤4：使用 shader 复制 =====
+    glUseProgram(g_copy_rectangle_shader);
+    
+    GLint tex_loc = glGetUniformLocation(g_copy_rectangle_shader, "texRect");
+    GLint size_loc = glGetUniformLocation(g_copy_rectangle_shader, "texSize");
+    
+    glUniform1i(tex_loc, 0);
+    glUniform2f(size_loc, (float)width, (float)height);
+    
+    // 绑定源纹理到 texture unit 0
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_RECTANGLE, src_rect_texture);
+    
+    // 创建全屏四边形
+    static const float vertices[] = {
+        -1.0f, -1.0f,
+         1.0f, -1.0f,
+        -1.0f,  1.0f,
+         1.0f,  1.0f
+    };
+    
+    GLuint vbo, vao;
+    glGenVertexArrays(1, &vao);
+    glGenBuffers(1, &vbo);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    
+    GLint pos_loc = glGetAttribLocation(g_copy_rectangle_shader, "position");
+    glEnableVertexAttribArray(pos_loc);
+    glVertexAttribPointer(pos_loc, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    
+    // 绘制
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        LOGE("[DEBUG] OpenGL error after draw: 0x%x", err);
+    }
+    
+    glFinish();
+    
+    // ===== 步骤5：验证结果 =====
+    unsigned char result_pixel[4];
+    glReadPixels(width/2, height/2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, result_pixel);
+    LOGI("[DEBUG] Destination TEXTURE_2D center pixel after copy: R=%d G=%d B=%d A=%d", 
+         result_pixel[0], result_pixel[1], result_pixel[2], result_pixel[3]);
+    
+    // ===== 步骤6：清理 =====
+    glDeleteVertexArrays(1, &vao);
+    glDeleteBuffers(1, &vbo);
+    glBindTexture(GL_TEXTURE_RECTANGLE, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &temp_fbo);
+    
+    if (depth_test_enabled) glEnable(GL_DEPTH_TEST);
+    if (blend_enabled) glEnable(GL_BLEND);
+    if (cull_face_enabled) glEnable(GL_CULL_FACE);
+}
+
 void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo, 
                                    uint64_t* buffer_ids) {
     for (uint32_t i = 0; i < presentInfo->swapchainCount; ++i) {
@@ -132,16 +286,15 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
         }
 
         if (!gbuffer->needs_copy && gbuffer->vk_shared_image) {
-            // ===== 零拷贝路径：GPU blit =====
-            VkImage src_image = (VkImage)gbuffer->vk_image;  // swapchain image
-            VkImage dst_image = (VkImage)gbuffer->vk_shared_image;  // 共享image
+            // ===== 步骤1：Vulkan blit 到共享 image =====
+            VkImage src_image = (VkImage)gbuffer->vk_image;
+            VkImage dst_image = (VkImage)gbuffer->vk_shared_image;
             VkDevice device = (VkDevice)gbuffer->vk_device;
             
-            // 现场创建临时command buffer
             VkCommandPoolCreateInfo pool_info = {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
                 .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
-                .queueFamilyIndex = 0  // 假设queue family 0支持graphics
+                .queueFamilyIndex = 0
             };
             VkCommandPool cmd_pool;
             vkCreateCommandPool(device, &pool_info, NULL, &cmd_pool);
@@ -161,7 +314,7 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
             };
             vkBeginCommandBuffer(cmd, &begin_info);
             
-            // Transition src image layout
+            // Transition src image
             VkImageMemoryBarrier barrier1 = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .srcAccessMask = VK_ACCESS_MEMORY_READ_BIT,
@@ -177,7 +330,7 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
                                 0, NULL, 0, NULL, 1, &barrier1);
             
-            // Transition dst image layout
+            // Transition dst image
             VkImageMemoryBarrier barrier2 = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
                 .srcAccessMask = 0,
@@ -193,20 +346,19 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
                                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
                                 0, NULL, 0, NULL, 1, &barrier2);
             
-            // Blit
             // Blit（上下翻转源图像）
             VkImageBlit blit = {
                 .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                 .srcOffsets = {
-                    {0, gbuffer->height, 0},  // 左上角 -> 改成左下角
-                    {gbuffer->width, 0, 1}     // 右下角 -> 改成右上角
+                    {0, (int32_t)gbuffer->height, 0},
+                    {(int32_t)gbuffer->width, 0, 1}
                 },
                 .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                .dstOffsets = {{0, 0, 0}, {gbuffer->width, gbuffer->height, 1}}
+                .dstOffsets = {{0, 0, 0}, {(int32_t)gbuffer->width, (int32_t)gbuffer->height, 1}}
             };
             vkCmdBlitImage(cmd, src_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                        dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        1, &blit, VK_FILTER_NEAREST);
+                          dst_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          1, &blit, VK_FILTER_NEAREST);
             
             // Transition dst to GENERAL for GL access
             VkImageMemoryBarrier barrier3 = {
@@ -226,7 +378,6 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
             
             vkEndCommandBuffer(cmd);
             
-            // Submit
             VkSubmitInfo submit = {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .commandBufferCount = 1,
@@ -235,11 +386,17 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
             vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE);
             vkQueueWaitIdle(queue);
             
-            // 清理临时资源
             vkDestroyCommandPool(device, cmd_pool, NULL);
+
+            glFlush();
             
-            LOGI("[vulkan_surface] Zero-copy presented image %d -> GL texture %u", 
-                 imageIndex, gbuffer->data_texture);
+            // ===== 步骤2：GL_TEXTURE_RECTANGLE → GL_TEXTURE_2D =====
+            copy_texture_rectangle_to_2d(gbuffer->intermediate_texture,
+                                        gbuffer->data_texture,
+                                        gbuffer->width,
+                                        gbuffer->height);
+            
+            LOGI("[vulkan_surface] Two-step zero-copy completed: image %d", i);
                  
         } else {
             // ===== 传统CPU拷贝路径 =====
@@ -457,8 +614,7 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
                                               VkImage *out_image,
                                               VkDeviceMemory *out_memory,
                                               GLuint *out_texture) {
-    return false;
-    // 1. 创建 IOSurface (纯 C API)
+    // 1. 创建 IOSurface
     CFMutableDictionaryRef properties = CFDictionaryCreateMutable(
         kCFAllocatorDefault, 0,
         &kCFTypeDictionaryKeyCallBacks,
@@ -470,8 +626,8 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
     int bytes_per_element = 4;
     CFNumberRef bpe_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &bytes_per_element);
     
-    // 正确设置 PixelFormat (BGRA = 'BGRA' = 0x42475241)
-    uint32_t pixel_format = 'BGRA';  // FourCC code
+    // BGRA 格式
+    uint32_t pixel_format = 'BGRA';
     CFNumberRef fmt_num = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pixel_format);
     
     CFDictionarySetValue(properties, kIOSurfaceWidth, w_num);
@@ -492,15 +648,30 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
         return false;
     }
     
-    // 2. 创建可导出的 Vulkan image
-    VkExternalMemoryImageCreateInfo external_info = {
-        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
-        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_MTLTEXTURE_BIT_EXT  // 用 _EXT
+    LOGI("[Interop] Created IOSurface: %p, size=%dx%d", io_surface, width, height);
+    
+    // 2. 创建 Vulkan image（使用 IOSurface 导入方式）
+    // MoltenVK 的 IOSurface 导入方式需要在 vkCreateImage 阶段传入 VkImportMetalIOSurfaceInfoEXT
+    
+    typedef struct VkImportMetalIOSurfaceInfoEXT {
+        VkStructureType sType;
+        const void* pNext;
+        IOSurfaceRef ioSurface;
+    } VkImportMetalIOSurfaceInfoEXT;
+    
+    #ifndef VK_STRUCTURE_TYPE_IMPORT_METAL_IO_SURFACE_INFO_EXT
+    #define VK_STRUCTURE_TYPE_IMPORT_METAL_IO_SURFACE_INFO_EXT ((VkStructureType)1000311009)
+    #endif
+    
+    VkImportMetalIOSurfaceInfoEXT import_info = {
+        .sType = VK_STRUCTURE_TYPE_IMPORT_METAL_IO_SURFACE_INFO_EXT,
+        .pNext = NULL,
+        .ioSurface = io_surface
     };
     
     VkImageCreateInfo img_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .pNext = &external_info,
+        .pNext = &import_info,  // ✅ 正确的位置：将 IOSurface 导入信息放这里
         .imageType = VK_IMAGE_TYPE_2D,
         .format = VK_FORMAT_B8G8R8A8_UNORM,
         .extent = {width, height, 1},
@@ -520,28 +691,19 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
         return false;
     }
     
-    // 3. 导入 IOSurface 到 Vulkan memory
+    // 3. 获取内存需求
     VkMemoryRequirements mem_reqs;
     vkGetImageMemoryRequirements(device, *out_image, &mem_reqs);
     
-    // 注意：VkImportMemoryIOSurfaceInfoKHR 可能不存在，需要手动定义
-    typedef struct VkImportMemoryIOSurfaceInfoKHR {
-        VkStructureType sType;
-        const void* pNext;
-        IOSurfaceRef ioSurface;
-    } VkImportMemoryIOSurfaceInfoKHR;
+    LOGI("[Interop] Memory requirements: size=%llu, alignment=%llu, memoryTypeBits=0x%x",
+         (unsigned long long)mem_reqs.size,
+         (unsigned long long)mem_reqs.alignment,
+         mem_reqs.memoryTypeBits);
     
-    #define VK_STRUCTURE_TYPE_IMPORT_MEMORY_IOSURFACE_INFO_KHR ((VkStructureType)1000122000)
-    
-    VkImportMemoryIOSurfaceInfoKHR import_info = {
-        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_IOSURFACE_INFO_KHR,
-        .pNext = NULL,
-        .ioSurface = io_surface
-    };
-    
+    // 4. 普通分配（此时 IOSurface 已经在 vkCreateImage 时被绑定，不需要再导入）
     VkMemoryAllocateInfo alloc_info = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = &import_info,
+        .pNext = NULL,  // ✅ 不再传 import_info
         .allocationSize = mem_reqs.size,
         .memoryTypeIndex = find_memory_type(pd, mem_reqs.memoryTypeBits,
                                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
@@ -555,16 +717,36 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
         return false;
     }
     
-    vkBindImageMemory(device, *out_image, *out_memory, 0);
+    res = vkBindImageMemory(device, *out_image, *out_memory, 0);
+    if (res != VK_SUCCESS) {
+        LOGE("[Interop] vkBindImageMemory failed: %d", res);
+        vkFreeMemory(device, *out_memory, NULL);
+        vkDestroyImage(device, *out_image, NULL);
+        CFRelease(io_surface);
+        return false;
+    }
     
-    // 4. 创建 OpenGL texture from IOSurface
+    LOGI("[Interop] Vulkan image and memory created successfully");
+    
+    // 5. 创建 OpenGL texture from IOSurface
     glGenTextures(1, out_texture);
-    glBindTexture(GL_TEXTURE_2D, *out_texture);
+    glBindTexture(GL_TEXTURE_RECTANGLE, *out_texture);
     
     CGLContextObj cgl_ctx = CGLGetCurrentContext();
+    if (!cgl_ctx) {
+        LOGE("[Interop] No current CGL context!");
+        glDeleteTextures(1, out_texture);
+        vkFreeMemory(device, *out_memory, NULL);
+        vkDestroyImage(device, *out_image, NULL);
+        CFRelease(io_surface);
+        return false;
+    }
+    
+    LOGI("[Interop] CGL context: %p", cgl_ctx);
+    
     CGLError cgl_err = CGLTexImageIOSurface2D(
         cgl_ctx, 
-        GL_TEXTURE_2D,
+        GL_TEXTURE_RECTANGLE,
         GL_RGBA8, 
         width, 
         height,
@@ -583,15 +765,43 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
         return false;
     }
     
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     
-    glBindTexture(GL_TEXTURE_2D, 0);
+    GLenum gl_err = glGetError();
+    if (gl_err != GL_NO_ERROR) {
+        LOGE("[Interop] OpenGL error after texture setup: 0x%x", gl_err);
+    }
     
-    // IOSurface 由 Vulkan memory 持有，这里不 CFRelease
-    // 会在销毁 VkDeviceMemory 时自动释放
+    glBindTexture(GL_TEXTURE_RECTANGLE, 0);
+    
+    // 测试：往 IOSurface 写入测试数据
+    IOSurfaceLock(io_surface, 0, NULL);
+    void* base_addr = IOSurfaceGetBaseAddress(io_surface);
+    size_t bytes_per_row = IOSurfaceGetBytesPerRow(io_surface);
+    
+    LOGI("[Interop] IOSurface base address: %p, bytes per row: %zu", base_addr, bytes_per_row);
+    
+    // 写入红色测试图案到中心区域
+    if (base_addr) {
+        for (int y = height/2 - 10; y < height/2 + 10; y++) {
+            uint8_t* row = (uint8_t*)base_addr + y * bytes_per_row;
+            for (int x = width/2 - 10; x < width/2 + 10; x++) {
+                row[x*4 + 0] = 255;  // B
+                row[x*4 + 1] = 0;    // G
+                row[x*4 + 2] = 253;  // R
+                row[x*4 + 3] = 255;  // A
+            }
+        }
+        LOGI("[Interop] Wrote test pattern (magenta square) to IOSurface center");
+    }
+    
+    IOSurfaceUnlock(io_surface, 0, NULL);
+    
+    // 强制 GL 同步
+    glFlush();
     
     LOGI("[Interop] Created shared IOSurface and GL texture %u (%dx%d)", 
          *out_texture, width, height);
@@ -631,32 +841,36 @@ Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuf
 
     bool interop_success = false;
     
-        // macOS: IOSurface 不需要检查函数指针
     interop_success = create_shared_image_and_gl_texture(
-        (VkDevice)vk_device, pd,
-        width, height,
-        &shared_image, &shared_memory,
-        &shared_texture);
-
+        (VkDevice)vk_device, pd, width, height,
+        &shared_image, &shared_memory, &shared_texture);
+    
     if (interop_success) {
-        // 成功：使用零拷贝模式
         gbuffer->vk_shared_image = shared_image;
         gbuffer->vk_shared_memory = shared_memory;
-        gbuffer->data_texture = shared_texture;
         gbuffer->needs_copy = false;
         
-        LOGI("[vulkan_surface] Created ZERO-COPY gbuffer %llx with shared texture %d", 
-             gbuffer_id, shared_texture);
-    } else {
-        // 失败：fallback到传统模式
-        glGenTextures(1, &(gbuffer->data_texture));
-#ifdef __APPLE__
-        // macOS 可能需要 TEXTURE_RECTANGLE，但先尝试 TEXTURE_2D ztodo不确定
-        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-#else
-        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
-#endif
+        // macOS: shared_texture 是 GL_TEXTURE_RECTANGLE，需要转换
+        gbuffer->intermediate_texture = shared_texture;
         
+        // 创建最终的 GL_TEXTURE_2D
+        glGenTextures(1, &gbuffer->data_texture);
+        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, 
+                     GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        
+        LOGI("[vulkan_surface] Created ZERO-COPY gbuffer: intermediate_texture=%u (RECTANGLE), data_texture=%u (2D)", 
+             gbuffer->intermediate_texture, gbuffer->data_texture);
+        
+    } else {
+        // Fallback 到 CPU 拷贝
+        glGenTextures(1, &gbuffer->data_texture);
+        glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -674,4 +888,4 @@ Hardware_Buffer *create_gbuffer_from_vulkan(int width, int height, uint64_t gbuf
     }
 
     return gbuffer;
-} 
+}

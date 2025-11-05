@@ -731,6 +731,9 @@ THREAD_CONTROL_END
         vkEnumerateDeviceExtensionProperties(physicalDevice, NULL, &availCount, NULL);
         VkExtensionProperties* availProps = malloc(sizeof(VkExtensionProperties) * availCount);
         vkEnumerateDeviceExtensionProperties(physicalDevice, NULL, &availCount, availProps);
+        for(int i = 0; i < availCount; i++) {
+            LOGI("Host: Available device extension %d: %s", i, availProps[i].extensionName);
+        }
 
         uint32_t origCount = pCreateInfo->enabledExtensionCount;
         const char* const* origExts = pCreateInfo->ppEnabledExtensionNames;
@@ -760,16 +763,19 @@ THREAD_CONTROL_END
         #ifdef __APPLE__
             const char* required_interop_exts[] = {
                 "VK_KHR_external_memory",
+                "VK_EXT_metal_objects",
                 "VK_EXT_external_memory_metal"  // macOS 使用 Metal 互操作
             };
+            int num_exts = 3;
         #else
             const char* required_interop_exts[] = {
                 "VK_KHR_external_memory",
                 "VK_KHR_external_memory_win32"
             };
+            int num_exts = 2;
         #endif
         
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < num_exts; i++) {
             const char* ext = required_interop_exts[i];
             if (has_device_extension(availProps, availCount, ext)) {
                 // 检查是否已添加
@@ -2231,8 +2237,9 @@ THREAD_CONTROL_END
         LOGD("Host: vkQueuePresentKHR queue=%lld swapchainCount=%d buffer %llx", 
             (uint64_t)(uintptr_t)queue, presentInfo.swapchainCount, buffer_ids[0]);
         // 新逻辑：present前后做buffer管理和上屏
-        vkQueuePresentKHR(queue, &presentInfo);
+        
         vulkan_surface_present_images(queue, &presentInfo, buffer_ids);
+        vkQueuePresentKHR(queue, &presentInfo);
         //if (need_free) free(stream);
         break;
     }
