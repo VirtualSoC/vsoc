@@ -8062,6 +8062,19 @@ THREAD_CONTROL_END
         memcpy(&data_size, *ptr, sizeof(size_t));
         *ptr += sizeof(size_t);
         
+        uint32_t entry_count;
+        memcpy(&entry_count, *ptr, sizeof(uint32_t));
+        *ptr += sizeof(uint32_t);
+        LOGD("UpdateDescriptorSetWithTemplate entry_count=%u, data_size=%zu", 
+            entry_count, data_size);
+        
+        VkDescriptorUpdateTemplateEntry* entries = 
+            (VkDescriptorUpdateTemplateEntry*)malloc(entry_count * sizeof(VkDescriptorUpdateTemplateEntry));
+        for (uint32_t i = 0; i < entry_count; ++i) {
+            memcpy(&entries[i], *ptr, sizeof(VkDescriptorUpdateTemplateEntry));
+            *ptr += sizeof(VkDescriptorUpdateTemplateEntry);
+        }
+        
         VkDevice device = (VkDevice)(uintptr_t)lookup_mapping(
             EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
         VkDescriptorSet descriptorSet = (VkDescriptorSet)(uintptr_t)lookup_mapping(
@@ -8072,15 +8085,78 @@ THREAD_CONTROL_END
         
         void* pData_copy = malloc(data_size);
         memcpy(pData_copy, *ptr, data_size);
-        LOGD("UpdateDescriptorSetWithTemplate calling vkUpdateDescriptorSetWithTemplate: "
-             "device=%p, descriptorSet=%p, descriptorUpdateTemplate=%p, data_size=%zu",
-             device, descriptorSet, descriptorUpdateTemplate, data_size);
+        
+        for (uint32_t i = 0; i < entry_count; ++i) {
+            VkDescriptorUpdateTemplateEntry* entry = &entries[i];
+            size_t offset = entry->offset;
+            
+            for (uint32_t j = 0; j < entry->descriptorCount; ++j) {
+                void* desc_ptr = (char*)pData_copy + offset + j * entry->stride;
+                LOGD("Processing entry %u/%u at offset %zu", i+1, entry_count, offset + j * entry->stride);
+                
+                switch (entry->descriptorType) {
+                    case VK_DESCRIPTOR_TYPE_SAMPLER:
+                    case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+                    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+                    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+                    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT: {
+                        VkDescriptorImageInfo* img_info = (VkDescriptorImageInfo*)desc_ptr;
+                        if (img_info->sampler) {
+                            uint64_t guest_sampler = (uint64_t)(uintptr_t)img_info->sampler;
+                            img_info->sampler = (VkSampler)(uintptr_t)lookup_mapping(
+                                EXPRESS_VK_OBJECT_TYPE_SAMPLER, guest_sampler);
+                        }
+                        if (img_info->imageView) {
+                            uint64_t guest_image_view = (uint64_t)(uintptr_t)img_info->imageView;
+                            img_info->imageView = (VkImageView)(uintptr_t)lookup_mapping(
+                                EXPRESS_VK_OBJECT_TYPE_IMAGE_VIEW, guest_image_view);
+                        }
+                        break;
+                    }
+                    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+                    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+                    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+                    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {
+                        VkDescriptorBufferInfo* buf_info = (VkDescriptorBufferInfo*)desc_ptr;
+                        if (buf_info->buffer) {
+                            uint64_t guest_buffer = (uint64_t)(uintptr_t)buf_info->buffer;
+                            buf_info->buffer = (VkBuffer)(uintptr_t)lookup_mapping(
+                                EXPRESS_VK_OBJECT_TYPE_BUFFER, guest_buffer);
+                                LOGD("Mapped buffer guest %lu to host %p", guest_buffer, buf_info->buffer);
+                        }
+                        break;
+                    }
+                    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+                    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER: {
+                        VkBufferView* buffer_view = (VkBufferView*)desc_ptr;
+                        if (*buffer_view) {
+                            uint64_t guest_buffer_view = (uint64_t)(uintptr_t)(*buffer_view);
+                            *buffer_view = (VkBufferView)(uintptr_t)lookup_mapping(
+                                EXPRESS_VK_OBJECT_TYPE_BUFFER_VIEW, guest_buffer_view);
+                        }
+                        break;
+                    }
+                    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: {
+                        VkAccelerationStructureKHR* accel = (VkAccelerationStructureKHR*)desc_ptr;
+                        if (*accel) {
+                            uint64_t guest_accel = (uint64_t)(uintptr_t)(*accel);
+                            *accel = (VkAccelerationStructureKHR)(uintptr_t)lookup_mapping(
+                                EXPRESS_VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, guest_accel);
+                        }
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            }
+        }
         
         vkUpdateDescriptorSetWithTemplate(device, descriptorSet, 
                                         descriptorUpdateTemplate, pData_copy);
         
+        free(entries);
         free(pData_copy);
-        LOGD("UpdateDescriptorSetWithTemplate completed");
+        LOGD("UpdateDescriptorSetWithTemplate done");
     }
     break;
 
