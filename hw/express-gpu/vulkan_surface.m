@@ -2,6 +2,7 @@
 #include "hw/express-gpu/egl_surface.h"
 #include "hw/express-gpu/express_vk_handle_mapping.h"
 #include "hw/express-gpu/express_gpu_render.h"
+#include "hw/express-gpu/glv3_context.h"
 
 #include <vulkan/vulkan.h>
 #include <stdlib.h>
@@ -13,6 +14,9 @@
 static GHashTable *swapchain_buffer_map = NULL;
 // device -> VkCommandPool
 static GHashTable *device_command_pool_map = NULL;
+
+static __thread void *g_gl_context = NULL;
+static bool is_init = false;
 
 static void ensure_swapchain_map() {
     if (!swapchain_buffer_map) {
@@ -230,8 +234,17 @@ static void copy_texture_rectangle_to_2d(GLuint src_rect_texture, GLuint dst_tex
     if (cull_face_enabled) glEnable(GL_CULL_FACE);
 }
 
+// todo:eglmakecurrent!!!!
+
 void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo, 
                                    uint64_t* buffer_ids) {
+    if(!is_init) {
+        g_gl_context = get_native_opengl_context(0);
+        egl_makeCurrent(g_gl_context); 
+        LOGI("[Interop] Obtained native OpenGL context: %p", g_gl_context);       
+    }
+    is_init = true;
+
     for (uint32_t i = 0; i < presentInfo->swapchainCount; ++i) {
         VkSwapchainKHR swapchain = presentInfo->pSwapchains[i];
         uint32_t imageIndex = presentInfo->pImageIndices[i];
@@ -345,7 +358,9 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
             
             vkDestroyCommandPool(device, cmd_pool, NULL);
 
+            LOGI("[vulkan_surface] Blitted Vulkan image %d to shared image", i);
             glFlush();
+            LOGI("[vulkan_surface] GL flush after Vulkan blit for image %d", i);
             
             // ===== 步骤2：GL_TEXTURE_RECTANGLE → GL_TEXTURE_2D =====
             copy_texture_rectangle_to_2d(gbuffer->intermediate_texture,
@@ -571,6 +586,14 @@ static bool create_shared_image_and_gl_texture(VkDevice device, VkPhysicalDevice
                                               VkImage *out_image,
                                               VkDeviceMemory *out_memory,
                                               GLuint *out_texture) {
+    
+    // if(!is_init) {
+    //     g_gl_context = get_native_opengl_context(0);
+    //     egl_makeCurrent(g_gl_context); 
+    //     LOGI("[Interop] Obtained native OpenGL context: %p", g_gl_context);       
+    // }
+    // is_init = true;
+
     // 1. 创建 IOSurface
     CFMutableDictionaryRef properties = CFDictionaryCreateMutable(
         kCFAllocatorDefault, 0,
