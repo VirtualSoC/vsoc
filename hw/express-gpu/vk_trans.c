@@ -533,7 +533,7 @@ THREAD_CONTROL_END
         VkSwapchainKHR guestSwapchain = VK_NULL_HANDLE; //ztodo：这里直接改成发送值应该会更快
         read_from_guest_mem(guest_swapchain_ptr, &guestSwapchain, 0, sizeof(VkSwapchainKHR));
 
-        LOGI("Host: vkCreateSwapchainKHR guest_device %llu guest_surface %llu minImageCount %d imageFormat %d width %d height %d presentMode %d",
+        LOGD("Host: vkCreateSwapchainKHR guest_device %llu guest_surface %llu minImageCount %d imageFormat %d width %d height %d presentMode %d",
             (unsigned long long)guest_device,
             (unsigned long long)guest_surface,
             minImageCount, imageFormat, width, height, presentMode);
@@ -547,7 +547,7 @@ THREAD_CONTROL_END
     break;
 
     case FUNID_vkGetSwapchainImagesKHR: {
-        LOGI("Host: vkGetSwapchainImagesKHR");
+        LOGD("Host: vkGetSwapchainImagesKHR");
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
         int need_free = 0;
@@ -558,7 +558,7 @@ THREAD_CONTROL_END
         uint32_t count           = *(uint32_t*)ptr; ptr += sizeof(uint32_t);
         VkDevice       realDev       = (VkDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_DEVICE, guest_device);
         VkSwapchainKHR realSwapchain = (VkSwapchainKHR)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_SWAPCHAIN_KHR, guest_swapchain);
-        LOGI("Host: vkGetSwapchainImagesKHR guest_device %llu guest_swapchain %llu count %d real swapchain %lld",
+        LOGD("Host: vkGetSwapchainImagesKHR guest_device %llu guest_swapchain %llu count %d real swapchain %lld",
             (unsigned long long)guest_device,
             (unsigned long long)guest_swapchain,
             count, (long long)realSwapchain);
@@ -591,7 +591,7 @@ THREAD_CONTROL_END
             0,
             sizeof(int) * count);
         
-        LOGI("Host: vkGetSwapchainImagesKHR guestImages %lld guestBuffers %lld", (long long)guestImages[0], (long long)guestBuffers[0]);
+        LOGD("Host: vkGetSwapchainImagesKHR guestImages %lld guestBuffers %lld", (long long)guestImages[0], (long long)guestBuffers[0]);
         
         VkImage* images = malloc(sizeof(VkImage) * count);
         VkResult res = vkGetSwapchainImagesKHR(realDev, realSwapchain, &count, images);
@@ -599,14 +599,14 @@ THREAD_CONTROL_END
             LOGE("vkGetSwapchainImagesKHR failed: %d", res);
         } else {
             for (uint32_t i = 0; i < count; i++) {
-                LOGI("count is %d, i is %d, guestImages[i] is %lld, guestBuffers[i] is %lld, images[i] is %lld",
+                LOGD("count is %d, i is %d, guestImages[i] is %lld, guestBuffers[i] is %lld, images[i] is %lld",
                     count, i, guestImages[i], guestBuffers[i], (uint64_t)(uintptr_t)images[i]);
 
                 insert_mapping(
                     EXPRESS_VK_OBJECT_TYPE_IMAGE,
                     guestImages[i],
                     (uint64_t)(uintptr_t)images[i]);
-                LOGI("Host: vkGetSwapchainImagesKHR guest %llu mapped to host %lld",guestImages[i], (uint64_t)(uintptr_t)images[i]);
+                LOGD("Host: vkGetSwapchainImagesKHR guest %llu mapped to host %lld",guestImages[i], (uint64_t)(uintptr_t)images[i]);
 
                 Hardware_Buffer *gbuffer = get_gbuffer_from_global_map(guestBuffers[i]);
                 if (gbuffer == NULL) {
@@ -3400,15 +3400,29 @@ THREAD_CONTROL_END
 
         int need_free = 0;
         char* stream = call_para_to_ptr(all_para[0], &need_free);
-        uint8_t** ptr = (uint8_t**)&stream;
+        uint8_t* ptr = (uint8_t*)stream;  // 修改这里：不需要二级指针
 
-        uint64_t guest_physicalDevice = *(uint64_t*)(*ptr); *ptr += sizeof(uint64_t);
-        VkPhysicalDevice real_physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_physicalDevice);
-        VkFormat format = (VkFormat)(*ptr); *ptr += sizeof(uint32_t);
-        VkImageType type = (VkImageType)(*ptr); *ptr += sizeof(uint32_t);
-        VkImageTiling tiling = (VkImageTiling)(*ptr); *ptr += sizeof(uint32_t);
-        VkImageUsageFlags usage = (VkImageUsageFlags)(*ptr); *ptr += sizeof(uint32_t);
-        VkImageCreateFlags flags = (VkImageCreateFlags)(*ptr); *ptr += sizeof(uint32_t);
+        // 正确读取参数
+        uint64_t guest_physicalDevice = *(uint64_t*)ptr; 
+        ptr += sizeof(uint64_t);
+        
+        VkPhysicalDevice real_physicalDevice = (VkPhysicalDevice)(uintptr_t)lookup_mapping(
+            EXPRESS_VK_OBJECT_TYPE_PHYSICAL_DEVICE, guest_physicalDevice);
+        
+        VkFormat format = *(VkFormat*)ptr;  // 修改：先解引用
+        ptr += sizeof(uint32_t);
+        
+        VkImageType type = *(VkImageType*)ptr;  // 修改：先解引用
+        ptr += sizeof(uint32_t);
+        
+        VkImageTiling tiling = *(VkImageTiling*)ptr;  // 修改：先解引用
+        ptr += sizeof(uint32_t);
+        
+        VkImageUsageFlags usage = *(VkImageUsageFlags*)ptr;  // 修改：先解引用
+        ptr += sizeof(uint32_t);
+        
+        VkImageCreateFlags flags = *(VkImageCreateFlags*)ptr;  // 修改：先解引用
+        ptr += sizeof(uint32_t);
 
         VkImageFormatProperties pProps;
         VkResult result = vkGetPhysicalDeviceImageFormatProperties(
@@ -3416,8 +3430,9 @@ THREAD_CONTROL_END
 
         if (result == VK_SUCCESS) {
             write_to_guest_mem(all_para[1].data, &pProps, 0, sizeof(VkImageFormatProperties));
-            LOGD("Succeeded to get image format properties: %d %d %d %d", result, 
-                pProps.maxExtent.width, pProps.maxExtent.height, pProps.maxExtent.depth);
+            LOGD("Succeeded to get image format properties: maxExtent(%u, %u, %u), maxMipLevels=%u, maxArrayLayers=%u", 
+                pProps.maxExtent.width, pProps.maxExtent.height, pProps.maxExtent.depth,
+                pProps.maxMipLevels, pProps.maxArrayLayers);
         } else {
             LOGW("Failed to get image format properties: %d", result);
         }
