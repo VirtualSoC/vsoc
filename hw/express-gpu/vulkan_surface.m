@@ -358,9 +358,7 @@ void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo,
             
             vkDestroyCommandPool(device, cmd_pool, NULL);
 
-            LOGI("[vulkan_surface] Blitted Vulkan image %d to shared image", i);
             glFlush();
-            LOGI("[vulkan_surface] GL flush after Vulkan blit for image %d", i);
             
             // ===== 步骤2：GL_TEXTURE_RECTANGLE → GL_TEXTURE_2D =====
             copy_texture_rectangle_to_2d(gbuffer->intermediate_texture,
