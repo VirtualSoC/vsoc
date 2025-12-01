@@ -501,16 +501,20 @@ static bool bridge_output_call_handler(Thread_Context *context, uint64_t id, con
         }
         LOGD("BIND(port=%d)", *port_ptr);
         int ret_fd = bridge_socket_listen(*port_ptr);
+
+        // if no port assigned, try ports from 5555 to 5605
         int try_cnt = 0;
-        while (ret_fd == -1 && try_cnt < 50) {
+        while (g_ops.express_bridge_port == 0 && ret_fd == -1 && try_cnt < 50) {
             *port_ptr = *port_ptr + 1;
             try_cnt++;
             ret_fd = bridge_socket_listen(*port_ptr);
         }
+
         if (ret_fd == -1) {
             *port_ptr = 0;
             return false;
         }
+
         bridge_context->connection_context.read_thread_should_running = true;
         bridge_context->status_id = BIND_STATUS;
         bridge_context->connection_context.socket_fd = ret_fd;
