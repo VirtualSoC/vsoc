@@ -268,6 +268,7 @@ typedef struct {
 
     bool express_gpu_open_shader_binary;
 
+    int express_bridge_port;
     char express_ruim_file[128];
 
     PlatformReadFromGuestMem read_from_guest_mem;

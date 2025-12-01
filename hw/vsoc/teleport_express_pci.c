@@ -63,6 +63,7 @@ static Property teleport_express_base_properties[] = {
     DEFINE_PROP_BOOL("shader_binary", Teleport_Express_PCI, open_shader_binary, true),
 
     DEFINE_PROP_STRING("ruim_file", Teleport_Express_PCI, ruim_file),
+    DEFINE_PROP_INT32("bridge_port", Teleport_Express_PCI, bridge_port, 0),
 
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -336,6 +337,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     ops.express_display_headless_mode = express_pci->headless_mode;
     ops.express_gpu_open_shader_binary = express_pci->open_shader_binary;
 
+    ops.express_bridge_port = express_pci->bridge_port;
     if (express_pci->ruim_file) strncpy(ops.express_ruim_file, express_pci->ruim_file, sizeof(ops.express_ruim_file) - 1);
 
     express_device_log_setting_info.express_gpu_debug_level = express_pci->gpu_debug_level;

@@ -110,6 +110,13 @@ static int bridge_socket_listen(int port)
         return -1;
     }
 
+    // Allow fast restarts even if the previous process left the port in TIME_WAIT.
+    opt = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt)) < 0)
+    {
+        LOGW("failed to enable SO_REUSEADDR on port %d err=%d", port, errno);
+    }
+
     ret = bind(fd, (struct sockaddr *)&saddr, sizeof(saddr));
     if (ret < 0)
     {
@@ -488,6 +495,9 @@ static bool bridge_output_call_handler(Thread_Context *context, uint64_t id, con
         if (unlikely(port_ptr == NULL)) {
             LOGE("error BRIDGE_FUN_BIND port NULL");
             return false;
+        }
+        if (g_ops.express_bridge_port > 0 && *port_ptr != RIL_MODEM_PORT) {
+            *port_ptr = g_ops.express_bridge_port;
         }
         LOGD("BIND(port=%d)", *port_ptr);
         int ret_fd = bridge_socket_listen(*port_ptr);

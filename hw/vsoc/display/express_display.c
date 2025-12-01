@@ -386,6 +386,8 @@ static void opengl_paint_composer_layers(Display_Context *disp, GBuffer_Layers *
         return;
     }
 
+    glClear(GL_COLOR_BUFFER_BIT);
+
     for (int i = 0; i < layers->layer_num; i++)
     {
         GBuffer_Layer layer = layers->layer[i];
