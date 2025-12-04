@@ -280,6 +280,12 @@ void vk_decode_invoke(Render_Thread_Context *context, Teleport_Express_Call *cal
     {
         LOGD("get call FUNID_vkCreateInstance!");
 
+        clear_all_mappings();
+        LOGD("Cleared all mappings before creating new instance");
+#ifdef __APPLE__
+        vulkan_surface_set_initialized(false);
+#endif
+
         const VkInstanceCreateInfo* pCreateInfo = malloc(sizeof(VkInstanceCreateInfo));
         const VkAllocationCallbacks* pAllocator = NULL;
         VkInstance pInstance;
@@ -696,7 +702,7 @@ THREAD_CONTROL_END
     }
     break;
 
-    case FUNID_vkCreateDevice: {
+case FUNID_vkCreateDevice: {
         LOGD("Host: vkCreateDevice request");
 
         int para_num = get_para_from_call(call, all_para, MAX_PARA_NUM);
@@ -1917,7 +1923,7 @@ THREAD_CONTROL_END
         uint32_t firstInstance = *(uint32_t*)(*ptr);
         
         VkCommandBuffer realCmd = (VkCommandBuffer)(uintptr_t)lookup_mapping(EXPRESS_VK_OBJECT_TYPE_COMMAND_BUFFER, guest_cmd);
-        
+   
         vkCmdDraw(realCmd, vertexCount, instanceCount, firstVertex, firstInstance);
         
         LOGD("CmdDraw executed cmd=%p vertices=%d", (void*)realCmd, vertexCount);
@@ -3213,7 +3219,7 @@ THREAD_CONTROL_END
         
         vkCmdBindDescriptorSets(commandBuffer, bindPoint, layout, firstSet, setCount,
                             descriptorSets, dynamicOffsetCount, dynamicOffsets);
-        
+ 
         if (descriptorSets) free(descriptorSets);
         if (dynamicOffsets) free(dynamicOffsets);
     }

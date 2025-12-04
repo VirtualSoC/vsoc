@@ -78,6 +78,7 @@ VkQueue getGraphicsQueue(VkDevice device);
 VkCommandPool getOrCreateCommandPool(VkDevice device);
 void clear_imageview_mappings(void);
 void clear_device_queue_mappings(void);
+void clear_all_mappings(void);
 
 void set_device_pd(uint64_t host_dev, VkPhysicalDevice phys);
 VkPhysicalDevice get_device_pd(uint64_t host_dev);

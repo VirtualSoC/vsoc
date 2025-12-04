@@ -87,6 +87,22 @@ typedef struct {
 
 static ExpressObjectEntry *g_map = NULL; // 哈希表的“头指针”，初始为 NULL
 
+// 清空所有映射
+void clear_all_mappings(void) {
+    ExpressObjectEntry *current, *tmp;
+    HASH_ITER(hh, g_map, current, tmp) {
+        HASH_DEL(g_map, current);
+        free(current);
+    }
+    g_map = NULL;
+    LOGI("Cleared all Vulkan object mappings");
+
+    // 同时清理其他辅助映射表
+    clear_gbuffer_memory_mappings();
+    clear_imageview_mappings();
+    clear_device_queue_mappings();
+}
+
 // 插入／更新一条映射
 int insert_mapping(ExpressVkObjectType type, uint64_t guest_id, uint64_t host_id) {
     ExpressObjectEntry *e;

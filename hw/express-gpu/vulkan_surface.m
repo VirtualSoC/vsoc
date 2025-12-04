@@ -18,6 +18,13 @@ static GHashTable *device_command_pool_map = NULL;
 static __thread void *g_gl_context = NULL;
 static bool is_init = false;
 
+void vulkan_surface_set_initialized(bool initialized) {
+    is_init = initialized;
+    if (!initialized) {
+        g_gl_context = NULL;
+    }
+}
+
 static void ensure_swapchain_map() {
     if (!swapchain_buffer_map) {
         swapchain_buffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);

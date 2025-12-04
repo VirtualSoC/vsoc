@@ -13,6 +13,8 @@ void vulkan_surface_create_swapchain(VkDevice device, VkSurfaceKHR surface, VkSw
 void vulkan_surface_register_swapchain_images(VkDevice device, VkSwapchainKHR swapchain, uint64_t *guestImages, uint32_t count);
 void vulkan_surface_present_images(VkQueue queue, VkPresentInfoKHR *presentInfo, uint64_t* buffer_ids);
 
+void vulkan_surface_set_initialized(bool initialized);
+
 bool vulkan_image_read_pixels(Hardware_Buffer *gbuffer, void *dst, size_t size);
 bool vulkan_image_write_pixels(Hardware_Buffer *gbuffer, void *src, size_t size);
 
