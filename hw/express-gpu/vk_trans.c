@@ -497,9 +497,10 @@ THREAD_CONTROL_BEGIN
             #ifdef __APPLE__
                 // macOS 特殊处理：启用 Retina 支持
                 glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
+                win = glfwCreateWindow(1, 1, "Guest Window", NULL, NULL);
+            #else
+                win = glfwCreateWindow(720, 1280, "Guest Window", NULL, NULL);
             #endif
-
-            win = glfwCreateWindow(720, 1280, "Guest Window", NULL, NULL);
             insert_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW,
                         guest_window_ptr,
                         (uint64_t)(uintptr_t)win);
