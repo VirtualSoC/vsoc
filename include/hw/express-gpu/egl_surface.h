@@ -9,7 +9,7 @@
 #include "glad/glad.h"
 #include "hw/express-gpu/GLFW/glfw3.h"
 
-
+#include <vulkan/vulkan.h>
 #define P_SURFACE 1
 #define WINDOW_SURFACE 2
 
@@ -150,6 +150,16 @@ typedef struct Hardware_Buffer{
      void *vk_shared_memory;     // 可导出的VkDeviceMemory
      bool needs_copy;            // 标记是否需要CPU拷贝
      uint64_t vk_buffer_handle; // 用于导出共享句柄
+     GLuint pbo[2];              // 双PBO
+     int current_pbo_index;      // 当前使用的PBO索引
+     bool pbo_initialized;       // PBO是否已初始化
+
+     VkImage flip_temp_image;        // 缓存的翻转临时image
+     VkDeviceMemory flip_temp_memory;
+     VkBuffer staging_buffer;        // 缓存的staging buffer
+     VkDeviceMemory staging_memory;
+     VkCommandPool persistent_cmd_pool;  // 持久的command pool
+     bool flip_resources_initialized;
 #ifdef __APPLE__
      GLuint intermediate_texture;  // GL_TEXTURE_RECTANGLE (macOS only)
 #endif

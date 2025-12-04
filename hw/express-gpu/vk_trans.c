@@ -24,6 +24,8 @@
 
 PFN_vkGetMemoryWin32HandleKHR pfn_vkGetMemoryWin32HandleKHR = NULL;
 
+static bool g_is_intel_gpu = false;
+
 void init_interop_once(VkDevice device) {
     static bool initialized = false;
     if (initialized) return;
@@ -484,13 +486,14 @@ THREAD_CONTROL_BEGIN
             
         if (!win) {
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
             #ifdef __APPLE__
                 // macOS 特殊处理：启用 Retina 支持
                 glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
             #endif
 
-            win = glfwCreateWindow(1, 1, "Guest Window", NULL, NULL);
+            win = glfwCreateWindow(720, 1280, "Guest Window", NULL, NULL);
             insert_mapping(EXPRESS_VK_OBJECT_TYPE_NATIVE_WINDOW,
                         guest_window_ptr,
                         (uint64_t)(uintptr_t)win);
@@ -2382,9 +2385,10 @@ THREAD_CONTROL_END
         VkPhysicalDeviceProperties pProps;
 
         vkGetPhysicalDeviceProperties(real_physicalDevice, &pProps);
-        LOGD("physical_device = %p, properties = %d %d %d",
+        LOGD("physical_device = %p, properties = %d %d %x",
             guest_physicalDevice,
             pProps.apiVersion, pProps.driverVersion, pProps.vendorID);
+        g_is_intel_gpu = (pProps.vendorID == 0x8086);
 
         write_to_guest_mem(all_para[1].data, &pProps, 0, sizeof(VkPhysicalDeviceProperties));
 
@@ -3296,7 +3300,11 @@ THREAD_CONTROL_END
 
         // ztodo:不确定对VK_FORMAT_D32_SFLOAT_S8_UINT支持的bug是我本人电脑的问题还是pc都有的问题
         // 我的1660ti查询的时候会返回支持VK_FORMAT_D32_SFLOAT_S8_UINT，但实际会导致卡死和驱动丢失
-        if (format == VK_FORMAT_D32_SFLOAT || 
+        VkFormat supported_format = VK_FORMAT_D32_SFLOAT;
+        if(g_is_intel_gpu) {
+            supported_format = VK_FORMAT_D24_UNORM_S8_UINT;
+        }
+        if (format == supported_format || 
             format == VK_FORMAT_R8G8B8A8_UNORM ||
             format == VK_FORMAT_B8G8R8A8_UNORM || 
             format == VK_FORMAT_R8G8B8A8_SRGB ||
