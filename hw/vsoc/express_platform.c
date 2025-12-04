@@ -265,6 +265,28 @@ static void send_ram_regions_to_workers(void) {
     g_array_free(list.arr, TRUE);
 }
 
+static int scan_nvidia_gpus(void) {
+    static int cached_gpu_count = -1;
+    if (cached_gpu_count >= 0) return cached_gpu_count;
+
+    // check nvidia-smi -L and return number of nvidia GPUs
+    FILE *fp = popen("nvidia-smi -L", "r");
+    if (fp == NULL) {
+        LOGW("nvidia-smi not found; assuming 0 NVIDIA GPUs");
+        return 0;
+    }
+    // Count lines in output
+    int count = 0;
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        count++;
+    }
+    pclose(fp);
+
+    cached_gpu_count = count;
+    return count;
+}
+
 // Spawn a single worker at a given index and wait (up to a fixed timeout) for worker_ready.
 // Returns 0 on success, negative on failure.
 static int spawn_worker(int index) {
@@ -292,7 +314,7 @@ static int spawn_worker(int index) {
     g_snprintf(parent_pid_str, sizeof(parent_pid_str), "%d", (int)getpid());
     gchar *argv_spawn[16];
     int argv_idx = 0;
-    if (0) {
+    if (0) { // set to 1 to enable gprofng profiling in worker
         argv_spawn[argv_idx++] = (gchar *)"gprofng";
         argv_spawn[argv_idx++] = (gchar *)"collect";
         argv_spawn[argv_idx++] = (gchar *)"app";
@@ -301,13 +323,27 @@ static int spawn_worker(int index) {
     argv_spawn[argv_idx++] = w->shm_name;
     argv_spawn[argv_idx++] = parent_pid_str;
     argv_spawn[argv_idx] = NULL;
+
+    gchar **child_env = g_get_environ();
+    int nvidia_gpus = scan_nvidia_gpus();
+    int chosen_gpu = nvidia_gpus > 0 ? (index % nvidia_gpus) : 0;
+    if (nvidia_gpus > 0) {
+        // round-robin GPU selection (1-based index)
+        char gpu_index_str[16];
+        g_snprintf(gpu_index_str, sizeof(gpu_index_str), "%d", chosen_gpu + 1);
+        child_env = g_environ_setenv(child_env, "__NV_PRIME_RENDER_OFFLOAD", gpu_index_str, TRUE);
+        child_env = g_environ_setenv(child_env, "__GLX_VENDOR_LIBRARY_NAME", "nvidia", TRUE);
+    }
+
     ok = g_spawn_async_with_pipes(
-        NULL, (gchar * const *)argv_spawn, NULL,
+        NULL, (gchar * const *)argv_spawn, (gchar * const *)child_env,
         G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_DO_NOT_REAP_CHILD,
         NULL, NULL,
         &child_pid,
         &child_stdin, &child_stdout, &child_stderr,
         &error);
+
+    g_strfreev(child_env);
     if (!ok) {
         if (error) { 
             LOGE("spawn_worker: launch failed worker[%d]: %s", index, error->message); 
@@ -325,7 +361,7 @@ static int spawn_worker(int index) {
     if (child_stdin >= 0) close(child_stdin);
     w->stdout_fd = child_stdout; w->stderr_fd = child_stderr;
     g_child_watch_add(child_pid, worker_child_watch_cb, GINT_TO_POINTER(index));
-    LOGI("spawn_worker: spawned vsoc-worker[%d] pid %d shm %s", index, (int)w->pid, w->shm_name);
+    LOGI("spawn_worker: spawned vsoc-worker[%d] pid %d shm %s gpu %d", index, (int)w->pid, w->shm_name, chosen_gpu);
 
     // Compulsory wait for worker_ready (up to WAIT_MS_MAX ms)
     const int WAIT_MS_MAX = 10000; // fixed compulsory wait budget
