@@ -2394,7 +2394,9 @@ case FUNID_vkCreateDevice: {
         LOGD("physical_device = %p, properties = %d %d %x",
             guest_physicalDevice,
             pProps.apiVersion, pProps.driverVersion, pProps.vendorID);
+#ifdef __WIN32__
         g_is_intel_gpu = (pProps.vendorID == 0x8086);
+#endif
 
         write_to_guest_mem(all_para[1].data, &pProps, 0, sizeof(VkPhysicalDeviceProperties));
 
@@ -3307,9 +3309,11 @@ case FUNID_vkCreateDevice: {
         // ztodo:不确定对VK_FORMAT_D32_SFLOAT_S8_UINT支持的bug是我本人电脑的问题还是pc都有的问题
         // 我的1660ti查询的时候会返回支持VK_FORMAT_D32_SFLOAT_S8_UINT，但实际会导致卡死和驱动丢失
         VkFormat supported_format = VK_FORMAT_D32_SFLOAT;
+#ifdef __WIN32__
         if(g_is_intel_gpu) {
             supported_format = VK_FORMAT_D24_UNORM_S8_UINT;
         }
+#endif
         if (format == supported_format || 
             format == VK_FORMAT_R8G8B8A8_UNORM ||
             format == VK_FORMAT_B8G8R8A8_UNORM || 
