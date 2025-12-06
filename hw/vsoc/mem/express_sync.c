@@ -212,7 +212,7 @@ void wait_for_express_sync(int sync_id, bool need_gpu_sync)
             //特定的 sync_id 在 wait_for_express_sync 中等待了较长时间，但始终未收到对应的 signal 信号
             if (sync_wait_cnt != 0 && sync_wait_cnt % 1000 == 0) {
                 // helps debugging deadlocks
-                LOGI("still waiting for sync %d (gpu %d) after %d ms...", sync_id, need_gpu_sync, sync_wait_cnt);
+                LOGW("still waiting for sync %d (gpu %d) after %d ms...", sync_id, need_gpu_sync, sync_wait_cnt);
 
                 SET_SYNC_FLAG(static_sync_context.sync_data, sync_id);
                 return;

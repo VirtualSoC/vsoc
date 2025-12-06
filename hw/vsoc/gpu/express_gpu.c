@@ -42,6 +42,31 @@ static GHashTable *render_thread_contexts = NULL;
 static GHashTable *render_process_contexts = NULL;
 
 static QemuMutex render_process_contexts_lock;
+static QemuMutex render_thread_contexts_lock;
+
+static void ensure_render_contexts_init(void)
+{
+    static gsize once = 0;
+
+    if (g_once_init_enter(&once)) {
+        qemu_mutex_init(&render_thread_contexts_lock);
+        qemu_mutex_init(&render_process_contexts_lock);
+
+        qemu_mutex_lock(&render_thread_contexts_lock);
+        if (render_thread_contexts == NULL) {
+            render_thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+        }
+        qemu_mutex_unlock(&render_thread_contexts_lock);
+
+        qemu_mutex_lock(&render_process_contexts_lock);
+        if (render_process_contexts == NULL) {
+            render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
+        }
+        qemu_mutex_unlock(&render_process_contexts_lock);
+
+        g_once_init_leave(&once, 1);
+    }
+}
 
 static void g_surface_map_destroy(gpointer data);
 
@@ -52,12 +77,7 @@ static void gbuffer_map_destroy(gpointer data);
 static void express_gpu_hmp_handler(Monitor *mon, int argc, const char **argv);
 
 void init_render_thread_contexts_resources() {
-    if (render_thread_contexts == NULL)
-    {
-        render_thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
-        render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
-        qemu_mutex_init(&render_process_contexts_lock);
-    }
+    ensure_render_contexts_init();
 
     if (g_resource_list[0] == NULL){ //ztodo:要放在这里吗？？？
         LOGD("in init_render_thread_contexts_resources");
@@ -71,10 +91,10 @@ void init_render_thread_contexts_resources() {
 
 Process_Context* get_process_context_form_id(uint64_t process_id) {
     Process_Context *ctx = NULL;
+    ensure_render_contexts_init();
+
     qemu_mutex_lock(&render_process_contexts_lock);
-    if (render_process_contexts) {
-        ctx = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
-    }
+    ctx = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
     qemu_mutex_unlock(&render_process_contexts_lock);
     return ctx;
 }
@@ -174,6 +194,8 @@ int load_render_thread_contexts(QEMUFile *f) {
         g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(thread_id), thread_context);
         // g_free(thread_context);
     }
+
+    qemu_mutex_unlock(&render_thread_contexts_lock);
 
     // render_thread_contexts = thread_contexts;
 
@@ -682,12 +704,7 @@ static bool gpu_call_handler(Thread_Context *context, uint64_t id, const Call_Pa
 
 static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
 {
-    if (render_thread_contexts == NULL)
-    {
-        render_thread_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
-        render_process_contexts = g_hash_table_new(g_direct_hash, g_direct_equal);
-        qemu_mutex_init(&render_process_contexts_lock);
-    }
+    ensure_render_contexts_init();
 
     if (g_resource_list[0] == NULL) {
         for (int i = 0; i < NUM_RESOURCES; i++) {
@@ -697,7 +714,10 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         }
     }
 
+    qemu_mutex_lock(&render_thread_contexts_lock);
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+    qemu_mutex_unlock(&render_thread_contexts_lock);
+
     // 没有context就新建线程
     if (thread_context == NULL)
     {
@@ -713,6 +733,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
         // 新建进程上下文
         qemu_mutex_lock(&render_process_contexts_lock);
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
+        qemu_mutex_unlock(&render_process_contexts_lock);
         if (process == NULL)
         {
             process = g_malloc0(sizeof(Process_Context));
@@ -725,14 +746,17 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
             LOGI("create new process context guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %llu", process_id, process, thread_id, process_id, unique_id);
 
+            qemu_mutex_lock(&render_process_contexts_lock);
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
+            qemu_mutex_unlock(&render_process_contexts_lock);
         } else {
             LOGD("process context already exists for guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %llu, incrementing count to %d", process_id, process, thread_id, process_id, unique_id, process->thread_cnt + 1);
         }
         qatomic_inc(&(process->thread_cnt));
-        qemu_mutex_unlock(&render_process_contexts_lock);
         thread_context->process_context = process;
+        qemu_mutex_lock(&render_thread_contexts_lock);
         g_hash_table_insert(render_thread_contexts, GUINT_TO_POINTER(thread_id), (gpointer)thread_context);
+        qemu_mutex_unlock(&render_thread_contexts_lock);
     }
     LOGD("got render thread context with device id %lld %lld thread id %lld %lld", thread_context->context.device_id, device_id, thread_context->context.thread_id, thread_id);
 
@@ -742,6 +766,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
 static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
+    qemu_mutex_lock(&render_thread_contexts_lock);
     Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
     if (render_context == NULL) {
         // the guest process may terminate abruptly, in which case we need to find the real thread_context using unique_id
@@ -758,6 +783,8 @@ static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t t
             }
         }
     }
+    qemu_mutex_unlock(&render_thread_contexts_lock);
+
     if (render_context == NULL) {
         LOGE("failed to find render context for process %" PRId64 " thread_id %" PRId64 " unique_id %" PRIu64, process_id, thread_id, unique_id);
         return NULL;
@@ -766,7 +793,10 @@ static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t t
 
     if (g_hash_table_size(render_context->thread_unique_ids) == 0)
     {
+        qemu_mutex_lock(&render_thread_contexts_lock);
         g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+        qemu_mutex_unlock(&render_thread_contexts_lock);
+
         qemu_mutex_lock(&render_process_contexts_lock);
         Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
         if (process != NULL)
@@ -883,6 +913,9 @@ static void render_context_destroy(Thread_Context *context)
 }
 
 static void express_gpu_hmp_dump_process(Monitor *mon) {
+    ensure_render_contexts_init();
+
+    qemu_mutex_lock(&render_thread_contexts_lock);
     qemu_mutex_lock(&render_process_contexts_lock);
     if (!render_process_contexts || g_hash_table_size(render_process_contexts) == 0) {
         qemu_mutex_unlock(&render_process_contexts_lock);
@@ -940,6 +973,8 @@ static void express_gpu_hmp_dump_process(Monitor *mon) {
     unsigned ctx_count = (unsigned)g_hash_table_size(render_process_contexts);
     qemu_mutex_unlock(&render_process_contexts_lock);
 
+    qemu_mutex_unlock(&render_thread_contexts_lock);
+
     MONITOR_LOG(mon, "GPU process contexts (%u entries)\n",
             ctx_count);
 }
@@ -989,7 +1024,11 @@ static void express_gpu_hmp_dump_buffers(Monitor *mon) {
 
 static void express_gpu_hmp_dump_threads(Monitor *mon)
 {
+    ensure_render_contexts_init();
+
+    qemu_mutex_lock(&render_thread_contexts_lock);
     if (!render_thread_contexts || g_hash_table_size(render_thread_contexts) == 0) {
+        qemu_mutex_unlock(&render_thread_contexts_lock);
         MONITOR_LOG(mon, "no active GPU render threads\n");
         return;
     }
@@ -1044,6 +1083,8 @@ static void express_gpu_hmp_dump_threads(Monitor *mon)
     }
 
     MONITOR_LOG(mon, "GPU render threads (%u entries)\n", total);
+
+    qemu_mutex_unlock(&render_thread_contexts_lock);
 }
 
 static void express_gpu_check_process_exists(Monitor *mon, const char *proc) {

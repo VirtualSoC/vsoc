@@ -275,8 +275,9 @@ static int fd_data_to_guest_mem(int fd, Guest_Mem *guest_mem, char *read_cache)
             if (err == EINTR || err == EWOULDBLOCK || err == EAGAIN)
             {
                 return all_read_cnt;
+            } else if (err != 0) {
+                LOGW("recv get 0 errno %d", err);
             }
-            LOGE("recv get 0 errno %d", err);
             return -1;
         }
 
@@ -397,7 +398,7 @@ static void *bridge_accept_host_thread(void *opaque)
         free_duplicated_guest_mem(bridge_context->connection_context.guest_data);
     }
 
-    LOGW("listen thread exit. closefd %d", bridge_context->connection_context.socket_fd);
+    LOGI("listen thread exit. closefd %d", bridge_context->connection_context.socket_fd);
     g_ops.set_express_device_irq((Device_Context *)&bridge_context->connection_context, -1, 0);
 
     return NULL;
@@ -458,7 +459,7 @@ static void *bridge_read_host_thread(void *opaque)
         else
         {
             // 断开连接
-            LOGI("recv get close");
+            LOGD("recv get close");
             bridge_context->status_id = CLOSED_STATUS;
             break;
         }
@@ -616,7 +617,6 @@ static Thread_Context *remove_bridge_context(uint64_t device_id, uint64_t thread
         // closesocket(bridge_context->connection_context.socket_fd);
         // 等待线程退出
         qemu_thread_join(&bridge_context->connection_context.read_thread);
-        LOGI(DEBUG_HEAD "wait read thread exit ok %d", bridge_context->connection_context.socket_fd);
     }
 
     return (Thread_Context *)bridge_context;

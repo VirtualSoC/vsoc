@@ -232,7 +232,7 @@ static int collect_block_cb(RAMBlock *rb, void *opaque) {
     m.offset = 0; // memfd is per-RAMBlock; file offset is 0
     ensure_fd_inherited(m.fd);
     g_array_append_val(list->arr, m);
-    LOGI("prepared RAM memfd for %s rb=%p fd=%d gpa_base=%#llx size=%#llx file_off=%#llx (per-block memfd)", qemu_ram_get_idstr(rb), (void *)rb, m.fd, (unsigned long long)m.gpa_base, (unsigned long long)m.size, (unsigned long long)m.offset);
+    LOGD("prepared RAM memfd for %s rb=%p fd=%d gpa_base=%#llx size=%#llx file_off=%#llx (per-block memfd)", qemu_ram_get_idstr(rb), (void *)rb, m.fd, (unsigned long long)m.gpa_base, (unsigned long long)m.size, (unsigned long long)m.offset);
     return 0;
 }
 
