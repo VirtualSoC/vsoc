@@ -716,6 +716,9 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
     qemu_mutex_lock(&render_thread_contexts_lock);
     Render_Thread_Context *thread_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+    if (thread_context != NULL && !thread_context->thread_unique_ids_lock.initialized) {
+        qemu_mutex_init(&(thread_context->thread_unique_ids_lock));
+    }
     qemu_mutex_unlock(&render_thread_contexts_lock);
 
     // 没有context就新建线程
@@ -726,7 +729,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
 
         (thread_context->context).unique_id = unique_id;
         (thread_context->context).process_id = process_id;
-
+        qemu_mutex_init(&(thread_context->thread_unique_ids_lock));
         thread_context->thread_unique_ids = g_hash_table_new(g_direct_hash, g_direct_equal);
 
         // 处理好process_context与thread_context的关系
@@ -760,41 +763,117 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
     }
     LOGD("got render thread context with device id %lld %lld thread id %lld %lld", thread_context->context.device_id, device_id, thread_context->context.thread_id, thread_id);
 
+    qemu_mutex_lock(&(thread_context->thread_unique_ids_lock));
     g_hash_table_insert(thread_context->thread_unique_ids, GUINT_TO_POINTER(unique_id), (gpointer)1);
+    qemu_mutex_unlock(&(thread_context->thread_unique_ids_lock));
     return (Thread_Context *)thread_context;
+}
+
+static inline void ensure_thread_unique_lock(Render_Thread_Context *context)
+{
+    if (context == NULL) {
+        return;
+    }
+    if (!context->thread_unique_ids_lock.initialized) {
+        qemu_mutex_init(&(context->thread_unique_ids_lock));
+    }
+}
+
+static Render_Thread_Context *lock_context_by_thread_id(uint64_t thread_id)
+{
+    Render_Thread_Context *context = NULL;
+
+    if (thread_id == 0) {
+        return NULL;
+    }
+
+    qemu_mutex_lock(&render_thread_contexts_lock);
+    if (render_thread_contexts != NULL) {
+        context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+    }
+    qemu_mutex_unlock(&render_thread_contexts_lock);
+
+    if (context != NULL) {
+        ensure_thread_unique_lock(context);
+        qemu_mutex_lock(&(context->thread_unique_ids_lock));
+    }
+
+    return context;
+}
+
+static Render_Thread_Context *lock_context_by_unique_id(uint64_t process_id, uint64_t unique_id)
+{
+    Render_Thread_Context *result = NULL;
+    GPtrArray *candidates = NULL;
+
+    qemu_mutex_lock(&render_thread_contexts_lock);
+    if (render_thread_contexts != NULL) {
+        GHashTableIter iter;
+        gpointer key;
+        gpointer value;
+        g_hash_table_iter_init(&iter, render_thread_contexts);
+        while (g_hash_table_iter_next(&iter, &key, &value)) {
+            Render_Thread_Context *context = (Render_Thread_Context *)value;
+            if (!context || context->thread_unique_ids == NULL) {
+                continue;
+            }
+            if (context->context.process_id != process_id) {
+                continue;
+            }
+            if (candidates == NULL) {
+                candidates = g_ptr_array_new();
+            }
+            g_ptr_array_add(candidates, context);
+        }
+    }
+    qemu_mutex_unlock(&render_thread_contexts_lock);
+
+    if (candidates == NULL) {
+        return NULL;
+    }
+
+    for (guint i = 0; i < candidates->len; i++) {
+        Render_Thread_Context *candidate = g_ptr_array_index(candidates, i);
+        ensure_thread_unique_lock(candidate);
+        qemu_mutex_lock(&(candidate->thread_unique_ids_lock));
+        if (g_hash_table_lookup(candidate->thread_unique_ids, GUINT_TO_POINTER(unique_id)) != NULL) {
+            result = candidate;
+            break;
+        }
+        qemu_mutex_unlock(&(candidate->thread_unique_ids_lock));
+    }
+
+    g_ptr_array_free(candidates, TRUE);
+    return result;
 }
 
 static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *inf)
 {
-    qemu_mutex_lock(&render_thread_contexts_lock);
-    Render_Thread_Context *render_context = (Render_Thread_Context *)g_hash_table_lookup(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+    Render_Thread_Context *render_context = lock_context_by_thread_id(thread_id);
     if (render_context == NULL) {
-        // the guest process may terminate abruptly, in which case we need to find the real thread_context using unique_id
-        GHashTableIter iter;
-        gpointer key, value;
-        g_hash_table_iter_init(&iter, render_thread_contexts);
-        while (g_hash_table_iter_next(&iter, &key, &value))
-        {
-            Render_Thread_Context *context = (Render_Thread_Context *)value;
-            if (context->context.process_id == process_id && g_hash_table_lookup(context->thread_unique_ids, GUINT_TO_POINTER(unique_id)) != NULL)
-            {
-                render_context = context;
-                break;
-            }
-        }
+        render_context = lock_context_by_unique_id(process_id, unique_id);
     }
-    qemu_mutex_unlock(&render_thread_contexts_lock);
 
     if (render_context == NULL) {
         LOGE("failed to find render context for process %" PRId64 " thread_id %" PRId64 " unique_id %" PRIu64, process_id, thread_id, unique_id);
         return NULL;
     }
-    g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
 
-    if (g_hash_table_size(render_context->thread_unique_ids) == 0)
+    if (render_context->thread_unique_ids == NULL) {
+        qemu_mutex_unlock(&(render_context->thread_unique_ids_lock));
+        LOGE("render context %p missing unique id map", render_context);
+        return NULL;
+    }
+
+    g_hash_table_remove(render_context->thread_unique_ids, GUINT_TO_POINTER(unique_id));
+    bool context_empty = (g_hash_table_size(render_context->thread_unique_ids) == 0);
+    qemu_mutex_unlock(&(render_context->thread_unique_ids_lock));
+
+    if (context_empty)
     {
+        uint64_t real_thread_id = render_context->context.thread_id;
         qemu_mutex_lock(&render_thread_contexts_lock);
-        g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(thread_id));
+        g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(real_thread_id));
         qemu_mutex_unlock(&render_thread_contexts_lock);
 
         qemu_mutex_lock(&render_process_contexts_lock);
@@ -889,6 +968,9 @@ static void render_context_destroy(Thread_Context *context)
     // 目前通道关掉只有一种可能，就是进程退出了
 
     g_hash_table_destroy(thread_context->thread_unique_ids);
+    if (thread_context->thread_unique_ids_lock.initialized) {
+        qemu_mutex_destroy(&(thread_context->thread_unique_ids_lock));
+    }
 
     // 保证都不是current状态，确保能够删除成功
     if (thread_context->opengl_context != NULL)
@@ -1059,6 +1141,10 @@ static void express_gpu_hmp_dump_threads(Monitor *mon)
                     gl_present,
                     gl_current);
 
+        if (!thread->thread_unique_ids_lock.initialized) {
+            qemu_mutex_init(&(thread->thread_unique_ids_lock));
+        }
+        qemu_mutex_lock(&(thread->thread_unique_ids_lock));
         gsize unique_cnt = thread->thread_unique_ids ? g_hash_table_size(thread->thread_unique_ids) : 0;
         if (unique_cnt > 0) {
             g_string_append(line, " unique_ids=");
@@ -1076,6 +1162,7 @@ static void express_gpu_hmp_dump_threads(Monitor *mon)
                 first = false;
             }
         }
+        qemu_mutex_unlock(&(thread->thread_unique_ids_lock));
 
         g_string_append(line, "\n");
         MONITOR_LOG(mon, "%s", line->str);

@@ -19,6 +19,7 @@ typedef struct
     Thread_Context context;
     Process_Context *process_context;
     GHashTable *thread_unique_ids;
+    QemuMutex thread_unique_ids_lock;
 
     //好像没见到过read和draw不一样的情况
     Window_Buffer *render_double_buffer_read;
