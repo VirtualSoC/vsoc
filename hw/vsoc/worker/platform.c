@@ -125,13 +125,17 @@ static int worker_set_express_device_irq(Device_Context *device_context, int buf
     req.buf_index = buf_index;
     req.len = len;
 
-    int32_t resp = IRQ_SET_OK; uint32_t resp_len = sizeof(resp);
-    int rc = vsoc_ipc_request(g_ipc_ctx, VSOC_IPC_TYPE_SET_IRQ, &req, sizeof(req), &resp, &resp_len, NULL, 3000);
-    if (rc != 0 || resp_len != sizeof(resp)) {
-        LOGE("worker_set_express_device_irq: request failed rc=%d resp_len=%u", rc, resp_len);
-        return IRQ_NOT_READY;
-    }
-    return resp;
+    // switch to async IRQ for now
+    vsoc_ipc_send(g_ipc_ctx, VSOC_IPC_TYPE_SET_IRQ, 0, &req, sizeof(req));
+    return IRQ_SET_OK;
+
+    // int32_t resp = IRQ_SET_OK; uint32_t resp_len = sizeof(resp);
+    // int rc = vsoc_ipc_request(g_ipc_ctx, VSOC_IPC_TYPE_SET_IRQ, &req, sizeof(req), &resp, &resp_len, NULL, 3000);
+    // if (rc != 0 || resp_len != sizeof(resp)) {
+    //     LOGE("worker_set_express_device_irq: request failed rc=%d resp_len=%u", rc, resp_len);
+    //     return IRQ_NOT_READY;
+    // }
+    // return resp;
 }
 
 void force_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data, uint32_t len) {
