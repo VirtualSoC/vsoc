@@ -94,7 +94,7 @@ void push_to_thread(Teleport_Express_Call *call)
     }
     else
     {
-        LOGD("no context for device %d", device_id);
+        LOGD("no thread context for device id %llu thread id %llu process id %llu funid %llu", device_id, thread_id, process_id, fun_id);
         call->callback(call, 0);
     }
     return;

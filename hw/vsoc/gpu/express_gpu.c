@@ -747,7 +747,7 @@ static Thread_Context *get_render_thread_context(uint64_t device_id, uint64_t th
             process->gbuffer_map = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, gbuffer_map_destroy);
             process->thread_cnt = 0;
 
-            LOGI("create new process context guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %llu", process_id, process, thread_id, process_id, unique_id);
+            LOGI("create process context guest %" PRId64 " host %p thread_id %lld process_id %lld unique_id %llu", process_id, process, thread_id, process_id, unique_id);
 
             qemu_mutex_lock(&render_process_contexts_lock);
             g_hash_table_insert(render_process_contexts, GUINT_TO_POINTER(process_id), (gpointer)process);
@@ -876,16 +876,6 @@ static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t t
         g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(real_thread_id));
         qemu_mutex_unlock(&render_thread_contexts_lock);
 
-        qemu_mutex_lock(&render_process_contexts_lock);
-        Process_Context *process = g_hash_table_lookup(render_process_contexts, GUINT_TO_POINTER(process_id));
-        if (process != NULL)
-        {
-            if (process->thread_cnt == 1)
-            {
-                g_hash_table_remove(render_process_contexts, GUINT_TO_POINTER(process_id));
-            }
-        }
-        qemu_mutex_unlock(&render_process_contexts_lock);
         return render_context;
     }
     else
@@ -979,10 +969,16 @@ static void render_context_destroy(Thread_Context *context)
     }
 
     LOGD("thread_id %lld process_id %lld process %p destroy cnt %d", context->thread_id, context->process_id, process_context, process_context->thread_cnt);
+
     if (qatomic_dec_fetch(&(process_context->thread_cnt)) == 0)
     {
         // 由最后一个退出的线程清空资源
-        LOGI("(%s) process %p terminated, cleaning up resources", process_context->guest_process_name, process_context);
+        LOGI("(%s) process context %p guest %d terminated, cleaning up resources", process_context->guest_process_name, process_context, thread_context->context.process_id);
+        
+        qemu_mutex_lock(&render_process_contexts_lock);
+        g_hash_table_remove(render_process_contexts, GUINT_TO_POINTER(thread_context->context.process_id));
+        qemu_mutex_unlock(&render_process_contexts_lock);
+
         g_hash_table_destroy(process_context->context_map);
 
         g_hash_table_destroy(process_context->surface_map);
@@ -1022,8 +1018,11 @@ static void express_gpu_hmp_dump_process(Monitor *mon) {
 
         GString *line = g_string_new(NULL);
         g_string_append_printf(line,
-            "  process=%llu name=%s surfaces=%u contexts=%u gbuffers=%u",
-            (unsigned long long)process_id, name,
+            "  process=%llu name=%s",
+            (unsigned long long)process_id, name);
+
+        g_string_append_printf(line,
+            " surfaces=%u contexts=%u gbuffers=%u",
             (unsigned)surface_cnt,
             (unsigned)context_cnt,
             (unsigned)buffer_cnt);
@@ -1131,38 +1130,38 @@ static void express_gpu_hmp_dump_threads(Monitor *mon)
         uint64_t thread_id = (uint64_t)(uintptr_t)key;
         uint64_t process_id = base ? base->process_id : 0;
         const char *gl_present = (thread->opengl_context != NULL) ? "yes" : "no";
-        const char *gl_current = (thread->opengl_context && thread->opengl_context->is_current) ? "yes" : "no";
+        // const char *gl_current = (thread->opengl_context && thread->opengl_context->is_current) ? "yes" : "no";
 
         GString *line = g_string_new(NULL);
         g_string_append_printf(line,
-                    "  thread=%llu process=%llu gl=%s current=%s",
+                    "  thread=%llu process=%llu gl=%s", // current=%s
                     (unsigned long long)thread_id,
                     (unsigned long long)process_id,
-                    gl_present,
-                    gl_current);
+                    gl_present);
+                    // gl_current);
 
-        if (!thread->thread_unique_ids_lock.initialized) {
-            qemu_mutex_init(&(thread->thread_unique_ids_lock));
-        }
-        qemu_mutex_lock(&(thread->thread_unique_ids_lock));
-        gsize unique_cnt = thread->thread_unique_ids ? g_hash_table_size(thread->thread_unique_ids) : 0;
-        if (unique_cnt > 0) {
-            g_string_append(line, " unique_ids=");
-            GHashTableIter uit;
-            gpointer ukey;
-            gpointer uval;
-            bool first = true;
-            g_hash_table_iter_init(&uit, thread->thread_unique_ids);
-            while (g_hash_table_iter_next(&uit, &ukey, &uval)) {
-                uint64_t uid = (uint64_t)(uintptr_t)ukey;
-                if (!first) {
-                    g_string_append_c(line, ',');
-                }
-                g_string_append_printf(line, "%llu", (unsigned long long)uid);
-                first = false;
-            }
-        }
-        qemu_mutex_unlock(&(thread->thread_unique_ids_lock));
+        // if (!thread->thread_unique_ids_lock.initialized) {
+        //     qemu_mutex_init(&(thread->thread_unique_ids_lock));
+        // }
+        // qemu_mutex_lock(&(thread->thread_unique_ids_lock));
+        // gsize unique_cnt = thread->thread_unique_ids ? g_hash_table_size(thread->thread_unique_ids) : 0;
+        // if (unique_cnt > 0) {
+        //     g_string_append(line, " unique_ids=");
+        //     GHashTableIter uit;
+        //     gpointer ukey;
+        //     gpointer uval;
+        //     bool first = true;
+        //     g_hash_table_iter_init(&uit, thread->thread_unique_ids);
+        //     while (g_hash_table_iter_next(&uit, &ukey, &uval)) {
+        //         uint64_t uid = (uint64_t)(uintptr_t)ukey;
+        //         if (!first) {
+        //             g_string_append_c(line, ',');
+        //         }
+        //         g_string_append_printf(line, "%llu", (unsigned long long)uid);
+        //         first = false;
+        //     }
+        // }
+        // qemu_mutex_unlock(&(thread->thread_unique_ids_lock));
 
         g_string_append(line, "\n");
         MONITOR_LOG(mon, "%s", line->str);
