@@ -1034,6 +1034,11 @@ GLuint gbuffer_make_data_fbo(Hardware_Buffer *gbuffer) {
 
 void destroy_gbuffer(Hardware_Buffer *gbuffer)
 {
+    if (gbuffer == NULL)
+    {
+        return;
+    }
+
     LOGD("terminate gbuffer id %" PRIx64 " w %d h %d", gbuffer->gbuffer_id, gbuffer->width, gbuffer->height);
 
     if (gbuffer->data_texture != 0)
