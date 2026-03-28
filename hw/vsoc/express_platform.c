@@ -325,14 +325,19 @@ static int spawn_worker(int index) {
     argv_spawn[argv_idx] = NULL;
 
     gchar **child_env = g_get_environ();
-    int nvidia_gpus = scan_nvidia_gpus();
-    int chosen_gpu = nvidia_gpus > 0 ? (index % nvidia_gpus) : 0;
-    if (nvidia_gpus > 0) {
-        // round-robin GPU selection (1-based index)
-        char gpu_index_str[16];
-        g_snprintf(gpu_index_str, sizeof(gpu_index_str), "%d", chosen_gpu + 1);
-        child_env = g_environ_setenv(child_env, "__NV_PRIME_RENDER_OFFLOAD", gpu_index_str, TRUE);
-        child_env = g_environ_setenv(child_env, "__GLX_VENDOR_LIBRARY_NAME", "nvidia", TRUE);
+    int chosen_gpu = 0;
+    if (g_ops.express_display_headless_mode == true) {
+        // gpu load balancing only makes sense in headless mode because
+        // we cannot create onscreen windows on headless GPUs.
+        int nvidia_gpus = scan_nvidia_gpus();
+        chosen_gpu = nvidia_gpus > 0 ? (index % nvidia_gpus) : 0;
+        if (nvidia_gpus > 0) {
+            // round-robin GPU selection (1-based index)
+            char gpu_index_str[16];
+            g_snprintf(gpu_index_str, sizeof(gpu_index_str), "%d", chosen_gpu + 1);
+            child_env = g_environ_setenv(child_env, "__NV_PRIME_RENDER_OFFLOAD", gpu_index_str, TRUE);
+            child_env = g_environ_setenv(child_env, "__GLX_VENDOR_LIBRARY_NAME", "nvidia", TRUE);
+        }
     }
 
     ok = g_spawn_async_with_pipes(
