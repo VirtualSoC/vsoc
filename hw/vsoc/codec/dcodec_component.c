@@ -112,7 +112,6 @@ void dcodec_deinit_component(DCodecComponent *context) {
         }
         if (avcodec_is_open(mCtx)) {
             avcodec_flush_buffers(mCtx);
-            avcodec_close(mCtx);
         }
         avcodec_free_context(&mCtx);
         context->mCtx = NULL;
