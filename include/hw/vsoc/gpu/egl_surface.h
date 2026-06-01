@@ -156,7 +156,7 @@ typedef struct Window_Buffer
 
      int swap_interval;
 
-     int64_t swap_time[20];
+     int64_t swap_time[5];
      int64_t swap_time_all;
      int swap_loc;
      int swap_time_cnt;

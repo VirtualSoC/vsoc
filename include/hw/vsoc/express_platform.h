@@ -265,6 +265,7 @@ typedef struct {
     uint64_t express_display_count;
     char express_display_options[128];
     bool express_display_headless_mode;
+    bool express_frame_pacer;
 
     bool express_gpu_open_shader_binary;
 

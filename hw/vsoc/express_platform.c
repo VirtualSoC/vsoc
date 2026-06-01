@@ -3,6 +3,7 @@
 #include "hw/vsoc/express_ipc.h"
 #include "hw/vsoc/express_event.h"
 #include "hw/vsoc/express_handle_thread.h"
+#include "hw/vsoc/express_frame_pacer.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
 #include "hw/vsoc/express_device.h"
 #include "hw/vsoc/teleport_express_call.h"
@@ -72,6 +73,51 @@ static QemuThread g_worker_log_thread;
 static bool g_worker_log_thread_started = false;
 
 static Guest_Mem *convert_guest_mem_to_gpa(Guest_Mem *mem);
+static void frame_pacer_send_k_update(double k);
+
+static void frame_pacer_send_k_update(double k)
+{
+    static gint64 last_broadcast_us = 0;
+    if (!g_workers || g_workers->len == 0) {
+        return;
+    }
+
+    // Throttle to composer FPS (default to 60 if unset).
+    int hz = 60;
+    if (preload_static_context_value && preload_static_context_value->composer_HZ > 0) {
+        hz = preload_static_context_value->composer_HZ;
+    }
+    gint64 now_us = g_get_monotonic_time();
+    gint64 interval_us = hz > 0 ? (gint64)(1000000 / hz) : 0;
+    if (last_broadcast_us != 0 && interval_us > 0 && (now_us - last_broadcast_us) < interval_us) {
+        return;
+    }
+    last_broadcast_us = now_us;
+
+    for (guint i = 0; i < g_workers->len; ++i) {
+        VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
+        if (!w || !w->ctx) {
+            continue;
+        }
+        (void)vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_FRAME_PACER_K_UPDATE, 0, &k, (uint32_t)sizeof(k));
+    }
+}
+
+static void frame_pacer_stats_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                          uint32_t len)
+{
+    (void)ctx; (void)type; (void)id;
+    if (len != sizeof(double) || !data) {
+        return;
+    }
+    double ratio = 0.0;
+    memcpy(&ratio, data, sizeof(ratio));
+    frame_pacer_parent_ingest_ratio(ratio);
+    double k = frame_pacer_parent_current_k();
+    if (k > 0.0) {
+        frame_pacer_send_k_update(k);
+    }
+}
 
 // Helper to fetch the appropriate worker
 static inline VsocWorker *get_worker(int wid) {
@@ -377,6 +423,12 @@ static int spawn_worker(int index) {
     }
     if (!w->shared || !w->shared->worker_ready) {
         LOGE("spawn_worker: worker %d did not signal ready within %d ms", index, WAIT_MS_MAX);
+    }
+
+    // Push the latest global K to the new worker as soon as it is ready.
+    double k = frame_pacer_parent_current_k();
+    if (k > 0.0) {
+        frame_pacer_send_k_update(k);
     }
 
     // Initialize worker with platform ops and RAM regions.
@@ -708,6 +760,7 @@ void init_express_platform(const ExpressPlatformOps ops) {
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ack_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_NOTIFY_SHUTDOWN, notify_shutdown_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_FORCE_SHUTDOWN, force_shutdown_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_FRAME_PACER_STATS, frame_pacer_stats_ipc_handler);
 
     ensure_ramblock_fds_inheritable();
 

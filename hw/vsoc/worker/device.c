@@ -3,6 +3,7 @@
 #include "hw/vsoc/express_platform.h"
 #include "hw/vsoc/express_ipc.h"
 #include "hw/vsoc/express_handle_thread.h"
+#include "hw/vsoc/express_frame_pacer.h"
 #include "hw/vsoc/express_event.h"
 #include <glib.h>
 #include <string.h>
@@ -323,6 +324,9 @@ bool invoke_call_handler(Thread_Context *context, void *_call) {
             success = context->call_handler(context, call->id, call->paras, call->para_num);
         }
     }
+
+    frame_pacer_maybe_apply(context, call->id);
+
     return success;
 }
 

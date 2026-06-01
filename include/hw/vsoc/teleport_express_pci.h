@@ -50,6 +50,7 @@ typedef struct Teleport_Express_PCI{ //就类似于VirtIONetPCI那样 定义了
     bool finger_replay;
 
     bool headless_mode;
+    bool frame_pacer;
 
     bool open_shader_binary;
     

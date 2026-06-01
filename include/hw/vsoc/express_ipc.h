@@ -22,6 +22,8 @@ enum {
     VSOC_IPC_TYPE_NOTIFY_SHUTDOWN = 108,
     VSOC_IPC_TYPE_FORCE_SHUTDOWN = 109,
     VSOC_IPC_TYPE_HMP_COMMAND = 110,
+    VSOC_IPC_TYPE_FRAME_PACER_STATS = 111,    // worker -> parent: double ratio
+    VSOC_IPC_TYPE_FRAME_PACER_K_UPDATE = 112, // parent -> worker: double K
 };
 
 

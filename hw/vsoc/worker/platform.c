@@ -6,6 +6,7 @@
 #include "hw/vsoc/express_event.h"
 #include "hw/vsoc/worker/device.h"
 #include "hw/vsoc/worker/guestmem.h"
+#include "hw/vsoc/express_frame_pacer.h"
 
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
@@ -143,6 +144,26 @@ void force_shutdown_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id,
     should_stop = true;
 }
 
+static void frame_pacer_k_update_ipc_handler(VsocIpcContext *ctx, uint32_t type, uint32_t id, const uint8_t *data,
+                                             uint32_t len)
+{
+    (void)ctx; (void)type; (void)id;
+    if (len != sizeof(double) || !data) {
+        return;
+    }
+    double k = 0.0;
+    memcpy(&k, data, sizeof(k));
+    frame_pacer_worker_set_k(k);
+}
+
+static void frame_pacer_send_stats(double ratio)
+{
+    if (!g_ipc_ctx) {
+        return;
+    }
+    (void)vsoc_ipc_send(g_ipc_ctx, VSOC_IPC_TYPE_FRAME_PACER_STATS, 0, &ratio, (uint32_t)sizeof(ratio));
+}
+
 void init_express_platform(const ExpressPlatformOps ops) {
     g_ops = ops;
     g_ops.read_from_guest_mem = worker_read_from_guest_mem;
@@ -156,6 +177,9 @@ void init_express_platform(const ExpressPlatformOps ops) {
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_DEVICE_CALL, device_call_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_FORCE_SHUTDOWN, force_shutdown_ipc_handler);
     vsoc_ipc_register_handler(VSOC_IPC_TYPE_HMP_COMMAND, hmp_command_ipc_handler);
+    vsoc_ipc_register_handler(VSOC_IPC_TYPE_FRAME_PACER_K_UPDATE, frame_pacer_k_update_ipc_handler);
+
+    frame_pacer_set_stats_sink(frame_pacer_send_stats);
 
     call_device_init();
 }
