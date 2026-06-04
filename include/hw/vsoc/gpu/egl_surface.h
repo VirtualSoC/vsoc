@@ -7,10 +7,10 @@
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 
-
 #define GBUFFER_TYPE_WINDOW 1
 #define GBUFFER_TYPE_TEXTURE 2
 
+#include <vulkan/vulkan.h>
 #define P_SURFACE 1
 #define WINDOW_SURFACE 2
 
@@ -29,7 +29,7 @@ typedef enum {
      EXPRESS_PIXEL_BGR565,
      EXPRESS_PIXEL_RGBA1010102,
      EXPRESS_PIXEL_R8,
-	EXPRESS_PIXEL_YUV420888, 
+	EXPRESS_PIXEL_YUV420888,
      // todo: add yuv
 
 } EXPRESS_Pixel_Format;
@@ -70,6 +70,11 @@ typedef enum ExpressMemType {
     // guest memory type, should be casted to Guest_Mem*
     EXPRESS_MEM_TYPE_GUEST_MEM = 0x20,
 } ExpressMemType;
+
+typedef enum HardwareBufferBackendType {
+    HARDWARE_BUFFER_BACKEND_OPENGL = 0,
+    HARDWARE_BUFFER_BACKEND_VULKAN = 1,
+} HardwareBufferBackendType;
 
 // struct Opengl_Context;
 
@@ -131,6 +136,32 @@ typedef struct Hardware_Buffer{
      int last_virt_usage;
      int last_virt_time;
 
+     //vulkan
+     HardwareBufferBackendType backend_type;
+
+     void *vk_image;
+     void *vk_device_memory;
+     void *vk_device;
+     void *vk_format;
+     uint32_t vk_image_index;
+     void *vk_shared_image;      // 可共享的VkImage
+     void *vk_shared_memory;     // 可导出的VkDeviceMemory
+     bool needs_copy;            // 标记是否需要CPU拷贝
+     uint64_t vk_buffer_handle; // 用于导出共享句柄
+     GLuint pbo[2];              // 双PBO
+     int current_pbo_index;      // 当前使用的PBO索引
+     bool pbo_initialized;       // PBO是否已初始化
+
+     VkImage flip_temp_image;        // 缓存的翻转临时image
+     VkDeviceMemory flip_temp_memory;
+     VkBuffer staging_buffer;        // 缓存的staging buffer
+     VkDeviceMemory staging_memory;
+     VkCommandPool persistent_cmd_pool;  // 持久的command pool
+     bool flip_resources_initialized;
+#ifdef __APPLE__
+     GLuint intermediate_texture;  // GL_TEXTURE_RECTANGLE (macOS only)
+#endif
+
 } Hardware_Buffer;
 
 
@@ -139,7 +170,7 @@ typedef struct Window_Buffer
      int type;
 
      GLFWHints window_hints;
-     
+
      eglConfig *config; //感觉不需要保存？先试试吧
 
      EGLSurface guest_surface; //guest_surface不会变
@@ -173,7 +204,7 @@ typedef struct Window_Buffer
      // int row_byte_len;
      int depth_internal_format;
      int stencil_internal_format;
-     
+
      GLuint now_fbo_loc;
      GLuint data_fbo[3]; //三缓冲（如果是window_surface）
      bool date_fbo_changed[3];
@@ -189,7 +220,7 @@ Hardware_Buffer *create_gbuffer_with_context(int width, int height, int hal_form
 
 Hardware_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, Window_Buffer *surface, uint64_t gbuffer_id);
 
-Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num, 
+Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
      int format,
      int pixel_type,
      int internal_format,
@@ -225,12 +256,10 @@ EGLBoolean d_eglDestroySurface(void *context, EGLDisplay dpy, EGLSurface surface
 
 EGLBoolean d_eglSurfaceAttrib(void *context, EGLDisplay dpy, EGLSurface surface, EGLint attribute,EGLint value);
 
-
 EGLint d_eglCreateImage(void *context, EGLDisplay dpy, EGLContext ctx, EGLenum target,
                                   EGLClientBuffer buffer, const EGLint *attrib_list,EGLImage guest_image);
 
 EGLBoolean d_eglDestroyImage(void *context, EGLDisplay dpy, EGLImage image);
-
 
 int egl_surface_init(Window_Buffer *d_buffer, void *now_window, int need_draw);
 

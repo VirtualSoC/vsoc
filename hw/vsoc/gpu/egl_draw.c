@@ -374,7 +374,7 @@ void d_eglQueueBuffer(void *context, uint64_t gbuffer_id)
     }
 
     // 这一帧被绘制到bufferqueue中
-    LOGD("#%llx context queue buffer %" PRIx64 , (uint64_t)opengl_context, gbuffer_id);
+    LOGD("#%llx context id %d %d queue buffer %" PRIx64 , (uint64_t)opengl_context, thread_context->context.process_id, thread_context->context.thread_id, gbuffer_id);
 
     if (gbuffer->sampler_num > 1)
     {

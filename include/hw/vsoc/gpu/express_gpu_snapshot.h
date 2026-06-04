@@ -7,6 +7,7 @@
 
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/gpu/express_gpu.h"
+#include "hw/virtio/virtio.h"
 
 #include "migration/qemu-file.h"
 
@@ -184,8 +185,6 @@ extern GHashTable *registered_express_irqs;
 void clear_resource_tables(void);
 void init_saving_snapshot(void);
 void init_loading_snapshot(QEMUFile *f);
-
-
 
 void save_native_resources(QEMUFile *f);
 void load_native_resources(QEMUFile *f);

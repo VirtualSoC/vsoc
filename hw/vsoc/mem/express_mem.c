@@ -13,6 +13,7 @@
 #include "hw/vsoc/mem/express_sync.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
 #include "hw/vsoc/gpu/glv3_context.h"
+#include "hw/vsoc/gpu/vulkan_surface.h"
 
 #include "qemu/atomic.h"
 
@@ -593,6 +594,16 @@ void gbuffer_data_guest_to_host(Gralloc_Gbuffer_Info info, int sync_id)
         return;
     }
 
+    if (gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
+        // Vulkan: 直接读image到guest_data
+        // if (!vulkan_image_read_pixels(gbuffer, gbuffer->guest_data->data, gbuffer->size)) {
+        //     LOGE("vulkan_image_read_pixels failed for gbuffer %" PRIx64, info.gbuffer_id);
+        //     return;
+        // }
+        signal_express_sync(sync_id, false);
+        return;
+    }
+    // OpenGL路径
     mem_transfer_async(EXPRESS_MEM_TYPE_TEXTURE, EXPRESS_MEM_TYPE_GUEST_OPAQUE, gbuffer, gbuffer->guest_data, gbuffer->size, gbuffer->guest_data->all_len, sync_id, guest_to_host_dma_task, NULL, NULL);
 }
 
@@ -633,6 +644,15 @@ void gbuffer_data_host_to_guest(Gralloc_Gbuffer_Info info)
         return;
     }
 
+    if (gbuffer->backend_type == HARDWARE_BUFFER_BACKEND_VULKAN) {
+        // Vulkan: 直接写host数据到image
+        // if (!vulkan_image_write_pixels(gbuffer, mem_data->data, gbuffer->size)) {
+        //     LOGE("vulkan_image_write_pixels failed for gbuffer %" PRIx64, info.gbuffer_id);
+        //     return;
+        // }
+        return;
+    }
+    // OpenGL路径
     if (unpack_buffer_size < all_pixel_size)
     {
         unpack_buffer_size = all_pixel_size;

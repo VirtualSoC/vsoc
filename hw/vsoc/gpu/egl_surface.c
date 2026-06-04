@@ -639,13 +639,18 @@ Hardware_Buffer *create_gbuffer_from_hal(int width, int height, int hal_format, 
         LOGE("error! unknown gralloc format %d!!!", hal_format);
     }
 
-    return create_gbuffer(width, height, sampler_num,
+    Hardware_Buffer *gbuffer = create_gbuffer(width, height, sampler_num,
                           format,
                           pixel_type,
                           internal_format,
                           depth_internal_format,
                           stencil_internal_format,
                           gbuffer_id);
+
+    // Set default backend type to OpenGL
+    gbuffer->backend_type = HARDWARE_BUFFER_BACKEND_OPENGL;
+
+    return gbuffer;
 }
 
 Hardware_Buffer *create_gbuffer_from_surface(Window_Buffer *surface)
@@ -671,6 +676,7 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
 
     gbuffer->usage_type = GBUFFER_TYPE_WINDOW;
     gbuffer->gbuffer_id = gbuffer_id;
+    gbuffer->backend_type = HARDWARE_BUFFER_BACKEND_OPENGL;
 
     GLuint pre_vbo = 0;
     GLuint pre_texture = 0;
@@ -699,6 +705,14 @@ Hardware_Buffer *create_gbuffer(int width, int height, int sampler_num,
     }
 
     glBindTexture(GL_TEXTURE_2D, gbuffer->data_texture);
+
+    if(g_resource_list[RESOURCE_TYPE_TEXTURE] == NULL) {
+        for (int i = 0; i < NUM_RESOURCES; i++) {
+            ATOMIC_LOCK(g_resource_locker[i]);
+            g_resource_list[i] = g_hash_table_new(g_direct_hash, g_direct_equal);
+            ATOMIC_UNLOCK(g_resource_locker[i]);
+        }
+    }
 
     ATOMIC_LOCK(g_resource_locker[RESOURCE_TYPE_TEXTURE]);
     GHashTable *resource_list = g_resource_list[RESOURCE_TYPE_TEXTURE];

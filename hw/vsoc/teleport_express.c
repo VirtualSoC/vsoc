@@ -295,6 +295,7 @@ static int teleport_express_load(QEMUFile *f, void *opaque, size_t size,
     loaded_hardware_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
     loaded_window_buffers = g_hash_table_new(g_direct_hash, g_direct_equal);
     load_native_resources(f);
+
     load_gbuffer_global_map(f);
 
     load_display_context(f);

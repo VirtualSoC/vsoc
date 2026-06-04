@@ -136,6 +136,9 @@
 
 #include "config-host.h"
 
+#include "hw/vsoc/express_log.h"
+
+
 #define MAX_VIRTIO_CONSOLES 1
 
 typedef struct BlockdevOptionsQueueEntry {
@@ -2583,12 +2586,27 @@ void qmp_x_exit_preconfig(Error **errp)
     qemu_machine_creation_done();
 
     if (loadvm) {
-        load_snapshot(loadvm, NULL, false, NULL, &error_fatal);
+        // LOGI("in preconfig, loadvm %s", loadvm);
+        // bool load_succeed = load_snapshot(loadvm, NULL, false, NULL, &error_fatal);
+
+        Error *local_err = NULL;
+        bool load_succeed = load_snapshot(loadvm, NULL, false, NULL, &local_err);
+        if (!load_succeed) {
+            error_report_err(local_err);
+            loadvm = NULL;
+
+            qemu_system_reset(SHUTDOWN_CAUSE_NONE);
+
+            LOGI("loadvm failed, switching to cold boot!");
+
+            goto skip_replay;
+        }
+
     }
     if (replay_mode != REPLAY_MODE_NONE) {
         replay_vmstate_init();
     }
-
+    skip_replay:
     if (incoming) {
         Error *local_err = NULL;
         if (strcmp(incoming, "defer") != 0) {
