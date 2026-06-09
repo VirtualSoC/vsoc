@@ -876,7 +876,7 @@ static Thread_Context *remove_render_thread_context(uint64_t type_id, uint64_t t
         g_hash_table_remove(render_thread_contexts, GUINT_TO_POINTER(real_thread_id));
         qemu_mutex_unlock(&render_thread_contexts_lock);
 
-        return render_context;
+        return &render_context->context;
     }
     else
     {

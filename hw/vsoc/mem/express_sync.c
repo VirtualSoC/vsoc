@@ -13,6 +13,7 @@
 // #define STD_DEBUG_LOG
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/express_platform.h"
+#include "hw/vsoc/express_device.h"
 #include "hw/vsoc/express_event.h"
 #include "hw/vsoc/mem/express_sync.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
@@ -108,7 +109,7 @@ void load_sync_context(QEMUFile *f){
     static_sync_context.guest_buffer = load_guest_mem(f, 0);
     // static_sync_context.sync_data = g_malloc0(sizeof(Sync_Flag_Data));
     int null_flag = 0;
-    LOGI("before load sync flag data %lld scatter data %d %d", static_sync_context.sync_data, static_sync_context.guest_buffer->scatter_data->len, static_sync_context.guest_buffer->scatter_data->data);
+    LOGI("before load sync flag data %lld scatter data %d %d", static_sync_context.sync_data, static_sync_context.guest_buffer->scatter_data->iov_len, static_sync_context.guest_buffer->scatter_data->iov_base);
     static_sync_context.sync_data = (Sync_Flag_Data *)get_direct_ptr(static_sync_context.guest_buffer, &null_flag);
     // LOGI("after load sync flag data %lld %d", static_sync_context.sync_data, static_sync_context.sync_data->host_event_cnt);
     load_sync_flag_data(f, static_sync_context.sync_data);

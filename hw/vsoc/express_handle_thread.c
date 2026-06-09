@@ -147,7 +147,8 @@ Thread_Context *thread_context_create(uint64_t device_id, uint64_t thread_id, ui
     
         context->thread_run = 1;
     
-        qemu_thread_create(&context->this_thread, thread_name, handle_thread_run, context, QEMU_THREAD_JOINABLE);
+        QemuThread thread;
+        qemu_thread_create(&thread, thread_name, handle_thread_run, context, QEMU_THREAD_DETACHED);
 
 #ifndef THREADED_PROXY_CONTEXT
     }

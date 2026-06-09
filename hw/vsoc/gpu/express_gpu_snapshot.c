@@ -3239,7 +3239,7 @@ Guest_Mem* load_guest_mem(QEMUFile *f, int strategy) {
 
     LOGD("going to load scatter data %d %d", guest_mem->num, guest_mem->all_len);
     guest_mem->scatter_data = load_scatter_data(f, &guest_mem->num);
-    LOGD("successfully load scatter data %d %d %d data %llx", guest_mem->num, guest_mem->all_len, guest_mem->scatter_data[0].len, guest_mem->scatter_data[0].data);
+    LOGD("successfully load scatter data %d %d %d data %llx", guest_mem->num, guest_mem->all_len, guest_mem->scatter_data[0].iov_len, guest_mem->scatter_data[0].iov_base);
     return guest_mem;
 }
 

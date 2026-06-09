@@ -1,4 +1,5 @@
 // middleware layer between the teleport-express framework and vsoc virtual devices
+#include "qemu/osdep.h"
 #include "hw/vsoc/express_platform.h"
 #include "hw/vsoc/express_ipc.h"
 #include "hw/vsoc/express_event.h"
@@ -9,16 +10,12 @@
 #include "hw/vsoc/teleport_express_call.h"
 #include "hw/vsoc/container_utils.h"
 
-#include <sys/mman.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <signal.h>
-#include <sys/wait.h>
 #include <glib.h>
+#ifndef _WIN32
+#include <sys/mman.h>
+#include <fcntl.h>
 #include <sys/epoll.h>
+#endif
 
 #include "exec/cpu-common.h"
 #include "exec/ramblock.h"
@@ -32,7 +29,7 @@ ExpressPlatformOps g_ops;
 typedef struct VsocWorker {
     VsocIpcShared *shared;
     VsocIpcContext *ctx;
-    pid_t pid;
+    GPid pid;
     char *shm_name;
     int stdout_fd;
     int stderr_fd;
@@ -132,6 +129,9 @@ static inline VsocWorker *get_worker(int wid) {
 static void worker_child_watch_cb(GPid pid, gint status, gpointer user_data)
 {
     int wid = GPOINTER_TO_INT(user_data);
+#ifdef _WIN32
+    LOGE("worker[%d] %p exited status %d", wid, pid, status);
+#else
     if (WIFEXITED(status)) {
         LOGE("worker[%d] %d exited status %d", wid, (int)pid, WEXITSTATUS(status));
     } else if (WIFSIGNALED(status)) {
@@ -139,6 +139,7 @@ static void worker_child_watch_cb(GPid pid, gint status, gpointer user_data)
     } else {
         LOGE("worker[%d] %d exited (status=%d)", wid, (int)pid, status);
     }
+#endif
     // Close the GPid handle as required when using DO_NOT_REAP_CHILD
     g_spawn_close_pid(pid);
     if (!should_stop && g_ops.force_shutdown) g_ops.force_shutdown(SHUTDOWN_CAUSE_HOST_ERROR);
@@ -149,6 +150,7 @@ static void worker_child_watch_cb(GPid pid, gint status, gpointer user_data)
 typedef struct { char buf[8192]; size_t len; } VsocLineBuf;
 typedef struct { VsocLineBuf lb; int wid; bool is_err; } VsocFdBuf;
 
+#ifndef _WIN32
 static void register_worker_log_fd(int epfd, GHashTable *linebufs, int fd, int wid, bool is_err) {
     if (fd < 0) return;
     int flags = fcntl(fd, F_GETFL, 0);
@@ -260,12 +262,25 @@ static void *worker_log_reader_mux(void *opaque) {
     close(epfd);
     return NULL;
 }
+#else
+static void *worker_log_reader_mux(void *opaque) {
+    (void)opaque;
+    while (!should_stop) {
+        g_usleep(50000);
+    }
+    return NULL;
+}
+#endif
 
 static void ensure_fd_inherited(int fd) {
+#ifndef _WIN32
     int flags = fcntl(fd, F_GETFD);
     if (flags >= 0 && (flags & FD_CLOEXEC)) {
         (void)fcntl(fd, F_SETFD, flags & ~FD_CLOEXEC);
     }
+#else
+    (void)fd;
+#endif
 }
 
 static int collect_block_cb(RAMBlock *rb, void *opaque) {
@@ -353,7 +368,7 @@ static int spawn_worker(int index) {
     w->shared = shared; w->ctx = ctx;
     g_ptr_array_add(g_workers, w);
 
-    GError *error = NULL; GPid child_pid = -1; 
+    GError *error = NULL; GPid child_pid = 0;
     int child_stdin=-1, child_stdout=-1, child_stderr=-1; 
     gboolean ok;
     gchar parent_pid_str[32]; 
@@ -408,11 +423,11 @@ static int spawn_worker(int index) {
         g_free(w->shm_name); g_free(w);
         return -2;
     }
-    w->pid = (pid_t)child_pid;
+    w->pid = child_pid;
     if (child_stdin >= 0) close(child_stdin);
     w->stdout_fd = child_stdout; w->stderr_fd = child_stderr;
     g_child_watch_add(child_pid, worker_child_watch_cb, GINT_TO_POINTER(index));
-    LOGI("spawn_worker: spawned vsoc-worker[%d] pid %d shm %s gpu %d", index, (int)w->pid, w->shm_name, chosen_gpu);
+    LOGI("spawn_worker: spawned vsoc-worker[%d] pid %p shm %s gpu %d", index, (void *)w->pid, w->shm_name, chosen_gpu);
 
     // Compulsory wait for worker_ready (up to WAIT_MS_MAX ms)
     const int WAIT_MS_MAX = 10000; // fixed compulsory wait budget
@@ -816,7 +831,9 @@ void deinit_express_platform(void) {
                     // send force_shutdown to worker
                     int32_t reason = 0;
                     vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_FORCE_SHUTDOWN, 0, &reason, sizeof(reason));
+#ifndef _WIN32
                     int status = 0; (void)waitpid(w->pid, &status, 0);
+#endif
                 }
             }
         }
@@ -826,11 +843,15 @@ void deinit_express_platform(void) {
     if (g_workers && g_workers->len > 0) {
         for (guint i = 0; i < g_workers->len; ++i) {
             VsocWorker *w = (VsocWorker *)g_ptr_array_index(g_workers, i);
+#ifndef _WIN32
             if (w->shared) munmap(w->shared, sizeof(VsocIpcShared));
+#endif
             if (w->ctx) vsoc_ipc_context_destroy(w->ctx);
             if (w->shm_name && *w->shm_name) {
+#ifndef _WIN32
                 if (shm_unlink(w->shm_name) != 0) { LOGE("shm_unlink %s failed: %s", w->shm_name, strerror(errno)); }
                 else { LOGD("shm %s unlinked", w->shm_name); }
+#endif
                 g_free(w->shm_name);
             }
             g_free(w);

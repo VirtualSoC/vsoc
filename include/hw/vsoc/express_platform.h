@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdbool.h>
+
 #include <stdlib.h>
 
 #define EXPRESS_CTRL_DEVICE_ID ((uint64_t)0)
@@ -143,22 +144,14 @@ typedef struct Thread_Context
     volatile int read_loc;
     volatile int write_loc;
 
-//缓冲区用来通知 有数据/缓冲区有空位置 的event
-// QemuEvent data_event;
-#ifdef _WIN32
-    HANDLE data_event;
-#else
+    //缓冲区用来通知 有数据/缓冲区有空位置 的event
     void *data_event;
-#endif
 
     //给特定设备用来标记当前thread是否初始化完成的标志
     int init;
 
     //当前线程是否已经运行起来了
     int thread_run;
-
-    //标示当前线程
-    void *this_thread;
 
 } Thread_Context;
 

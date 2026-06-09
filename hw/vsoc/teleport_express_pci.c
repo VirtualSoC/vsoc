@@ -286,6 +286,11 @@ static Property *get_express_device_property(void)
     return teleport_express_all_properties;
 }
 
+static void teleport_express_force_shutdown(int reason)
+{
+    qemu_system_shutdown_request((ShutdownCause)reason);
+}
+
 static void teleport_express_pci_instance_init(Object *obj)
 {
     LOGD("in teleport_express_pci_instance_init!");
@@ -297,7 +302,6 @@ static void teleport_express_pci_instance_init(Object *obj)
 
 static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
 {
-
     Teleport_Express_PCI *express_pci = TELEPORT_EXPRESS_PCI(vpci_dev);
     Teleport_Express *e = &(express_pci->teleport_express);
     DeviceState *vdev = DEVICE(e);
@@ -357,7 +361,7 @@ static void teleport_express_pci_realize(VirtIOPCIProxy *vpci_dev, Error **errp)
     ops.write_to_guest_mem = write_to_guest_mem;
     ops.set_express_device_irq = set_express_device_irq;
     ops.notify_shutdown = qemu_system_powerdown_request;
-    ops.force_shutdown = qemu_system_shutdown_request;
+    ops.force_shutdown = teleport_express_force_shutdown;
 
     init_express_platform(ops);
 

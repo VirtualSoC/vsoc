@@ -1,12 +1,14 @@
+#include "qemu/osdep.h"
+#include "qemu/thread.h"
 #include "hw/vsoc/express_log.h"
 #include "hw/vsoc/express_platform.h"
 #include "hw/vsoc/express_ipc.h"
-#include <errno.h>
+
+#ifndef _WIN32
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <linux/futex.h>
-
-#include "qemu/osdep.h"
-#include "qemu/thread.h"
+#endif
 
 // change to LOGI to enable IPC call tracing (huge logs).
 #define IPC_LOG LOGV
@@ -26,6 +28,10 @@ typedef struct PendingReq {
 
 typedef struct VsocIpcContext {
     VsocIpcShared *shared;
+#ifdef _WIN32
+    HANDLE mapping_handle;
+    size_t mapping_size;
+#endif
     bool is_parent; // remember creator role to infer direction
     PendingReq pending[VSOC_IPC_MAX_PENDING];
     QemuMutex pending_table_lock;
@@ -37,6 +43,35 @@ typedef struct VsocIpcContext {
     gint resp_consume_owner;
 } VsocIpcContext;
 
+#ifdef _WIN32
+static char *vsoc_ipc_win32_name(const char *name)
+{
+    const char *base = name;
+
+    while (*base == '/' || *base == '\\') {
+        base++;
+    }
+
+    return g_strdup_printf("Local\\%s", base);
+}
+
+static inline int futex_wake32(volatile uint32_t *addr, int n) {
+    (void)addr;
+    (void)n;
+    return 0;
+}
+
+static inline int futex_wait32(volatile uint32_t *addr, uint32_t val, int timeout_ms) {
+    uint32_t cur = qatomic_read(addr);
+
+    if (cur != val) {
+        return 0;
+    }
+
+    g_usleep(timeout_ms > 0 ? MIN(timeout_ms, 1) * 1000 : 1000);
+    return 0;
+}
+#else
 // Linux futex helpers for INTER-PROCESS synchronization.
 // NOTE: *_PRIVATE variants may not wake across processes because the kernel
 // hashes them using the caller's mm. Since these futex words live in a shared
@@ -56,6 +91,7 @@ static inline int futex_wait32(volatile uint32_t *addr, uint32_t val, int timeou
     ts.tv_nsec = (timeout_ms % 1000) * 1000000L;
     return syscall(SYS_futex, addr, FUTEX_WAIT, val, &ts, NULL, 0);
 }
+#endif
 
 // Helper to initialize a context (call once per region)
 static void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocIpcShared *shared) {
@@ -77,6 +113,37 @@ static void vsoc_ipc_context_init(VsocIpcContext *ctx, VsocIpcShared *shared) {
 // Platform-independent shared memory mapping and context creation
 VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool parent) {
     if (!name || !*name || size < sizeof(VsocIpcShared)) return NULL;
+#ifdef _WIN32
+    char *win_name = vsoc_ipc_win32_name(name);
+    HANDLE mapping = NULL;
+
+    if (parent) {
+        mapping = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+                                     (DWORD)((uint64_t)size >> 32), (DWORD)size,
+                                     win_name);
+        if (!mapping) {
+            LOGE("CreateFileMapping(%s) failed: %lu", win_name, GetLastError());
+            g_free(win_name);
+            return NULL;
+        }
+    } else {
+        mapping = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, win_name);
+        if (!mapping) {
+            LOGE("OpenFileMapping(%s) failed: %lu", win_name, GetLastError());
+            g_free(win_name);
+            return NULL;
+        }
+    }
+
+    void *addr = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, size);
+    if (!addr) {
+        LOGE("MapViewOfFile(%s) failed: %lu", win_name, GetLastError());
+        CloseHandle(mapping);
+        g_free(win_name);
+        return NULL;
+    }
+    g_free(win_name);
+#else
     int fd = -1;
     if (parent) {
         fd = shm_open(name, O_CREAT | O_RDWR, 0600);
@@ -91,6 +158,7 @@ VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool pare
     void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
     if (addr == MAP_FAILED) { LOGE("mmap %s failed: %s", name, strerror(errno)); if (parent) shm_unlink(name); return NULL; }
+#endif
 
     VsocIpcShared *shared = (VsocIpcShared*)addr;
     if (parent) {
@@ -101,12 +169,24 @@ VsocIpcContext *vsoc_ipc_context_create(const char *name, size_t size, bool pare
     }
     VsocIpcContext *ctx = (VsocIpcContext *)g_malloc0(sizeof(VsocIpcContext));
     vsoc_ipc_context_init(ctx, shared);
+#ifdef _WIN32
+    ctx->mapping_handle = mapping;
+    ctx->mapping_size = size;
+#endif
     ctx->is_parent = parent ? true : false;
     return ctx;
 }
 
 void vsoc_ipc_context_destroy(VsocIpcContext *ctx) {
     if (!ctx) return;
+#ifdef _WIN32
+    if (ctx->shared) {
+        UnmapViewOfFile(ctx->shared);
+    }
+    if (ctx->mapping_handle) {
+        CloseHandle(ctx->mapping_handle);
+    }
+#endif
     g_free(ctx);
 }
 

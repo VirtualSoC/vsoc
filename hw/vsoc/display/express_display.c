@@ -18,6 +18,8 @@
 #include "hw/vsoc/gpu/express_gpu.h"
 #include "hw/vsoc/gpu/express_gpu_main_window.h"
 #include "hw/vsoc/display/sdl_control.h"
+#include "hw/vsoc/express_device.h"
+#include "hw/vsoc/teleport_express_distribute.h"
 
 #include "hw/vsoc/input/express_keyboard.h"
 #include "hw/vsoc/input/express_touchscreen.h"

@@ -11,6 +11,7 @@
 
 // #define STD_DEBUG_LOG
 #include "hw/vsoc/express_platform.h"
+#include "hw/vsoc/express_device.h"
 #include "hw/vsoc/sensor/express_battery.h"
 #include "hw/vsoc/gpu/express_gpu_snapshot.h"
 

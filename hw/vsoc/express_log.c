@@ -253,7 +253,7 @@ void call_printf_flush(const char *buffer, gsize length)
     fwrite(buffer, sizeof(char), length, fd);
 }
 
-Thread_Context *remove_log_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, uint64_t user_id, struct Express_Device_Info *info)
+Thread_Context *remove_log_thread_context(uint64_t device_id, uint64_t thread_id, uint64_t process_id, uint64_t unique_id, struct Express_Device_Info *info)
 {
     // prevent removing the global log thread context
     return NULL;
