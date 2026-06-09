@@ -4,13 +4,6 @@
 #include "hw/vsoc/express_platform.h"
 
 
-#define EXPRESS_DEVICE_INIT(device_name, info)                                       \
-    static void __attribute__((constructor)) express_thread_init_##device_name(void) \
-    {                                                                                \
-        express_device_init_common(info);                                            \
-    }
-
-
 /**
  * @brief 自定义的Queue_Elem结构体，用来接收guest端传输过来的数据元信息
  *
