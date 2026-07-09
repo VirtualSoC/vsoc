@@ -1,3 +1,4 @@
+// #define STD_DEBUG_LOG
 #include "hw/vsoc/express_frame_pacer.h"
 
 #include "hw/vsoc/express_platform.h"
@@ -7,10 +8,15 @@
 #include "qemu/osdep.h"
 #include "qemu/thread.h"
 #include <glib.h>
+#include <math.h>
 #include <string.h>
 
 #define PACER_HISTORY 256
 #define USEC_PER_SEC 1000000.0
+#define PACER_QUERY_BUFFERS 3       /* triple-buffer pipeline-stat queries so results can be read without stalling the GPU */
+#define PACER_DEFAULT_ALPHA 1.0     /* vertex-invocation -> fragment-equivalent weight (calibrate per-GPU later) */
+#define PACER_DEFAULT_BETA 1.0      /* compute-invocation -> fragment-equivalent weight (calibrate per-GPU later) */
+#define PACER_MIN_PERCENTILE 0.05   /* robust minimum: use 5th percentile so transient low outliers cannot collapse k */
 
 typedef struct FramePacerState {
     double prev_sleep_us;
@@ -27,6 +33,8 @@ static FramePacerConfig g_cfg = {
     .ki = 0.01,
     .window_sec = 1.0,
     .custom_offset_us = 0.0,
+    .alpha = PACER_DEFAULT_ALPHA,
+    .beta = PACER_DEFAULT_BETA,
 };
 
 static GHashTable *g_states = NULL;
@@ -34,13 +42,34 @@ static QemuMutex g_lock;
 static gsize g_init_once = 0;
 static GPrivate g_query_tls = G_PRIVATE_INIT(NULL);
 
+typedef enum FramePacerQueryKind {
+    PACER_Q_FRAG = 0,
+    PACER_Q_VERT,
+    PACER_Q_COMP,
+    PACER_Q_KIND_COUNT
+} FramePacerQueryKind;
+
+/*
+ * One pipeline-statistics counter, triple-buffered. Each frame we end the
+ * query begun last frame and read back the result that was ended two frames
+ * ago (guaranteed ready), so the readback never blocks the render thread.
+ */
+typedef struct FramePacerQuery {
+    GLuint ids[PACER_QUERY_BUFFERS];
+    bool ended[PACER_QUERY_BUFFERS]; /* slot has an ended query whose result is unread */
+    int active;                      /* slot currently between Begin/End, -1 if none */
+    int write;                       /* next slot to begin a query on */
+    GLuint64 last_value;             /* most recent successfully read counter value */
+} FramePacerQuery;
+
 typedef struct FramePacerQueryState {
-    GLuint query_id;
-    bool active;
+    FramePacerQuery q[PACER_Q_KIND_COUNT];
+    bool generated;
 } FramePacerQueryState;
 
 typedef struct FramePacerGlobalK {
     double ratios[PACER_HISTORY];
+    gint64 times[PACER_HISTORY];
     int count;
     int head;
     double k_us_per_unit;
@@ -67,7 +96,7 @@ static bool frame_pacer_is_egl_swap(uint64_t id)
         return false;
     }
     uint32_t fid = GET_FUN_ID(id);
-    return fid == GET_FUN_ID(FUNID_eglSwapBuffers) || fid == GET_FUN_ID(FUNID_eglSwapBuffers_sync);
+    return fid == GET_FUN_ID(FUNID_eglSwapBuffers);
 }
 
 static FramePacerQueryState *frame_pacer_get_query_state(void)
@@ -80,27 +109,67 @@ static FramePacerQueryState *frame_pacer_get_query_state(void)
     return qs;
 }
 
+/*
+ * Advance one triple-buffered pipeline-statistics query and return the latest
+ * available counter value without stalling. Steps, per call (frame):
+ *   1. end the query begun on the previous frame;
+ *   2. non-blocking read of the slot we are about to reuse (ended >=2 frames
+ *      ago, so its result is ready); keep the previous value if somehow not;
+ *   3. begin a fresh query on that slot.
+ */
+static GLuint64 frame_pacer_query_step(FramePacerQuery *fq, GLenum target)
+{
+    if (fq->active >= 0) {
+        glEndQuery(target);
+        fq->ended[fq->active] = true;
+        fq->active = -1;
+    }
+
+    int slot = fq->write;
+    if (fq->ended[slot]) {
+        GLuint available = 0;
+        glGetQueryObjectuiv(fq->ids[slot], GL_QUERY_RESULT_AVAILABLE, &available);
+        if (available) {
+            glGetQueryObjectui64v(fq->ids[slot], GL_QUERY_RESULT, &fq->last_value);
+        }
+        fq->ended[slot] = false;
+    }
+
+    glBeginQuery(target, fq->ids[slot]);
+    fq->active = slot;
+    fq->write = (fq->write + 1) % PACER_QUERY_BUFFERS;
+
+    return fq->last_value;
+}
+
+/*
+ * Composite frame complexity C = N_frag + alpha*N_vert + beta*N_comp, gathered
+ * from GPU pipeline-statistics queries. Counters are read asynchronously, so
+ * the values correspond to a frame rendered a couple of frames earlier; that
+ * small lag is harmless given the sliding-window smoothing downstream.
+ */
 static double frame_pacer_estimate_complexity(void)
 {
     FramePacerQueryState *qs = frame_pacer_get_query_state();
-    GLuint64 invocations = 0;
 
-    if (qs->query_id == 0) {
-        glGenQueries(1, &qs->query_id);
+    if (!qs->generated) {
+        for (int k = 0; k < PACER_Q_KIND_COUNT; ++k) {
+            glGenQueries(PACER_QUERY_BUFFERS, qs->q[k].ids);
+            for (int b = 0; b < PACER_QUERY_BUFFERS; ++b) {
+                qs->q[k].ended[b] = false;
+            }
+            qs->q[k].active = -1;
+            qs->q[k].write = 0;
+            qs->q[k].last_value = 0;
+        }
+        qs->generated = true;
     }
 
-    if (qs->active) {
-        glEndQuery(GL_FRAGMENT_SHADER_INVOCATIONS_ARB);
-        glGetQueryObjectui64v(qs->query_id, GL_QUERY_RESULT, &invocations);
-    }
+    GLuint64 frag = frame_pacer_query_step(&qs->q[PACER_Q_FRAG], GL_FRAGMENT_SHADER_INVOCATIONS_ARB);
+    GLuint64 vert = frame_pacer_query_step(&qs->q[PACER_Q_VERT], GL_VERTEX_SHADER_INVOCATIONS_ARB);
+    GLuint64 comp = frame_pacer_query_step(&qs->q[PACER_Q_COMP], GL_COMPUTE_SHADER_INVOCATIONS_ARB);
 
-    glBeginQuery(GL_FRAGMENT_SHADER_INVOCATIONS_ARB, qs->query_id);
-    qs->active = true;
-
-    if (invocations == 0) {
-        return 1.0;
-    }
-    return (double)invocations;
+    return (double)frag + g_cfg.alpha * (double)vert + g_cfg.beta * (double)comp;
 }
 
 static uint64_t frame_pacer_stream_key(const Thread_Context *ctx)
@@ -111,7 +180,7 @@ static uint64_t frame_pacer_stream_key(const Thread_Context *ctx)
 }
 
 static uint64_t frame_pacer_get_frame_time(const Thread_Context *ctx) {
-    if (!ctx->device_id == EXPRESS_GPU_DEVICE_ID) {
+    if (ctx->device_id != EXPRESS_GPU_DEVICE_ID) {
         LOGW("frame_pacer_get_frame_time: called for non-GPU device %" PRIu64, ctx->device_id);
         return 0;
     }
@@ -124,7 +193,11 @@ static uint64_t frame_pacer_get_frame_time(const Thread_Context *ctx) {
     if (surface->swap_time_cnt == 0) {
         return 0;
     }
-    return surface->swap_time[(surface->swap_loc - 1) % 5];
+    if (surface->swap_time_cnt <= 3) {
+        return 0;
+    }
+    int loc = (surface->swap_loc - 1 + 5) % 5;
+    return surface->swap_time[loc];
 }
 
 void frame_pacer_maybe_apply(Thread_Context *context, uint64_t id)
@@ -152,34 +225,62 @@ static void frame_pacer_init_once(void)
     }
 }
 
-static FramePacerState *frame_pacer_get_state(uint64_t key)
+static FramePacerState *frame_pacer_get_state_locked(uint64_t key)
 {
-    frame_pacer_init_once();
-    qemu_mutex_lock(&g_lock);
     FramePacerState *st = (FramePacerState *)g_hash_table_lookup(g_states, (gpointer)(uintptr_t)key);
     if (!st) {
         st = g_new0(FramePacerState, 1);
         st->k_us_per_unit = 0.0;
         g_hash_table_insert(g_states, (gpointer)(uintptr_t)key, st);
     }
-    qemu_mutex_unlock(&g_lock);
     return st;
 }
 
-static double frame_pacer_min_ratio(FramePacerState *st, gint64 now_us, double window_us)
+static int frame_pacer_cmp_double(const void *a, const void *b)
 {
-    double min_ratio = 0.0;
-    for (int i = 0; i < st->count; ++i) {
-        int idx = (st->head - 1 - i + PACER_HISTORY) % PACER_HISTORY;
-        if (now_us - st->times[idx] > (gint64)window_us) {
+    double da = *(const double *)a;
+    double db = *(const double *)b;
+    if (da < db) return -1;
+    if (da > db) return 1;
+    return 0;
+}
+
+/*
+ * Robust estimate of the hardware "floor" ratio (time per unit complexity).
+ * The raw minimum latches onto a single degenerate frame (near-zero measured
+ * time, or a stale/huge complexity) and collapses k, disabling pacing. Instead
+ * we take a low percentile over the window, which rejects a handful of
+ * transient outliers while still tracking the true uncontended rate. With few
+ * samples this naturally degrades to (near) the minimum.
+ */
+static double frame_pacer_min_ratio(const double ratios[PACER_HISTORY], const gint64 times[PACER_HISTORY],
+                                    int count, int head, gint64 now_us, double window_us)
+{
+    double sorted[PACER_HISTORY];
+    int n = 0;
+    for (int i = 0; i < count; ++i) {
+        int idx = (head - 1 - i + PACER_HISTORY) % PACER_HISTORY;
+        if (times[idx] == 0 || now_us - times[idx] > (gint64)window_us) {
             continue;
         }
-        double r = st->ratios[idx];
-        if (min_ratio == 0.0 || r < min_ratio) {
-            min_ratio = r;
+        double r = ratios[idx];
+        if (r <= 0.0 || !isfinite(r)) {
+            continue;
         }
+        sorted[n++] = r;
     }
-    return min_ratio;
+    if (n == 0) {
+        return 0.0;
+    }
+    qsort(sorted, n, sizeof(double), frame_pacer_cmp_double);
+    int pidx = (int)(PACER_MIN_PERCENTILE * (n - 1));
+    if (pidx < 0) {
+        pidx = 0;
+    }
+    if (pidx >= n) {
+        pidx = n - 1;
+    }
+    return sorted[pidx];
 }
 
 void frame_pacer_configure(const FramePacerConfig *cfg)
@@ -191,16 +292,20 @@ void frame_pacer_configure(const FramePacerConfig *cfg)
         g_cfg.ki = cfg->ki;
         g_cfg.window_sec = cfg->window_sec;
         g_cfg.custom_offset_us = cfg->custom_offset_us;
+        g_cfg.alpha = cfg->alpha;
+        g_cfg.beta = cfg->beta;
     } else {
         g_cfg.kp = 0.1;
         g_cfg.ki = 0.01;
         g_cfg.window_sec = 1.0;
         g_cfg.custom_offset_us = 0.0;
+        g_cfg.alpha = PACER_DEFAULT_ALPHA;
+        g_cfg.beta = PACER_DEFAULT_BETA;
     }
     qemu_mutex_unlock(&g_lock);
 }
 
-static void frame_pacer_maybe_log_stats(gint64 now_us, double ratio, double sleep_us)
+static void frame_pacer_maybe_log_stats_locked(gint64 now_us, double ratio, double sleep_us, double k)
 {
     const gint64 LOG_INTERVAL_US = 1000000; // ~1s
     if (g_stats.frames == 0) {
@@ -223,8 +328,7 @@ static void frame_pacer_maybe_log_stats(gint64 now_us, double ratio, double slee
 
     double avg_ratio = g_stats.frames ? g_stats.ratio_sum / (double)g_stats.frames : 0.0;
     double avg_sleep = g_stats.frames ? g_stats.sleep_sum / (double)g_stats.frames : 0.0;
-    double k = frame_pacer_worker_get_k();
-    LOGI("frame_pacer: frames=%" PRIu64 " ratio[min/avg/max]=%.3f/%.3f/%.3f sleep_avg_us=%.3f k=%.3f", g_stats.frames, g_stats.ratio_min, avg_ratio, g_stats.ratio_max, avg_sleep, k);
+    LOGI("frame_pacer: frames=%" PRIu64 " ratio[min/avg/max]=%.9f/%.9f/%.9f sleep_avg_us=%.3f k=%.9f", g_stats.frames, g_stats.ratio_min, avg_ratio, g_stats.ratio_max, avg_sleep, k);
 
     g_stats.last_log_us = now_us;
     g_stats.ratio_sum = 0.0;
@@ -236,16 +340,21 @@ static void frame_pacer_maybe_log_stats(gint64 now_us, double ratio, double slee
 
 double frame_pacer_on_frame(uint64_t stream_key, double complexity, uint64_t t_real_us)
 {
-    FramePacerState *st = frame_pacer_get_state(stream_key);
-    if (complexity <= 0.0 || t_real_us == 0) {
+    if (complexity <= 0.0 || !isfinite(complexity) || t_real_us == 0) {
         return 0.0;
     }
 
     gint64 now_us = g_get_monotonic_time();
     double sleep_us = 0.0;
-    double ratio = 0.0;
+    double ratio = t_real_us / complexity;
+    if (ratio <= 0.0 || !isfinite(ratio)) {
+        return 0.0;
+    }
+    frame_pacer_stats_sink sink = NULL;
 
-    ratio = t_real_us / complexity;
+    frame_pacer_init_once();
+    qemu_mutex_lock(&g_lock);
+    FramePacerState *st = frame_pacer_get_state_locked(stream_key);
 
     st->times[st->head] = now_us;
     st->ratios[st->head] = ratio;
@@ -257,7 +366,7 @@ double frame_pacer_on_frame(uint64_t stream_key, double complexity, uint64_t t_r
     double k_us = g_worker_k_cached;
     if (k_us <= 0.0) {
         double window_us = (g_cfg.window_sec > 0.0 ? g_cfg.window_sec : 1.0) * USEC_PER_SEC;
-        k_us = frame_pacer_min_ratio(st, now_us, window_us);
+        k_us = frame_pacer_min_ratio(st->ratios, st->times, st->count, st->head, now_us, window_us);
     }
     if (k_us == 0.0) {
         k_us = ratio;
@@ -285,14 +394,14 @@ double frame_pacer_on_frame(uint64_t stream_key, double complexity, uint64_t t_r
 
     st->prev_err_us = err;
     st->prev_sleep_us = sleep_us;
+    sink = g_stats_sink;
+    frame_pacer_maybe_log_stats_locked(now_us, ratio, sleep_us, k_us);
     qemu_mutex_unlock(&g_lock);
 
-    if (g_stats_sink) {
-        LOGI("worker: reporting ratio %.6f", ratio);
-        g_stats_sink(ratio);
+    if (sink) {
+        LOGD("worker: reporting ratio %.9f", ratio);
+        sink(ratio);
     }
-
-    frame_pacer_maybe_log_stats(now_us, ratio, sleep_us);
 
     if (sleep_us > 0.0) {
         g_usleep((gulong)sleep_us);
@@ -302,32 +411,31 @@ double frame_pacer_on_frame(uint64_t stream_key, double complexity, uint64_t t_r
 
 void frame_pacer_set_stats_sink(frame_pacer_stats_sink sink)
 {
+    frame_pacer_init_once();
+    qemu_mutex_lock(&g_lock);
     g_stats_sink = sink;
+    qemu_mutex_unlock(&g_lock);
 }
 
 void frame_pacer_parent_ingest_ratio(double ratio)
 {
-    if (ratio <= 0.0) {
+    if (ratio <= 0.0 || !isfinite(ratio)) {
         return;
     }
+    gint64 now_us = g_get_monotonic_time();
     frame_pacer_init_once();
     qemu_mutex_lock(&g_lock);
     g_parent_k.ratios[g_parent_k.head] = ratio;
+    g_parent_k.times[g_parent_k.head] = now_us;
     g_parent_k.head = (g_parent_k.head + 1) % PACER_HISTORY;
     if (g_parent_k.count < PACER_HISTORY) {
         g_parent_k.count++;
     }
 
-    // global K is the min of recent ratios (most conservative estimate)
-    double k_us = 0.0;
-    for (int i = 0; i < g_parent_k.count; ++i) {
-        int idx = (g_parent_k.head - 1 - i + PACER_HISTORY) % PACER_HISTORY;
-        double r = g_parent_k.ratios[idx];
-        if (k_us == 0.0 || r < k_us) {
-            k_us = r;
-        }
-    }
-    g_parent_k.k_us_per_unit = k_us;
+    double window_us = (g_cfg.window_sec > 0.0 ? g_cfg.window_sec : 1.0) * USEC_PER_SEC;
+    g_parent_k.k_us_per_unit = frame_pacer_min_ratio(g_parent_k.ratios, g_parent_k.times,
+                                                     g_parent_k.count, g_parent_k.head,
+                                                     now_us, window_us);
     qemu_mutex_unlock(&g_lock);
 }
 
@@ -335,6 +443,11 @@ double frame_pacer_parent_current_k(void)
 {
     frame_pacer_init_once();
     qemu_mutex_lock(&g_lock);
+    gint64 now_us = g_get_monotonic_time();
+    double window_us = (g_cfg.window_sec > 0.0 ? g_cfg.window_sec : 1.0) * USEC_PER_SEC;
+    g_parent_k.k_us_per_unit = frame_pacer_min_ratio(g_parent_k.ratios, g_parent_k.times,
+                                                     g_parent_k.count, g_parent_k.head,
+                                                     now_us, window_us);
     double k = g_parent_k.k_us_per_unit;
     qemu_mutex_unlock(&g_lock);
     return k;
@@ -342,9 +455,12 @@ double frame_pacer_parent_current_k(void)
 
 void frame_pacer_worker_set_k(double k)
 {
+    if (k < 0.0 || !isfinite(k)) {
+        return;
+    }
     frame_pacer_init_once();
     qemu_mutex_lock(&g_lock);
-    LOGI("worker set k: %.6f->%.6f", g_worker_k_cached, k);
+    LOGD("worker set k: %.9f->%.9f", g_worker_k_cached, k);
     g_worker_k_cached = k;
     qemu_mutex_unlock(&g_lock);
 }

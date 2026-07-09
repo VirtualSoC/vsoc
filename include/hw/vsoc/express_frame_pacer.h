@@ -11,13 +11,15 @@ typedef struct FramePacerConfig {
     double ki;
     double window_sec;
     double custom_offset_us;
+    double alpha; /* vertex-invocation weight for composite complexity */
+    double beta;  /* compute-invocation weight for composite complexity */
 } FramePacerConfig;
 
 /*
  * Record a frame boundary for a rendering stream. The pacer applies any
  * computed sleep internally and returns the sleep duration in microseconds.
  * `stream_key` should uniquely identify the producer (e.g., process+thread id).
- * `complexity` defaults to 1.0 if non-positive and is used to normalize timing.
+ * `complexity` must be positive and is used to normalize timing.
  * `frame_time_us` is the measured frame interval in microseconds.
  */
 double frame_pacer_on_frame(uint64_t stream_key, double complexity, uint64_t t_real_us);
