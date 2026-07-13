@@ -350,7 +350,7 @@ static int scan_nvidia_gpus(void) {
 
 // Spawn a single worker at a given index and wait (up to a fixed timeout) for worker_ready.
 // Returns 0 on success, negative on failure.
-static int spawn_worker(int index) {
+static int spawn_worker(int index, int disp_w, int disp_h, int disp_r) {
     const char *worker_path = getenv("VSOC_WORKER_PATH");
     if (!worker_path || !*worker_path) worker_path = "vsoc-worker";
     VsocWorker *w = g_new0(VsocWorker, 1);
@@ -447,7 +447,21 @@ static int spawn_worker(int index) {
     }
 
     // Initialize worker with platform ops and RAM regions.
-    vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_PLATFORM_INIT, 0, &g_ops, sizeof(g_ops));
+    // Send a private copy of g_ops so a per-tenant display profile (resolution/
+    // refresh) can be bound to just this worker (see `express container new
+    // WxH[@R]`) without mutating shared state or disturbing existing workers.
+    ExpressPlatformOps ops_copy = g_ops;
+    if (disp_w > 0 && disp_h > 0) {
+        ops_copy.express_display_pixel_width = disp_w;
+        ops_copy.express_display_pixel_height = disp_h;
+        if (disp_r > 0) {
+            ops_copy.express_display_refresh_rate = disp_r;
+        }
+        // Force the uniform display path in the worker (ignore any shared
+        // display_options list that would otherwise be indexed by display id).
+        ops_copy.express_display_options[0] = '\0';
+    }
+    vsoc_ipc_send(w->ctx, VSOC_IPC_TYPE_PLATFORM_INIT, 0, &ops_copy, sizeof(ops_copy));
 
     return 0;
 }
@@ -457,7 +471,7 @@ static void spawn_worker_processes(int count) {
     if (count <= 0) count = 1;
     if (!g_workers) g_workers = g_ptr_array_new();
     for (int i = 0; i < count; ++i) {
-        spawn_worker(i);
+        spawn_worker(i, 0, 0, 0);
     }
 
     // After worker init, inform worker of RAM regions (FDs are already inherited)
@@ -1060,11 +1074,22 @@ void *handle_thread_run(void *opaque) //初始化后运行的新qemu thread
 }
 
 static void container_hmp_handler(Monitor *mon, int argc, const char **argv) {
-    if (argc == 1 && strcmp(argv[0], "new") == 0) {
+    if (argc >= 1 && strcmp(argv[0], "new") == 0) {
         // Dynamically add a new container: spawn worker and adjust display count.
+        // Optional per-tenant display profile: `new WxH[@R]` binds the requested
+        // resolution/refresh to this container's device slice at request time
+        // (DPI is applied guest-side). Omit it to use the instance default.
         if (!g_ops.express_device_multi_process) {
             MONITOR_LOG(mon, "error: multi-process not enabled\n");
             return;
+        }
+
+        int disp_w = 0, disp_h = 0, disp_r = 0;
+        if (argc >= 2) {
+            if (sscanf(argv[1], "%dx%d@%d", &disp_w, &disp_h, &disp_r) < 2) {
+                MONITOR_LOG(mon, "error: invalid profile '%s', expected WxH[@R]\n", argv[1]);
+                return;
+            }
         }
 
         int wid = (int)g_workers->len;
@@ -1073,7 +1098,7 @@ static void container_hmp_handler(Monitor *mon, int argc, const char **argv) {
         // increment display count so future workers know about it.
         g_ops.express_display_count += 1;
         
-        if (spawn_worker(wid) != 0) {
+        if (spawn_worker(wid, disp_w, disp_h, disp_r) != 0) {
             MONITOR_LOG(mon, "error: failed to spawn new container\n");
             return;
         }
