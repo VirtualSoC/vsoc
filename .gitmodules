@@ -66,4 +66,4 @@
 	url = https://gitlab.com/qemu-project/libvfio-user.git
 [submodule "ui/keycodemapdb"]
 	path = ui/keycodemapdb
-	url = https://cloud203.asuscomm.com/emulator-group/keycodemapdb.git
+	url = https://github.com/virtualsoc/keycodemapdb.git
